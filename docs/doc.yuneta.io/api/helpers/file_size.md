@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the size of a file at the specified path in bytes.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC off_t file_size(
+    const char  *path
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path of the file to query.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the size of the file in bytes, or a negative value on failure.
+        
 
 
 <!--====================================================-->

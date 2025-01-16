@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Load a persistent JSON object from a file. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *load_persistent_json(
+    const char  *path,
+    int          verbose
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the persistent JSON file.
+
+* - `verbose`
+  - `int`
+  - The verbosity level for logging messages.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object containing the persistent data, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

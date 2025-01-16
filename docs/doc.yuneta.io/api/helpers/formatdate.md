@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Format a timestamp into a human-readable date string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *formatdate(
+    double      timestamp,
+    const char  *format
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `timestamp`
+  - `double`
+  - The timestamp to format, in seconds since the epoch.
+
+* - `format`
+  - `const char *`
+  - The format string for the date (e.g., `"%Y-%m-%d %H:%M:%S"`).
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a string containing the formatted date, or `NULL` on failure. The caller is responsible for freeing the string.
+        
 
 
 <!--====================================================-->

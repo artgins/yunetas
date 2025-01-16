@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Load a JSON object from a file. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *load_json_from_file(
+    const char  *path,
+    int          verbose
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the JSON file.
+
+* - `verbose`
+  - `int`
+  - The verbosity level for logging messages.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object containing the data from the file, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

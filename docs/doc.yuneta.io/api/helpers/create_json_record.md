@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create a JSON object record with predefined fields. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *create_json_record(
+    const char  *schema,
+    const char  *data
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `schema`
+  - `const char *`
+  - The schema defining the structure of the record.
+
+* - `data`
+  - `const char *`
+  - The data to populate the record with.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object representing the JSON record, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

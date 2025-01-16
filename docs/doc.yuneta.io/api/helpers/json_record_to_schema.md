@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a JSON object record to its corresponding schema format. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *json_record_to_schema(
+    json_t      *record
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `record`
+  - [`json_t *`](json_t)
+  - The JSON record to convert.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object representing the schema of the record, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

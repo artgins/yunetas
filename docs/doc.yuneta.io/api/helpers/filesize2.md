@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the size of a file in bytes using a file descriptor.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC off_t filesize2(
+    int         fd
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `fd`
+  - `int`
+  - The file descriptor of the file to query.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the size of the file in bytes, or a negative value on failure.
+        
 
 
 <!--====================================================-->

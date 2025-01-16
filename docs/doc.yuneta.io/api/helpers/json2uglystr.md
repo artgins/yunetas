@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a JSON object to a compact, unformatted JSON string. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *json2uglystr(
+    json_t      *jn
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn`
+  - [`json_t *`](json_t)
+  - The JSON object to convert to a string.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a newly allocated string containing the compact JSON representation, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

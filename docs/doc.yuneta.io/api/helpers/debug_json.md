@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Debug and print the contents of a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC void debug_json(
+    json_t      *json,
+    const char  *title
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `json`
+  - [`json_t *`](json_t)
+  - The JSON object to debug.
+
+* - `title`
+  - `const char *`
+  - An optional title for the debug output.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function outputs debug information for the JSON object.
+        
 
 
 <!--====================================================-->

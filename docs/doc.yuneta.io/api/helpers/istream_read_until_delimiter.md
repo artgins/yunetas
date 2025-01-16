@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Read data from an input stream until a specified delimiter is encountered.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,52 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t istream_read_until_delimiter(
+    istream_t *istream,
+    char      *buffer,
+    size_t     buffer_size,
+    char       delimiter
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to read from.
+
+* - `buffer`
+  - `char *`
+  - The buffer to store the read data.
+
+* - `buffer_size`
+  - `size_t`
+  - The size of the buffer.
+
+* - `delimiter`
+  - `char`
+  - The delimiter to stop reading at.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes successfully read, or `0` on failure.
+        
 
 
 <!--====================================================-->

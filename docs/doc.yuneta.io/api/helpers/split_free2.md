@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Free the memory allocated for two strings that were split.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC void split_free2(
+    char        *part1,
+    char        *part2
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `part1`
+  - `char *`
+  - The first string to free.
+
+* - `part2`
+  - `char *`
+  - The second string to free.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function frees the memory for the two strings.
+        
 
 
 <!--====================================================-->

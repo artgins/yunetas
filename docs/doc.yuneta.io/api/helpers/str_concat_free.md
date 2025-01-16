@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Concatenate two strings into a newly allocated string and free the input strings.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *str_concat_free(
+    char        *str1,
+    char        *str2
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `str1`
+  - `char *`
+  - The first string to concatenate and free.
+
+* - `str2`
+  - `char *`
+  - The second string to concatenate and free.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a newly allocated string containing the concatenation of `str1` and `str2`, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

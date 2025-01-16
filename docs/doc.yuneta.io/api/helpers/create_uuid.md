@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Generate a new universally unique identifier (UUID).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,31 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *create_uuid(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a string containing the newly generated UUID. The caller is responsible for freeing the string.
+        
 
 
 <!--====================================================-->
@@ -155,4 +174,3 @@
 ``````
 
 ```````
-

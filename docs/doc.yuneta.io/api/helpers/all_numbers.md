@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a string contains only numeric characters.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL all_numbers(
+    const char  *string
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `const char *`
+  - The string to check.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the string contains only numeric characters, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

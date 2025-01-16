@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Load a JSON configuration file and return its contents. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *json_config(
+    const char  *path,
+    int          verbose
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the JSON configuration file.
+
+* - `verbose`
+  - `int`
+  - The verbosity level for logging messages.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object containing the configuration data, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove the contents of a directory without deleting the directory itself.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC int rmrcontentdir(
+    const char  *path
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path of the directory whose contents will be removed.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

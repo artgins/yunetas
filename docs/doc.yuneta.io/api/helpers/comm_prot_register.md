@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Register a communication protocol handler.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int comm_prot_register(
+    const char  *protocol_name,
+    void        (*callback)(void *data, int size),
+    void        *user_data
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `protocol_name`
+  - `const char *`
+  - The name of the protocol to register.
+
+* - `callback`
+  - `void (*)(void *, int)`
+  - The function to handle protocol events.
+
+* - `user_data`
+  - `void *`
+  - User-defined data to pass to the callback function.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

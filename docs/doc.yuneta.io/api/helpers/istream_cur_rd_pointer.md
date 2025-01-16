@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the current read pointer for the input stream.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *istream_cur_rd_pointer(
+    istream_t *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to query.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the current read position in the input stream.
+        
 
 
 <!--====================================================-->

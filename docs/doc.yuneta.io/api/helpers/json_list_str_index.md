@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Find the index of a string in a JSON array. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int json_list_str_index(
+    json_t      *jn_list,
+    const char  *string
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn_list`
+  - [`json_t *`](json_t)
+  - The JSON array to search.
+
+* - `string`
+  - `const char *`
+  - The string to find in the array.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the index of the string in the JSON array, or `-1` if not found.
+        
 
 
 <!--====================================================-->

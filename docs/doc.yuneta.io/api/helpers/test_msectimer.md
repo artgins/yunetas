@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Test the elapsed time since `start_msectimer()` was called, in milliseconds.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC double test_msectimer(
+    double start
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `start`
+  - `double`
+  - The start timestamp returned by `start_msectimer()`.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the elapsed time in milliseconds as a `double` value.
+        
 
 
 <!--====================================================-->

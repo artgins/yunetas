@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a JSON-formatted string to a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *string2json(
+    const char  *string,
+    int          verbose
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `const char *`
+  - The JSON-formatted string to parse.
+
+* - `verbose`
+  - `int`
+  - The verbosity level for logging.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object created from the string, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

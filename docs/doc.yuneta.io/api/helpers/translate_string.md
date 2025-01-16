@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Translate all occurrences of a specified character in a string to another character.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *translate_string(
+    char        *string,
+    char         from,
+    char         to
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `char *`
+  - The string to modify.
+
+* - `from`
+  - `char`
+  - The character to replace.
+
+* - `to`
+  - `char`
+  - The character to replace it with.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the modified string with characters replaced.
+        
 
 
 <!--====================================================-->

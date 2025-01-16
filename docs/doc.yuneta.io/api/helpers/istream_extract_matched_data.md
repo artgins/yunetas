@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Extract data from the input stream that matches a specified pattern or condition.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,57 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t istream_extract_matched_data(
+    istream_t   *istream,
+    char        *buffer,
+    size_t       buffer_size,
+    BOOL         (*match_fn)(const char *data, size_t size, void *user_data),
+    void        *user_data
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to extract data from.
+
+* - `buffer`
+  - `char *`
+  - The buffer to store the matched data.
+
+* - `buffer_size`
+  - `size_t`
+  - The size of the buffer.
+
+* - `match_fn`
+  - `BOOL (*)(const char *, size_t, void *)`
+  - A function pointer to evaluate matches for the data.
+
+* - `user_data`
+  - `void *`
+  - User-defined data passed to the match function.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes of matched data extracted, or `0` if no match was found.
+        
 
 
 <!--====================================================-->

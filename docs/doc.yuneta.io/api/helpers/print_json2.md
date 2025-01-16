@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Pretty-print a JSON object to the console. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void print_json2(
+    json_t      *json
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `json`
+  - [`json_t *`](json_t)
+  - The JSON object to print.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function outputs the JSON object to the console in a readable format.
+        
 
 
 <!--====================================================-->

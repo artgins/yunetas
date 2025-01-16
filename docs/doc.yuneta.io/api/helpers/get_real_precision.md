@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the current precision setting for converting real numbers to strings.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,35 @@
 **Prototype**
 
 ```C
+
+PUBLIC int get_real_precision(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the current precision setting for real numbers.
+        
 
 
 <!--====================================================-->
@@ -155,4 +178,3 @@
 ``````
 
 ```````
-

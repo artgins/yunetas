@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Handle received HTTP data for parsing.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int ghttp_parser_received(
+    const char  *data,
+    size_t       size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `data`
+  - `const char *`
+  - The HTTP data received.
+
+* - `size`
+  - `size_t`
+  - The size of the HTTP data.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

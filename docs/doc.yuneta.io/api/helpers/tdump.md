@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Dump the contents of memory in a human-readable format.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC void tdump(
+    const void  *data,
+    size_t       size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `data`
+  - `const void *`
+  - The memory block to dump.
+
+* - `size`
+  - `size_t`
+  - The size of the memory block in bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function outputs the memory dump to the standard output or log.
+        
 
 
 <!--====================================================-->

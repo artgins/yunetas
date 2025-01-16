@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a 64-bit integer from host byte order to network byte order.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC uint64_t htonll(
+    uint64_t hostlonglong
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `hostlonglong`
+  - `uint64_t`
+  - The 64-bit integer in host byte order.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the 64-bit integer in network byte order.
+        
 
 
 <!--====================================================-->

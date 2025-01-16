@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Pop and remove the current gbuffer from the input stream. Works with [`gbuffer_t *`](gbuffer_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC gbuffer_t *istream_pop_gbuffer(
+    istream_t *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to pop the gbuffer from.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the removed [`gbuffer_t *`](gbuffer_t), or `NULL` on failure. The caller is responsible for freeing the gbuffer.
+        
 
 
 <!--====================================================-->

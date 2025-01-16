@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if the specified path points to a directory.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL is_directory(
+    const char  *path
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to check.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the path points to a directory, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert single quotes in a string to double quotes.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *helper_quote2doublequote(
+    char        *string
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `char *`
+  - The string to modify.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the modified string with single quotes converted to double quotes.
+        
 
 
 <!--====================================================-->

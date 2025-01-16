@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Open a file in exclusive mode, creating it if it does not exist.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int open_exclusive(
+    const char  *path,
+    int         flags,
+    int         mode
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path of the file to open.
+
+* - `flags`
+  - `int`
+  - The flags for opening the file.
+
+* - `mode`
+  - `int`
+  - The permissions mode for the file, used if the file is created.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the file descriptor on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

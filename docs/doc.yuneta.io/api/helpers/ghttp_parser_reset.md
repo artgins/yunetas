@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Reset an HTTP parser to its initial state.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,31 @@
 **Prototype**
 
 ```C
+
+PUBLIC void ghttp_parser_reset(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function resets the parser's state.
+        
 
 
 <!--====================================================-->
@@ -155,4 +174,3 @@
 ``````
 
 ```````
-

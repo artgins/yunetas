@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Count the occurrences of a specific character in a string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int count_char(
+    const char  *string,
+    char         c
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `const char *`
+  - The string to search.
+
+* - `c`
+  - `char`
+  - The character to count.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of times the character `c` appears in the string.
+        
 
 
 <!--====================================================-->

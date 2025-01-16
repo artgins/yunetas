@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create a new directory at the specified path.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int newdir(
+    const char  *path,
+    int         mode
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path of the directory to create.
+
+* - `mode`
+  - `int`
+  - The permissions mode for the new directory.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

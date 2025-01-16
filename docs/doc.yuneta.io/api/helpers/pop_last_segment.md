@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove the last segment from a path string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *pop_last_segment(
+    char        *path,
+    char         separator
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `char *`
+  - The path string to modify.
+
+* - `separator`
+  - `char`
+  - The character used to separate path segments.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the modified path string with the last segment removed.
+        
 
 
 <!--====================================================-->

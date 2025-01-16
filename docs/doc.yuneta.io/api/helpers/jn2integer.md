@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a JSON value to an integer. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int jn2integer(
+    json_t      *jn,
+    int         default_value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn`
+  - [`json_t *`](json_t)
+  - The JSON value to convert.
+
+* - `default_value`
+  - `int`
+  - The default value to return if the JSON value cannot be converted to an integer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the integer value, or `default_value` if the conversion fails.
+        
 
 
 <!--====================================================-->

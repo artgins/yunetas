@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Free the memory allocated for an ordered array of filenames.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC void free_ordered_filename_array(
+    char        **filename_array,
+    int           file_count
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `filename_array`
+  - `char **`
+  - The array of filenames to free.
+
+* - `file_count`
+  - `int`
+  - The number of files in the array.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function frees the memory allocated for the filename array.
+        
 
 
 <!--====================================================-->

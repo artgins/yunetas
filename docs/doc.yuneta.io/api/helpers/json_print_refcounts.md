@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Print the reference counts of all JSON objects for debugging purposes. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,35 @@
 **Prototype**
 
 ```C
+
+PUBLIC void json_print_refcounts(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function prints the reference counts of JSON objects to the output.
+        
 
 
 <!--====================================================-->
@@ -155,4 +178,3 @@
 ``````
 
 ```````
-

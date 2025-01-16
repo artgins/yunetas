@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the last segment of a path string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *get_last_segment(
+    const char  *path,
+    char         separator
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path string to analyze.
+
+* - `separator`
+  - `char`
+  - The character used to separate path segments.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the last segment in the path string.
+        
 
 
 <!--====================================================-->

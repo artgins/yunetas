@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create and attach a new gbuffer to the input stream. Works with [`gbuffer_t *`](gbuffer_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC gbuffer_t *istream_new_gbuffer(
+    istream_t *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to attach the new gbuffer to.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the newly created [`gbuffer_t *`](gbuffer_t), or `NULL` on failure.
+        
 
 
 <!--====================================================-->

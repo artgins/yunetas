@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the UUID of the current node.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,31 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *node_uuid(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a constant string containing the node's UUID.
+        
 
 
 <!--====================================================-->
@@ -155,4 +174,3 @@
 ``````
 
 ```````
-

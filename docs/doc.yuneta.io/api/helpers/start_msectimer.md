@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Start a timer to measure elapsed time in milliseconds.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,35 @@
 **Prototype**
 
 ```C
+
+PUBLIC double start_msectimer(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the current timestamp as a `double` value in milliseconds.
+        
 
 
 <!--====================================================-->
@@ -155,4 +178,3 @@
 ``````
 
 ```````
-

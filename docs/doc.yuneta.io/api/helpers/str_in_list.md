@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a value exists in a list of strings.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL str_in_list(
+    const char  *list[],
+    const char  *value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - `const char *[]`
+  - The list of strings to search.
+
+* - `value`
+  - `const char *`
+  - The value to search for in the list.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the value exists in the list, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

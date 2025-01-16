@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the number of files in a specified directory.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC int get_number_of_files(
+    const char  *path
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the directory to count files in.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of files in the directory, or a negative value on failure.
+        
 
 
 <!--====================================================-->

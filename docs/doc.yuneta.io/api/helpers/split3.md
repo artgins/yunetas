@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Split a string into three parts based on two delimiters.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,77 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL split3(
+    const char  *string,
+    char         delimiter1,
+    char         delimiter2,
+    char        *part1,
+    int          part1_size,
+    char        *part2,
+    int          part2_size,
+    char        *part3,
+    int          part3_size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `const char *`
+  - The string to split.
+
+* - `delimiter1`
+  - `char`
+  - The first delimiter used to split the string.
+
+* - `delimiter2`
+  - `char`
+  - The second delimiter used to split the string.
+
+* - `part1`
+  - `char *`
+  - The buffer to store the first part of the split string.
+
+* - `part1_size`
+  - `int`
+  - The size of the buffer for the first part.
+
+* - `part2`
+  - `char *`
+  - The buffer to store the second part of the split string.
+
+* - `part2_size`
+  - `int`
+  - The size of the buffer for the second part.
+
+* - `part3`
+  - `char *`
+  - The buffer to store the third part of the split string.
+
+* - `part3_size`
+  - `int`
+  - The size of the buffer for the third part.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the string was successfully split into three parts, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

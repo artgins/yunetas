@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Save a JSON object to a file. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int save_json_to_file(
+    const char  *path,
+    json_t      *json
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to save the JSON file.
+
+* - `json`
+  - [`json_t *`](json_t)
+  - The JSON object to save.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

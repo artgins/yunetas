@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Destroy an input stream and free associated resources.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void istream_destroy(
+    istream_t *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to destroy.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function frees resources associated with the input stream.
+        
 
 
 <!--====================================================-->

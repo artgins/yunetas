@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the GClass (Generic Class) associated with a communication protocol.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *comm_prot_get_gclass(
+    const char  *protocol_name
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `protocol_name`
+  - `const char *`
+  - The name of the communication protocol.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the name of the GClass associated with the protocol, or `NULL` if not found.
+        
 
 
 <!--====================================================-->

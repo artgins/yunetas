@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve the current gbuffer from the input stream. Works with [`gbuffer_t *`](gbuffer_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC gbuffer_t *istream_get_gbuffer(
+    istream_t *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to retrieve the gbuffer from.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the current [`gbuffer_t *`](gbuffer_t) in the input stream, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

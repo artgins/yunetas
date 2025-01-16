@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Recursively walk through a directory tree and process each file and subdirectory.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int walk_dir_tree(
+    const char  *path,
+    int (*callback)(const char *path, void *user_data),
+    void        *user_data
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The root directory to start walking.
+
+* - `callback`
+  - `int (*)(const char *, void *)`
+  - A function pointer to process each file or subdirectory.
+
+* - `user_data`
+  - `void *`
+  - User-defined data passed to the callback function.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

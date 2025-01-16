@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Read data from an input stream until a specified number of bytes is read.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t istream_read_until_num_bytes(
+    istream_t *istream,
+    char      *buffer,
+    size_t     num_bytes
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to read from.
+
+* - `buffer`
+  - `char *`
+  - The buffer to store the read data.
+
+* - `num_bytes`
+  - `size_t`
+  - The number of bytes to read from the stream.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes successfully read, or `0` on failure.
+        
 
 
 <!--====================================================-->

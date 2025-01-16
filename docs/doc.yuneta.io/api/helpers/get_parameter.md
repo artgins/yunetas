@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Extract a parameter value from a query string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *get_parameter(
+    const char  *query_string,
+    const char  *parameter_name
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `query_string`
+  - `const char *`
+  - The query string to search.
+
+* - `parameter_name`
+  - `const char *`
+  - The name of the parameter to retrieve.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the value of the specified parameter, or `NULL` if not found.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Destroy an HTTP parser and free associated resources.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,31 @@
 **Prototype**
 
 ```C
+
+PUBLIC void ghttp_parser_destroy(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function releases resources associated with the HTTP parser.
+        
 
 
 <!--====================================================-->
@@ -155,4 +174,3 @@
 ``````
 
 ```````
-

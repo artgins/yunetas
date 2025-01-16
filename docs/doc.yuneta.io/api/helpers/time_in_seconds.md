@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the current system time in seconds since the epoch.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,31 @@
 **Prototype**
 
 ```C
+
+PUBLIC time_t time_in_seconds(void);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the current system time as a `time_t` value in seconds since the epoch.
+        
 
 
 <!--====================================================-->
@@ -155,4 +174,3 @@
 ``````
 
 ```````
-

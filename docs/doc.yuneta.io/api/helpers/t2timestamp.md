@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a time value in seconds since the epoch to a `double` timestamp.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC double t2timestamp(
+    time_t t
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `t`
+  - `time_t`
+  - The time value in seconds since the epoch.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the timestamp as a `double` value in seconds since the epoch.
+        
 
 
 <!--====================================================-->

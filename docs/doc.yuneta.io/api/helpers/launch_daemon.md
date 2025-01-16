@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Launch a process as a daemon.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC int launch_daemon(
+    const char  *command,
+    const char  *working_dir,
+    const char  *output_file
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `command`
+  - `const char *`
+  - The command to execute as a daemon.
+
+* - `working_dir`
+  - `const char *`
+  - The working directory for the daemon process.
+
+* - `output_file`
+  - `const char *`
+  - The file to redirect the daemon's output to.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the PID of the launched daemon on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

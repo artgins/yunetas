@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a `struct tm` to a timestamp in seconds since the epoch.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC double tm2timestamp(
+    const struct tm *tm
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `tm`
+  - `const struct tm *`
+  - A pointer to the `struct tm` to convert.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the timestamp as a `double` value in seconds since the epoch.
+        
 
 
 <!--====================================================-->

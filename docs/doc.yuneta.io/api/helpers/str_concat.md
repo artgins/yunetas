@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Concatenate two strings into a newly allocated string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *str_concat(
+    const char  *str1,
+    const char  *str2
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `str1`
+  - `const char *`
+  - The first string to concatenate.
+
+* - `str2`
+  - `const char *`
+  - The second string to concatenate.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a newly allocated string containing the concatenation of `str1` and `str2`, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

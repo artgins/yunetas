@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Delete a specified character from the left end of a string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *delete_left_char(
+    char        *string,
+    char         c
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `char *`
+  - The string to modify.
+
+* - `c`
+  - `char`
+  - The character to remove from the left end of the string.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the modified string.
+        
 
 
 <!--====================================================-->

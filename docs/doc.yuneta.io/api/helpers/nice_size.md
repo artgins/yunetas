@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a file size in bytes to a human-readable string with appropriate units (e.g., KB, MB).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC const char *nice_size(
+    off_t       size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `size`
+  - `off_t`
+  - The file size in bytes to convert.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a human-readable string representation of the file size.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+List all open file descriptors for the current process.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC char **list_open_files(
+    int *file_count
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `file_count`
+  - `int *`
+  - A pointer to store the number of open files.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns an array of strings containing the paths of open files, or `NULL` on failure. The caller is responsible for freeing the array.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Consume a specified number of bytes from the input stream, advancing the read pointer.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t istream_consume(
+    istream_t *istream,
+    size_t     num_bytes
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to consume data from.
+
+* - `num_bytes`
+  - `size_t`
+  - The number of bytes to consume.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes successfully consumed, or `0` on failure.
+        
 
 
 <!--====================================================-->

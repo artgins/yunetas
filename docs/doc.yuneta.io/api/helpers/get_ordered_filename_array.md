@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Retrieve an ordered array of filenames from a directory.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC char **get_ordered_filename_array(
+    const char  *path,
+    int         *file_count
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to the directory.
+
+* - `file_count`
+  - `int *`
+  - A pointer to store the number of files in the array.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns an ordered array of filenames, or `NULL` on failure. The caller is responsible for freeing the array.
+        
 
 
 <!--====================================================-->

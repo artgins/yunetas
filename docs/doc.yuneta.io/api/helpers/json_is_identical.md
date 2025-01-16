@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if two JSON objects or arrays are identical. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL json_is_identical(
+    json_t      *jn1,
+    json_t      *jn2
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn1`
+  - [`json_t *`](json_t)
+  - The first JSON object or array to compare.
+
+* - `jn2`
+  - [`json_t *`](json_t)
+  - The second JSON object or array to compare.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the JSON objects or arrays are identical, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

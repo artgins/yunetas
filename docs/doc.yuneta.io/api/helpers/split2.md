@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Split a string into two parts based on a delimiter.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,62 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL split2(
+    const char  *string,
+    char         delimiter,
+    char        *part1,
+    int          part1_size,
+    char        *part2,
+    int          part2_size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `const char *`
+  - The string to split.
+
+* - `delimiter`
+  - `char`
+  - The character used to split the string.
+
+* - `part1`
+  - `char *`
+  - The buffer to store the first part of the split string.
+
+* - `part1_size`
+  - `int`
+  - The size of the buffer for the first part.
+
+* - `part2`
+  - `char *`
+  - The buffer to store the second part of the split string.
+
+* - `part2_size`
+  - `int`
+  - The size of the buffer for the second part.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the string was successfully split into two parts, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

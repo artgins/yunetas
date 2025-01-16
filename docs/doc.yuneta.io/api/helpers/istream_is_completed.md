@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if the input stream has completed reading all data.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL istream_is_completed(
+    istream_t   *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to check.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the input stream has completed reading all data, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

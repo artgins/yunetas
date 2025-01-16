@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a 64-bit integer from network byte order to host byte order.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC uint64_t ntohll(
+    uint64_t netlonglong
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `netlonglong`
+  - `uint64_t`
+  - The 64-bit integer in network byte order.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the 64-bit integer in host byte order.
+        
 
 
 <!--====================================================-->

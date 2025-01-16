@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Clear the input stream, removing all data and resetting pointers.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void istream_clear(
+    istream_t   *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to clear.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function clears all data from the input stream.
+        
 
 
 <!--====================================================-->

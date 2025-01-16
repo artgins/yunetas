@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Remove trailing whitespace characters from a string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *delete_right_blanks(
+    char        *string
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `string`
+  - `char *`
+  - The string to modify.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the modified string with trailing whitespace removed.
+        
 
 
 <!--====================================================-->

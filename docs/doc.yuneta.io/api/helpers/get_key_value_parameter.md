@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Parse a key-value pair parameter from a string.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,57 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL get_key_value_parameter(
+    const char  *parameter,
+    char        *key,
+    int          key_size,
+    char        *value,
+    int          value_size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `parameter`
+  - `const char *`
+  - The string containing the key-value pair.
+
+* - `key`
+  - `char *`
+  - The buffer to store the extracted key.
+
+* - `key_size`
+  - `int`
+  - The size of the key buffer.
+
+* - `value`
+  - `char *`
+  - The buffer to store the extracted value.
+
+* - `value_size`
+  - `int`
+  - The size of the value buffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the key-value pair was successfully parsed, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

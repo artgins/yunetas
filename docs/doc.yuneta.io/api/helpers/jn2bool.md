@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a JSON value to a boolean. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL jn2bool(
+    json_t      *jn,
+    BOOL        default_value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn`
+  - [`json_t *`](json_t)
+  - The JSON value to convert.
+
+* - `default_value`
+  - `BOOL`
+  - The default value to return if the JSON value cannot be converted to a boolean.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the boolean value, or `default_value` if the conversion fails.
+        
 
 
 <!--====================================================-->

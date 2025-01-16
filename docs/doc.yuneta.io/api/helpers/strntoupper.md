@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a string to uppercase up to a specified length.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,47 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *strntoupper(
+    char        *dest,
+    const char  *src,
+    int         n
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `dest`
+  - `char *`
+  - The destination buffer for the uppercase string.
+
+* - `src`
+  - `const char *`
+  - The source string to convert.
+
+* - `n`
+  - `int`
+  - The maximum number of characters to convert.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the destination buffer containing the uppercase string.
+        
 
 
 <!--====================================================-->

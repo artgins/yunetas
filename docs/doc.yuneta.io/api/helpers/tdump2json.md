@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a memory dump into a JSON object. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC json_t *tdump2json(
+    const void  *data,
+    size_t       size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `data`
+  - `const void *`
+  - The memory block to convert.
+
+* - `size`
+  - `size_t`
+  - The size of the memory block in bytes.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a [`json_t *`](json_t) object representing the memory dump, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

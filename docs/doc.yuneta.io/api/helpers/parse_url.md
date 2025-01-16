@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Parse a URL into its components.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,77 @@
 **Prototype**
 
 ```C
+
+PUBLIC int parse_url(
+    const char  *url,
+    char        *schema,
+    int          schema_size,
+    char        *host,
+    int          host_size,
+    char        *port,
+    int          port_size,
+    char        *path,
+    int          path_size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `url`
+  - `const char *`
+  - The URL to parse.
+
+* - `schema`
+  - `char *`
+  - Buffer to store the URL schema.
+
+* - `schema_size`
+  - `int`
+  - The size of the schema buffer.
+
+* - `host`
+  - `char *`
+  - Buffer to store the URL host.
+
+* - `host_size`
+  - `int`
+  - The size of the host buffer.
+
+* - `port`
+  - `char *`
+  - Buffer to store the URL port.
+
+* - `port_size`
+  - `int`
+  - The size of the port buffer.
+
+* - `path`
+  - `char *`
+  - Buffer to store the URL path.
+
+* - `path_size`
+  - `int`
+  - The size of the path buffer.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

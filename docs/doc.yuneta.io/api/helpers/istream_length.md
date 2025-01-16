@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Get the length of data available in the input stream.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC size_t istream_length(
+    istream_t *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream to query.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the number of bytes currently available in the input stream.
+        
 
 
 <!--====================================================-->

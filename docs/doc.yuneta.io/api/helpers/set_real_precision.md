@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Set the precision for converting real numbers to strings.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void set_real_precision(
+    int         precision
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `precision`
+  - `int`
+  - The number of decimal places for real number precision.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function sets the global precision for real numbers.
+        
 
 
 <!--====================================================-->

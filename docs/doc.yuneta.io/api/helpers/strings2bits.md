@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a JSON array of strings to a bitmask based on a predefined mapping. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC uint64_t strings2bits(
+    json_t      *jn_strlist,
+    const char *bit_names[]
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn_strlist`
+  - [`json_t *`](json_t)
+  - The JSON array of strings to convert.
+
+* - `bit_names`
+  - `const char *[]`
+  - The array of strings corresponding to bit positions.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a `uint64_t` bitmask representing the active bits from the JSON array.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Build a path string by combining multiple segments.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *build_path(
+    const char  *separator,
+    ...
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `separator`
+  - `const char *`
+  - The separator to use between path segments.
+
+* - `...`
+  - `varargs`
+  - The path segments to combine, ending with `NULL`.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the combined path string, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

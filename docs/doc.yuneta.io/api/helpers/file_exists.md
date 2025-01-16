@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a file exists at the specified path.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL file_exists(
+    const char  *path
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path to check.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the file exists, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

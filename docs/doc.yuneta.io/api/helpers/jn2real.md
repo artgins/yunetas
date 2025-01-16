@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Convert a JSON value to a real (floating-point) number. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC double jn2real(
+    json_t      *jn,
+    double      default_value
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn`
+  - [`json_t *`](json_t)
+  - The JSON value to convert.
+
+* - `default_value`
+  - `double`
+  - The default value to return if the JSON value cannot be converted to a real.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns the real value, or `default_value` if the conversion fails.
+        
 
 
 <!--====================================================-->

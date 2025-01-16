@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Lock a file using a file descriptor.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int lock_file(
+    int         fd,
+    int         lock_type
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `fd`
+  - `int`
+  - The file descriptor of the file to lock.
+
+* - `lock_type`
+  - `int`
+  - The type of lock to apply (e.g., shared or exclusive).
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

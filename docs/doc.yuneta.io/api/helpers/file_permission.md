@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check the permissions of a file at the specified path.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC int file_permission(
+    const char  *path,
+    int         mode
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The path of the file to check.
+
+* - `mode`
+  - `int`
+  - The permission mode to check (e.g., readable, writable).
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` if the file has the specified permissions, otherwise returns a negative value.
+        
 
 
 <!--====================================================-->

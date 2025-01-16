@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Check if a subdirectory exists within a specified path.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL subdir_exists(
+    const char  *path,
+    const char  *subdir
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `path`
+  - `const char *`
+  - The parent directory to search in.
+
+* - `subdir`
+  - `const char *`
+  - The name of the subdirectory to check for.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the subdirectory exists, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

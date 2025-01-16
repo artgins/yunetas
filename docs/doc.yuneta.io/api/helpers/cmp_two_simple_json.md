@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Compare two simple JSON values for equality. Works with [`json_t *`](json_t).
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,42 @@
 **Prototype**
 
 ```C
+
+PUBLIC BOOL cmp_two_simple_json(
+    json_t      *jn1,
+    json_t      *jn2
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `jn1`
+  - [`json_t *`](json_t)
+  - The first JSON value to compare.
+
+* - `jn2`
+  - [`json_t *`](json_t)
+  - The second JSON value to compare.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `TRUE` if the JSON values are equal, otherwise returns `FALSE`.
+        
 
 
 <!--====================================================-->

@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Extract the schema from a URL.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC char *get_url_schema(
+    const char  *url
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `url`
+  - `const char *`
+  - The URL to extract the schema from.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a newly allocated string containing the URL schema, or `NULL` on failure. The caller is responsible for freeing the string.
+        
 
 
 <!--====================================================-->

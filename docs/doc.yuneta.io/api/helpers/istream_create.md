@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Create an input stream for reading data.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC istream_t *istream_create(
+    size_t buffer_size
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `buffer_size`
+  - `size_t`
+  - The size of the buffer to allocate for the input stream.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns a pointer to the newly created input stream, or `NULL` on failure.
+        
 
 
 <!--====================================================-->

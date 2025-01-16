@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Free resources associated with a registered communication protocol.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC int comm_prot_free(
+    const char  *protocol_name
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `protocol_name`
+  - `const char *`
+  - The name of the communication protocol to free.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+Returns `0` on success, or a negative value on failure.
+        
 
 
 <!--====================================================-->

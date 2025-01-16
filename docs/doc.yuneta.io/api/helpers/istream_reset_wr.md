@@ -6,6 +6,8 @@
 <!-- ============================================================== -->
 
 
+Reset the write pointer of the input stream to the beginning.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,14 +24,37 @@
 **Prototype**
 
 ```C
+
+PUBLIC void istream_reset_wr(
+    istream_t   *istream
+);
+        
+
 ```
 
 **Parameters**
 
 
+:::{list-table}
+:widths: 10 5 40
+:header-rows: 1
+* - Key
+  - Type
+  - Description
+
+* - `istream`
+  - `istream_t *`
+  - The input stream whose write pointer will be reset.
+:::
+        
+
 ---
 
 **Return Value**
+
+
+No return value. This function resets the write pointer of the input stream.
+        
 
 
 <!--====================================================-->
