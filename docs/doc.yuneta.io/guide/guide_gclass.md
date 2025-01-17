@@ -68,62 +68,103 @@ Each `GClass` has a unique name (e.g., `C_CHANNEL`) to identify it.
 (tattr_desc)=
 ## Attributes
 
-Attributes represent the properties or state of a GClass and are implemented using the `tattr_desc` table. This table defines the schema for the attributes, describing their types, default values, access levels, and other characteristics.
+Attributes in a GClass define its properties or state. They are represented as structured data in the `tattr_desc` table, where each entry describes an attribute's type, access flags, default value, and purpose. Attributes are the foundation of a GClass, providing a schema for configuration, runtime state, and operational behavior.
+
+---
 
 ### Key Features of Attributes
 
 #### 1. **Data Types**
-Attributes support various data types, enabling them to represent simple or complex data. Supported types include:
+Attributes support various data types, enabling them to store different kinds of information. Common data types include:
 - **String (`DTP_STRING`)**: Textual data.
-- **Boolean (`DTP_BOOLEAN`)**: Logical values (`TRUE` or `FALSE`).
+- **Boolean (`DTP_BOOLEAN`)**: Logical values (`true` or `false`).
 - **Integer (`DTP_INTEGER`)**: Whole numbers.
 - **Real (`DTP_REAL`)**: Floating-point numbers.
-- **List (`DTP_LIST`)**: Arrays of values.
+- **JSON (`DTP_JSON`)**: JSON objects for structured data.
 - **Dictionary (`DTP_DICT`)**: Key-value pairs.
-- **JSON (`DTP_JSON`)**: JSON objects.
-- **Pointer (`DTP_POINTER`)**: Generic pointers for advanced use cases.
+- **Pointer (`DTP_POINTER`)**: References for advanced use cases.
 
 #### 2. **Flags**
-Flags define the behavior and accessibility of attributes. Common flags include:
-- **`SDF_RD`**: Read-only attribute.
-- **`SDF_WR`**: Writable attribute.
-- **`SDF_PERSIST`**: Persistent attribute that is saved and loaded.
-- **`SDF_VOLATIL`**: Volatile attribute that is not saved or loaded.
-- **`SDF_REQUIRED`**: Mandatory attribute that must not be null.
-- **`SDF_AUTHZ_R`**: Requires read authorization.
-- **`SDF_AUTHZ_W`**: Requires write authorization.
+Flags define the access permissions and characteristics of attributes:
+- **Access Control:**
+  - `SDF_RD`: Read-only attributes.
+  - `SDF_WR`: Writable attributes.
+- **Persistence:**
+  - `SDF_PERSIST`: Attributes that are saved and loaded automatically.
+  - `SDF_VOLATIL`: Temporary attributes that are not persisted.
+- **Statistical Data:**
+  - `SDF_STATS`: Attributes holding statistics (read-only).
+  - `SDF_RSTATS`: Resettable statistics.
+  - `SDF_PSTATS`: Persistent statistics.
+- **Authorization:**
+  - `SDF_AUTHZ_R`: Read access requires authorization.
+  - `SDF_AUTHZ_W`: Write access requires authorization.
 
 #### 3. **Default Values**
-Each attribute can have a default value, which is used if no value is explicitly provided. This ensures predictable initial states.
+Default values ensure that attributes are initialized with predictable and meaningful data. They are applied when no explicit value is provided during configuration or runtime.
 
 #### 4. **Descriptions**
-Attributes include descriptions to explain their purpose and behavior, improving readability and maintainability.
+Each attribute includes a description that explains its purpose and behavior. Descriptions serve as documentation for developers and users interacting with the GClass.
 
-#### 5. **Authorization**
-Attributes can enforce access control using authorization paths or flags. This ensures only authorized users or systems can read or modify sensitive attributes.
-
-#### 6. **Nested Structures**
-Attributes can reference other schemas using the `DTP_SCHEMA` type, enabling hierarchical and modular definitions.
+#### 5. **Hierarchical Definitions**
+Attributes can reference other schemas, allowing for nested and hierarchical data structures. This capability enables complex configurations while maintaining clarity.
 
 ---
 
-### Purpose of Attributes
+### Purpose of `tattr_desc`
 
-Attributes serve multiple roles within a GClass:
-- **Configuration:** Store static or configurable settings for the GClass.
-- **State Management:** Maintain the runtime state of a GClass instance.
-- **Validation:** Ensure data integrity through strict types, flags, and default values.
-- **Access Control:** Enforce security policies using authorization flags.
+The `tattr_desc` table serves multiple purposes in a GClass:
+- **Configuration:** Defines configurable properties for the GClass.
+- **State Management:** Represents the runtime state of an instance.
+- **Validation:** Ensures that attributes conform to defined types and constraints.
+- **Access Control:** Enforces security policies through flags and authorization mechanisms.
 
 ---
 
-### Benefits of Attribute Design with `sdata_desc_t`
+### High-Level Overview of Attributes
 
-- **Modularity:** Attributes are defined in reusable, structured schemas.
-- **Flexibility:** Support for various data types and nested structures allows complex configurations.
-- **Consistency:** Standardized schemas ensure uniformity across GClasses.
-- **Security:** Authorization flags and paths provide robust access control.
-- **Documentation:** Built-in descriptions make attributes self-explanatory, aiding both development and debugging.
+| **Component**       | **Description**                                                                 |
+|----------------------|---------------------------------------------------------------------------------|
+| **Type**            | Specifies the data type of the attribute (e.g., string, boolean, integer).      |
+| **Name**            | The unique identifier for the attribute.                                       |
+| **Flags**           | Define access permissions and additional properties (e.g., read-only, persist). |
+| **Default Value**   | The initial value of the attribute if none is provided.                        |
+| **Description**     | Explains the purpose and behavior of the attribute.                            |
+
+---
+
+### Examples of Common Attribute Use Cases
+
+#### 1. **Runtime Statistics**
+Attributes can store real-time statistical data, such as:
+- Messages transmitted (`txMsgs`) and received (`rxMsgs`).
+- CPU usage (`cpu`) and uptime (`uptime`).
+- Disk size and free space.
+
+These attributes often use flags like `SDF_RD` (read-only) and `SDF_RSTATS` (resettable statistics).
+
+#### 2. **Configuration Settings**
+Attributes can define configurable properties, such as:
+- `timeout`: A configurable timeout value.
+- `persistent_channels`: Whether channels are persistent.
+- `deep_trace`: Enable or disable detailed tracing.
+
+#### 3. **Environment Metadata**
+Attributes can represent metadata about the GClass or its environment, including:
+- `hostname`: The host machine's name.
+- `node_uuid`: A unique identifier for the node.
+- `realm_id`: The identifier for the realm where the GClass operates.
+
+---
+
+### Benefits of Attribute Design with `tattr_desc`
+
+- **Modularity:** Attributes are defined in structured schemas, making them reusable and maintainable.
+- **Flexibility:** Support for various data types and nested schemas allows for complex configurations.
+- **Validation:** Ensures that data conforms to the schema, reducing errors.
+- **Security:** Access control flags and authorization paths enforce robust security policies.
+- **Documentation:** Descriptions provide built-in documentation for each attribute.
+
 
 
 (private_vars)=
@@ -455,12 +496,152 @@ unlike the global methods (`GMETHODS`).
         - **Events**: Triggers for state transitions (e.g., `EV_ON_OPEN`, `EV_ON_CLOSE`).
         - **Actions**: Functions executed during transitions between states.
 
+
+
 (authz_table)=
-## Authz Table
+## Authorizations
+
+The `authz_table` in a GClass defines the permissions required to access specific operations or resources. Each entry in the `authz_table` describes a distinct authorization, including its parameters, description, and validation schema. The `authz_table` is implemented using `sdata_desc_t` structures.
+
+---
+
+### Key Features of Authorizations
+
+#### 1. **Authorization Levels**
+Each authorization defines a level or type of access, such as:
+- `create`: Permission to create resources.
+- `update`: Permission to modify existing resources.
+- `read`: Permission to view resources.
+- `delete`: Permission to remove resources.
+
+#### 2. **Validation Parameters**
+Each authorization level can specify a schema that describes the parameters required for validation. For example:
+- Parameters can include resource names, IDs, or paths.
+- Parameters may reference specific authorization paths (e.g., `"record`id"`).
+
+#### 3. **Authorization Paths**
+Authorization paths define the logic for validating access. Paths may:
+- Point to specific fields or metadata within a resource (e.g., `"__md_treedb__`treedb_name"`).
+- Be empty (`""`) for unrestricted or default access.
+
+#### 4. **Descriptions**
+Each authorization includes a description that clearly defines its purpose. These descriptions serve as documentation and help developers and administrators understand the access requirements.
+
+---
+
+### Purpose of `authz_table`
+
+The `authz_table` enforces access control within a GClass. By defining and validating authorizations, the GClass ensures that operations are performed only by users or systems with the necessary permissions.
+
+---
+
+### Validation of Authorizations
+
+The `authz_table` works with APIs like `gobj_user_has_authz` to validate permissions dynamically. These APIs:
+1. Check if the current user or system has the required authorization.
+2. Validate the input parameters against the schema defined for the authorization.
+3. Respond with an appropriate error or success message.
+
+#### High-Level Process
+1. **Permission Check:** Specify the desired permission (e.g., `"create"`).
+2. **Validation:** The `gobj_user_has_authz` function validates the authorization based on:
+  - The current user's roles and permissions.
+  - The input parameters provided to the function.
+  - The schema and paths defined in the `authz_table`.
+3. **Action Execution:** If the validation passes, the requested action is performed. Otherwise, an error is returned.
+
+---
+
+### Benefits of `authz_table`
+
+- **Granular Access Control:** Permissions can be tailored for specific actions and resources.
+- **Validation and Consistency:** Using schemas ensures that authorization checks are structured and reliable.
+- **Reusability:** Authorization definitions can be reused across different operations or resources within a GClass.
+- **Security:** Centralized definitions minimize the risk of unauthorized access.
+
+---
+
+### Example Use Cases
+
+#### Authorization Levels
+- **Create:** Permission to add new nodes or resources.
+- **Update:** Permission to modify existing data.
+- **Read:** Permission to view specific data.
+- **Delete:** Permission to remove resources.
+
+#### Parameterized Authorizations
+- Authorizations can specify required parameters, such as resource names, IDs, or metadata paths, for validation.
+- For example, a `read` permission might require a `treedb_name` and `id` to validate access to a specific node.
 
 
 (command_table)=
 ## Command Table
+
+The `command_table` in a GClass defines the available commands and their corresponding behaviors. Each command is represented as an entry in the table, described with parameters, aliases, execution logic, and a human-readable description. This structured approach ensures consistency, flexibility, and clarity in how commands are defined and executed.
+
+---
+
+### Key Features of Commands
+
+#### 1. **Command Names**
+Each command is identified by a unique name, which is used to invoke the command programmatically. For example:
+- `help`: Provides help or documentation for available commands.
+- `view-channels`: Displays the current status of channels.
+- `reset-stats-channel`: Resets statistics for a specific channel.
+
+#### 2. **Aliases**
+Commands can have alternative names (aliases) to provide flexibility and improve usability. For instance:
+- The `help` command can have aliases like `h` or `?`.
+
+#### 3. **Parameters**
+Commands accept structured input, described using schemas. These schemas are defined in `sdata_desc_t` tables, specifying:
+- **Parameter Name:** The name of the input parameter.
+- **Type:** The type of the parameter (e.g., string, boolean, integer).
+- **Flags:** Attributes of the parameter, such as required or optional.
+- **Default Value:** The default value for the parameter if none is provided.
+- **Description:** A description of the parameter’s purpose.
+
+#### 4. **Handlers**
+Each command is linked to a function that implements its logic. These handler functions:
+- Receive the command name and input parameters.
+- Perform the intended operation or behavior.
+- Return results or error messages.
+
+#### 5. **Descriptions**
+Commands include a detailed description to document their purpose and functionality. This description is useful for both users and developers.
+
+---
+
+### Purpose of `command_table`
+
+The `command_table` serves as a central registry for all commands available in a GClass. It provides:
+- **Consistency:** All commands are defined in a structured and uniform manner.
+- **Validation:** Ensures that commands receive the expected input, conforming to their schemas.
+- **Documentation:** Built-in descriptions make commands self-explanatory.
+- **Flexibility:** Commands can be extended, updated, or aliased without altering the overall structure.
+
+---
+
+### High-Level Overview of Command Definitions
+
+| **Component**       | **Description**                                                                 |
+|----------------------|---------------------------------------------------------------------------------|
+| **Command Name**     | The unique identifier for the command.                                         |
+| **Aliases**          | Alternative names for the command, improving usability.                       |
+| **Parameters**       | Input schema defining the required and optional parameters for the command.    |
+| **Handler Function** | A function that implements the command's logic.                               |
+| **Description**      | Documentation describing the command's purpose and behavior.                  |
+
+---
+
+### Benefits of `command_table`
+
+- **Extensibility:** Commands can be added, removed, or modified without affecting other components.
+- **Reusability:** Shared schemas allow commands to reuse parameter definitions across multiple commands.
+- **Validation:** Input parameters are rigorously validated using predefined schemas.
+- **Self-Documentation:** Command descriptions and aliases make the system intuitive for users and developers.
+- **Integration:** Commands are seamlessly integrated with authorization and other components of the GClass.
+
 
 (trace_level_t)=
 ## Trace Levels
