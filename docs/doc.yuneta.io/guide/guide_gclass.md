@@ -71,149 +71,296 @@ The `GMETHODS` structure in Yuneta defines the global methods that a `GClass` ca
 
 Each method serves a specific purpose and is invoked through the GObject API, enabling dynamic and modular behavior across different `GClasses`.
 
+The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framework. Each method is optional, allowing `GClasses` to implement only the functionality they need.
+
 ### GMETHODS List
 
-- **`mt_create`**
+- `mt_create`:
    - Purpose: Initializes the GObject. Called when a GObject is instantiated.
    - Example: Allocating memory or setting default attribute values.
 
-- **`mt_create2`**
+- `mt_create2`:
    - Purpose: Provides extended initialization capabilities with additional parameters.
    - Example: Custom initialization logic based on specific input.
 
-- **`mt_destroy`**
+- `mt_destroy`:
    - Purpose: Cleans up and destroys the GObject. Called when the GObject is deleted.
    - Example: Freeing resources or stopping child GObjects.
 
-- **`mt_start`**
+- `mt_start`:
    - Purpose: Starts the operation of the GObject.
    - Example: Transitioning to a running state or starting timers.
 
-- **`mt_stop`**
+- `mt_stop`:
    - Purpose: Stops the operation of the GObject.
    - Example: Halting operations, stopping timers, or freeing temporary resources.
 
-- **`mt_play`**
+- `mt_play`:
    - Purpose: Resumes the GObject's operation after being paused.
    - Example: Resuming services or processes.
 
-- **`mt_pause`**
+- `mt_pause`:
    - Purpose: Pauses the GObject's operation.
    - Example: Temporarily halting services without stopping them.
 
-- **`mt_writing`**
+- `mt_writing`:
    - Purpose: Handles attribute write operations dynamically.
    - Example: Validating or processing the value being written.
 
-- **`mt_reading`**
+- `mt_reading`:
    - Purpose: Handles attribute read operations dynamically.
    - Example: Adjusting or filtering the value before returning it.
 
-- **`mt_subscription_added`**
+- `mt_subscription_added`:
    - Purpose: Called when a subscription to an event is added.
    - Example: Managing event listeners or counting subscriptions.
 
-- **`mt_subscription_deleted`**
+- `mt_subscription_deleted`:
    - Purpose: Called when a subscription to an event is removed.
    - Example: Cleaning up resources or notifying other components.
 
-- **`mt_child_added`**
+- `mt_child_added`:
    - Purpose: Called after a child GObject is created and added.
    - Example: Managing hierarchical relationships.
 
-- **`mt_child_removed`**
+- `mt_child_removed`:
    - Purpose: Called before a child GObject is removed.
    - Example: Cleaning up references or handling dependencies.
 
-- **`mt_stats`**
+- `mt_stats`:
    - Purpose: Returns statistics related to the GObject in a JSON format.
    - Example: Providing performance or usage metrics.
 
-- **`mt_command_parser`**
+- `mt_command_parser`:
    - Purpose: Parses and executes user commands specific to the GClass.
    - Example: Implementing custom command handling logic.
 
-- **`mt_inject_event`**
+- `mt_inject_event`:
    - Purpose: Handles events manually, bypassing the built-in state machine.
    - Example: Custom event-processing logic.
 
-- **`mt_create_resource`**
+- `mt_create_resource`:
    - Purpose: Creates a new resource managed by the GObject.
    - Example: Initializing data structures or external dependencies.
 
-- **`mt_list_resource`**
+- `mt_list_resource`:
    - Purpose: Lists resources managed by the GObject.
    - Example: Returning an iterator or JSON representation.
 
-- **`mt_save_resource`**
+- `mt_save_resource`:
    - Purpose: Saves or updates a resource.
    - Example: Persisting data to storage.
 
-- **`mt_delete_resource`**
+- `mt_delete_resource`:
    - Purpose: Deletes a resource.
    - Example: Removing an entry from a database.
 
-- **`mt_state_changed`**
+- `mt_state_changed`:
    - Purpose: Handles transitions between states.
    - Example: Logging state changes or triggering side effects.
 
-- **`mt_authenticate`**
+- `mt_authenticate`:
    - Purpose: Authenticates users or services.
    - Example: Verifying credentials or tokens.
 
-- **`mt_list_childs`**
+- `mt_list_childs`:
    - Purpose: Lists the child GObjects of the current GObject.
    - Example: Returning hierarchical information.
 
-- **`mt_stats_updated`**
+- `mt_stats_updated`:
    - Purpose: Notifies that statistics have been updated.
    - Example: Refreshing metrics in real time.
 
-- **`mt_disable`**
+- `mt_disable`:
    - Purpose: Disables the GObject.
    - Example: Preventing further operations until re-enabled.
 
-- **`mt_enable`**
+- `mt_enable`:
    - Purpose: Enables the GObject.
    - Example: Allowing operations after being disabled.
 
-- **`mt_trace_on`**
+- `mt_trace_on`:
    - Purpose: Enables tracing for the GObject.
    - Example: Activating debug or log output.
 
-- **`mt_trace_off`**
+- `mt_trace_off`:
    - Purpose: Disables tracing for the GObject.
    - Example: Deactivating debug or log output.
 
-- **`mt_gobj_created`**
+- `mt_gobj_created`:
    - Purpose: Special method invoked when a GObject is created. Typically for the root object (`__yuno__`).
    - Example: Custom initialization for the Yuno.
 
-- **`mt_publish_event`**
+- `mt_publish_event`:
    - Purpose: Manages the publication of events.
    - Example: Filtering or modifying events before they are emitted.
 
-- **`mt_authz_checker`**
+- `mt_authz_checker`:
    - Purpose: Checks authorization for specific actions or events.
    - Example: Enforcing access control policies.
 
-- **`mt_create_node`, `mt_update_node`, `mt_delete_node`, `mt_link_nodes`, `mt_unlink_nodes`**
+- `mt_create_node`, `mt_update_node`, `mt_delete_node`, `mt_link_nodes`, `mt_unlink_nodes`:
    - Purpose: Methods for managing nodes in TreeDB.
    - Example: Adding, updating, deleting, or linking nodes.
 
-- **`mt_topic_desc`, `mt_topic_links`, `mt_topic_hooks`, `mt_topic_size`**
+- `mt_topic_desc`, `mt_topic_links`, `mt_topic_hooks`, `mt_topic_size`:
    - Purpose: Methods for inspecting TreeDB topics.
    - Example: Describing topics or retrieving metadata.
 
-- **`mt_shoot_snap`, `mt_activate_snap`, `mt_list_snaps`**
+- `mt_shoot_snap`, `mt_activate_snap`, `mt_list_snaps`:
    - Purpose: Manage snapshots in the TreeDB.
    - Example: Creating or restoring data snapshots.
 
------------------------
-Conclusion
------------------------
 
-The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framework. Each method is optional, allowing `GClasses` to implement only the functionality they need.
+### Current Mapping of GObject Functions to GMethods
+
+This document maps GObject API functions to the `GMETHODS` they invoke. It provides a detailed overview of how `GMETHODS` are utilized within the GObject lifecycle.
+
+#### Function Calls Overview
+
+##### Creation and Destruction
+- **_create_gobj()**:
+    - `mt_create2`: Initializes the GObject with additional parameters.
+    - `mt_create`: Performs basic GObject initialization.
+    - `mt_child_added`: Invoked when a child GObject is added.
+    - `mt_gobj_created`: Special handling for `__yuno__` when a GObject is created.
+
+- **gobj_destroy()**:
+    - `mt_child_removed`: Invoked when a child GObject is removed.
+    - `mt_destroy`: Cleans up resources when a GObject is destroyed.
+
+---
+
+##### Attribute Management
+- **Read Operations**:
+    - `gobj_read_bool_attr()`:
+    - `gobj_read_integer_attr()`:
+    - `gobj_read_real_attr()`:
+    - `gobj_read_str_attr()`:
+    - `gobj_read_json_attr()`:
+    - `gobj_read_pointer_attr()`:
+        - `mt_reading`: Retrieves the requested attribute dynamically.
+
+- **Write Operations**:
+    - `gobj_write_str_attr()`:
+    - `gobj_write_bool_attr()`:
+    - `gobj_write_integer_attr()`:
+    - `gobj_write_real_attr()`:
+    - `gobj_write_json_attr()`:
+    - `gobj_write_new_json_attr()`:
+    - `gobj_write_pointer_attr()`:
+        - `mt_writing`: Updates the specified attribute dynamically.
+
+---
+
+##### Lifecycle Management
+- **gobj_start()**:
+    - `mt_start`: Starts the GObject's operation.
+- **gobj_stop()**:
+    - `mt_stop`: Stops the GObject's operation.
+- **gobj_play()**:
+    - `mt_play`: Resumes the GObject after being paused.
+- **gobj_pause()**:
+    - `mt_pause`: Pauses the GObject's operation.
+- **gobj_disable()**:
+    - `mt_disable`: Disables the GObject.
+- **gobj_enable()**:
+    - `mt_enable`: Enables the GObject.
+
+---
+
+##### Event and State Management
+- **gobj_send_event()**:
+    - `mt_inject_event`: Processes an event directly.
+- **gobj_change_state()**:
+    - `mt_state_changed`: Handles state transitions.
+
+---
+
+##### Subscription Management
+- **gobj_subscribe_event()**:
+    - `mt_subscription_added`: Called when a subscription is added.
+- **_delete_subscription()**:
+    - `mt_subscription_deleted`: Called when a subscription is removed.
+
+---
+
+##### Publishing Events
+- **gobj_publish_event()**:
+    - `mt_publish_event`: Manages the publication of events.
+    - `mt_publication_pre_filter`: Applies pre-filters to events before publishing.
+    - `mt_publication_filter`: Filters events before final publishing.
+
+---
+
+##### Commands and Statistics
+- **gobj_command()**:
+    - `mt_command_parser`: Executes a command related to the GClass.
+- **gobj_stats()**:
+    - `mt_stats`: Provides statistics for the GObject.
+
+---
+
+##### Authorization
+- **gobj_user_has_authz()**:
+    - `mt_authz_checker`: Verifies if the user has the necessary permissions.
+
+---
+
+##### TreeDB Management
+- **gobj_treedbs()**:
+    - `mt_treedbs`: Lists the TreeDBs associated with the GObject.
+- **gobj_treedb_topics()**:
+    - `mt_treedb_topics`: Lists the topics within a TreeDB.
+- **gobj_topic_desc()**:
+    - `mt_topic_desc`: Describes a topic in the TreeDB.
+- **gobj_topic_links()**:
+    - `mt_topic_links`: Lists the links for a topic.
+- **gobj_topic_hooks()**:
+    - `mt_topic_hooks`: Lists the hooks for a topic.
+- **gobj_create_node()**:
+    - `mt_create_node`: Creates a new node in the TreeDB.
+- **gobj_update_node()**:
+    - `mt_update_node`: Updates an existing node in the TreeDB.
+- **gobj_delete_node()**:
+    - `mt_delete_node`: Deletes a node from the TreeDB.
+- **gobj_get_node()**:
+    - `mt_get_node`: Retrieves a specific node.
+- **gobj_list_nodes()**:
+    - `mt_list_nodes`: Lists all nodes in a topic.
+- **gobj_list_instances()**:
+    - `mt_list_instances`: Lists instances of nodes.
+- **gobj_node_parents()**:
+    - `mt_node_parents`: Lists the parent nodes of a specific node.
+- **gobj_node_childs()**:
+    - `mt_node_childs`: Lists the child nodes of a specific node.
+- **gobj_topic_jtree()**:
+    - `mt_topic_jtree`: Retrieves the JSON representation of a topic's tree structure.
+- **gobj_node_tree()**:
+    - `mt_node_tree`: Retrieves the tree structure of nodes.
+
+---
+
+##### Snapshots
+- **gobj_shoot_snap()**:
+    - `mt_shoot_snap`: Creates a snapshot.
+- **gobj_activate_snap()**:
+    - `mt_activate_snap`: Activates a snapshot.
+- **gobj_list_snaps()**:
+    - `mt_list_snaps`: Lists all snapshots.
+
+---
+
+##### Tracing
+- **gobj_set_gobj_trace()**:
+    - `mt_trace_on`: Enables tracing for the GObject.
+    - `mt_trace_off`: Disables tracing for the GObject.
+
+---
+
+#### Conclusion
+
+This mapping provides a detailed and structured view of how `GMETHODS` are utilized across various GObject API functions, covering attributes, events, TreeDB, lifecycle, and more. Each method plays a specific role in the modular design of the GClass.
 
 
 
@@ -289,19 +436,19 @@ The `gclass_flag_t` enumeration defines flags that can be applied to a `GClass` 
 
 ### List of `gclass_flag_t` Flags
 
-- **`gcflag_manual_start`** (`0x0001`)
+- `gcflag_manual_start`: (`0x0001`)
     - **Description**: Prevents the automatic start of the GObject tree. When this flag is set, `gobj_start_tree()` will not start the GObject automatically.
     - **Use Case**: Manual control over when a GObject tree is started.
-- **`gcflag_no_check_output_events`** (`0x0002`)
+- `gcflag_no_check_output_events`: (`0x0002`)
     - **Description**: Disables output event checking. When publishing events, it skips validation against the `output_event_list`.
     - **Use Case**: Optimization when output event checking is unnecessary.
-- **`gcflag_ignore_unknown_attrs`** (`0x0004`)
+- `gcflag_ignore_unknown_attrs`: (`0x0004`)
     - **Description**: Allows the creation of a GObject even if it contains attributes that are not defined in the `GClass`.
     - **Use Case**: Flexibility during dynamic object creation when unknown attributes may be present.
-- **`gcflag_required_start_to_play`** (`0x0008`)
+- `gcflag_required_start_to_play`: (`0x0008`)
     - **Description**: Prevents the GObject from entering the "play" state unless it has already been started.
     - **Use Case**: Ensures proper initialization before transitioning to "play."
-- **`gcflag_singleton`** (`0x0010`)
+- `gcflag_singleton`: (`0x0010`)
     - **Description**: Enforces that only one instance of the `GClass` can exist at a time.
     - **Use Case**: For `GClasses` that must maintain a single-instance constraint (e.g., a singleton pattern).
 
