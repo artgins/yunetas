@@ -25,18 +25,18 @@ An Asynchronous Development Framework
 
 ::::
 
-[Yuneta Simplified](https://yuneta.io) is a development framework focused on messaging and services, based on 
+`Yuneta Simplified` is a **development framework** focused on **messaging** and **services**, based on 
 [Event-driven](https://en.wikipedia.org/wiki/Event-driven_programming), 
 [Automata-based](https://en.wikipedia.org/wiki/Automata-based_programming) 
 and [Object-oriented](https://en.wikipedia.org/wiki/Object-oriented_programming) 
 programming paradigms. 
-Heavy use of json, serie-time, key-value, flat-files and graphs concepts.
+Heavy use of JSON, **serie-time**, **key-value**, **flat-files** and **graphs** concepts.
 
-[Yuneta Simplified](https://yuneta.io) is a real-time system RTS that includes development, testing, and deployment features. Built for Linux, and deployable on any bare-metal server.
+[Yuneta Simplified](https://yuneta.io) is a **real-time system** RTS that includes **development**, **testing**, and **deployment** features. Built for Linux, and **deployable** on any **bare-metal** server. Too it has been ported successfully to [ESP-IDF](https://www.espressif.com/en/products/sdks/esp-idf), a basic version.
 
-Specialized in IoT data collection, all types of devices, and data exchange and protocol adaptation between systems, including collection, publication, and querying of messages in real time, with historical data storage. 
+Specialized in IoT data collection, all types of devices, and data exchange and protocol adaptation between systems, including collection, **publication/subscription**, and querying of **messages** in **real time**, with **historical** data storage. 
 
-The messages (encrypted or plain text) circulating within the Yuneta system can be persistent in disk or exist only while in transit or in the memory of a service. All data in json.
+The messages (**encrypted** or plain text) circulating within the Yuneta system can be persistent in disk or exist only while in transit or in the memory of a service. All data in JSON.
 
 For [Linux](https://en.wikipedia.org/wiki/Linux) and [RTOS/ESP32](https://www.espressif.com/en/products/sdks/esp-idf). 
 
@@ -48,7 +48,7 @@ Versions in C, partially in JavaScript. Todo in Python.
 
 
 ```{toctree}
-:maxdepth: 3
+:maxdepth: 1
 :caption: Get Started
 
 installation
@@ -58,7 +58,7 @@ CHANGELOG
 
 ```{toctree}
 :caption: Philosophy
-:maxdepth: 3
+:maxdepth: 1
 
 philosophy/philosophy.md
 
@@ -66,7 +66,7 @@ philosophy/philosophy.md
 
 ```{toctree}
 :caption: Guides
-:maxdepth: 3
+:maxdepth: 1
 
 guide/basic_concepts.md
 guide/guide_gclass.md
@@ -85,7 +85,7 @@ guide/guide_authz.md
 
 ```{toctree}
 :caption: GObj API
-:maxdepth: 3
+:maxdepth: 1
 
 api/gobj/startup/api_gobj_startup.md
 api/gobj/gclass/api_gobj_gclass.md
@@ -108,7 +108,7 @@ api/gobj/dl/api_gobj_dl.md
 
 ```{toctree}
 :caption: Kwid API
-:maxdepth: 3
+:maxdepth: 1
 
 api/kwid/api_kwid.md
 
@@ -116,7 +116,7 @@ api/kwid/api_kwid.md
 
 ```{toctree}
 :caption: Helpers API
-:maxdepth: 3
+:maxdepth: 1
 
 api/helpers/api_helpers.md
 
@@ -124,7 +124,7 @@ api/helpers/api_helpers.md
 
 ```{toctree}
 :caption: Command Parser API
-:maxdepth: 3
+:maxdepth: 1
 
 api/command_parser/api_command_parser.md
 
@@ -132,7 +132,7 @@ api/command_parser/api_command_parser.md
 
 ```{toctree}
 :caption: Statistic Parser API
-:maxdepth: 3
+:maxdepth: 1
 
 api/stats_parser/api_stats_parser.md
 
@@ -140,7 +140,7 @@ api/stats_parser/api_stats_parser.md
 
 ```{toctree}
 :caption: Log UPD handler API
-:maxdepth: 3
+:maxdepth: 1
 
 api/log_udp_handler/api_log_udp_handler.md
 
@@ -148,7 +148,7 @@ api/log_udp_handler/api_log_udp_handler.md
 
 ```{toctree}
 :caption: Rotatory API
-:maxdepth: 3
+:maxdepth: 1
 
 api/rotatory/api_rotatory.md
 
@@ -156,7 +156,7 @@ api/rotatory/api_rotatory.md
 
 ```{toctree}
 :caption: Testing API
-:maxdepth: 3
+:maxdepth: 1
 
 api/testing/api_testing.md
 
@@ -165,7 +165,7 @@ api/testing/api_testing.md
 
 ```{toctree}
 :caption: Glossary 
-:maxdepth: 3
+:maxdepth: 1
 
 glossary
 
