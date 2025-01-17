@@ -68,8 +68,63 @@ Each `GClass` has a unique name (e.g., `C_CHANNEL`) to identify it.
 (tattr_desc)=
 ## Attributes
 
-- A description of the data fields or properties associated with objects of the `GClass`.
-- Defined using a table of descriptors (`tattr_desc`), specifying the type, name, flags, default value, and description for each attribute.
+Attributes represent the properties or state of a GClass and are implemented using the `tattr_desc` table. This table defines the schema for the attributes, describing their types, default values, access levels, and other characteristics.
+
+### Key Features of Attributes
+
+#### 1. **Data Types**
+Attributes support various data types, enabling them to represent simple or complex data. Supported types include:
+- **String (`DTP_STRING`)**: Textual data.
+- **Boolean (`DTP_BOOLEAN`)**: Logical values (`TRUE` or `FALSE`).
+- **Integer (`DTP_INTEGER`)**: Whole numbers.
+- **Real (`DTP_REAL`)**: Floating-point numbers.
+- **List (`DTP_LIST`)**: Arrays of values.
+- **Dictionary (`DTP_DICT`)**: Key-value pairs.
+- **JSON (`DTP_JSON`)**: JSON objects.
+- **Pointer (`DTP_POINTER`)**: Generic pointers for advanced use cases.
+
+#### 2. **Flags**
+Flags define the behavior and accessibility of attributes. Common flags include:
+- **`SDF_RD`**: Read-only attribute.
+- **`SDF_WR`**: Writable attribute.
+- **`SDF_PERSIST`**: Persistent attribute that is saved and loaded.
+- **`SDF_VOLATIL`**: Volatile attribute that is not saved or loaded.
+- **`SDF_REQUIRED`**: Mandatory attribute that must not be null.
+- **`SDF_AUTHZ_R`**: Requires read authorization.
+- **`SDF_AUTHZ_W`**: Requires write authorization.
+
+#### 3. **Default Values**
+Each attribute can have a default value, which is used if no value is explicitly provided. This ensures predictable initial states.
+
+#### 4. **Descriptions**
+Attributes include descriptions to explain their purpose and behavior, improving readability and maintainability.
+
+#### 5. **Authorization**
+Attributes can enforce access control using authorization paths or flags. This ensures only authorized users or systems can read or modify sensitive attributes.
+
+#### 6. **Nested Structures**
+Attributes can reference other schemas using the `DTP_SCHEMA` type, enabling hierarchical and modular definitions.
+
+---
+
+### Purpose of Attributes
+
+Attributes serve multiple roles within a GClass:
+- **Configuration:** Store static or configurable settings for the GClass.
+- **State Management:** Maintain the runtime state of a GClass instance.
+- **Validation:** Ensure data integrity through strict types, flags, and default values.
+- **Access Control:** Enforce security policies using authorization flags.
+
+---
+
+### Benefits of Attribute Design with `sdata_desc_t`
+
+- **Modularity:** Attributes are defined in reusable, structured schemas.
+- **Flexibility:** Support for various data types and nested structures allows complex configurations.
+- **Consistency:** Standardized schemas ensure uniformity across GClasses.
+- **Security:** Authorization flags and paths provide robust access control.
+- **Documentation:** Built-in descriptions make attributes self-explanatory, aiding both development and debugging.
+
 
 (private_vars)=
 ## Private Attributes
