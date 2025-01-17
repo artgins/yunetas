@@ -1,5 +1,12 @@
 # Helpers API
 
+(istream)=
+## **IStream**
+
+
+(istream_t)=
+## istream_t
+
 ```{toctree}
 :caption: Helpers functions
 :maxdepth: 2

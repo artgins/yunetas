@@ -1,4 +1,12 @@
-# Double List functions
+(dl)=
+# **Double Linked List functions **
+
+(dl_list_t)=
+## dl_list_t
+
+(dl_node_t)=
+## dl_node_t
+
 
 ```{toctree}
 :caption: Double List functions

@@ -52,14 +52,6 @@ json_function_fn
     - Returns a `json_t` object as the result of the processing.
 
 
-gclass_name_t
-    Unique pointer that exposes gclass names, defined as:
-
-    In C:
-    ```C
-    typedef const char *gclass_name_t;
-    ```
-
 gobj_state_t
     Unique pointer that exposes state names, defined as:
 
@@ -100,15 +92,6 @@ hgobj
     typedef void *hgobj;
     ```
 
-states_t
-
-    In C:
-    ```C
-    typedef struct states_s {
-        gobj_state_t state_name;
-        ev_action_t *state;
-    } states_t;
-    ```
 
 ev_action_t
 
@@ -132,28 +115,6 @@ gobj_action_fn
         hgobj src
     );
     ```
-
-event_type_t
-
-    In C:
-    ```C
-    typedef struct event_type_s {
-        gobj_event_t event;
-        event_flag_t event_flag;
-    } event_type_t;
-    ```
-
-trace_level_t
-    `trace_level_t` is used to describe trace levels
-
-    In C:
-    ```C
-    typedef struct {
-        const char *name;
-        const char *description;
-    } trace_level_t;
-    ```
-
 
 authorization_checker_fn
 

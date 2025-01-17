@@ -485,17 +485,34 @@ unlike the global methods (`GMETHODS`).
 
 (event_type_t)=
 ## Event Table
-    - A list of public and private events that the `GClass` can handle or emit.
-    - Events are categorized with flags, such as `EVF_OUTPUT_EVENT`.
+
+- A list of public and private events that the `GClass` can handle or emit.
+- Events are categorized with flags, such as `EVF_OUTPUT_EVENT`.
+
+In C:
+```C
+typedef struct event_type_s {
+    gobj_event_t event;
+    event_flag_t event_flag;
+} event_type_t;
+```
+
 
 (states_t)=
 ## States Table
 
-    Defines the behavior of the `GClass` in terms of states, events, and transitions:
-        - **States**: Predefined states (e.g., `ST_CLOSED`, `ST_OPENED`).
-        - **Events**: Triggers for state transitions (e.g., `EV_ON_OPEN`, `EV_ON_CLOSE`).
-        - **Actions**: Functions executed during transitions between states.
+Defines the behavior of the `GClass` in terms of states, events, and transitions:
+    - **States**: Predefined states (e.g., `ST_CLOSED`, `ST_OPENED`).
+    - **Events**: Triggers for state transitions (e.g., `EV_ON_OPEN`, `EV_ON_CLOSE`).
+    - **Actions**: Functions executed during transitions between states.
 
+In C:
+```C
+typedef struct states_s {
+    gobj_state_t state_name;
+    ev_action_t *state;
+} states_t;
+```
 
 
 (authz_table)=
@@ -647,6 +664,14 @@ The `command_table` serves as a central registry for all commands available in a
 ## Trace Levels
 
 Trace levels allow precise control over debugging and diagnostic logging in a GClass. By defining a table of trace levels (`s_user_trace_level`), GClasses can manage which aspects of their behavior are logged, ensuring detailed, yet efficient, monitoring and debugging.
+
+In C:
+```C
+typedef struct {
+    const char *name;
+    const char *description;
+} trace_level_t;
+```
 
 ---
 
