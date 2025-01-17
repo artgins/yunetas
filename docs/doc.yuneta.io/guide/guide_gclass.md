@@ -1,7 +1,7 @@
 (gclass)=
 # **GClass**
 
-# What is a GClass?
+## What is a GClass?
 
 A `GClass` (short for GObject Class) is a core construct in the Yuneta framework. It defines the behavior, attributes, and structure of GObjects (runtime instances of a `GClass`). The `GClass` encapsulates the functionality and state machine of a particular object type, serving as a blueprint for creating and managing GObjects.
 
@@ -12,43 +12,42 @@ A `GClass` in Yuneta is the foundation for defining the behavior and structure o
 
 A `GClass` consists of several key components that define its operation:
 
-1. **Name**
-    - Each `GClass` has a unique name (e.g., `C_CHANNEL`) to identify it.
+1. [`GClass Name`](gclass_name_t)
+    - Unique name to identify it.
 
-2. **Attributes**
-    - A description of the data fields or properties associated with objects of the `GClass`.
-    - Defined using a table of descriptors (`tattr_desc`), specifying the type, name, flags, default value, and description for each attribute.
+2. [`Attributes`](tattr_desc)
+    - Set of public attributes
 
-3. **Methods (GMETHODS)**
-    - A set of global methods (`gmt`) that the `GClass` supports, such as:
+3. [`Private Variables`](private_vars)
+    - Set of private variables
 
-   > - `mt_create`: Initialize the GObject.
-   > - `mt_start`: Start the GObject's operation.
-   > - `mt_stop`: Stop the GObject's operation.
-   > - `mt_reading` and `mt_writing`: Access or modify attributes dynamically.
+4. [`Global Methods`](GMETHODS)
+    - Set of global methods that supports
 
-    - These methods are dynamically dispatched through the GObject API.
+5. [`Local Methods`](LMETHOD)
+    - Set of local methods that supports
 
-4. **Finite State Machine (FSM)**
-    - Defines the behavior of the `GClass` in terms of states, events, and transitions:
+6. [`Event Table`](event_type_t)
+    - Set of public and private events.
 
-   > - **States**: Predefined states (e.g., `ST_CLOSED`, `ST_OPENED`).
-   > - **Events**: Triggers for state transitions (e.g., `EV_ON_OPEN`, `EV_ON_CLOSE`).
-   > - **Actions**: Functions executed during transitions between states.
+7. [`State Table`](states_t)
+    - Set of states with event/actions
 
-5. **Event Table**
-    - A list of public and private events that the `GClass` can handle or emit.
-    - Events are categorized with flags, such as `EVF_OUTPUT_EVENT`.
+8. [`Authorization Table`](authz_table)
 
-6. **Trace Levels**
-    - Defines trace levels for debugging and monitoring specific operations of the `GClass`.
+    - Specifies access control rules.
 
-7. **Private Data**
-    - A structure (`PRIVATE_DATA`) for storing runtime-specific data for each GObject instance of the `GClass`.
+9. [`Command Table`](command_table)
 
-8. **Authorization and Commands (Optional)**
-    - **Authorization Table**: Specifies access control rules.
-    - **Command Table**: Describes executable commands for the GClass.
+    - Describes executable commands for the GClass.
+
+10. [`Trace Levels`](trace_level_t)
+
+    - Defines trace levels for debugging and monitoring.
+
+11. [`gclass_flag`](gclass_flag_t)
+
+    - Modifier of behavior
 
 ## How a GClass Works
 
@@ -61,6 +60,20 @@ A `GClass` consists of several key components that define its operation:
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
+(gclass_name_t)=
+## GClass Name
+
+Each `GClass` has a unique name (e.g., `C_CHANNEL`) to identify it.
+
+(tattr_desc)=
+## Attributes
+
+- A description of the data fields or properties associated with objects of the `GClass`.
+- Defined using a table of descriptors (`tattr_desc`), specifying the type, name, flags, default value, and description for each attribute.
+
+(private_vars)=
+## Private Attributes
+- Private attributes, they are implemented accord the language    
 
 (GMETHODS)=
 ## GMETHODS
@@ -421,10 +434,31 @@ PRIVATE const LMETHOD lmt[] = {
     - The `LMETHOD` array is linked to the `GClass` during its creation, enabling the `GClass` to use these methods internally.
 
 
+(event_type_t)=
+## Event Table
+    - A list of public and private events that the `GClass` can handle or emit.
+    - Events are categorized with flags, such as `EVF_OUTPUT_EVENT`.
+
+(states_t)=
+## States Table
+
+    Defines the behavior of the `GClass` in terms of states, events, and transitions:
+        - **States**: Predefined states (e.g., `ST_CLOSED`, `ST_OPENED`).
+        - **Events**: Triggers for state transitions (e.g., `EV_ON_OPEN`, `EV_ON_CLOSE`).
+        - **Actions**: Functions executed during transitions between states.
+
+(authz_table)=
+## Authz Table
+
+
+(command_table)=
+## Command Table
+
+(trace_level_t)=
+## Trace Levels
+
 (gclass_flag_t)=
 ## gclass_flag_t
-
-## `gclass_flag_t` Values
 
 The `gclass_flag_t` enumeration defines flags that can be applied to a `GClass` to modify its behavior. These flags are used to control specific operational aspects of the `GClass`.
 
