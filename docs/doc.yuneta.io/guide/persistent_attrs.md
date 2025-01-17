@@ -12,8 +12,8 @@ When a Yuno starts, persistent attributes are automatically loaded. If no custom
 
 ### 2. **Explicit Saving**
 Persistent attributes are saved explicitly using `gobj_save_persistent_attrs()`. The function allows:
--Saving All Attributes:** By passing a null or empty `jn_attrs`, all persistent attributes are saved.
--Selective Saving:** By passing a list or dictionary in `jn_attrs`, only the specified attributes are saved.
+- Saving All Attributes: By passing a null or empty `jn_attrs`, all persistent attributes are saved.
+- Selective Saving: By passing a list or dictionary in `jn_attrs`, only the specified attributes are saved.
 
 ### 3. **Access Control**
 Attributes marked with `SDF_RD` are accessible from other Yunos, while attributes without this flag remain private to the Yuno.
@@ -47,13 +47,13 @@ The behavior for saving and loading persistent attributes can be customized by p
 ## API for Managing Persistent Attributes
 
 ### Saving Attributes
--Function:** `gobj_save_persistent_attrs(hgobj gobj, json_t *jn_attrs)`
--Behavior:**
+- Function: `gobj_save_persistent_attrs(hgobj gobj, json_t *jn_attrs)`
+- Behavior:
     - Save all attributes by passing null or an empty `jn_attrs`.
     - Save specific attributes by specifying their names in `jn_attrs`.
 
 ### Loading Attributes
--Default:** Attributes are automatically loaded during Yuno startup using the default or custom implementation provided in `persistent_attrs_t`.
+- Default: Attributes are automatically loaded during Yuno startup using the default or custom implementation provided in `persistent_attrs_t`.
 
 ---
 
@@ -88,10 +88,10 @@ Custom save/load functions allow storing attributes in external systems such as 
 
 ## Benefits of Persistent Attributes
 
--State Retention:** Automatically preserve important data across restarts.
--Flexibility:** Customize save/load behavior using `persistent_attrs_t`.
--Selective Saving:** Save only the necessary attributes when needed.
--Scalability:** Manage attributes across multiple Yunos with controlled access (`SDF_RD`).
+- State Retention: Automatically preserve important data across restarts.
+- Flexibility: Customize save/load behavior using `persistent_attrs_t`.
+- Selective Saving: Save only the necessary attributes when needed.
+- Scalability: Manage attributes across multiple Yunos with controlled access (`SDF_RD`).
 
 (persistent_attrs_t)=
 ## persistent_attrs_t
@@ -108,10 +108,10 @@ typedef struct {
 } persistent_attrs_t;
 ```
 
-**Fields**
--`startup_persistent_attrs`: Initializes persistent attributes function.
--`end_persistent_attrs`: Cleans up persistent attributes function.
--`load_persistent_attrs`: Loads persistent attributes from storage function.
--`save_persistent_attrs`: Saves persistent attributes to storage function.
--`remove_persistent_attrs`: Deletes persistent attributes function.
--`list_persistent_attrs`: Lists all persistent attributes function.
+**Persistent Attributes Store Functions**
+- `startup_persistent_attrs`: Initializes persistent attributes function.
+- `end_persistent_attrs`: Cleans up persistent attributes function.
+- `load_persistent_attrs`: Loads persistent attributes from storage function.
+- `save_persistent_attrs`: Saves persistent attributes to storage function.
+- `remove_persistent_attrs`: Deletes persistent attributes function.
+- `list_persistent_attrs`: Lists all persistent attributes function.
