@@ -351,6 +351,30 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
 #define ATTR_WRITABLE   (SDF_WR|SDF_PERSIST)
 #define ATTR_READABLE   SDF_PUBLIC_ATTR
 
+/*
+ *  Generic json function
+ */
+typedef json_t *(*json_function_fn)(
+    void *param1,
+    const char *something,
+    json_t *kw, // Owned
+    void *param2
+);
+
+typedef struct sdata_desc_s {
+    const data_type_t type;
+    const char *name;
+    const char **alias;
+    const sdata_flag_t flag;
+    const char *default_value;
+    const char *header;
+    const int fillspace;
+    const char *description;
+    const json_function_fn json_fn;
+    const struct sdata_desc_s *schema;
+    const char *authpth;
+} sdata_desc_t;
+
 
 #define SDATA_END()                                     \
 {                                                       \
@@ -385,8 +409,6 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .schema=0,                                          \
     .authpth=0                                          \
 }
-
-
 
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
 #define SDATACM(type_, name_, alias_, items_, json_fn_, description_) \
@@ -486,37 +508,6 @@ typedef enum {   // HACK strict ascendant value!, strings in sdata_flag_names[]
     .schema=0,                                          \
     .authpth=0                                          \
 }
-
-/*
- *  Generic json function
- */
-typedef json_t *(*json_function_fn)(
-    void *param1,
-    const char *something,
-    json_t *kw, // Owned
-    void *param2
-);
-
-typedef struct sdata_desc_s {
-    const data_type_t type;
-    const char *name;
-    const char **alias;
-    const sdata_flag_t flag;
-    const char *default_value;
-    const char *header;
-    const int fillspace;
-    const char *description;
-    const json_function_fn json_fn;
-    const struct sdata_desc_s *schema;
-    const char *authpth;
-} sdata_desc_t;
-
-typedef enum { // HACK strict ascendant value!, strings in event_flag_names[]
-    EVF_NO_WARN_SUBS    = 0x0001,   // Don't warn of "Publish event WITHOUT subscribers"
-    EVF_OUTPUT_EVENT    = 0x0002,   // Output Event
-    EVF_SYSTEM_EVENT    = 0x0004,   // System Event
-    EVF_PUBLIC_EVENT    = 0x0008,   // You should document a public event, it's the API
-} event_flag_t;
 
 /***************************************************************
  *              GClass/GObj Structures
@@ -622,6 +613,13 @@ typedef struct states_s {
     gobj_state_t state_name;
     ev_action_t *state;
 } states_t;
+
+typedef enum { // HACK strict ascendant value!, strings in event_flag_names[]
+    EVF_NO_WARN_SUBS    = 0x0001,   // Don't warn of "Publish event WITHOUT subscribers"
+    EVF_OUTPUT_EVENT    = 0x0002,   // Output Event
+    EVF_SYSTEM_EVENT    = 0x0004,   // System Event
+    EVF_PUBLIC_EVENT    = 0x0008,   // You should document a public event, it's the API
+} event_flag_t;
 
 typedef struct event_type_s {
     gobj_event_t event;

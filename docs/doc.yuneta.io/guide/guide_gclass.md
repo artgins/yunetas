@@ -84,7 +84,9 @@ Each method serves a specific purpose and is invoked through the GObject API, en
 
 The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framework. Each method is optional, allowing `GClasses` to implement only the functionality they need.
 
-### GMETHODS List
+### List
+
+Not all methods are currently used in gobj API. See [](mapping_gmethods).
 
 - `mt_create`:
    - Purpose: Initializes the GObject. Called when a GObject is instantiated.
@@ -222,8 +224,8 @@ The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framew
    - Purpose: Manage snapshots in the TreeDB.
    - Example: Creating or restoring data snapshots.
 
-
-### Mapping of GMethods
+(mapping_gmethods)=
+### Mapping
 
 This section maps GObject API functions to the `GMETHODS` they invoke. It provides a detailed overview of how `GMETHODS` are utilized within the GObject lifecycle.
 
@@ -377,61 +379,12 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 (LMETHOD)=
 ## LMETHOD
 
-### What is an LMETHOD?
-
-The `LMETHOD` structure in the Yuneta framework defines the local methods that can be implemented by a `GClass`. These methods are specific to the internal operation of the `GClass` and are not intended to be invoked dynamically via the GObject API, unlike the global methods (`GMETHODS`).
-
-
-### Purpose of LMETHODs
-
-- **Encapsulation**:
-    - LMETHODs provide internal functionality for the `GClass`, encapsulating logic that is not exposed externally.
-- **Optimization**:
-    - These methods are typically designed for high-performance, localized operations within the GObject.
-
-### Structure of LMETHOD
-
-An `LMETHOD` typically consists of:
-
-- **Name**:
-    - A unique string identifier for the method.
-    - Used internally to reference the method when required.
-- **Function Pointer**:
-    - A pointer to the corresponding function implementation.
-    - Defines the logic of the method.
-
-Example Definition:
-
-```C
-typedef struct {
-    const char *name;               // Method name
-    int (*function)(hgobj gobj);    // Pointer to the method function
-} LMETHOD;
-```
-
-### Usage of LMETHODs
-
-1. **Internal Operations**:
-    - LMETHODs handle operations that are specific to the `GClass` and are not tied to the global lifecycle or state of the GObject.
-2. **Static Invocation**:
-    - Unlike GMETHODs, LMETHODs are called directly within the `GClass` or its child GObjects and are not dynamically dispatched.
-3. **Implementation Example**:
-    - Suppose a `GClass` has an internal operation to compute statistics:
-
-```C
-PRIVATE int compute_stats(hgobj gobj) {
-    // Internal logic to compute statistics
-    return 0;
-}
-
-PRIVATE const LMETHOD lmt[] = {
-    {"compute_stats", compute_stats},
-    {NULL, NULL} // Terminator
-};
-```
-
-4. **Integration with the GClass**:
-    - The `LMETHOD` array is linked to the `GClass` during its creation, enabling the `GClass` to use these methods internally.
+The `LMETHOD` structure in the Yuneta framework defines the local methods 
+that can be implemented by a `GClass`. 
+These methods are specific to the internal operation of the `GClass` 
+and are not intended to be invoked dynamically via 
+the [`gobj_local_method()`](gobj_local_method()) API, 
+unlike the global methods (`GMETHODS`).
 
 
 (event_type_t)=
@@ -462,7 +415,7 @@ PRIVATE const LMETHOD lmt[] = {
 
 The `gclass_flag_t` enumeration defines flags that can be applied to a `GClass` to modify its behavior. These flags are used to control specific operational aspects of the `GClass`.
 
-### List of `gclass_flag_t` Flags
+Values of `gclass_flag_t` Flags
 
 - `gcflag_manual_start`: (`0x0001`)
     - **Description**: Prevents the automatic start of the GObject tree. When this flag is set, `gobj_start_tree()` will not start the GObject automatically.
