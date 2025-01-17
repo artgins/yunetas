@@ -523,21 +523,21 @@ typedef void *hgobj;        /* handler of a gobj */
 /*
  *  Prototypes of functions to manage persistent attributes
  */
-typedef int (*startup_persistent_attrs_t)(void);    // Initialize the database
-typedef void (*end_persistent_attrs_t)(void);       // End the database
-typedef int (*load_persistent_attrs_t)(             // Load the persistent attrs of gobj
+typedef int (*startup_persistent_attrs_fn)(void);    // Initialize the database
+typedef void (*end_persistent_attrs_fn)(void);       // End the database
+typedef int (*load_persistent_attrs_fn)(             // Load the persistent attrs of gobj
     hgobj gobj,
     json_t *keys  // owned, if null load all persistent attrs, else, load
 );
-typedef int (*save_persistent_attrs_t)(
+typedef int (*save_persistent_attrs_fn)(
     hgobj gobj,
     json_t *keys  // owned
 );
-typedef int (*remove_persistent_attrs_t)(
+typedef int (*remove_persistent_attrs_fn)(
     hgobj gobj,
     json_t *keys  // owned
 );
-typedef json_t * (*list_persistent_attrs_t)(
+typedef json_t * (*list_persistent_attrs_fn)(
     hgobj gobj,
     json_t *keys  // owned
 );
@@ -1127,12 +1127,12 @@ GOBJ_DECLARE_STATE(ST_CLOSED);
  *      Start up functions
  *---------------------------------*/
 typedef struct {
-    startup_persistent_attrs_t  startup;
-    end_persistent_attrs_t      end;
-    load_persistent_attrs_t     load;
-    save_persistent_attrs_t     save;
-    remove_persistent_attrs_t   remove;
-    list_persistent_attrs_t     list;
+    startup_persistent_attrs_fn  startup;
+    end_persistent_attrs_fn      end;
+    load_persistent_attrs_fn     load;
+    save_persistent_attrs_fn     save;
+    remove_persistent_attrs_fn   remove;
+    list_persistent_attrs_fn     list;
 } persistent_attrs_t;
 
 PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
