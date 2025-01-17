@@ -93,7 +93,6 @@ Custom save/load functions allow storing attributes in external systems such as 
 - Selective Saving: Save only the necessary attributes when needed.
 - Scalability: Manage attributes across multiple Yunos with controlled access (`SDF_RD`).
 
-(persistent_attrs_t)=
 ## persistent_attrs_t
 The `persistent_attrs_t` structure contains function pointers for managing persistent attributes of a Yuno instance. This allows the user to handle attributes in storage or memory during the lifecycle of a Yuno.
 
