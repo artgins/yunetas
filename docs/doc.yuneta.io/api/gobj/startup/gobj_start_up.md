@@ -7,7 +7,7 @@ The `gobj_start_up()` function initializes the GObj system and prepares the [](y
 
 **Key Features:**
 1. **Global Settings**:
-   Accepts a JSON object [](global_settings) that defines configuration attributes for classes and objects in the Yuno. These attributes are applied to each GObj upon creation.
+   Accepts a JSON object [](global_settings) that defines global configuration attributes for classes and objects in the Yuno. These global attributes are applied to each GObj upon creation.
 
 2. **Persistent Attributes**:
    Uses database functions [](persistent_attrs_t) to store and retrieve persistent attributes marked in Gobjs.

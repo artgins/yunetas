@@ -144,21 +144,23 @@ char *replace_string(const char *str, const char *old, const char *snew);
 /*------------------------------------*
  *  ### Json
  *------------------------------------*/
-/**rst**
+/**
 
-.. function:: PUBLIC char *json_config(
+    PUBLIC char *json_config(
         BOOL print_verbose_config,
         BOOL print_final_config,
         const char *fixed_config,
         const char *variable_config,
         const char *config_json_file,
-        const char *parameter_config)
+        const char *parameter_config,
+        pe_flag_t quit
+    );
 
    Return a malloc'ed string with the final configuration
    of joining the json format input string parameters.
 
-   If there is an error in json format, the function will exit
-   printing the error.
+   If there is an error in json format, the function will exit according
+   to quit parameter and printing the error
 
    If ``print_verbose_config`` or ``print_final_config`` is TRUE then
    the function will print the result and will exit(0).
@@ -167,19 +169,17 @@ char *replace_string(const char *str, const char *old, const char *snew);
 
    The config is load in next order:
 
-    #. fixed_config            string, this config is not writtable
-    #. variable_config:        string, this config is writtable.
-    #. use_config_file:        file of file's list, overwriting variable_config
-    #. use_extra_config_file:  file of file's list, overwriting variable_config
-    #. parameter_config:       string, overwriting variable_config
+    - fixed_config            string, this config is not writtable
+    - variable_config:        string, this config is writtable.
+    - use_config_file:        file of file's list, overwriting variable_config
+    - use_extra_config_file:  file of file's list, overwriting variable_config
+    - parameter_config:       string, overwriting variable_config
 
-..warning::
+    WARNING:  Remember **free** the returned string with jsonp_free().
 
-  Remember **free** the returned string with jsonp_free().
+    The json string can contain one-line comments with combination: ##^
 
-  The json string can contain one-line comments with combination: ##^
-
-  You can expand a dict of json data in a range, with {^^ ^^},  example::
+    You can expand a dict of json data in a range, with {^^ ^^},  example::
 
         "{^^gossamers^^}": {
             "__range__": [12000,12002],
@@ -237,13 +237,15 @@ char *replace_string(const char *str, const char *old, const char *snew);
   If it exists, then all strings inside a (^^ ^^) will be replaced
   by the value found in __json_config_variables__ dict.
 
-  A ``__hostname__`` key is added to ``__json_config_variables__`` dict with the hostname.
+  A set of global variables returned by gobj_global_variables()
+  are added to ``__json_config_variables__``.
+
 
 
 **rst**/
 PUBLIC char *json_config( /* **free** the returned string with jsonp_free() */
-    BOOL print_verbose_config,     // WARNING if true will exit(0)
-    BOOL print_final_config,       // WARNING if true will exit(0)
+    BOOL print_verbose_config,     // WARNING, if true will exit(0)
+    BOOL print_final_config,       // WARNING, if true will exit(0)
     const char *fixed_config,
     const char *variable_config,
     const char *config_json_file,

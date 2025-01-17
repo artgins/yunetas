@@ -7,7 +7,44 @@
 
 
 Retrieves a JSON object containing the global variables defined for the GObj system.
-        
+
+The current global variables, that are used to feed [`Settings`](settings) are :
+
+```C
+PUBLIC json_t *gobj_global_variables(void)
+{
+    return json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+        "__node_owner__", gobj_yuno_node_owner(),
+        "__realm_id__", gobj_yuno_realm_id(),
+        "__realm_owner__", gobj_yuno_realm_owner(),
+        "__realm_role__", gobj_yuno_realm_role(),
+        "__realm_name__", gobj_yuno_realm_name(),
+        "__realm_env__", gobj_yuno_realm_env(),
+        "__yuno_id__", gobj_yuno_id(),
+        "__yuno_role__", gobj_yuno_role(),
+        "__yuno_name__", gobj_yuno_name(),
+        "__yuno_tag__", gobj_yuno_tag(),
+        "__yuno_role_plus_name__", gobj_yuno_role_plus_name(),
+        "__hostname__", get_hostname(),
+#ifdef __linux__
+        "__sys_system_name__", sys.sysname,
+        "__sys_node_name__", sys.nodename,
+        "__sys_version__", sys.version,
+        "__sys_release__", sys.release,
+        "__sys_machine__", sys.machine
+#else
+        "__sys_system_name__", "",
+        "__sys_node_name__", "",
+        "__sys_version__", "",
+        "__sys_release__", "",
+        "__sys_machine__", ""
+#endif
+    );
+}
+
+```
+
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,10 +61,7 @@ Retrieves a JSON object containing the global variables defined for the GObj sys
 **Prototype**
 
 ```C
-
 json_t *gobj_global_variables(void);
-        
-
 ```
 
 **Parameters**
@@ -168,4 +202,3 @@ json_t *gobj_global_variables(void);
 ``````
 
 ```````
-

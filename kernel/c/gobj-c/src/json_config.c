@@ -958,7 +958,8 @@ PUBLIC char *json_config(
     const char *variable_config,
     const char *config_json_file,
     const char *parameter_config,
-    pe_flag_t quit)
+    pe_flag_t quit
+)
 {
     dl_list_t dl_op = {0};
     dl_init(&dl_op, 0);

@@ -1,5 +1,5 @@
 (dl)=
-# **Double Linked List functions **
+# Double Linked List functions
 
 (dl_list_t)=
 ## dl_list_t
