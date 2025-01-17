@@ -7,7 +7,7 @@
 
 
 Retrieves statistics from the specified GObj. Statistics provide insight into the GObj's operational metrics and performance.
-        
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,10 +24,7 @@ Retrieves statistics from the specified GObj. Statistics provide insight into th
 **Prototype**
 
 ```C
-
 json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
-        
-
 ```
 
 **Parameters**
@@ -192,4 +189,3 @@ json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
 ``````
 
 ```````
-
