@@ -184,139 +184,218 @@ The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framew
 
 Not all methods are currently used in gobj API. See [](mapping_gmethods).
 
+(mt_create)=
 - `mt_create`:
    - Purpose: Initializes the GObject. Called when a GObject is instantiated.
    - Example: Allocating memory or setting default attribute values.
 
+(mt_create2)=
 - `mt_create2`:
    - Purpose: Provides extended initialization capabilities with additional parameters.
    - Example: Custom initialization logic based on specific input.
 
+(mt_destroy)=
 - `mt_destroy`:
    - Purpose: Cleans up and destroys the GObject. Called when the GObject is deleted.
    - Example: Freeing resources or stopping child GObjects.
 
+(mt_start)=
 - `mt_start`:
    - Purpose: Starts the operation of the GObject.
    - Example: Transitioning to a running state or starting timers.
 
+(mt_stop)=
 - `mt_stop`:
    - Purpose: Stops the operation of the GObject.
    - Example: Halting operations, stopping timers, or freeing temporary resources.
 
+(mt_play)=
 - `mt_play`:
    - Purpose: Resumes the GObject's operation after being paused.
    - Example: Resuming services or processes.
 
+(mt_pause)=
 - `mt_pause`:
    - Purpose: Pauses the GObject's operation.
    - Example: Temporarily halting services without stopping them.
 
+(mt_writing)=
 - `mt_writing`:
    - Purpose: Handles attribute write operations dynamically.
    - Example: Validating or processing the value being written.
 
+(mt_reading)=
 - `mt_reading`:
    - Purpose: Handles attribute read operations dynamically.
    - Example: Adjusting or filtering the value before returning it.
 
+(mt_subscription_added)=
 - `mt_subscription_added`:
    - Purpose: Called when a subscription to an event is added.
    - Example: Managing event listeners or counting subscriptions.
 
+(mt_subscription_deleted)=
 - `mt_subscription_deleted`:
    - Purpose: Called when a subscription to an event is removed.
    - Example: Cleaning up resources or notifying other components.
 
+(mt_child_added)=
 - `mt_child_added`:
    - Purpose: Called after a child GObject is created and added.
    - Example: Managing hierarchical relationships.
 
+(mt_child_removed)=
 - `mt_child_removed`:
    - Purpose: Called before a child GObject is removed.
    - Example: Cleaning up references or handling dependencies.
 
+(mt_stats)=
 - `mt_stats`:
    - Purpose: Returns statistics related to the GObject in a JSON format.
    - Example: Providing performance or usage metrics.
 
+(mt_command_parser)=
 - `mt_command_parser`:
    - Purpose: Parses and executes user commands specific to the GClass.
    - Example: Implementing custom command handling logic.
 
+(mt_inject_event)=
 - `mt_inject_event`:
    - Purpose: Handles events manually, bypassing the built-in state machine.
    - Example: Custom event-processing logic.
 
+(mt_create_resource)=
 - `mt_create_resource`:
    - Purpose: Creates a new resource managed by the GObject.
    - Example: Initializing data structures or external dependencies.
 
+(mt_list_resource)=
 - `mt_list_resource`:
    - Purpose: Lists resources managed by the GObject.
    - Example: Returning an iterator or JSON representation.
 
+(mt_save_resource)=
 - `mt_save_resource`:
    - Purpose: Saves or updates a resource.
    - Example: Persisting data to storage.
 
+(mt_delete_resource)=
 - `mt_delete_resource`:
    - Purpose: Deletes a resource.
    - Example: Removing an entry from a database.
 
+(mt_state_changed)=
 - `mt_state_changed`:
    - Purpose: Handles transitions between states.
    - Example: Logging state changes or triggering side effects.
 
+(mt_authenticate)=
 - `mt_authenticate`:
    - Purpose: Authenticates users or services.
    - Example: Verifying credentials or tokens.
 
+(mt_list_childs)=
 - `mt_list_childs`:
    - Purpose: Lists the child GObjects of the current GObject.
    - Example: Returning hierarchical information.
 
+(mt_stats_updated)=
 - `mt_stats_updated`:
    - Purpose: Notifies that statistics have been updated.
    - Example: Refreshing metrics in real time.
 
+(mt_disable)=
 - `mt_disable`:
    - Purpose: Disables the GObject.
    - Example: Preventing further operations until re-enabled.
 
+(mt_enable)=
 - `mt_enable`:
    - Purpose: Enables the GObject.
    - Example: Allowing operations after being disabled.
 
+(mt_trace_on)=
 - `mt_trace_on`:
    - Purpose: Enables tracing for the GObject.
    - Example: Activating debug or log output.
 
+(mt_trace_off)=
 - `mt_trace_off`:
    - Purpose: Disables tracing for the GObject.
    - Example: Deactivating debug or log output.
 
+(mt_gobj_created)=
 - `mt_gobj_created`:
    - Purpose: Special method invoked when a GObject is created. Typically for the root object (`__yuno__`).
    - Example: Custom initialization for the Yuno.
 
+(mt_publish_event)=
 - `mt_publish_event`:
    - Purpose: Manages the publication of events.
    - Example: Filtering or modifying events before they are emitted.
 
+(mt_authz_checker)=
 - `mt_authz_checker`:
    - Purpose: Checks authorization for specific actions or events.
    - Example: Enforcing access control policies.
 
-- `mt_create_node`, `mt_update_node`, `mt_delete_node`, `mt_link_nodes`, `mt_unlink_nodes`:
+(mt_create_node)=
+- `mt_create_node`
+  - Purpose: Methods for managing nodes in TreeDB.
+  - Example: Adding, updating, deleting, or linking nodes.
+
+(mt_update_node)=
+- `mt_update_node`
+  - Purpose: Methods for managing nodes in TreeDB.
+  - Example: Adding, updating, deleting, or linking nodes.
+
+(mt_delete_node)=
+- `mt_delete_node`
+  - Purpose: Methods for managing nodes in TreeDB.
+  - Example: Adding, updating, deleting, or linking nodes.
+
+(mt_link_nodes)=
+- `mt_link_nodes`
+  - Purpose: Methods for managing nodes in TreeDB.
+  - Example: Adding, updating, deleting, or linking nodes.
+
+(mt_unlink_nodes)=
+- `mt_unlink_nodes`:
    - Purpose: Methods for managing nodes in TreeDB.
    - Example: Adding, updating, deleting, or linking nodes.
 
-- `mt_topic_desc`, `mt_topic_links`, `mt_topic_hooks`, `mt_topic_size`:
+(mt_topic_desc)=
+- `mt_topic_desc`:
+  - Purpose: Methods for inspecting TreeDB topics.
+  - Example: Describing topics or retrieving metadata.
+
+(mt_topic_links)=
+- `mt_topic_links`:
+  - Purpose: Methods for inspecting TreeDB topics.
+  - Example: Describing topics or retrieving metadata.
+
+(mt_topic_hooks)=
+- `mt_topic_hooks`:
+  - Purpose: Methods for inspecting TreeDB topics.
+  - Example: Describing topics or retrieving metadata.
+
+(mt_topic_size)=
+- `mt_topic_size`:
    - Purpose: Methods for inspecting TreeDB topics.
    - Example: Describing topics or retrieving metadata.
 
-- `mt_shoot_snap`, `mt_activate_snap`, `mt_list_snaps`:
+(mt_shoot_snap)=
+- `mt_shoot_snap`:
+  - Purpose: Manage snapshots in the TreeDB.
+  - Example: Creating or restoring data snapshots.
+
+(mt_activate_snap)=
+- `mt_activate_snap`:
+  - Purpose: Manage snapshots in the TreeDB.
+  - Example: Creating or restoring data snapshots.
+
+(mt_list_snaps)=
+- `mt_list_snaps`:
    - Purpose: Manage snapshots in the TreeDB.
    - Example: Creating or restoring data snapshots.
 
