@@ -646,6 +646,102 @@ The `command_table` serves as a central registry for all commands available in a
 (trace_level_t)=
 ## Trace Levels
 
+Trace levels allow precise control over debugging and diagnostic logging in a GClass. By defining a table of trace levels (`s_user_trace_level`), GClasses can manage which aspects of their behavior are logged, ensuring detailed, yet efficient, monitoring and debugging.
+
+---
+
+### Key Concepts
+
+#### Trace Level Table (`s_user_trace_level`)
+The trace level table defines all available trace levels for a GClass. Each entry in the table includes:
+- **Name:** A unique identifier for the trace level.
+- **Description:** A detailed explanation of what the trace level represents.
+
+#### Managing Trace Levels with GObj API
+Trace levels are dynamically managed using the GObj API. These functions allow for:
+- Retrieving lists of active trace levels.
+- Setting or clearing specific trace levels at the global, GClass, or GObj instance levels.
+- Checking if specific trace levels are active.
+
+---
+
+### Core API Functions
+
+#### 1. **Listing Trace Levels**
+Retrieve the list of all defined trace levels for a GClass:
+- `gobj_trace_level_list(hgclass gclass)`: Returns a JSON list of all trace levels defined in the GClass.
+
+#### 2. **Retrieving Active Trace Levels**
+Retrieve the currently active trace levels at various scopes:
+- **Global Levels:**
+  - `gobj_get_global_trace_level()`: Get active global trace levels.
+- **GClass Levels:**
+  - `gobj_get_gclass_trace_level(hgclass gclass)`: Get active trace levels for a GClass.
+  - `gobj_get_gclass_trace_no_level(hgclass gclass)`: Get trace levels explicitly disabled for a GClass.
+- **GObj Instance Levels:**
+  - `gobj_get_gobj_trace_level(hgobj gobj)`: Get active trace levels for a GObj instance.
+  - `gobj_get_gobj_trace_no_level(hgobj gobj)`: Get trace levels explicitly disabled for a GObj instance.
+
+#### 3. **Tree and Hierarchy Retrieval**
+Retrieve trace levels across hierarchical scopes:
+- `gobj_get_gclass_trace_level_list(hgclass gclass)`: Get active trace levels for a GClass and its hierarchy.
+- `gobj_get_gobj_trace_level_tree(hgobj gobj)`: Get active trace levels for a GObj and its tree of children.
+
+#### 4. **Querying and Checking Trace Levels**
+Query specific trace levels for a GObj instance:
+- `gobj_trace_level(hgobj gobj)`: Retrieve the active trace level bitmask for a GObj.
+- `is_level_tracing(hgobj gobj, uint32_t level)`: Check if a specific trace level is active.
+- `is_level_not_tracing(hgobj gobj, uint32_t level)`: Check if a specific trace level is explicitly disabled.
+
+#### 5. **Setting Trace Levels**
+Enable or disable trace levels dynamically at different scopes:
+- **Global Scope:**
+  - `gobj_set_global_trace(const char *level, BOOL set)`: Enable or disable specific global trace levels.
+  - `gobj_set_global_no_trace(const char *level, BOOL set)`: Enable or disable "no trace" levels globally.
+- **GClass Scope:**
+  - `gobj_set_gclass_trace(hgclass gclass, const char *level, BOOL set)`: Enable or disable trace levels for a GClass.
+- **GObj Instance Scope:**
+  - `gobj_set_gobj_trace(hgobj gobj, const char *level, BOOL set, json_t *kw)`: Enable or disable trace levels for a specific GObj instance.
+
+#### 6. **Deep Tracing**
+Deep tracing enables comprehensive logging across all levels:
+- `gobj_set_deep_tracing(int level)`: Enable deep tracing with different levels of detail.
+- `gobj_get_deep_tracing()`: Retrieve the current deep tracing level.
+
+---
+
+### Practical Use Cases
+
+#### 1. **Dynamic Logging**
+During runtime, trace levels can be toggled on or off to focus on specific areas, such as:
+- Connections (`connections`).
+- Traffic (`traffic`).
+- Security (`tls`).
+
+This dynamic control reduces log clutter and enhances debugging efficiency.
+
+#### 2. **Debugging Hierarchies**
+Trace levels can propagate across GClass and GObj hierarchies. For instance:
+- Enabling a trace level for a parent GClass or GObj can cascade to its children.
+- Hierarchical queries can retrieve active trace levels across an entire tree of objects.
+
+#### 3. **Selective Analysis**
+Trace levels allow selective analysis of specific features or operations, improving troubleshooting accuracy. For example:
+- Checking only traffic logs when debugging data flow issues.
+- Enabling TLS logs during secure connection debugging.
+
+---
+
+### Benefits of Trace Levels
+
+- **Granular Control:** Enable or disable logging for specific features or behaviors.
+- **Dynamic Configuration:** Adjust trace levels at runtime without restarting the application.
+- **Hierarchical Flexibility:** Manage trace levels across global, GClass, and GObj scopes.
+- **Efficiency:** Minimize performance impact by logging only relevant details.
+- **Clarity:** Descriptive trace level names and documentation improve usability.
+
+
+
 (gclass_flag_t)=
 ## gclass_flag_t
 
