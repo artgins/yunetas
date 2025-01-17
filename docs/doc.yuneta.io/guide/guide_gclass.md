@@ -5,6 +5,9 @@
 
 A `GClass` (short for GObject Class) is a core construct in the Yuneta framework. It defines the behavior, attributes, and structure of GObjects (runtime instances of a `GClass`). The `GClass` encapsulates the functionality and state machine of a particular object type, serving as a blueprint for creating and managing GObjects.
 
+A `GClass` in Yuneta is the foundation for defining the behavior and structure of objects in the framework. It encapsulates attributes, methods, and finite state machines, enabling the creation of reusable, modular, and extensible components.
+
+
 ## Components of a GClass
 
 A `GClass` consists of several key components that define its operation:
@@ -57,11 +60,6 @@ A `GClass` consists of several key components that define its operation:
     - The GObject API (e.g., `gobj_start`, `gobj_stop`) dynamically invokes the global methods (`gmt`) defined in the `GClass`.
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
-
-## Summary
-
-A `GClass` in Yuneta is the foundation for defining the behavior and structure of objects in the framework. It encapsulates attributes, methods, and finite state machines, enabling the creation of reusable, modular, and extensible components.
-
 
 
 (GMETHODS)=
@@ -212,26 +210,29 @@ The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framew
    - Example: Creating or restoring data snapshots.
 
 
-### Current Mapping of GObject Functions to GMethods
+### Mapping of GMethods
 
-This document maps GObject API functions to the `GMETHODS` they invoke. It provides a detailed overview of how `GMETHODS` are utilized within the GObject lifecycle.
+This section maps GObject API functions to the `GMETHODS` they invoke. It provides a detailed overview of how `GMETHODS` are utilized within the GObject lifecycle.
 
-#### Function Calls Overview
+This mapping provides a detailed and structured view of how `GMETHODS` are utilized across various GObject API functions, covering attributes, events, TreeDB, lifecycle, and more. Each method plays a specific role in the modular design of the GClass.
 
-##### Creation and Destruction
-- **_create_gobj()**:
-    - `mt_create2`: Initializes the GObject with additional parameters.
-    - `mt_create`: Performs basic GObject initialization.
-    - `mt_child_added`: Invoked when a child GObject is added.
-    - `mt_gobj_created`: Special handling for `__yuno__` when a GObject is created.
 
-- **gobj_destroy()**:
-    - `mt_child_removed`: Invoked when a child GObject is removed.
-    - `mt_destroy`: Cleans up resources when a GObject is destroyed.
+#### Creation and Destruction
+- **Creation Operations**:
+    - `_create_gobj()`:
+        - `mt_create2`: Initializes the GObject with additional parameters.
+        - `mt_create`: Performs basic GObject initialization.
+        - `mt_child_added`: Invoked when a child GObject is added.
+        - `mt_gobj_created`: Special handling for `__yuno__` when a GObject is created.
+
+- **Destroy Operations**:
+    - `gobj_destroy()`:
+        - `mt_child_removed`: Invoked when a child GObject is removed.
+        - `mt_destroy`: Cleans up resources when a GObject is destroyed.
 
 ---
 
-##### Attribute Management
+#### Attribute Management
 - **Read Operations**:
     - `gobj_read_bool_attr()`:
     - `gobj_read_integer_attr()`:
@@ -253,114 +254,110 @@ This document maps GObject API functions to the `GMETHODS` they invoke. It provi
 
 ---
 
-##### Lifecycle Management
-- **gobj_start()**:
+#### Lifecycle Management
+- `gobj_start()`:
     - `mt_start`: Starts the GObject's operation.
-- **gobj_stop()**:
+- `gobj_stop()`:
     - `mt_stop`: Stops the GObject's operation.
-- **gobj_play()**:
+- `gobj_play()`:
     - `mt_play`: Resumes the GObject after being paused.
-- **gobj_pause()**:
+- `gobj_pause()`:
     - `mt_pause`: Pauses the GObject's operation.
-- **gobj_disable()**:
+- `gobj_disable()`:
     - `mt_disable`: Disables the GObject.
-- **gobj_enable()**:
+- `gobj_enable()`:
     - `mt_enable`: Enables the GObject.
 
 ---
 
-##### Event and State Management
-- **gobj_send_event()**:
+#### Event and State Management
+- `gobj_send_event()`:
     - `mt_inject_event`: Processes an event directly.
-- **gobj_change_state()**:
+- `gobj_change_state()`:
     - `mt_state_changed`: Handles state transitions.
 
 ---
 
-##### Subscription Management
-- **gobj_subscribe_event()**:
+#### Subscription Management
+- `gobj_subscribe_event()`:
     - `mt_subscription_added`: Called when a subscription is added.
-- **_delete_subscription()**:
+- `_delete_subscription()`:
     - `mt_subscription_deleted`: Called when a subscription is removed.
 
 ---
 
-##### Publishing Events
-- **gobj_publish_event()**:
+#### Publishing Events
+- `gobj_publish_event()`:
     - `mt_publish_event`: Manages the publication of events.
     - `mt_publication_pre_filter`: Applies pre-filters to events before publishing.
     - `mt_publication_filter`: Filters events before final publishing.
 
 ---
 
-##### Commands and Statistics
-- **gobj_command()**:
+#### Commands and Statistics
+- `gobj_command()`:
     - `mt_command_parser`: Executes a command related to the GClass.
-- **gobj_stats()**:
+- `gobj_stats()`:
     - `mt_stats`: Provides statistics for the GObject.
 
 ---
 
-##### Authorization
-- **gobj_user_has_authz()**:
+#### Authorization
+- `gobj_user_has_authz()`:
     - `mt_authz_checker`: Verifies if the user has the necessary permissions.
 
 ---
 
-##### TreeDB Management
-- **gobj_treedbs()**:
+#### TreeDB Management
+- `gobj_treedbs()`:
     - `mt_treedbs`: Lists the TreeDBs associated with the GObject.
-- **gobj_treedb_topics()**:
+- `gobj_treedb_topics()`:
     - `mt_treedb_topics`: Lists the topics within a TreeDB.
-- **gobj_topic_desc()**:
+- `gobj_topic_desc()`:
     - `mt_topic_desc`: Describes a topic in the TreeDB.
-- **gobj_topic_links()**:
+- `gobj_topic_links()`:
     - `mt_topic_links`: Lists the links for a topic.
-- **gobj_topic_hooks()**:
+- `gobj_topic_hooks()`:
     - `mt_topic_hooks`: Lists the hooks for a topic.
-- **gobj_create_node()**:
+- `gobj_create_node()`:
     - `mt_create_node`: Creates a new node in the TreeDB.
-- **gobj_update_node()**:
+- `gobj_update_node()`:
     - `mt_update_node`: Updates an existing node in the TreeDB.
-- **gobj_delete_node()**:
+- `gobj_delete_node()`:
     - `mt_delete_node`: Deletes a node from the TreeDB.
-- **gobj_get_node()**:
+- `gobj_get_node()`:
     - `mt_get_node`: Retrieves a specific node.
-- **gobj_list_nodes()**:
+- `gobj_list_nodes()`:
     - `mt_list_nodes`: Lists all nodes in a topic.
-- **gobj_list_instances()**:
+- `gobj_list_instances()`:
     - `mt_list_instances`: Lists instances of nodes.
-- **gobj_node_parents()**:
+- `gobj_node_parents()`:
     - `mt_node_parents`: Lists the parent nodes of a specific node.
-- **gobj_node_childs()**:
+- `gobj_node_childs()`:
     - `mt_node_childs`: Lists the child nodes of a specific node.
-- **gobj_topic_jtree()**:
+- `gobj_topic_jtree()`:
     - `mt_topic_jtree`: Retrieves the JSON representation of a topic's tree structure.
-- **gobj_node_tree()**:
+- `gobj_node_tree()`:
     - `mt_node_tree`: Retrieves the tree structure of nodes.
 
 ---
 
-##### Snapshots
-- **gobj_shoot_snap()**:
+#### Snapshots
+- `gobj_shoot_snap()`:
     - `mt_shoot_snap`: Creates a snapshot.
-- **gobj_activate_snap()**:
+- `gobj_activate_snap()`:
     - `mt_activate_snap`: Activates a snapshot.
-- **gobj_list_snaps()**:
+- `gobj_list_snaps()`:
     - `mt_list_snaps`: Lists all snapshots.
 
 ---
 
-##### Tracing
-- **gobj_set_gobj_trace()**:
+#### Tracing
+- `gobj_set_gobj_trace()`:
     - `mt_trace_on`: Enables tracing for the GObject.
     - `mt_trace_off`: Disables tracing for the GObject.
 
 ---
-
-#### Conclusion
-
-This mapping provides a detailed and structured view of how `GMETHODS` are utilized across various GObject API functions, covering attributes, events, TreeDB, lifecycle, and more. Each method plays a specific role in the modular design of the GClass.
 
 
 
@@ -370,6 +367,7 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 ### What is an LMETHOD?
 
 The `LMETHOD` structure in the Yuneta framework defines the local methods that can be implemented by a `GClass`. These methods are specific to the internal operation of the `GClass` and are not intended to be invoked dynamically via the GObject API, unlike the global methods (`GMETHODS`).
+
 
 ### Purpose of LMETHODs
 
@@ -422,10 +420,6 @@ PRIVATE const LMETHOD lmt[] = {
 4. **Integration with the GClass**:
     - The `LMETHOD` array is linked to the `GClass` during its creation, enabling the `GClass` to use these methods internally.
 
-### Summary
-
-LMETHODs are an essential part of the Yuneta framework's modular design, offering a mechanism to implement and encapsulate internal operations within a `GClass`. They complement GMETHODs by focusing on localized functionality, ensuring that the internal workings of a `GClass` are both efficient and well-organized.
-
 
 (gclass_flag_t)=
 ## gclass_flag_t
@@ -451,7 +445,3 @@ The `gclass_flag_t` enumeration defines flags that can be applied to a `GClass` 
 - `gcflag_singleton`: (`0x0010`)
     - **Description**: Enforces that only one instance of the `GClass` can exist at a time.
     - **Use Case**: For `GClasses` that must maintain a single-instance constraint (e.g., a singleton pattern).
-
-### Summary
-
-The `gclass_flag_t` flags provide fine-grained control over the behavior of `GClasses` and their instances, enhancing flexibility and enabling specialized configurations.

@@ -1,8 +1,8 @@
 
 
 <!-- ============================================================== -->
-(gobj_exec_internal_method())=
-# `gobj_exec_internal_method()`
+(gobj_local_method())=
+# `gobj_local_method()`
 <!-- ============================================================== -->
 
 
@@ -25,7 +25,7 @@ Executes an internal method on a GObj. Internal methods are specific to the GCla
 
 ```C
 
-json_t *gobj_exec_internal_method(hgobj gobj, const char *method_name, json_t *kw, hgobj src);
+json_t *gobj_local_method(hgobj gobj, const char *method_name, json_t *kw, hgobj src);
         
 
 ```

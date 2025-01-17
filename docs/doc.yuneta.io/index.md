@@ -48,7 +48,7 @@ Versions in C, partially in JavaScript. Todo in Python.
 
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 3
 :caption: Get Started
 
 installation
@@ -58,7 +58,7 @@ CHANGELOG
 
 ```{toctree}
 :caption: Philosophy
-:maxdepth: 1
+:maxdepth: 3
 
 philosophy/philosophy.md
 
@@ -66,7 +66,7 @@ philosophy/philosophy.md
 
 ```{toctree}
 :caption: Guides
-:maxdepth: 1
+:maxdepth: 3
 
 guide/basic_concepts.md
 guide/guide_gclass.md
@@ -167,7 +167,7 @@ api/testing/api_testing.md
 
 ```{toctree}
 :caption: Glossary 
-:maxdepth: 1
+:maxdepth: 3
 
 glossary
 
