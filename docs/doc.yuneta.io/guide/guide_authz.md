@@ -43,7 +43,7 @@ BOOL gobj_user_has_authz(hgobj gobj_to_check, const char *authz, json_t *kw, hgo
   [`gobj_start_up()`](gobj_start_up()). If null, a default checker is used.
 
 The authorization checker:
-- Uses the [`mt_authz_checker`](mt_authz_checker()) method if defined in the GClass.
+- Uses the [`mt_authz_checker`](mt_authz_checker) method if defined in the GClass.
 - Verifies if the user has the required permission (`authz`) based on roles and parameters.
 - Returns `TRUE` if the user is authorized; otherwise, `FALSE`.
 
