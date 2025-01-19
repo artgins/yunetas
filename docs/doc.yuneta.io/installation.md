@@ -198,7 +198,7 @@ Use this utility to edit the Kconfig file:
 
 Firstly, install dependencies:
 
-    cd ~/yunetaprojects/yunetas/kernel/c/root-linux-ext-libs/
+    cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs/
     ./extrae.sh
     ./configure-libs.sh
 
