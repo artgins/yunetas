@@ -155,7 +155,7 @@ Get the current version of yunetas:
 
 Or Get some version of yunetas:
 
-    git clone -b 7.0.0a0 --recurse-submodules https://github.com/artgins/yunetas.git yunetas-7.0.0a0
+    git clone -b <version> --recurse-submodules https://github.com/artgins/yunetas.git <version>
 
 ## Activating yunetas
 
