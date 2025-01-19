@@ -182,34 +182,46 @@ The script source `yunetas-env.sh` also sources the file
 
 where you can place your own scripts.
 
-## Configuring (Kconfig)
+## Install dependencies
 
-Configuration options are defined in ``Kconfig`` file.
-The output from Kconfig is a header file ``yuneta_config.h`` with macros that can be tested at build time.
+Firstly, install yuneta dependencies:
 
-Use this utility to edit the Kconfig file:
-
-    cd ~/yunetaprojects/yunetas
-    menuconfig
-
-> ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the .config file is required.
-
-## Compiling and Installing
-
-Firstly, install dependencies:
+Goto `linux-ext-libs` directory:
 
     cd ~/yunetaprojects/yunetas/kernel/c/linux-ext-libs/
+
+Extract, compile and install:
+
     ./extrae.sh
     ./configure-libs.sh
 
 
+## Compile Yunetas
 
-To build and install:
+### Configuring (Kconfig)
+
+Configuration options are defined in ``Kconfig`` file.
+The output from Kconfig is a header file ``yuneta_config.h`` with macros that can be tested at build time.
+
+Goto `yunetas` directory:
 
     cd ~/yunetaprojects/yunetas
+
+Use this utility to edit the Kconfig file:
+
+    menuconfig
+
+> ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the .config file is required.
+
+### Compiling and Installing Yunetas
+
+To build and install yunetas:
+
     yunetas init-debug # or init-prod
     yunetas build
 
+
+### Test
 
 To test:
 
