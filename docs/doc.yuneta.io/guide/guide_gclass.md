@@ -180,9 +180,12 @@ Each method serves a specific purpose and is invoked through the GObject API, en
 
 The `GMETHODS` structure enables flexible, modular behavior in the Yuneta framework. Each method is optional, allowing `GClasses` to implement only the functionality they need.
 
-### List
+### Methods
 
-Not all methods are currently used in gobj API. See [](mapping_gmethods).
+```{warning}
+Some methods are not currently utilized in the gobj API. 
+Refer to the [](mapping_gmethods) section for details.
+```
 
 (mt_create)=
 - `mt_create`:
