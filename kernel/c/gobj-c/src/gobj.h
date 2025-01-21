@@ -1895,7 +1895,7 @@ PUBLIC json_t *gobj_create_resource( // Return is NOT YOURS
     hgobj gobj,
     const char *resource,
     json_t *kw,  // owned
-    json_t *jn_options // owned, 'volatil': don't save although persistent, 'update': recreate if exists
+    json_t *jn_options // owned
 );
 PUBLIC int gobj_save_resource(
     hgobj gobj,
