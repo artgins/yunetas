@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: GBuffer functions
-:maxdepth: 2
+:maxdepth: 1
 
 gbuffer_create.md
 gbuffer_remove.md

@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Startup functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_start_up.md
 gobj_end.md

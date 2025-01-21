@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Memory functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_set_allocators.md
 gobj_get_allocators.md

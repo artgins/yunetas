@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Node functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_treedbs.md
 gobj_treedb_topics.md

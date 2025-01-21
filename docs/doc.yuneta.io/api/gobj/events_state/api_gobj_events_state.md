@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Events/State functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_send_event.md
 gobj_change_state.md

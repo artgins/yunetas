@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Attribute functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_save_persistent_attrs.md
 gobj_remove_persistent_attrs.md

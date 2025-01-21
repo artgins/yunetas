@@ -44,7 +44,7 @@ PUBLIC gobj_event_t gclass_find_public_event(
   - The name of the public event to search for.
 
 * - `verbose`
-  - [`BOOL`](BOOL)
+  - `BOOL`
   - If `TRUE`, logs details about the search process. If `FALSE`, remains silent during the search.
 
 :::

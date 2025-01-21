@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Statistic functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_set_stat.md
 gobj_incr_stat.md

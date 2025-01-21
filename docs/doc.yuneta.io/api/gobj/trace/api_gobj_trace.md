@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Trace functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_repr_global_trace_levels.md
 gobj_repr_gclass_trace_levels.md

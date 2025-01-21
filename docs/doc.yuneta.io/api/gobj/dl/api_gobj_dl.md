@@ -10,7 +10,7 @@
 
 ```{toctree}
 :caption: Double List functions
-:maxdepth: 2
+:maxdepth: 1
 
 dl_init.md
 dl_first.md

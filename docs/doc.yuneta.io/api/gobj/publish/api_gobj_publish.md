@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Publish/Subscription functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_subscribe_event.md
 gobj_unsubscribe_event.md

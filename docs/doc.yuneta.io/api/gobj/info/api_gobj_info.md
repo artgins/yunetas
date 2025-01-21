@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Info functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_yuno.md
 gobj_yuno_name.md

@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Log functions
-:maxdepth: 2
+:maxdepth: 1
 
 glog_init.md
 glog_end.md

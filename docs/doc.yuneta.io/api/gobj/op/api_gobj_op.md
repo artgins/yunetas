@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: Operation functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_start
 gobj_start_childs.md

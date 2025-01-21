@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: GObj creation functions
-:maxdepth: 2
+:maxdepth: 1
 
 gobj_create.md
 gobj_create2.md

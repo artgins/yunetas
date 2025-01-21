@@ -2,7 +2,7 @@
 
 ```{toctree}
 :caption: GClass functions
-:maxdepth: 2
+:maxdepth: 1
 
 gclass_create.md
 gclass_add_state.md
