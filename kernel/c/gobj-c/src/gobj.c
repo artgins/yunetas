@@ -7962,6 +7962,229 @@ PUBLIC json_t *gobj_jn_stats(hgobj gobj)
 
 
                     /*------------------------------*
+                     *      Resource functions
+                     *------------------------------*/
+
+
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_create_resource(
+    hgobj gobj_,
+    const char *resource,
+    json_t *kw,  // owned
+    json_t *jn_options // owned
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_create_resource) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_create_resource not defined",
+            NULL
+        );
+        KW_DECREF(kw)
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+
+    return gobj->gclass->gmt->mt_create_resource(gobj, resource, kw, jn_options);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gobj_save_resource(
+    hgobj gobj_,
+    const char *resource,
+    json_t *record,     // WARNING NOT owned
+    json_t *jn_options // owned
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        return -1;
+    }
+    if(!record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj_save_resource(): record NULL",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        return -1;
+    }
+    if(!gobj->gclass->gmt->mt_save_resource) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "mt_save_resource not defined",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        return -1;
+    }
+
+    return gobj->gclass->gmt->mt_save_resource(gobj, resource, record, jn_options);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gobj_delete_resource(
+    hgobj gobj_,
+    const char *resource,
+    json_t *record,  // owned
+    json_t *jn_options // owned
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(record)
+        JSON_DECREF(jn_options)
+        return -1;
+    }
+    if(!record) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj_delete_resource(): record NULL",
+            NULL
+        );
+        JSON_DECREF(jn_options)
+        return -1;
+    }
+    if(!gobj->gclass->gmt->mt_delete_resource) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "mt_delete_resource not defined",
+            NULL
+        );
+        KW_DECREF(record)
+        JSON_DECREF(jn_options)
+        return -1;
+    }
+
+    return gobj->gclass->gmt->mt_delete_resource(gobj, resource, record, jn_options);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_list_resource(
+    hgobj gobj_,
+    const char *resource,
+    json_t *jn_filter,  // owned
+    json_t *jn_options // owned
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_list_resource) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "mt_list_resource not defined",
+            NULL
+        );
+        KW_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_list_resource(gobj, resource, jn_filter, jn_options);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_get_resource( // WARNING return is NOT yours!
+    hgobj gobj_,
+    const char *resource,
+    json_t *jn_filter,  // owned
+    json_t *jn_options // owned
+)
+{
+    gobj_t *gobj = gobj_;
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        KW_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    if(!gobj->gclass->gmt->mt_get_resource) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "gobj",         "%s", gobj_full_name(gobj),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "mt_get_resource not defined",
+            NULL
+        );
+        KW_DECREF(jn_filter);
+        JSON_DECREF(jn_options)
+        return 0;
+    }
+    return gobj->gclass->gmt->mt_get_resource(gobj, resource, jn_filter, jn_options);
+}
+
+
+
+
+                    /*------------------------------*
                      *      Node functions
                      *------------------------------*/
 

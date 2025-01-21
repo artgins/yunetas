@@ -1887,8 +1887,46 @@ PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
 PUBLIC json_t *gobj_jn_stats(hgobj gobj);  // WARNING the json return is NOT YOURS!
 
 
+/*-----------------------------------------------------*
+ *  Resource functions
+ *  Here the 'resource' is the 'key' of value (record)
+ *-----------------------------------------------------*/
+PUBLIC json_t *gobj_create_resource( // Return is NOT YOURS
+    hgobj gobj,
+    const char *resource,
+    json_t *kw,  // owned
+    json_t *jn_options // owned, 'volatil': don't save although persistent, 'update': recreate if exists
+);
+PUBLIC int gobj_save_resource(
+    hgobj gobj,
+    const char *resource,
+    json_t *record,     // WARNING NOT owned
+    json_t *jn_options // owned
+);
+
+PUBLIC int gobj_delete_resource(
+    hgobj gobj,
+    const char *resource,
+    json_t *record,     // owned
+    json_t *jn_options // owned
+);
+
+PUBLIC json_t *gobj_list_resource( // // Return is YOURS, remember free it
+    hgobj gobj,
+    const char *resource,
+    json_t *jn_filter,  // owned
+    json_t *jn_options // owned
+);
+PUBLIC json_t *gobj_get_resource( // WARNING return is NOT yours!
+    hgobj gobj,
+    const char *resource,
+    json_t *jn_filter,  // owned
+    json_t *jn_options // owned
+);
+
+
 /*--------------------------------------------------*
- *  Node functions. Don't use resource, use this.
+ *  Node functions.
  *  node functions only in __linux__
  *--------------------------------------------------*/
 #ifdef __linux__

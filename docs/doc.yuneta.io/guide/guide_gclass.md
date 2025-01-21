@@ -479,6 +479,20 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 
 ---
 
+#### Resource Management
+- `gobj_create_resource()`:
+    - `mt_create_resource`: Called when a resource is created.
+- `gobj_save_resource()`:
+    - `mt_save_resource`: Called when a resource is saved.
+- `gobj_delete_resource()`:
+    - `mt_delete_resource`: Called when a resource is deleted.
+- `gobj_list_resource()`:
+    - `mt_list_resource`: Called when a resource is list.
+- `gobj_get_resource()`:
+    - `mt_get_resource`: Called when a resource is get.
+
+---
+
 #### Publishing Events
 - `gobj_publish_event()`:
     - `mt_publish_event`: Manages the publication of events.
