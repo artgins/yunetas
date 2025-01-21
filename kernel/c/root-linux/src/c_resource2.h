@@ -1,11 +1,11 @@
 /****************************************************************************
- *          C_TASK_AUTHENTICATE.H
- *          Task_authenticate GClass.
+ *          C_RESOURCE2.H
+ *          Resource2 GClass.
  *
- *          Task to authenticate with OAuth2
+ *          Resource Controller using json files
  *
- *          Copyright (c) 2021 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2022 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -22,7 +22,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_TASK_AUTHENTICATE);
+GOBJ_DECLARE_GCLASS(C_RESOURCE2);
 
 /*------------------------*
  *      States
@@ -31,12 +31,11 @@ GOBJ_DECLARE_GCLASS(C_TASK_AUTHENTICATE);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DECLARE_EVENT(EV_ON_TOKEN);
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_task_authenticate(void);
+PUBLIC int register_c_resource2(void);
 
 #ifdef __cplusplus
 }

@@ -44,6 +44,7 @@ extern "C"{
 #include <c_task_authz.h>
 #include <c_tranger.h>
 #include <c_treedb.h>
+#include <c_resource2.h>
 #include <dbsimple.h>
 #include <yev_loop.h>
 #include <entry_point.h>

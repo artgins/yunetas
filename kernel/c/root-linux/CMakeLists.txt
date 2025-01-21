@@ -44,6 +44,7 @@ set (SRCS
     src/c_tranger.c
     src/c_node.c
     src/c_treedb.c
+    src/c_resource2.c
     src/yunetas_environment.c
     src/dbsimple.c
     src/entry_point.c
@@ -76,6 +77,7 @@ set (HDRS
     src/c_tranger.h
     src/c_node.h
     src/c_treedb.h
+    src/c_resource2.h
     src/yunetas_environment.h
     src/dbsimple.h
     src/entry_point.h

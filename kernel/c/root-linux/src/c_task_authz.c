@@ -116,6 +116,7 @@ Example of refresh_token
 
 
  *          Copyright (c) 2021 Niyamaka.
+ *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
