@@ -3,7 +3,7 @@
 # `gobj_create()`
 <!-- ============================================================== -->
 
-Creates a new GObj instance with the default settings.
+The `gobj_create` function creates a new generic GObj without any specialized flags. This is the most flexible creation method, allowing the developer to define a GObj without marking it as a service, Yuno, or any other specialized role.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,7 +31,7 @@ PUBLIC hgobj gobj_create(
 **Parameters**
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -59,6 +59,10 @@ PUBLIC hgobj gobj_create(
 
 - Returns the handle ([`hgobj`](hgobj)) to the created GObj.  
 - Returns `NULL` if the creation fails.
+
+**Notes**
+- **Lifecycle Management:**
+  - Internally calls `gobj_create2` with no additional flags.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

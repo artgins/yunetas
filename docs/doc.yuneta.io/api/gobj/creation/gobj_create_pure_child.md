@@ -3,8 +3,7 @@
 # `gobj_create_pure_child()`
 <!-- ============================================================== -->
 
-Creates a new GObj instance configured as a pure child of the specified parent GObj.  
-Pure child Gobjs inherit certain behaviors and attributes from their parent.
+The `gobj_create_pure_child` function creates a new pure child GObj. Pure child Gobjs send events directly to their parent without publishing them.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -32,7 +31,7 @@ PUBLIC hgobj gobj_create_pure_child(
 **Parameters**
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -61,6 +60,11 @@ PUBLIC hgobj gobj_create_pure_child(
 - Returns the handle ([`hgobj`](hgobj)) to the created pure child GObj.  
 - Returns `NULL` if the creation fails.
 
+**Notes**
+- **Flags Behavior:**
+  - Automatically sets the `gobj_flag_pure_child` flag.
+- **Lifecycle Management:**
+  - Internally calls `gobj_create2` with the `gobj_flag_pure_child` flag.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

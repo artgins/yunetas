@@ -202,9 +202,12 @@ names = [
     "gobj_search_path",
     "gobj_match_gobj",
     "gobj_find_child",
+    "gobj_match_childs",
+    "gobj_match_childs_tree",
+    "gobj_free_iter",
     "gobj_walk_gobj_childs",
     "gobj_walk_gobj_childs_tree",
-    "gobj_exec_internal_method",
+    "gobj_local_method",
 ]
 
 # Loop through the list of names and create a file for each

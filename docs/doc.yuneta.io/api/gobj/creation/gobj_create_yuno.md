@@ -3,8 +3,7 @@
 # `gobj_create_yuno()`
 <!-- ============================================================== -->
 
-Creates a new GObj instance configured as the root Yuno object.  
-The Yuno object serves as the root and main entry point for a Yuneta-based application.
+The `gobj_create_yuno` function creates a new GObj marked as a Yuno. This is a specialized type of GObj that acts as the root of a Yuno. Only one Yuno can exist at a time in the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,30 +30,36 @@ PUBLIC hgobj gobj_create_yuno(
 **Parameters**
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
+* - **Parameter**
+  - **Type**
+  - **Description**
 
-* - `name`
+* - `gobj_name`
   - `const char *`
-  - The name of the Yuno GObj to be created.
+  - The name of the Yuno GObj. If `NULL`, defaults to an empty string.
 
-* - `gclass`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass from which the Yuno GObj will be instantiated.
+* - `gclass_name`
+  - `gclass_name_t`
+  - The name of the GClass defining the Yuno's behavior.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing attributes to initialize the Yuno. This parameter is owned by the function.
+  - `json_t *`
+  - JSON object containing configuration attributes for the Yuno (owned).
 
 :::
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the created Yuno GObj.  
-- Returns `NULL` if the creation fails.
+- Returns a handle to the newly created Yuno (`hgobj`).
+- Returns `NULL` if an error occurs, such as if a Yuno already exists.
+
+**Notes**
+- **Flags Behavior:**
+  - Automatically sets the `gobj_flag_yuno` flag, marking the GObj as a Yuno.
+- **Lifecycle Management:**
+  - Internally calls `gobj_create2` with the `gobj_flag_yuno` flag.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -41,6 +41,9 @@ gobj_child_size2.md
 gobj_search_path.md
 gobj_match_gobj.md
 gobj_find_child.md
+gobj_match_childs.md
+gobj_match_childs_tree.md
+gobj_free_iter.md
 gobj_walk_gobj_childs.md
 gobj_walk_gobj_childs_tree.md
 gobj_local_method.md

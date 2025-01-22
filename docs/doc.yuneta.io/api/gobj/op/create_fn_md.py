@@ -41,6 +41,11 @@ $_parameters_
 
 $_return_value_
 
+---
+
+**Notes**
+
+$_notes_
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -194,6 +199,8 @@ int gobj_start(hgobj gobj);
         "return_value": '''
 - `0`: The GObj was successfully started.  
 - `-1`: An error occurred during the start process.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -221,6 +228,8 @@ int gobj_start_childs(hgobj gobj);
         "return_value": '''
 - `0`: All child GObjs were successfully started.  
 - `-1`: An error occurred during the start process for one or more child GObjs.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -248,6 +257,8 @@ int gobj_start_tree(hgobj gobj);
         "return_value": '''
 - `0`: The GObj tree was successfully started.  
 - `-1`: An error occurred during the start process for one or more GObjs in the tree.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -275,6 +286,8 @@ int gobj_stop(hgobj gobj);
         "return_value": '''
 - `0`: The GObj was successfully stopped.  
 - `-1`: An error occurred during the stop process.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -302,6 +315,8 @@ int gobj_stop_childs(hgobj gobj);
         "return_value": '''
 - `0`: All child GObjs were successfully stopped.  
 - `-1`: An error occurred during the stop process for one or more child GObjs.
+        ''',
+        "notes": '''
         '''
     }
 ]
@@ -332,6 +347,8 @@ int gobj_pause(hgobj gobj);
         "return_value": '''
 - `0`: The GObj was successfully paused.  
 - `-1`: An error occurred during the pause process.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -359,6 +376,8 @@ int gobj_enable(hgobj gobj);
         "return_value": '''
 - `0`: The GObj was successfully enabled.  
 - `-1`: An error occurred during the enable process.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -386,6 +405,8 @@ int gobj_disable(hgobj gobj);
         "return_value": '''
 - `0`: The GObj was successfully disabled.  
 - `-1`: An error occurred during the disable process.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -417,6 +438,8 @@ int gobj_change_parent(hgobj gobj, hgobj new_parent);
         "return_value": '''
 - `0`: The GObj's parent was successfully changed.  
 - `-1`: An error occurred during the parent change process.
+        ''',
+        "notes": '''
         '''
     }
 ])
@@ -447,6 +470,8 @@ int gobj_autostart_services(void);
         "return_value": '''
 - `0`: All autostart services were successfully started.  
 - `-1`: An error occurred while starting one or more services.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -474,6 +499,8 @@ int gobj_autoplay_services(void);
         "return_value": '''
 - `0`: All autoplay services were successfully played.  
 - `-1`: An error occurred while playing one or more services.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -501,6 +528,8 @@ int gobj_stop_autostart_services(void);
         "return_value": '''
 - `0`: All autostart services were successfully stopped.  
 - `-1`: An error occurred while stopping one or more services.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -528,6 +557,8 @@ int gobj_pause_autoplay_services(void);
         "return_value": '''
 - `0`: All autoplay services were successfully paused.  
 - `-1`: An error occurred while pausing one or more services.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -567,6 +598,8 @@ json_t *gobj_command(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
         "return_value": '''
 - Returns a JSON object ([`json_t`](json_t)) containing the command's result and data.  
 - Returns `NULL` if the command could not be executed.
+        ''',
+        "notes": '''
         '''
     }
 ])
@@ -609,6 +642,8 @@ json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
         "return_value": '''
 - Returns a JSON object ([`json_t`](json_t)) containing the requested statistics.  
 - Returns `NULL` if the statistics could not be retrieved.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -648,6 +683,8 @@ json_t *build_command_response(hgobj gobj, int result, const char *message, json
         "return_value": '''
 - Returns a JSON object ([`json_t`](json_t)) containing the command response.  
 - The response includes keys like `result`, `message`, and additional data.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -678,6 +715,8 @@ void gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj);
         ''',
         "return_value": '''
 - None.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -705,6 +744,8 @@ hgobj gobj_last_bottom_gobj(hgobj gobj);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the last bottom GObj in the hierarchy.  
 - Returns `NULL` if the GObj has no bottom GObjs.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -732,6 +773,8 @@ hgobj gobj_bottom_gobj(hgobj gobj);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the bottom GObj directly associated with the specified GObj.  
 - Returns `NULL` if the GObj does not have a bottom GObj.
+        ''',
+        "notes": '''
         '''
     }
 ])
@@ -762,6 +805,8 @@ json_t *gobj_services(void);
         "return_value": '''
 - Returns a JSON array ([`json_t`](json_t)) of service GObjs, including their metadata.  
 - Returns an empty array if no services are registered.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -789,6 +834,8 @@ hgobj gobj_default_service(void);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the default service GObj.  
 - Returns `NULL` if no default service is defined.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -816,6 +863,8 @@ hgobj gobj_find_service(const char *service_name);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the service GObj with the specified name.  
 - Returns `NULL` if no matching service is found.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -843,6 +892,8 @@ hgobj gobj_find_service_by_gclass(gclass_name_t gclass_name);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the first service matching the specified GClass.  
 - Returns `NULL` if no matching service is found.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -870,6 +921,8 @@ hgobj gobj_find_gclass_service(gclass_name_t gclass_name);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the service matching the specified GClass.  
 - Returns `NULL` if no matching service is found.
+        ''',
+        "notes": '''
         '''
     }
 ])
@@ -900,6 +953,8 @@ hgobj gobj_find_gobj(const char *gobj_name);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the GObj with the specified name.  
 - Returns `NULL` if no matching GObj is found.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -927,6 +982,8 @@ hgobj gobj_first_child(hgobj gobj);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the first child GObj.  
 - Returns `NULL` if the parent GObj has no children.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -954,6 +1011,8 @@ hgobj gobj_last_child(hgobj gobj);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the last child GObj.  
 - Returns `NULL` if the parent GObj has no children.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -981,6 +1040,8 @@ hgobj gobj_next_child(hgobj gobj);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the next sibling GObj.  
 - Returns `NULL` if the GObj has no next sibling.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -1008,6 +1069,8 @@ hgobj gobj_prev_child(hgobj gobj);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the previous sibling GObj.  
 - Returns `NULL` if the GObj has no previous sibling.
+        ''',
+        "notes": '''
         '''
     }
 ])
@@ -1042,6 +1105,8 @@ hgobj gobj_child_by_name(hgobj gobj, const char *child_name);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the child GObj with the specified name.  
 - Returns `NULL` if no matching child GObj is found.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -1069,6 +1134,8 @@ int gobj_child_size(hgobj gobj);
         "return_value": '''
 - Returns the total number of child GObjs under the specified parent GObj.  
 - Returns `0` if the GObj has no children.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -1100,6 +1167,8 @@ int gobj_child_size2(hgobj gobj, json_t *filter);
         "return_value": '''
 - Returns the total number of child GObjs under the specified parent GObj that match the filter criteria.  
 - Returns `0` if no matching child GObjs are found.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -1131,6 +1200,8 @@ hgobj gobj_search_path(hgobj gobj, const char *path);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the GObj located at the specified path.  
 - Returns `NULL` if no matching GObj is found.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -1162,6 +1233,8 @@ BOOL gobj_match_gobj(hgobj gobj, json_t *filter);
         "return_value": '''
 - Returns `TRUE` if the GObj matches the filter criteria.  
 - Returns `FALSE` otherwise.
+        ''',
+        "notes": '''
         '''
     }
 ])
@@ -1196,6 +1269,8 @@ hgobj gobj_find_child(hgobj gobj, json_t *filter);
         "return_value": '''
 - Returns the handle ([`hgobj`](hgobj)) of the child GObj matching the criteria.  
 - Returns `NULL` if no matching child is found.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -1231,6 +1306,8 @@ int gobj_walk_gobj_childs(hgobj gobj, int (*cb)(hgobj child, void *user_data), v
         "return_value": '''
 - Returns `0` if the traversal completes successfully.  
 - Returns a negative value if the callback function halts the traversal.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -1266,15 +1343,17 @@ int gobj_walk_gobj_childs_tree(hgobj gobj, int (*cb)(hgobj child, void *user_dat
         "return_value": '''
 - Returns `0` if the traversal completes successfully.  
 - Returns a negative value if the callback function halts the traversal.
+        ''',
+        "notes": '''
         '''
     },
     {
-        "name": "gobj_exec_internal_method",
+        "name": "gobj_local_method",
         "description": '''
 Executes an internal method on a GObj. Internal methods are specific to the GClass of the GObj and provide additional functionality.
         ''',
         "prototype": '''
-json_t *gobj_exec_internal_method(hgobj gobj, const char *method_name, json_t *kw, hgobj src);
+json_t *gobj_local_method(hgobj gobj, const char *method_name, json_t *kw, hgobj src);
         ''',
         "parameters": '''
 :::{list-table}
@@ -1305,6 +1384,8 @@ json_t *gobj_exec_internal_method(hgobj gobj, const char *method_name, json_t *k
         "return_value": '''
 - Returns a JSON object ([`json_t`](json_t)) containing the result of the method execution.  
 - Returns `NULL` if the method does not exist or an error occurs.
+        ''',
+        "notes": '''
         '''
     }
 ])
@@ -1335,6 +1416,8 @@ int gobj_play(hgobj gobj);
         "return_value": '''
 - `0`: The GObj successfully transitioned to the "playing" state.  
 - `-1`: The transition failed, possibly because the GObj was not in a compatible state.
+        ''',
+        "notes": '''
         '''
     },
     {
@@ -1362,10 +1445,158 @@ int gobj_stop_tree(hgobj gobj);
         "return_value": '''
 - `0`: The GObj and its child hierarchy were successfully stopped.  
 - `-1`: An error occurred while stopping one or more GObjs in the hierarchy.
+        ''',
+        "notes": '''
         '''
     }
 ])
 
+functions.extend([
+    {
+        "name": "gobj_match_childs",
+        "description": '''
+The `gobj_match_childs` function retrieves a JSON list (iterator) of all child Gobjs that match the given filter. It only checks the first level of child Gobjs.
+
+The returned JSON list must be freed using the `gobj_free_iter` function.
+        ''',
+        "prototype": '''
+PUBLIC json_t *gobj_match_childs(
+    hgobj       gobj,
+    json_t      *jn_filter   // owned
+);
+        ''',
+        "parameters": '''
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - **Parameter**
+  - **Type**
+  - **Description**
+
+* - `gobj`
+  - `hgobj`
+  - The parent GObj whose children are being checked.
+
+* - `jn_filter`
+  - `json_t *`
+  - JSON object defining the criteria for filtering child Gobjs (owned).
+:::
+        ''',
+        "return_value": '''
+- Returns a JSON array containing handles (`hgobj`) of the matched child Gobjs.
+- Returns `NULL` if an error occurs (e.g., `gobj` is `NULL`).
+        ''',
+        "notes": '''
+- **Ownership:**
+  - The `jn_filter` parameter is owned by the function and will be decremented internally.
+  - The returned JSON array must be freed using `gobj_free_iter`.
+- **Error Handling:**
+  - If the `gobj` is `NULL`, the function logs an error and returns `NULL`.
+        '''
+    },
+])
+
+functions.extend([
+    {
+        "name": "gobj_match_childs_tree",
+        "description": '''
+The `gobj_match_childs_tree` function retrieves a JSON list (iterator) of all child Gobjs in the entire hierarchy (tree) that match the given filter.
+
+The returned JSON list must be freed using the `gobj_free_iter` function.
+        ''',
+        "prototype": '''
+PUBLIC json_t *gobj_match_childs_tree(
+    hgobj       gobj,
+    json_t      *jn_filter   // owned
+);
+        ''',
+        "parameters": '''
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - **Parameter**
+  - **Type**
+  - **Description**
+
+* - `gobj`
+  - `hgobj`
+  - The parent GObj whose child tree is being checked.
+
+* - `jn_filter`
+  - `json_t *`
+  - JSON object defining the criteria for filtering child Gobjs (owned).
+:::
+        ''',
+        "return_value": '''
+- Returns a JSON array containing handles (`hgobj`) of the matched child Gobjs in the entire hierarchy.
+- Returns `NULL` if an error occurs (e.g., `gobj` is `NULL`).
+        ''',
+        "notes": '''
+- **Ownership:**
+  - The `jn_filter` parameter is owned by the function and will be decremented internally.
+  - The returned JSON array must be freed using `gobj_free_iter`.
+- **Error Handling:**
+  - If the `gobj` is `NULL`, the function logs an error and returns `NULL`.
+        '''
+    },
+])
+
+functions.extend([
+    {
+        "name": "gobj_free_iter",
+        "description": '''
+The `gobj_free_iter` function frees an iterator (JSON array) of GObj handles created by functions such as `gobj_match_childs` or `gobj_match_childs_tree`.
+
+        ''',
+        "prototype": '''
+PUBLIC int gobj_free_iter(
+    json_t      *iter
+);
+        ''',
+        "parameters": '''
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - **Parameter**
+  - **Type**
+  - **Description**
+
+* - `iter`
+  - `json_t *`
+  - JSON array of GObj handles to be freed.
+:::
+        ''',
+        "return_value": '''
+- Returns `0` on success.
+        ''',
+        "notes": '''
+- **Error Handling:**
+  - Logs an error if any GObj in the iterator has invalid references (`refs <= 0`).
+  - Safely decrements references of each GObj in the iterator.
+- **Memory Management:**
+  - The `iter` parameter is owned by the function and will be decremented internally.
+        '''
+    },
+])
+
+# functions.extend([
+#     {
+#         "name": "",
+#         "description": '''
+#         ''',
+#         "prototype": '''
+#         ''',
+#         "parameters": '''
+#         ''',
+#         "return_value": '''
+#         ''',
+#         "notes": '''
+#         '''
+#     },
+# ])
 
 # Loop through the list of names and create a file for each
 for fn in functions:
@@ -1376,7 +1607,8 @@ for fn in functions:
         _description_   = fn['description'],
         _prototype_     = fn['prototype'],
         _parameters_    = fn['parameters'],
-        _return_value_  = fn['return_value']
+        _return_value_  = fn['return_value'],
+        _notes_         = fn['notes'],
     )
     # Create a unique file name for each name
     file_name = f"{fn['name'].lower()}.md"

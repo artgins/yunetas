@@ -1,10 +1,15 @@
+
+
 <!-- ============================================================== -->
-(gobj_create_default_service())=
-# `gobj_create_default_service()`
+(gobj_match_childs_tree())=
+# `gobj_match_childs_tree()`
 <!-- ============================================================== -->
 
-Creates a new GObj instance configured as the default service.  
-Default services have auto-start enabled but require manual playback via the Yuno's play method.
+
+The `gobj_match_childs_tree` function retrieves a JSON list (iterator) of all child Gobjs in the entire hierarchy (tree) that match the given filter.
+
+The returned JSON list must be freed using the `gobj_free_iter` function.
+        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,52 +26,56 @@ Default services have auto-start enabled but require manual playback via the Yun
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create_default_service(
-    const char      *gobj_name,
-    gclass_name_t   gclass_name,
-    json_t          *kw, // owned
-    hgobj           parent
+
+PUBLIC json_t *gobj_match_childs_tree(
+    hgobj       gobj,
+    json_t      *jn_filter   // owned
 );
+        
 
 ```
 
 **Parameters**
 
-:::{list-table}
+
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `name`
-  - `const char *`
-  - The name of the default service GObj to be created.
+* - **Parameter**
+  - **Type**
+  - **Description**
 
-* - `gclass`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass from which the GObj will be instantiated.
+* - `gobj`
+  - `hgobj`
+  - The parent GObj whose child tree is being checked.
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing attributes to initialize the GObj. This parameter is owned by the function.
-
-* - `parent`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj. If `NULL`, the GObj is created without a parent.
-
+* - `jn_filter`
+  - `json_t *`
+  - JSON object defining the criteria for filtering child Gobjs (owned).
 :::
+        
+
+---
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the created default service GObj.  
-- Returns `NULL` if the creation fails.
+
+- Returns a JSON array containing handles (`hgobj`) of the matched child Gobjs in the entire hierarchy.
+- Returns `NULL` if an error occurs (e.g., `gobj` is `NULL`).
+        
+
+---
 
 **Notes**
-- **Flags Behavior:**
-  - Automatically sets the `gobj_flag_default_service` and `gobj_flag_autostart` flags.
-- **Lifecycle Management:**
-  - Internally calls `gobj_create2` with the above flags.
+
+
+- **Ownership:**
+  - The `jn_filter` parameter is owned by the function and will be decremented internally.
+  - The returned JSON array must be freed using `gobj_free_iter`.
+- **Error Handling:**
+  - If the `gobj` is `NULL`, the function logs an error and returns `NULL`.
+        
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -191,3 +200,4 @@ PUBLIC hgobj gobj_create_default_service(
 ``````
 
 ```````
+

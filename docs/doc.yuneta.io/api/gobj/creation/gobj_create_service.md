@@ -3,8 +3,7 @@
 # `gobj_create_service()`
 <!-- ============================================================== -->
 
-Creates a new GObj instance configured as a service.  
-Service Gobjs are intended to provide specific functionalities and can interact with other components as a service.
+The `gobj_create_service` function creates a new GObj marked as a service. Services are Gobjs that provide functionalities accessible to external systems or other Gobjs.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,35 +30,41 @@ PUBLIC hgobj gobj_create_service(
 
 **Parameters**
 
-:::{list-table}
-:widths: 10 5 40
+::: {list-table}
+:widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `name`
+* - **Parameter**
+  - **Type**
+  - **Description**
+
+* - `gobj_name`
   - `const char *`
-  - The name of the service GObj to be created.
+  - The name of the service GObj. If `NULL`, defaults to an empty string.
 
-* - `gclass`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass from which the GObj will be instantiated.
+* - `gclass_name`
+  - `gclass_name_t`
+  - The name of the GClass defining the service's behavior.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing attributes to initialize the GObj. This parameter is owned by the function.
+  - `json_t *`
+  - JSON object containing configuration attributes for the service (owned).
 
 * - `parent`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj. If `NULL`, the GObj is created without a parent.
-
+  - `hgobj`
+  - The parent GObj. Must not be `NULL`.
 :::
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the created service GObj.  
-- Returns `NULL` if the creation fails.
+- Returns a handle to the newly created service GObj (`hgobj`).
+- Returns `NULL` if an error occurs.
+
+**Notes**
+- **Flags Behavior:**
+  - Automatically sets the `gobj_flag_service` flag.
+- **Lifecycle Management:**
+  - Internally calls `gobj_create2` with the `gobj_flag_service` flag.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
