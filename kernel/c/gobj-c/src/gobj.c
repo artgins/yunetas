@@ -4996,7 +4996,7 @@ PUBLIC hgobj gobj_find_child(
  *  Callback building an iter
  ***************************************************************************/
 PRIVATE int cb_match_childs(
-    gobj_t *child,
+    hgobj child,
     void *user_data,
     void *user_data2
 )
