@@ -1537,6 +1537,7 @@ PRIVATE hgobj _create_gobj(
     gobj->last_state = 0;
     gobj->obflag = 0;
     gobj->gobj_flag = gobj_flag;
+    gobj->__refs__= 0;
 
     if(__trace_gobj_create_delete__(gobj)) {
          trace_machine("💙💙⏩ creating: %s^%s (%s%s%s%s%s%s)",
@@ -1851,7 +1852,7 @@ PUBLIC hgobj gobj_create_tree0(
         gobj_log_error(parent_, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "_gobj_create() FAILED",
+            "msg",          "%s", "_create_gobj() FAILED",
             "name",         "%s", name?name:"",
             "gclass",       "%s", gclass_name,
             NULL
@@ -1964,11 +1965,21 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     /*--------------------------------*
      *      Check parameters
      *--------------------------------*/
+    if(gobj->__refs__ > 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj DESTROYING with references",
+            "refs",         "%d", gobj->__refs__,
+            NULL
+        );
+    }
+
     if(gobj->obflag & obflag_destroying) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj DESTROYING",
+            "msg",          "%s", "gobj ALREADY DESTROYING",
             NULL
         );
         return;
@@ -4982,11 +4993,7 @@ PUBLIC hgobj gobj_find_child(
 }
 
 /***************************************************************************
- *  Returns a list (iter) with all matched childs.
- *  If dl_list is null a dynamic dl_list (iter) will be created and returned,
- *  that you must free with rc_free_iter(dl_list, TRUE, 0);
- *
- *  Check ONLY first level of childs.
+ *  Callback building an iter
  ***************************************************************************/
 PRIVATE int cb_match_childs(
     gobj_t *child,
@@ -4994,22 +5001,28 @@ PRIVATE int cb_match_childs(
     void *user_data2
 )
 {
-    dl_list_t *dl_list = (dl_list_t *)user_data;
-    json_t *jn_filter = (json_t *)user_data2;
+    json_t *dl_list = user_data;
+    json_t *jn_filter = user_data2;
 
     if(gobj_match_gobj(child, jn_filter)) {
-        dl_add(dl_list, child);
+        json_array_append_new(dl_list, json_integer((json_int_t)(size_t)child));
     }
     return 0;
 }
-PUBLIC dl_list_t *gobj_match_childs(
+
+/***************************************************************************
+ *  Returns an iter (json list of hgobj) with all matched childs.
+ *  Check ONLY first level of childs.
+ *
+ *  WARNING the returned list must be free with gobj_free_iter(json_t *iter)
+ ***************************************************************************/
+PUBLIC json_t *gobj_match_childs(
     hgobj gobj,
-    dl_list_t *dl_list,
     json_t *jn_filter   // owned
 )
 {
     if(!gobj) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gobj NULL",
@@ -5018,34 +5031,34 @@ PUBLIC dl_list_t *gobj_match_childs(
         JSON_DECREF(jn_filter);
         return 0;
     }
-    dl_list = rc_init_iter(dl_list);
+
+    json_t *iter = json_array();
 
     gobj_walk_gobj_childs(
         gobj,
         WALK_FIRST2LAST,
         cb_match_childs,
-        dl_list,
+        iter,
         jn_filter
     );
-    JSON_DECREF(jn_filter);
-    return dl_list;
+    JSON_DECREF(jn_filter)
+    return iter;
 }
 
 /***************************************************************************
- *  Returns a list (iter) with all matched childs.
- *  If dl_list is null a dynamic dl_list (iter) will be created and returned,
- *  that you must free with rc_free_iter(dl_list, TRUE, 0);
- *
+ *  Returns an iter (json list of hgobj) with all matched childs.
  *  Check deep levels of childs
+ *  Check in the full tree of childs.
+ *
+ *  WARNING the returned list must be free with gobj_free_iter(json_t *iter)
  ***************************************************************************/
-PUBLIC dl_list_t *gobj_match_childs_tree(
+PUBLIC json_t *gobj_match_childs_tree(
     hgobj gobj,
-    dl_list_t *dl_list,
     json_t *jn_filter   // owned
 )
 {
     if(!gobj) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gobj NULL",
@@ -5054,17 +5067,52 @@ PUBLIC dl_list_t *gobj_match_childs_tree(
         JSON_DECREF(jn_filter);
         return 0;
     }
-    dl_list = rc_init_iter(dl_list);
+    json_t *iter = json_array();
 
     gobj_walk_gobj_childs_tree(
         gobj,
         WALK_TOP2BOTTOM,
         cb_match_childs,
-        dl_list,
+        iter,
         jn_filter
     );
-    JSON_DECREF(jn_filter);
-    return dl_list;
+    JSON_DECREF(jn_filter)
+    return iter;
+}
+
+/***************************************************************************
+ *  Free an iter (list of hgobj)
+ ***************************************************************************/
+PUBLIC int gobj_free_iter(json_t *iter)
+{
+    int idx; json_t *jn_gobj;
+    json_array_foreach(iter, idx, jn_gobj) {
+        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_gobj);
+        if(!gobj) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "gobj NULL",
+                NULL
+            );
+            continue;
+        }
+        if(gobj->__refs__ <= 0) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "iter gobj with refs <= 0",
+                "refs",         "%d", gobj->__refs__,
+                NULL
+            );
+            continue;
+        }
+        gobj->__refs__ --;
+    }
+
+    JSON_DECREF(iter)
+
+    return 0;
 }
 
 /***************************************************************************

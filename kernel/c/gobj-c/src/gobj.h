@@ -549,7 +549,8 @@ typedef json_t * (*list_persistent_attrs_fn)(
     struct dl_list_s *__dl__;       \
     struct dl_item_s  *__next__;    \
     struct dl_item_s  *__prev__;    \
-    size_t __id__;
+    size_t __id__;                  \
+    int __refs__;
 
 typedef struct dl_item_s {
     DL_ITEM_FIELDS
@@ -1554,35 +1555,17 @@ PUBLIC hgobj gobj_find_child( // returns the first matched child
     json_t *jn_filter // owned
 );
 
-/*
- *  Returns a list (iter) with all matched childs.
- *  If dl_list is null a dynamic dl_list (iter) will be created and returned,
- *      and you must free with rc_free_iter(dl_list, TRUE, 0);
- *  If you pass the dl_list
- *      you must free with the iter with rc_free_iter(dl_list, FALSE, 0);
- *
- *  Check ONLY the first level of childs.
- */
-PUBLIC dl_list_t *gobj_match_childs(
+PUBLIC json_t *gobj_match_childs( // return an iter of first level matching jn_filter
     hgobj gobj,
-    dl_list_t *dl_list,
     json_t *jn_filter   // owned
 );
 
-/*
- *  Returns a list (iter) with all matched childs.
- *  If dl_list is null a dynamic dl_list (iter) will be created and returned,
- *      and you must free with rc_free_iter(dl_list, TRUE, 0);
- *  If you pass the dl_list
- *      you must free with the iter with rc_free_iter(dl_list, FALSE, 0);
- *
- *  Check deep levels of childs
- */
-PUBLIC dl_list_t *gobj_match_childs_tree(
+PUBLIC json_t *gobj_match_childs_tree( // return an iter of any level matching jn_filter
     hgobj gobj,
-    dl_list_t *dl_list,
     json_t *jn_filter   // owned
 );
+
+PUBLIC int gobj_free_iter(json_t *iter); // Free the iter (list of hgobj)
 
 typedef enum {
     /*
