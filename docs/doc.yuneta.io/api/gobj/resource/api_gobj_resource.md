@@ -25,14 +25,14 @@ The following APIs provide a standardized way for Gobjs to manage resources such
 
 
 ```{toctree}
-:caption: Publish/Subscription functions
+:caption: Resource functions
 :maxdepth: 1
 
 gobj_create_resource.md
 gobj_save_resource.md
 gobj_delete_resource.md
-gobj_list_resource.md
 gobj_get_resource.md
+gobj_list_resource.md
 
 
 ```

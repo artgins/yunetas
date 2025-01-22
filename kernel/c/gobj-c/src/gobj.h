@@ -1542,17 +1542,46 @@ PUBLIC hgobj gobj_search_path(hgobj gobj, const char *path);
         '__state__'
         '__disabled__'
 
-    gobj_find_child() returns the first matched child.
 
  */
 
-PUBLIC BOOL gobj_match_gobj(
-    hgobj child,
-    json_t *jn_filter // owned
-);
-PUBLIC hgobj gobj_find_child(
+PUBLIC BOOL gobj_match_gobj( // Check if gobj match jn_filter conditions
     hgobj gobj,
     json_t *jn_filter // owned
+);
+PUBLIC hgobj gobj_find_child( // returns the first matched child
+    hgobj gobj,
+    json_t *jn_filter // owned
+);
+
+/*
+ *  Returns a list (iter) with all matched childs.
+ *  If dl_list is null a dynamic dl_list (iter) will be created and returned,
+ *      and you must free with rc_free_iter(dl_list, TRUE, 0);
+ *  If you pass the dl_list
+ *      you must free with the iter with rc_free_iter(dl_list, FALSE, 0);
+ *
+ *  Check ONLY the first level of childs.
+ */
+PUBLIC dl_list_t *gobj_match_childs(
+    hgobj gobj,
+    dl_list_t *dl_list,
+    json_t *jn_filter   // owned
+);
+
+/*
+ *  Returns a list (iter) with all matched childs.
+ *  If dl_list is null a dynamic dl_list (iter) will be created and returned,
+ *      and you must free with rc_free_iter(dl_list, TRUE, 0);
+ *  If you pass the dl_list
+ *      you must free with the iter with rc_free_iter(dl_list, FALSE, 0);
+ *
+ *  Check deep levels of childs
+ */
+PUBLIC dl_list_t *gobj_match_childs_tree(
+    hgobj gobj,
+    dl_list_t *dl_list,
+    json_t *jn_filter   // owned
 );
 
 typedef enum {
@@ -2469,6 +2498,10 @@ PUBLIC void * dl_find(dl_list_t *dl, void *item);
 PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *));
 PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *));
 PUBLIC size_t dl_size(dl_list_t *dl);
+
+/*---------------------------------*
+ *      GObj Iter functions
+ *---------------------------------*/
 
 /*---------------------------------*
  *      GBuffer functions

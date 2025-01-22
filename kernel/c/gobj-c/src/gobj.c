@@ -4845,15 +4845,15 @@ PUBLIC size_t gobj_child_size2(
  *  Match child.
  ***************************************************************************/
 PUBLIC BOOL gobj_match_gobj(
-    hgobj child,
+    hgobj gobj,
     json_t *jn_filter_ // owned
 )
 {
-    const char *__inherited_gclass_name__ = kw_get_str(child, jn_filter_, "__inherited_gclass_name__", 0, 0);
-    const char *__gclass_name__ = kw_get_str(child, jn_filter_, "__gclass_name__", 0, 0);
-    const char *__gobj_name__ = kw_get_str(child, jn_filter_, "__gobj_name__", 0, 0);
-    const char *__prefix_gobj_name__ = kw_get_str(child, jn_filter_, "__prefix_gobj_name__", 0, 0);
-    const char *__state__ = kw_get_str(child, jn_filter_, "__state__", 0, 0);
+    const char *__inherited_gclass_name__ = kw_get_str(gobj, jn_filter_, "__inherited_gclass_name__", 0, 0);
+    const char *__gclass_name__ = kw_get_str(gobj, jn_filter_, "__gclass_name__", 0, 0);
+    const char *__gobj_name__ = kw_get_str(gobj, jn_filter_, "__gobj_name__", 0, 0);
+    const char *__prefix_gobj_name__ = kw_get_str(gobj, jn_filter_, "__prefix_gobj_name__", 0, 0);
+    const char *__state__ = kw_get_str(gobj, jn_filter_, "__state__", 0, 0);
 
     /*
      *  Delete the system keys of the jn_filter used in find loop
@@ -4876,13 +4876,13 @@ PUBLIC BOOL gobj_match_gobj(
     }
 
     if(kw_has_key(jn_filter_, "__disabled__")) {
-        BOOL disabled = kw_get_bool(child, jn_filter_, "__disabled__", 0, 0);
-        if(disabled && !gobj_is_disabled(child)) {
+        BOOL disabled = kw_get_bool(gobj, jn_filter_, "__disabled__", 0, 0);
+        if(disabled && !gobj_is_disabled(gobj)) {
             JSON_DECREF(jn_filter) // clone
             JSON_DECREF(jn_filter_)
             return FALSE;
         }
-        if(!disabled && gobj_is_disabled(child)) {
+        if(!disabled && gobj_is_disabled(gobj)) {
             JSON_DECREF(jn_filter) // clone
             JSON_DECREF(jn_filter_)
             return FALSE;
@@ -4891,20 +4891,20 @@ PUBLIC BOOL gobj_match_gobj(
     }
 
    if(!empty_string(__inherited_gclass_name__)) {
-        if(!gobj_typeof_inherited_gclass(child, __inherited_gclass_name__)) {
+        if(!gobj_typeof_inherited_gclass(gobj, __inherited_gclass_name__)) {
             JSON_DECREF(jn_filter) // clone
             JSON_DECREF(jn_filter_)
             return FALSE;
         }
     }
     if(!empty_string(__gclass_name__)) {
-        if(!gobj_typeof_gclass(child, __gclass_name__)) {
+        if(!gobj_typeof_gclass(gobj, __gclass_name__)) {
             JSON_DECREF(jn_filter) // clone
             JSON_DECREF(jn_filter_)
             return FALSE;
         }
     }
-    const char *child_name = gobj_name(child);
+    const char *child_name = gobj_name(gobj);
     if(!empty_string(__gobj_name__)) {
         if(strcmp(__gobj_name__, child_name)!=0) {
             JSON_DECREF(jn_filter) // clone
@@ -4920,7 +4920,7 @@ PUBLIC BOOL gobj_match_gobj(
         }
     }
     if(!empty_string(__state__)) {
-        if(strcasecmp(__state__, gobj_current_state(child))!=0) {
+        if(strcasecmp(__state__, gobj_current_state(gobj))!=0) {
             JSON_DECREF(jn_filter) // clone
             JSON_DECREF(jn_filter_)
             return FALSE;
@@ -4932,7 +4932,7 @@ PUBLIC BOOL gobj_match_gobj(
 
     BOOL matched = TRUE;
     json_object_foreach(jn_filter, key, jn_value) {
-        json_t *hs = gobj_hsdata2(child, key, FALSE);
+        json_t *hs = gobj_hsdata2(gobj, key, FALSE);
         if(hs) {
             json_t *jn_var1 = json_object_get(hs, key);
             int cmp = cmp_two_simple_json(jn_var1, jn_value);
@@ -4979,6 +4979,92 @@ PUBLIC hgobj gobj_find_child(
 
     JSON_DECREF(jn_filter)
     return 0;
+}
+
+/***************************************************************************
+ *  Returns a list (iter) with all matched childs.
+ *  If dl_list is null a dynamic dl_list (iter) will be created and returned,
+ *  that you must free with rc_free_iter(dl_list, TRUE, 0);
+ *
+ *  Check ONLY first level of childs.
+ ***************************************************************************/
+PRIVATE int cb_match_childs(
+    gobj_t *child,
+    void *user_data,
+    void *user_data2
+)
+{
+    dl_list_t *dl_list = (dl_list_t *)user_data;
+    json_t *jn_filter = (json_t *)user_data2;
+
+    if(gobj_match_gobj(child, jn_filter)) {
+        dl_add(dl_list, child);
+    }
+    return 0;
+}
+PUBLIC dl_list_t *gobj_match_childs(
+    hgobj gobj,
+    dl_list_t *dl_list,
+    json_t *jn_filter   // owned
+)
+{
+    if(!gobj) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        return 0;
+    }
+    dl_list = rc_init_iter(dl_list);
+
+    gobj_walk_gobj_childs(
+        gobj,
+        WALK_FIRST2LAST,
+        cb_match_childs,
+        dl_list,
+        jn_filter
+    );
+    JSON_DECREF(jn_filter);
+    return dl_list;
+}
+
+/***************************************************************************
+ *  Returns a list (iter) with all matched childs.
+ *  If dl_list is null a dynamic dl_list (iter) will be created and returned,
+ *  that you must free with rc_free_iter(dl_list, TRUE, 0);
+ *
+ *  Check deep levels of childs
+ ***************************************************************************/
+PUBLIC dl_list_t *gobj_match_childs_tree(
+    hgobj gobj,
+    dl_list_t *dl_list,
+    json_t *jn_filter   // owned
+)
+{
+    if(!gobj) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        JSON_DECREF(jn_filter);
+        return 0;
+    }
+    dl_list = rc_init_iter(dl_list);
+
+    gobj_walk_gobj_childs_tree(
+        gobj,
+        WALK_TOP2BOTTOM,
+        cb_match_childs,
+        dl_list,
+        jn_filter
+    );
+    JSON_DECREF(jn_filter);
+    return dl_list;
 }
 
 /***************************************************************************
