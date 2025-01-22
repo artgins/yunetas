@@ -8,7 +8,7 @@
 
 The `gobj_match_childs` function retrieves a JSON list (iterator) of all child Gobjs that match the given filter. It only checks the first level of child Gobjs.
 
-The returned JSON list must be freed using the `gobj_free_iter` function.
+The returned JSON list must be freed using the [`gobj_free_iter()`](gobj_free_iter()) function.
         
 
 <!------------------------------------------------------------>
@@ -72,7 +72,7 @@ PUBLIC json_t *gobj_match_childs(
 
 - **Ownership:**
   - The `jn_filter` parameter is owned by the function and will be decremented internally.
-  - The returned JSON array must be freed using `gobj_free_iter`.
+  - The returned JSON array must be freed using [`gobj_free_iter()`](gobj_free_iter()).
 - **Error Handling:**
   - If the `gobj` is `NULL`, the function logs an error and returns `NULL`.
         
@@ -200,4 +200,3 @@ PUBLIC json_t *gobj_match_childs(
 ``````
 
 ```````
-

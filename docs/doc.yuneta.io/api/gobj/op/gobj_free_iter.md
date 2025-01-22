@@ -6,7 +6,8 @@
 <!-- ============================================================== -->
 
 
-The `gobj_free_iter` function frees an iterator (JSON array) of GObj handles created by functions such as `gobj_match_childs` or `gobj_match_childs_tree`.
+The `gobj_free_iter` function frees an iterator (JSON array) of GObj handles created by functions such as [`gobj_match_childs()`](gobj_match_childs()) 
+or [`gobj_match_childs_tree()`](gobj_match_childs_tree()).
 
         
 
@@ -193,4 +194,3 @@ PUBLIC int gobj_free_iter(
 ``````
 
 ```````
-
