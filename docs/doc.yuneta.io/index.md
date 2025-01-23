@@ -108,61 +108,18 @@ api/gobj/dl/api_gobj_dl.md
 ```
 
 ```{toctree}
-:caption: Kwid API
+:caption: GObj Auxiliary API
 :maxdepth: 1
 
 api/kwid/api_kwid.md
-
-```
-
-```{toctree}
-:caption: Helpers API
-:maxdepth: 1
-
 api/helpers/api_helpers.md
-
-```
-
-```{toctree}
-:caption: Command Parser API
-:maxdepth: 1
-
 api/command_parser/api_command_parser.md
-
-```
-
-```{toctree}
-:caption: Statistic Parser API
-:maxdepth: 1
-
 api/stats_parser/api_stats_parser.md
-
-```
-
-```{toctree}
-:caption: Log UPD handler API
-:maxdepth: 1
-
 api/log_udp_handler/api_log_udp_handler.md
-
-```
-
-```{toctree}
-:caption: Rotatory API
-:maxdepth: 1
-
 api/rotatory/api_rotatory.md
-
-```
-
-```{toctree}
-:caption: Testing API
-:maxdepth: 1
-
 api/testing/api_testing.md
 
 ```
-
 
 ```{toctree}
 :caption: Glossary 

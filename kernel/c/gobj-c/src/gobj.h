@@ -549,8 +549,7 @@ typedef json_t * (*list_persistent_attrs_fn)(
     struct dl_list_s *__dl__;       \
     struct dl_item_s  *__next__;    \
     struct dl_item_s  *__prev__;    \
-    size_t __id__;                  \
-    int __refs__;
+    size_t __id__;
 
 typedef struct dl_item_s {
     DL_ITEM_FIELDS

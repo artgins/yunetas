@@ -96,6 +96,7 @@ typedef struct gclass_s {
 typedef struct gobj_s {
     DL_ITEM_FIELDS
 
+    int __refs__;
     gclass_t *gclass;
     struct gobj_s *parent;
     dl_list_t dl_childs;
@@ -400,8 +401,8 @@ PRIVATE sys_realloc_fn_t sys_realloc_fn = _mem_realloc;
 PRIVATE sys_calloc_fn_t sys_calloc_fn = _mem_calloc;
 PRIVATE sys_free_fn_t sys_free_fn = _mem_free;
 
-PRIVATE size_t __max_block__ = 1*1024L*1024L;     /* largest memory block, default for no-using apps*/
-PRIVATE size_t __max_system_memory__ = 10*1024L*1024L;   /* maximum core memory, default for no-using apps */
+PRIVATE size_t __max_block__ = 2*1024L*1024L;     /* largest memory block, default for no-using apps*/
+PRIVATE size_t __max_system_memory__ = 20*1024L*1024L;   /* maximum core memory, default for no-using apps */
 PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
 
 /*---------------------------------------------*
@@ -1537,7 +1538,6 @@ PUBLIC hgobj gobj_create2(
     gobj->last_state = 0;
     gobj->obflag = 0;
     gobj->gobj_flag = gobj_flag;
-    gobj->__refs__= 0;
 
     if(__trace_gobj_create_delete__(gobj)) {
          trace_machine("💙💙⏩ creating: %s^%s (%s%s%s%s%s%s)",
@@ -4993,6 +4993,8 @@ PRIVATE int cb_match_childs(
 {
     json_t *dl_list = user_data;
     json_t *jn_filter = user_data2;
+
+    ((gobj_t *)child)->__refs__++;
 
     if(gobj_match_gobj(child, jn_filter)) {
         json_array_append_new(dl_list, json_integer((json_int_t)(size_t)child));
