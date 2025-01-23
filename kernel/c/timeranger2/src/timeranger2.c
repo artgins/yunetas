@@ -1338,7 +1338,6 @@ PUBLIC json_t *tranger2_backup_topic(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    // TODO backup pending
     /*
      *  Close topic
      */
@@ -1502,7 +1501,7 @@ PUBLIC json_t *tranger2_backup_topic(
         topic_name,
         kw_get_str(gobj, topic_desc, "pkey", "", KW_REQUIRED),
         kw_get_str(gobj, topic_desc, "tkey", "", KW_REQUIRED),
-        NULL, // TODO backup pending, get jn_topic
+        json_incref(topic_desc),
         (system_flag2_t)kw_get_int(gobj, topic_desc, "system_flag", 0, KW_REQUIRED),
         topic_cols,     // owned
         jn_topic_var    // owned
