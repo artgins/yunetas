@@ -401,8 +401,8 @@ PRIVATE sys_realloc_fn_t sys_realloc_fn = _mem_realloc;
 PRIVATE sys_calloc_fn_t sys_calloc_fn = _mem_calloc;
 PRIVATE sys_free_fn_t sys_free_fn = _mem_free;
 
-PRIVATE size_t __max_block__ = 2*1024L*1024L;     /* largest memory block, default for no-using apps*/
-PRIVATE size_t __max_system_memory__ = 20*1024L*1024L;   /* maximum core memory, default for no-using apps */
+PRIVATE size_t __max_block__ = 16*1024L*1024L;     /* largest memory block, default for no-using apps*/
+PRIVATE size_t __max_system_memory__ = 64*1024L*1024L;   /* maximum core memory, default for no-using apps */
 PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
 
 /*---------------------------------------------*
