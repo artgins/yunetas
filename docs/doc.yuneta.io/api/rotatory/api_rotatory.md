@@ -1,4 +1,4 @@
-# Rotatory API
+# Rotatory
 
 ```{toctree}
 :caption: Rotatory functions

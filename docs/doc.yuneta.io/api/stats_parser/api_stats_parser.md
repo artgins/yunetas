@@ -1,4 +1,4 @@
-# Statistic Parser API
+# Statistic Parser
 
 ```{toctree}
 :caption: Statistic Parser functions

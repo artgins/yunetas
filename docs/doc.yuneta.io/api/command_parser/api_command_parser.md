@@ -1,4 +1,4 @@
-# Command Parser API
+# Command Parser
 
 ```{toctree}
 :caption: Command Parser functions

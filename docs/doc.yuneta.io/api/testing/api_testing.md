@@ -1,4 +1,4 @@
-# Testing API
+# Testing
 
 ```{toctree}
 :caption: Testing functions

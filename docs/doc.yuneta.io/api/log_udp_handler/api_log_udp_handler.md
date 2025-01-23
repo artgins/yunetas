@@ -1,4 +1,4 @@
-# Log UDP handler API
+# Log UDP handler
 
 ```{toctree}
 :caption: Log UDP handler functions

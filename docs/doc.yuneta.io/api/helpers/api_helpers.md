@@ -1,4 +1,4 @@
-# Helpers API
+# Helpers
 
 (istream)=
 ## **IStream**
