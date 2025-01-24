@@ -39,6 +39,10 @@ unset pwd_opt
 # Calculate parent directory of YUNETAS_BASE (local variable)
 PARENT_YUNETAS_BASE=$(dirname "${YUNETAS_BASE}")
 
+# Set YUNETAS_OUTPUTS variable
+YUNETAS_OUTPUTS="${PARENT_YUNETAS_BASE}/outputs"
+export YUNETAS_OUTPUTS
+
 # Set YUNETAS_YUNOS variable
 YUNETAS_YUNOS="${PARENT_YUNETAS_BASE}/outputs/yunos"
 export YUNETAS_YUNOS
