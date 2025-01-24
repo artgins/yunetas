@@ -79,6 +79,7 @@ fi
 # Inform the user
 echo "Yunetas environment activated."
 echo "YUNETAS_BASE: ${YUNETAS_BASE}"
+echo "YUNETAS_OUTPUTS: ${YUNETAS_OUTPUTS}"
 echo "YUNETAS_YUNOS: ${YUNETAS_YUNOS}"
 echo "To deactivate, run: deactivate_yunetas"
 
