@@ -1,5 +1,7 @@
 syntax:regexp
 
+VERSION_INSTALLED.txt
+
 cmake-build-debug-clang/
 cmake-build-debug-musl/
 
