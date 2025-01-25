@@ -210,7 +210,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_array_foreach(dl_childs, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         KW_INCREF(kw)
-        json_t *jn_stats_child = build_stats(
+        json_t *jn_stats_child = gobj_stats(
             child,
             stats,
             kw,     // owned

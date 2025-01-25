@@ -1524,6 +1524,7 @@ PUBLIC hgobj gobj_last_child(hgobj gobj);
 PUBLIC hgobj gobj_next_child(hgobj child);
 PUBLIC hgobj gobj_prev_child(hgobj child);
 PUBLIC hgobj gobj_child_by_name(hgobj gobj, const char *name);
+PUBLIC hgobj gobj_child_by_index(hgobj gobj, size_t index); // relative to 1
 PUBLIC size_t gobj_child_size(hgobj gobj);
 PUBLIC size_t gobj_child_size2(
     hgobj gobj_,

@@ -1,15 +1,12 @@
-#!/usr/bin/python
 
-from string import Template
-import os
-
-template = Template("""
 
 <!-- ============================================================== -->
-($_name_())=
-# `$_name_()`
+(gobj_child_by_index())=
+# `gobj_child_by_index()`
 <!-- ============================================================== -->
 
+
+The `gobj_child_by_index` function retrieves the child GObj of a given parent GObj at the specified index (relative to 1). The function iterates over the list of child Gobjs to find the one at the requested position.
 
 
 <!------------------------------------------------------------>
@@ -27,15 +24,50 @@ template = Template("""
 **Prototype**
 
 ```C
+PUBLIC hgobj gobj_child_by_index(
+    hgobj       gobj,
+    size_t      idx // relative to 1
+);
 ```
 
 **Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - **Parameter**
+  - **Type**
+  - **Description**
+
+* - `gobj`
+  - `hgobj`
+  - The parent GObj whose child is being retrieved.
+
+* - `idx`
+  - `size_t`
+  - The index of the child GObj to retrieve (1-based index).
+:::
 
 
 ---
 
 **Return Value**
 
+- Returns the handle (`hgobj`) to the child GObj at the specified index.
+- Returns `NULL` if:
+  - The `gobj` parameter is `NULL`.
+  - The index does not exist in the list of child Gobjs.
+
+
+**Notes**
+
+- **Indexing:**
+  - The index is relative to 1, meaning the first child corresponds to `idx = 1`.
+- **Error Handling:**
+  - Logs an error if the `gobj` parameter is `NULL` and returns `NULL`.
+- **Iteration:**
+  - The function uses `dl_first` and `dl_next` to iterate through the list of child Gobjs.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -160,72 +192,3 @@ template = Template("""
 ``````
 
 ```````
-
-""")
-
-# List of names
-names = [
-    "gobj_start",
-    "gobj_start_childs",
-    "gobj_start_tree",
-    "gobj_stop",
-    "gobj_stop_childs",
-    "gobj_stop_tree",
-    "gobj_play",
-    "gobj_pause",
-    "gobj_enable",
-    "gobj_disable",
-    "gobj_change_parent",
-    "gobj_autostart_services",
-    "gobj_autoplay_services",
-    "gobj_stop_autostart_services",
-    "gobj_pause_autoplay_services",
-    "gobj_command",
-    "gobj_stats",
-    "build_command_response",
-    "gobj_set_bottom_gobj",
-    "gobj_last_bottom_gobj",
-    "gobj_bottom_gobj",
-    "gobj_services",
-    "gobj_default_service",
-    "gobj_find_service",
-    "gobj_find_service_by_gclass",
-    "gobj_find_gclass_service",
-    "gobj_find_gobj",
-    "gobj_first_child",
-    "gobj_last_child",
-    "gobj_next_child",
-    "gobj_prev_child",
-    "gobj_child_by_name",
-    "gobj_child_by_index",
-    "gobj_child_size",
-    "gobj_child_size2",
-    "gobj_search_path",
-    "gobj_match_gobj",
-    "gobj_find_child",
-    "gobj_match_childs",
-    "gobj_match_childs_tree",
-    "gobj_free_iter",
-    "gobj_walk_gobj_childs",
-    "gobj_walk_gobj_childs_tree",
-    "gobj_local_method",
-]
-
-# Loop through the list of names and create a file for each
-for name in names:
-    # Substitute the variable in the template
-    formatted_text = template.substitute(_name_=name)
-
-    # Create a unique file name for each name
-    file_name = f"{name.lower()}.md"
-
-    # Check if the file already exists
-    if os.path.exists(file_name):
-        print(f"File {file_name} already exists. Skipping...")
-        continue  # Skip to the next name
-
-    # Write the formatted text to the file
-    with open(file_name, "w") as file:
-        file.write(formatted_text)
-
-    print(f"File created: {file_name}")

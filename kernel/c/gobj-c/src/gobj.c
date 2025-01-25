@@ -4811,6 +4811,39 @@ PUBLIC hgobj gobj_child_by_name(hgobj gobj_, const char *name)
 }
 
 /***************************************************************************
+ *  Return the child of gobj in the `index` position. (relative to 1)
+ ***************************************************************************/
+PUBLIC hgobj gobj_child_by_index(hgobj gobj_, size_t idx) // relative to 1
+{
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    size_t idx_ = 0;
+    gobj_t *child = dl_first(&gobj->dl_childs);
+    while(child) {
+        idx_++;    // relative to 1
+        if(idx_ == idx) {
+            return child;
+        }
+
+        /*
+         *  Next
+         */
+        child = dl_next(child);
+    }
+
+    return 0; /* not found */
+}
+
+/***************************************************************************
  *  Return the size of childs of gobj
  ***************************************************************************/
 PUBLIC size_t gobj_child_size(hgobj gobj_)

@@ -36,6 +36,7 @@ gobj_last_child.md
 gobj_next_child.md
 gobj_prev_child.md
 gobj_child_by_name.md
+gobj_child_by_index.md
 gobj_child_size.md
 gobj_child_size2.md
 gobj_search_path.md
