@@ -1349,7 +1349,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_mqiogate(void)
+PUBLIC int register_c_qiogate(void)
 {
     return create_gclass(C_QIOGATE);
 }

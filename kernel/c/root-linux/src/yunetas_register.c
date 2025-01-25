@@ -31,6 +31,8 @@
 
 #include "yunetas_register.h"
 
+#include "c_resource2.h"
+
 /***************************************************************************
  *  Data
  ***************************************************************************/
@@ -55,7 +57,7 @@ PUBLIC int yunetas_register_c_core(void)
     register_c_yuno();
     register_c_node();
     register_c_prot_http_cl();
-    //register_c_prot_http_sr();
+    register_c_prot_http_sr();
     register_c_prot_tcp4h();
     register_c_task();
     register_c_task_authenticate();
@@ -65,7 +67,10 @@ PUBLIC int yunetas_register_c_core(void)
     register_c_treedb();
 
     register_c_iogate();
+    register_c_qiogate();
+    register_c_mqiogate();
     register_c_channel();
+    register_c_resource2();
     register_c_websocket();
 
     initialized = TRUE;
