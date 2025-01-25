@@ -17,6 +17,7 @@
 #include "msg_ievent.h"
 #include "c_timer.h"
 #include "c_qiogate.h"
+#include "c_tranger.h"
 
 /***************************************************************************
  *              Constants
@@ -214,14 +215,16 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 /***************************************************************************
  *      Framework Method reading
  ***************************************************************************/
-PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name, int type, SData_Value_t data)
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    SData_Value_t v = {0,{0}};
     if(strcmp(name, "msgs_in_queue")==0) {
-        data.v.i = (json_int_t)trq_size(priv->trq_msgs);
+        v.found = 1;
+        v.v.i = (json_int_t)trq_size(priv->trq_msgs);
     }
-    return data;
+    return v;
 }
 
 /***************************************************************************
@@ -580,7 +583,7 @@ PRIVATE int open_queue(hgobj gobj)
     snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
     priv->gobj_tranger_queues = gobj_create_service(
         name,
-        GCLASS_TRANGER,
+        C_TRANGER,
         kw_tranger,
         gobj
     );
@@ -592,7 +595,7 @@ PRIVATE int open_queue(hgobj gobj)
         topic_name,
         gobj_read_str_attr(gobj, "pkey"),
         gobj_read_str_attr(gobj, "tkey"),
-        tranger_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
+        tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
@@ -643,7 +646,7 @@ PRIVATE q_msg enqueue_message(
 
     if(!priv->with_metadata) {
         kw_incref(kw);
-        kw_clean_clone = kw_filter_metadata(kw);
+        kw_clean_clone = kw_filter_metadata(gobj, kw);
     } else {
         kw_clean_clone = kw_incref(kw);
     }
@@ -749,7 +752,7 @@ PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg msg)
     uint64_t rowid = trq_msg_rowid(msg);
     json_t *jn_msg = trq_msg_json(msg);
 
-    json_t *kw_clone = kw_duplicate(jn_msg);
+    json_t *kw_clone = kw_duplicate(gobj, jn_msg);
     trq_set_metadata(kw_clone, "__msg_key__", json_integer(rowid));
 
     if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_QUEUE_PROT)) {
@@ -815,7 +818,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
             }
             int ret = send_message_to_bottom_side(gobj, msg);
             if(ret == 0) {
-                (*priv->ptxMsgs)++;
+                priv->txMsgs++;
                 priv->txMsgsec++;
                 // gobj_incr_qs(QS_TXMSGS, 1);
 
@@ -939,7 +942,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
                 int ret = send_message_to_bottom_side(gobj, msg);
                 if(ret == 0) {
                     sent++;
-                    (*priv->ptxMsgs)++;
+                    priv->txMsgs++;
                     priv->txMsgsec++;
                     // gobj_incr_qs(QS_TXMSGS, 1);
 
@@ -990,8 +993,8 @@ PRIVATE int dequeue_msg(
             gobj_trace_msg(gobj, "     ( ) <-  - rowid %"PRIu64", t %"PRIu64" ACK", rowid, tt);
         }
 
-        uint64_t t = time_in_seconds() - tt;
-
+        // TODO implement
+        // uint64_t t = time_in_seconds() - tt;
         // uint64_t t_lower = gobj_get_qs(QS_LOWER_RESPONSE_TIME);
         // uint64_t t_medium = gobj_get_qs(QS_MEDIUM_RESPONSE_TIME);
         // uint64_t t_higher = gobj_get_qs(QS_HIGHER_RESPONSE_TIME);
@@ -1252,6 +1255,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
+    .mt_destroy = mt_destroy,
     .mt_reading = mt_reading,
     .mt_writing = mt_writing,
     .mt_start = mt_start,
