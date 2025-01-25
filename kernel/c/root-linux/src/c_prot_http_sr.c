@@ -422,19 +422,19 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,        ac_connected,               ST_CONNECTED},
-        {EV_DISCONNECTED,     ac_disconnected,            0},
-        {EV_STOPPED,          ac_stopped,                 0},
+        {EV_CONNECTED,          ac_connected,               ST_CONNECTED},
+        {EV_DISCONNECTED,       ac_disconnected,            0},
+        {EV_STOPPED,            ac_stopped,                 0},
         {0,0,0}
     };
     ev_action_t st_connected[] = {
-        {EV_RX_DATA,          ac_rx_data,                 0},
-        {EV_SEND_MESSAGE,     ac_send_message,            0},
-        {EV_TIMEOUT,          ac_timeout_inactivity,      0},
-        {EV_TX_READY,         0,                          0},
-        {EV_DROP,             ac_drop,                    0},
-        {EV_DISCONNECTED,     ac_disconnected,            ST_DISCONNECTED},
-        {EV_STOPPED,          ac_stopped,                 0},
+        {EV_RX_DATA,            ac_rx_data,                 0},
+        {EV_SEND_MESSAGE,       ac_send_message,            0},
+        {EV_TIMEOUT,            ac_timeout_inactivity,      0},
+        {EV_TX_READY,           0,                          0},
+        {EV_DROP,               ac_drop,                    0},
+        {EV_DISCONNECTED,       ac_disconnected,            ST_DISCONNECTED},
+        {EV_STOPPED,            ac_stopped,                 0},
         {0,0,0}
     };
     states_t states[] = {
@@ -445,8 +445,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = { // HACK System gclass, not public events
         {EV_RX_DATA,            0}, // TODO is necessary to define the internal or input events?
-        {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
-        {EV_RX_DATA,            0},
         {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
         {EV_CONNECTED,          0},
         {EV_DISCONNECTED,       0},
