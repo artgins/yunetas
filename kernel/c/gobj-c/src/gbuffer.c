@@ -1201,6 +1201,20 @@ PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len
     return gbuf_output;
 }
 
+/*****************************************************************
+ *
+ *****************************************************************/
+PUBLIC gbuffer_t *gbuffer_encodebase64( // return new gbuffer
+    gbuffer_t *gbuf_input  // decref
+)
+{
+    char *src = gbuffer_cur_rd_pointer(gbuf_input);
+    size_t len = gbuffer_leftbytes(gbuf_input);
+    gbuffer_t *gbuf_output = gbuffer_string_to_base64(src, len);
+    gbuffer_decref(gbuf_input);
+    return gbuf_output;
+}
+
 /***************************************************************************
  *      Dump json into gbuf
  ***************************************************************************/
