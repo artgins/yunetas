@@ -64,7 +64,8 @@ The `gbuffer_t` structure includes the following key fields:
 
 ### Serialization and Encoding
 - **JSON Serialization:** Convert the buffer to and from JSON objects using `gbuffer_serialize` and `gbuffer_deserialize`.
-- **Base64 Encoding/Decoding:** Encode or decode data in Base64 format with `gbuffer_string_to_base64` and `gbuffer_base64_to_string`.
+- **Base64 Encoding/Decoding:** Encode or decode data in Base64 format 
+    with `gbuffer_string_to_base64`, `gbuffer_base64_to_string` and `gbuffer_encode_base64`.
 
 ---
 

@@ -39,6 +39,7 @@ gbuffer_serialize.md
 gbuffer_deserialize.md
 gbuffer_string_to_base64.md
 gbuffer_base64_to_string.md
+gbuffer_encodebase64.md
 json2gbuf.md
 gbuf2json.md
 gobj_trace_dump_gbuf.md

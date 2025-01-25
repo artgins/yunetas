@@ -1204,7 +1204,7 @@ PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC gbuffer_t *gbuffer_encodebase64( // return new gbuffer
+PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer
     gbuffer_t *gbuf_input  // decref
 )
 {

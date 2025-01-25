@@ -225,7 +225,7 @@ static inline BOOL empty_json(const json_t *jn)
 #define MSGSET_CONNECT_DISCONNECT       "Connect Disconnect"
 #define MSGSET_DEBUG                    "Debug"
 #define MSGSET_PROTOCOL                 "Protocol"
-#define MSGSET_gbuffer_tS                 "GBuffers"
+#define MSGSET_GBUFFERS                 "GBuffers"
 #define MSGSET_YEV_LOOP                 "Yev_loop"
 #define MSGSET_TRACK_MEM                "TrackMem"
 #define MSGSET_AUTH                     "Auth"
@@ -2217,7 +2217,7 @@ enum { /* String table in s_global_trace_level */
     TRACE_EV_KW             = 0x00400000,
     TRACE_AUTHZS            = 0x00800000,
     TRACE_STATES            = 0x01000000,
-    TRACE_gbuffer_tS          = 0x02000000,
+    TRACE_GBUFFERS          = 0x02000000,
     TRACE_TIMER_PERIODIC    = 0x04000000,
     TRACE_TIMER             = 0x08000000,
     TRACE_URING_TIME        = 0x10000000,
@@ -2490,13 +2490,13 @@ PUBLIC size_t dl_size(dl_list_t *dl);
 /*---------------------------------*
  *      GBuffer functions
  *---------------------------------*/
-#define gbuffer_t_DECREF(ptr)    \
+#define GBUFFER_DECREF(ptr)    \
     if(ptr) {               \
         gbuffer_decref(ptr);   \
         (ptr) = 0;          \
     }
 
-#define gbuffer_t_INCREF(ptr)    \
+#define GBUFFER_INCREF(ptr)    \
     if(ptr) {               \
         gbuffer_incref(ptr);   \
     }
@@ -2575,8 +2575,8 @@ PUBLIC gbuffer_t *gbuffer_string_to_base64(const char* src, size_t len); // base
  */
 PUBLIC gbuffer_t *gbuffer_base64_to_string(const char* base64, size_t base64_len);
 
-PUBLIC gbuffer_t *gbuffer_encodebase64( // return new gbuffer
-    gbuffer_t *gbuf  // decref
+PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer
+    gbuffer_t *gbuf_input  // decref
 );
 
 /*
