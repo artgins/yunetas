@@ -401,7 +401,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_IOGATE);
+GOBJ_DEFINE_GCLASS(C_MQIOGATE);
 
 /*------------------------*
  *      States
