@@ -392,6 +392,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
+    .mt_destroy = mt_destroy,
     .mt_writing = mt_writing,
     .mt_start = mt_start,
     .mt_stop = mt_stop,

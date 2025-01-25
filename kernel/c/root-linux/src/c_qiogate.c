@@ -13,10 +13,10 @@
 
 #include <timeranger2.h>
 #include <command_parser.h>
+#include <tr_queue.h>
 #include "msg_ievent.h"
 #include "c_timer.h"
 #include "c_qiogate.h"
-#include "c_tranger.h"
 
 /***************************************************************************
  *              Constants
@@ -219,7 +219,7 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name, int type, SData_V
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(strcmp(name, "msgs_in_queue")==0) {
-        data.u32 = trq_size(priv->trq_msgs);
+        data.v.i = (json_int_t)trq_size(priv->trq_msgs);
     }
     return data;
 }
@@ -340,13 +340,14 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
             json_sprintf("you must PAUSE the yuno before executing this command."),
             0,
             0,
+            "",
             kw  // owned
         );
     }
 
-    const char *key = kw_get_str(kw, "key", 0, 0);
-    int64_t from_rowid = kw_get_int(kw, "from-rowid", 0, KW_WILD_NUMBER);
-    int64_t to_rowid = kw_get_int(kw, "to-rowid", 0, KW_WILD_NUMBER);
+    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
+    int64_t from_rowid = kw_get_int(gobj, kw, "from-rowid", 0, KW_WILD_NUMBER);
+    int64_t to_rowid = kw_get_int(gobj, kw, "to-rowid", 0, KW_WILD_NUMBER);
     if(from_rowid == 0) {
         return msg_iev_build_response(
             gobj,
@@ -412,9 +413,9 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
         );
     }
 
-    const char *key = kw_get_str(kw, "key", 0, 0);
-    int64_t from_rowid = kw_get_int(kw, "from-rowid", 0, KW_WILD_NUMBER);
-    int64_t to_rowid = kw_get_int(kw, "to-rowid", 0, KW_WILD_NUMBER);
+    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
+    int64_t from_rowid = kw_get_int(gobj, kw, "from-rowid", 0, KW_WILD_NUMBER);
+    int64_t to_rowid = kw_get_int(gobj, kw, "to-rowid", 0, KW_WILD_NUMBER);
     if(from_rowid == 0) {
         return msg_iev_build_response(
             gobj,
@@ -1045,13 +1046,13 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     gbuffer_incref(gbuf);
     json_t *jn_ack_message = gbuf2json(gbuf, 2);
 
-    uint64_t rowid = kw_get_int(trq_get_metadata(jn_ack_message), "__msg_key__", 0, KW_REQUIRED);
-    int result = kw_get_int(trq_get_metadata(jn_ack_message), "result", 0, KW_REQUIRED);
+    uint64_t rowid = kw_get_int(gobj, trq_get_metadata(jn_ack_message), "__msg_key__", 0, KW_REQUIRED);
+    int result = kw_get_int(gobj, trq_get_metadata(jn_ack_message), "result", 0, KW_REQUIRED);
 
     if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_QUEUE_PROT)) {
         gobj_trace_msg(gobj, "QIOGATE ack %s <== %s, %"PRIu64,
@@ -1114,7 +1115,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(src == priv->gobj_bottom_side) {
-        json_int_t channels_opened = kw_get_int(kw, "__temp__`channels_opened", 0, KW_REQUIRED);
+        json_int_t channels_opened = kw_get_int(gobj, kw, "__temp__`channels_opened", 0, KW_REQUIRED);
         if(channels_opened==0) {
             clear_timeout(priv->timer);     // Active only when bottom side is open
             priv->bottom_side_opened = FALSE;
