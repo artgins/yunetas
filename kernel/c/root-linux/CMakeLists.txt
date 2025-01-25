@@ -30,8 +30,8 @@ set (SRCS
     src/c_uart.c
     src/c_channel.c
     src/c_iogate.c
-#    src/c_qiogate.c
-#    src/c_mqiogate.c
+    src/c_qiogate.c
+    src/c_mqiogate.c
     src/c_ievent_srv.c
     src/c_ievent_cli.c
     src/c_prot_http_cl.c

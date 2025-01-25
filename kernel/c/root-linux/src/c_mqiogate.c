@@ -13,6 +13,8 @@
 
 #include <command_parser.h>
 #include "msg_ievent.h"
+#include "c_iogate.h"
+#include "c_qiogate.h"
 #include "c_mqiogate.h"
 
 /***************************************************************************
@@ -157,13 +159,12 @@ PRIVATE int mt_start(hgobj gobj)
     json_t *jn_filter = json_pack("{s:s}",
         "__gclass_name__", "QIOGate"
     );
-    dl_list_t *dl_childs = gobj_match_childs(gobj, 0, jn_filter);
-    priv->n_childs = dl_size(dl_childs);
-    rc_free_iter(dl_childs, TRUE, 0);
+    json_t *dl_childs = gobj_match_childs(gobj, jn_filter);
+    priv->n_childs = json_array_size(dl_childs);
+    gobj_free_iter(dl_childs);
 
     if(!priv->n_childs) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
             "msg",          "%s", "NO CHILDS of QIOGate gclass",
@@ -172,8 +173,7 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     if(empty_string(priv->key)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
             "msg",          "%s", "key EMPTY",
@@ -202,11 +202,13 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_t *jn_stats = json_object();
 
     json_t *jn_filter = json_pack("{s:s}",
-        "__gclass_name__", GCLASS_QIOGATE_NAME
+        "__gclass_name__", C_QIOGATE
     );
-    dl_list_t *dl_childs = gobj_match_childs(gobj, 0, jn_filter);
-    hgobj child; rc_instance_t *i_rc;
-    rc_iter_foreach_forward(dl_childs, i_rc, child) {
+    json_t *dl_childs = gobj_match_childs(gobj, jn_filter);
+
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_childs, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         KW_INCREF(kw)
         json_t *jn_stats_child = build_stats(
             child,
@@ -217,7 +219,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         json_object_set_new(jn_stats, gobj_name(child), jn_stats_child);
     }
 
-    rc_free_iter(dl_childs, TRUE, 0);
+    gobj_free_iter(dl_childs);
 
     KW_DECREF(kw)
     return jn_stats;
@@ -246,6 +248,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
+        "",
         kw  // owned
     );
 }
@@ -255,27 +258,26 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    dl_list_t dl_qiogate_childs;
     json_t *jn_resp = json_array();
     /*
      *  Guarda lista de hijos con queue para las estadísticas
      */
     json_t *jn_filter = json_pack("{s:s}",
-        "__gclass_name__", GCLASS_IOGATE_NAME
+        "__gclass_name__", C_IOGATE
     );
-    gobj_match_childs_tree(gobj, &dl_qiogate_childs, jn_filter);
+    json_t *dl_childs = gobj_match_childs_tree(gobj, jn_filter);
 
-    hgobj child; rc_instance_t *i_rc;
-    rc_iter_foreach_forward(&dl_qiogate_childs, i_rc, child) {
+    int idx; json_t *jn_child;
+    json_array_foreach(dl_childs, idx, jn_child) {
+        hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         json_t *r = gobj_command(child, "view-channels", json_incref(kw), gobj);
-        json_t *data = kw_get_dict_value(r, "data", 0, 0);
+        json_t *data = kw_get_dict_value(gobj, r, "data", 0, 0);
         if(data) {
             json_array_append(jn_resp, data);
         }
         json_decref(r);
     }
-
-    rc_free_iter(&dl_qiogate_childs, FALSE, 0);
+    gobj_free_iter(dl_childs);
 
     return msg_iev_build_response(
         gobj,
@@ -283,6 +285,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0,
         0,
         jn_resp,
+        "",
         kw  // owned
     );
 }
@@ -317,8 +320,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     int idx = 0;
 
     if(priv->n_childs <= 0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "QIOGate WITHOUT destine",
@@ -332,7 +334,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         CASES("lastdigits")
         DEFAULTS
             int digits = priv->digits;
-            id = kw_get_str(kw, priv->key, "", KW_REQUIRED);
+            id = kw_get_str(gobj, kw, priv->key, "", KW_REQUIRED);
             int len = strlen(id);
             if(len > 0) {
                 if(digits > len) {
@@ -345,8 +347,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
                     idx = (int)strtol(s, NULL, 16);
                 }
             } else {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
                     "msg",          "%s", "key value WITHOUT LENGTH",
@@ -365,8 +366,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     gobj_child_by_index(gobj, idx+1, &gobj_dst);
 
     if(!gobj_dst) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "QIOGate destine NOT FOUND",
@@ -377,7 +377,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        trace_msg("MQIOGATE %s (idx %d, value '%s') ==> %s", priv->key, idx, id, gobj_short_name(gobj_dst));
+        gobj_trace_msg(gobj, "MQIOGATE %s (idx %d, value '%s') ==> %s", priv->key, idx, id, gobj_short_name(gobj_dst));
     }
 
     return gobj_send_event(gobj_dst, event, kw, gobj);
