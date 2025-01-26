@@ -8,10 +8,6 @@ To test with CLI:
 
 command-yuno id=1911 service=tranger command=open-list list_id=pepe topic_name=pp fields=id,__md_tranger__
 
-command-yuno id=1911 service=__yuno__ command=subscribe-event gobj_name=tranger event_name=EV_TRANGER_RECORD_ADDED rename_event_name=EV_MT_COMMAND_ANSWER first_shot=1 config={"__list_id__":"pepe"}
-
-command-yuno id=1911 service=__yuno__ command=subscribe-event gobj_name=tranger event_name=EV_TRANGER_RECORD_ADDED rename_event_name=EV_MT_COMMAND_ANSWER  config={"__list_id__":"pepe"}
-
 command-yuno id=1911 service=tranger command=add-record topic_name=pp record='{"id":"1","tm":0}'
 
 command-yuno id=1911 service=tranger command=close-list list_id=pepe
@@ -352,115 +348,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     tranger2_stop(priv->tranger);
     return 0;
-}
-
-/***************************************************************************
- *      Framework Method subscription_added
- ***************************************************************************/
-PRIVATE int mt_subscription_added(
-    hgobj gobj,
-    json_t *subs)
-{
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, 0);
-//    BOOL first_shot = kw_get_bool(gobj, __config__, "__first_shot__", FALSE, 0);
-//    if(!first_shot) {
-//        return 0;
-//    }
-//    hgobj subscriber = (hgobj)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
-//    const char *event = kw_get_str(gobj, subs, "event", "", KW_REQUIRED); // TODO review, is a gobj_event_t?
-//
-//    if(empty_string(event)) {
-//        gobj_log_warning(gobj, 0,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INFO,
-//            "msg",          "%s", "tranger subscription must be with explicit event",
-//            "subscriber",   "%s", gobj_full_name(subscriber),
-//            NULL
-//        );
-//        return 0; // return -1 unsubscribe this subs
-//    }
-//
-//    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, 0);
-//    json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, 0);
-//
-//    const char *event_name = kw_get_str(gobj, subs, "renamed_event", 0, 0);
-//    const char *topic_name = kw_get_str(gobj, subs, "topic_name", "", KW_REQUIRED);
-//
-//    const char *__list_id__ = kw_get_str(gobj, __config__, "__list_id__", "", 0);
-//    if(empty_string(__list_id__)) {
-//        return gobj_send_event(
-//            subscriber,
-//            (!empty_string(event_name))?event_name:event,
-//            msg_iev_build_response_without_reverse_dst(gobj,
-//                -1,
-//                json_sprintf("__list_id__ required"),
-//                0,
-//                0, // owned
-//                __global__?kw_duplicate(gobj, __global__):0  // owned
-//            ),
-//            gobj
-//        );
-//    }
-//
-//    // TODO review, old tranger_get_list
-//    json_t *list = tranger2_get_iterator_by_id(priv->tranger, topic_name, __list_id__);
-//    if(!list) {
-//        return gobj_send_event(
-//            subscriber,
-//            (!empty_string(event_name))?event_name:event,
-//            msg_iev_build_response_without_reverse_dst(gobj,
-//                -1,
-//                json_sprintf("tranger list not found: '%s'", __list_id__),
-//                0,
-//                0, // owned
-//                __global__?kw_duplicate(gobj, __global__):0  // owned
-//            ),
-//            gobj
-//        );
-//    }
-//
-//    //if(strcasecmp(event, EV_TRANGER_RECORD_ADDED)==0) { // TODO check the change strcasecmp -> ==
-//    if(event==EV_TRANGER_RECORD_ADDED) {
-//        json_t *jn_data = json_array();
-//        size_t idx;
-//        json_t *jn_record;
-//        json_array_foreach(kw_get_list(gobj, list, "data", 0, KW_REQUIRED), idx, jn_record) {
-//            JSON_INCREF(__filter__)
-//            if(!kw_match_simple(jn_record, __filter__)) {
-//                continue;
-//            }
-//            json_array_append(jn_data, jn_record);
-//        }
-//
-//        /*
-//         *  Inform
-//         */
-//        return gobj_send_event(
-//            subscriber,
-//            (!empty_string(event_name))?event_name:event,
-//            msg_iev_build_response_without_reverse_dst(gobj,
-//                0,
-//                0,
-//                0,
-//                jn_data, // owned
-//                __global__?kw_duplicate(gobj, __global__):0  // owned
-//            ),
-//            gobj
-//        );
-//
-//    }
-
-    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-        "msg",          "%s", "TODO pending to review",
-        NULL
-    );
-
-
-    return 0; // return -1 unsubscribe this subs
 }
 
 /***************************************************************************
@@ -1525,7 +1412,6 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
-    .mt_subscription_added = mt_subscription_added,
     .mt_topic_size = mt_topic_size,
     .mt_destroy = mt_destroy,
     .mt_start = mt_start,

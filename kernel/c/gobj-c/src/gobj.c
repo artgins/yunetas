@@ -7149,6 +7149,10 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
                 KW_DECREF(kw)
                 return 0;
             }
+        } else {
+            // WARNING see collateral damages
+            event_type_t *event_type = gobj_event_type(publisher, event, TRUE);
+            event = event_type->event;
         }
     }
 
@@ -7308,6 +7312,30 @@ PUBLIC int gobj_unsubscribe_event(
         );
         KW_DECREF(kw)
         return -1;
+    }
+
+    /*--------------------------------------------------------------*
+     *  Event must be in output event list
+     *  You can avoid this with gcflag_no_check_output_events flag
+     *--------------------------------------------------------------*/
+    if(!empty_string(event)) {
+        if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
+            if(!(publisher->gclass->gclass_flag & gcflag_no_check_output_events)) {
+                gobj_log_error(publisher, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "event NOT in output event list",
+                    "event",        "%s", event,
+                    NULL
+                );
+                KW_DECREF(kw)
+                return 0;
+            }
+        } else {
+            // WARNING see collateral damages
+            event_type_t *event_type = gobj_event_type(publisher, event, TRUE);
+            event = event_type->event;
+        }
     }
 
     /*-----------------------------*
