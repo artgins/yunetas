@@ -8264,8 +8264,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Register comm protocol
      *----------------------------------------*/
-    comm_prot_register(gclass_name, "ws");
-    comm_prot_register(gclass_name, "wss");
+    comm_prot_register(gclass_name, "mqtt");
+    comm_prot_register(gclass_name, "mqtts");
 
     return 0;
 }
