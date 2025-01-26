@@ -1,8 +1,11 @@
 /****************************************************************************
- *              YUNETA_IOT_REGISTER.H
- *              Includes
- *              Copyright (c) 2022 Niyamaka.
- *              All Rights Reserved.
+ *            register_prot.h
+ *
+ *            Register several protocols
+ *
+ *            Copyright (c) 2022 Niyamaka.
+ *            Copyright (c) 2025, ArtGins.
+ *            All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
@@ -10,7 +13,7 @@
 extern "C"{
 #endif
 
-#include <gobj.h>
+#include <yunetas.h>
 
 /*********************************************************************
  *  Prototypes

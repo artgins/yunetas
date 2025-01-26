@@ -21,6 +21,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 set (SRCS
     # Protocols
+    src/register_prot.c
     src/c_prot_modbus_m.c
     src/c_ota.c
     src/c_prot_mqtt.c
@@ -29,6 +30,7 @@ set (SRCS
 
 set (HDRS
     # Protocols
+    src/register_prot.h
     src/c_prot_modbus_m.h
     src/c_ota.h
     src/c_prot_mqtt.h

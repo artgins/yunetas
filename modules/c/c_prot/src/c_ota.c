@@ -10,12 +10,11 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
-#include <kwid.h>
-#include <command_parser.h>
-#ifdef __linux__
-    #include <helpers.h>
-#endif
+#include <unistd.h>
+
 #include <c_timer.h>
+#include <c_prot_http_cl.h>
+
 #ifdef ESP_PLATFORM
     #include <esp_ota_ops.h>
     #include <esp_flash_partitions.h>
@@ -23,8 +22,7 @@
     #include <esp_system.h>
     #include <esp_image_format.h>
 #endif
-#include <unistd.h>
-#include "c_prot_http_cl.h"
+
 #include "c_ota.h"
 
 
@@ -301,14 +299,27 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    x json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return build_command_response(
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
         0,
-        0
+        0,
+        "",  // msg_type
+        kw  // owned
     );
+
+    // TODO is ok build_command_response or msg_iev_build_response?
+    // json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    //  return build_command_response(
+    //      gobj,
+    //      0,
+    //      jn_resp,
+    //      0,
+    //      0
+    //  );
 }
 
 /***************************************************************************

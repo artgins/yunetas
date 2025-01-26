@@ -1,48 +1,32 @@
 /****************************************************************************
- *              YUNETA_IOT_REGISTER.C
- *              Yuneta
+ *            register_prot.c
  *
- *              Copyright (c) 2022 Niyamaka.
- *              All Rights Reserved.
+ *            Register several protocols
+ *
+ *            Copyright (c) 2022 Niyamaka.
+ *            Copyright (c) 2025, ArtGins.
+ *            All Rights Reserved.
  ****************************************************************************/
 #include "c_prot_modbus_m.h"
 #include "c_ota.h"
+#include "c_prot_mqtt.h"
 #include "register_prot.h"
 
 /***************************************************************************
- *  Data
+ *  Register protocols gclass
  ***************************************************************************/
-
-/***************************************************************************
- *  Register internal yuno gclasses and services
- ***************************************************************************/
-PUBLIC int yuneta_register_c_iot(void)
+PUBLIC int register_prot(void)
 {
     static BOOL initialized = FALSE;
     if(initialized) {
         return -1;
     }
 
-    /*
-     *  Services
-     */
+    register_c_ota();
+    register_c_prot_modbus_m();
+    register_c_prot_mqtt();
 
-    /*
-     *  Gadgets
-     */
 
-    /*
-     *  Protocols
-     */
-    gobj_register_gclass(GCLASS_PROT_MODBUS_MASTER);
-    gobj_register_gclass(GCLASS_PROT_CANOPEN);
-    gobj_register_gclass(GCLASS_GPS_SIM7600);
-    gobj_register_gclass(GCLASS_MQTT);
-
-    /*
-     *  Mixin uv-gobj
-     */
-    gobj_register_gclass(GCLASS_CANBUS0);
     initialized = TRUE;
 
     return 0;
