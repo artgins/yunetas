@@ -132,6 +132,10 @@ set(YUNETAS_PCRE_LIBS
     libpcre2-8.a
 )
 
+set(YUNETAS_C_PROT_LIBS
+    libyunetas-c_prot.a
+)
+
 if (CONFIG_YTLS_USE_OPENSSL)
     set(OPENSSL_LIBS
         libjwt.a

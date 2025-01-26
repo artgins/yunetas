@@ -15,6 +15,7 @@
 #include <command_parser.h>
 #include <tr_queue.h>
 #include "msg_ievent.h"
+#include "yunetas_environment.h"
 #include "c_timer.h"
 #include "c_qiogate.h"
 #include "c_tranger.h"
@@ -545,6 +546,10 @@ PRIVATE int open_queue(hgobj gobj)
             NULL
         );
         return -1;
+    }
+
+    if(!is_directory(path)) {
+        mkrdir(path, yuneta_xpermission());
     }
 
     const char *database = gobj_read_str_attr(gobj, "tranger_database");
@@ -1301,7 +1306,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,            ac_on_open,             0},
         {EV_ON_CLOSE,           ac_on_close,            0},
         {EV_STOPPED,            ac_stopped,             0},
-        {EV_TIMEOUT,            ac_timeout,             0},
+        {EV_TIMEOUT_PERIODIC,   ac_timeout,             0},
         {0,0,0}
     };
 
