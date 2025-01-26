@@ -395,6 +395,7 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
         ICASES("tcp")
         ICASES("tcp4h")
         ICASES("http")
+        ICASES("mqtt")
         ICASES("ws")
             hints->ai_socktype = SOCK_STREAM; /* TCP socket */
             hints->ai_protocol = IPPROTO_TCP;
@@ -404,6 +405,7 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
         ICASES("tcps")
         ICASES("tcp4hs")
         ICASES("https")
+        ICASES("mqtts")
         ICASES("wss")
             hints->ai_socktype = SOCK_STREAM; /* TCP socket */
             hints->ai_protocol = IPPROTO_TCP;
