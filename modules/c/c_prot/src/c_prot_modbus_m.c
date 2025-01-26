@@ -60,6 +60,8 @@ Example of modbus configuration:
 #include <c_timer.h>
 #include <kwid.h>
 #include <helpers.h>
+#include <command_parser.h>
+#include "msg_ievent.h"
 #include "c_prot_modbus_m.h"
 
 /***************************************************************************
@@ -603,18 +605,17 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    JSON_DECREF(kw)
-    return 0; // TODO
-//    JSON_INCREF(kw);
-//    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-//    return msg_iev_build_response(
-//        gobj,
-//        0,
-//        jn_resp,
-//        0,
-//        0,
-//        kw  // owned
-//    );
+    KW_INCREF(kw)
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        "",  // msg_type
+        kw  // owned
+    );
 }
 
 /***************************************************************************

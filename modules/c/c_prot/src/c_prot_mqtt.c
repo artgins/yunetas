@@ -500,7 +500,7 @@ PRIVATE void start_wait_frame_header(hgobj gobj);
 PRIVATE void ws_close(hgobj gobj, int code);
 
 PRIVATE int framehead_prepare_new_frame(FRAME_HEAD *frame);
-PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream istream, char *bf, int len);
+PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, char *bf, int len);
 PRIVATE int frame_completed(hgobj gobj);
 PRIVATE int set_client_disconnected(hgobj gobj);
 
@@ -534,14 +534,14 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_create_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "username",     0,              0,          "User name"),
-SDATAPM (ASN_OCTET_STR, "password",     0,              0,          "Password"),
+SDATAPM (DTP_STRING,    "username",     0,              0,          "User name"),
+SDATAPM (DTP_STRING,    "password",     0,              0,          "Password"),
 SDATA_END()
 };
 
@@ -549,11 +549,11 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "list-topics",      0,                  0,              cmd_list_topics, "List topics"),
-SDATACM (ASN_SCHEMA,    "list-clients",     0,                  0,              cmd_list_clients, "List clients"),
-SDATACM (ASN_SCHEMA,    "list-users",       0,                  0,              cmd_list_users, "List users"),
-SDATACM (ASN_SCHEMA,    "create-user",      0,                  pm_create_user, cmd_create_user, "Create user"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "list-topics",      0,                  0,              cmd_list_topics, "List topics"),
+SDATACM (DTP_SCHEMA,    "list-clients",     0,                  0,              cmd_list_clients, "List clients"),
+SDATACM (DTP_SCHEMA,    "list-users",       0,                  0,              cmd_list_users, "List users"),
+SDATACM (DTP_SCHEMA,    "create-user",      0,                  pm_create_user, cmd_create_user, "Create user"),
 
 SDATA_END()
 };
@@ -563,84 +563,84 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default-description---------- */
-SDATA (ASN_BOOLEAN,     "connected",        SDF_VOLATIL|SDF_STATS,      0,      "Connection state. Important filter!"),
-SDATA (ASN_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
-SDATA (ASN_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
-SDATA (ASN_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
-SDATA (ASN_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    5*1000,      "Timeout to handshake"),
-SDATA (ASN_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    3*1000,      "Timeout to close"),
-SDATA (ASN_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   50*1000,      "Ping interval. If value <= 0 then No ping"),
+SDATA (DTP_BOOLEAN,     "connected",        SDF_VOLATIL|SDF_STATS,      0,      "Connection state. Important filter!"),
+SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
+SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
+SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    5*1000,      "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    3*1000,      "Timeout to close"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   50*1000,      "Ping interval. If value <= 0 then No ping"),
 
-SDATA (ASN_POINTER,     "gobj_mqtt_topics", 0,                          0,      "global gobj to save topics"),
-SDATA (ASN_POINTER,     "gobj_mqtt_clients",0,                          0,      "global gobj with clients"),
-SDATA (ASN_POINTER,     "gobj_mqtt_users",  0,                          0,      "global gobj with users"),
+SDATA (DTP_POINTER,     "gobj_mqtt_topics", 0,                          0,      "global gobj to save topics"),
+SDATA (DTP_POINTER,     "gobj_mqtt_clients",0,                          0,      "global gobj with clients"),
+SDATA (DTP_POINTER,     "gobj_mqtt_users",  0,                          0,      "global gobj with users"),
 
 /*
  *  Configuration
  */
 
-SDATA (ASN_UNSIGNED,    "max_inflight_bytes",SDF_WR|SDF_PERSIST,        0,      "Outgoing QoS 1 and 2 messages will be allowed in flight until this byte limit is reached. This allows control of outgoing message rate based on message size rather than message count. If the limit is set to 100, messages of over 100 bytes are still allowed, but only a single message can be in flight at once. Defaults to 0. (No limit)."),
+SDATA (DTP_INTEGER,     "max_inflight_bytes",SDF_WR|SDF_PERSIST,        0,      "Outgoing QoS 1 and 2 messages will be allowed in flight until this byte limit is reached. This allows control of outgoing message rate based on message size rather than message count. If the limit is set to 100, messages of over 100 bytes are still allowed, but only a single message can be in flight at once. Defaults to 0. (No limit)."),
 
-SDATA (ASN_UNSIGNED,    "max_inflight_messages",SDF_WR|SDF_PERSIST,    20,      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
+SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR|SDF_PERSIST,    20,      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
 
-SDATA (ASN_UNSIGNED,    "max_queued_bytes", SDF_WR|SDF_PERSIST,         0,      "The number of outgoing QoS 1 and 2 messages above those currently in-flight will be queued (per client) by the broker. Once this limit has been reached, subsequent messages will be silently dropped. This is an important option if you are sending messages at a high rate and/or have clients who are slow to respond or may be offline for extended periods of time. Defaults to 0. (No maximum).See also the max_queued_messages option. If both max_queued_messages and max_queued_bytes are specified, packets will be queued until the first limit is reached."),
+SDATA (DTP_INTEGER,     "max_queued_bytes", SDF_WR|SDF_PERSIST,         0,      "The number of outgoing QoS 1 and 2 messages above those currently in-flight will be queued (per client) by the broker. Once this limit has been reached, subsequent messages will be silently dropped. This is an important option if you are sending messages at a high rate and/or have clients who are slow to respond or may be offline for extended periods of time. Defaults to 0. (No maximum).See also the max_queued_messages option. If both max_queued_messages and max_queued_bytes are specified, packets will be queued until the first limit is reached."),
 
-SDATA (ASN_UNSIGNED,    "max_queued_messages",SDF_WR|SDF_PERSIST,       1000,   "The maximum number of QoS 1 or 2 messages to hold in the queue (per client) above those messages that are currently in flight. Defaults to 1000. Set to 0 for no maximum (not recommended). See also the queue_qos0_messages and max_queued_bytes options."),
+SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR|SDF_PERSIST,       1000,   "The maximum number of QoS 1 or 2 messages to hold in the queue (per client) above those messages that are currently in flight. Defaults to 1000. Set to 0 for no maximum (not recommended). See also the queue_qos0_messages and max_queued_bytes options."),
 
-SDATA (ASN_UNSIGNED,    "message_size_limit",SDF_WR|SDF_PERSIST,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
+SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR|SDF_PERSIST,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
-SDATA (ASN_UNSIGNED,    "max_keepalive",    SDF_WR|SDF_PERSIST,         65535,  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
+SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR|SDF_PERSIST,         65535,  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
 
-SDATA (ASN_UNSIGNED,    "max_packet_size",  SDF_WR|SDF_PERSIST,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads."),
+SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR|SDF_PERSIST,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads."),
 
-SDATA (ASN_BOOLEAN,     "persistence",      SDF_WR|SDF_PERSIST,         TRUE,   "If true, connection, subscription and message data will be written to the disk"), // TODO
+SDATA (DTP_BOOLEAN,     "persistence",      SDF_WR|SDF_PERSIST,         TRUE,   "If true, connection, subscription and message data will be written to the disk"), // TODO
 
-SDATA (ASN_BOOLEAN,     "retain_available", SDF_WR|SDF_PERSIST,         TRUE,   "If set to false, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to false. Defaults to true."),
+SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR|SDF_PERSIST,         TRUE,   "If set to false, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to false. Defaults to true."),
 
-SDATA (ASN_UNSIGNED,    "max_qos",          SDF_WR|SDF_PERSIST,         2,      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
+SDATA (DTP_INTEGER,     "max_qos",          SDF_WR|SDF_PERSIST,         2,      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
 
-SDATA (ASN_BOOLEAN,     "allow_zero_length_clientid",SDF_WR|SDF_PERSIST,FALSE,   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to false."),
+SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR|SDF_PERSIST,FALSE,   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to false."),
 
-SDATA (ASN_BOOLEAN,     "use_username_as_clientid",SDF_WR|SDF_PERSIST,  FALSE,  "Set use_username_as_clientid to true to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to false."),
+SDATA (DTP_BOOLEAN,     "use_username_as_clientid",SDF_WR|SDF_PERSIST,  FALSE,  "Set use_username_as_clientid to true to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to false."),
 
-SDATA (ASN_BOOLEAN,     "allow_anonymous",  SDF_WR|SDF_PERSIST,         TRUE,   "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to false then another means of connection should be created to control authenticated client access. Defaults to true, (TODO but connections are only allowed from the local machine)."),
+SDATA (DTP_BOOLEAN,     "allow_anonymous",  SDF_WR|SDF_PERSIST,         TRUE,   "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to false then another means of connection should be created to control authenticated client access. Defaults to true, (TODO but connections are only allowed from the local machine)."),
 
-SDATA (ASN_UNSIGNED,    "max_topic_alias",  SDF_WR|SDF_PERSIST,         10,     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
+SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR|SDF_PERSIST,         10,     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
 
 /*
  *  Dynamic Data
  */
-SDATA (ASN_OCTET_STR,   "protocol_name",    SDF_VOLATIL,                0,      "Protocol name"),
-SDATA (ASN_UNSIGNED,    "protocol_version", SDF_VOLATIL,                0,      "Protocol version"),
-SDATA (ASN_BOOLEAN,     "is_bridge",        SDF_VOLATIL,                0,      "Connexion is a bridge"),
-SDATA (ASN_BOOLEAN,     "will",             SDF_VOLATIL,                0,      "Will"),
-SDATA (ASN_JSON,        "will_struct",      SDF_VOLATIL,                0,      "Will struc"),
-SDATA (ASN_BOOLEAN,     "will_retain",      SDF_VOLATIL,                0,      "Will retain"),
-SDATA (ASN_UNSIGNED,    "will_qos",         SDF_VOLATIL,                0,      "QoS"),
-SDATA (ASN_BOOLEAN,     "assigned_id",      SDF_VOLATIL,                0,      "Auto client id"),
-SDATA (ASN_OCTET_STR,   "client_id",        SDF_VOLATIL,                0,      "Client id"),
-SDATA (ASN_OCTET_STR,   "username",         SDF_VOLATIL,                0,      "Username"),
-SDATA (ASN_OCTET_STR,   "password",         SDF_VOLATIL,                0,      "Password"),
-SDATA (ASN_BOOLEAN,     "clean_start",      SDF_VOLATIL,                0,      "New session"),
-SDATA (ASN_UNSIGNED,    "session_expiry_interval",SDF_VOLATIL,          0,      "Session expiry interval in ?"),
-SDATA (ASN_UNSIGNED,    "keepalive",        SDF_VOLATIL,                0,      "Keepalive in ?"),
-SDATA (ASN_OCTET_STR,   "auth_method",      SDF_VOLATIL,                0,      "Auth method"),
-SDATA (ASN_OCTET_STR,   "auth_data",        SDF_VOLATIL,                0,      "Auth data (in base64)"),
-SDATA (ASN_UNSIGNED,    "state",            SDF_VOLATIL,                0,      "State"),
+SDATA (DTP_STRING,      "protocol_name",    SDF_VOLATIL,                0,      "Protocol name"),
+SDATA (DTP_INTEGER,     "protocol_version", SDF_VOLATIL,                0,      "Protocol version"),
+SDATA (DTP_BOOLEAN,     "is_bridge",        SDF_VOLATIL,                0,      "Connexion is a bridge"),
+SDATA (DTP_BOOLEAN,     "will",             SDF_VOLATIL,                0,      "Will"),
+SDATA (DTP_JSON,        "will_struct",      SDF_VOLATIL,                0,      "Will struc"),
+SDATA (DTP_BOOLEAN,     "will_retain",      SDF_VOLATIL,                0,      "Will retain"),
+SDATA (DTP_INTEGER,     "will_qos",         SDF_VOLATIL,                0,      "QoS"),
+SDATA (DTP_BOOLEAN,     "assigned_id",      SDF_VOLATIL,                0,      "Auto client id"),
+SDATA (DTP_STRING,      "client_id",        SDF_VOLATIL,                0,      "Client id"),
+SDATA (DTP_STRING,      "username",         SDF_VOLATIL,                0,      "Username"),
+SDATA (DTP_STRING,      "password",         SDF_VOLATIL,                0,      "Password"),
+SDATA (DTP_BOOLEAN,     "clean_start",      SDF_VOLATIL,                0,      "New session"),
+SDATA (DTP_INTEGER,     "session_expiry_interval",SDF_VOLATIL,          0,      "Session expiry interval in ?"),
+SDATA (DTP_INTEGER,     "keepalive",        SDF_VOLATIL,                0,      "Keepalive in ?"),
+SDATA (DTP_STRING,      "auth_method",      SDF_VOLATIL,                0,      "Auth method"),
+SDATA (DTP_STRING,      "auth_data",        SDF_VOLATIL,                0,      "Auth data (in base64)"),
+SDATA (DTP_INTEGER,     "state",            SDF_VOLATIL,                0,      "State"),
 
-SDATA (ASN_UNSIGNED,    "msgs_out_inflight_maximum", SDF_VOLATIL,       0,      "Connect property"),
-SDATA (ASN_UNSIGNED,    "msgs_out_inflight_quota", SDF_VOLATIL,         0,      "Connect property"),
-SDATA (ASN_UNSIGNED,    "maximum_packet_size", SDF_VOLATIL,             0,      "Connect property"),
-SDATA (ASN_UNSIGNED,    "will_delay_interval", SDF_VOLATIL,             0,      "Will property"),
-SDATA (ASN_UNSIGNED,    "will_expiry_interval",SDF_VOLATIL,             0,      "Will property"),
-SDATA (ASN_OCTET_STR,   "will_topic",       SDF_VOLATIL,                0,      "Will property"),
+SDATA (DTP_INTEGER,     "msgs_out_inflight_maximum", SDF_VOLATIL,       0,      "Connect property"),
+SDATA (DTP_INTEGER,     "msgs_out_inflight_quota", SDF_VOLATIL,         0,      "Connect property"),
+SDATA (DTP_INTEGER,     "maximum_packet_size", SDF_VOLATIL,             0,      "Connect property"),
+SDATA (DTP_INTEGER,     "will_delay_interval", SDF_VOLATIL,             0,      "Will property"),
+SDATA (DTP_INTEGER,     "will_expiry_interval",SDF_VOLATIL,             0,      "Will property"),
+SDATA (DTP_STRING,      "will_topic",       SDF_VOLATIL,                0,      "Will property"),
 
 
-SDATA (ASN_POINTER,     "user_data",        0,                          0,      "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                          0,      "more user data"),
-SDATA (ASN_BOOLEAN,     "iamServer",        SDF_RD,                     0,      "What side? server or client"),
-SDATA (ASN_JSON,        "kw_connex",        SDF_RD,                     0,      "Kw to create connex at client ws"),
-SDATA (ASN_POINTER,     "subscriber",       0,                          0,      "subscriber of output-events. Default if null is parent."),
+SDATA (DTP_POINTER,     "user_data",        0,                          0,      "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                          0,      "more user data"),
+SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,                     0,      "What side? server or client"),
+SDATA (DTP_JSON,        "kw_connex",        SDF_RD,                     0,      "Kw to create connex at client ws"),
+SDATA (DTP_POINTER,     "subscriber",       0,                          0,      "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
 
@@ -673,8 +673,8 @@ typedef struct _PRIVATE_DATA {
     int pingT;
 
     FRAME_HEAD frame_head;
-    istream istream_frame;
-    istream istream_payload;
+    istream_h istream_frame;
+    istream_h istream_payload;
 
     FRAME_HEAD message_head;
 
@@ -730,7 +730,7 @@ typedef struct _PRIVATE_DATA {
     uint32_t will_delay_interval;
     uint32_t will_expiry_interval;
     const char *will_topic;
-    GBUFFER *gbuf_will_payload;
+    gbuffer_t *gbuf_will_payload;
 
 } PRIVATE_DATA;
 
@@ -752,14 +752,14 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
 
-    dl_init(&priv->dl_msgs_out);
-    dl_init(&priv->dl_msgs_in);
+    dl_init(&priv->dl_msgs_out, gobj);
+    dl_init(&priv->dl_msgs_in, gobj);
 
-    priv->istream_frame = istream_create(gobj, 14, 14, 0,0);
+    priv->istream_frame = istream_create(gobj, 14, 14);
     if(!priv->istream_frame) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -777,7 +777,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(pingT,                     gobj_read_int32_attr)
+    SET_PRIV(pingT,                     gobj_read_integer_attr)
     SET_PRIV(in_session,                gobj_read_bool_attr)
     SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     SET_PRIV(client,                    gobj_read_json_attr)
@@ -786,44 +786,44 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(gobj_mqtt_clients,         gobj_read_pointer_attr)
     SET_PRIV(gobj_mqtt_users,           gobj_read_pointer_attr)
 
-    SET_PRIV(max_inflight_bytes,        gobj_read_uint32_attr)
-    SET_PRIV(max_inflight_messages,     gobj_read_uint32_attr)
-    SET_PRIV(max_keepalive,             gobj_read_uint32_attr)
-    SET_PRIV(max_packet_size,           gobj_read_uint32_attr)
-    SET_PRIV(max_queued_bytes,          gobj_read_uint32_attr)
-    SET_PRIV(max_queued_messages,       gobj_read_uint32_attr)
-    SET_PRIV(message_size_limit,        gobj_read_uint32_attr)
+    SET_PRIV(max_inflight_bytes,        gobj_read_integer_attr)
+    SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
+    SET_PRIV(max_keepalive,             gobj_read_integer_attr)
+    SET_PRIV(max_packet_size,           gobj_read_integer_attr)
+    SET_PRIV(max_queued_bytes,          gobj_read_integer_attr)
+    SET_PRIV(max_queued_messages,       gobj_read_integer_attr)
+    SET_PRIV(message_size_limit,        gobj_read_integer_attr)
     SET_PRIV(persistence,               gobj_read_bool_attr)
     SET_PRIV(retain_available,          gobj_read_bool_attr)
-    SET_PRIV(max_qos,                   gobj_read_uint32_attr)
+    SET_PRIV(max_qos,                   gobj_read_integer_attr)
     SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
     SET_PRIV(use_username_as_clientid,  gobj_read_bool_attr)
     SET_PRIV(allow_anonymous,           gobj_read_bool_attr)
-    SET_PRIV(max_topic_alias,           gobj_read_uint32_attr)
+    SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
     SET_PRIV(protocol_name,             gobj_read_str_attr)
-    SET_PRIV(protocol_version,          gobj_read_uint32_attr)
+    SET_PRIV(protocol_version,          gobj_read_integer_attr)
     SET_PRIV(is_bridge,                 gobj_read_bool_attr)
     SET_PRIV(will,                      gobj_read_bool_attr)
     SET_PRIV(will_struct,               gobj_read_json_attr)
     SET_PRIV(will_retain,               gobj_read_bool_attr)
-    SET_PRIV(will_qos,                  gobj_read_uint32_attr)
+    SET_PRIV(will_qos,                  gobj_read_integer_attr)
     SET_PRIV(assigned_id,               gobj_read_bool_attr)
     SET_PRIV(client_id,                 gobj_read_str_attr)
     SET_PRIV(username,                  gobj_read_str_attr)
     SET_PRIV(password,                  gobj_read_str_attr)
     SET_PRIV(clean_start,               gobj_read_bool_attr)
-    SET_PRIV(session_expiry_interval,   gobj_read_uint32_attr)
-    SET_PRIV(keepalive,                 gobj_read_uint32_attr)
+    SET_PRIV(session_expiry_interval,   gobj_read_integer_attr)
+    SET_PRIV(keepalive,                 gobj_read_integer_attr)
     SET_PRIV(auth_method,               gobj_read_str_attr)
     SET_PRIV(auth_data,                 gobj_read_str_attr)
-    SET_PRIV(state,                     gobj_read_uint32_attr)
+    SET_PRIV(state,                     gobj_read_integer_attr)
 
-    SET_PRIV(msgs_out_inflight_maximum, gobj_read_uint32_attr)
-    SET_PRIV(msgs_out_inflight_quota,   gobj_read_uint32_attr)
-    SET_PRIV(maximum_packet_size,       gobj_read_uint32_attr)
-    SET_PRIV(will_delay_interval,       gobj_read_uint32_attr)
-    SET_PRIV(will_expiry_interval,      gobj_read_uint32_attr)
+    SET_PRIV(msgs_out_inflight_maximum, gobj_read_integer_attr)
+    SET_PRIV(msgs_out_inflight_quota,   gobj_read_integer_attr)
+    SET_PRIV(maximum_packet_size,       gobj_read_integer_attr)
+    SET_PRIV(will_delay_interval,       gobj_read_integer_attr)
+    SET_PRIV(will_expiry_interval,      gobj_read_integer_attr)
     SET_PRIV(will_topic,                gobj_read_str_attr)
 
 }
@@ -835,7 +835,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(pingT,                       gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(pingT,                       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(in_session,                gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(send_disconnect,           gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client,                    gobj_read_json_attr)
@@ -844,44 +844,44 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(gobj_mqtt_clients,         gobj_read_pointer_attr)
     ELIF_EQ_SET_PRIV(gobj_mqtt_users,           gobj_read_pointer_attr)
 
-    ELIF_EQ_SET_PRIV(max_inflight_bytes,        gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(max_inflight_messages,     gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(max_keepalive,             gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(max_packet_size,           gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(max_queued_bytes,          gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(max_queued_messages,       gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(message_size_limit,        gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(max_inflight_bytes,        gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_inflight_messages,     gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_keepalive,             gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_packet_size,           gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_queued_bytes,          gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_queued_messages,       gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(message_size_limit,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(persistence,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(retain_available,          gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(max_qos,                   gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(max_qos,                   gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(allow_zero_length_clientid,gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(use_username_as_clientid,  gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(allow_anonymous,           gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(max_topic_alias,           gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(max_topic_alias,           gobj_read_integer_attr)
 
     ELIF_EQ_SET_PRIV(protocol_name,             gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(protocol_version,          gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(protocol_version,          gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(is_bridge,                 gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(will,                      gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(will_struct,               gobj_read_json_attr)
     ELIF_EQ_SET_PRIV(will_retain,               gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(will_qos,                  gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(will_qos,                  gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(assigned_id,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(client_id,                 gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(username,                  gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(password,                  gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(clean_start,               gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(session_expiry_interval,   gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(keepalive,                 gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(session_expiry_interval,   gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(keepalive,                 gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(auth_method,               gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(auth_data,                 gobj_read_str_attr)
-    ELIF_EQ_SET_PRIV(state,                     gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(state,                     gobj_read_integer_attr)
 
-    ELIF_EQ_SET_PRIV(msgs_out_inflight_maximum, gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(msgs_out_inflight_quota,   gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(maximum_packet_size,       gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(will_delay_interval,       gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(will_expiry_interval,      gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(msgs_out_inflight_maximum, gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(msgs_out_inflight_quota,   gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(maximum_packet_size,       gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(will_delay_interval,       gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(will_expiry_interval,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(will_topic,                gobj_read_str_attr)
 
     END_EQ_SET_PRIV()
@@ -904,7 +904,7 @@ PRIVATE int mt_start(hgobj gobj)
             // Manual connex configuration
             json_t *kw_connex = gobj_read_json_attr(gobj, "kw_connex");
             json_incref(kw_connex);
-            tcp0 = gobj_create(gobj_name(gobj), GCLASS_CONNEX, kw_connex, gobj);
+            tcp0 = gobj_create(gobj_name(gobj), C_TCP, kw_connex, gobj);
             gobj_set_bottom_gobj(gobj, tcp0);
             gobj_write_str_attr(tcp0, "tx_ready_event_name", 0);
         }
@@ -962,7 +962,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     priv->client = 0;
     JSON_DECREF(priv->jn_alias_list)
-    GBUF_DECREF(priv->gbuf_will_payload);
+    GBUFFER_DECREF(priv->gbuf_will_payload);
 
     dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     dl_flush(&priv->dl_msgs_out, db_free_client_msg);
@@ -985,12 +985,13 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
         0,
         0,
+        "",
         kw  // owned
     );
 }
@@ -1322,7 +1323,7 @@ PRIVATE const char *mqtt_property_identifier_to_string(int identifier)
         case MQTT_PROP_SHARED_SUB_AVAILABLE:
             return "shared-subscription-available";
         default:
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -1340,7 +1341,7 @@ PRIVATE const char *mqtt_property_identifier_to_string(int identifier)
 PRIVATE int mosquitto_string_to_property_info(const char *propname, int *identifier, int *type)
 {
     if(empty_string(propname)) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -1434,7 +1435,7 @@ PRIVATE int mosquitto_string_to_property_info(const char *propname, int *identif
         *identifier = MQTT_PROP_SHARED_SUB_AVAILABLE;
         *type = MQTT_PROP_TYPE_BYTE;
     } else {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -1616,7 +1617,7 @@ PRIVATE int check_passwd(
     }
     digest = EVP_get_digestbyname(algorithm);
     if(!digest) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1685,7 +1686,7 @@ PRIVATE json_t *hash_password(
         iterations = PW_DEFAULT_ITERATIONS;
     }
     if(RAND_bytes(salt, sizeof(salt))<0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1698,7 +1699,7 @@ PRIVATE json_t *hash_password(
 
     const EVP_MD *digest = EVP_get_digestbyname(algorithm);
     if(!digest) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1715,8 +1716,8 @@ PRIVATE json_t *hash_password(
         digest, (int)hash_len, hash
     );
 
-    GBUFFER *gbuf_hash = gbuf_string2base64((const char *)hash, hash_len);
-    GBUFFER *gbuf_salt = gbuf_string2base64((const char *)salt, sizeof(salt));
+    gbuffer_t *gbuf_hash = gbuf_string2base64((const char *)hash, hash_len);
+    gbuffer_t *gbuf_salt = gbuf_string2base64((const char *)salt, sizeof(salt));
     char *hash_b64 = gbuf_cur_rd_pointer(gbuf_hash);
     char *salt_b64 = gbuf_cur_rd_pointer(gbuf_salt);
 
@@ -1735,8 +1736,8 @@ PRIVATE json_t *hash_password(
     );
     json_array_append_new(credential_list, credential);
 
-    GBUF_DECREF(gbuf_hash);
-    GBUF_DECREF(gbuf_salt);
+    GBUFFER_DECREF(gbuf_hash);
+    GBUFFER_DECREF(gbuf_salt);
 
     return credentials;
 }
@@ -1871,7 +1872,7 @@ PRIVATE int decode_head(hgobj gobj, FRAME_HEAD *frame, char *data)
 
     if(!priv->in_session) {
         if(frame->command != CMD_CONNECT) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -1997,7 +1998,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream istream, ch
         unsigned char byte = *data;
         frame->frame_length += (byte & 0x7F) * (128*128*128);
         if(byte & 0x80) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2014,7 +2015,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream istream, ch
         switch(frame->command) {
             case CMD_CONNECT:
                 if(frame->frame_length > 100000) {
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2044,7 +2045,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream istream, ch
             case CMD_PINGREQ:
             case CMD_PINGRESP:
                 if(frame->frame_length != 0) {
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2057,7 +2058,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream istream, ch
                 break;
 
             default:
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2078,7 +2079,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream istream, ch
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE GBUFFER *build_mqtt_packet(hgobj gobj, uint8_t command, uint32_t size)
+PRIVATE gbuffer_t *build_mqtt_packet(hgobj gobj, uint8_t command, uint32_t size)
 {
     uint32_t remaining_length = size;
     uint8_t remaining_bytes[5], byte;
@@ -2097,7 +2098,7 @@ PRIVATE GBUFFER *build_mqtt_packet(hgobj gobj, uint8_t command, uint32_t size)
 
     if(remaining_count == 5) {
         // return MOSQ_ERR_PAYLOAD_SIZE;
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2110,9 +2111,9 @@ PRIVATE GBUFFER *build_mqtt_packet(hgobj gobj, uint8_t command, uint32_t size)
 
     uint32_t packet_length = size + 1 + (uint8_t)remaining_count;
 
-    GBUFFER *gbuf = gbuf_create(packet_length, packet_length, 0, 0);
+    gbuffer_t *gbuf = gbuf_create(packet_length, packet_length, 0, 0);
     if(!gbuf) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
@@ -2169,11 +2170,11 @@ PRIVATE unsigned int property_get_length(const char *property_name, json_t *valu
         if(strcmp(
             property_name, mqtt_property_identifier_to_string(MQTT_PROP_CORRELATION_DATA))==0
         ) {
-            GBUFFER *gbuf_correlation_data = 0;
+            gbuffer_t *gbuf_correlation_data = 0;
             const char *b64 = json_string_value(value);
             gbuf_correlation_data = gbuf_decodebase64string(b64);
             str_len += gbuf_leftbytes(gbuf_correlation_data);
-            GBUF_DECREF(gbuf_correlation_data);
+            GBUFFER_DECREF(gbuf_correlation_data);
 
         } else if(strcmp(
             property_name, mqtt_property_identifier_to_string(MQTT_PROP_USER_PROPERTY))==0
@@ -2288,7 +2289,7 @@ PRIVATE unsigned int property_get_remaining_length(json_t *props)
 PRIVATE int mqtt_property_add_byte(hgobj gobj, json_t *proplist, int identifier, uint8_t value)
 {
     if(!proplist) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2307,7 +2308,7 @@ PRIVATE int mqtt_property_add_byte(hgobj gobj, json_t *proplist, int identifier,
             && identifier != MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE
             && identifier != MQTT_PROP_SHARED_SUB_AVAILABLE)
     {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2331,7 +2332,7 @@ PRIVATE int mqtt_property_add_byte(hgobj gobj, json_t *proplist, int identifier,
 PRIVATE int mqtt_property_add_int16(hgobj gobj, json_t *proplist, int identifier, uint16_t value)
 {
     if(!proplist) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2346,7 +2347,7 @@ PRIVATE int mqtt_property_add_int16(hgobj gobj, json_t *proplist, int identifier
             && identifier != MQTT_PROP_TOPIC_ALIAS_MAXIMUM
             && identifier != MQTT_PROP_TOPIC_ALIAS)
     {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2369,7 +2370,7 @@ PRIVATE int mqtt_property_add_int16(hgobj gobj, json_t *proplist, int identifier
 PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier, uint32_t value)
 {
     if(!proplist) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2384,7 +2385,7 @@ PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier
             && identifier != MQTT_PROP_WILL_DELAY_INTERVAL
             && identifier != MQTT_PROP_MAXIMUM_PACKET_SIZE)
     {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2407,7 +2408,7 @@ PRIVATE int mqtt_property_add_int32(hgobj gobj, json_t *proplist, int identifier
 PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int identifier, uint32_t value)
 {
     if(!proplist || value > 268435455) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2418,7 +2419,7 @@ PRIVATE int mosquitto_property_add_varint(hgobj gobj, json_t *proplist, int iden
         return MOSQ_ERR_INVAL;
     }
     if(identifier != MQTT_PROP_SUBSCRIPTION_IDENTIFIER) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2448,7 +2449,7 @@ PRIVATE int mqtt_property_add_string(
     size_t slen = 0;
 
     if(!proplist) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2461,7 +2462,7 @@ PRIVATE int mqtt_property_add_string(
     if(value) {
         slen = strlen(value);
         if(mosquitto_validate_utf8(value, (int)slen)<0) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2480,7 +2481,7 @@ PRIVATE int mqtt_property_add_string(
             && identifier != MQTT_PROP_SERVER_REFERENCE
             && identifier != MQTT_PROP_REASON_STRING
       ) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2501,7 +2502,7 @@ PRIVATE int mqtt_property_add_string(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_byte(GBUFFER *gbuf, uint8_t byte)
+PRIVATE void mqtt_write_byte(gbuffer_t *gbuf, uint8_t byte)
 {
     gbuf_append_char(gbuf, byte);
 }
@@ -2509,7 +2510,7 @@ PRIVATE void mqtt_write_byte(GBUFFER *gbuf, uint8_t byte)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_uint16(GBUFFER *gbuf, uint16_t word)
+PRIVATE void mqtt_write_uint16(gbuffer_t *gbuf, uint16_t word)
 {
     gbuf_append_char(gbuf, MOSQ_MSB(word));
     gbuf_append_char(gbuf, MOSQ_LSB(word));
@@ -2518,7 +2519,7 @@ PRIVATE void mqtt_write_uint16(GBUFFER *gbuf, uint16_t word)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_uint32(GBUFFER *gbuf, uint32_t word)
+PRIVATE void mqtt_write_uint32(gbuffer_t *gbuf, uint32_t word)
 {
     gbuf_append_char(gbuf, (uint8_t)((word & 0xFF000000) >> 24));
     gbuf_append_char(gbuf, (uint8_t)((word & 0x00FF0000) >> 16));
@@ -2529,7 +2530,7 @@ PRIVATE void mqtt_write_uint32(GBUFFER *gbuf, uint32_t word)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int mqtt_write_varint(GBUFFER *gbuf, uint32_t word)
+PRIVATE int mqtt_write_varint(gbuffer_t *gbuf, uint32_t word)
 {
     uint8_t byte;
     int count = 0;
@@ -2554,7 +2555,7 @@ PRIVATE int mqtt_write_varint(GBUFFER *gbuf, uint32_t word)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_bytes(GBUFFER *gbuf, const void *bytes, uint32_t count)
+PRIVATE void mqtt_write_bytes(gbuffer_t *gbuf, const void *bytes, uint32_t count)
 {
     gbuf_append(gbuf, (void *)bytes, count);
 }
@@ -2562,7 +2563,7 @@ PRIVATE void mqtt_write_bytes(GBUFFER *gbuf, const void *bytes, uint32_t count)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mqtt_write_string(GBUFFER *gbuf, const char *str)
+PRIVATE void mqtt_write_string(gbuffer_t *gbuf, const char *str)
 {
     uint16_t length = strlen(str);
     mqtt_write_uint16(gbuf, length);
@@ -2572,7 +2573,7 @@ PRIVATE void mqtt_write_string(GBUFFER *gbuf, const char *str)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int property__write(hgobj gobj, GBUFFER *gbuf, const char *property_name, json_t *value_)
+PRIVATE int property__write(hgobj gobj, gbuffer_t *gbuf, const char *property_name, json_t *value_)
 {
     json_t *value;
     int identifier;
@@ -2630,12 +2631,12 @@ PRIVATE int property__write(hgobj gobj, GBUFFER *gbuf, const char *property_name
         case MQTT_PROP_CORRELATION_DATA:
             {
                 const char *b64 = json_string_value(value);
-                GBUFFER *gbuf_binary_data = gbuf_decodebase64string(b64);
+                gbuffer_t *gbuf_binary_data = gbuf_decodebase64string(b64);
                 void *p = gbuf_cur_rd_pointer(gbuf_binary_data);
                 uint16_t len = gbuf_leftbytes(gbuf_binary_data);
                 mqtt_write_uint16(gbuf, len);
                 mqtt_write_bytes(gbuf, p, len);
-                GBUF_DECREF(gbuf_binary_data);
+                GBUFFER_DECREF(gbuf_binary_data);
             }
             break;
 
@@ -2648,7 +2649,7 @@ PRIVATE int property__write(hgobj gobj, GBUFFER *gbuf, const char *property_name
             break;
 
         default:
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2665,7 +2666,7 @@ PRIVATE int property__write(hgobj gobj, GBUFFER *gbuf, const char *property_name
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int property_write_all(hgobj gobj, GBUFFER *gbuf, json_t *props, BOOL write_len)
+PRIVATE int property_write_all(hgobj gobj, gbuffer_t *gbuf, json_t *props, BOOL write_len)
 {
     if(write_len) {
         mqtt_write_varint(gbuf, property_get_length_all(props));
@@ -2682,12 +2683,12 @@ PRIVATE int property_write_all(hgobj gobj, GBUFFER *gbuf, json_t *props, BOOL wr
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_uint16(hgobj gobj, GBUFFER *gbuf, uint16_t *word)
+PUBLIC int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
 {
     uint8_t msb, lsb;
 
     if(gbuf_leftbytes(gbuf) < 2) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2709,12 +2710,12 @@ PUBLIC int mqtt_read_uint16(hgobj gobj, GBUFFER *gbuf, uint16_t *word)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_uint32(hgobj gobj, GBUFFER *gbuf, uint32_t *word)
+PUBLIC int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
 {
     uint32_t val = 0;
 
     if(gbuf_leftbytes(gbuf) < 4) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2738,10 +2739,10 @@ PUBLIC int mqtt_read_uint32(hgobj gobj, GBUFFER *gbuf, uint32_t *word)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_bytes(hgobj gobj, GBUFFER *gbuf, void *bf, int bflen)
+PUBLIC int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
 {
     if(gbuf_leftbytes(gbuf) < bflen) {
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2760,10 +2761,10 @@ PUBLIC int mqtt_read_bytes(hgobj gobj, GBUFFER *gbuf, void *bf, int bflen)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_byte(hgobj gobj, GBUFFER *gbuf, uint8_t *byte)
+PUBLIC int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
 {
     if(gbuf_leftbytes(gbuf) < 1) {
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2782,7 +2783,7 @@ PUBLIC int mqtt_read_byte(hgobj gobj, GBUFFER *gbuf, uint8_t *byte)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_binary(hgobj gobj, GBUFFER *gbuf, uint8_t **data, uint16_t *length)
+PUBLIC int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16_t *length)
 {
     uint16_t slen;
 
@@ -2790,7 +2791,7 @@ PUBLIC int mqtt_read_binary(hgobj gobj, GBUFFER *gbuf, uint8_t **data, uint16_t 
     *length = 0;
 
     if(mqtt_read_uint16(gobj, gbuf, &slen)<0) {
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2808,7 +2809,7 @@ PUBLIC int mqtt_read_binary(hgobj gobj, GBUFFER *gbuf, uint8_t **data, uint16_t 
     }
 
     if(gbuf_leftbytes(gbuf) < slen) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2827,7 +2828,7 @@ PUBLIC int mqtt_read_binary(hgobj gobj, GBUFFER *gbuf, uint8_t **data, uint16_t 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_string(hgobj gobj, GBUFFER *gbuf, char **str, uint16_t *length)
+PUBLIC int mqtt_read_string(hgobj gobj, gbuffer_t *gbuf, char **str, uint16_t *length)
 {
     *str = NULL;
 
@@ -2842,7 +2843,7 @@ PUBLIC int mqtt_read_string(hgobj gobj, GBUFFER *gbuf, char **str, uint16_t *len
     if(mosquitto_validate_utf8(*str, *length)<0) {
         *str = NULL;
         *length = 0;
-        log_error(LOG_OPT_TRACE_STACK,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -2859,7 +2860,7 @@ PUBLIC int mqtt_read_string(hgobj gobj, GBUFFER *gbuf, char **str, uint16_t *len
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int mqtt_read_varint(hgobj gobj, GBUFFER *gbuf, uint32_t *word, uint8_t *bytes)
+PRIVATE int mqtt_read_varint(hgobj gobj, gbuffer_t *gbuf, uint32_t *word, uint8_t *bytes)
 {
     int i;
     uint8_t byte;
@@ -2890,7 +2891,7 @@ PRIVATE int mqtt_read_varint(hgobj gobj, GBUFFER *gbuf, uint32_t *word, uint8_t 
         }
     }
 
-    log_error(LOG_OPT_TRACE_STACK,
+    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
         "gobj",         "%s", gobj_full_name(gobj),
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2913,7 +2914,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_RESPONSE_TOPIC:
         case MQTT_PROP_CORRELATION_DATA:
             if(command != CMD_PUBLISH && command != CMD_WILL) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2928,7 +2929,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_SUBSCRIPTION_IDENTIFIER:
             if(command != CMD_PUBLISH && command != CMD_SUBSCRIBE) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2943,7 +2944,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_SESSION_EXPIRY_INTERVAL:
             if(command != CMD_CONNECT && command != CMD_CONNACK && command != CMD_DISCONNECT) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2959,7 +2960,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_AUTHENTICATION_METHOD:
         case MQTT_PROP_AUTHENTICATION_DATA:
             if(command != CMD_CONNECT && command != CMD_CONNACK && command != CMD_AUTH) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2981,7 +2982,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_SUBSCRIPTION_ID_AVAILABLE:
         case MQTT_PROP_SHARED_SUB_AVAILABLE:
             if(command != CMD_CONNACK) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -2996,7 +2997,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_WILL_DELAY_INTERVAL:
             if(command != CMD_WILL) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3012,7 +3013,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_REQUEST_PROBLEM_INFORMATION:
         case MQTT_PROP_REQUEST_RESPONSE_INFORMATION:
             if(command != CMD_CONNECT) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3027,7 +3028,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_SERVER_REFERENCE:
             if(command != CMD_CONNACK && command != CMD_DISCONNECT) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3043,7 +3044,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_REASON_STRING:
             if(command == CMD_CONNECT || command == CMD_PUBLISH ||
                 command == CMD_SUBSCRIBE || command == CMD_UNSUBSCRIBE) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3060,7 +3061,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
         case MQTT_PROP_TOPIC_ALIAS_MAXIMUM:
         case MQTT_PROP_MAXIMUM_PACKET_SIZE:
             if(command != CMD_CONNECT && command != CMD_CONNACK) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3075,7 +3076,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 
         case MQTT_PROP_TOPIC_ALIAS:
             if(command != CMD_PUBLISH) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3092,7 +3093,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
             break;
 
         default:
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3109,7 +3110,7 @@ PRIVATE int mosquitto_property_check_command(hgobj gobj, int command, int identi
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int property_read(hgobj gobj, GBUFFER *gbuf, uint32_t *len, json_t *all_properties)
+PRIVATE int property_read(hgobj gobj, gbuffer_t *gbuf, uint32_t *len, json_t *all_properties)
 {
     uint8_t byte;
     uint8_t byte_count;
@@ -3241,10 +3242,10 @@ PRIVATE int property_read(hgobj gobj, GBUFFER *gbuf, uint32_t *len, json_t *all_
             *len = (*len) - 2 - slen1; /* uint16, binary len */
 
             // Save binary data in base64
-            GBUFFER *gbuf_b64 = gbuf_string2base64(str1, slen1);
+            gbuffer_t *gbuf_b64 = gbuf_string2base64(str1, slen1);
             json_object_set_new(property, "value", json_string(gbuf_cur_rd_pointer(gbuf_b64)));
             json_object_set_new(property, "value_length", json_integer(slen1));
-            GBUF_DECREF(gbuf_b64);
+            GBUFFER_DECREF(gbuf_b64);
             break;
 
         case MQTT_PROP_USER_PROPERTY:
@@ -3271,7 +3272,7 @@ PRIVATE int property_read(hgobj gobj, GBUFFER *gbuf, uint32_t *len, json_t *all_
             break;
 
         default:
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3308,7 +3309,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
 
             int value = kw_get_int(property, "value", 0, KW_REQUIRED);
             if(value > 1) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3321,7 +3322,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
         } else if(identifier == MQTT_PROP_MAXIMUM_PACKET_SIZE) {
             int value = kw_get_int(property, "value", 0, KW_REQUIRED);
             if(value == 0) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3336,7 +3337,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
 
             int value = kw_get_int(property, "value", 0, KW_REQUIRED);
             if(value == 0) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3361,7 +3362,7 @@ PRIVATE int mqtt_property_check_all(hgobj gobj, int command, json_t *all_propert
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *property_read_all(hgobj gobj, GBUFFER *gbuf, int command, int *error)
+PRIVATE json_t *property_read_all(hgobj gobj, gbuffer_t *gbuf, int command, int *error)
 {
     uint32_t proplen;
     int ret;
@@ -3512,7 +3513,7 @@ PRIVATE int property_process_will(hgobj gobj, json_t *all_properties)
                 break;
 
             default:
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3551,7 +3552,7 @@ PRIVATE int packet_check_oversize(hgobj gobj, uint32_t remaining_length)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_packet(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int send_packet(hgobj gobj, gbuffer_t *gbuf)
 {
     if(gobj_trace_level(gobj) & TRAFFIC) {
         log_debug_gbuf(LOG_DUMP_OUTPUT, gbuf, "%s ==> %s",
@@ -3572,7 +3573,7 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    GBUFFER *gbuf = build_mqtt_packet(gobj, command, 0);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, command, 0);
     if(!gbuf) {
         // Error already logged
         return MOSQ_ERR_NOMEM;
@@ -3637,7 +3638,7 @@ PRIVATE int send_connack(
         return -1;
     }
 
-    GBUFFER *gbuf = build_mqtt_packet(gobj, CMD_CONNACK, remaining_length);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_CONNACK, remaining_length);
     if(!gbuf) {
         // Error already logged
         JSON_DECREF(connack_props);
@@ -3696,7 +3697,7 @@ PRIVATE int send_disconnect(
         remaining_length = 0;
     }
 
-    GBUFFER *gbuf = build_mqtt_packet(gobj, CMD_DISCONNECT, remaining_length);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_DISCONNECT, remaining_length);
     if(!gbuf) {
         // Error already logged
         return MOSQ_ERR_NOMEM;
@@ -3739,7 +3740,7 @@ PRIVATE int send__suback(hgobj gobj, uint16_t mid, uint32_t payloadlen, const vo
         }
     }
 
-    GBUFFER *gbuf = build_mqtt_packet(gobj, CMD_SUBACK, remaining_length);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_SUBACK, remaining_length);
     if(!gbuf) {
         // Error already logged
         return MOSQ_ERR_NOMEM;
@@ -3784,7 +3785,7 @@ PRIVATE int send__unsuback(
         remaining_length += (uint32_t)reason_code_count;
     }
 
-    GBUFFER *gbuf = build_mqtt_packet(gobj, CMD_UNSUBACK, remaining_length);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, CMD_UNSUBACK, remaining_length);
     if(!gbuf) {
         // Error already logged
         return MOSQ_ERR_NOMEM;
@@ -3808,7 +3809,7 @@ PRIVATE int handle_pingreq(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->in_session) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3818,7 +3819,7 @@ PRIVATE int handle_pingreq(hgobj gobj)
         return -1;
     }
     if(!priv->iamServer) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3844,7 +3845,7 @@ PRIVATE int handle_pingresp(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->in_session) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -3901,7 +3902,7 @@ PRIVATE int send_command_with_mid(
             remaining_length += property_get_remaining_length(properties);
         }
     }
-    GBUFFER *gbuf = build_mqtt_packet(gobj, command, remaining_length);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, command, remaining_length);
     if(!gbuf) {
         // Error already logged
         return MOSQ_ERR_NOMEM;
@@ -4037,7 +4038,7 @@ PRIVATE int send_publish(
         }
     }
     if(packet_check_oversize(gobj, packetlen)) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -4050,7 +4051,7 @@ PRIVATE int send_publish(
 
     uint8_t command = (uint8_t)(CMD_PUBLISH | (uint8_t)((dup&0x1)<<3) | (uint8_t)(qos<<1) | retain);
 
-    GBUFFER *gbuf = build_mqtt_packet(gobj, command, packetlen);
+    gbuffer_t *gbuf = build_mqtt_packet(gobj, command, packetlen);
     if(!gbuf) {
         // Error already logged
         return MOSQ_ERR_NOMEM;
@@ -4324,7 +4325,7 @@ PRIVATE int db__message_update_outgoing(
     while(msg) {
         if(msg->mid == mid) {
             if(msg->qos != qos) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -4347,7 +4348,7 @@ PRIVATE int db__message_update_outgoing(
         msg = dl_next(msg);
     }
 
-    log_error(0,
+    gobj_log_error(gobj, 0,
         "gobj",         "%s", gobj_full_name(gobj),
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -4833,7 +4834,7 @@ PRIVATE int XXX_sub__messages_queue(
     }
     JSON_DECREF(jn_subscribers);
 
-    GBUFFER *gbuf_message = gbuf_create(stored->payloadlen, stored->payloadlen, 0, 0);
+    gbuffer_t *gbuf_message = gbuf_create(stored->payloadlen, stored->payloadlen, 0, 0);
     if(gbuf_message) {
         if(stored->payloadlen > 0) {
             // Can become without payload
@@ -4873,7 +4874,7 @@ PRIVATE int add_subscription(
      */
     json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
     if(!client) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -4923,7 +4924,7 @@ PRIVATE int add_subscription(
             "identifier", (json_int_t)identifier
         );
         if(!kw_subscription) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -4946,7 +4947,7 @@ PRIVATE int add_subscription(
             "retain_as_published", retain_as_published
         );
         if(!subscription_record) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -4985,7 +4986,7 @@ PRIVATE int remove_subscription(
      */
     json_t *client  = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0);
     if(!client) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -5049,7 +5050,7 @@ PRIVATE int retain__queue(
  ***************************************************************************/
 PRIVATE int will_read(
     hgobj gobj,
-    GBUFFER *gbuf
+    gbuffer_t *gbuf
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -5072,7 +5073,7 @@ PRIVATE int will_read(
         return ret;
     }
     if(!tlen) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5084,7 +5085,7 @@ PRIVATE int will_read(
     gobj_write_strn_attr(gobj, "will_topic", will_topic, tlen);
 
     if((ret=mosquitto_pub_topic_check(will_topic))<0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5101,7 +5102,7 @@ PRIVATE int will_read(
         return ret;
     }
     if(payloadlen > 0) {
-        GBUF_DECREF(priv->gbuf_will_payload);
+        GBUFFER_DECREF(priv->gbuf_will_payload);
         priv->gbuf_will_payload = gbuf_create(payloadlen, payloadlen, 0, 0);
         if(!priv->gbuf_will_payload) {
             // Error already logged
@@ -5152,13 +5153,13 @@ PRIVATE char *find_alias_topic(hgobj gobj, uint16_t alias)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_auth(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle_auth(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
     if(priv->protocol_version != mosq_p_mqtt5) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5174,7 +5175,7 @@ PRIVATE int handle_auth(hgobj gobj, GBUFFER *gbuf)
          *-----------------------------------*/
         uint8_t reason_code;
         if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5191,7 +5192,7 @@ PRIVATE int handle_auth(hgobj gobj, GBUFFER *gbuf)
      *      Server
      *-----------------------------------*/
     if(empty_string(priv->auth_method)) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5201,7 +5202,7 @@ PRIVATE int handle_auth(hgobj gobj, GBUFFER *gbuf)
         return -1;
     }
 
-    log_error(0,
+    gobj_log_error(gobj, 0,
         "gobj",         "%s", gobj_full_name(gobj),
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5316,7 +5317,7 @@ PRIVATE int connect_on_authorised(
         json_t *jn_options = json_pack("{s:b}", "volatil", 1);
         client = gobj_create_resource(priv->gobj_mqtt_clients, priv->client_id, 0, jn_options);
         if(!client) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -5341,7 +5342,7 @@ PRIVATE int connect_on_authorised(
             );
             client = gobj_create_resource(priv->gobj_mqtt_clients, priv->client_id, kw_client, 0);
             if(!client) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -5354,7 +5355,7 @@ PRIVATE int connect_on_authorised(
         }
     }
     if(!client) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -5541,12 +5542,12 @@ PRIVATE int connect_on_authorised(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle_connect(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->in_session) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5557,7 +5558,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     }
 
     if(!priv->iamServer) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5581,7 +5582,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
         return -1;
     }
     if(ll != 4 /* MQTT */ && ll != 6 /* MQIsdp */) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5603,7 +5604,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     }
     if(strcmp(protocol_name, PROTOCOL_NAME_v31)==0) {
         if((version_byte & 0x7F) != PROTOCOL_VERSION_v31) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5628,7 +5629,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
         } else if((version_byte & 0x7F) == PROTOCOL_VERSION_v5) {
             protocol_version = mosq_p_mqtt5;
         } else {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5641,7 +5642,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
         }
         if(priv->frame_head.flags != 0x00) {
             /* Reserved flags not set to 0, must disconnect. */
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5653,7 +5654,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
         }
 
     } else {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5678,7 +5679,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     uint8_t username_flag, password_flag;
 
     if(mqtt_read_byte(gobj, gbuf, &connect_flags)<0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5690,7 +5691,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
 
     if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
         if((connect_flags & 0x01) != 0x00) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5715,7 +5716,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     will = connect_flags & 0x04;
     will_qos = (connect_flags & 0x18) >> 3;
     if(will_qos == 3) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5731,7 +5732,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     username_flag = connect_flags & 0x80;
 
     if(will && will_retain && priv->retain_available == false) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5745,7 +5746,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     }
 
     if(will && will_qos > priv->max_qos) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5814,7 +5815,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     uint16_t client_id_len;
 
     if(mqtt_read_string(gobj, gbuf, &client_id, &client_id_len)<0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5826,7 +5827,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
 
     if(client_id_len == 0) {
         if(protocol_version == mosq_p_mqtt31) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5840,7 +5841,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
             client_id = NULL;
             if((protocol_version == mosq_p_mqtt311 && clean_start == 0) ||
                     priv->allow_zero_length_clientid == false) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5857,7 +5858,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
                 create_uuid(uuid, sizeof(uuid));
                 client_id = uuid;
                 if(!client_id) {
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5877,7 +5878,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
 
     if(will) {
         if(will_read(gobj, gbuf)<0) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5890,7 +5891,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     } else {
         if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt5) {
             if(will_qos != 0 || will_retain != 0) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5915,7 +5916,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
                 /* Username flag given, but no username. Ignore. */
                 username_flag = 0;
             } else {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5930,7 +5931,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
         if(protocol_version == mosq_p_mqtt311 || protocol_version == mosq_p_mqtt31) {
             if(password_flag) {
                 /* username_flag == 0 && password_flag == 1 is forbidden */
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5947,7 +5948,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
             if(protocol_version == mosq_p_mqtt31) {
                 /* Password flag given, but no password. Ignore. */
             } else {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -5961,7 +5962,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     }
 
     if(gbuf_leftbytes(gbuf)>0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6032,7 +6033,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
     }
 
     if(!empty_string(priv->auth_method)) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6068,7 +6069,7 @@ PRIVATE int handle_connect(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_disconnect(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle_disconnect(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
@@ -6080,7 +6081,7 @@ PRIVATE int handle_disconnect(hgobj gobj, GBUFFER *gbuf)
     }
     if(priv->protocol_version == mosq_p_mqtt5 && gbuf && gbuf_leftbytes(gbuf) > 0) {
         if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6133,14 +6134,14 @@ PRIVATE int handle_disconnect(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle_connack(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint8_t max_qos = 255;
     int ret = 0;
 
     if(!priv->is_bridge) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6152,7 +6153,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
 
     uint8_t connect_acknowledge;
     if(mqtt_read_byte(gobj, gbuf, &connect_acknowledge)<0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6164,7 +6165,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
 
     uint8_t reason_code;
     if(mqtt_read_byte(gobj, gbuf, &reason_code)<0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6179,7 +6180,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
             /* We have connected to a MQTT v3.x broker that doesn't support MQTT v5.0
              * It has correctly replied with a CONNACK code of a bad protocol version.
              */
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6270,7 +6271,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
             switch(reason_code) {
                 case MQTT_RC_RETAIN_NOT_SUPPORTED:
                     priv->retain_available = 0;
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6286,7 +6287,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
                     } else {
                         priv->max_qos = max_qos;
                     }
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6295,7 +6296,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
                     );
                     return -1;
                 default:
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6311,7 +6312,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
                     if(priv->is_bridge) {
                         // TODO priv->bridge->try_private_accepted = false;
                     }
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6320,7 +6321,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
                     );
                     return -1;
                 case CONNACK_REFUSED_IDENTIFIER_REJECTED:
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6329,7 +6330,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
                     );
                     return -1;
                 case CONNACK_REFUSED_SERVER_UNAVAILABLE:
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6338,7 +6339,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
                     );
                     return -1;
                 case CONNACK_REFUSED_BAD_USERNAME_PASSWORD:
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6347,7 +6348,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
                     );
                     return -1;
                 case CONNACK_REFUSED_NOT_AUTHORIZED:
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6356,7 +6357,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
                     );
                     return -1;
                 default:
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6374,7 +6375,7 @@ PRIVATE int handle_connack(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_pubackcomp(hgobj gobj, GBUFFER *gbuf, const char *type)
+PRIVATE int handle_pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6474,7 +6475,7 @@ PRIVATE int handle_pubackcomp(hgobj gobj, GBUFFER *gbuf, const char *type)
 
         rc = db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubcomp, qos);
         if(rc == MOSQ_ERR_NOT_FOUND) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6490,7 +6491,7 @@ PRIVATE int handle_pubackcomp(hgobj gobj, GBUFFER *gbuf, const char *type)
         }
     } else {
         JSON_DECREF(properties)
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6528,7 +6529,7 @@ PRIVATE int handle_pubackcomp(hgobj gobj, GBUFFER *gbuf, const char *type)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__pubrec(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6602,7 +6603,7 @@ PRIVATE int handle__pubrec(hgobj gobj, GBUFFER *gbuf)
             return db__message_delete_outgoing(gobj, mid, mosq_ms_wait_for_pubrec, 2);
         }
     } else {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6630,7 +6631,7 @@ PRIVATE int handle__pubrec(hgobj gobj, GBUFFER *gbuf)
     }
 
     if(rc == MOSQ_ERR_NOT_FOUND) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6653,7 +6654,7 @@ PRIVATE int handle__pubrec(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__pubrel(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6757,7 +6758,7 @@ PRIVATE int handle__pubrel(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__suback(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6841,7 +6842,7 @@ PRIVATE int handle__suback(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__unsuback(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6904,7 +6905,7 @@ PRIVATE int handle__unsuback(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle_publish(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6927,7 +6928,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
     dup = (header & 0x08)>>3;
     msg->qos = (header & 0x06)>>1;
     if(dup == 1 && msg->qos == 0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6939,7 +6940,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
     if(msg->qos == 3) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6951,7 +6952,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
         return MOSQ_ERR_MALFORMED_PACKET;
     }
     if(msg->qos > priv->max_qos) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6967,7 +6968,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
     msg->retain = (header & 0x01);
 
     if(msg->retain && priv->retain_available == false) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -6991,7 +6992,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
 
     if(!slen && priv->protocol_version != mosq_p_mqtt5) {
         /* Invalid publish topic, disconnect client. */
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7010,7 +7011,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         if(mid == 0) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7071,7 +7072,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
     JSON_DECREF(properties)
 
     if(topic_alias == 0 || (topic_alias > (int)priv->max_topic_alias)) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",             "%s", gobj_full_name(gobj),
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MQTT_ERROR,
@@ -7098,7 +7099,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
                 GBMEM_FREE(msg->topic);
                 msg->topic = alias;
             } else {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",             "%s", gobj_full_name(gobj),
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_MQTT_ERROR,
@@ -7123,7 +7124,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
     }
 
     if(mosquitto_pub_topic_check(msg->topic)<0) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7140,7 +7141,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
 
     if(msg->payloadlen) {
         if(priv->message_size_limit && msg->payloadlen > priv->message_size_limit) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",             "%s", gobj_full_name(gobj),
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_MQTT_ERROR,
@@ -7169,7 +7170,7 @@ PRIVATE int handle_publish(hgobj gobj, GBUFFER *gbuf)
     /* Check for topic access */
     rc = 0; // TODO mosquitto_acl_check(gobj, msg, MOSQ_ACL_WRITE);
     if(rc == MOSQ_ERR_ACL_DENIED) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",             "%s", gobj_full_name(gobj),
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_MQTT_ERROR,
@@ -7332,7 +7333,7 @@ process_bad_message:
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__subscribe(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -7399,7 +7400,7 @@ PRIVATE int handle__subscribe(hgobj gobj, GBUFFER *gbuf)
         }
         if(sub_) {
             if(!slen) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7413,7 +7414,7 @@ PRIVATE int handle__subscribe(hgobj gobj, GBUFFER *gbuf)
             }
             sub = gbmem_strndup(sub_, slen); // Por algún motivo es necesario
             if(mosquitto_sub_topic_check(sub)) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7451,7 +7452,7 @@ PRIVATE int handle__subscribe(hgobj gobj, GBUFFER *gbuf)
                 }
             }
             if(qos > 2) {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7562,7 +7563,7 @@ PRIVATE int handle__subscribe(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle__unsubscribe(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -7627,7 +7628,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, GBUFFER *gbuf)
         }
 
         if(!slen) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7640,7 +7641,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, GBUFFER *gbuf)
             return MOSQ_ERR_MALFORMED_PACKET;
         }
         if(mosquitto_sub_topic_check(sub)) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -7713,7 +7714,7 @@ PRIVATE int frame_completed(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     FRAME_HEAD *frame = &priv->frame_head;
-    GBUFFER *gbuf = 0;
+    gbuffer_t *gbuf = 0;
 
     if(frame->frame_length) {
         gbuf = istream_pop_gbuffer(priv->istream_payload);
@@ -7779,7 +7780,7 @@ PRIVATE int frame_completed(hgobj gobj)
             break;
     }
 
-    GBUF_DECREF(gbuf);
+    GBUFFER_DECREF(gbuf);
 
     if(frame->command != CMD_CONNECT && priv->protocol_version == mosq_p_mqtt5) {
         if(ret == MOSQ_ERR_PROTOCOL || ret == MOSQ_ERR_DUPLICATE_PROPERTY) {
@@ -7824,7 +7825,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     start_wait_frame_header(gobj);
     priv->send_disconnect = FALSE;
     gobj_write_bool_attr(gobj, "connected", TRUE);
-    GBUF_DECREF(priv->gbuf_will_payload);
+    GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
 
     if (priv->iamServer) {
@@ -7857,7 +7858,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     JSON_DECREF(priv->jn_alias_list);
 
     gobj_reset_volatil_attrs(gobj);
-    GBUF_DECREF(priv->gbuf_will_payload);
+    GBUFFER_DECREF(priv->gbuf_will_payload);
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
@@ -7927,7 +7928,7 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
     FRAME_HEAD *frame = &priv->frame_head;
     istream istream = priv->istream_frame;
 
@@ -7970,7 +7971,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 if(priv->istream_payload) {
                     istream_destroy(priv->istream_payload);
                     priv->istream_payload = 0;
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -7984,7 +7985,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                  */
                 size_t frame_length = frame->frame_length;
                 if(!frame_length) {
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MEMORY_ERROR,
@@ -8003,7 +8004,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                     0 // TODO frame->h_opcode==OPCODE_TEXT_FRAME?codec_utf_8:codec_binary
                 );
                 if(!priv->istream_payload) {
-                    log_error(0,
+                    gobj_log_error(gobj, 0,
                         "gobj",         "%s", gobj_full_name(gobj),
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_MEMORY_ERROR,
@@ -8055,7 +8056,7 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
 
     if(gobj_trace_level(gobj) & TRAFFIC_PAYLOAD) {
         log_debug_gbuf(LOG_DUMP_INPUT, gbuf, "PAYLOAD %s <== %s (accumulated %lu)",
@@ -8078,7 +8079,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
                 trace_msg("❌❌ Mqtt error, disconnect: %d", ret);
             } else {
-                log_error(0,
+                gobj_log_error(gobj, 0,
                     "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -8128,7 +8129,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
      *   Entry parameters
      *---------------------------------------------*/
     const char *topic_name = kw_get_str(kw, "topic_name", "", KW_REQUIRED);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
     if(gobj_trace_level(gobj) & TRAFFIC) {
         log_debug_gbuf(LOG_DUMP_OUTPUT, gbuf, "%s, topic_name %s", gobj_short_name(gobj), topic_name);
     }
@@ -8145,7 +8146,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     uint32_t remaining_length;
 
     if(priv->protocol_version != mosq_p_mqtt5 && properties) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -8170,7 +8171,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     tlen = strlen(topic_name);
     if(mosquitto_validate_utf8(topic_name, (int)tlen)) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -8180,7 +8181,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         return MOSQ_ERR_MALFORMED_UTF8;
     }
     if(payloadlen < 0 || payloadlen > (int)MQTT_MAX_PAYLOAD) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -8190,7 +8191,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         return MOSQ_ERR_PAYLOAD_SIZE;
     }
     if(mosquitto_pub_topic_check(topic_name) != MOSQ_ERR_SUCCESS) {
-        log_error(0,
+        gobj_log_error(gobj, 0,
             "gobj",         "%s", __FILE__,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MQTT_ERROR,
@@ -8207,7 +8208,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             remaining_length++;
         }
         if(packet_check_oversize(gobj, remaining_length)) {
-            log_error(0,
+            gobj_log_error(gobj, 0,
                 "gobj",         "%s", __FILE__,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MQTT_ERROR,

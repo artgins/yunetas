@@ -301,7 +301,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    x json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
     return build_command_response(
         gobj,
         0,
