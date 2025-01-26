@@ -3446,6 +3446,53 @@ PUBLIC int gobj_write_str_attr(hgobj gobj_, const char *name, const char *value)
 /***************************************************************************
  *  ATTR: write
  ***************************************************************************/
+PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *value_, size_t len)
+{
+    gobj_t *gobj = gobj_;
+
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
+    if(hs) {
+        char *value = GBMEM_STRNDUP(value_, len);
+        if(!value) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msg",          "%s", "gbmem_strndup() FAILED",
+                "gclass",       "%s", gobj_gclass_name(gobj),
+                "attr",         "%s", name?name:"",
+                "length",       "%d", len,
+                NULL
+            );
+            return -1;
+        }
+
+        int ret = json_object_set_new(hs, name, json_string(value));
+        if(gobj->gclass->gmt->mt_writing) {
+            if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
+                // Avoid call to mt_writing before mt_create!
+                gobj->gclass->gmt->mt_writing(gobj, name);
+            }
+        }
+
+        GBMEM_FREE(value_);
+
+        return ret;
+    }
+
+    gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msg",          "%s", "GClass Attribute NOT FOUND",
+        "gclass",       "%s", gobj_gclass_name(gobj),
+        "attr",         "%s", name,
+        NULL
+    );
+    return -1;
+}
+
+/***************************************************************************
+ *  ATTR: write
+ ***************************************************************************/
 PUBLIC int gobj_write_bool_attr(hgobj gobj_, const char *name, BOOL value)
 {
     gobj_t *gobj = gobj_;

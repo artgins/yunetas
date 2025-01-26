@@ -1446,6 +1446,7 @@ PUBLIC void *gobj_read_pointer_attr(hgobj gobj, const char *name);
  *  it's your responsibility to use the correct json type
  */
 PUBLIC int gobj_write_str_attr(hgobj gobj, const char *name, const char *value); // // WARNING value == 0  -> json_null()
+PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *s, size_t len);
 PUBLIC int gobj_write_bool_attr(hgobj gobj, const char *name, BOOL value);
 PUBLIC int gobj_write_integer_attr(hgobj gobj, const char *name, json_int_t value);
 PUBLIC int gobj_write_real_attr(hgobj gobj, const char *name, double value);
