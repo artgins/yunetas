@@ -179,6 +179,10 @@ GOBJ_DEFINE_STATE(ST_WAIT_RESPONSE);
 GOBJ_DEFINE_STATE(ST_OPENED);
 GOBJ_DEFINE_STATE(ST_CLOSED);
 
+GOBJ_DEFINE_STATE(ST_WAITING_HANDSHAKE);
+GOBJ_DEFINE_STATE(ST_WAITING_FRAME_HEADER);
+GOBJ_DEFINE_STATE(ST_WAITING_PAYLOAD_DATA);
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/

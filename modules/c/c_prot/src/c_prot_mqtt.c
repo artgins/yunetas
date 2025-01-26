@@ -8162,9 +8162,6 @@ GOBJ_DEFINE_GCLASS(C_PROT_MQTT);
 /*------------------------*
  *      States
  *------------------------*/
-GOBJ_DEFINE_STATE(ST_WAITING_HANDSHAKE);
-GOBJ_DEFINE_STATE(ST_WAITING_FRAME_HEADER);
-GOBJ_DEFINE_STATE(ST_WAITING_PAYLOAD_DATA);
 
 /*------------------------*
  *      Events

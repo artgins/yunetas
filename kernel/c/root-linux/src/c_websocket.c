@@ -2050,9 +2050,6 @@ GOBJ_DEFINE_GCLASS(C_WEBSOCKET);
 /*------------------------*
  *      States
  *------------------------*/
-GOBJ_DEFINE_STATE(ST_WAITING_HANDSHAKE);
-GOBJ_DEFINE_STATE(ST_WAITING_FRAME_HEADER);
-GOBJ_DEFINE_STATE(ST_WAITING_PAYLOAD_DATA);
 
 /*------------------------*
  *      Events
