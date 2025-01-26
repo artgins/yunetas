@@ -568,9 +568,9 @@ SDATA (DTP_BOOLEAN,     "connected",        SDF_VOLATIL|SDF_STATS,      0,      
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    5*1000,      "Timeout to handshake"),
-SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    3*1000,      "Timeout to close"),
-SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   50*1000,      "Ping interval. If value <= 0 then No ping"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    "5000",      "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    "3000",      "Timeout to close"),
+SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   "50000",      "Ping interval. If value <= 0 then No ping"),
 
 SDATA (DTP_POINTER,     "gobj_mqtt_topics", 0,                          0,      "global gobj to save topics"),
 SDATA (DTP_POINTER,     "gobj_mqtt_clients",0,                          0,      "global gobj with clients"),
@@ -582,31 +582,31 @@ SDATA (DTP_POINTER,     "gobj_mqtt_users",  0,                          0,      
 
 SDATA (DTP_INTEGER,     "max_inflight_bytes",SDF_WR|SDF_PERSIST,        0,      "Outgoing QoS 1 and 2 messages will be allowed in flight until this byte limit is reached. This allows control of outgoing message rate based on message size rather than message count. If the limit is set to 100, messages of over 100 bytes are still allowed, but only a single message can be in flight at once. Defaults to 0. (No limit)."),
 
-SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR|SDF_PERSIST,    20,      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
+SDATA (DTP_INTEGER,     "max_inflight_messages",SDF_WR|SDF_PERSIST,    "20",      "The maximum number of outgoing QoS 1 or 2 messages that can be in the process of being transmitted simultaneously. This includes messages currently going through handshakes and messages that are being retried. Defaults to 20. Set to 0 for no maximum. If set to 1, this will guarantee in-order delivery of messages"),
 
 SDATA (DTP_INTEGER,     "max_queued_bytes", SDF_WR|SDF_PERSIST,         0,      "The number of outgoing QoS 1 and 2 messages above those currently in-flight will be queued (per client) by the broker. Once this limit has been reached, subsequent messages will be silently dropped. This is an important option if you are sending messages at a high rate and/or have clients who are slow to respond or may be offline for extended periods of time. Defaults to 0. (No maximum).See also the max_queued_messages option. If both max_queued_messages and max_queued_bytes are specified, packets will be queued until the first limit is reached."),
 
-SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR|SDF_PERSIST,       1000,   "The maximum number of QoS 1 or 2 messages to hold in the queue (per client) above those messages that are currently in flight. Defaults to 1000. Set to 0 for no maximum (not recommended). See also the queue_qos0_messages and max_queued_bytes options."),
+SDATA (DTP_INTEGER,     "max_queued_messages",SDF_WR|SDF_PERSIST,       "1000",   "The maximum number of QoS 1 or 2 messages to hold in the queue (per client) above those messages that are currently in flight. Defaults to 1000. Set to 0 for no maximum (not recommended). See also the queue_qos0_messages and max_queued_bytes options."),
 
 SDATA (DTP_INTEGER,     "message_size_limit",SDF_WR|SDF_PERSIST,        0,      "This option sets the maximum publish payload size that the broker will allow. Received messages that exceed this size will not be accepted by the broker. This means that the message will not be forwarded on to subscribing clients, but the QoS flow will be completed for QoS 1 or QoS 2 messages. MQTT v5 clients using QoS 1 or QoS 2 will receive a PUBACK or PUBREC with the 'implementation specific error' reason code. The default value is 0, which means that all valid MQTT messages are accepted. MQTT imposes a maximum payload size of 268435455 bytes."),
 
-SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR|SDF_PERSIST,         65535,  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
+SDATA (DTP_INTEGER,     "max_keepalive",    SDF_WR|SDF_PERSIST,         "65535",  "For MQTT v5 clients, it is possible to have the server send a 'server keepalive' value that will override the keepalive value set by the client. This is intended to be used as a mechanism to say that the server will disconnect the client earlier than it anticipated, and that the client should use the new keepalive value. The max_keepalive option allows you to specify that clients may only connect with keepalive less than or equal to this value, otherwise they will be sent a server keepalive telling them to use max_keepalive. This only applies to MQTT v5 clients. The maximum value allowable, and default value, is 65535. Set to 0 to allow clients to set keepalive = 0, which means no keepalive checks are made and the client will never be disconnected by the broker if no messages are received. You should be very sure this is the behaviour that you want.For MQTT v3.1.1 and v3.1 clients, there is no mechanism to tell the client what keepalive value they should use. If an MQTT v3.1.1 or v3.1 client specifies a keepalive time greater than max_keepalive they will be sent a CONNACK message with the 'identifier rejected' reason code, and disconnected."),
 
 SDATA (DTP_INTEGER,     "max_packet_size",  SDF_WR|SDF_PERSIST,         0,      "For MQTT v5 clients, it is possible to have the server send a 'maximum packet size' value that will instruct the client it will not accept MQTT packets with size greater than value bytes. This applies to the full MQTT packet, not just the payload. Setting this option to a positive value will set the maximum packet size to that number of bytes. If a client sends a packet which is larger than this value, it will be disconnected. This applies to all clients regardless of the protocol version they are using, but v3.1.1 and earlier clients will of course not have received the maximum packet size information. Defaults to no limit. This option applies to all clients, not just those using MQTT v5, but it is not possible to notify clients using MQTT v3.1.1 or MQTT v3.1 of the limit. Setting below 20 bytes is forbidden because it is likely to interfere with normal client operation even with small payloads."),
 
-SDATA (DTP_BOOLEAN,     "persistence",      SDF_WR|SDF_PERSIST,         TRUE,   "If true, connection, subscription and message data will be written to the disk"), // TODO
+SDATA (DTP_BOOLEAN,     "persistence",      SDF_WR|SDF_PERSIST,         "1",   "If true, connection, subscription and message data will be written to the disk"), // TODO
 
-SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR|SDF_PERSIST,         TRUE,   "If set to false, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to false. Defaults to true."),
+SDATA (DTP_BOOLEAN,     "retain_available", SDF_WR|SDF_PERSIST,         "1",   "If set to false, then retained messages are not supported. Clients that send a message with the retain bit will be disconnected if this option is set to false. Defaults to true."),
 
-SDATA (DTP_INTEGER,     "max_qos",          SDF_WR|SDF_PERSIST,         2,      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
+SDATA (DTP_INTEGER,     "max_qos",          SDF_WR|SDF_PERSIST,         "2",      "Limit the QoS value allowed for clients connecting to this listener. Defaults to 2, which means any QoS can be used. Set to 0 or 1 to limit to those QoS values. This makes use of an MQTT v5 feature to notify clients of the limitation. MQTT v3.1.1 clients will not be aware of the limitation. Clients publishing to this listener with a too-high QoS will be disconnected."),
 
-SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR|SDF_PERSIST,FALSE,   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to false."),
+SDATA (DTP_BOOLEAN,     "allow_zero_length_clientid",SDF_WR|SDF_PERSIST, "0",   "MQTT 3.1.1 and MQTT 5 allow clients to connect with a zero length client id and have the broker generate a client id for them. Use this option to allow/disallow this behaviour. Defaults to false."),
 
-SDATA (DTP_BOOLEAN,     "use_username_as_clientid",SDF_WR|SDF_PERSIST,  FALSE,  "Set use_username_as_clientid to true to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to false."),
+SDATA (DTP_BOOLEAN,     "use_username_as_clientid",SDF_WR|SDF_PERSIST,  "0",  "Set use_username_as_clientid to true to replace the clientid that a client connected with its username. This allows authentication to be tied to the clientid, which means that it is possible to prevent one client disconnecting another by using the same clientid. Defaults to false."),
 
-SDATA (DTP_BOOLEAN,     "allow_anonymous",  SDF_WR|SDF_PERSIST,         TRUE,   "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to false then another means of connection should be created to control authenticated client access. Defaults to true, (TODO but connections are only allowed from the local machine)."),
+SDATA (DTP_BOOLEAN,     "allow_anonymous",  SDF_WR|SDF_PERSIST,         "1",   "Boolean value that determines whether clients that connect without providing a username are allowed to connect. If set to false then another means of connection should be created to control authenticated client access. Defaults to true, (TODO but connections are only allowed from the local machine)."),
 
-SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR|SDF_PERSIST,         10,     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
+SDATA (DTP_INTEGER,     "max_topic_alias",  SDF_WR|SDF_PERSIST,         "10",     "This option sets the maximum number topic aliases that an MQTT v5 client is allowed to create. This option applies per listener. Defaults to 10. Set to 0 to disallow topic aliases. The maximum value possible is 65535."),
 
 /*
  *  Dynamic Data
@@ -734,6 +734,8 @@ typedef struct _PRIVATE_DATA {
     gbuffer_t *gbuf_will_payload;
 
 } PRIVATE_DATA;
+
+PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -5228,9 +5230,9 @@ PRIVATE int set_client_disconnected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(priv->client) {
-        kw_set_dict_value(priv->client, "isConnected", json_false());
-        kw_set_dict_value(priv->client, "_gobj", json_integer(0));
-        kw_set_dict_value(priv->client, "_gobj_bottom", json_integer(0));
+        kw_set_dict_value(gobj, priv->client, "isConnected", json_false());
+        kw_set_dict_value(gobj, priv->client, "_gobj", json_integer(0));
+        kw_set_dict_value(gobj, priv->client, "_gobj_bottom", json_integer(0));
         save_client(gobj);
         priv->client = 0;
     }
@@ -5267,9 +5269,9 @@ PRIVATE int connect_on_authorised(
             JSON_DECREF(connack_props);
             return -1;
         }
-        kw_set_dict_value(client, "id", json_string(priv->client_id));
-        kw_set_dict_value(client, "assigned_id", json_true());
-        kw_set_dict_value(client, "subscriptions", json_object());
+        kw_set_dict_value(gobj, client, "id", json_string(priv->client_id));
+        kw_set_dict_value(gobj, client, "assigned_id", json_true());
+        kw_set_dict_value(gobj, client, "subscriptions", json_object());
     } else {
         client = gobj_get_resource(priv->gobj_mqtt_clients, priv->client_id, 0, 0); // NOT YOURS
         if(!client) {
@@ -5393,8 +5395,8 @@ PRIVATE int connect_on_authorised(
         }
     }
 
-//     kw_set_dict_value(client, "ping_t", json_integer(0));
-//     kw_set_dict_value(client, "is_dropping", json_false());
+//     kw_set_dict_value(gobj, client, "ping_t", json_integer(0));
+//     kw_set_dict_value(gobj, client, "is_dropping", json_false());
 
     /*-----------------------------*
      *  Check acl acl__find_acls
@@ -5406,11 +5408,11 @@ PRIVATE int connect_on_authorised(
 
     //context__add_to_by_id(context); TODO
 
-    kw_set_dict_value(client, "max_qos", json_integer(priv->max_qos));
+    kw_set_dict_value(gobj, client, "max_qos", json_integer(priv->max_qos));
     if(priv->max_keepalive &&
             (priv->keepalive > priv->max_keepalive || priv->keepalive == 0)) {
 
-        kw_set_dict_value(client, "keepalive", json_integer(priv->max_keepalive));
+        kw_set_dict_value(gobj, client, "keepalive", json_integer(priv->max_keepalive));
         if(priv->protocol_version == mosq_p_mqtt5) {
             mqtt_property_add_int16(gobj, connack_props, MQTT_PROP_SERVER_KEEP_ALIVE, priv->keepalive);
         } else {
@@ -5448,11 +5450,11 @@ PRIVATE int connect_on_authorised(
 
     int ret = send_connack(gobj, connect_ack, CONNACK_ACCEPTED, connack_props);
     if(ret == 0) {
-        kw_set_dict_value(client, "isConnected", json_true());
-        kw_set_dict_value(
+        kw_set_dict_value(gobj, client, "isConnected", json_true());
+        kw_set_dict_value(gobj,
             client, "_gobj", json_integer((json_int_t)(size_t)(gobj))
         );
-        kw_set_dict_value(
+        kw_set_dict_value(gobj,
             client, "_gobj_bottom", json_integer((json_int_t)(size_t)gobj_bottom_gobj(gobj))
         );
         gobj_write_bool_attr(gobj, "in_session", TRUE);
@@ -5919,7 +5921,7 @@ PRIVATE int handle_connect(hgobj gobj, gbuffer_t *gbuf)
             keepalive
         );
         if(priv->gbuf_will_payload) {
-            log_debug_gbuf(0, priv->gbuf_will_payload, "gbuf_will_payload");
+            gobj_trace_dump_gbuf(gobj, priv->gbuf_will_payload, "gbuf_will_payload");
         }
     }
 
@@ -6703,7 +6705,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
     while(gbuffer_leftbytes(gbuf)>0) {
         rc = mqtt_read_byte(gobj, gbuf, &qos);
         if(rc) {
-            gbmem_free(granted_qos);
+            GBMEM_FREE(granted_qos);
             JSON_DECREF(properties)
             return rc;
         }
@@ -6726,7 +6728,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
         //}
         JSON_DECREF(properties)
     }
-    gbmem_free(granted_qos);
+    GBMEM_FREE(granted_qos);
 
     return MOSQ_ERR_SUCCESS;
 }
@@ -6876,7 +6878,7 @@ PRIVATE int handle_publish(hgobj gobj, gbuffer_t *gbuf)
         db_free_msg_store(msg);
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    msg->topic = gbmem_strndup(topic_, slen);
+    msg->topic = GBMEM_STRNDUP(topic_, slen);
 
     if(!slen && priv->protocol_version != mosq_p_mqtt5) {
         /* Invalid publish topic, disconnect client. */
@@ -7291,7 +7293,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 JSON_DECREF(jn_list)
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
-            sub = gbmem_strndup(sub_, slen); // Por algún motivo es necesario
+            sub = GBMEM_STRNDUP(sub_, slen); // Por algún motivo es necesario
             if(mosquitto_sub_topic_check(sub)) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -7393,7 +7395,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 }
             }
 
-            tmp_payload = gbmem_realloc(payload, payloadlen + 1);
+            tmp_payload = GBMEM_REALLOC(payload, payloadlen + 1);
             if(tmp_payload) {
                 payload = tmp_payload;
                 payload[payloadlen] = qos;
@@ -7556,7 +7558,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         reason_codes[reason_code_count] = reason;
         reason_code_count++;
         if(reason_code_count == reason_code_max) {
-            reason_tmp = gbmem_realloc(reason_codes, (size_t)(reason_code_max*2));
+            reason_tmp = GBMEM_REALLOC(reason_codes, (size_t)(reason_code_max*2));
             if(!reason_tmp) {
                 GBMEM_FREE(reason_codes);
                 JSON_DECREF(jn_list)
@@ -7807,7 +7809,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
     istream_h istream = priv->istream_frame;
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
-        log_debug_gbuf(LOG_DUMP_INPUT, gbuf, "HEADER %s <== %s",
+        gobj_trace_dump_gbuf(gobj, gbuf, "HEADER %s <== %s",
             gobj_short_name(gobj),
             gobj_short_name(src)
         );
@@ -7871,9 +7873,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 priv->istream_payload = istream_create(
                     gobj,
                     4*1024,
-                    gbmem_get_maximum_block(),
-                    0,
-                    0 // TODO frame->h_opcode==OPCODE_TEXT_FRAME?codec_utf_8:codec_binary
+                    gobj_get_maximum_block()
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,
@@ -7930,7 +7930,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
     if(gobj_trace_level(gobj) & TRAFFIC_PAYLOAD) {
-        log_debug_gbuf(LOG_DUMP_INPUT, gbuf, "PAYLOAD %s <== %s (accumulated %lu)",
+        gobj_trace_dump_gbuf(gobj, gbuf, "PAYLOAD %s <== %s (accumulated %lu)",
             gobj_short_name(gobj),
             gobj_short_name(src),
             (unsigned long)istream_length(priv->istream_payload)
@@ -8143,167 +8143,137 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    {"EV_RX_DATA",          0},
-    {"EV_SEND_MESSAGE",     0},
-    {"EV_TX_READY",         0},
-    {"EV_TIMEOUT",          0},
-    {"EV_CONNECTED",        0},
-    {"EV_DISCONNECTED",     0},
-    {"EV_STOPPED",          0},
-    {"EV_DROP",             0},
-    {NULL, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_ON_OPEN",          0},
-    {"EV_ON_CLOSE",         0},
-    {"EV_ON_MESSAGE",       0},
-    {NULL, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_DISCONNECTED",
-    "ST_WAITING_FRAME_HEADER",
-    "ST_WAITING_PAYLOAD_DATA",
-    NULL
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_writing = mt_writing,
+    .mt_destroy = mt_destroy,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
 };
 
-PRIVATE EV_ACTION ST_DISCONNECTED[] = {
-    {"EV_CONNECTED",        ac_connected,                       "ST_WAITING_FRAME_HEADER"},
-    {"EV_DISCONNECTED",     ac_disconnected,                    0},
-    {"EV_TIMEOUT",          ac_timeout_waiting_disconnected,    0},
-    {"EV_STOPPED",          ac_stopped,                         0},
-    {"EV_TX_READY",         0,                                  0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_WAITING_FRAME_HEADER[] = {
-    {"EV_RX_DATA",          ac_process_frame_header,            0},
-    {"EV_SEND_MESSAGE",     ac_send_message,                    0},
-    {"EV_DISCONNECTED",     ac_disconnected,                    "ST_DISCONNECTED"},
-    {"EV_TIMEOUT",          ac_timeout_waiting_frame_header,    0},
-    {"EV_DROP",             ac_drop,                            0},
-    {"EV_TX_READY",         0,                                  0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_WAITING_PAYLOAD_DATA[] = {
-    {"EV_RX_DATA",          ac_process_payload_data,            0},
-    {"EV_SEND_MESSAGE",     ac_send_message,                    0},
-    {"EV_DISCONNECTED",     ac_disconnected,                    "ST_DISCONNECTED"},
-    {"EV_TIMEOUT",          ac_timeout_waiting_payload_data,    0},
-    {"EV_DROP",             ac_drop,                            0},
-    {"EV_TX_READY",         0,                                  0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_PROT_MQTT);
 
-PRIVATE EV_ACTION *states[] = {
-    ST_DISCONNECTED,
-    ST_WAITING_FRAME_HEADER,
-    ST_WAITING_PAYLOAD_DATA,
-    NULL
-};
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_WAITING_HANDSHAKE);
+GOBJ_DEFINE_STATE(ST_WAITING_FRAME_HEADER);
+GOBJ_DEFINE_STATE(ST_WAITING_PAYLOAD_DATA);
 
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
+
 
 /***************************************************************************
- *              GClass
+ *
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
-
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_MQTT_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    command_table,  // command_table
-    0, // gcflag
-};
-
-/***************************************************************************
- *              Public access
- ***************************************************************************/
-PUBLIC GCLASS *gclass_mqtt(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_disconnected[] = {
+        {EV_CONNECTED,        ac_connected,                       ST_WAITING_HANDSHAKE},
+        {EV_DISCONNECTED,     ac_disconnected,                    0},
+        {EV_TIMEOUT,          ac_timeout_waiting_disconnected,    0},
+        {EV_STOPPED,          ac_stopped,                         0},
+        {EV_TX_READY,         0,                                  0},
+        {0,0,0}
+    };
+    ev_action_t st_waiting_frame_header[] = {
+        {EV_RX_DATA,          ac_process_frame_header,            0},
+        {EV_SEND_MESSAGE,     ac_send_message,                    0},
+        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,          ac_timeout_waiting_frame_header,    0},
+        {EV_DROP,             ac_drop,                            0},
+        {EV_TX_READY,         0,                                  0},
+        {0,0,0}
+    };
+    ev_action_t st_waiting_payload_data[] = {
+        {EV_RX_DATA,          ac_process_payload_data,            0},
+        {EV_SEND_MESSAGE,     ac_send_message,                    0},
+        {EV_DISCONNECTED,     ac_disconnected,                    ST_DISCONNECTED},
+        {EV_TIMEOUT,          ac_timeout_waiting_payload_data,    0},
+        {EV_DROP,             ac_drop,                            0},
+        {EV_TX_READY,         0,                                  0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_DISCONNECTED,           st_disconnected},
+        {ST_WAITING_FRAME_HEADER,   st_waiting_frame_header},
+        {ST_WAITING_PAYLOAD_DATA,   st_waiting_payload_data},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_RX_DATA,            0},
+        {EV_SEND_MESSAGE,       0},
+        {EV_TX_READY,           0},
+        {EV_TIMEOUT,            0},
+        {EV_CONNECTED,          0},
+        {EV_DISCONNECTED,       0},
+        {EV_STOPPED,            0},
+        {EV_DROP,               0},
+
+        {EV_ON_OPEN,            EVF_OUTPUT_EVENT},
+        {EV_ON_CLOSE,           EVF_OUTPUT_EVENT},
+        {EV_ON_MESSAGE,         EVF_OUTPUT_EVENT},
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table,
+        command_table,
+        s_user_trace_level,
+        0   // gcflag_t
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Register comm protocol
+     *----------------------------------------*/
+    comm_prot_register(gclass_name, "ws");
+    comm_prot_register(gclass_name, "wss");
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int register_c_prot_mqtt(void)
+{
+    return create_gclass(C_PROT_MQTT);
 }
