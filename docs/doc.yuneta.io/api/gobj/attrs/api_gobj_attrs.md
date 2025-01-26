@@ -33,6 +33,7 @@ gobj_read_real_attr.md
 gobj_read_json_attr.md
 gobj_read_pointer_attr.md
 gobj_write_str_attr.md
+gobj_write_strn_attr.md
 gobj_write_bool_attr.md
 gobj_write_integer_attr.md
 gobj_write_real_attr.md

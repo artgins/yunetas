@@ -5,7 +5,7 @@
 # `gobj_write_attr()`
 <!-- ============================================================== -->
 
-Updates the value of a specific attribute in a GObj.
+The `gobj_write_str_attr` function writes a string value to a named attribute of a GObj. If the value is `NULL`, the attribute is set to a JSON `null` value. If the GClass of the GObj implements the `mt_writing` method, it is invoked to handle any post-write actions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->

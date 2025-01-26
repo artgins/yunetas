@@ -3474,7 +3474,7 @@ PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *value
             }
         }
 
-        GBMEM_FREE(value_);
+        GBMEM_FREE(value);
 
         return ret;
     }
