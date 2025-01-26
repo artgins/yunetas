@@ -217,6 +217,7 @@ static inline BOOL empty_json(const json_t *jn)
 #define MSGSET_TASK_ERROR               "Task error"
 #define MSGSET_CONFIGURATION_ERROR      "Configuration error"
 #define MSGSET_RUNTIME_ERROR            "Runtime error"
+#define MSGSET_MQTT_ERROR               "Mqtt error"
 
 // Info/Debug MSGSETs
 #define MSGSET_STATISTICS               "Statistics"
@@ -238,6 +239,7 @@ static inline BOOL empty_json(const json_t *jn)
 #define MSGSET_BAD_BEHAVIOUR            "Bad Behaviour"
 #define MSGSET_PROTOCOL_INFO            "Protocol info"
 #define MSGSET_TASK_INFO                "Task info"
+#define MSGSET_MQTT_INFO                "Mqtt info"
 
 
 /*

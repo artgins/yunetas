@@ -24,8 +24,7 @@
 #include <arpa/inet.h>
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
-#include "c_mqtt.h"
-#include "msglog_iot.h"
+#include "c_prot_mqtt.h"
 
 /***************************************************************************
  *              Constants
