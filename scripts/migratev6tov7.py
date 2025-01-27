@@ -22,6 +22,9 @@ DEFAULT_SUBSTITUTIONS = [
     ("tranger_topic_name",      "tranger2_topic_name"),
     ("tranger_topic_size",      "tranger2_topic_size"),
     ("tranger_backup_topic",    "tranger2_backup_topic"),
+    ("tranger_append_record",   "tranger2_append_record"),
+    ("md_record_t",             "md2_record_ex_t"),
+
     ("gobj_read_int32_attr",    "gobj_read_integer_attr"),
     ("gobj_read_uint64_attr",   "gobj_read_integer_attr"),
     ("gobj_write_int32_attr",   "gobj_write_integer_attr"),
@@ -31,7 +34,15 @@ DEFAULT_SUBSTITUTIONS = [
     ("gbuf_append_string",      "gbuffer_append_string"),
     ("gbuf_printf",             "gbuffer_printf"),
     ("gbuf_decref",             "gbuffer_decref"),
+    ("gbuf_incref",             "gbuffer_incref"),
     ("gbuf_get",                "gbuffer_get"),
+    ("gbuf_cur_rd_pointer",     "gbuf_cur_rd_pointer"),
+    ("gbuf_chunk",              "gbuffer_chunk"),
+    ("gbuf_leftbytes",          "gbuffer_leftbytes"),
+    ("gbuf_append",             "gbuffer_append"),
+    ("GBUF_DECREF",             "GBUFFER_DECREF"),
+    ("GBUF_INCREF",             "GBUFFER_INCREF"),
+    ("gbuf_encodebase64",       "gbuffer_encode_base64"),
 
     ("msg_iev_build_webix",     "msg_iev_build_response"),
     ("rc_free_iter",            "gobj_free_iter"),
@@ -47,10 +58,16 @@ DEFAULT_REGEX_SUBSTITUTIONS = [
     (r'\blog_info\(', 'gobj_log_info(gobj, '),    # Replace log_info( as whole word
     (r'\blog_warning\(', 'gobj_log_warning(gobj, '),  # Replace log_warning( as whole word
     (r'\blog_critical\(', 'gobj_log_critical(gobj, '),  # Replace log_warning( as whole word
-    (r'\blog_debug_json\(0, ', 'gobj_trace_json(gobj, '),
-
-    (r'\bGBUFFER', 'gbuffer_t'),
-
+    (r'\blog_debug_json\(0,', 'gobj_trace_json(gobj,'),
+    # (r'\btrace_msg\(', 'gobj_trace_msg(gobj, '),
+    #
+    # (r'\blog_debug_gbuf(LOG_DUMP_OUTPUT,', 'gobj_trace_dump_gbuf(gobj,'),
+    # (r'\blog_debug_full_gbuf(LOG_DUMP_INPUT, ', 'gobj_trace_dump_full_gbuf(gobj,'),
+    #
+    # (r'\bGBUFFER', 'gbuffer_t'),
+    #
+    # (r'kw_get_dict_value\((?!gobj)', 'kw_get_dict_value(gobj, '),
+    # (r'kw_select\((?!gobj)', 'kw_select(gobj, '),
     (r'kw_get_str\((?!gobj)', 'kw_get_str(gobj, '),
     (r'kw_get_int\((?!gobj)', 'kw_get_int(gobj, '),
     (r'kw_get_bool\((?!gobj)', 'kw_get_bool(gobj, '),
