@@ -16,14 +16,19 @@ DEFAULT_SUBSTITUTIONS = [
     ("ASN_POINTER",         "DTP_POINTER"),
     ("ASN_SCHEMA",          "DTP_SCHEMA"),
     ("GCLASS_TIMER",        "C_TIMER"),
-    ("log_error(",          "gobj_log_error(gobj, "),
-    ("log_info(",           "gobj_log_info(gobj, "),
-    ("log_warning(",        "gobj_log_warning(gobj, "),
+]
+
+# List of regex-based substitutions (regex_pattern, replacement)
+DEFAULT_REGEX_SUBSTITUTIONS = [
+    (r'\blog_debug\(', 'gobj_log_debug(gobj, '),  # Replace log_debug( with gobj_log_debug(gobj,
+    (r'\blog_error\(', 'gobj_log_error(gobj, '),  # Replace log_error( as whole word
+    (r'\blog_info\(', 'gobj_log_info(gobj, '),    # Replace log_info( as whole word
+    (r'\blog_warning\(', 'gobj_log_warning(gobj, '),  # Replace log_warning( as whole word
 ]
 
 # List of default regex patterns to delete matching lines
 DEFAULT_REGEX_DELETIONS = [
-    r".*\"gobj\"\s*\"%s\".*"  # Remove lines containing "gobj", "%s" with spaces allowed in between
+    r'.*"gobj",\s+"%s",.*'  # Matches lines with "gobj", "%s" with spaces allowed in between
 ]
 
 def substitute_strings_in_file(filename, substitutions):
@@ -61,8 +66,49 @@ def substitute_strings_in_file(filename, substitutions):
         print("Error: The file could not be found.")
     except PermissionError:
         print("Error: Permission denied. Cannot modify the file.")
-    except Exception:
-        print("Error: An unexpected error occurred while processing the file.")
+    except Exception as e:
+        print(f"Error: An unexpected error occurred while processing the file: {e}")
+
+def substitute_regex_in_file(filename, regex_substitutions):
+    """
+    Substitutes strings in a file based on regex patterns.
+
+    Args:
+        filename (str): Path to the C file to modify.
+        regex_substitutions (list of tuples): List of (regex_pattern, replacement) pairs.
+    """
+    if not os.path.isfile(filename):
+        print(f"Error: File '{filename}' does not exist.")
+        return
+
+    if not filename.endswith(".c") and not filename.endswith(".h"):
+        print(f"Error: File '{filename}' is not a C source or header file.")
+        return
+
+    try:
+        # Read the content of the file
+        with open(filename, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+
+        # Perform regex substitutions
+        updated_lines = []
+        for line in lines:
+            for pattern, replacement in regex_substitutions:
+                line = re.sub(pattern, replacement, line)
+            updated_lines.append(line)
+
+        # Write the updated content back to the file
+        with open(filename, 'w', encoding='utf-8') as file:
+            file.writelines(updated_lines)
+
+        print(f"Regex substitutions completed successfully for file: {filename}")
+
+    except FileNotFoundError:
+        print("Error: The file could not be found.")
+    except PermissionError:
+        print("Error: Permission denied. Cannot modify the file.")
+    except Exception as e:
+        print(f"Error: An unexpected error occurred while processing the file: {e}")
 
 def delete_lines_matching_regex(filename, regex_patterns):
     """
@@ -88,7 +134,7 @@ def delete_lines_matching_regex(filename, regex_patterns):
         # Filter out lines matching any of the regex patterns
         filtered_lines = []
         for line in lines:
-            if not any(re.match(pattern, line) for pattern in regex_patterns):
+            if not any(re.search(pattern, line) for pattern in regex_patterns):
                 filtered_lines.append(line)
 
         # Write the filtered content back to the file
@@ -101,8 +147,8 @@ def delete_lines_matching_regex(filename, regex_patterns):
         print("Error: The file could not be found.")
     except PermissionError:
         print("Error: Permission denied. Cannot modify the file.")
-    except Exception:
-        print("Error: An unexpected error occurred while processing the file.")
+    except Exception as e:
+        print(f"Error: An unexpected error occurred while processing the file: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Substitute strings and delete lines in a C source or header file based on predefined rules.")
@@ -112,6 +158,9 @@ if __name__ == "__main__":
 
     # Perform the substitutions using the default list
     substitute_strings_in_file(args.filename, DEFAULT_SUBSTITUTIONS)
+
+    # Perform the regex substitutions using the default list
+    substitute_regex_in_file(args.filename, DEFAULT_REGEX_SUBSTITUTIONS)
 
     # Delete lines matching the default regex patterns
     delete_lines_matching_regex(args.filename, DEFAULT_REGEX_DELETIONS)
