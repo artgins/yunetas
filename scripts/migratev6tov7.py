@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import argparse
 
 # List of default substitutions (original, new)
@@ -18,7 +19,11 @@ DEFAULT_SUBSTITUTIONS = [
     ("log_error(",          "gobj_log_error(gobj, "),
     ("log_info(",           "gobj_log_info(gobj, "),
     ("log_warning(",        "gobj_log_warning(gobj, "),
+]
 
+# List of default regex patterns to delete matching lines
+DEFAULT_REGEX_DELETIONS = [
+    r".*\"gobj\"\s*\"%s\".*"  # Remove lines containing "gobj", "%s" with spaces allowed in between
 ]
 
 def substitute_strings_in_file(filename, substitutions):
@@ -26,11 +31,15 @@ def substitute_strings_in_file(filename, substitutions):
     Substitutes strings in a file based on the substitutions list.
 
     Args:
-        filename (str): Path to the file to modify.
+        filename (str): Path to the C file to modify.
         substitutions (list of tuples): List of (original_string, new_string) pairs.
     """
     if not os.path.isfile(filename):
         print(f"Error: File '{filename}' does not exist.")
+        return
+
+    if not filename.endswith(".c") and not filename.endswith(".h"):
+        print(f"Error: File '{filename}' is not a C source or header file.")
         return
 
     try:
@@ -55,12 +64,54 @@ def substitute_strings_in_file(filename, substitutions):
     except Exception:
         print("Error: An unexpected error occurred while processing the file.")
 
+def delete_lines_matching_regex(filename, regex_patterns):
+    """
+    Deletes lines in a file that match any of the regex patterns.
+
+    Args:
+        filename (str): Path to the C file to modify.
+        regex_patterns (list of str): List of regex patterns to match lines for deletion.
+    """
+    if not os.path.isfile(filename):
+        print(f"Error: File '{filename}' does not exist.")
+        return
+
+    if not filename.endswith(".c") and not filename.endswith(".h"):
+        print(f"Error: File '{filename}' is not a C source or header file.")
+        return
+
+    try:
+        # Read the content of the file
+        with open(filename, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+
+        # Filter out lines matching any of the regex patterns
+        filtered_lines = []
+        for line in lines:
+            if not any(re.match(pattern, line) for pattern in regex_patterns):
+                filtered_lines.append(line)
+
+        # Write the filtered content back to the file
+        with open(filename, 'w', encoding='utf-8') as file:
+            file.writelines(filtered_lines)
+
+        print(f"Lines matching regex patterns deleted successfully for file: {filename}")
+
+    except FileNotFoundError:
+        print("Error: The file could not be found.")
+    except PermissionError:
+        print("Error: Permission denied. Cannot modify the file.")
+    except Exception:
+        print("Error: An unexpected error occurred while processing the file.")
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Substitute strings in a file based on a predefined list of substitutions.")
-    parser.add_argument("filename", type=str, help="The path to the file to modify.")
+    parser = argparse.ArgumentParser(description="Substitute strings and delete lines in a C source or header file based on predefined rules.")
+    parser.add_argument("filename", type=str, help="The path to the C source or header file to modify.")
 
     args = parser.parse_args()
 
     # Perform the substitutions using the default list
     substitute_strings_in_file(args.filename, DEFAULT_SUBSTITUTIONS)
 
+    # Delete lines matching the default regex patterns
+    delete_lines_matching_regex(args.filename, DEFAULT_REGEX_DELETIONS)
