@@ -26,6 +26,13 @@ DEFAULT_SUBSTITUTIONS = [
     ("gobj_read_uint64_attr",   "gobj_read_integer_attr"),
     ("gobj_write_int32_attr",   "gobj_write_integer_attr"),
     ("gobj_write_uint64_attr",  "gobj_write_integer_attr"),
+
+    ("gbuf_create",             "gbuffer_create"),
+    ("gbuf_append_string",      "gbuffer_append_string"),
+    ("gbuf_printf",             "gbuffer_printf"),
+    ("gbuf_decref",             "gbuffer_decref"),
+    ("gbuf_get",                "gbuffer_get"),
+
     ("msg_iev_build_webix",     "msg_iev_build_response"),
     ("rc_free_iter",            "gobj_free_iter"),
     ("(*priv->prxMsgs)++;",     "priv->rxMsgs++;"),
@@ -39,9 +46,16 @@ DEFAULT_REGEX_SUBSTITUTIONS = [
     (r'\blog_error\(', 'gobj_log_error(gobj, '),  # Replace log_error( as whole word
     (r'\blog_info\(', 'gobj_log_info(gobj, '),    # Replace log_info( as whole word
     (r'\blog_warning\(', 'gobj_log_warning(gobj, '),  # Replace log_warning( as whole word
+    (r'\blog_critical\(', 'gobj_log_critical(gobj, '),  # Replace log_warning( as whole word
+    (r'\blog_debug_json\(0, ', 'gobj_trace_json(gobj, '),
+
+    (r'\bGBUFFER', 'gbuffer_t'),
+
     (r'kw_get_str\((?!gobj)', 'kw_get_str(gobj, '),
     (r'kw_get_int\((?!gobj)', 'kw_get_int(gobj, '),
     (r'kw_get_bool\((?!gobj)', 'kw_get_bool(gobj, '),
+    (r'kw_get_real\((?!gobj)', 'kw_get_real(gobj, '),
+    (r'kw_get_list_value\((?!gobj)', 'kw_get_list_value(gobj, '),
     (r'get_ordered_filename_array\((?!gobj)', 'get_ordered_filename_array(gobj, '),
 ]
 

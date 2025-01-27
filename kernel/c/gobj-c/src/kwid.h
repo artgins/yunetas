@@ -213,6 +213,22 @@ PUBLIC int kw_find_json_in_list(
 );
 
 /**rst**
+    Being `kw` a row's list or list of dicts [{},...],
+    return a new list of **duplicated** kw filtering the rows by `jn_filter` (where),
+    If match_fn is 0 then kw_match_simple is used.
+**rst**/
+PUBLIC json_t *kw_select( // WARNING return **duplicated** objects
+    hgobj gobj,
+    json_t *kw,         // NOT owned
+    json_t *jn_filter,  // owned
+    BOOL (*match_fn) (
+        json_t *kw,         // NOT owned
+        json_t *jn_filter   // owned
+    )
+);
+
+
+/**rst**
     Compare deeply two json **records**. Can be disordered.
 **rst**/
 PUBLIC BOOL kwid_compare_records(

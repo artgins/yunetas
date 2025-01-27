@@ -17,6 +17,7 @@ kw_delete.md
 kw_delete_subkey.md
 kw_find_str_in_list.md
 kw_find_json_in_list.md
+kw_select.md
 kwid_compare_records.md
 kwid_compare_lists.md
 kw_get_dict.md
