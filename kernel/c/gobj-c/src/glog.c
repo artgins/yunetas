@@ -752,6 +752,23 @@ PUBLIC void gobj_trace_msg(hgobj gobj, const char *fmt, ... )
     va_end(ap);
 }
 
+/*****************************************************************
+ *      Debug printf
+ *****************************************************************/
+PUBLIC int trace_msg0(const char *fmt, ...)
+{
+    int priority = LOG_DEBUG;
+    log_opt_t opt = 0;
+    va_list ap;
+    char temp[BUFSIZ];
+
+    va_start(ap, fmt);
+    vsnprintf(temp, sizeof(temp), fmt, ap);
+    _log_bf(priority, opt, temp, strlen(temp));
+    va_end(ap);
+    return 0;
+}
+
 /***************************************************************************
  *
  ***************************************************************************/

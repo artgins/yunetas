@@ -36,7 +36,7 @@ DEFAULT_SUBSTITUTIONS = [
     ("gbuf_decref",             "gbuffer_decref"),
     ("gbuf_incref",             "gbuffer_incref"),
     ("gbuf_get",                "gbuffer_get"),
-    ("gbuf_cur_rd_pointer",     "gbuf_cur_rd_pointer"),
+    ("gbuf_cur_rd_pointer",     "gbuffer_cur_rd_pointer"),
     ("gbuf_chunk",              "gbuffer_chunk"),
     ("gbuf_leftbytes",          "gbuffer_leftbytes"),
     ("gbuf_append",             "gbuffer_append"),

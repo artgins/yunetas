@@ -28,6 +28,7 @@ gobj_log_set_last_message.md
 set_show_backtrace_fn.md
 print_backtrace.md
 trace_vjson.md
+trace_msg0.md
 gobj_trace_msg.md
 gobj_info_msg.md
 gobj_trace_json.md

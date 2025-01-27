@@ -2390,6 +2390,8 @@ PUBLIC void gobj_trace_msg(
     ...
 ) JANSSON_ATTRS((format(printf, 2, 3)));
 
+PUBLIC int trace_msg0(const char *fmt, ...) JANSSON_ATTRS((format(printf, 1, 2)));
+
 PUBLIC void gobj_info_msg(
     hgobj gobj,
     const char *fmt,
