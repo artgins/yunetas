@@ -61,13 +61,13 @@ DEFAULT_REGEX_SUBSTITUTIONS = [
     (r'\blog_debug_json\(0,', 'gobj_trace_json(gobj,'),
     (r'\btrace_msg\(', 'gobj_trace_msg(gobj, '),
 
-    # (r'\blog_debug_gbuf(LOG_DUMP_OUTPUT,', 'gobj_trace_dump_gbuf(gobj,'),
-    # (r'\blog_debug_full_gbuf(LOG_DUMP_INPUT, ', 'gobj_trace_dump_full_gbuf(gobj,'),
-    #
-    # (r'\bGBUFFER', 'gbuffer_t'),
-    #
-    # (r'kw_get_dict_value\((?!gobj)', 'kw_get_dict_value(gobj, '),
-    # (r'kw_select\((?!gobj)', 'kw_select(gobj, '),
+    (r'\blog_debug_gbuf\(LOG_DUMP_OUTPUT,', 'gobj_trace_dump_gbuf(gobj,'),
+    (r'\blog_debug_full_gbuf\(LOG_DUMP_INPUT, ', 'gobj_trace_dump_full_gbuf(gobj,'),
+
+    (r'\bGBUFFER', 'gbuffer_t'),
+
+    (r'kw_get_dict_value\((?!gobj)', 'kw_get_dict_value(gobj, '),
+    (r'kw_select\((?!gobj)', 'kw_select(gobj, '),
     (r'kw_get_str\((?!gobj)', 'kw_get_str(gobj, '),
     (r'kw_get_int\((?!gobj)', 'kw_get_int(gobj, '),
     (r'kw_get_bool\((?!gobj)', 'kw_get_bool(gobj, '),
