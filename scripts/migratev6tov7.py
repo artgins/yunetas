@@ -6,16 +6,31 @@ import argparse
 
 # List of default substitutions (original, new)
 DEFAULT_SUBSTITUTIONS = [
-    ("ASN_OCTET_STR,",      "DTP_STRING,   "),
-    ("ASN_UNSIGNED,",       "DTP_INTEGER, "),
-    ("ASN_BOOLEAN",         "DTP_BOOLEAN"),
-    ("ASN_COUNTER64,",      "DTP_INTEGER,  "),
-    ("ASN_INTEGER",         "DTP_INTEGER"),
-    ("ASN_UNSIGNED64,",     "DTP_INTEGER,   "),
-    ("ASN_JSON",            "DTP_JSON"),
-    ("ASN_POINTER",         "DTP_POINTER"),
-    ("ASN_SCHEMA",          "DTP_SCHEMA"),
-    ("GCLASS_TIMER",        "C_TIMER"),
+    ("ASN_OCTET_STR,",          "DTP_STRING,   "),
+    ("ASN_UNSIGNED,",           "DTP_INTEGER, "),
+    ("ASN_BOOLEAN",             "DTP_BOOLEAN"),
+    ("ASN_COUNTER64,",          "DTP_INTEGER,  "),
+    ("ASN_INTEGER",             "DTP_INTEGER"),
+    ("ASN_UNSIGNED64,",         "DTP_INTEGER,   "),
+    ("ASN_JSON",                "DTP_JSON"),
+    ("ASN_POINTER",             "DTP_POINTER"),
+    ("ASN_SCHEMA",              "DTP_SCHEMA"),
+    ("GCLASS_TIMER",            "C_TIMER"),
+    ("GCLASS_TRANGER",          "C_TRANGER"),
+    ("tranger_create_topic",    "tranger2_create_topic"),
+    ("tranger_close_topic",     "tranger2_close_topic"),
+    ("tranger_topic_name",      "tranger2_topic_name"),
+    ("tranger_topic_size",      "tranger2_topic_size"),
+    ("tranger_backup_topic",    "tranger2_backup_topic"),
+    ("gobj_read_int32_attr",    "gobj_read_integer_attr"),
+    ("gobj_read_uint64_attr",   "gobj_read_integer_attr"),
+    ("gobj_write_int32_attr",   "gobj_write_integer_attr"),
+    ("gobj_write_uint64_attr",  "gobj_write_integer_attr"),
+    ("msg_iev_build_webix",     "msg_iev_build_response"),
+    ("rc_free_iter",            "gobj_free_iter"),
+    ("(*priv->prxMsgs)++;",     "priv->rxMsgs++;"),
+    ("(*priv->ptxMsgs)++;",     "priv->txMsgs++;"),
+    ("log_debug_json(LOG_DUMP_INPUT,", "gobj_trace_json(gobj,")
 ]
 
 # List of regex-based substitutions (regex_pattern, replacement)
@@ -24,6 +39,10 @@ DEFAULT_REGEX_SUBSTITUTIONS = [
     (r'\blog_error\(', 'gobj_log_error(gobj, '),  # Replace log_error( as whole word
     (r'\blog_info\(', 'gobj_log_info(gobj, '),    # Replace log_info( as whole word
     (r'\blog_warning\(', 'gobj_log_warning(gobj, '),  # Replace log_warning( as whole word
+    (r'kw_get_str\((?!gobj)', 'kw_get_str(gobj, '),
+    (r'kw_get_int\((?!gobj)', 'kw_get_int(gobj, '),
+    (r'kw_get_bool\((?!gobj)', 'kw_get_bool(gobj, '),
+    (r'get_ordered_filename_array\((?!gobj)', 'get_ordered_filename_array(gobj, '),
 ]
 
 # List of default regex patterns to delete matching lines
