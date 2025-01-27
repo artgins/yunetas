@@ -59,8 +59,8 @@ DEFAULT_REGEX_SUBSTITUTIONS = [
     (r'\blog_warning\(', 'gobj_log_warning(gobj, '),  # Replace log_warning( as whole word
     (r'\blog_critical\(', 'gobj_log_critical(gobj, '),  # Replace log_warning( as whole word
     (r'\blog_debug_json\(0,', 'gobj_trace_json(gobj,'),
-    # (r'\btrace_msg\(', 'gobj_trace_msg(gobj, '),
-    #
+    (r'\btrace_msg\(', 'gobj_trace_msg(gobj, '),
+
     # (r'\blog_debug_gbuf(LOG_DUMP_OUTPUT,', 'gobj_trace_dump_gbuf(gobj,'),
     # (r'\blog_debug_full_gbuf(LOG_DUMP_INPUT, ', 'gobj_trace_dump_full_gbuf(gobj,'),
     #
