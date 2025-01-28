@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_length())=
 # `istream_length()`
 <!-- ============================================================== -->
 
-
-Get the length of data available in the input stream. Works with [`istream_h`](istream_h).
-        
+Retrieves the length of unread data currently available in the internal gbuffer of the specified istream.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,14 @@ Get the length of data available in the input stream. Works with [`istream_h`](i
 **Prototype**
 
 ```C
-
 PUBLIC size_t istream_length(
-    istream_t *istream
+    istream_h   istream
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+:::list-table
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -43,19 +35,19 @@ PUBLIC size_t istream_length(
   - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream to query.
+  - `istream_h`
+  - The handle to the istream whose unread data length is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of unread bytes in the internal gbuffer.
 
-Returns the number of bytes currently available in the input stream.
-        
-
+**Notes**
+- If the `istream` is `NULL`, the function logs an error and returns `0`.
+- This function provides the size of the data available for reading without modifying the read or write pointers.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

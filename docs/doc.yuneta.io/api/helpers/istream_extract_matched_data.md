@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_extract_matched_data())=
 # `istream_extract_matched_data()`
 <!-- ============================================================== -->
 
-
-Extract data from the input stream that matches a specified pattern or condition. Works with [`istream_h`](istream_h).
-        
+Extracts the matched data from the [`istream_h`](istream_h). The function returns a pointer to the matched data and resets the completion status of the stream.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,22 +20,15 @@ Extract data from the input stream that matches a specified pattern or condition
 **Prototype**
 
 ```C
-
-PUBLIC size_t istream_extract_matched_data(
-    istream_t   *istream,
-    char        *buffer,
-    size_t       buffer_size,
-    BOOL         (*match_fn)(const char *data, size_t size, void *user_data),
-    void        *user_data
+PUBLIC char *istream_extract_matched_data(
+    istream_h   istream,
+    size_t      *len
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+:::list-table
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -47,35 +36,28 @@ PUBLIC size_t istream_extract_matched_data(
   - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream to extract data from.
+  - `istream_h`
+  - The handle to the istream from which matched data will be extracted.
 
-* - `buffer`
-  - `char *`
-  - The buffer to store the matched data.
-
-* - `buffer_size`
-  - `size_t`
-  - The size of the buffer.
-
-* - `match_fn`
-  - `BOOL (*)(const char *, size_t, void *)`
-  - A function pointer to evaluate matches for the data.
-
-* - `user_data`
-  - `void *`
-  - User-defined data passed to the match function.
+* - `len`
+  - `size_t *`
+  - A pointer to a variable where the length of the matched data will be stored. Can be `NULL` if the length is not required.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the matched data if successful.
+Returns `NULL` if the `istream` is invalid, incomplete, or if there is no [`gbuffer_t *`](gbuffer_t) associated with the istream.
 
-Returns the number of bytes of matched data extracted, or `0` if no match was found.
-        
+**Notes**
+- The matched data is removed from the associated [`gbuffer_t *`](gbuffer_t).
+- After extracting the data, the `istream` completion status is reset (`completed = FALSE`).
+- This function logs an error if the `istream` is `NULL`, not completed, or has no valid [`gbuffer_t *`](gbuffer_t).
 
+**Example Usage**
+This function can be used to retrieve and process data from an istream once it has been matched by a delimiter or a byte threshold.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

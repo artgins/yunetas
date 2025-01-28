@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_clear())=
 # `istream_clear()`
 <!-- ============================================================== -->
 
-
-Clear the input stream, removing all data and resetting pointers. Works with [`istream_h`](istream_h).
-        
+Resets both the reading and writing pointers of the [`gbuffer_t *`](gbuffer_t) associated with the given [`istream_h`](istream_h). This effectively clears the buffer, making it ready for new data.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,14 @@ Clear the input stream, removing all data and resetting pointers. Works with [`i
 **Prototype**
 
 ```C
-
 PUBLIC void istream_clear(
-    istream_t   *istream
+    istream_h   istream
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+:::list-table
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -43,19 +35,22 @@ PUBLIC void istream_clear(
   - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream to clear.
+  - `istream_h`
+  - The handle to the istream whose buffer pointers need to be reset.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return any value.
 
-No return value. This function clears all data from the input stream.
-        
+**Notes**
+- It is equivalent to calling [`istream_reset_rd()`](#istream_reset_rd) and [`istream_reset_wr()`](#istream_reset_wr) sequentially.
+- If the `istream` or its associated [`gbuffer_t *`](gbuffer_t) is `NULL`, the function logs an error and does nothing.
 
+**Example Usage**
+You can use this function to completely reset the state of an istream buffer, for instance, after processing or when starting a new operation.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

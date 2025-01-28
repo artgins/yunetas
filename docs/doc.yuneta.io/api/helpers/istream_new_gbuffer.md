@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_new_gbuffer())=
 # `istream_new_gbuffer()`
 <!-- ============================================================== -->
 
-
-Create and attach a new gbuffer to the input stream. Works with [`istream_h`](istream_h) and [`gbuffer_t *`](gbuffer_t).
-        
+Creates a new [`gbuffer_t *`](gbuffer_t) for the specified istream. The old [`gbuffer_t *`](gbuffer_t) associated with the istream is released. The new buffer is initialized with the specified data and maximum sizes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,16 @@ Create and attach a new gbuffer to the input stream. Works with [`istream_h`](is
 **Prototype**
 
 ```C
-
-PUBLIC gbuffer_t *istream_new_gbuffer(
-    istream_t *istream
+PUBLIC int istream_new_gbuffer(
+    istream_h   istream,
+    size_t      data_size,
+    size_t      max_size
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+:::list-table
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -43,19 +37,29 @@ PUBLIC gbuffer_t *istream_new_gbuffer(
   - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream to attach the new gbuffer to.
+  - `istream_h`
+  - The handle to the istream where the new [`gbuffer_t *`](gbuffer_t) will be created.
+
+* - `data_size`
+  - `size_t`
+  - The size of the initial data allocation for the new [`gbuffer_t *`](gbuffer_t).
+
+* - `max_size`
+  - `size_t`
+  - The maximum size the new [`gbuffer_t *`](gbuffer_t) can grow to.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success.
+Returns `-1` if the `istream` is `NULL`, or if memory allocation fails.
 
-Returns a pointer to the newly created [`gbuffer_t *`](gbuffer_t), or `NULL` on failure.
-        
-
+**Notes**
+- The previous [`gbuffer_t *`](gbuffer_t) is decremented and freed using `GBUFFER_DECREF` before assigning the new buffer.
+- This function logs an error if the `istream` is `NULL` or if the new buffer creation fails.
+- Ensure that the `istream` is valid before calling this function to avoid memory errors.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_pop_gbuffer())=
 # `istream_pop_gbuffer()`
 <!-- ============================================================== -->
 
-
-Pop and remove the current gbuffer from the input stream. Works with [`istream_h`](istream_h) and [`gbuffer_t *`](gbuffer_t).
-        
+Pops and returns the current [`gbuffer_t *`](gbuffer_t) associated with the specified istream. After calling this function, the istream will no longer hold the current [`gbuffer_t *`](gbuffer_t), and it becomes the caller's responsibility to manage it.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,14 @@ Pop and remove the current gbuffer from the input stream. Works with [`istream_h
 **Prototype**
 
 ```C
-
 PUBLIC gbuffer_t *istream_pop_gbuffer(
-    istream_t *istream
+    istream_h   istream
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+:::list-table
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -43,19 +35,20 @@ PUBLIC gbuffer_t *istream_pop_gbuffer(
   - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream to pop the gbuffer from.
+  - `istream_h`
+  - The handle to the istream whose current [`gbuffer_t *`](gbuffer_t) is to be popped.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the current [`gbuffer_t *`](gbuffer_t) of the istream.
+If the `istream` is `NULL`, the function logs an error and returns `NULL`.
 
-Returns a pointer to the removed [`gbuffer_t *`](gbuffer_t), or `NULL` on failure. The caller is responsible for freeing the gbuffer.
-        
-
+**Notes**
+- After calling this function, the istream's internal [`gbuffer_t *`](gbuffer_t) is reset to `NULL`.
+- The returned [`gbuffer_t *`](gbuffer_t) must be properly decremented (`GBUFFER_DECREF`) or freed by the caller to avoid memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

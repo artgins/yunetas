@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_get_gbuffer())=
 # `istream_get_gbuffer()`
 <!-- ============================================================== -->
 
-
-Retrieve the current gbuffer from the input stream. Works with [`istream_h`](istream_h) and [`gbuffer_t *`](gbuffer_t).
-        
+Retrieves the current [`gbuffer_t *`](gbuffer_t) associated with the specified istream. This [`gbuffer_t *`](gbuffer_t) contains the data being processed by the istream.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,14 @@ Retrieve the current gbuffer from the input stream. Works with [`istream_h`](ist
 **Prototype**
 
 ```C
-
 PUBLIC gbuffer_t *istream_get_gbuffer(
-    istream_t *istream
+    istream_h   istream
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+:::list-table
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -43,18 +35,21 @@ PUBLIC gbuffer_t *istream_get_gbuffer(
   - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream to retrieve the gbuffer from.
+  - `istream_h`
+  - The handle to the istream whose [`gbuffer_t *`](gbuffer_t) is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the current [`gbuffer_t *`](gbuffer_t) of the istream.
+If the `istream` is `NULL`, the function logs an error and returns `NULL`.
 
-Returns a pointer to the current [`gbuffer_t *`](gbuffer_t) in the input stream, or `NULL` on failure.
-        
+**Notes**
+
+- The returned [`gbuffer_t *`](gbuffer_t) is owned by the istream and must not be freed by the caller.
+- This function is useful for directly inspecting or interacting with the data managed by the istream.
 
 
 <!--====================================================-->

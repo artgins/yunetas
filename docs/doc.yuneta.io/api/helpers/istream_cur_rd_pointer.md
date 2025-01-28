@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_cur_rd_pointer())=
 # `istream_cur_rd_pointer()`
 <!-- ============================================================== -->
 
-
-Get the current read pointer for the input stream. Works with [`istream_h`](istream_h).
-        
+Retrieves the current read pointer of the internal gbuffer associated with the istream. This pointer indicates the position from where the next read operation will start.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,14 @@ Get the current read pointer for the input stream. Works with [`istream_h`](istr
 **Prototype**
 
 ```C
-
-PUBLIC const char *istream_cur_rd_pointer(
-    istream_t *istream
+PUBLIC char *istream_cur_rd_pointer(
+    istream_h   istream
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+:::list-table
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -43,19 +35,20 @@ PUBLIC const char *istream_cur_rd_pointer(
   - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream to query.
+  - `istream_h`
+  - The handle to the istream whose read pointer is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the current read position in the internal gbuffer.
 
-Returns a pointer to the current read position in the input stream.
-        
-
+**Notes**
+- If the `istream` is `NULL`, the function logs an error and returns `NULL`.
+- This function does not alter the read pointer or the state of the istream.
+- Use this pointer for low-level operations directly on the data in the gbuffer.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

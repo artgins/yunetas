@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_reset_rd())=
 # `istream_reset_rd()`
 <!-- ============================================================== -->
 
-
-Reset the read pointer of the input stream to the beginning. Works with [`istream_h`](istream_h).
-        
+Resets the reading pointer of the [`gbuffer_t *`](gbuffer_t) associated with the given [`istream_h`](istream_h). This allows re-reading the data in the buffer from the beginning.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,14 @@ Reset the read pointer of the input stream to the beginning. Works with [`istrea
 **Prototype**
 
 ```C
-
-PUBLIC void istream_reset_rd(
-    istream_t   *istream
+PUBLIC int istream_reset_rd(
+    istream_h   istream
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+:::list-table
 :widths: 10 5 40
 :header-rows: 1
 * - Key
@@ -43,18 +35,23 @@ PUBLIC void istream_reset_rd(
   - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream whose read pointer will be reset.
+  - `istream_h`
+  - The handle to the istream whose reading pointer needs to be reset.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` if the operation was successful.
+Returns `-1` if the `istream` or its associated [`gbuffer_t *`](gbuffer_t) is `NULL`.
 
-No return value. This function resets the read pointer of the input stream.
-        
+**Notes**
+- This function logs an error if the `istream` or its buffer is invalid.
+- It does not affect the writing pointer or any other attributes of the `istream`.
+
+**Example Usage**
+This function can be used when you need to process the data in the buffer again from the start, such as during retries or repeated operations.
 
 
 <!--====================================================-->
