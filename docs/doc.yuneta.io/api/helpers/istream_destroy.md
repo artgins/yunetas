@@ -3,7 +3,7 @@
 # `istream_destroy()`
 <!-- ============================================================== -->
 
-The `istream_destroy` function deallocates and cleans up all memory associated with an input stream (`istream`). This includes freeing its internal resources, such as the buffer and other dynamically allocated attributes.
+Destroys an istream created using [`istream_create`](#istream_create). This function releases all memory and resources allocated for the istream, including its associated [`gbuffer_t`](gbuffer_t).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,36 +27,33 @@ PUBLIC void istream_destroy(
 
 **Parameters**
 
-::: {list-table}
-:widths: 20 20 60
+:::list-table
+:widths: 10 5 40
 :header-rows: 1
+* - Key
+  - Type
+  - Description
 
-* - **Parameter**
-  - **Type**
-  - **Description**
-
-* - `istream_h`
-  - `istream`
-  - Handle to the input stream instance to be destroyed.
+* - `istream`
+  - `istream_h`
+  - The handle to the istream to be destroyed.
 :::
 
 ---
 
 **Return Value**
 
-- This function does not return a value.
+This function does not return a value.
 
 **Notes**
 
-- **Memory Management:**
-  - Frees the dynamically allocated `delimiter` and `event_name` strings.
-  - Decrements the reference count of the associated `gbuffer_t`.
-  - Finally, frees the memory allocated for the `ISTREAM` structure itself.
-- **Safe Destruction:**
-  - The function checks if `istream` is not `NULL` before proceeding with cleanup.
-
-**Use Case**
-This function is typically called when an `istream` instance is no longer needed to ensure proper memory management and avoid memory leaks.
+- If the `istream` is `NULL`, the function performs no operation.
+- Internally, the function:
+  - Frees the memory allocated for the delimiter.
+  - Resets the event name pointer to `NULL`.
+  - Decrements and frees the associated [`gbuffer_t`](gbuffer_t).
+  - Frees the memory allocated for the `istream`.
+- Always call this function to clean up an `istream_h` to avoid memory leaks.
 
 
 <!--====================================================-->

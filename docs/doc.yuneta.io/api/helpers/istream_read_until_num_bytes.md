@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_read_until_num_bytes())=
 # `istream_read_until_num_bytes()`
 <!-- ============================================================== -->
 
-The `istream_read_until_num_bytes` function configures an input stream (`istream`) to read a specific number of bytes before triggering a designated event.
+Configures the istream to read data until a specified number of bytes (`num_bytes`) is accumulated. Once the condition is met, the specified event (`event`) will be triggered for the associated GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,48 +23,43 @@ PUBLIC int istream_read_until_num_bytes(
     size_t          num_bytes,
     gobj_event_t    event
 );
+);
 ```
 
 **Parameters**
 
-::: {list-table}
-:widths: 20 20 60
+:::list-table
+:widths: 10 5 40
 :header-rows: 1
+* - Key
+  - Type
+  - Description
 
-* - **Parameter**
-  - **Type**
-  - **Description**
-
-* - `istream_h`
-  - `istream`
-  - Handle to the input stream instance.
+* - `istream`
+  - `istream_h`
+  - The handle to the istream where data will be read.
 
 * - `num_bytes`
   - `size_t`
-  - The number of bytes to read before triggering the event.
+  - The number of bytes to accumulate before marking the reading operation as complete.
 
 * - `event`
   - `gobj_event_t`
-  - The event name (as a unique pointer) to trigger once the specified number of bytes is read.
+  - The event to be triggered when the specified number of bytes is reached.
 :::
 
 ---
 
 **Return Value**
 
-- Returns `0` on success.
+Returns `0` on successful configuration.
+Returns `-1` if the `istream` handle is invalid.
 
 **Notes**
 
-- **State Initialization:**
-  - The `num_bytes` attribute is set to the specified value, determining how much data the input stream should process before the event is triggered.
-  - The `event_name` attribute is set to the provided `event`, allowing fast pointer comparisons.
-  - The `completed` attribute is reset to `FALSE` to indicate that the stream is not yet finished processing.
-  - The `delimiter` attribute is set to `NULL` as this function does not utilize a delimiter.
-
-**Use Case**
-
-This function is useful when an exact amount of data needs to be processed from an input stream, such as reading fixed-length records or packetized data.
+- This function resets the delimiter configuration and sets the reading mode to accumulate data based on `num_bytes`.
+- Once the specified number of bytes is accumulated, the istream triggers the specified event (`event`) for its associated GObj.
+- The `event` name must be a unique pointer for optimized comparison during event dispatching.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

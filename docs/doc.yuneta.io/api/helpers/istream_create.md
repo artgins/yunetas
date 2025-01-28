@@ -1,10 +1,7 @@
-
-
 <!-- ============================================================== -->
 (istream_create())=
 # `istream_create()`
 <!-- ============================================================== -->
-
 
 The `istream_create` function initializes and allocates an `istream` instance. This instance provides an input stream buffer (`gbuffer_t`) with specified sizes for handling data efficiently.
 
@@ -57,24 +54,15 @@ PUBLIC istream_h istream_create(
 
 **Return Value**
 
-- Returns a pointer to the newly created `istream` instance on success.
-- Returns `NULL` if memory allocation fails for the `istream` instance or its internal buffer.
+Returns an `istream_h` handle to the created istream.
+If memory allocation fails, the function returns `NULL`.
 
 **Notes**
 
-- **Memory Management:**
-  - The `istream` instance and its internal buffer are dynamically allocated. Ensure to call `istream_destroy` to free resources when the stream is no longer needed.
-- **Error Handling:**
-  - Logs an error if memory allocation for the `istream` instance or its internal `gbuffer_t` fails.
-- **Internal Attributes:**
-  - The function initializes:
-    - `gobj`: Links the stream to the specified GObj.
-    - `data_size` and `max_size`: Define the buffer's initial and maximum sizes.
-    - `gbuf`: Allocates a `gbuffer_t` for managing the input stream.
+- The function allocates memory for the `ISTREAM` structure and initializes its internal attributes, including a [`gbuffer_t`](gbuffer_t) for data storage.
+- If the memory allocation for the buffer fails, the function cleans up and returns `NULL`.
+- Ensure to free the allocated istream using `istream_destroy` when it is no longer needed to avoid memory leaks.
 
-**Use Case**
-
-The `istream_create` function is useful for creating an input stream buffer tied to a GObj. For instance, it can be used to handle incoming data streams in a controlled manner, ensuring that memory constraints are respected.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

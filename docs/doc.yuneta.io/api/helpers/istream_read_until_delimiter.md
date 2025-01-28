@@ -3,7 +3,7 @@
 # `istream_read_until_delimiter()`
 <!-- ============================================================== -->
 
-The `istream_read_until_delimiter` function configures the input stream to read data until a specified delimiter is encountered. It initializes and sets the delimiter and the event name associated with the operation.
+Configures the istream to read data until a specified delimiter is encountered. Once the delimiter is matched, the specified event (`event`) is triggered for the associated GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,7 +22,7 @@ The `istream_read_until_delimiter` function configures the input stream to read 
 ```C
 PUBLIC int istream_read_until_delimiter(
     istream_h       istream,
-    const char     *delimiter,
+    const char      *delimiter,
     size_t          delimiter_size,
     gobj_event_t    event
 );
@@ -30,56 +30,49 @@ PUBLIC int istream_read_until_delimiter(
 
 **Parameters**
 
-::: {list-table}
-:widths: 20 20 60
+:::list-table
+:widths: 10 5 40
 :header-rows: 1
+* - Key
+  - Type
+  - Description
 
-* - **Parameter**
-  - **Type**
-  - **Description**
-
-* - `istream_h`
-  - `istream`
-  - Handle to the input stream instance.
+* - `istream`
+  - `istream_h`
+  - The handle to the istream where data will be read.
 
 * - `delimiter`
   - `const char *`
-  - Pointer to the delimiter string.
+  - A pointer to the delimiter string to match in the incoming data.
 
 * - `delimiter_size`
   - `size_t`
-  - Size of the delimiter string in bytes. Must be greater than `0`.
+  - The size (in bytes) of the delimiter.
 
 * - `event`
   - `gobj_event_t`
-  - Name of the event (as a unique pointer) to trigger once the delimiter is found.
+  - The event to be triggered when the delimiter is matched. This must be a unique pointer.
 :::
 
 ---
 
 **Return Value**
 
-- Returns `0` on success.
-- Returns `-1` on failure due to:
-  - `delimiter_size` being `0` or less.
-  - Memory allocation failures for `delimiter`.
+Returns `0` on successful configuration.
+Returns `-1` if:
+- `istream` is invalid.
+- Memory allocation for the delimiter fails.
+- `delimiter_size` is `0` or less.
 
 **Notes**
 
-- **Memory Management:**
-  - Frees any previously allocated memory for `delimiter` before setting new values.
-  - Dynamically allocates memory for the `delimiter`.
-- **Validation:**
-  - Validates that `delimiter_size` is greater than `0`. If not, an error is logged, and the function returns `-1`.
-- **Event Name Handling:**
-  - The `event` parameter is stored as a `gobj_event_t`, allowing fast comparisons using pointers instead of string matching.
-- **Stream State:**
-  - Resets the `num_bytes` counter and sets the `completed` flag to `FALSE`.
-
-
-**Use Case**
-
-This function is typically used to set up a stream to monitor incoming data and trigger an event when a specific delimiter sequence is detected.
+- The function performs the following steps:
+  1. Validates the input parameters.
+  2. Allocates memory for the `delimiter` and copies its contents.
+  3. Configures the `event` to be triggered when the delimiter is matched.
+  4. Resets the reading mode and any previously configured `num_bytes`.
+- The `event` must be a unique pointer to allow optimized comparison during event dispatching.
+- Ensure that the `delimiter` and its `delimiter_size` accurately represent the boundary condition for data parsing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
