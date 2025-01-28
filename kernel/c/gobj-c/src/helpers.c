@@ -6325,7 +6325,7 @@ typedef struct _ISTREAM {
     gbuffer_t *gbuf;
     size_t data_size;
     size_t max_size;
-    const char *event_name;
+    gobj_event_t event_name;
     const char *delimiter;
     size_t delimiter_size;
     size_t num_bytes;
@@ -6386,16 +6386,16 @@ PUBLIC istream_h istream_create(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void istream_destroy(istream_h istream_h)
+PUBLIC void istream_destroy(istream_h istream)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
 
     /*-----------------------*
      *  Libera la memoria
      *-----------------------*/
     if(ist) {
         GBMEM_FREE(ist->delimiter);
-        GBMEM_FREE(ist->event_name);
+        ist->event_name = NULL;
         GBUFFER_DECREF(ist->gbuf);
         GBMEM_FREE(ist);
     }
@@ -6405,13 +6405,13 @@ PUBLIC void istream_destroy(istream_h istream_h)
  *
  ***************************************************************************/
 PUBLIC int istream_read_until_delimiter(
-    istream_h istream_h,
+    istream_h istream,
     const char *delimiter,
     size_t delimiter_size,
-    const char *event
+    gobj_event_t event
 )
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
 
     if(delimiter_size <= 0) {
         gobj_log_error(ist->gobj, LOG_OPT_TRACE_STACK,
@@ -6438,8 +6438,7 @@ PUBLIC int istream_read_until_delimiter(
     }
     memcpy((void *)ist->delimiter, delimiter, delimiter_size);
 
-    GBMEM_FREE(ist->event_name);
-    ist->event_name = GBMEM_STRDUP(event);
+    ist->event_name = event;
     ist->completed = FALSE;
 
     ist->num_bytes = 0;
@@ -6450,13 +6449,16 @@ PUBLIC int istream_read_until_delimiter(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int istream_read_until_num_bytes(istream_h istream_h, size_t num_bytes, const char *event)
+PUBLIC int istream_read_until_num_bytes(
+    istream_h istream,
+    size_t num_bytes,
+    gobj_event_t event
+)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
 
     ist->num_bytes = num_bytes;
-    GBMEM_FREE(ist->event_name);
-    ist->event_name = GBMEM_STRDUP(event);
+    ist->event_name = event;
     ist->completed = FALSE;
 
     ist->delimiter = 0;
@@ -6467,9 +6469,9 @@ PUBLIC int istream_read_until_num_bytes(istream_h istream_h, size_t num_bytes, c
 /***************************************************************************
  *  Return number of bytes consumed
  ***************************************************************************/
-PUBLIC size_t istream_consume(istream_h istream_h, char *bf, size_t len)
+PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
     size_t consumed = 0;
 
     if(len == 0) {
@@ -6549,9 +6551,9 @@ PUBLIC size_t istream_consume(istream_h istream_h, char *bf, size_t len)
 /***************************************************************************
  *  Current reading pointer
  ***************************************************************************/
-PUBLIC char *istream_cur_rd_pointer(istream_h istream_h)
+PUBLIC char *istream_cur_rd_pointer(istream_h istream)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "gobj",         "%s", __FILE__,
@@ -6568,9 +6570,9 @@ PUBLIC char *istream_cur_rd_pointer(istream_h istream_h)
 /***************************************************************************
  *  Current length of internal gbuffer
  ***************************************************************************/
-PUBLIC size_t istream_length(istream_h istream_h)
+PUBLIC size_t istream_length(istream_h istream)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -6586,9 +6588,9 @@ PUBLIC size_t istream_length(istream_h istream_h)
 /***************************************************************************
  *  Get current gbuffer
  ***************************************************************************/
-PUBLIC gbuffer_t *istream_get_gbuffer(istream_h istream_h)
+PUBLIC gbuffer_t *istream_get_gbuffer(istream_h istream)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -6604,9 +6606,9 @@ PUBLIC gbuffer_t *istream_get_gbuffer(istream_h istream_h)
 /***************************************************************************
  *  Pop current gbuffer
  ***************************************************************************/
-PUBLIC gbuffer_t *istream_pop_gbuffer(istream_h istream_h)
+PUBLIC gbuffer_t *istream_pop_gbuffer(istream_h istream)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -6624,9 +6626,9 @@ PUBLIC gbuffer_t *istream_pop_gbuffer(istream_h istream_h)
 /***************************************************************************
  *  Create new gbuffer
  ***************************************************************************/
-PUBLIC int istream_new_gbuffer(istream_h istream_h, size_t data_size, size_t max_size)
+PUBLIC int istream_new_gbuffer(istream_h istream, size_t data_size, size_t max_size)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
 
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -6657,9 +6659,9 @@ PUBLIC int istream_new_gbuffer(istream_h istream_h, size_t data_size, size_t max
 /***************************************************************************
  *  Get the matched data
  ***************************************************************************/
-PUBLIC char *istream_extract_matched_data(istream_h istream_h, size_t *len)
+PUBLIC char *istream_extract_matched_data(istream_h istream, size_t *len)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
     char *p;
     size_t ln;
 
@@ -6695,9 +6697,9 @@ PUBLIC char *istream_extract_matched_data(istream_h istream_h, size_t *len)
 /***************************************************************************
  *  Reset WRITING pointer
  ***************************************************************************/
-PUBLIC int istream_reset_wr(istream_h istream_h)
+PUBLIC int istream_reset_wr(istream_h istream)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
 
     if(!ist || !ist->gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -6716,9 +6718,9 @@ PUBLIC int istream_reset_wr(istream_h istream_h)
 /***************************************************************************
  *  Reset READING pointer
  ***************************************************************************/
-PUBLIC int istream_reset_rd(istream_h istream_h)
+PUBLIC int istream_reset_rd(istream_h istream)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
 
     if(!ist || !ist->gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -6736,18 +6738,18 @@ PUBLIC int istream_reset_rd(istream_h istream_h)
 /***************************************************************************
  *  Reset READING and WRITING pointer
  ***************************************************************************/
-PUBLIC void istream_clear(istream_h istream_h)
+PUBLIC void istream_clear(istream_h istream)
 {
-    istream_reset_rd(istream_h);
-    istream_reset_wr(istream_h);
+    istream_reset_rd(istream);
+    istream_reset_wr(istream);
 }
 
 /***************************************************************************
  *  Reset READING and WRITING pointer
  ***************************************************************************/
-PUBLIC BOOL istream_is_completed(istream_h istream_h)
+PUBLIC BOOL istream_is_completed(istream_h istream)
 {
-    ISTREAM *ist = istream_h;
+    ISTREAM *ist = istream;
 
     if(!ist) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
