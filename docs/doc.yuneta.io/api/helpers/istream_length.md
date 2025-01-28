@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Get the length of data available in the input stream. Works with [`istream_t *`](istream_t).
+Get the length of data available in the input stream. Works with [`istream_h`](istream_h).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC size_t istream_length(
   - Description
 
 * - `istream`
-  - [`istream_t *`](istream_t)
+  - [`istream_h`](istream_h)
   - The input stream to query.
 :::
         
@@ -180,4 +180,3 @@ Returns the number of bytes currently available in the input stream.
 ``````
 
 ```````
-

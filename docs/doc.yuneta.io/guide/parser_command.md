@@ -7,6 +7,11 @@ Commands are executed using the API  [`gobj_command()`](gobj_command()):
 
 `json_t *gobj_command(hgobj gobj, const char *cmd, json_t *kw, hgobj src);`
 
+Source code in:
+
+- [command_parser.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/command_parser.c)
+- [command_parser.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/command_parser.h)
+
 ---
 
 ## How the Command Parser Works

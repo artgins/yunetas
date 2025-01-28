@@ -4,6 +4,12 @@
 
 The `gbuffer_t` structure is a flexible, dynamic buffer designed to handle data efficiently. It supports reading, writing, serialization, and other utility operations. `gbuffer_t` is commonly used in Yuneta to manage data streams, encode/decode information, and store dynamic content.
 
+Source code in:
+
+- [gbuffer.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gbuffer.c)
+- [gobj.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
+
+
 ---
 
 ## Structure Overview

@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Create an input stream for reading data. Works with [`istream_t *`](istream_t).
+Create an input stream for reading data. Works with [`istream_h`](istream_h).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -52,7 +52,7 @@ PUBLIC istream_t *istream_create(
 **Return Value**
 
 
-Returns a pointer to the newly created [`istream_t *`](istream_t), or `NULL` on failure.
+Returns a pointer to the newly created [`istream_h`](istream_h), or `NULL` on failure.
         
 
 

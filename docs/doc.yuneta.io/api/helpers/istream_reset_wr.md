@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Reset the write pointer of the input stream to the beginning. Works with [`istream_t *`](istream_t).
+Reset the write pointer of the input stream to the beginning. Works with [`istream_h`](istream_h).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC void istream_reset_wr(
   - Description
 
 * - `istream`
-  - [`istream_t *`](istream_t)
+  - [`istream_h`](istream_h)
   - The input stream whose write pointer will be reset.
 :::
         
@@ -180,4 +180,3 @@ No return value. This function resets the write pointer of the input stream.
 ``````
 
 ```````
-

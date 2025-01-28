@@ -7,6 +7,10 @@
 
 In **C**, the library is built on top of the [Jansson library](https://jansson.readthedocs.io/), while in other languages like **JavaScript** and **Python**, it leverages native types (`bool`, `array`, `object` in JS and `list`, `dict` in Python). This design ensures seamless integration with the native JSON structures of each language, enabling consistent behavior and cross-platform portability.
 
+Source code in:
+- [kwid.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/kwid.c)
+- [kwid.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/kwid.h)
+
 ---
 
 ## Key Features and Goals

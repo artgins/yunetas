@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Get the current read pointer for the input stream. Works with [`istream_t *`](istream_t).
+Get the current read pointer for the input stream. Works with [`istream_h`](istream_h).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC const char *istream_cur_rd_pointer(
   - Description
 
 * - `istream`
-  - [`istream_t *`](istream_t)
+  - [`istream_h`](istream_h)
   - The input stream to query.
 :::
         
@@ -180,4 +180,3 @@ Returns a pointer to the current read position in the input stream.
 ``````
 
 ```````
-

@@ -9,6 +9,11 @@ The statistics parser integrates with the [`gobj_stats()`](gobj_stats()) API, dy
 json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
 ```
 
+Source code in:
+
+- [stats_parser.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/stats_parser.c)
+- [stats_parser.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/stats_parser.h)
+
 ---
 
 ## How the Internal Statistics Parser Works

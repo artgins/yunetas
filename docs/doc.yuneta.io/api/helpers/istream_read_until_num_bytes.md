@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Read data from an input stream until a specified number of bytes is read. Works with [`istream_t *`](istream_t).
+Read data from an input stream until a specified number of bytes is read. Works with [`istream_h`](istream_h).
         
 
 <!------------------------------------------------------------>
@@ -45,7 +45,7 @@ PUBLIC size_t istream_read_until_num_bytes(
   - Description
 
 * - `istream`
-  - [`istream_t *`](istream_t)
+  - [`istream_h`](istream_h)
   - The input stream to read from.
 
 * - `buffer`
@@ -190,4 +190,3 @@ Returns the number of bytes successfully read, or `0` on failure.
 ``````
 
 ```````
-

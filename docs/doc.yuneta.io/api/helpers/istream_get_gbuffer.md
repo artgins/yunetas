@@ -6,7 +6,7 @@
 <!-- ============================================================== -->
 
 
-Retrieve the current gbuffer from the input stream. Works with [`istream_t *`](istream_t) and [`gbuffer_t *`](gbuffer_t).
+Retrieve the current gbuffer from the input stream. Works with [`istream_h`](istream_h) and [`gbuffer_t *`](gbuffer_t).
         
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ PUBLIC gbuffer_t *istream_get_gbuffer(
   - Description
 
 * - `istream`
-  - [`istream_t *`](istream_t)
+  - [`istream_h`](istream_h)
   - The input stream to retrieve the gbuffer from.
 :::
         
@@ -180,4 +180,3 @@ Returns a pointer to the current [`gbuffer_t *`](gbuffer_t) in the input stream,
 ``````
 
 ```````
-
