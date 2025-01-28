@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (istream_destroy())=
 # `istream_destroy()`
 <!-- ============================================================== -->
 
-
-Destroy an input stream and free associated resources. Works with [`istream_h`](istream_h).
-        
+The `istream_destroy` function deallocates and cleans up all memory associated with an input stream (`istream`). This includes freeing its internal resources, such as the buffer and other dynamically allocated attributes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,43 @@ Destroy an input stream and free associated resources. Works with [`istream_h`](
 **Prototype**
 
 ```C
-
 PUBLIC void istream_destroy(
-    istream_t *istream
+    istream_h   istream
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
-:widths: 10 5 40
+::: {list-table}
+:widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `istream`
-  - [`istream_h`](istream_h)
-  - The input stream to destroy.
+* - **Parameter**
+  - **Type**
+  - **Description**
+
+* - `istream_h`
+  - `istream`
+  - Handle to the input stream instance to be destroyed.
 :::
-        
 
 ---
 
 **Return Value**
 
+- This function does not return a value.
 
-No return value. This function frees resources associated with the input stream.
-        
+**Notes**
+
+- **Memory Management:**
+  - Frees the dynamically allocated `delimiter` and `event_name` strings.
+  - Decrements the reference count of the associated `gbuffer_t`.
+  - Finally, frees the memory allocated for the `ISTREAM` structure itself.
+- **Safe Destruction:**
+  - The function checks if `istream` is not `NULL` before proceeding with cleanup.
+
+**Use Case**
+This function is typically called when an `istream` instance is no longer needed to ensure proper memory management and avoid memory leaks.
 
 
 <!--====================================================-->
