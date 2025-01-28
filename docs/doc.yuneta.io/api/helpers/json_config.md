@@ -7,6 +7,10 @@
 
 The `json_config()` function merges multiple JSON configurations into a single final configuration string, following a specific order of precedence. It also includes features like comment handling, variable substitution, and range-based expansion for flexibility and advanced use cases.
 
+Source code in:
+
+- [json_config.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/json_config.c)
+
 See [`Settings`](settings)
 
 

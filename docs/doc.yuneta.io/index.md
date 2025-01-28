@@ -87,6 +87,7 @@ guide/guide_authz.md
 :caption: GObj API
 :maxdepth: 1
 
+
 api/gobj/startup/api_gobj_startup.md
 api/gobj/gclass/api_gobj_gclass.md
 api/gobj/creation/api_gobj_creation.md

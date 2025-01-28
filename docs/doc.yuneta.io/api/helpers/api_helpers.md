@@ -1,11 +1,9 @@
 # Helpers
 
-(istream)=
-## **IStream**
+Source code in:
 
-
-(istream_t)=
-## istream_t
+- [helpers.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
+- [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
 ```{toctree}
 :caption: Helpers functions
@@ -84,6 +82,8 @@ walk_dir_tree.md
 get_number_of_files.md
 get_ordered_filename_array.md
 free_ordered_filename_array.md
+hex2bin.md
+bin2hex.md
 tdump.md
 tdump2json.md
 print_json2.md

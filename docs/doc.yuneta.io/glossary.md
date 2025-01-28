@@ -186,6 +186,12 @@ re-launch
     Yunos running as daemons are highly robust, self-healing, and independent of external service management systems.
 
 
+istream_h
+
+    ```c
+    typedef void *istream_h;
+    ```
+
 ```
 
 [//]: # (:sorted:)
