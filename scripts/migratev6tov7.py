@@ -24,12 +24,15 @@ DEFAULT_SUBSTITUTIONS = [
     ("tranger_backup_topic",    "tranger2_backup_topic"),
     ("tranger_append_record",   "tranger2_append_record"),
     ("md_record_t",             "md2_record_ex_t"),
+    ("\"EV_SEND_MESSAGE\"",     "EV_SEND_MESSAGE"),
+    ("\"EV_DROP\"",             "EV_DROP"),
 
     ("gobj_read_int32_attr",    "gobj_read_integer_attr"),
     ("gobj_read_uint64_attr",   "gobj_read_integer_attr"),
     ("gobj_write_int32_attr",   "gobj_write_integer_attr"),
     ("gobj_write_uint64_attr",  "gobj_write_integer_attr"),
 
+    ("gbuf_clear",              "gbuffer_clear"),
     ("gbuf_create",             "gbuffer_create"),
     ("gbuf_append_string",      "gbuffer_append_string"),
     ("gbuf_printf",             "gbuffer_printf"),
@@ -43,6 +46,7 @@ DEFAULT_SUBSTITUTIONS = [
     ("GBUF_DECREF",             "GBUFFER_DECREF"),
     ("GBUF_INCREF",             "GBUFFER_INCREF"),
     ("gbuf_encodebase64",       "gbuffer_encode_base64"),
+    ("get_host_name()",         "get_hostname()"),
 
     ("msg_iev_build_webix",     "msg_iev_build_response"),
     ("rc_free_iter",            "gobj_free_iter"),
@@ -63,10 +67,17 @@ DEFAULT_REGEX_SUBSTITUTIONS = [
 
     (r'\blog_debug_dump\(0,', 'gobj_trace_dump(gobj,'),
     (r'\blog_debug_gbuf\(LOG_DUMP_OUTPUT,', 'gobj_trace_dump_gbuf(gobj,'),
+    (r'\blog_debug_gbuf\(LOG_DUMP_INPUT,', 'gobj_trace_dump_gbuf(gobj,'),
+    (r'\blog_debug_gbuf\(0,', 'gobj_trace_dump_gbuf(gobj,'),
     (r'\blog_debug_full_gbuf\(LOG_DUMP_INPUT, ', 'gobj_trace_dump_full_gbuf(gobj,'),
 
-    (r'\bGBUFFER', 'gbuffer_t'),
+    (r'\bGBUFFER ', 'gbuffer_t '),
 
+
+    (r'log_debug_dump\((?!gobj)', 'gobj_trace_dump(gobj, '),
+    (r'kw_get_dict\((?!gobj)', 'kw_get_dict(gobj, '),
+    (r'kw_get_list\((?!gobj)', 'kw_get_list(gobj, '),
+    (r'kw_set_dict_value\((?!gobj)', 'kw_set_dict_value(gobj, '),
     (r'kw_get_dict_value\((?!gobj)', 'kw_get_dict_value(gobj, '),
     (r'kw_select\((?!gobj)', 'kw_select(gobj, '),
     (r'kw_get_str\((?!gobj)', 'kw_get_str(gobj, '),
