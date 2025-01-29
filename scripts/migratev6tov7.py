@@ -24,14 +24,26 @@ DEFAULT_SUBSTITUTIONS = [
     ("tranger_backup_topic",    "tranger2_backup_topic"),
     ("tranger_append_record",   "tranger2_append_record"),
     ("md_record_t",             "md2_record_ex_t"),
+    ("\"EV_ON_ID\"",            "EV_ON_ID"),
+    ("\"EV_ON_MESSAGE\"",       "EV_ON_MESSAGE"),
+    ("\"EV_ON_OPEN\"",          "EV_ON_OPEN"),
+    ("\"EV_ON_CLOSE\"",         "EV_ON_CLOSE"),
+    ("\"EV_TX_DATA\"",          "EV_TX_DATA"),
+    ("\"EV_RX_DATA\"",          "EV_RX_DATA"),
+    ("\"EV_SEND_EMAIL\"",       "EV_SEND_EMAIL"),
     ("\"EV_SEND_MESSAGE\"",     "EV_SEND_MESSAGE"),
     ("\"EV_DROP\"",             "EV_DROP"),
+    ("\"ST_CONNECTED\"",        "ST_CONNECTED"),
+
+    ("uint64_t *ptxMsgs;",      "uint64_t txMsgs;"),
+    ("uint64_t *prxMsgs;",      "uint64_t rxMsgs;"),
 
     ("gobj_read_int32_attr",    "gobj_read_integer_attr"),
     ("gobj_read_uint64_attr",   "gobj_read_integer_attr"),
     ("gobj_write_int32_attr",   "gobj_write_integer_attr"),
     ("gobj_write_uint64_attr",  "gobj_write_integer_attr"),
 
+    ("gbuf_set_rd_offset",      "gbuffer_set_rd_offset"),
     ("gbuf_clear",              "gbuffer_clear"),
     ("gbuf_create",             "gbuffer_create"),
     ("gbuf_append_string",      "gbuffer_append_string"),
@@ -90,7 +102,12 @@ DEFAULT_REGEX_SUBSTITUTIONS = [
 
 # List of default regex patterns to delete matching lines
 DEFAULT_REGEX_DELETIONS = [
-    r'.*"gobj",\s+"%s",.*'  # Matches lines with "gobj", "%s" with spaces allowed in between
+    r'.*"gobj",\s+"%s",.*',  # Matches lines with "gobj", "%s" with spaces allowed in between
+    r'priv->ptxMsgs = gobj_danger_attr_ptr\(gobj, "txMsgs"\);',
+    r'priv->prxMsgs = gobj_danger_attr_ptr\(gobj, "rxMsgs"\);',
+    r'gobj_set_qs.*',
+    r'gobj_incr_qs.*',
+    r'gobj_decr_qs.*'
 ]
 
 def substitute_strings_in_file(filename, substitutions):
