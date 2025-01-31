@@ -1798,7 +1798,8 @@
                         on_success(json);
                     } catch (error) {
                         if (on_error) {
-                            on_error(`JSON parse status ${req.status},  error: ${error.message}`);
+                            log_error(`JSON parse status ${req.status},  error: ${error.message}`);
+                            on_error(req.status);
                         }
                     }
                 } else {
