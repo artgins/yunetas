@@ -1793,10 +1793,16 @@
         req.onreadystatechange = function () {
             if (req.readyState === 4) {
                 if (req.status === 200 || fileLoaded(req)) {
-                    let json = JSON.parse(req.responseText);
-                    on_success(json);
+                    try {
+                        let json = JSON.parse(req.responseText);
+                        on_success(json);
+                    } catch (error) {
+                        if (on_error) {
+                            on_error(`JSON parse status ${req.status},  error: ${error.message}`);
+                        }
+                    }
                 } else {
-                    if(on_error) {
+                    if (on_error) {
                         on_error(req.status);
                     }
                 }
