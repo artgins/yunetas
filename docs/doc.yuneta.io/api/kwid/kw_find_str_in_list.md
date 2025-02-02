@@ -37,7 +37,7 @@ PUBLIC BOOL kw_find_str_in_list(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns `TRUE` if the string exists in the array, otherwise returns `FALSE`.
 ``````
 
 ```````
-

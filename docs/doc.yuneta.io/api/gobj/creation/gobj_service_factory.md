@@ -29,7 +29,7 @@ PUBLIC hgobj gobj_service_factory(
 **Parameters**
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type

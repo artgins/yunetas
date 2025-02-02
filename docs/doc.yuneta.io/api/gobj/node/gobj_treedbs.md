@@ -38,7 +38,7 @@ PUBLIC json_t *gobj_treedbs(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -191,4 +191,3 @@ If `gobj` is null or destroyed, returns `NULL`.
 ``````
 
 ```````
-

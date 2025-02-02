@@ -37,7 +37,7 @@ PUBLIC int file_permission(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns `0` if the file has the specified permissions, otherwise returns a negat
 ``````
 
 ```````
-

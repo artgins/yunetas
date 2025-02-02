@@ -36,7 +36,7 @@ PUBLIC char **list_open_files(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns an array of strings containing the paths of open files, or `NULL` on fai
 ``````
 
 ```````
-

@@ -34,7 +34,7 @@ PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -183,4 +183,3 @@ PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
 ``````
 
 ```````
-

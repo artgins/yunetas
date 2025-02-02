@@ -34,7 +34,7 @@ int gobj_send_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -192,4 +192,3 @@ int gobj_send_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 ``````
 
 ```````
-

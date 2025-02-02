@@ -37,7 +37,7 @@ PUBLIC void free_ordered_filename_array(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ No return value. This function frees the memory allocated for the filename array
 ``````
 
 ```````
-

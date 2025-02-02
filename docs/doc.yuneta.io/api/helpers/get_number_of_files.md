@@ -36,7 +36,7 @@ PUBLIC int get_number_of_files(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns the number of files in the directory, or a negative value on failure.
 ``````
 
 ```````
-

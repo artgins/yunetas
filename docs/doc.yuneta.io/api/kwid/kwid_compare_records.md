@@ -37,7 +37,7 @@ PUBLIC int kwid_compare_records(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns `0` if the `kwid` fields are equal, a positive value if `record1` is gre
 ``````
 
 ```````
-

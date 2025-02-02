@@ -36,7 +36,7 @@ PUBLIC dl_node_t *dl_next(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns a pointer to the next node, or `NULL` if there is no next node.
 ``````
 
 ```````
-

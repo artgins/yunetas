@@ -37,7 +37,7 @@ PUBLIC int json_list_str_index(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns the index of the string in the JSON array, or `-1` if not found.
 ``````
 
 ```````
-

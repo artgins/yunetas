@@ -32,7 +32,7 @@ PUBLIC void gobj_log_warning(hgobj gobj, log_opt_t opt, ...);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -184,4 +184,3 @@ PUBLIC void gobj_log_warning(hgobj gobj, log_opt_t opt, ...);
 ``````
 
 ```````
-

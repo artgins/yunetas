@@ -34,7 +34,7 @@ void *gobj_priv_data(hgobj gobj);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -179,4 +179,3 @@ void *gobj_priv_data(hgobj gobj);
 ``````
 
 ```````
-

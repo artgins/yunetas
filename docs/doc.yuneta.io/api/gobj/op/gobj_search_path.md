@@ -34,7 +34,7 @@ hgobj gobj_search_path(hgobj gobj, const char *path);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -184,4 +184,3 @@ hgobj gobj_search_path(hgobj gobj, const char *path);
 ``````
 
 ```````
-

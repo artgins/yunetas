@@ -42,7 +42,7 @@ PUBLIC json_t *gobj_node_childs(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -211,4 +211,3 @@ If no children exist or the operation fails, returns `NULL`.
 ``````
 
 ```````
-

@@ -34,7 +34,7 @@ hgobj gobj_find_child(hgobj gobj, json_t *filter);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -184,4 +184,3 @@ hgobj gobj_find_child(hgobj gobj, json_t *filter);
 ``````
 
 ```````
-

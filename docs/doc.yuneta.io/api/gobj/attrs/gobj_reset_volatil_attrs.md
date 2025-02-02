@@ -30,7 +30,7 @@ PUBLIC int gobj_reset_volatil_attrs(
 **Parameters**
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type

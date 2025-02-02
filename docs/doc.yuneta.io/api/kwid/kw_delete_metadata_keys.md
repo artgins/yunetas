@@ -36,7 +36,7 @@ PUBLIC int kw_delete_metadata_keys(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns the number of metadata keys removed, or `0` if none were found.
 ``````
 
 ```````
-

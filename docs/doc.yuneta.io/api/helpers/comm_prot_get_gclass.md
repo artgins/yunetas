@@ -36,7 +36,7 @@ PUBLIC const char *comm_prot_get_gclass(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns the name of the GClass associated with the protocol, or `NULL` if not fo
 ``````
 
 ```````
-

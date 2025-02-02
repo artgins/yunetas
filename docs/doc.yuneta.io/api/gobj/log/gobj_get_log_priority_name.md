@@ -32,7 +32,7 @@ PUBLIC const char *gobj_get_log_priority_name(int priority);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -177,4 +177,3 @@ PUBLIC const char *gobj_get_log_priority_name(int priority);
 ``````
 
 ```````
-

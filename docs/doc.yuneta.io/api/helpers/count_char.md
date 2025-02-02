@@ -37,7 +37,7 @@ PUBLIC int count_char(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns the number of times the character `c` appears in the string.
 ``````
 
 ```````
-

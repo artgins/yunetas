@@ -36,7 +36,7 @@ PUBLIC json_t *kw_deserialize(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns a [`json_t *`](json_t) created from the gbuffer, or `NULL` on failure.
 ``````
 
 ```````
-

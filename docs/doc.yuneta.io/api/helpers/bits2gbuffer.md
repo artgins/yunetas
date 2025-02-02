@@ -37,7 +37,7 @@ PUBLIC gbuffer_t *bits2gbuffer(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns a [`gbuffer_t *`](gbuffer_t) containing the string representation of the
 ``````
 
 ```````
-

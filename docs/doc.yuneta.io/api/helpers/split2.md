@@ -41,7 +41,7 @@ PUBLIC BOOL split2(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -205,4 +205,3 @@ Returns `TRUE` if the string was successfully split into two parts, otherwise re
 ``````
 
 ```````
-

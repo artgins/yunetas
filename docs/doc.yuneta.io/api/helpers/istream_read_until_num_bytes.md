@@ -18,18 +18,19 @@ Configures the istream to read data until a specified number of bytes (`num_byte
 <!--====================================================-->
 
 **Prototype**
+
+```C
 PUBLIC int istream_read_until_num_bytes(
     istream_h       istream,
     size_t          num_bytes,
     gobj_event_t    event
 );
-);
 ```
 
 **Parameters**
 
-:::list-table
-:widths: 10 5 40
+::: {list-table}
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type

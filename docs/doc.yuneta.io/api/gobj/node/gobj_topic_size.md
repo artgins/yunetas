@@ -38,7 +38,7 @@ PUBLIC size_t gobj_topic_size(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -191,4 +191,3 @@ If the `gobj` is null or the key is not found, the size returned is `0`.
 ``````
 
 ```````
-

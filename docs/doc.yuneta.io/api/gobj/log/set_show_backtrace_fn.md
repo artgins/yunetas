@@ -32,7 +32,7 @@ PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -176,4 +176,3 @@ PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
 ``````
 
 ```````
-

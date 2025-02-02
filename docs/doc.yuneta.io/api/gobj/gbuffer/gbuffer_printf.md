@@ -38,7 +38,7 @@ PUBLIC int gbuffer_printf(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -186,4 +186,3 @@ Returns the number of characters written on success, or a negative value if the 
 ``````
 
 ```````
-

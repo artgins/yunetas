@@ -34,7 +34,7 @@ int gobj_change_state(hgobj gobj, gobj_state_t new_state);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -184,4 +184,3 @@ int gobj_change_state(hgobj gobj, gobj_state_t new_state);
 ``````
 
 ```````
-

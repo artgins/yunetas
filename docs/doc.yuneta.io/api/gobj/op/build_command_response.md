@@ -34,7 +34,7 @@ json_t *build_command_response(hgobj gobj, int result, const char *message, json
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -192,4 +192,3 @@ json_t *build_command_response(hgobj gobj, int result, const char *message, json
 ``````
 
 ```````
-

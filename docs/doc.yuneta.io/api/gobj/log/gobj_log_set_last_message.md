@@ -32,7 +32,7 @@ PUBLIC void gobj_log_set_last_message(const char *msg, ...);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ PUBLIC void gobj_log_set_last_message(const char *msg, ...);
 ``````
 
 ```````
-

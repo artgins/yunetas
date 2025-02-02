@@ -37,7 +37,7 @@ PUBLIC json_t *gobj_topic_desc(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -186,4 +186,3 @@ If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
 ``````
 
 ```````
-

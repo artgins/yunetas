@@ -36,7 +36,7 @@ PUBLIC json_t *kwid_get_ids(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns a [`json_t *`](json_t) array containing the IDs, or `NULL` on failure.
 ``````
 
 ```````
-

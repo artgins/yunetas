@@ -32,7 +32,7 @@ PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -174,4 +174,3 @@ None.
 ``````
 
 ```````
-

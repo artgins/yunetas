@@ -34,7 +34,7 @@ gclass_name_t gobj_gclass_name(hgobj gobj);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -179,4 +179,3 @@ gclass_name_t gobj_gclass_name(hgobj gobj);
 ``````
 
 ```````
-

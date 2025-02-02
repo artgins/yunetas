@@ -34,7 +34,7 @@ int stdout_fwrite(void *v, int priority, const char *format, ...);
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -191,4 +191,3 @@ int stdout_fwrite(void *v, int priority, const char *format, ...);
 ``````
 
 ```````
-

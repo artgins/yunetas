@@ -36,7 +36,7 @@ PUBLIC size_t gbuffer_getmark(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns the position of the mark in the gbuffer, or `0` if no mark is set.
 ``````
 
 ```````
-

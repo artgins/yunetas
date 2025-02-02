@@ -36,7 +36,7 @@ PUBLIC json_t *kw_filter_private(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns a new [`json_t *`](json_t) object without private keys, or `NULL` on fai
 ``````
 
 ```````
-

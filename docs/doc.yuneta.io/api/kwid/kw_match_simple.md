@@ -38,7 +38,7 @@ PUBLIC BOOL kw_match_simple(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -190,4 +190,3 @@ Returns `TRUE` if the key-value pair matches in the JSON object, otherwise retur
 ``````
 
 ```````
-

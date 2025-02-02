@@ -37,7 +37,7 @@ PUBLIC json_t *tdump2json(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns a [`json_t *`](json_t) object representing the memory dump, or `NULL` on
 ``````
 
 ```````
-

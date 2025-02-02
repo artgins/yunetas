@@ -39,7 +39,7 @@ PUBLIC int test_file_permission_and_size(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -195,4 +195,3 @@ Returns `0` if the file meets the specified permissions and size requirements, o
 ``````
 
 ```````
-

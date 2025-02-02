@@ -39,7 +39,7 @@ PUBLIC void gobj_trace_dump(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -201,4 +201,3 @@ This function does not return a value.
 ``````
 
 ```````
-

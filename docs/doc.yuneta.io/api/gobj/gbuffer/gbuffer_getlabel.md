@@ -36,7 +36,7 @@ PUBLIC const char *gbuffer_getlabel(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns the label of the gbuffer as a null-terminated string, or `NULL` if no la
 ``````
 
 ```````
-

@@ -37,7 +37,7 @@ PUBLIC BOOL gobj_get_gclass_trace_level(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns `TRUE` if the specified trace level is enabled for the GClass, otherwise
 ``````
 
 ```````
-

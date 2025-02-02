@@ -36,7 +36,7 @@ TODO C prototype
 **Parameters**
 
 ````{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -87,7 +87,7 @@ TODO JS prototype
 **Parameters**
 
 ````{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -137,7 +137,7 @@ TODO Pyton prototype
 **Parameters**
 
 ````{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type

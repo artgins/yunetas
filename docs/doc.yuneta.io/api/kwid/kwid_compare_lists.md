@@ -37,7 +37,7 @@ PUBLIC int kwid_compare_lists(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -185,4 +185,3 @@ Returns `0` if the lists are equal, a positive value if `list1` is greater, or a
 ``````
 
 ```````
-

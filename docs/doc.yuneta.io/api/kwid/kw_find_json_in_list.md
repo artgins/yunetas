@@ -38,7 +38,7 @@ PUBLIC json_t *kw_find_json_in_list(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -190,4 +190,3 @@ Returns a pointer to the first JSON object in the array that matches the key-val
 ``````
 
 ```````
-

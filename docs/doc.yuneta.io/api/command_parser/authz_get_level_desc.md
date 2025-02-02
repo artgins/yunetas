@@ -36,7 +36,7 @@ PUBLIC const char *authz_get_level_desc(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -180,4 +180,3 @@ Returns a string containing the description of the authorization level, or `NULL
 ``````
 
 ```````
-

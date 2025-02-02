@@ -39,7 +39,7 @@ PUBLIC const char *kw_get_subdict_value(
 
 
 :::{list-table}
-:widths: 10 5 40
+:widths: 20 20 60
 :header-rows: 1
 * - Key
   - Type
@@ -195,4 +195,3 @@ Returns the string value of the key in the sub-dictionary, or `default_value` if
 ``````
 
 ```````
-
