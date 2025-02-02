@@ -25,6 +25,8 @@
 #include "helpers.h"
 #include "gobj.h"
 
+#include <linux/limits.h>
+
 extern void jsonp_free(void *ptr);
 
 /***************************************************************
@@ -1384,20 +1386,35 @@ PUBLIC hgobj gobj_service_factory(
  *
  ***************************************************************************/
 PUBLIC hgobj gobj_create2(
-    const char *gobj_name,
+    const char *gobj_name_,
     gclass_name_t gclass_name,
     json_t *kw, // owned
     hgobj parent_,
     gobj_flag_t gobj_flag
 ) {
-    if(!gobj_name) {
-        gobj_name = "";
-    }
     gobj_t *parent = parent_;
 
     /*--------------------------------*
      *      Check parameters
      *--------------------------------*/
+    char gobj_name[NAME_MAX];
+    if(strlen(gobj_name_)>sizeof(gobj_name)-1) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj_name too long",
+            NULL
+        );
+        JSON_DECREF(kw)
+        return NULL;
+    }
+
+    /*
+     *  gobj_name to lower, make case-insensitive
+     */
+    snprintf(gobj_name, sizeof(gobj_name), "%s", gobj_name_?gobj_name_:"");
+    strntolower(gobj_name, strlen(gobj_name));
+
     if(gobj_flag & (gobj_flag_yuno)) {
         if(__yuno__) {
             gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
