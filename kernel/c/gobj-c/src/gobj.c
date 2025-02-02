@@ -4657,7 +4657,7 @@ PUBLIC hgobj gobj_default_service(void)
 }
 
 /***************************************************************************
- *
+ *  service is case-insensitive, convert to lower to compare
  ***************************************************************************/
 PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
 {
@@ -4672,11 +4672,14 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
         }
         return NULL;
     }
+    char service_name[256];
+    snprintf(service_name, sizeof(service_name), "%s", service);
+    strntolower(service_name, sizeof(service_name));
 
-    if(strcasecmp(service, "__default_service__")==0) {
+    if(strcmp(service_name, "__default_service__")==0) {
         return __default_service__;
     }
-    if(strcasecmp(service, "__yuno__")==0 || strcasecmp(service, "__root__")==0) {
+    if(strcmp(service_name, "__yuno__")==0 || strcmp(service_name, "__root__")==0) {
         return gobj_yuno();
     }
 
