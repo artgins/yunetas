@@ -1397,7 +1397,7 @@ PUBLIC hgobj gobj_create2(
     /*--------------------------------*
      *      Check parameters
      *--------------------------------*/
-    char gobj_name[NAME_MAX];
+    char gobj_name[256];
     if(strlen(gobj_name_)>sizeof(gobj_name)-1) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -5694,7 +5694,7 @@ PUBLIC const char * gobj_short_name(hgobj gobj_)
     }
 
     if(!gobj->short_name) {
-        char temp[256];
+        char temp[2*256];
         snprintf(temp, sizeof(temp),
             "%s^%s",
             gobj_gclass_name(gobj),
