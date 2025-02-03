@@ -6,266 +6,206 @@ Source code in:
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
 
-## File System Functions
-- [`file_exists()`](#file_exists)
-- [`file_permission()`](#file_permission)
-- [`file_remove()`](#file_remove)
-- [`filesize()`](#filesize)
-- [`filesize2()`](#filesize2)
-- [`is_directory()`](#is_directory)
-- [`is_regular_file()`](#is_regular_file)
-- [`lock_file()`](#lock_file)
-- [`mkrdir()`](#mkrdir)
-- [`newdir()`](#newdir)
-- [`newfile()`](#newfile)
-- [`open_exclusive()`](#open_exclusive)
-- [`rmrcontentdir()`](#rmrcontentdir)
-- [`rmrdir()`](#rmrdir)
-- [`subdir_exists()`](#subdir_exists)
-- [`unlock_file()`](#unlock_file)
+:::{toctree}
+:caption: File System Functions
+:maxdepth: 1
 
-## String Functions
-- [`all_numbers()`](#all_numbers)
-- [`build_path()`](#build_path)
-- [`change_char()`](#change_char)
-- [`delete_left_blanks()`](#delete_left_blanks)
-- [`delete_left_char()`](#delete_left_char)
-- [`delete_right_blanks()`](#delete_right_blanks)
-- [`delete_right_char()`](#delete_right_char)
-- [`get_key_value_parameter()`](#get_key_value_parameter)
-- [`get_last_segment()`](#get_last_segment)
-- [`get_parameter()`](#get_parameter)
-- [`helper_doublequote2quote()`](#helper_doublequote2quote)
-- [`helper_quote2doublequote()`](#helper_quote2doublequote)
-- [`idx_in_list()`](#idx_in_list)
-- [`left_justify()`](#left_justify)
-- [`nice_size()`](#nice_size)
-- [`pop_last_segment()`](#pop_last_segment)
-- [`replace_string()`](#replace_string)
-- [`split2()`](#split2)
-- [`split3()`](#split3)
-- [`split_free2()`](#split_free2)
-- [`split_free3()`](#split_free3)
-- [`str_concat()`](#str_concat)
-- [`str_concat3()`](#str_concat3)
-- [`str_concat_free()`](#str_concat_free)
-- [`str_in_list()`](#str_in_list)
-- [`strntolower()`](#strntolower)
-- [`strntoupper()`](#strntoupper)
-- [`translate_string()`](#translate_string)
+file_exists
+file_permission
+file_remove
+file_size
+filesize
+filesize2
+is_directory
+is_regular_file
+lock_file
+mkrdir
+newdir
+newfile
+open_exclusive
+rmrcontentdir
+rmrdir
+subdir_exists
+unlock_file
+:::
 
-## JSON Functions
-- [`anystring2json()`](#anystring2json)
-- [`bits2gbuffer()`](#bits2gbuffer)
-- [`bits2jn_strlist()`](#bits2jn_strlist)
-- [`create_json_record()`](#create_json_record)
-- [`json2str()`](#json2str)
-- [`json2uglystr()`](#json2uglystr)
-- [`json_is_identical()`](#json_is_identical)
-- [`json_list_str_index()`](#json_list_str_index)
-- [`json_record_to_schema()`](#json_record_to_schema)
-- [`json_str_in_list()`](#json_str_in_list)
-- [`load_json_from_file()`](#load_json_from_file)
-- [`load_persistent_json()`](#load_persistent_json)
-- [`save_json_to_file()`](#save_json_to_file)
-- [`string2json()`](#string2json)
-- [`strings2bits()`](#strings2bits)
+:::{toctree}
+:caption: String Helper Functions
+:maxdepth: 1
 
-## Time Functions
-- [`current_timestamp()`](#current_timestamp)
-- [`formatdate()`](#formatdate)
-- [`start_msectimer()`](#start_msectimer)
-- [`start_sectimer()`](#start_sectimer)
-- [`t2timestamp()`](#t2timestamp)
-- [`test_msectimer()`](#test_msectimer)
-- [`test_sectimer()`](#test_sectimer)
-- [`time_in_miliseconds()`](#time_in_miliseconds)
-- [`time_in_miliseconds_monotonic()`](#time_in_miliseconds_monotonic)
-- [`time_in_seconds()`](#time_in_seconds)
-- [`tm2timestamp()`](#tm2timestamp)
+all_numbers
+bin2hex
+build_path
+change_char
+count_char
+delete_left_blanks
+delete_left_char
+delete_right_blanks
+delete_right_char
+get_key_value_parameter
+get_last_segment
+get_parameter
+helper_doublequote2quote
+helper_quote2doublequote
+hex2bin
+idx_in_list
+left_justify
+nice_size
+pop_last_segment
+replace_string
+split2
+split3
+split_free2
+split_free3
+str_concat
+str_concat3
+str_concat_free
+str_in_list
+strntolower
+strntoupper
+translate_string
+:::
 
-## Utility Functions
-- [`bin2hex()`](#bin2hex)
-- [`count_char()`](#count_char)
-- [`create_uuid()`](#create_uuid)
-- [`get_hostname()`](#get_hostname)
-- [`hex2bin()`](#hex2bin)
-- [`htonll()`](#htonll)
-- [`list_open_files()`](#list_open_files)
-- [`node_uuid()`](#node_uuid)
-- [`ntohll()`](#ntohll)
-- [`print_json2()`](#print_json2)
-- [`set_real_precision()`](#set_real_precision)
-- [`tdump()`](#tdump)
-- [`tdump2json()`](#tdump2json)
+:::{toctree}
+:caption: JSON Helper Functions
+:maxdepth: 1
 
-## Protocol/Daemon Functions
-- [`comm_prot_free()`](#comm_prot_free)
-- [`comm_prot_get_gclass()`](#comm_prot_get_gclass)
-- [`comm_prot_register()`](#comm_prot_register)
-- [`launch_daemon()`](#launch_daemon)
+anystring2json
+bits2gbuffer
+bits2jn_strlist
+cmp_two_simple_json
+create_json_record
+debug_json
+get_real_precision
+jn2bool
+jn2integer
+jn2real
+jn2string
+json2str
+json2uglystr
+json_check_refcounts
+json_config
+json_is_identical
+json_list_str_index
+json_print_refcounts
+json_record_to_schema
+json_str_in_list
+load_json_from_file
+load_persistent_json
+print_json2
+save_json_to_file
+set_real_precision
+string2json
+strings2bits
+:::
 
-## URL Parsing Functions
-- [`get_url_schema()`](#get_url_schema)
-- [`parse_url()`](#parse_url)
+:::{toctree}
+:caption: Directory Walk Functions
+:maxdepth: 1
 
-## Debugging Functions
-- [`init_backtrace_with_backtrace()`](#init_backtrace_with_backtrace)
-- [`show_backtrace_with_backtrace()`](#show_backtrace_with_backtrace)
+free_ordered_filename_array
+get_number_of_files
+get_ordered_filename_array
+walk_dir_tree
+:::
 
-## HTTP Parser Functions
-- [`ghttp_parser_create()`](#ghttp_parser_create)
-- [`ghttp_parser_destroy()`](#ghttp_parser_destroy)
-- [`ghttp_parser_received()`](#ghttp_parser_received)
-- [`ghttp_parser_reset()`](#ghttp_parser_reset)
+:::{toctree}
+:caption: Time and Date Functions
+:maxdepth: 1
 
-## IStream Functions
-- [`istream_clear()`](#istream_clear)
-- [`istream_consume()`](#istream_consume)
-- [`istream_create()`](#istream_create)
-- [`istream_cur_rd_pointer()`](#istream_cur_rd_pointer)
-- [`istream_destroy()`](#istream_destroy)
-- [`istream_extract_matched_data()`](#istream_extract_matched_data)
-- [`istream_get_gbuffer()`](#istream_get_gbuffer)
-- [`istream_is_completed()`](#istream_is_completed)
-- [`istream_length()`](#istream_length)
-- [`istream_new_gbuffer()`](#istream_new_gbuffer)
-- [`istream_pop_gbuffer()`](#istream_pop_gbuffer)
-- [`istream_read_until_delimiter()`](#istream_read_until_delimiter)
-- [`istream_read_until_num_bytes()`](#istream_read_until_num_bytes)
-- [`istream_reset_rd()`](#istream_reset_rd)
-- [`istream_reset_wr()`](#istream_reset_wr)
+approxidate_careful
+approxidate_relative
+current_timestamp
+datestamp
+formatdate
+htonll
+list_open_files
+ntohll
+parse_date
+parse_date_basic
+parse_date_format
+parse_expiry_date
+start_msectimer
+start_sectimer
+t2timestamp
+test_msectimer
+test_sectimer
+time_in_miliseconds
+time_in_miliseconds_monotonic
+time_in_seconds
+tm2timestamp
+:::
 
+:::{toctree}
+:caption: Misc Utilities
+:maxdepth: 1
 
-```{toctree}
-:caption: Helpers functions
-:maxdepth: 0
+create_uuid
+get_hostname
+node_uuid
+:::
 
-newdir.md
-newfile.md
-open_exclusive.md
-filesize.md
-filesize2.md
-lock_file.md
-unlock_file.md
-is_regular_file.md
-is_directory.md
-file_size.md
-file_permission.md
-file_exists.md
-subdir_exists.md
-file_remove.md
-mkrdir.md
-rmrdir.md
-rmrcontentdir.md
-delete_right_char.md
-delete_left_char.md
-build_path.md
-get_last_segment.md
-pop_last_segment.md
-helper_quote2doublequote.md
-helper_doublequote2quote.md
-all_numbers.md
-init_backtrace_with_backtrace.md
-show_backtrace_with_backtrace.md
-replace_string.md
-nice_size.md
-delete_right_blanks.md
-delete_left_blanks.md
-left_justify.md
-strntoupper.md
-strntolower.md
-translate_string.md
-change_char.md
-get_parameter.md
-get_key_value_parameter.md
-split2.md
-split_free2.md
-split3.md
-split_free3.md
-str_concat.md
-str_concat3.md
-str_concat_free.md
-idx_in_list.md
-str_in_list.md
-json_config.md
-load_persistent_json.md
-load_json_from_file.md
-save_json_to_file.md
-create_json_record.md
-json_record_to_schema.md
-bits2jn_strlist.md
-bits2gbuffer.md
-strings2bits.md
-json_list_str_index.md
-jn2real.md
-jn2integer.md
-jn2string.md
-jn2bool.md
-cmp_two_simple_json.md
-json_is_identical.md
-anystring2json.md
-string2json.md
-set_real_precision.md
-get_real_precision.md
-json2str.md
-json2uglystr.md
-json_check_refcounts.md
-json_print_refcounts.md
-json_str_in_list.md
-walk_dir_tree.md
-get_number_of_files.md
-get_ordered_filename_array.md
-free_ordered_filename_array.md
-hex2bin.md
-bin2hex.md
-tdump.md
-tdump2json.md
-print_json2.md
-debug_json.md
-current_timestamp.md
-tm2timestamp.md
-t2timestamp.md
-start_sectimer.md
-test_sectimer.md
-start_msectimer.md
-test_msectimer.md
-time_in_miliseconds_monotonic.md
-time_in_miliseconds.md
-time_in_seconds.md
-htonll.md
-ntohll.md
-list_open_files.md
-formatdate.md
-count_char.md
-get_hostname.md
-create_uuid.md
-node_uuid.md
-comm_prot_register.md
-comm_prot_get_gclass.md
-comm_prot_free.md
-launch_daemon.md
-parse_url.md
-get_url_schema.md
-ghttp_parser_create.md
-ghttp_parser_received.md
-ghttp_parser_destroy.md
-ghttp_parser_reset.md
-istream_create.md
-istream_destroy.md
-istream_read_until_num_bytes.md
-istream_read_until_delimiter.md
-istream_consume.md
-istream_cur_rd_pointer.md
-istream_length.md
-istream_get_gbuffer.md
-istream_pop_gbuffer.md
-istream_new_gbuffer.md
-istream_extract_matched_data.md
-istream_reset_wr.md
-istream_reset_rd.md
-istream_clear.md
+:::{toctree}
+:caption: Common Protocol Functions
+:maxdepth: 1
+
+comm_prot_free
+comm_prot_get_gclass
+comm_prot_register
+:::
+
+:::{toctree}
+:caption: Daemon Launcher
+:maxdepth: 1
+
+launch_daemon
+:::
+
+:::{toctree}
+:caption: URL Parsing
+:maxdepth: 1
+
+get_url_schema
+parse_url
+:::
+
+:::{toctree}
+:caption: Debug / Backtrace
+:maxdepth: 1
+
+init_backtrace_with_backtrace
+show_backtrace_with_backtrace
+tdump
+tdump2json
+:::
+
+:::{toctree}
+:caption: HTTP Parser
+:maxdepth: 1
+
+ghttp_parser_create
+ghttp_parser_destroy
+ghttp_parser_received
+ghttp_parser_reset
+:::
+
+:::{toctree}
+:caption: IStream Parser
+:maxdepth: 1
+
+istream_clear
+istream_consume
+istream_create
+istream_cur_rd_pointer
+istream_destroy
+istream_extract_matched_data
+istream_get_gbuffer
 istream_is_completed
-
-
-```
+istream_length
+istream_new_gbuffer
+istream_pop_gbuffer
+istream_read_until_delimiter
+istream_read_until_num_bytes
+istream_reset_rd
+istream_reset_wr
+:::

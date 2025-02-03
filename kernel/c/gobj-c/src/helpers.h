@@ -635,7 +635,7 @@ struct date_mode {
     int local;
 };
 
-time_t tm_to_time_t(const struct tm *tm);
+PUBLIC time_t tm_to_time_t(const struct tm *tm);
 
 /*
  * Convenience helper for passing a constant type, like:
@@ -643,22 +643,22 @@ time_t tm_to_time_t(const struct tm *tm);
  *   show_date(t, tz, DATE_MODE(NORMAL));
  */
 #define DATE_MODE(t) date_mode_from_type(DATE_##t)
-struct date_mode *date_mode_from_type(enum date_mode_type type);
+PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type);
 
-const char *show_date(timestamp_t time, int timezone, const struct date_mode *mode);
-void show_date_relative(
+PUBLIC const char *show_date(timestamp_t time, int timezone, const struct date_mode *mode);
+PUBLIC void show_date_relative(
     timestamp_t time,
     char *timebuf,
     int timebufsize
 );
-int parse_date(
+PUBLIC int parse_date(
     const char *date,
     char *out,
     int outsize
 );
-int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset);
-int parse_expiry_date(const char *date, timestamp_t *timestamp);
-void datestamp(
+PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset);
+PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp);
+PUBLIC void datestamp(
     char *out,
     int outsize
 );
@@ -666,8 +666,8 @@ void datestamp(
 #define approxidate(s) approxidate_careful((s), NULL)
 timestamp_t approxidate_careful(const char *, int *);
 timestamp_t approxidate_relative(const char *date);
-void parse_date_format(const char *format, struct date_mode *mode);
-int date_overflows(timestamp_t date);
+PUBLIC void parse_date_format(const char *format, struct date_mode *mode);
+PUBLIC int date_overflows(timestamp_t date);
 
 /*
 Here’s a breakdown of the kinds of formats approxidate_careful() can interpret:

@@ -47,24 +47,24 @@ Versions in C, partially in JavaScript. Todo in Python.
 # Index
 
 
-```{toctree}
+:::{toctree}
 :maxdepth: 1
 :caption: Get Started
 
 installation
 activating
 CHANGELOG
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: Philosophy
 :maxdepth: 1
 
 philosophy/philosophy.md
 
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: Guides
 :maxdepth: 1
 
@@ -81,9 +81,9 @@ guide/parser_stats.md
 guide/settings.md
 guide/guide_authz.md
 
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: GObj API
 :maxdepth: 1
 
@@ -106,9 +106,9 @@ api/gobj/trace/api_gobj_trace.md
 api/gobj/gbuffer/api_gobj_gbuffer.md
 api/gobj/dl/api_gobj_dl.md
 
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: GObj Auxiliary API
 :maxdepth: 1
 
@@ -120,12 +120,12 @@ api/log_udp_handler/api_log_udp_handler.md
 api/rotatory/api_rotatory.md
 api/testing/api_testing.md
 
-```
+:::
 
-```{toctree}
+:::{toctree}
 :caption: Glossary 
 :maxdepth: 1
 
 glossary
 
-```
+:::

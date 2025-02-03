@@ -3117,7 +3117,7 @@ PUBLIC void free_ordered_filename_array(char **array, int size)
 /*
  * This is like mktime, but without normalization of tm_wday and tm_yday.
  */
-time_t tm_to_time_t(const struct tm *tm)
+PUBLIC time_t tm_to_time_t(const struct tm *tm)
 {
     static const int mdays[] = {
         0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334
@@ -3241,7 +3241,7 @@ static int local_tzoffset(timestamp_t time)
 /***********************************************************************
  *   Get a string with some now! date or time formatted
  ***********************************************************************/
-void show_date_relative(
+PUBLIC void show_date_relative(
     timestamp_t tim,
     char *timebuf,
     int timebufsize)
@@ -3318,7 +3318,7 @@ void show_date_relative(
          (diff + 183) / 365);
 }
 
-struct date_mode *date_mode_from_type(enum date_mode_type type)
+PUBLIC struct date_mode *date_mode_from_type(enum date_mode_type type)
 {
     static struct date_mode mode;
     if (type == DATE_STRFTIME)
@@ -3327,7 +3327,7 @@ struct date_mode *date_mode_from_type(enum date_mode_type type)
     return &mode;
 }
 
-const char *show_date(timestamp_t tim, int tz, const struct date_mode *mode)
+PUBLIC const char *show_date(timestamp_t tim, int tz, const struct date_mode *mode)
 {
     struct tm *tm;
     static char timebuf[1024];
@@ -3875,7 +3875,7 @@ static int match_object_header_date(const char *date, timestamp_t *timestamp, in
 
 /* Gr. strptime is crap for this; it doesn't have a way to require RFC2822
    (i.e. English) day/month names, and it doesn't work correctly with %z. */
-int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)
+PUBLIC int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)
 {
     struct tm tm;
     int tm_gmt;
@@ -3947,7 +3947,7 @@ int parse_date_basic(const char *date, timestamp_t *timestamp, int *offset)
     return 0; /* success */
 }
 
-int parse_expiry_date(const char *date, timestamp_t *timestamp)
+PUBLIC int parse_expiry_date(const char *date, timestamp_t *timestamp)
 {
     int errors = 0;
 
@@ -3969,7 +3969,7 @@ int parse_expiry_date(const char *date, timestamp_t *timestamp)
     return errors;
 }
 
-int parse_date(const char *date, char *result, int resultsize)
+PUBLIC int parse_date(const char *date, char *result, int resultsize)
 {
     timestamp_t timestamp;
     int offset;
@@ -4007,7 +4007,7 @@ static enum date_mode_type parse_date_type(const char *format, const char **end)
     return DATE_NORMAL;
 }
 
-void parse_date_format(const char *format, struct date_mode *mode)
+PUBLIC void parse_date_format(const char *format, struct date_mode *mode)
 {
     const char *p;
 
@@ -4037,7 +4037,7 @@ void parse_date_format(const char *format, struct date_mode *mode)
         gobj_trace_msg(0, "unknown date format %s", format);
 }
 
-void datestamp(char *out, int outsize)
+PUBLIC void datestamp(char *out, int outsize)
 {
     time_t now;
     int offset;
@@ -4417,7 +4417,7 @@ timestamp_t approxidate_careful(const char *date, int *error_ret)
     return approxidate_str(date, tv, error_ret);
 }
 
-int date_overflows(timestamp_t t)
+PUBLIC int date_overflows(timestamp_t t)
 {
     time_t sys;
 
