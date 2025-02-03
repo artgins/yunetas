@@ -5,9 +5,141 @@ Source code in:
 - [helpers.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
+
+## File System Functions
+- [`file_exists()`](#file_exists)
+- [`file_permission()`](#file_permission)
+- [`file_remove()`](#file_remove)
+- [`filesize()`](#filesize)
+- [`filesize2()`](#filesize2)
+- [`is_directory()`](#is_directory)
+- [`is_regular_file()`](#is_regular_file)
+- [`lock_file()`](#lock_file)
+- [`mkrdir()`](#mkrdir)
+- [`newdir()`](#newdir)
+- [`newfile()`](#newfile)
+- [`open_exclusive()`](#open_exclusive)
+- [`rmrcontentdir()`](#rmrcontentdir)
+- [`rmrdir()`](#rmrdir)
+- [`subdir_exists()`](#subdir_exists)
+- [`unlock_file()`](#unlock_file)
+
+## String Functions
+- [`all_numbers()`](#all_numbers)
+- [`build_path()`](#build_path)
+- [`change_char()`](#change_char)
+- [`delete_left_blanks()`](#delete_left_blanks)
+- [`delete_left_char()`](#delete_left_char)
+- [`delete_right_blanks()`](#delete_right_blanks)
+- [`delete_right_char()`](#delete_right_char)
+- [`get_key_value_parameter()`](#get_key_value_parameter)
+- [`get_last_segment()`](#get_last_segment)
+- [`get_parameter()`](#get_parameter)
+- [`helper_doublequote2quote()`](#helper_doublequote2quote)
+- [`helper_quote2doublequote()`](#helper_quote2doublequote)
+- [`idx_in_list()`](#idx_in_list)
+- [`left_justify()`](#left_justify)
+- [`nice_size()`](#nice_size)
+- [`pop_last_segment()`](#pop_last_segment)
+- [`replace_string()`](#replace_string)
+- [`split2()`](#split2)
+- [`split3()`](#split3)
+- [`split_free2()`](#split_free2)
+- [`split_free3()`](#split_free3)
+- [`str_concat()`](#str_concat)
+- [`str_concat3()`](#str_concat3)
+- [`str_concat_free()`](#str_concat_free)
+- [`str_in_list()`](#str_in_list)
+- [`strntolower()`](#strntolower)
+- [`strntoupper()`](#strntoupper)
+- [`translate_string()`](#translate_string)
+
+## JSON Functions
+- [`anystring2json()`](#anystring2json)
+- [`bits2gbuffer()`](#bits2gbuffer)
+- [`bits2jn_strlist()`](#bits2jn_strlist)
+- [`create_json_record()`](#create_json_record)
+- [`json2str()`](#json2str)
+- [`json2uglystr()`](#json2uglystr)
+- [`json_is_identical()`](#json_is_identical)
+- [`json_list_str_index()`](#json_list_str_index)
+- [`json_record_to_schema()`](#json_record_to_schema)
+- [`json_str_in_list()`](#json_str_in_list)
+- [`load_json_from_file()`](#load_json_from_file)
+- [`load_persistent_json()`](#load_persistent_json)
+- [`save_json_to_file()`](#save_json_to_file)
+- [`string2json()`](#string2json)
+- [`strings2bits()`](#strings2bits)
+
+## Time Functions
+- [`current_timestamp()`](#current_timestamp)
+- [`formatdate()`](#formatdate)
+- [`start_msectimer()`](#start_msectimer)
+- [`start_sectimer()`](#start_sectimer)
+- [`t2timestamp()`](#t2timestamp)
+- [`test_msectimer()`](#test_msectimer)
+- [`test_sectimer()`](#test_sectimer)
+- [`time_in_miliseconds()`](#time_in_miliseconds)
+- [`time_in_miliseconds_monotonic()`](#time_in_miliseconds_monotonic)
+- [`time_in_seconds()`](#time_in_seconds)
+- [`tm2timestamp()`](#tm2timestamp)
+
+## Utility Functions
+- [`bin2hex()`](#bin2hex)
+- [`count_char()`](#count_char)
+- [`create_uuid()`](#create_uuid)
+- [`get_hostname()`](#get_hostname)
+- [`hex2bin()`](#hex2bin)
+- [`htonll()`](#htonll)
+- [`list_open_files()`](#list_open_files)
+- [`node_uuid()`](#node_uuid)
+- [`ntohll()`](#ntohll)
+- [`print_json2()`](#print_json2)
+- [`set_real_precision()`](#set_real_precision)
+- [`tdump()`](#tdump)
+- [`tdump2json()`](#tdump2json)
+
+## Protocol/Daemon Functions
+- [`comm_prot_free()`](#comm_prot_free)
+- [`comm_prot_get_gclass()`](#comm_prot_get_gclass)
+- [`comm_prot_register()`](#comm_prot_register)
+- [`launch_daemon()`](#launch_daemon)
+
+## URL Parsing Functions
+- [`get_url_schema()`](#get_url_schema)
+- [`parse_url()`](#parse_url)
+
+## Debugging Functions
+- [`init_backtrace_with_backtrace()`](#init_backtrace_with_backtrace)
+- [`show_backtrace_with_backtrace()`](#show_backtrace_with_backtrace)
+
+## HTTP Parser Functions
+- [`ghttp_parser_create()`](#ghttp_parser_create)
+- [`ghttp_parser_destroy()`](#ghttp_parser_destroy)
+- [`ghttp_parser_received()`](#ghttp_parser_received)
+- [`ghttp_parser_reset()`](#ghttp_parser_reset)
+
+## IStream Functions
+- [`istream_clear()`](#istream_clear)
+- [`istream_consume()`](#istream_consume)
+- [`istream_create()`](#istream_create)
+- [`istream_cur_rd_pointer()`](#istream_cur_rd_pointer)
+- [`istream_destroy()`](#istream_destroy)
+- [`istream_extract_matched_data()`](#istream_extract_matched_data)
+- [`istream_get_gbuffer()`](#istream_get_gbuffer)
+- [`istream_is_completed()`](#istream_is_completed)
+- [`istream_length()`](#istream_length)
+- [`istream_new_gbuffer()`](#istream_new_gbuffer)
+- [`istream_pop_gbuffer()`](#istream_pop_gbuffer)
+- [`istream_read_until_delimiter()`](#istream_read_until_delimiter)
+- [`istream_read_until_num_bytes()`](#istream_read_until_num_bytes)
+- [`istream_reset_rd()`](#istream_reset_rd)
+- [`istream_reset_wr()`](#istream_reset_wr)
+
+
 ```{toctree}
 :caption: Helpers functions
-:maxdepth: 2
+:maxdepth: 0
 
 newdir.md
 newfile.md
@@ -34,6 +166,9 @@ pop_last_segment.md
 helper_quote2doublequote.md
 helper_doublequote2quote.md
 all_numbers.md
+init_backtrace_with_backtrace.md
+show_backtrace_with_backtrace.md
+replace_string.md
 nice_size.md
 delete_right_blanks.md
 delete_left_blanks.md
@@ -112,6 +247,7 @@ comm_prot_free.md
 launch_daemon.md
 parse_url.md
 get_url_schema.md
+ghttp_parser_create.md
 ghttp_parser_received.md
 ghttp_parser_destroy.md
 ghttp_parser_reset.md

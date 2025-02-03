@@ -1481,7 +1481,7 @@ PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)
  *  Attribution:    Optional. If you choose to indicate attribution when using this function,
  *      feel free to link to this page.
  ***************************************************************************/
-char *replace_string(const char *str, const char *old, const char *snew)
+PUBLIC char *replace_string(const char *str, const char *old, const char *snew)
 {
 
     /* Adjust each of the below values to suit your needs. */
@@ -4455,8 +4455,8 @@ int date_overflows(timestamp_t t)
  *  Return:
  *        Pointer to endp
  ***********************************************************************/
-static const char tbhexa[]={'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-static inline char * byte_to_strhex(char *s, char w)
+PRIVATE const char tbhexa[]={'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+PRIVATE inline char * byte_to_strhex(char *s, char w)
 {
     *s = tbhexa[ ((w >> 4) & 0x0f) ];
     s++;
