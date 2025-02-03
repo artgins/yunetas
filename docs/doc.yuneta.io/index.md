@@ -109,11 +109,30 @@ api/gobj/dl/api_gobj_dl.md
 :::
 
 :::{toctree}
+:caption: Helpers API
+:maxdepth: 1
+
+api/helpers/file-system/api_file_system.md
+api/helpers/string-helper/api_string_helper.md
+api/helpers/json-helper/api_json_helper.md
+api/helpers/directory-walk/api_directory_walk.md
+api/helpers/time-date/api_time_date.md
+api/helpers/misc/api_misc.md
+api/helpers/common-protocol/api_common_protocol.md
+api/helpers/daemon-launcher/api_daemon_launcher.md
+api/helpers/url-parsing/api_url_parsing.md
+api/helpers/backtrace/api_backtrace.md
+api/helpers/http-parser/api_http_parser.md
+api/helpers/istream/api_istream.md
+
+
+:::
+
+:::{toctree}
 :caption: GObj Auxiliary API
 :maxdepth: 1
 
 api/kwid/api_kwid.md
-api/helpers/api_helpers.md
 api/command_parser/api_command_parser.md
 api/stats_parser/api_stats_parser.md
 api/log_udp_handler/api_log_udp_handler.md
@@ -121,6 +140,7 @@ api/rotatory/api_rotatory.md
 api/testing/api_testing.md
 
 :::
+
 
 :::{toctree}
 :caption: Glossary 

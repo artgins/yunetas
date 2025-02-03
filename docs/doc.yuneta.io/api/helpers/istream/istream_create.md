@@ -19,13 +19,13 @@ The `istream_create` function initializes and allocates an `istream` instance. T
 
 **Prototype**
 
-```C
+:::C
 PUBLIC istream_h istream_create(
     hgobj       gobj,
     size_t      data_size,
     size_t      max_size
 );
-```
+:::
 
 **Parameters**
 
