@@ -1,13 +1,12 @@
-
-
 <!-- ============================================================== -->
 (file_exists())=
 # `file_exists()`
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
-        
+The `file_exists` function checks if a file exists in the specified directory with the given filename.
+If the file exists, it returns TRUE; otherwise, it returns FALSE.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +24,50 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL file_exists(
-    const char  *path
+BOOL file_exists(
+    const char *directory,
+    const char *filename
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `directory`
   - `const char *`
-  - The path to check.
+  - The directory path where the file is located.
+
+* - `filename`
+  - `const char *`
+  - The name of the file to check for existence.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
-        
+The function returns a boolean value:
+- TRUE: If the file exists in the specified directory with the given filename.
+- FALSE: If the file does not exist.
+
+
+**Notes**
+
+
+- This function only checks for the existence of a file and does not perform any other operations.
+- The `directory` parameter should be the path to the directory where the file is expected to be found.
+- The `filename` parameter should be the name of the file to check for existence.
 
 
 <!--====================================================-->
@@ -180,3 +193,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+
