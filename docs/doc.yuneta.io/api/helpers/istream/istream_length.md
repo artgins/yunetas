@@ -3,7 +3,11 @@
 # `istream_length()`
 <!-- ============================================================== -->
 
-Retrieves the length of unread data currently available in the internal gbuffer of the specified istream.
+
+The `istream_length` function returns the length of the data in the input stream.
+
+The input stream is a data structure used for reading and processing data incrementally. This function provides the current length of the data in the stream.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,34 +24,44 @@ Retrieves the length of unread data currently available in the internal gbuffer 
 **Prototype**
 
 ```C
-PUBLIC size_t istream_length(
-    istream_h   istream
+
+size_t istream_length(
+    istream_h istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream whose unread data length is to be retrieved.
+  - Handle to the input stream.
 :::
+
 
 ---
 
 **Return Value**
 
-Returns the number of unread bytes in the internal gbuffer.
+
+The function returns the size of the data currently stored in the input stream.
+
 
 **Notes**
-- If the `istream` is `NULL`, the function logs an error and returns `0`.
-- This function provides the size of the data available for reading without modifying the read or write pointers.
+
+
+- The input stream must be created and initialized before calling this function.
+- This function does not modify the state of the input stream.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -172,3 +186,4 @@ Returns the number of unread bytes in the internal gbuffer.
 ``````
 
 ```````
+

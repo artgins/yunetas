@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (ghttp_parser_received())=
 # `ghttp_parser_received()`
 <!-- ============================================================== -->
 
 
-Handle received HTTP data for parsing.
-        
+This function is used to feed data to the GHTTP_PARSER for parsing HTTP messages. It processes the input buffer `bf` of length `len` and updates the parser state accordingly. It returns the number of bytes consumed from the input buffer or -1 in case of an error.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,52 @@ Handle received HTTP data for parsing.
 
 ```C
 
-PUBLIC int ghttp_parser_received(
-    const char  *data,
-    size_t       size
+int ghttp_parser_received(
+    GHTTP_PARSER *parser,
+    char *bf,
+    size_t len
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `data`
-  - `const char *`
-  - The HTTP data received.
+* - `parser`
+  - `GHTTP_PARSER *`
+  - Pointer to the GHTTP_PARSER structure for parsing HTTP messages.
 
-* - `size`
+* - `bf`
+  - `char *`
+  - Input buffer containing the data to be parsed.
+
+* - `len`
   - `size_t`
-  - The size of the HTTP data.
+  - Length of the input buffer.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+The function returns the number of bytes consumed from the input buffer `bf` during the parsing process. In case of an error, it returns -1.
+
+
+**Notes**
+
+
+- This function is crucial for processing HTTP messages using the GHTTP_PARSER structure.
+- It is recommended to ensure that the input buffer `bf` contains valid data conforming to the HTTP message format.
 
 
 <!--====================================================-->
@@ -185,3 +194,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

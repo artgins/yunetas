@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (strings2bits())=
 # `strings2bits()`
 <!-- ============================================================== -->
 
 
-Convert a JSON array of strings to a bitmask based on a predefined mapping. Works with [`json_t *`](json_t).
-        
+The `strings2bits` function converts a string into a 64-bit value based on a table of strings and separators provided. It matches the input string with the strings in the table and sets the corresponding bits in the output value. The function allows customization of the separators used in the input string.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,53 @@ Convert a JSON array of strings to a bitmask based on a predefined mapping. Work
 
 ```C
 
-PUBLIC uint64_t strings2bits(
-    json_t      *jn_strlist,
-    const char *bit_names[]
+uint64_t strings2bits(
+    const char **strings_table,
+    const char *str,
+    const char *separators
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `jn_strlist`
-  - [`json_t *`](json_t)
-  - The JSON array of strings to convert.
+* - `strings_table`
+  - `const char **`
+  - Table of strings to match against.
 
-* - `bit_names`
-  - `const char *[]`
-  - The array of strings corresponding to bit positions.
+* - `str`
+  - `const char *`
+  - Input string to convert.
+
+* - `separators`
+  - `const char *`
+  - Custom separators used in the input string.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a `uint64_t` bitmask representing the active bits from the JSON array.
-        
+The function returns a 64-bit value representing the matched strings from the input string based on the provided table.
+
+
+**Notes**
+
+
+- The function is case sensitive.
+- The `strings_table` must be terminated with a NULL element.
+- The `separators` parameter allows customization of the delimiters used in the input string.
 
 
 <!--====================================================-->
@@ -185,3 +195,4 @@ Returns a `uint64_t` bitmask representing the active bits from the JSON array.
 ``````
 
 ```````
+

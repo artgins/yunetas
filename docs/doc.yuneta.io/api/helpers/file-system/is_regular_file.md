@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (is_regular_file())=
 # `is_regular_file()`
 <!-- ============================================================== -->
 
 
-Check if the specified path points to a regular file.
-        
+The `is_regular_file` function checks if the specified path corresponds to a regular file.
+
+If the path points to a regular file, the function returns TRUE; otherwise, it returns FALSE.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +25,44 @@ Check if the specified path points to a regular file.
 
 ```C
 
-PUBLIC BOOL is_regular_file(
-    const char  *path
+BOOL is_regular_file(
+    const char *path
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path to check.
+  - The path to the file being checked.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the path points to a regular file, otherwise returns `FALSE`.
-        
+The function returns a boolean value:
+- `TRUE` if the path corresponds to a regular file.
+- `FALSE` if the path does not correspond to a regular file.
+
+
+**Notes**
+
+
+- This function specifically checks for regular files and does not consider directories, symbolic links, or other types of files.
+- The function relies on the system's file structure and permissions to determine the file type.
 
 
 <!--====================================================-->
@@ -180,3 +188,4 @@ Returns `TRUE` if the path points to a regular file, otherwise returns `FALSE`.
 ``````
 
 ```````
+

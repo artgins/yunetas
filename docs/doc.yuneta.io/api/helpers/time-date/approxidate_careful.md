@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
+The `approxidate_careful` function interprets various date formats and returns a timestamp representing the input date. It carefully handles ambiguous formats and incomplete information to deduce the most likely date based on context.
 
 
 <!------------------------------------------------------------>
@@ -23,26 +23,31 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL approxidate_careful(
-    const char  *path
+timestamp_t approxidate_careful(
+    const char *date,
+    int *offset
 );
-
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to check.
+  - The input date string to be interpreted.
+
+* - `offset`
+  - `int *`
+  - Pointer to an integer to store the offset of the date.
 :::
 
 
@@ -51,8 +56,22 @@ PUBLIC BOOL approxidate_careful(
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
+The function returns a `timestamp_t` representing the interpreted date. Additionally, it modifies the `offset` parameter to provide information about the offset in the date string.
 
+
+**Notes**
+
+
+Here's a breakdown of the kinds of date formats `approxidate_careful()` can interpret:
+- Absolute Dates (Standard formats)
+- Relative Dates
+- Special Time Keywords
+- Combinations of Date and Time
+- Time-relative to specific date
+- Shorthand Dates
+- Special Cases and Contextual Phrases
+
+The function carefully handles ambiguities and incomplete information to deduce the most likely date based on context.
 
 
 <!--====================================================-->
@@ -178,3 +197,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

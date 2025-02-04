@@ -3,7 +3,9 @@
 # `istream_get_gbuffer()`
 <!-- ============================================================== -->
 
-Retrieves the current [`gbuffer_t *`](gbuffer_t) associated with the specified istream. This [`gbuffer_t *`](gbuffer_t) contains the data being processed by the istream.
+
+This function retrieves the data from the input stream as a `gbuffer_t` object.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,36 +22,43 @@ Retrieves the current [`gbuffer_t *`](gbuffer_t) associated with the specified i
 **Prototype**
 
 ```C
-PUBLIC gbuffer_t *istream_get_gbuffer(
-    istream_h   istream
+
+gbuffer_t *istream_get_gbuffer(
+    istream_h istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream whose [`gbuffer_t *`](gbuffer_t) is to be retrieved.
+  - The input stream handle from which to retrieve the data.
 :::
+
 
 ---
 
 **Return Value**
 
-Returns a pointer to the current [`gbuffer_t *`](gbuffer_t) of the istream.
-If the `istream` is `NULL`, the function logs an error and returns `NULL`.
+
+Returns a `gbuffer_t` object containing the data read from the input stream.
+
 
 **Notes**
 
-- The returned [`gbuffer_t *`](gbuffer_t) is owned by the istream and must not be freed by the caller.
-- This function is useful for directly inspecting or interacting with the data managed by the istream.
+
+- Use this function to extract the data from the input stream as a `gbuffer_t` object.
+- Ensure that the input stream handle is valid and points to the correct data.
 
 
 <!--====================================================-->
@@ -175,3 +184,4 @@ If the `istream` is `NULL`, the function logs an error and returns `NULL`.
 ``````
 
 ```````
+

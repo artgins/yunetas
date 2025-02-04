@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (pop_last_segment())=
 # `pop_last_segment()`
 <!-- ============================================================== -->
 
 
-Remove the last segment from a path string.
-        
+This function modifies the input `path` by removing the last segment from it. The last segment is considered as the substring after the last occurrence of a path separator (e.g., '/'). The modified `path` is then returned.
+
+**WARNING:** The input `path` is modified in place.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,42 @@ Remove the last segment from a path string.
 
 ```C
 
-PUBLIC char *pop_last_segment(
-    char        *path,
-    char         separator
+char *pop_last_segment(
+    char *path
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `char *`
-  - The path string to modify.
-
-* - `separator`
-  - `char`
-  - The character used to separate path segments.
+  - The path from which the last segment will be removed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the modified path string with the last segment removed.
-        
+The modified `path` after removing the last segment.
+
+
+**Notes**
+
+
+- This function modifies the input `path` directly and returns the modified path.
+- The last segment is identified as the substring after the last occurrence of a path separator.
 
 
 <!--====================================================-->
@@ -185,3 +186,4 @@ Returns the modified path string with the last segment removed.
 ``````
 
 ```````
+

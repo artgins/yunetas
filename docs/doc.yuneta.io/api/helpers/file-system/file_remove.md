@@ -1,13 +1,15 @@
-
-
 <!-- ============================================================== -->
 (file_remove())=
 # `file_remove()`
 <!-- ============================================================== -->
 
 
-Remove a file at the specified path.
-        
+The `file_remove` function is used to remove a file located in a specified directory.
+
+If the file exists in the given directory, it will be deleted.
+
+This function takes the directory path and the filename as parameters to identify the file to be removed.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +27,48 @@ Remove a file at the specified path.
 
 ```C
 
-PUBLIC int file_remove(
-    const char  *path
+int file_remove(
+    const char *directory,
+    const char *filename
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
-
-* - `path`
+* - `directory`
   - `const char *`
-  - The path of the file to remove.
+  - The path to the directory where the file is located.
+* - `filename`
+  - `const char *`
+  - The name of the file to be removed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+The function returns an integer value indicating the status of the file removal operation:
+- `0` if the file was successfully removed.
+- `-1` if an error occurred during the removal process.
+
+
+**Notes**
+
+
+- This function will attempt to remove the specified file from the provided directory.
+- If the file removal operation fails, it will return `-1`.
+- Ensure that the directory path and filename are correctly provided to avoid errors.
 
 
 <!--====================================================-->
@@ -180,3 +194,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

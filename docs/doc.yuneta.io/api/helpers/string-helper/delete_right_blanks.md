@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (delete_right_blanks())=
 # `delete_right_blanks()`
 <!-- ============================================================== -->
 
 
-Remove trailing whitespace characters from a string.
-        
+The `delete_right_blanks` function removes trailing blank spaces from the input string `s`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,41 @@ Remove trailing whitespace characters from a string.
 
 ```C
 
-PUBLIC char *delete_right_blanks(
-    char        *string
+void delete_right_blanks(
+    char *s
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `s`
   - `char *`
-  - The string to modify.
+  - The input string from which trailing blank spaces will be removed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the modified string with trailing whitespace removed.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- This function modifies the input string `s` in place by removing any trailing blank spaces.
 
 
 <!--====================================================-->
@@ -180,3 +183,4 @@ Returns the modified string with trailing whitespace removed.
 ``````
 
 ```````
+

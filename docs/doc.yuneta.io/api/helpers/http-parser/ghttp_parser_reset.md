@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (ghttp_parser_reset())=
 # `ghttp_parser_reset()`
 <!-- ============================================================== -->
 
 
-Reset an HTTP parser to its initial state.
-        
+Resets the state of the provided `GHTTP_PARSER` object, clearing all parsed data and preparing it for parsing a new HTTP message.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,37 @@ Reset an HTTP parser to its initial state.
 
 ```C
 
-PUBLIC void ghttp_parser_reset(void);
-        
+void ghttp_parser_reset(
+    GHTTP_PARSER *parser
+);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - `parser`
+  - `GHTTP_PARSER *`
+  - Pointer to the GHTTP_PARSER object to be reset.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function resets the parser's state.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+This function is useful for reusing a `GHTTP_PARSER` object to parse multiple HTTP messages without the need to create a new object each time.
 
 
 <!--====================================================-->
@@ -178,3 +179,4 @@ No return value. This function resets the parser's state.
 ``````
 
 ```````
+

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
+The `parse_date_basic` function parses a date string to extract the timestamp and offset information.
 
 
 <!------------------------------------------------------------>
@@ -23,26 +23,36 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL parse_date_basic(
-    const char  *path
+int parse_date_basic(
+    const char *date,
+    timestamp_t *timestamp,
+    int *offset
 );
-
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to check.
+  - The date string to parse.
+
+* - `timestamp`
+  - `timestamp_t *`
+  - Pointer to store the extracted timestamp.
+
+* - `offset`
+  - `int *`
+  - Pointer to store the offset information.
 :::
 
 
@@ -51,8 +61,15 @@ PUBLIC BOOL parse_date_basic(
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
+The function returns an integer indicating the success or failure of the parsing process.
 
+
+**Notes**
+
+
+- The function extracts the timestamp and offset information from the provided date string.
+- The `timestamp` parameter will hold the parsed timestamp value.
+- The `offset` parameter will hold additional offset information.
 
 
 <!--====================================================-->
@@ -178,3 +195,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

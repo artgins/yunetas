@@ -1,17 +1,10 @@
-
-
 <!-- ============================================================== -->
 (json_config())=
 # `json_config()`
 <!-- ============================================================== -->
 
-The `json_config()` function merges multiple JSON configurations into a single final configuration string, following a specific order of precedence. It also includes features like comment handling, variable substitution, and range-based expansion for flexibility and advanced use cases.
 
-Source code in:
-
-- [json_config.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/json_config.c)
-
-See [`Settings`](settings)
+Return a malloc'ed string with the final configuration by joining the json format input string parameters. Handles various configurations and loads them in a specific order. Can expand a dict of json data in a range. Allows for one-line comments in the json string.
 
 
 <!------------------------------------------------------------>
@@ -30,76 +23,73 @@ See [`Settings`](settings)
 
 ```C
 
-typedef enum {
-    PEF_CONTINUE    = 0,
-    PEF_EXIT        = -1,
-    PEF_ABORT       = -2,
-    PEF_SYSLOG      = -3,
-} pe_flag_t;
-
-PUBLIC char *json_config(
-    BOOL print_verbose_config,     // Print intermediate configurations and exit(0) if TRUE.
-    BOOL print_final_config,       // Print final configuration and exit(0) if TRUE.
-    const char *fixed_config,      // Fixed JSON string (not writable).
-    const char *variable_config,   // Writable JSON string.
-    const char *config_json_file,  // Path to JSON file(s) for overwriting variable_config.
-    const char *parameter_config,  // JSON string for parameterized overwrites.
-    pe_flag_t quit                 // Behavior flag on error (e.g., exit or continue).
+char *json_config(
+    BOOL print_verbose_config,
+    BOOL print_final_config,
+    const char *fixed_config,
+    const char *variable_config,
+    const char *config_json_file,
+    const char *parameter_config,
+    pe_flag_t quit
 );
 
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `print_verbose_config`
   - `BOOL`
-  - If `TRUE`, prints intermediate configurations and exits the program (`exit(0)`).
+  - If true, prints the result and exits(0).
 
 * - `print_final_config`
   - `BOOL`
-  - If `TRUE`, prints the final configuration and exits the program (`exit(0)`).
+  - If true, prints the result and exits(0).
 
 * - `fixed_config`
   - `const char *`
-  - A fixed JSON string that cannot be modified during merging.
+  - String config that is not writable.
 
 * - `variable_config`
   - `const char *`
-  - A writable JSON string that can be overwritten by subsequent inputs.
+  - Writable string config.
 
 * - `config_json_file`
   - `const char *`
-  - Path(s) to JSON file(s) whose contents overwrite `variable_config`.
+  - File of file's list, overwriting variable_config.
 
 * - `parameter_config`
   - `const char *`
-  - A JSON string for overwriting specific parameters in the final configuration.
+  - String overwriting variable_config.
 
 * - `quit`
   - `pe_flag_t`
-  - Controls program behavior on JSON parsing errors. For example, it can determine whether to exit the program or continue.
+  - Parameter to handle errors in json format.
 :::
+
 
 ---
 
 **Return Value**
 
-## Return Value
 
-- Returns a dynamically allocated string containing the final merged JSON configuration.
+A malloc'ed string with the final configuration. Remember to free the returned string with `jsonp_free()`.
 
-```{warning}
-**Important:** The returned string must be freed using `jsonp_free()` to avoid memory leaks.
 
-```
+**Notes**
+
+
+- Handles various configurations and loads them in a specific order.
+- Can expand a dict of json data in a range.
+- Allows for one-line comments in the json string.
 
 
 <!--====================================================-->
@@ -225,3 +215,4 @@ PUBLIC char *json_config(
 ``````
 
 ```````
+

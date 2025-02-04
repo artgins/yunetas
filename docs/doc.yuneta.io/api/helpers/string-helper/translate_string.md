@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (translate_string())=
 # `translate_string()`
 <!-- ============================================================== -->
 
 
-Translate all occurrences of a specified character in a string to another character.
-        
+This function translates a string from one format to another based on mapping tables provided. It replaces characters in the input string according to the mapping defined in the provided tables.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,46 +23,62 @@ Translate all occurrences of a specified character in a string to another charac
 
 ```C
 
-PUBLIC char *translate_string(
-    char        *string,
-    char         from,
-    char         to
+char *translate_string(
+    char *to,
+    int tolen,
+    const char *from,
+    const char *mk_to,
+    const char *mk_from
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `to`
   - `char *`
-  - The string to modify.
+  - Pointer to the buffer where the translated string will be stored.
+
+* - `tolen`
+  - `int`
+  - Maximum length of the translated string buffer.
 
 * - `from`
-  - `char`
-  - The character to replace.
+  - `const char *`
+  - Input string to be translated.
 
-* - `to`
-  - `char`
-  - The character to replace it with.
+* - `mk_to`
+  - `const char *`
+  - Mapping table for characters in the input string to be replaced with in the output string.
+
+* - `mk_from`
+  - `const char *`
+  - Mapping table for characters in the input string to be replaced.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the modified string with characters replaced.
-        
+The function returns a pointer to the translated string stored in the `to` buffer.
+
+
+**Notes**
+
+
+- This function modifies the input string `from` by replacing characters based on the mapping tables provided.
+- The length of the translated string will not exceed the specified `tolen`.
 
 
 <!--====================================================-->
@@ -190,3 +204,4 @@ Returns the modified string with characters replaced.
 ``````
 
 ```````
+

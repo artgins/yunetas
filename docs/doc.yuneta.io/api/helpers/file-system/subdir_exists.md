@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (subdir_exists())=
 # `subdir_exists()`
 <!-- ============================================================== -->
 
 
-Check if a subdirectory exists within a specified path.
-        
+The `subdir_exists` function checks if a subdirectory exists within a specified directory.
+
+If the subdirectory exists within the specified directory, the function returns TRUE; otherwise, it returns FALSE.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,47 @@ Check if a subdirectory exists within a specified path.
 
 ```C
 
-PUBLIC BOOL subdir_exists(
-    const char  *path,
-    const char  *subdir
+BOOL subdir_exists(
+    const char *directory,
+    const char *subdir
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `directory`
   - `const char *`
-  - The parent directory to search in.
+  - The path of the directory to check for the existence of the subdirectory.
 
 * - `subdir`
   - `const char *`
-  - The name of the subdirectory to check for.
+  - The name of the subdirectory to check for within the specified directory.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the subdirectory exists, otherwise returns `FALSE`.
-        
+Returns TRUE if the subdirectory exists within the specified directory, otherwise returns FALSE.
+
+
+**Notes**
+
+
+- This function only checks for the existence of the subdirectory within the specified directory.
+- The function does not create or modify any directories.
 
 
 <!--====================================================-->
@@ -185,3 +191,4 @@ Returns `TRUE` if the subdirectory exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

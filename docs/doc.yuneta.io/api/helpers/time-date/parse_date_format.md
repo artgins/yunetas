@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
+Parse the date format specified in the input string `format` and populate the `date_mode` structure with the parsed information.
 
 
 <!------------------------------------------------------------>
@@ -23,26 +23,31 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL parse_date_format(
-    const char  *path
+void parse_date_format(
+    const char *format,
+    struct date_mode *mode
 );
-
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `format`
   - `const char *`
-  - The path to check.
+  - The input string containing the date format to be parsed.
+
+* - `mode`
+  - `struct date_mode *`
+  - Pointer to the `date_mode` structure where the parsed information will be stored.
 :::
 
 
@@ -51,8 +56,13 @@ PUBLIC BOOL parse_date_format(
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
+This function does not return a value. It populates the `date_mode` structure passed as a parameter with the parsed date format information.
 
+
+**Notes**
+
+
+The `date_mode` structure contains the parsed date format information, including the type of date mode and the strftime format if applicable.
 
 
 <!--====================================================-->
@@ -178,3 +188,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

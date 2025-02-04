@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (init_backtrace_with_backtrace())=
 # `init_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
-        
+This function initializes backtrace for the specified program to enable debugging and error tracing.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,41 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL init_backtrace_with_backtrace(
-    const char  *path
+void init_backtrace_with_backtrace(
+    const char *program
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `program`
   - `const char *`
-  - The path to check.
+  - The name of the program for which backtrace needs to be initialized.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+This function is useful for setting up backtrace functionality to capture and display stack traces for debugging purposes.
 
 
 <!--====================================================-->
@@ -180,3 +183,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
+The `approxidate_relative` function interprets relative dates based on the current date or a reference point. It can handle phrases like days ago/forward, weeks ago/forward, months ago/forward, years ago/forward, human-readable terms, named days of the week, special time keywords, combinations of date and time, time-relative to a specific date, shorthand dates, special cases, and contextual phrases.
 
 
 <!------------------------------------------------------------>
@@ -23,26 +23,26 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL approxidate_relative(
-    const char  *path
+timestamp_t approxidate_relative(
+    const char *date
 );
-
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to check.
+  - The relative date string to be interpreted.
 :::
 
 
@@ -51,8 +51,13 @@ PUBLIC BOOL approxidate_relative(
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
+The function returns a `timestamp_t` value representing the interpreted relative date.
 
+
+**Notes**
+
+
+The `approxidate_relative` function is designed to handle various relative date formats and phrases, providing flexibility in interpreting dates based on context and reference points.
 
 
 <!--====================================================-->
@@ -178,3 +183,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

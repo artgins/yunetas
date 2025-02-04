@@ -1,11 +1,13 @@
-
-
 <!-- ============================================================== -->
 (hex2bin())=
 # `hex2bin()`
 <!-- ============================================================== -->
 
-The `hex2bin` function converts a hexadecimal string (`hex`) into its binary representation, storing the result in a provided buffer (`bf`). It uses a decoding table to map hexadecimal characters to their corresponding values and processes the input string two characters at a time to produce binary bytes.
+
+Converts a hexadecimal string to binary data.
+
+This function takes a hexadecimal string `hex` of length `hex_len` and converts it to binary data, storing the result in the buffer `bf` of size `bfsize`. The actual length of the binary data is stored in the variable pointed to by `out_len`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,72 +24,64 @@ The `hex2bin` function converts a hexadecimal string (`hex`) into its binary rep
 **Prototype**
 
 ```C
-PUBLIC char *hex2bin(
-    char        *bf,
-    int         bfsize,
-    const char  *hex,
-    size_t      hex_len,
-    size_t      *out_len
+
+char *hex2bin(
+    char *bf,
+    int bfsize,
+    const char *hex,
+    size_t hex_len,
+    size_t *out_len
 );
+
 ```
 
 **Parameters**
+
 
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `bf`
   - `char *`
-  - Pointer to the output buffer where the binary data will be stored.
-
+  - Buffer to store the binary data.
+  
 * - `bfsize`
   - `int`
-  - The size of the output buffer in bytes.
-
+  - Size of the buffer `bf`.
+  
 * - `hex`
   - `const char *`
-  - The input hexadecimal string to be converted.
-
+  - Hexadecimal string to convert.
+  
 * - `hex_len`
   - `size_t`
-  - The length of the input hexadecimal string.
-
+  - Length of the hexadecimal string.
+  
 * - `out_len`
   - `size_t *`
-  - Pointer to a variable where the length of the binary output will be stored. Can be `NULL` if not needed.
+  - Pointer to store the length of the binary data.
 :::
+
+
 ---
 
 **Return Value**
 
-- Returns a pointer to the output buffer `bf` containing the binary data.
-- Returns `NULL` if an error occurs (e.g., invalid hex character or buffer overflow).
+
+Returns a pointer to the buffer `bf` containing the binary data after conversion.
+
 
 **Notes**
 
-- **Hexadecimal Decoding:**
-  - The function uses a decoding table (`base16_decoding_table1`) to map valid hexadecimal characters (`0-9`, `a-f`, `A-F`) to their respective values.
-  - If an invalid character is encountered, the function stops processing.
-- **Buffer Size Check:**
-  - Ensures that the binary data does not exceed the size of the output buffer (`bfsize`).
-- **Even/Odd Logic:**
-  - Even indices of the hexadecimal input are processed as the high nibble (4 bits) of the binary byte, and odd indices as the low nibble.
-- **Output Length:**
-  - The total number of bytes written to the output buffer is stored in `out_len` if it is not `NULL`.
 
-**Example**
-```c
-char buffer[32];
-size_t out_len;
-const char *hex_string = "48656c6c6f20576f726c64"; // "Hello World" in hex
-hex2bin(buffer, sizeof(buffer), hex_string, strlen(hex_string), &out_len);
-// buffer now contains the binary representation of "Hello World"
-```
+- The function will convert the hexadecimal string `hex` to binary data and store it in the buffer `bf`.
+- The actual length of the binary data will be stored in the variable pointed to by `out_len`.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -212,3 +206,4 @@ hex2bin(buffer, sizeof(buffer), hex_string, strlen(hex_string), &out_len);
 ``````
 
 ```````
+

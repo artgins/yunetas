@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (json_print_refcounts())=
 # `json_print_refcounts()`
 <!-- ============================================================== -->
 
 
-Print the reference counts of all JSON objects for debugging purposes. Works with [`json_t *`](json_t).
-        
+The `json_print_refcounts` function is used to check the reference counts of a JSON object and its nested objects recursively. It prints the reference counts of each JSON object at the specified level of depth.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,46 @@ Print the reference counts of all JSON objects for debugging purposes. Works wit
 
 ```C
 
-PUBLIC void json_print_refcounts(void);
-        
+int json_print_refcounts(
+    json_t *jn,
+    int level
+);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - `jn`
+  - `json_t *`
+  - The JSON object to check the reference counts.
+  
+* - `level`
+  - `int`
+  - The depth level at which to print the reference counts.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function prints the reference counts of JSON objects to the output.
-        
+The function does not return any value.
+
+
+**Notes**
+
+
+This function is useful for debugging and understanding the reference counting mechanism of JSON objects in the C Yunetas project.
 
 
 <!--====================================================-->
@@ -178,3 +188,4 @@ No return value. This function prints the reference counts of JSON objects to th
 ``````
 
 ```````
+

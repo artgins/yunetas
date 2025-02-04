@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (helper_quote2doublequote())=
 # `helper_quote2doublequote()`
 <!-- ============================================================== -->
 
 
-Convert single quotes in a string to double quotes.
-        
+Change ' by ". Useful for easier json representation in C strings, **BUT** you cannot use true '.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,37 @@ Convert single quotes in a string to double quotes.
 
 ```C
 
-PUBLIC char *helper_quote2doublequote(
-    char        *string
+char *helper_quote2doublequote(
+    char *str
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `string`
+* - `str`
   - `char *`
-  - The string to modify.
+  - The string in which to change ' to ".
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the modified string with single quotes converted to double quotes.
-        
+Returns a pointer to the modified string where ' has been changed to ".
+
+
+**Notes**
+
+
+This function is useful for converting single quotes to double quotes in a string, making it easier to represent JSON strings in C. However, it cannot be used to represent true single quotes within the string.
 
 
 <!--====================================================-->
@@ -180,3 +179,4 @@ Returns the modified string with single quotes converted to double quotes.
 ``````
 
 ```````
+

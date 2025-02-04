@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (bits2jn_strlist())=
 # `bits2jn_strlist()`
 <!-- ============================================================== -->
 
 
-Convert a bitmask to a JSON array of strings based on a predefined mapping. Works with [`json_t *`](json_t).
-        
+Converts a 64-bit integer representing bit values into a JSON list of strings based on a provided string table.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,48 @@ Convert a bitmask to a JSON array of strings based on a predefined mapping. Work
 
 ```C
 
-PUBLIC json_t *bits2jn_strlist(
-    uint64_t    bits,
-    const char *bit_names[]
+json_t *bits2jn_strlist(
+    const char **strings_table,
+    uint64_t bits
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `strings_table`
+  - `const char **`
+  - An array of strings representing bit values.
+
 * - `bits`
   - `uint64_t`
-  - The bitmask to convert.
+  - The 64-bit integer containing the bit values to be converted.
 
-* - `bit_names`
-  - `const char *[]`
-  - The array of strings corresponding to bit positions.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a [`json_t *`](json_t) array of strings corresponding to the active bits in the bitmask.
-        
+Returns a JSON list containing the strings corresponding to the set bits in the input `bits`.
+
+
+**Notes**
+
+
+- The function converts the bits in the `bits` parameter to strings based on the provided `strings_table`.
+- The returned JSON list will contain the strings corresponding to the set bits in the input `bits`.
 
 
 <!--====================================================-->
@@ -185,3 +190,4 @@ Returns a [`json_t *`](json_t) array of strings corresponding to the active bits
 ``````
 
 ```````
+

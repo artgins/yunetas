@@ -3,7 +3,9 @@
 # `istream_cur_rd_pointer()`
 <!-- ============================================================== -->
 
-Retrieves the current read pointer of the internal gbuffer associated with the istream. This pointer indicates the position from where the next read operation will start.
+
+This function returns the current read pointer of the input stream. It allows accessing the data that has not been consumed yet.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,35 +22,40 @@ Retrieves the current read pointer of the internal gbuffer associated with the i
 **Prototype**
 
 ```C
-PUBLIC char *istream_cur_rd_pointer(
-    istream_h   istream
+
+char *istream_cur_rd_pointer(
+    istream_h istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream whose read pointer is to be retrieved.
+  - The handle of the input stream.
 :::
+
 
 ---
 
 **Return Value**
 
-Returns a pointer to the current read position in the internal gbuffer.
+
+A pointer to the current read position in the input stream.
+
 
 **Notes**
-- If the `istream` is `NULL`, the function logs an error and returns `NULL`.
-- This function does not alter the read pointer or the state of the istream.
-- Use this pointer for low-level operations directly on the data in the gbuffer.
+
+
+- This function is useful for inspecting the data that has not been read from the input stream yet.
+- It does not consume any data from the stream.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -173,3 +180,4 @@ Returns a pointer to the current read position in the internal gbuffer.
 ``````
 
 ```````
+

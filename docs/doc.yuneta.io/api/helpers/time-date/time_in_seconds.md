@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (time_in_seconds())=
 # `time_in_seconds()`
 <!-- ============================================================== -->
 
 
-Get the current system time in seconds since the epoch.
-        
+This function returns the current time in seconds since the Unix epoch. It provides a standard representation of time for various operations.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,40 @@ Get the current system time in seconds since the epoch.
 
 ```C
 
-PUBLIC time_t time_in_seconds(void);
-        
+uint64_t time_in_seconds(void);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
+* - None
+  - None
   - This function does not take any parameters.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the current system time as a `time_t` value in seconds since the epoch.
-        
+The function returns the current time in seconds as a `uint64_t` value.
+
+
+**Notes**
+
+
+- The time is measured since the Unix epoch (00:00:00 UTC on 1 January 1970).
+- This function provides a standard representation of time that can be used for various time-related operations.
 
 
 <!--====================================================-->
@@ -178,3 +182,4 @@ Returns the current system time as a `time_t` value in seconds since the epoch.
 ``````
 
 ```````
+

@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (is_directory())=
 # `is_directory()`
 <!-- ============================================================== -->
 
 
-Check if the specified path points to a directory.
-        
+The `is_directory` function checks if the specified path corresponds to a directory.
+
+If the path points to a directory, the function returns TRUE; otherwise, it returns FALSE.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +25,44 @@ Check if the specified path points to a directory.
 
 ```C
 
-PUBLIC BOOL is_directory(
-    const char  *path
+BOOL is_directory(
+    const char *path
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path to check.
+  - The path to be checked for being a directory.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the path points to a directory, otherwise returns `FALSE`.
-        
+The function returns a boolean value:
+- TRUE: If the specified path is a directory.
+- FALSE: If the specified path is not a directory.
+
+
+**Notes**
+
+
+- This function does not follow symbolic links when determining if the path is a directory.
+- If the path does not exist or is inaccessible, the function will return FALSE.
 
 
 <!--====================================================-->
@@ -180,3 +188,4 @@ Returns `TRUE` if the path points to a directory, otherwise returns `FALSE`.
 ``````
 
 ```````
+

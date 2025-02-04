@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (build_path())=
 # `build_path()`
 <!-- ============================================================== -->
 
 
-Build a path string by combining multiple segments.
-        
+The `build_path` function constructs a path by concatenating multiple strings together. It takes a variable number of string arguments and appends them to the buffer `bf` up to the specified `bfsize`. This function is commonly used to build file paths or directory paths in a C program.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,52 @@ Build a path string by combining multiple segments.
 
 ```C
 
-PUBLIC char *build_path(
-    const char  *separator,
+char *build_path(
+    char *bf,
+    size_t bfsize,
     ...
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `separator`
-  - `const char *`
-  - The separator to use between path segments.
-
+* - `bf`
+  - `char *`
+  - Buffer to store the constructed path.
+  
+* - `bfsize`
+  - `size_t`
+  - Size of the buffer `bf`.
+  
 * - `...`
-  - `varargs`
-  - The path segments to combine, ending with `NULL`.
+  - `const char *`
+  - Variable number of string arguments to concatenate into the path.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the combined path string, or `NULL` on failure.
-        
+The function returns a pointer to the buffer `bf` containing the constructed path. It is important to note that the buffer `bf` should be large enough to accommodate the concatenated strings to avoid buffer overflow.
+
+
+**Notes**
+
+
+- The `build_path` function is useful for dynamically constructing paths in C programs.
+- Ensure that the total length of the concatenated strings does not exceed the buffer size `bfsize` to prevent buffer overflow.
 
 
 <!--====================================================-->
@@ -185,3 +194,4 @@ Returns the combined path string, or `NULL` on failure.
 ``````
 
 ```````
+

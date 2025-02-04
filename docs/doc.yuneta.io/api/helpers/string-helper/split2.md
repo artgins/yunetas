@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (split2())=
 # `split2()`
 <!-- ============================================================== -->
 
 
-Split a string into two parts based on a delimiter.
-        
+Split a string by a delimiter, returning a list of strings. The function does not include empty strings in the list.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,61 +23,52 @@ Split a string into two parts based on a delimiter.
 
 ```C
 
-PUBLIC BOOL split2(
-    const char  *string,
-    char         delimiter,
-    char        *part1,
-    int          part1_size,
-    char        *part2,
-    int          part2_size
+const char ** split2(
+    const char *str,
+    const char *delim,
+    int *list_size
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `str`
   - `const char *`
-  - The string to split.
+  - The string to be split.
 
-* - `delimiter`
-  - `char`
-  - The character used to split the string.
+* - `delim`
+  - `const char *`
+  - The delimiter used to split the string.
 
-* - `part1`
-  - `char *`
-  - The buffer to store the first part of the split string.
-
-* - `part1_size`
-  - `int`
-  - The size of the buffer for the first part.
-
-* - `part2`
-  - `char *`
-  - The buffer to store the second part of the split string.
-
-* - `part2_size`
-  - `int`
-  - The size of the buffer for the second part.
+* - `list_size`
+  - `int *`
+  - Pointer to an integer to store the size of the resulting list.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the string was successfully split into two parts, otherwise returns `FALSE`.
-        
+The function returns a list of strings resulting from splitting the input string by the delimiter. Remember to free the memory allocated for the list using `split_free2()`.
+
+
+**Notes**
+
+
+- The function does not include empty strings in the resulting list.
+- Remember to free the memory allocated for the list using `split_free2()`.
 
 
 <!--====================================================-->
@@ -205,3 +194,4 @@ Returns `TRUE` if the string was successfully split into two parts, otherwise re
 ``````
 
 ```````
+

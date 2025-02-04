@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (free_ordered_filename_array())=
 # `free_ordered_filename_array()`
 <!-- ============================================================== -->
 
 
-Free the memory allocated for an ordered array of filenames.
-        
+This function is responsible for freeing the memory allocated for the ordered filename array obtained from the `get_ordered_filename_array` function. It ensures proper memory management and prevents memory leaks.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,46 @@ Free the memory allocated for an ordered array of filenames.
 
 ```C
 
-PUBLIC void free_ordered_filename_array(
-    char        **filename_array,
-    int           file_count
+void free_ordered_filename_array(
+    char **array,
+    int size
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `filename_array`
+* - `array`
   - `char **`
-  - The array of filenames to free.
+  - The ordered filename array to be freed.
 
-* - `file_count`
+* - `size`
   - `int`
-  - The number of files in the array.
+  - The size of the array.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function frees the memory allocated for the filename array.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- It is essential to call this function to release the memory allocated for the ordered filename array to avoid memory leaks.
 
 
 <!--====================================================-->
@@ -185,3 +188,4 @@ No return value. This function frees the memory allocated for the filename array
 ``````
 
 ```````
+

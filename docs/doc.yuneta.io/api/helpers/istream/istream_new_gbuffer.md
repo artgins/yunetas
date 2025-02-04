@@ -3,7 +3,9 @@
 # `istream_new_gbuffer()`
 <!-- ============================================================== -->
 
-Creates a new [`gbuffer_t *`](gbuffer_t) for the specified istream. The old [`gbuffer_t *`](gbuffer_t) associated with the istream is released. The new buffer is initialized with the specified data and maximum sizes.
+
+The `istream_new_gbuffer` function is used to create a new gbuffer in the provided istream for storing data with specified sizes.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,46 +22,55 @@ Creates a new [`gbuffer_t *`](gbuffer_t) for the specified istream. The old [`gb
 **Prototype**
 
 ```C
-PUBLIC int istream_new_gbuffer(
-    istream_h   istream,
-    size_t      data_size,
-    size_t      max_size
+
+int istream_new_gbuffer(
+    istream_h istream,
+    size_t data_size,
+    size_t max_size
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream where the new [`gbuffer_t *`](gbuffer_t) will be created.
+  - Handle to the istream where the gbuffer will be created.
 
 * - `data_size`
   - `size_t`
-  - The size of the initial data allocation for the new [`gbuffer_t *`](gbuffer_t).
+  - Size of the data to be stored in the gbuffer.
 
 * - `max_size`
   - `size_t`
-  - The maximum size the new [`gbuffer_t *`](gbuffer_t) can grow to.
+  - Maximum size allowed for the gbuffer.
 :::
+
 
 ---
 
 **Return Value**
 
-Returns `0` on success.
-Returns `-1` if the `istream` is `NULL`, or if memory allocation fails.
+
+The function returns an integer indicating the success or failure of creating the new gbuffer:
+- Returns 0 on success.
+- Returns a negative value if an error occurs.
+
 
 **Notes**
-- The previous [`gbuffer_t *`](gbuffer_t) is decremented and freed using `GBUFFER_DECREF` before assigning the new buffer.
-- This function logs an error if the `istream` is `NULL` or if the new buffer creation fails.
-- Ensure that the `istream` is valid before calling this function to avoid memory errors.
+
+
+This function is part of the istream utility for handling input streams in C. It is used to create a new gbuffer within the istream to store data with specified sizes.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +195,4 @@ Returns `-1` if the `istream` is `NULL`, or if memory allocation fails.
 ``````
 
 ```````
+

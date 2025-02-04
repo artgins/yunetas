@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (string2json())=
 # `string2json()`
 <!-- ============================================================== -->
 
 
-Convert a JSON-formatted string to a JSON object. Works with [`json_t *`](json_t).
-        
+Converts a C string into a JSON object. The function only supports the formats of [] or {}, and is an old version of legalstring2json().
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,47 @@ Convert a JSON-formatted string to a JSON object. Works with [`json_t *`](json_t
 
 ```C
 
-PUBLIC json_t *string2json(
-    const char  *string,
-    int          verbose
+json_t *string2json(
+    const char *str,
+    BOOL verbose
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `str`
   - `const char *`
-  - The JSON-formatted string to parse.
-
+  - The C string to be converted into a JSON object.
+  
 * - `verbose`
-  - `int`
-  - The verbosity level for logging.
+  - `BOOL`
+  - A flag indicating whether to enable verbose mode for the conversion.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a [`json_t *`](json_t) object created from the string, or `NULL` on failure.
-        
+Returns a JSON object representing the converted C string. If the content-type is application/json, the function returns the body as an `anystring2json` object. Otherwise, it returns a `gbuffer` with the full body.
+
+
+**Notes**
+
+
+- This function is an older version of legalstring2json().
+- The function does not support true single quotes (') in the C string.
 
 
 <!--====================================================-->
@@ -185,3 +189,4 @@ Returns a [`json_t *`](json_t) object created from the string, or `NULL` on fail
 ``````
 
 ```````
+

@@ -1,13 +1,12 @@
-
-
 <!-- ============================================================== -->
 (file_size())=
 # `file_size()`
 <!-- ============================================================== -->
 
 
-Retrieve the size of a file at the specified path in bytes.
-        
+The `file_size` function retrieves the size of a file specified by the given path.
+If the file does not exist or an error occurs while accessing the file, the function will return 0.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +24,43 @@ Retrieve the size of a file at the specified path in bytes.
 
 ```C
 
-PUBLIC off_t file_size(
-    const char  *path
+off_t file_size(
+    const char *path
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path of the file to query.
+  - The path to the file for which the size needs to be determined.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the size of the file in bytes, or a negative value on failure.
-        
+The function returns the size of the file in bytes as an `off_t` type.
+If the file does not exist or an error occurs, the function returns 0.
+
+
+**Notes**
+
+
+- If the file specified by the path does not exist or cannot be accessed, the function will return 0.
+- The `off_t` type is used to represent file sizes, which may vary depending on the system.
 
 
 <!--====================================================-->
@@ -180,3 +186,4 @@ Returns the size of the file in bytes, or a negative value on failure.
 ``````
 
 ```````
+

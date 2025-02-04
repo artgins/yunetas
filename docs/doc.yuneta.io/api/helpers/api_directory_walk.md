@@ -1,4 +1,4 @@
-# Debug / Backtrace Functions
+# Directory Walk Functions
 
 Source code in:
 
@@ -6,13 +6,13 @@ Source code in:
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
 
-
 :::{toctree}
-:caption: Debug / Backtrace Functions
+:caption: Directory Walk Functions
 :maxdepth: 1
 
-init_backtrace_with_backtrace
-show_backtrace_with_backtrace
-tdump
-tdump2json
+directory-walk/free_ordered_filename_array
+directory-walk/get_number_of_files
+directory-walk/get_ordered_filename_array
+directory-walk/walk_dir_tree
+
 :::

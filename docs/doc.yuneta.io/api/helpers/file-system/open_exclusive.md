@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (open_exclusive())=
 # `open_exclusive()`
 <!-- ============================================================== -->
 
 
-Open a file in exclusive mode, creating it if it does not exist.
-        
+The `open_exclusive` function opens a file exclusively, ensuring that the file is not already open by another process. It provides functionality to open a file with specific flags and permissions.
+
+This function is used to open a file exclusively, preventing other processes from opening the same file concurrently.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,46 +25,52 @@ Open a file in exclusive mode, creating it if it does not exist.
 
 ```C
 
-PUBLIC int open_exclusive(
-    const char  *path,
-    int         flags,
-    int         mode
+int open_exclusive(
+    const char *path,
+    int flags,
+    int permission
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path of the file to open.
+  - The path to the file to be opened exclusively.
 
 * - `flags`
   - `int`
-  - The flags for opening the file.
+  - Flags to control the opening of the file.
 
-* - `mode`
+* - `permission`
   - `int`
-  - The permissions mode for the file, used if the file is created.
+  - Permissions to set for the opened file.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the file descriptor on success, or a negative value on failure.
-        
+The function returns an integer representing the file descriptor of the opened file. If an error occurs, it returns -1.
+
+
+**Notes**
+
+
+- This function is useful for scenarios where exclusive access to a file is required to prevent conflicts with other processes.
+- It is important to handle errors returned by this function, especially when dealing with file operations.
 
 
 <!--====================================================-->
@@ -190,3 +196,4 @@ Returns the file descriptor on success, or a negative value on failure.
 ``````
 
 ```````
+

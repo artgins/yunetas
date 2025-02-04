@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (split3())=
 # `split3()`
 <!-- ============================================================== -->
 
 
-Split a string into three parts based on two delimiters.
-        
+The `split3` function splits a string by a delimiter character and returns a list of strings. It includes empty strings in the result list.
+
+**Note:** Remember to free the returned list using `split_free3()`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,76 +25,52 @@ Split a string into three parts based on two delimiters.
 
 ```C
 
-PUBLIC BOOL split3(
-    const char  *string,
-    char         delimiter1,
-    char         delimiter2,
-    char        *part1,
-    int          part1_size,
-    char        *part2,
-    int          part2_size,
-    char        *part3,
-    int          part3_size
+const char **split3(
+    const char *str,
+    const char *delim,
+    int *plist_size
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `str`
   - `const char *`
-  - The string to split.
+  - The string to be split.
 
-* - `delimiter1`
-  - `char`
-  - The first delimiter used to split the string.
+* - `delim`
+  - `const char *`
+  - The delimiter character used for splitting.
 
-* - `delimiter2`
-  - `char`
-  - The second delimiter used to split the string.
-
-* - `part1`
-  - `char *`
-  - The buffer to store the first part of the split string.
-
-* - `part1_size`
-  - `int`
-  - The size of the buffer for the first part.
-
-* - `part2`
-  - `char *`
-  - The buffer to store the second part of the split string.
-
-* - `part2_size`
-  - `int`
-  - The size of the buffer for the second part.
-
-* - `part3`
-  - `char *`
-  - The buffer to store the third part of the split string.
-
-* - `part3_size`
-  - `int`
-  - The size of the buffer for the third part.
+* - `plist_size`
+  - `int *`
+  - Pointer to store the size of the resulting list.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the string was successfully split into three parts, otherwise returns `FALSE`.
-        
+The function returns a list of strings resulting from splitting the input string by the specified delimiter character.
+
+
+**Notes**
+
+
+- The `split3` function includes empty strings in the resulting list.
+- Remember to free the returned list using `split_free3()`.
 
 
 <!--====================================================-->
@@ -220,3 +196,4 @@ Returns `TRUE` if the string was successfully split into three parts, otherwise 
 ``````
 
 ```````
+

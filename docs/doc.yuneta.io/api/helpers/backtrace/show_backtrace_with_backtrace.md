@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (show_backtrace_with_backtrace())=
 # `show_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
-        
+This function generates a backtrace and outputs it using the provided log handler function. It is useful for debugging purposes to trace the call stack.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,47 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL show_backtrace_with_backtrace(
-    const char  *path
+void show_backtrace_with_backtrace(
+    loghandler_fwrite_fn_t fwrite_fn,
+    void *h
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to check.
+* - `fwrite_fn`
+  - `loghandler_fwrite_fn_t`
+  - Function pointer to a log handler for writing the backtrace output.
+
+* - `h`
+  - `void *`
+  - Additional data to be passed to the log handler function.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
-        
+This function does not return a value.
+
+
+**Notes**
+
+
+- The backtrace generated includes information about the function calls leading up to the point where `show_backtrace_with_backtrace` is called.
+- The backtrace output is written using the provided log handler function.
 
 
 <!--====================================================-->
@@ -180,3 +189,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

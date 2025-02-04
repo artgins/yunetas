@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (list_open_files())=
 # `list_open_files()`
 <!-- ============================================================== -->
 
 
-List all open file descriptors for the current process.
-        
+This function lists all open files in the system.
+
+It is used to retrieve information about all files that are currently open in the system.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +25,39 @@ List all open file descriptors for the current process.
 
 ```C
 
-PUBLIC char **list_open_files(
-    int *file_count
-);
-        
+void list_open_files();
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `file_count`
-  - `int *`
-  - A pointer to store the number of open files.
+* - (No parameters)
+  - -
+  - This function does not take any parameters.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns an array of strings containing the paths of open files, or `NULL` on failure. The caller is responsible for freeing the array.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- This function does not have any specific notes or limitations.
 
 
 <!--====================================================-->
@@ -180,3 +183,4 @@ Returns an array of strings containing the paths of open files, or `NULL` on fai
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (debug_json())=
 # `debug_json()`
 <!-- ============================================================== -->
 
 
-Debug and print the contents of a JSON object. Works with [`json_t *`](json_t).
-        
+This function is used to debug and print a JSON object with optional verbosity.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,53 @@ Debug and print the contents of a JSON object. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC void debug_json(
-    json_t      *json,
-    const char  *title
+int debug_json(
+    const char *label,
+    json_t *jn,
+    BOOL verbose
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `json`
-  - [`json_t *`](json_t)
-  - The JSON object to debug.
-
-* - `title`
+* - `label`
   - `const char *`
-  - An optional title for the debug output.
+  - Label for the JSON object being debugged.
+
+* - `jn`
+  - `json_t *`
+  - The JSON object to be debugged.
+
+* - `verbose`
+  - `BOOL`
+  - Flag to indicate whether to print verbose information.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function outputs debug information for the JSON object.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- The `label` parameter is used to provide a descriptive label for the JSON object being debugged.
+- The `verbose` flag can be set to TRUE to print additional information along with the JSON object.
+- This function is useful for debugging JSON objects during development.
 
 
 <!--====================================================-->
@@ -185,3 +195,4 @@ No return value. This function outputs debug information for the JSON object.
 ``````
 
 ```````
+

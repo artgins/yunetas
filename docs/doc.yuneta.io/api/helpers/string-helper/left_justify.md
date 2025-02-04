@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (left_justify())=
 # `left_justify()`
 <!-- ============================================================== -->
 
 
-Remove both leading and trailing whitespace characters from a string.
-        
+The `left_justify` function is used to left-justify a string by removing leading whitespace characters from the input string `s`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,42 @@ Remove both leading and trailing whitespace characters from a string.
 
 ```C
 
-PUBLIC char *left_justify(
-    char        *string
+void left_justify(
+    char *s
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `s`
   - `char *`
-  - The string to modify.
+  - The input string to be left-justified by removing leading whitespace characters.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the modified string with leading and trailing whitespace removed.
-        
+This function does not return any value. It modifies the input string `s` in place by removing leading whitespace characters.
+
+
+**Notes**
+
+
+- The function modifies the input string `s` directly without returning a new string.
+- Leading whitespace characters include spaces, tabs, and newline characters.
 
 
 <!--====================================================-->
@@ -180,3 +184,4 @@ Returns the modified string with leading and trailing whitespace removed.
 ``````
 
 ```````
+

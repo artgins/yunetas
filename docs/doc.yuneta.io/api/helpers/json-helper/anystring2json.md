@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (anystring2json())=
 # `anystring2json()`
 <!-- ============================================================== -->
 
 
-Convert any string to a JSON object. Works with [`json_t *`](json_t).
-        
+Converts a string to a JSON object. This function is used to parse a string into a JSON object, especially useful for handling JSON strings efficiently.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,52 @@ Convert any string to a JSON object. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC json_t *anystring2json(
-    const char  *string,
-    int          verbose
+json_t * anystring2json(
+    const char *bf,
+    size_t len,
+    BOOL verbose
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `bf`
   - `const char *`
-  - The string to convert to JSON.
+  - The input string to be converted to a JSON object.
+
+* - `len`
+  - `size_t`
+  - The length of the input string.
 
 * - `verbose`
-  - `int`
-  - The verbosity level for logging.
+  - `BOOL`
+  - Flag indicating whether to enable verbose mode for conversion.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a [`json_t *`](json_t) object created from the string, or `NULL` on failure.
-        
+A JSON object representing the converted input string. The returned JSON object can be used for further processing or data manipulation.
+
+
+**Notes**
+
+
+- This function is particularly helpful for handling JSON strings efficiently and converting them into a structured JSON object.
+- The `verbose` flag can be used to enable additional information or logging during the conversion process.
 
 
 <!--====================================================-->
@@ -185,3 +194,4 @@ Returns a [`json_t *`](json_t) object created from the string, or `NULL` on fail
 ``````
 
 ```````
+

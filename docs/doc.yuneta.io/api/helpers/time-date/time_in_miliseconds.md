@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (time_in_miliseconds())=
 # `time_in_miliseconds()`
 <!-- ============================================================== -->
 
 
-Get the current system time in milliseconds since the epoch.
-        
+The `time_in_miliseconds` function returns the current real time in milliseconds.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,39 @@ Get the current system time in milliseconds since the epoch.
 
 ```C
 
-PUBLIC uint64_t time_in_miliseconds(void);
-        
+uint64_t time_in_miliseconds(void);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - None
+  - None
+  - No parameters are required for this function.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the current system time as a `uint64_t` value in milliseconds since the epoch.
-        
+The function returns the current real time in milliseconds as a `uint64_t` value.
+
+
+**Notes**
+
+
+This function provides the current real time in milliseconds. It is important to note that the time is based on the system clock and may not be monotonic.
 
 
 <!--====================================================-->
@@ -178,3 +181,4 @@ Returns the current system time as a `uint64_t` value in milliseconds since the 
 ``````
 
 ```````
+

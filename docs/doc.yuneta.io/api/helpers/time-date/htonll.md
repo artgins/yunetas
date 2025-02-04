@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (htonll())=
 # `htonll()`
 <!-- ============================================================== -->
 
 
-Convert a 64-bit integer from host byte order to network byte order.
-        
+The `htonll` function converts a 64-bit integer `value` from host byte order to network byte order.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,41 @@ Convert a 64-bit integer from host byte order to network byte order.
 
 ```C
 
-PUBLIC uint64_t htonll(
-    uint64_t hostlonglong
+uint64_t htonll(
+    uint64_t value
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `hostlonglong`
+* - `value`
   - `uint64_t`
-  - The 64-bit integer in host byte order.
+  - The 64-bit integer value to be converted to network byte order.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the 64-bit integer in network byte order.
-        
+The function returns the converted 64-bit integer value in network byte order.
+
+
+**Notes**
+
+
+This function is useful for ensuring consistency in data representation when transmitting data over networks.
 
 
 <!--====================================================-->
@@ -180,3 +183,4 @@ Returns the 64-bit integer in network byte order.
 ``````
 
 ```````
+

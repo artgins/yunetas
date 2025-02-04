@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (formatdate())=
 # `formatdate()`
 <!-- ============================================================== -->
 
 
-Format a timestamp into a human-readable date string.
-        
+The `formatdate` function converts a timestamp `t` into a formatted date string using the specified `format`. It writes the result into the buffer `bf` with a maximum size of `bfsize`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,53 @@ Format a timestamp into a human-readable date string.
 
 ```C
 
-PUBLIC char *formatdate(
-    double      timestamp,
-    const char  *format
+char *formatdate(
+    time_t t,
+    char *bf,
+    int bfsize,
+    const char *format
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
-
-* - `timestamp`
-  - `double`
-  - The timestamp to format, in seconds since the epoch.
-
+* - `t`
+  - `time_t`
+  - The timestamp to be formatted.
+* - `bf`
+  - `char *`
+  - The buffer to store the formatted date string.
+* - `bfsize`
+  - `int`
+  - The size of the buffer.
 * - `format`
   - `const char *`
-  - The format string for the date (e.g., `"%Y-%m-%d %H:%M:%S"`).
+  - The format string specifying how the date should be formatted.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a string containing the formatted date, or `NULL` on failure. The caller is responsible for freeing the string.
-        
+The function returns a pointer to the buffer `bf` containing the formatted date string.
+
+
+**Notes**
+
+
+- The `format` parameter follows the standard format specifiers used in C `strftime` function.
+- Ensure that the buffer `bf` has enough space to hold the formatted date string.
 
 
 <!--====================================================-->
@@ -185,3 +195,4 @@ Returns a string containing the formatted date, or `NULL` on failure. The caller
 ``````
 
 ```````
+

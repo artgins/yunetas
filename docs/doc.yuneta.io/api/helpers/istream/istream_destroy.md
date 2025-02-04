@@ -3,7 +3,9 @@
 # `istream_destroy()`
 <!-- ============================================================== -->
 
-Destroys an istream created using [`istream_create`](#istream_create). This function releases all memory and resources allocated for the istream, including its associated [`gbuffer_t`](gbuffer_t).
+
+This function is used to destroy an input stream handler created by `istream_create`. It releases all resources associated with the input stream.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,41 +22,38 @@ Destroys an istream created using [`istream_create`](#istream_create). This func
 **Prototype**
 
 ```C
-PUBLIC void istream_destroy(
-    istream_h   istream
+
+void istream_destroy(
+    istream_h istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-:header-rows: 1
-* - Key
-  - Type
-  - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream to be destroyed.
+  - The input stream handler to be destroyed.
 :::
+
 
 ---
 
 **Return Value**
 
-This function does not return a value.
+
+This function does not return any value.
+
 
 **Notes**
 
-- If the `istream` is `NULL`, the function performs no operation.
-- Internally, the function:
-  - Frees the memory allocated for the delimiter.
-  - Resets the event name pointer to `NULL`.
-  - Decrements and frees the associated [`gbuffer_t`](gbuffer_t).
-  - Frees the memory allocated for the `istream`.
-- Always call this function to clean up an `istream_h` to avoid memory leaks.
+
+- Make sure to call this function to properly release the resources associated with the input stream handler.
 
 
 <!--====================================================-->
@@ -180,3 +179,4 @@ This function does not return a value.
 ``````
 
 ```````
+

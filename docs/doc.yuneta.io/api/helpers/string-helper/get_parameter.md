@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (get_parameter())=
 # `get_parameter()`
 <!-- ============================================================== -->
 
 
-Extract a parameter value from a query string.
-        
+Extract parameter: delimited by blanks (	) or quotes ('' ""). The string is modified (nulls inserted)!
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,46 @@ Extract a parameter value from a query string.
 
 ```C
 
-PUBLIC const char *get_parameter(
-    const char  *query_string,
-    const char  *parameter_name
+char *get_parameter(
+    char *s,
+    char **save_ptr
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `query_string`
-  - `const char *`
-  - The query string to search.
-
-* - `parameter_name`
-  - `const char *`
-  - The name of the parameter to retrieve.
+* - `s`
+  - `char *`
+  - The string from which to extract the parameter.
+  
+* - `save_ptr`
+  - `char **`
+  - Pointer to save the position in the string after the extracted parameter.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a pointer to the value of the specified parameter, or `NULL` if not found.
-        
+Returns a pointer to the extracted parameter in the string.
+
+
+**Notes**
+
+
+This function extracts a parameter from a string, considering delimiters of blanks or quotes. The function modifies the string by inserting nulls and returns a pointer to the extracted parameter. The `save_ptr` parameter is used to save the position in the string after the extracted parameter.
 
 
 <!--====================================================-->
@@ -185,3 +188,4 @@ Returns a pointer to the value of the specified parameter, or `NULL` if not foun
 ``````
 
 ```````
+

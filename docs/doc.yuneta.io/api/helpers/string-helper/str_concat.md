@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (str_concat())=
 # `str_concat()`
 <!-- ============================================================== -->
 
 
-Concatenate two strings into a newly allocated string.
-        
+Concatenates two input strings `str1` and `str2` into a new string. Memory is allocated for the new string, and the caller is responsible for freeing it when no longer needed.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,46 @@ Concatenate two strings into a newly allocated string.
 
 ```C
 
-PUBLIC char *str_concat(
-    const char  *str1,
-    const char  *str2
+char * str_concat(
+    const char *str1,
+    const char *str2
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `str1`
   - `const char *`
-  - The first string to concatenate.
+  - The first string to be concatenated.
 
 * - `str2`
   - `const char *`
-  - The second string to concatenate.
+  - The second string to be concatenated.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a newly allocated string containing the concatenation of `str1` and `str2`, or `NULL` on failure.
-        
+A new string resulting from concatenating `str1` and `str2`. The caller is responsible for freeing the memory allocated for the new string.
+
+
+**Notes**
+
+
+Remember to free the memory allocated for the returned string using `str_concat_free()`. This function is case sensitive.
 
 
 <!--====================================================-->
@@ -185,3 +188,4 @@ Returns a newly allocated string containing the concatenation of `str1` and `str
 ``````
 
 ```````
+

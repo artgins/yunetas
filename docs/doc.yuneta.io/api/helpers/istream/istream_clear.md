@@ -3,7 +3,9 @@
 # `istream_clear()`
 <!-- ============================================================== -->
 
-Resets both the reading and writing pointers of the [`gbuffer_t *`](gbuffer_t) associated with the given [`istream_h`](istream_h). This effectively clears the buffer, making it ready for new data.
+
+The `istream_clear` function is used to reset both the write and read pointers of an input stream, effectively clearing the stream for new data.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,37 +22,44 @@ Resets both the reading and writing pointers of the [`gbuffer_t *`](gbuffer_t) a
 **Prototype**
 
 ```C
-PUBLIC void istream_clear(
-    istream_h   istream
+
+void istream_clear(
+    istream_h istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream whose buffer pointers need to be reset.
+  - The input stream to be cleared.
 :::
+
 
 ---
 
 **Return Value**
 
-This function does not return any value.
+
+This function does not return a value.
+
 
 **Notes**
-- It is equivalent to calling [`istream_reset_rd()`](#istream_reset_rd) and [`istream_reset_wr()`](#istream_reset_wr) sequentially.
-- If the `istream` or its associated [`gbuffer_t *`](gbuffer_t) is `NULL`, the function logs an error and does nothing.
 
-**Example Usage**
-You can use this function to completely reset the state of an istream buffer, for instance, after processing or when starting a new operation.
+
+- This function resets both the write and read pointers of the input stream, making it ready for new data operations.
+- It does not deallocate the memory used by the input stream, only resets its internal state.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +184,4 @@ You can use this function to completely reset the state of an istream buffer, fo
 ``````
 
 ```````
+

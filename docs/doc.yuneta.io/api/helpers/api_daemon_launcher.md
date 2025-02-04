@@ -1,4 +1,4 @@
-# HTTP Parser functions
+# Daemon functions
 
 Source code in:
 
@@ -6,11 +6,9 @@ Source code in:
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
 :::{toctree}
-:caption: HTTP Parser functions
+:caption: Daemon functions
 :maxdepth: 1
 
-ghttp_parser_create
-ghttp_parser_destroy
-ghttp_parser_received
-ghttp_parser_reset
+daemon-launcher/launch_daemon
+
 :::

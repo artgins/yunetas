@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (test_msectimer())=
 # `test_msectimer()`
 <!-- ============================================================== -->
 
 
-Test the elapsed time since `start_msectimer()` was called, in milliseconds.
-        
+This function is used to test if a millisecond timer has finished counting up to a specified value.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,41 @@ Test the elapsed time since `start_msectimer()` was called, in milliseconds.
 
 ```C
 
-PUBLIC double test_msectimer(
-    double start
+BOOL test_msectimer(
+    uint64_t value
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `start`
-  - `double`
-  - The start timestamp returned by `start_msectimer()`.
+* - `value`
+  - `uint64_t`
+  - The value to test the millisecond timer against.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the elapsed time in milliseconds as a `double` value.
-        
+Returns TRUE if the millisecond timer has finished counting up to the specified value.
+
+
+**Notes**
+
+
+- The function is used to check if a millisecond timer has reached a certain value.
 
 
 <!--====================================================-->
@@ -180,3 +183,4 @@ Returns the elapsed time in milliseconds as a `double` value.
 ``````
 
 ```````
+

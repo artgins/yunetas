@@ -3,7 +3,11 @@
 # `istream_read_until_delimiter()`
 <!-- ============================================================== -->
 
-Configures the istream to read data until a specified delimiter is encountered. Once the delimiter is matched, the specified event (`event`) is triggered for the associated GObj.
+
+This function reads data from the input stream until a specified delimiter is encountered. It then triggers the specified event with the extracted data.
+
+The function is part of the istream module and is used to handle input stream data efficiently by reading until a delimiter is found.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,59 +24,61 @@ Configures the istream to read data until a specified delimiter is encountered. 
 **Prototype**
 
 ```C
-PUBLIC int istream_read_until_delimiter(
-    istream_h       istream,
-    const char      *delimiter,
-    size_t          delimiter_size,
-    gobj_event_t    event
+
+int istream_read_until_delimiter(
+    istream_h   istream,
+    const char  *delimiter,
+    size_t      delimiter_size,
+    gobj_event_t event
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream where data will be read.
+  - Handle to the input stream.
 
 * - `delimiter`
   - `const char *`
-  - A pointer to the delimiter string to match in the incoming data.
+  - The delimiter to search for in the input stream.
 
 * - `delimiter_size`
   - `size_t`
-  - The size (in bytes) of the delimiter.
+  - Size of the delimiter string.
 
 * - `event`
   - `gobj_event_t`
-  - The event to be triggered when the delimiter is matched. This must be a unique pointer.
+  - Event to trigger when the delimiter is found, passing the extracted data.
 :::
+
 
 ---
 
 **Return Value**
 
-Returns `0` on successful configuration.
-Returns `-1` if:
-- `istream` is invalid.
-- Memory allocation for the delimiter fails.
-- `delimiter_size` is `0` or less.
+
+The function returns an integer indicating the success of reading until the delimiter:
+- Returns the number of bytes consumed if successful.
+- Returns -1 if an error occurs during the operation.
+
 
 **Notes**
 
-- The function performs the following steps:
-  1. Validates the input parameters.
-  2. Allocates memory for the `delimiter` and copies its contents.
-  3. Configures the `event` to be triggered when the delimiter is matched.
-  4. Resets the reading mode and any previously configured `num_bytes`.
-- The `event` must be a unique pointer to allow optimized comparison during event dispatching.
-- Ensure that the `delimiter` and its `delimiter_size` accurately represent the boundary condition for data parsing.
+
+- This function is useful for efficiently extracting data from an input stream until a specific delimiter is encountered.
+- It is recommended to check the return value to handle errors or to process the extracted data accordingly.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -197,3 +203,4 @@ Returns `-1` if:
 ``````
 
 ```````
+

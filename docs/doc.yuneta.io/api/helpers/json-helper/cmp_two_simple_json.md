@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (cmp_two_simple_json())=
 # `cmp_two_simple_json()`
 <!-- ============================================================== -->
 
 
-Compare two simple JSON values for equality. Works with [`json_t *`](json_t).
-        
+This function compares two JSON objects containing simple data types like strings, integers, reals, or booleans. Complex types are compared as matched. It returns -1 if the first JSON object is lower, 0 if they are equal, and 1 if the first JSON object is higher, similar to the behavior of `strcmp`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,48 @@ Compare two simple JSON values for equality. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC BOOL cmp_two_simple_json(
-    json_t      *jn1,
-    json_t      *jn2
+int cmp_two_simple_json(
+    json_t *jn_var1,
+    json_t *jn_var2
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
-
-* - `jn1`
-  - [`json_t *`](json_t)
-  - The first JSON value to compare.
-
-* - `jn2`
-  - [`json_t *`](json_t)
-  - The second JSON value to compare.
+* - `jn_var1`
+  - `json_t *`
+  - The first JSON object to compare.
+* - `jn_var2`
+  - `json_t *`
+  - The second JSON object to compare.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the JSON values are equal, otherwise returns `FALSE`.
-        
+The function returns an integer value indicating the comparison result:
+- `-1`: First JSON object is lower.
+- `0`: Both JSON objects are equal.
+- `1`: First JSON object is higher.
+
+
+**Notes**
+
+
+- Complex types within the JSON objects are compared as matched.
+- This function is designed for comparing simple JSON objects and may not handle complex structures.
 
 
 <!--====================================================-->
@@ -185,3 +190,4 @@ Returns `TRUE` if the JSON values are equal, otherwise returns `FALSE`.
 ``````
 
 ```````
+

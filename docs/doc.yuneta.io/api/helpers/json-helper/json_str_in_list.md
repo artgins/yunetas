@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (json_str_in_list())=
 # `json_str_in_list()`
 <!-- ============================================================== -->
 
 
-Check if a string exists in a JSON array of strings. Works with [`json_t *`](json_t).
-        
+This function checks if a given string `str` is present in a JSON list `jn_list`. It can perform a case-sensitive or case-insensitive search based on the `ignore_case` parameter.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,56 @@ Check if a string exists in a JSON array of strings. Works with [`json_t *`](jso
 
 ```C
 
-PUBLIC BOOL json_str_in_list(
-    json_t      *jn_list,
-    const char  *string
+int json_str_in_list(
+    hgobj   gobj,
+    json_t *jn_list,
+    const char *str,
+    BOOL ignore_case
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - The gobj context.
 * - `jn_list`
-  - [`json_t *`](json_t)
-  - The JSON array to search.
-
-* - `string`
+  - `json_t *`
+  - The JSON list to search in.
+* - `str`
   - `const char *`
-  - The string to find in the array.
+  - The string to search for.
+* - `ignore_case`
+  - `BOOL`
+  - Flag to indicate if the search should be case-insensitive (TRUE) or case-sensitive (FALSE).
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the string exists in the JSON array, otherwise returns `FALSE`.
-        
+Returns an integer indicating whether the string `str` is found in the JSON list:
+- `0`: String not found.
+- `1`: String found.
+
+
+**Notes**
+
+
+- The function can search for a string in a JSON list and return the result.
+- It supports both case-sensitive and case-insensitive searches based on the `ignore_case` parameter.
 
 
 <!--====================================================-->
@@ -185,3 +198,4 @@ Returns `TRUE` if the string exists in the JSON array, otherwise returns `FALSE`
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (change_char())=
 # `change_char()`
 <!-- ============================================================== -->
 
 
-Change a specific character in a string to another character.
-        
+Change 'old_c' by 'new_c' in the string 's'. This function is useful for easier JSON representation in C strings, but it restricts the use of true ' characters.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,46 +23,51 @@ Change a specific character in a string to another character.
 
 ```C
 
-PUBLIC void change_char(
-    char        *string,
-    char         from,
-    char         to
+int change_char(
+    char *s,
+    char old_c,
+    char new_c
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `s`
   - `char *`
-  - The string to modify.
+  - The string in which the character will be changed.
 
-* - `from`
+* - `old_c`
   - `char`
-  - The character to replace.
+  - The character to be replaced.
 
-* - `to`
+* - `new_c`
   - `char`
-  - The character to replace it with.
+  - The character to replace 'old_c'.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. The function modifies the string in place.
-        
+This function returns an integer indicating the success of the character replacement operation.
+
+
+**Notes**
+
+
+This function is designed to change characters in a string, specifically for easier JSON representation in C strings. However, it has a limitation that true ' characters cannot be used.
 
 
 <!--====================================================-->
@@ -190,3 +193,4 @@ No return value. The function modifies the string in place.
 ``````
 
 ```````
+

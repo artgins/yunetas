@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (newfile())=
 # `newfile()`
 <!-- ============================================================== -->
 
 
-Create a new file at the specified path.
-        
+The `newfile` function is used to create a new file at the specified path with the given permissions. If the file already exists and the `overwrite` parameter is set to TRUE, the existing file will be overwritten.
+
+This function provides a convenient way to create or overwrite files with the desired permissions.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,54 @@ Create a new file at the specified path.
 
 ```C
 
-PUBLIC int newfile(
-    const char  *path,
-    int         mode
+int newfile(
+    const char *path,
+    int permission,
+    BOOL overwrite
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path of the file to create.
+  - The path where the new file will be created.
 
-* - `mode`
+* - `permission`
   - `int`
-  - The permissions mode for the new file.
+  - The permissions to be set for the new file.
+
+* - `overwrite`
+  - `BOOL`
+  - Flag indicating whether to overwrite the file if it already exists.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+The function returns an integer indicating the success or failure of the operation:
+- 0: Success.
+- -1: Failure.
+
+
+**Notes**
+
+
+- If the `overwrite` parameter is set to FALSE and the file already exists, the function will not create a new file and return -1.
+- The function will return -1 if there are any errors during the file creation process.
 
 
 <!--====================================================-->
@@ -185,3 +198,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

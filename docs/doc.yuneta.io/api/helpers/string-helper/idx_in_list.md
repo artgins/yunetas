@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (idx_in_list())=
 # `idx_in_list()`
 <!-- ============================================================== -->
 
 
-Check if a value exists in a list and return its index.
-        
+This function returns the index of a string in a list of strings. It searches for a specific string within the provided list and returns the index of the string if found. If the string is not found in the list, it returns -1.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,52 @@ Check if a value exists in a list and return its index.
 
 ```C
 
-PUBLIC int idx_in_list(
-    const char  *list[],
-    const char  *value
+int idx_in_list(
+    const char **list,
+    const char *str,
+    BOOL ignore_case
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `list`
-  - `const char *[]`
-  - The list of strings to search.
-
-* - `value`
+  - `const char **`
+  - An array of strings to search within.
+  
+* - `str`
   - `const char *`
-  - The value to search for in the list.
+  - The string to search for in the list.
+  
+* - `ignore_case`
+  - `BOOL`
+  - A flag indicating whether the search should be case-insensitive (TRUE) or case-sensitive (FALSE).
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the index of the value in the list, or `-1` if the value is not found.
-        
+The function returns an integer representing the index of the string in the list. If the string is not found, it returns -1.
+
+
+**Notes**
+
+
+- This function performs a search for a specific string within a list of strings and returns the index of the string if found.
+- The `ignore_case` parameter allows the function to perform a case-insensitive search if set to TRUE.
 
 
 <!--====================================================-->
@@ -185,3 +194,4 @@ Returns the index of the value in the list, or `-1` if the value is not found.
 ``````
 
 ```````
+

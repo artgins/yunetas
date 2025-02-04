@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (count_char())=
 # `count_char()`
 <!-- ============================================================== -->
 
 
-Count the occurrences of a specific character in a string.
-        
+This function counts the occurrences of a specific character `c` in the string `s`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,46 @@ Count the occurrences of a specific character in a string.
 
 ```C
 
-PUBLIC int count_char(
-    const char  *string,
-    char         c
+int count_char(
+    const char *s,
+    char c
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `s`
   - `const char *`
-  - The string to search.
+  - The input string to search for character occurrences.
 
 * - `c`
   - `char`
-  - The character to count.
+  - The character to count in the string.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the number of times the character `c` appears in the string.
-        
+Returns the total count of occurrences of the character `c` in the string `s`.
+
+
+**Notes**
+
+
+This function is case sensitive and counts each occurrence of the character `c` in the provided string `s`.
 
 
 <!--====================================================-->
@@ -185,3 +188,4 @@ Returns the number of times the character `c` appears in the string.
 ``````
 
 ```````
+

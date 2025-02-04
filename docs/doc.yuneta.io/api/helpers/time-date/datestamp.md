@@ -4,7 +4,11 @@
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
+The `datestamp` function generates a date stamp and stores it in the provided output buffer.
+
+The date stamp includes the current date and time information.
+
+If the output buffer is not large enough to hold the entire date stamp, the function will truncate the date stamp to fit within the buffer size.
 
 
 <!------------------------------------------------------------>
@@ -23,26 +27,31 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL datestamp(
-    const char  *path
+void datestamp(
+    char *out,
+    int outsize
 );
-
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to check.
+* - `out`
+  - `char *`
+  - Pointer to the output buffer where the date stamp will be stored.
+  
+* - `outsize`
+  - `int`
+  - Size of the output buffer.
 :::
 
 
@@ -51,8 +60,14 @@ PUBLIC BOOL datestamp(
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
+This function does not return a value.
 
+
+**Notes**
+
+
+- The date stamp generated includes the current date and time information.
+- If the output buffer is not large enough to hold the entire date stamp, the function will truncate the date stamp to fit within the buffer size.
 
 
 <!--====================================================-->
@@ -178,3 +193,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

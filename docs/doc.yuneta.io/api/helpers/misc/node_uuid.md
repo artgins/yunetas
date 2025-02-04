@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (node_uuid())=
 # `node_uuid()`
 <!-- ============================================================== -->
 
 
-Retrieve the UUID of the current node.
-        
+The `node_uuid` function retrieves the UUID of the machine.
+
+This function is used to obtain the unique identifier (UUID) associated with the current machine. The UUID is a universally unique identifier that can be used to uniquely identify the machine in various contexts.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +25,39 @@ Retrieve the UUID of the current node.
 
 ```C
 
-PUBLIC const char *node_uuid(void);
-        
+const char *node_uuid(void);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
-:widths: 20 20 60
+::: {list-table}
+:widths: 20 80
 :header-rows: 1
-* - Key
+
+* - Parameter
   - Type
   - Description
-
-* - `-`
-  - `-`
+* - None
+  - N/A
   - This function does not take any parameters.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a constant string containing the node's UUID.
-        
+The function returns a pointer to a constant string representing the UUID of the machine.
+
+
+**Notes**
+
+
+- The UUID obtained from this function is typically used for uniquely identifying the machine in applications or systems.
+- The UUID is expected to be unique across different machines.
 
 
 <!--====================================================-->
@@ -178,3 +183,4 @@ Returns a constant string containing the node's UUID.
 ``````
 
 ```````
+

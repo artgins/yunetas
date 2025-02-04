@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (time_in_miliseconds_monotonic())=
 # `time_in_miliseconds_monotonic()`
 <!-- ============================================================== -->
 
 
-Get the current monotonic time in milliseconds. This time is not affected by system clock changes.
-        
+This function returns the current time in milliseconds using a monotonic clock. Monotonic time is always increasing and is not subject to system time changes like adjustments for clock drift or leap seconds.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,40 @@ Get the current monotonic time in milliseconds. This time is not affected by sys
 
 ```C
 
-PUBLIC uint64_t time_in_miliseconds_monotonic(void);
-        
+uint64_t time_in_miliseconds_monotonic(void);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
+* - None
+  - None
   - This function does not take any parameters.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the current monotonic time as a `uint64_t` value in milliseconds.
-        
+The function returns the current time in milliseconds as a 64-bit unsigned integer.
+
+
+**Notes**
+
+
+- Monotonic time is useful for measuring time intervals and durations accurately without being affected by system time changes.
+- The returned time value represents the number of milliseconds elapsed since an arbitrary starting point.
 
 
 <!--====================================================-->
@@ -178,3 +182,4 @@ Returns the current monotonic time as a `uint64_t` value in milliseconds.
 ``````
 
 ```````
+

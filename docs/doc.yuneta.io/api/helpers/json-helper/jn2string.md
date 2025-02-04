@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (jn2string())=
 # `jn2string()`
 <!-- ============================================================== -->
 
 
-Convert a JSON value to a string. Works with [`json_t *`](json_t).
-        
+Converts a simple JSON value to a string representation. This function is used to extract the string value from a JSON object, handling simple types like strings, integers, reals, and booleans.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,42 @@ Convert a JSON value to a string. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC const char *jn2string(
-    json_t      *jn,
-    const char  *default_value
+char *jn2string(
+    json_t *jn_var
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `jn`
-  - [`json_t *`](json_t)
-  - The JSON value to convert.
-
-* - `default_value`
-  - `const char *`
-  - The default value to return if the JSON value cannot be converted to a string.
+* - `jn_var`
+  - `json_t *`
+  - The JSON object containing the value to be converted to a string.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the string value, or `default_value` if the conversion fails.
-        
+Returns a dynamically allocated string representing the value stored in the JSON object. The caller is responsible for freeing the memory allocated by this function.
+
+
+**Notes**
+
+
+- This function is designed to handle simple JSON values like strings, integers, reals, and booleans. Complex types are treated as matched.
+- The returned string must be freed using the `gbmem_free` function.
 
 
 <!--====================================================-->
@@ -185,3 +184,4 @@ Returns the string value, or `default_value` if the conversion fails.
 ``````
 
 ```````
+

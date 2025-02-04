@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (get_number_of_files())=
 # `get_number_of_files()`
 <!-- ============================================================== -->
 
 
-Get the number of files in a specified directory.
-        
+This function retrieves the number of files in a specified directory matching a given pattern and options.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,57 @@ Get the number of files in a specified directory.
 
 ```C
 
-PUBLIC int get_number_of_files(
-    const char  *path
+int get_number_of_files(
+    hgobj   gobj,
+    const char *root_dir,
+    const char *pattern,
+    wd_option opt
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `gobj`
+  - `hgobj`
+  - The gobj instance.
+  
+* - `root_dir`
   - `const char *`
-  - The path to the directory to count files in.
+  - The root directory path to search for files.
+  
+* - `pattern`
+  - `const char *`
+  - The pattern to match filenames in the directory.
+  
+* - `opt`
+  - `wd_option`
+  - Options for file search.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the number of files in the directory, or a negative value on failure.
-        
+The function returns an integer representing the number of files found in the specified directory.
+
+
+**Notes**
+
+
+- This function uses the `walk_dir_tree` function internally to traverse the directory tree and count the files.
+- The `wd_option` parameter allows specifying additional options for the file search.
 
 
 <!--====================================================-->
@@ -180,3 +199,4 @@ Returns the number of files in the directory, or a negative value on failure.
 ``````
 
 ```````
+

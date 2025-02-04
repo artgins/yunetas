@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (get_key_value_parameter())=
 # `get_key_value_parameter()`
 <!-- ============================================================== -->
 
 
-Parse a key-value pair parameter from a string.
-        
+This function extracts a key=value or key='this value' parameter from a string and returns the value. The key is stored in `key`. The string `s` is modified during the extraction process.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,56 +23,53 @@ Parse a key-value pair parameter from a string.
 
 ```C
 
-PUBLIC BOOL get_key_value_parameter(
-    const char  *parameter,
-    char        *key,
-    int          key_size,
-    char        *value,
-    int          value_size
+char *get_key_value_parameter(
+    char *s,
+    char **key,
+    char **save_ptr
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `parameter`
-  - `const char *`
-  - The string containing the key-value pair.
-
+* - `s`
+  - `char *`
+  - The input string containing the parameter.
+  
 * - `key`
-  - `char *`
-  - The buffer to store the extracted key.
-
-* - `key_size`
-  - `int`
-  - The size of the key buffer.
-
-* - `value`
-  - `char *`
-  - The buffer to store the extracted value.
-
-* - `value_size`
-  - `int`
-  - The size of the value buffer.
+  - `char **`
+  - Pointer to store the extracted key.
+  
+* - `save_ptr`
+  - `char **`
+  - Pointer to save the state of the string for subsequent calls.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the key-value pair was successfully parsed, otherwise returns `FALSE`.
-        
+The function returns the extracted value of the key=value parameter as a string.
+
+
+**Notes**
+
+
+- The function modifies the input string `s` by inserting nulls during the extraction process.
+- The extracted key is stored in the pointer `key`.
+- The state of the string after extraction can be saved using the `save_ptr` for subsequent calls.
 
 
 <!--====================================================-->
@@ -200,3 +195,4 @@ Returns `TRUE` if the key-value pair was successfully parsed, otherwise returns 
 ``````
 
 ```````
+

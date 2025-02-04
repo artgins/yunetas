@@ -1,4 +1,4 @@
-# Common Protocol Functions
+# Misc Utility functions
 
 Source code in:
 
@@ -6,10 +6,11 @@ Source code in:
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
 :::{toctree}
-:caption: Common Protocol Functions
+:caption: Misc Utility functions
 :maxdepth: 1
 
-comm_prot_free
-comm_prot_get_gclass
-comm_prot_register
+misc/create_uuid
+misc/get_hostname
+misc/node_uuid
+
 :::

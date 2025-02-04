@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (set_real_precision())=
 # `set_real_precision()`
 <!-- ============================================================== -->
 
 
-Set the precision for converting real numbers to strings.
-        
+The `set_real_precision` function is used to set the precision for real numbers when converting them to strings. This precision affects the number of decimal places displayed in the string representation of real numbers.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,37 @@ Set the precision for converting real numbers to strings.
 
 ```C
 
-PUBLIC void set_real_precision(
-    int         precision
+int set_real_precision(
+    int precision
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
 * - `precision`
   - `int`
-  - The number of decimal places for real number precision.
+  - The desired precision to set for real numbers.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function sets the global precision for real numbers.
-        
+The function returns the previous precision that was set before the new precision was applied.
+
+
+**Notes**
+
+
+This function is useful when converting real numbers to strings, allowing control over the number of decimal places displayed in the string representation.
 
 
 <!--====================================================-->
@@ -180,3 +179,4 @@ No return value. This function sets the global precision for real numbers.
 ``````
 
 ```````
+

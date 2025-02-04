@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (jn2integer())=
 # `jn2integer()`
 <!-- ============================================================== -->
 
 
-Convert a JSON value to an integer. Works with [`json_t *`](json_t).
-        
+This function converts a JSON variable to an integer value. It extracts the integer value from the provided JSON variable and returns it as a `json_int_t` type.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,42 @@ Convert a JSON value to an integer. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC int jn2integer(
-    json_t      *jn,
-    int         default_value
+json_int_t jn2integer(
+    json_t *jn_var
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `jn`
-  - [`json_t *`](json_t)
-  - The JSON value to convert.
-
-* - `default_value`
-  - `int`
-  - The default value to return if the JSON value cannot be converted to an integer.
+* - `jn_var`
+  - `json_t *`
+  - The JSON variable from which the integer value will be extracted.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the integer value, or `default_value` if the conversion fails.
-        
+The function returns the extracted integer value from the JSON variable as a `json_int_t` type.
+
+
+**Notes**
+
+
+- This function is designed to extract integer values from JSON variables.
+- It is important to ensure that the JSON variable contains an integer value to avoid unexpected behavior.
 
 
 <!--====================================================-->
@@ -185,3 +184,4 @@ Returns the integer value, or `default_value` if the conversion fails.
 ``````
 
 ```````
+

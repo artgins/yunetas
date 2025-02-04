@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (get_ordered_filename_array())=
 # `get_ordered_filename_array()`
 <!-- ============================================================== -->
 
 
-Retrieve an ordered array of filenames from a directory.
-        
+This function returns the ordered full tree filenames of the specified root directory based on the provided pattern and options.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,62 @@ Retrieve an ordered array of filenames from a directory.
 
 ```C
 
-PUBLIC char **get_ordered_filename_array(
-    const char  *path,
-    int         *file_count
+char **get_ordered_filename_array(
+    hgobj gobj,
+    const char *root_dir,
+    const char *pattern,
+    wd_option opt,
+    int *size
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `gobj`
+  - `hgobj`
+  - The gobj instance.
+  
+* - `root_dir`
   - `const char *`
-  - The path to the directory.
-
-* - `file_count`
+  - The root directory path.
+  
+* - `pattern`
+  - `const char *`
+  - The pattern to match filenames.
+  
+* - `opt`
+  - `wd_option`
+  - Options for file matching.
+  
+* - `size`
   - `int *`
-  - A pointer to store the number of files in the array.
+  - Pointer to store the size of the returned array.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns an ordered array of filenames, or `NULL` on failure. The caller is responsible for freeing the array.
-        
+An array of ordered filenames from the root directory matching the pattern.
+
+
+**Notes**
+
+
+- Remember to free the returned array using `free_ordered_filename_array()`.
+- In some cases, using `glob()` may be more efficient for similar functionality.
 
 
 <!--====================================================-->
@@ -185,3 +204,4 @@ Returns an ordered array of filenames, or `NULL` on failure. The caller is respo
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (filesize())=
 # `filesize()`
 <!-- ============================================================== -->
 
 
-Get the size of a file in bytes.
-        
+The `filesize` function retrieves the size of a file specified by the given path.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,42 @@ Get the size of a file in bytes.
 
 ```C
 
-PUBLIC off_t filesize(
-    const char  *path
+off_t filesize(
+    const char *path
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path of the file to query.
+  - The path to the file for which the size needs to be determined.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the size of the file in bytes, or a negative value on failure.
-        
+The function returns the size of the file in bytes as an `off_t` data type.
+
+
+**Notes**
+
+
+- This function operates synchronously and may block the execution until the file size is determined.
+- It is important to ensure that the path provided is valid and points to an existing file.
 
 
 <!--====================================================-->
@@ -180,3 +184,4 @@ Returns the size of the file in bytes, or a negative value on failure.
 ``````
 
 ```````
+

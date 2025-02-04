@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (strntolower())=
 # `strntolower()`
 <!-- ============================================================== -->
 
 
-Convert a string to lowercase up to a specified length.
-        
+Converts the first `n` characters of the string `s` to lowercase.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,46 +23,47 @@ Convert a string to lowercase up to a specified length.
 
 ```C
 
-PUBLIC char *strntolower(
-    char        *dest,
-    const char  *src,
-    int         n
+char *strntolower(
+    char* s,
+    size_t n
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `dest`
+* - `s`
   - `char *`
-  - The destination buffer for the lowercase string.
-
-* - `src`
-  - `const char *`
-  - The source string to convert.
+  - Pointer to the string to convert.
 
 * - `n`
-  - `int`
-  - The maximum number of characters to convert.
+  - `size_t`
+  - Number of characters to convert to lowercase.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the destination buffer containing the lowercase string.
-        
+Returns a pointer to the modified string `s`.
+
+
+**Notes**
+
+
+- This function modifies the original string by converting characters to lowercase.
+- Only the first `n` characters of the string `s` are converted.
 
 
 <!--====================================================-->
@@ -190,3 +189,4 @@ Returns the destination buffer containing the lowercase string.
 ``````
 
 ```````
+

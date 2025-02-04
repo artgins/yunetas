@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (newdir())=
 # `newdir()`
 <!-- ============================================================== -->
 
 
-Create a new directory at the specified path.
-        
+The `newdir` function creates a new directory at the specified `path` with the given `permission`.
+
+If the directory creation is successful, the function returns 0. Otherwise, it returns -1.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,47 @@ Create a new directory at the specified path.
 
 ```C
 
-PUBLIC int newdir(
-    const char  *path,
-    int         mode
+int newdir(
+    const char *path,
+    int permission
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path of the directory to create.
+  - The path where the new directory will be created.
 
-* - `mode`
+* - `permission`
   - `int`
-  - The permissions mode for the new directory.
+  - The permission mode for the new directory.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+The function returns 0 if the directory creation is successful. Otherwise, it returns -1.
+
+
+**Notes**
+
+
+- The function will attempt to create the directory with the specified permission.
+- If the directory creation fails, the function will return -1.
 
 
 <!--====================================================-->
@@ -185,3 +191,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

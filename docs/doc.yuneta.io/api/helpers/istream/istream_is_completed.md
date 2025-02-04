@@ -3,7 +3,9 @@
 # `istream_is_completed()`
 <!-- ============================================================== -->
 
-Checks if the given [`istream_h`](istream_h) has completed its current reading operation. Completion is determined based on whether the defined criteria (e.g., reading up to a delimiter or a specific number of bytes) have been met.
+
+Check if the input stream has been fully consumed or not.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,38 +22,41 @@ Checks if the given [`istream_h`](istream_h) has completed its current reading o
 **Prototype**
 
 ```C
-PUBLIC BOOL istream_is_completed(
+
+int istream_is_completed(
     istream_h   istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
 * - `istream`
-  - [`istream_h`](istream_h)
-  - The handle to the istream to check for completion status.
+  - `istream_h`
+  - The input stream handle to check for completion.
 :::
+
 
 ---
 
 **Return Value**
 
-- Returns `TRUE` if the istream's operation (reading until a delimiter or a specific number of bytes) is complete.
-- Returns `FALSE` if the operation is not yet complete or if the `istream` is invalid.
+
+Returns an integer indicating whether the input stream has been fully consumed:
+- 1: The input stream has been fully consumed.
+- 0: The input stream has not been fully consumed.
+
 
 **Notes**
-- The function checks the `completed` flag in the internal structure of the istream.
-- Logs an error if the provided `istream` is `NULL`.
 
-**Example Usage**
-This function is typically used to verify whether an operation, such as reading a specific number of bytes or until a delimiter, has successfully completed before further processing.
+
+This function is used to determine if all the data in the input stream has been read and processed. It returns 1 if the stream has been fully consumed, and 0 otherwise.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +181,4 @@ This function is typically used to verify whether an operation, such as reading 
 ``````
 
 ```````
+

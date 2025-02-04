@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (str_concat3())=
 # `str_concat3()`
 <!-- ============================================================== -->
 
 
-Concatenate three strings into a newly allocated string.
-        
+The `str_concat3` function concatenates three input strings `str1`, `str2`, and `str3` into a single string and returns the result. Memory is allocated for the new string, and the caller is responsible for freeing it when no longer needed.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,46 +23,51 @@ Concatenate three strings into a newly allocated string.
 
 ```C
 
-PUBLIC char *str_concat3(
-    const char  *str1,
-    const char  *str2,
-    const char  *str3
+char * str_concat3(
+    const char *str1,
+    const char *str2,
+    const char *str3
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `str1`
   - `const char *`
-  - The first string to concatenate.
+  - The first string to be concatenated.
 
 * - `str2`
   - `const char *`
-  - The second string to concatenate.
+  - The second string to be concatenated.
 
 * - `str3`
   - `const char *`
-  - The third string to concatenate.
+  - The third string to be concatenated.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a newly allocated string containing the concatenation of `str1`, `str2`, and `str3`, or `NULL` on failure.
-        
+The function returns a new string that is the concatenation of `str1`, `str2`, and `str3`. The caller is responsible for freeing the memory allocated for the returned string.
+
+
+**Notes**
+
+
+- Remember to free the memory allocated for the returned string using the appropriate memory deallocation function.
 
 
 <!--====================================================-->
@@ -190,3 +193,4 @@ Returns a newly allocated string containing the concatenation of `str1`, `str2`,
 ``````
 
 ```````
+

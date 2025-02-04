@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (ntohll())=
 # `ntohll()`
 <!-- ============================================================== -->
 
 
-Convert a 64-bit integer from network byte order to host byte order.
-        
+The `ntohll` function converts a 64-bit integer from network byte order to host byte order.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,41 @@ Convert a 64-bit integer from network byte order to host byte order.
 
 ```C
 
-PUBLIC uint64_t ntohll(
-    uint64_t netlonglong
+uint64_t ntohll(
+    uint64_t value
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `netlonglong`
+* - `value`
   - `uint64_t`
-  - The 64-bit integer in network byte order.
+  - The 64-bit integer value to be converted from network byte order to host byte order.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the 64-bit integer in host byte order.
-        
+The function returns the converted 64-bit integer value in host byte order.
+
+
+**Notes**
+
+
+This function is useful for handling network communication where data needs to be converted between different byte orders.
 
 
 <!--====================================================-->
@@ -180,3 +183,4 @@ Returns the 64-bit integer in host byte order.
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (delete_left_blanks())=
 # `delete_left_blanks()`
 <!-- ============================================================== -->
 
 
-Remove leading whitespace characters from a string.
-        
+The `delete_left_blanks` function removes leading blank spaces from the input string `s`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,42 @@ Remove leading whitespace characters from a string.
 
 ```C
 
-PUBLIC char *delete_left_blanks(
-    char        *string
+void delete_left_blanks(
+    char *s
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `s`
   - `char *`
-  - The string to modify.
+  - The input string from which leading blank spaces will be removed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the modified string with leading whitespace removed.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- The function modifies the input string `s` directly by removing leading blank spaces.
+- No return value is provided as the modification is done in-place.
 
 
 <!--====================================================-->
@@ -180,3 +184,4 @@ Returns the modified string with leading whitespace removed.
 ``````
 
 ```````
+

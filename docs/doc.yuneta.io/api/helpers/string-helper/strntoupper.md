@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (strntoupper())=
 # `strntoupper()`
 <!-- ============================================================== -->
 
 
-Convert a string to uppercase up to a specified length.
-        
+Converts the first `n` characters of the input string `s` to uppercase.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,46 +23,46 @@ Convert a string to uppercase up to a specified length.
 
 ```C
 
-PUBLIC char *strntoupper(
-    char        *dest,
-    const char  *src,
-    int         n
+char *strntoupper(
+    char *s,
+    size_t n
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `dest`
+* - `s`
   - `char *`
-  - The destination buffer for the uppercase string.
-
-* - `src`
-  - `const char *`
-  - The source string to convert.
+  - Pointer to the input string to be converted.
 
 * - `n`
-  - `int`
-  - The maximum number of characters to convert.
+  - `size_t`
+  - Number of characters to convert to uppercase.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the destination buffer containing the uppercase string.
-        
+Returns a pointer to the converted string `s`, with the first `n` characters in uppercase.
+
+
+**Notes**
+
+
+This function modifies the input string `s` in place by converting the characters to uppercase. It only converts the first `n` characters to uppercase and does not modify characters beyond that limit.
 
 
 <!--====================================================-->
@@ -190,3 +188,4 @@ Returns the destination buffer containing the uppercase string.
 ``````
 
 ```````
+

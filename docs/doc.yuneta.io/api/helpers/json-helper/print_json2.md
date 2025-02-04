@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (print_json2())=
 # `print_json2()`
 <!-- ============================================================== -->
 
 
-Pretty-print a JSON object to the console. Works with [`json_t *`](json_t).
-        
+This function prints the contents of a JSON object along with a label for identification purposes.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,47 @@ Pretty-print a JSON object to the console. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC void print_json2(
-    json_t      *json
+int print_json2(
+    const char *label,
+    json_t *jn
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `json`
-  - [`json_t *`](json_t)
-  - The JSON object to print.
+* - `label`
+  - `const char *`
+  - A label to identify the JSON object being printed.
+
+* - `jn`
+  - `json_t *`
+  - The JSON object to be printed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function outputs the JSON object to the console in a readable format.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- The function is responsible for printing the JSON object to the console or log.
+- It is useful for debugging purposes to visualize the contents of a JSON object.
 
 
 <!--====================================================-->
@@ -180,3 +189,4 @@ No return value. This function outputs the JSON object to the console in a reada
 ``````
 
 ```````
+

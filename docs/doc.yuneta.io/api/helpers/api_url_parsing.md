@@ -1,4 +1,4 @@
-# Daemon functions
+# URL Parsing functions
 
 Source code in:
 
@@ -6,8 +6,9 @@ Source code in:
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
 :::{toctree}
-:caption: Daemon functions
+:caption: URL Parsing functions
 :maxdepth: 1
 
-launch_daemon
+url-parsing/get_url_schema
+url-parsing/parse_url
 :::

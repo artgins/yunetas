@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (str_concat_free())=
 # `str_concat_free()`
 <!-- ============================================================== -->
 
 
-Concatenate two strings into a newly allocated string and free the input strings.
-        
+The `str_concat_free` function is used to free the memory allocated for a string that was concatenated using the `str_concat` or `str_concat3` functions.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,41 @@ Concatenate two strings into a newly allocated string and free the input strings
 
 ```C
 
-PUBLIC char *str_concat_free(
-    char        *str1,
-    char        *str2
+void str_concat_free(
+    char *s
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `str1`
+* - `s`
   - `char *`
-  - The first string to concatenate and free.
-
-* - `str2`
-  - `char *`
-  - The second string to concatenate and free.
+  - The string to be freed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a newly allocated string containing the concatenation of `str1` and `str2`, or `NULL` on failure.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- Remember to use this function to deallocate memory after using `str_concat` or `str_concat3`.
 
 
 <!--====================================================-->
@@ -185,3 +183,4 @@ Returns a newly allocated string containing the concatenation of `str1` and `str
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (start_msectimer())=
 # `start_msectimer()`
 <!-- ============================================================== -->
 
 
-Start a timer to measure elapsed time in milliseconds.
-        
+This function starts a millisecond timer with the specified duration. The timer will count down from the given milliseconds value.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,37 @@ Start a timer to measure elapsed time in milliseconds.
 
 ```C
 
-PUBLIC double start_msectimer(void);
-        
+uint64_t start_msectimer(
+    uint64_t miliseconds
+);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - `miliseconds`
+  - `uint64_t`
+  - The duration in milliseconds for the timer to count down.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the current timestamp as a `double` value in milliseconds.
-        
+Returns a boolean value indicating whether the timer has finished counting down (TRUE) or not (FALSE).
+
+
+**Notes**
+
+
+- To check if the timer has finished, use the function `test_msectimer` with the value returned by `start_msectimer`.
 
 
 <!--====================================================-->
@@ -178,3 +179,4 @@ Returns the current timestamp as a `double` value in milliseconds.
 ``````
 
 ```````
+

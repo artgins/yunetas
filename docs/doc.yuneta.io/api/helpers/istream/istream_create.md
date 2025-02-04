@@ -3,7 +3,9 @@
 # `istream_create()`
 <!-- ============================================================== -->
 
-The `istream_create` function initializes and allocates an `istream` instance. This instance provides an input stream buffer (`gbuffer_t`) with specified sizes for handling data efficiently.
+
+The `istream_create` function is used to create a new input stream handler for reading data. It initializes the input stream with the specified data size and maximum size for buffering incoming data.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -19,49 +21,54 @@ The `istream_create` function initializes and allocates an `istream` instance. T
 
 **Prototype**
 
-:::C
-PUBLIC istream_h istream_create(
-    hgobj       gobj,
-    size_t      data_size,
-    size_t      max_size
+```C
+
+istream_h istream_create(
+    hgobj   gobj,
+    size_t  data_size,
+    size_t  max_size
 );
-:::
+
+```
 
 **Parameters**
+
 
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj associated with the input stream.
-
+  - `hgobj`
+  - The gobj handler associated with the input stream.
+  
 * - `data_size`
   - `size_t`
-  - The initial size of the data buffer.
-
+  - The initial size of the data buffer for the input stream.
+  
 * - `max_size`
   - `size_t`
-  - The maximum allowable size of the buffer.
+  - The maximum size allowed for buffering incoming data in the input stream.
 :::
+
 
 ---
 
 **Return Value**
 
-Returns an `istream_h` handle to the created istream.
-If memory allocation fails, the function returns `NULL`.
+
+The function returns an `istream_h` handler representing the created input stream.
+
 
 **Notes**
 
-- The function allocates memory for the `ISTREAM` structure and initializes its internal attributes, including a [`gbuffer_t`](gbuffer_t) for data storage.
-- If the memory allocation for the buffer fails, the function cleans up and returns `NULL`.
-- Ensure to free the allocated istream using `istream_destroy` when it is no longer needed to avoid memory leaks.
+
+- If an `istream_h` handler already exists, it will be destroyed before creating a new one.
+- Use `ISTREAM_DESTROY(ptr)` macro to properly destroy an `istream_h` handler.
 
 
 <!--====================================================-->
@@ -187,3 +194,4 @@ If memory allocation fails, the function returns `NULL`.
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (str_in_list())=
 # `str_in_list()`
 <!-- ============================================================== -->
 
 
-Check if a value exists in a list of strings.
-        
+The `str_in_list` function checks if a given string `str` is present in a list of strings `list`. It performs a case-sensitive or case-insensitive comparison based on the `ignore_case` flag.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,52 @@ Check if a value exists in a list of strings.
 
 ```C
 
-PUBLIC BOOL str_in_list(
-    const char  *list[],
-    const char  *value
+BOOL str_in_list(
+    const char **list,
+    const char *str,
+    BOOL ignore_case
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `list`
-  - `const char *[]`
-  - The list of strings to search.
-
-* - `value`
+  - `const char **`
+  - A list of strings to search in.
+* - `str`
   - `const char *`
-  - The value to search for in the list.
+  - The string to search for in the list.
+* - `ignore_case`
+  - `BOOL`
+  - Flag to indicate whether the comparison should be case-insensitive (TRUE) or case-sensitive (FALSE).
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the value exists in the list, otherwise returns `FALSE`.
-        
+The function returns a boolean value:
+- TRUE if the `str` is found in the `list`.
+- FALSE if the `str` is not found in the `list`.
+
+
+**Notes**
+
+
+- The function supports both case-sensitive and case-insensitive comparisons based on the `ignore_case` parameter.
+- The `list` parameter should be an array of strings terminated by a NULL pointer.
 
 
 <!--====================================================-->
@@ -185,3 +194,4 @@ Returns `TRUE` if the value exists in the list, otherwise returns `FALSE`.
 ``````
 
 ```````
+

@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (delete_left_char())=
 # `delete_left_char()`
 <!-- ============================================================== -->
 
 
-Delete a specified character from the left end of a string.
-        
+The `delete_left_char` function removes all occurrences of the character `x` from the left side of the string `s`.
+
+This function modifies the input string `s` in place by shifting characters to the left to remove the specified character `x`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,47 @@ Delete a specified character from the left end of a string.
 
 ```C
 
-PUBLIC char *delete_left_char(
-    char        *string,
-    char         c
+char *delete_left_char(
+    char *s,
+    char x
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `s`
   - `char *`
-  - The string to modify.
+  - The input string from which characters will be removed from the left side.
 
-* - `c`
+* - `x`
   - `char`
-  - The character to remove from the left end of the string.
+  - The character to be removed from the left side of the string.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the modified string.
-        
+The function returns a pointer to the modified input string `s`, where all occurrences of the character `x` from the left side have been deleted.
+
+
+**Notes**
+
+
+- The function modifies the input string `s` in place.
+- Characters are shifted to the left to remove the specified character `x`.
 
 
 <!--====================================================-->
@@ -185,3 +191,4 @@ Returns the modified string.
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (get_real_precision())=
 # `get_real_precision()`
 <!-- ============================================================== -->
 
 
-Get the current precision setting for converting real numbers to strings.
-        
+This function retrieves the current real precision used in the conversion of JSON to string functions.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,41 @@ Get the current precision setting for converting real numbers to strings.
 
 ```C
 
-PUBLIC int get_real_precision(void);
-        
+int get_real_precision(
+    void
+);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
+* - (no parameters)
+  - -
   - This function does not take any parameters.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the current precision setting for real numbers.
-        
+The function returns an integer representing the current real precision used in the conversion of JSON to string functions.
+
+
+**Notes**
+
+
+- The real precision is set using the `set_real_precision` function.
 
 
 <!--====================================================-->
@@ -178,3 +183,4 @@ Returns the current precision setting for real numbers.
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (comm_prot_free())=
 # `comm_prot_free()`
 <!-- ============================================================== -->
 
 
-Free resources associated with a registered communication protocol.
-        
+This function is responsible for freeing the resources used in the communication protocol registration.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,39 @@ Free resources associated with a registered communication protocol.
 
 ```C
 
-PUBLIC int comm_prot_free(
-    const char  *protocol_name
-);
-        
+void comm_prot_free();
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `protocol_name`
-  - `const char *`
-  - The name of the communication protocol to free.
+* - None
+  - N/A
+  - This function does not take any parameters.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- This function should be called to release the resources associated with communication protocol registration.
 
 
 <!--====================================================-->
@@ -180,3 +181,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

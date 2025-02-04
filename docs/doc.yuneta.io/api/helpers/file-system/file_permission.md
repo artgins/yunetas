@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (file_permission())=
 # `file_permission()`
 <!-- ============================================================== -->
 
 
-Check the permissions of a file at the specified path.
-        
+The `file_permission` function retrieves the permission mode of a file specified by the given `path`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,42 @@ Check the permissions of a file at the specified path.
 
 ```C
 
-PUBLIC int file_permission(
-    const char  *path,
-    int         mode
+mode_t file_permission(
+    const char *path
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path of the file to check.
-
-* - `mode`
-  - `int`
-  - The permission mode to check (e.g., readable, writable).
+  - The path to the file whose permission mode is to be retrieved.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` if the file has the specified permissions, otherwise returns a negative value.
-        
+The function returns the permission mode of the specified file as a `mode_t` value.
+
+
+**Notes**
+
+
+- This function is used to check the permission mode of a file in the file system.
+- The permission mode indicates the access permissions for the file (e.g., read, write, execute) based on the file's mode bits.
 
 
 <!--====================================================-->
@@ -185,3 +184,4 @@ Returns `0` if the file has the specified permissions, otherwise returns a negat
 ``````
 
 ```````
+

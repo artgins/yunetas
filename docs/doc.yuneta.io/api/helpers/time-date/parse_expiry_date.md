@@ -4,7 +4,11 @@
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
+The `parse_expiry_date` function parses the expiry date string and converts it into a timestamp value.
+
+The function takes a date string as input and fills the provided `timestamp` pointer with the corresponding timestamp value.
+
+The date string can be in various formats, including absolute dates, relative dates, special time keywords, combinations of date and time, and more. The function interprets the date string carefully to determine the correct timestamp value.
 
 
 <!------------------------------------------------------------>
@@ -23,26 +27,31 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL parse_expiry_date(
-    const char  *path
+int parse_expiry_date(
+    const char *date,
+    timestamp_t *timestamp
 );
-
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to check.
+  - The date string to be parsed.
+  
+* - `timestamp`
+  - `timestamp_t *`
+  - Pointer to a timestamp variable where the parsed timestamp value will be stored.
 :::
 
 
@@ -51,8 +60,17 @@ PUBLIC BOOL parse_expiry_date(
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
+The function returns an integer value indicating the success or failure of the parsing operation:
+- Returns the number of bytes consumed if successful.
+- Returns -1 if an error occurs during parsing.
 
+
+**Notes**
+
+
+The `parse_expiry_date` function is capable of interpreting various date formats, including absolute dates, relative dates, special time keywords, and combinations of date and time. It carefully handles ambiguities and incomplete information in the date string to determine the correct timestamp value.
+
+The function is designed to provide flexibility in parsing date strings and converting them into timestamp values accurately.
 
 
 <!--====================================================-->
@@ -178,3 +196,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

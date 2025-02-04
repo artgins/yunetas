@@ -112,18 +112,18 @@ api/gobj/dl/api_gobj_dl.md
 :caption: Helpers API
 :maxdepth: 1
 
-api/helpers/file-system/api_file_system.md
-api/helpers/string-helper/api_string_helper.md
-api/helpers/json-helper/api_json_helper.md
-api/helpers/directory-walk/api_directory_walk.md
-api/helpers/time-date/api_time_date.md
-api/helpers/misc/api_misc.md
-api/helpers/common-protocol/api_common_protocol.md
-api/helpers/daemon-launcher/api_daemon_launcher.md
-api/helpers/url-parsing/api_url_parsing.md
-api/helpers/backtrace/api_backtrace.md
-api/helpers/http-parser/api_http_parser.md
-api/helpers/istream/api_istream.md
+api/helpers/api_file_system.md
+api/helpers/api_string_helper.md
+api/helpers/api_json_helper.md
+api/helpers/api_directory_walk.md
+api/helpers/api_time_date.md
+api/helpers/api_misc.md
+api/helpers/api_common_protocol.md
+api/helpers/api_daemon_launcher.md
+api/helpers/api_url_parsing.md
+api/helpers/api_backtrace.md
+api/helpers/api_http_parser.md
+api/helpers/api_istream.md
 
 
 :::

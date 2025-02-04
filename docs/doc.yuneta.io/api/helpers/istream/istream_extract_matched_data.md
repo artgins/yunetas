@@ -3,7 +3,11 @@
 # `istream_extract_matched_data()`
 <!-- ============================================================== -->
 
-Extracts the matched data from the [`istream_h`](istream_h). The function returns a pointer to the matched data and resets the completion status of the stream.
+
+This function extracts and returns the matched data from the input stream up to the current read pointer position. It also provides the length of the extracted data.
+
+If the input stream contains matched data, this function will return a pointer to the extracted data and update the length parameter accordingly.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,44 +24,49 @@ Extracts the matched data from the [`istream_h`](istream_h). The function return
 **Prototype**
 
 ```C
-PUBLIC char *istream_extract_matched_data(
-    istream_h   istream,
-    size_t      *len
+
+char *istream_extract_matched_data(
+    istream_h istream,
+    size_t *len
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream from which matched data will be extracted.
+  - The input stream handle from which to extract the matched data.
 
 * - `len`
   - `size_t *`
-  - A pointer to a variable where the length of the matched data will be stored. Can be `NULL` if the length is not required.
+  - Pointer to a variable where the length of the extracted data will be stored.
 :::
+
 
 ---
 
 **Return Value**
 
-Returns a pointer to the matched data if successful.
-Returns `NULL` if the `istream` is invalid, incomplete, or if there is no [`gbuffer_t *`](gbuffer_t) associated with the istream.
+
+The function returns a pointer to the extracted data from the input stream. The length of the extracted data is provided through the `len` parameter.
+
 
 **Notes**
-- The matched data is removed from the associated [`gbuffer_t *`](gbuffer_t).
-- After extracting the data, the `istream` completion status is reset (`completed = FALSE`).
-- This function logs an error if the `istream` is `NULL`, not completed, or has no valid [`gbuffer_t *`](gbuffer_t).
 
-**Example Usage**
-This function can be used to retrieve and process data from an istream once it has been matched by a delimiter or a byte threshold.
+
+- This function is useful for extracting data that matches certain criteria from an input stream.
+- It is important to handle the extracted data appropriately after calling this function.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +191,4 @@ This function can be used to retrieve and process data from an istream once it h
 ``````
 
 ```````
+

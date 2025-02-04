@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (start_sectimer())=
 # `start_sectimer()`
 <!-- ============================================================== -->
 
 
-Start a timer to measure elapsed time in seconds.
-        
+The `start_sectimer` function is used to start a timer that counts seconds. The timer will run for the specified number of seconds before finishing.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,41 @@ Start a timer to measure elapsed time in seconds.
 
 ```C
 
-PUBLIC double start_sectimer(void);
-        
+uint64_t start_sectimer(
+    time_t seconds
+);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - `seconds`
+  - `time_t`
+  - Number of seconds for the timer to run.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the current timestamp as a `double` value in seconds.
-        
+The function returns a `uint64_t` value indicating the start time of the timer in milliseconds.
+
+
+**Notes**
+
+
+- To check if the timer has finished, use the `test_sectimer` function.
 
 
 <!--====================================================-->
@@ -178,3 +183,4 @@ Returns the current timestamp as a `double` value in seconds.
 ``````
 
 ```````
+

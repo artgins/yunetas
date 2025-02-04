@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (mkrdir())=
 # `mkrdir()`
 <!-- ============================================================== -->
 
 
-Create a directory and all its parent directories if they do not exist.
-        
+The `mkrdir` function creates a new directory at the specified `path` with the given `permission`.
+
+If the directory creation is successful, the function returns 0. If an error occurs during the creation process, a non-zero value is returned.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,49 @@ Create a directory and all its parent directories if they do not exist.
 
 ```C
 
-PUBLIC int mkrdir(
-    const char  *path,
-    int         mode
+int mkrdir(
+    const char *path,
+    int permission
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path of the directory to create.
+  - The path where the new directory will be created.
 
-* - `mode`
+* - `permission`
   - `int`
-  - The permissions mode for the directory.
+  - The permission to set for the new directory.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+The function returns an integer value:
+- 0: If the directory creation is successful.
+- Non-zero: If an error occurs during the creation process.
+
+
+**Notes**
+
+
+- The `permission` parameter specifies the permissions to set for the new directory. It follows the standard permission format used in Unix-like systems.
+- Any non-zero return value indicates that an error occurred during the directory creation process.
 
 
 <!--====================================================-->
@@ -185,3 +193,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

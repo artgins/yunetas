@@ -1,13 +1,15 @@
-
-
 <!-- ============================================================== -->
 (unlock_file())=
 # `unlock_file()`
 <!-- ============================================================== -->
 
 
-Unlock a file using a file descriptor.
-        
+The `unlock_file` function is used to unlock a file descriptor for further access. It is part of a set of file system helper functions provided by the library. This function specifically unlocks a file identified by its file descriptor.
+
+When a file is locked for exclusive access, this function can be used to release the lock and allow other processes to access the file.
+
+This function is essential for managing file access and ensuring proper synchronization between processes when working with files.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +27,44 @@ Unlock a file using a file descriptor.
 
 ```C
 
-PUBLIC int unlock_file(
-    int         fd
+int unlock_file(
+    int fd
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `fd`
   - `int`
-  - The file descriptor of the file to unlock.
+  - The file descriptor of the file to be unlocked.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+The function returns an integer value indicating the success or failure of unlocking the file:
+- `0` if the file was successfully unlocked.
+- `-1` if an error occurred during the unlocking process.
+
+
+**Notes**
+
+
+- This function is typically used after a file has been locked using the `lock_file` function to release the lock.
+- It is important to handle the return value of this function to ensure proper file access management.
 
 
 <!--====================================================-->
@@ -180,3 +190,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (json_list_str_index())=
 # `json_list_str_index()`
 <!-- ============================================================== -->
 
 
-Find the index of a string in a JSON array. Works with [`json_t *`](json_t).
-        
+This function searches for a string value in a JSON list and returns the index of the string if found. It performs a case-sensitive or case-insensitive search based on the `ignore_case` parameter.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,49 @@ Find the index of a string in a JSON array. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC int json_list_str_index(
-    json_t      *jn_list,
-    const char  *string
+int json_list_str_index(
+    json_t *jn_list,
+    const char *str,
+    BOOL ignore_case
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
-
 * - `jn_list`
-  - [`json_t *`](json_t)
-  - The JSON array to search.
-
-* - `string`
+  - `json_t *`
+  - The JSON list in which to search for the string.
+* - `str`
   - `const char *`
-  - The string to find in the array.
+  - The string value to search for in the JSON list.
+* - `ignore_case`
+  - `BOOL`
+  - Flag to indicate whether the search should be case-insensitive (TRUE) or case-sensitive (FALSE).
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the index of the string in the JSON array, or `-1` if not found.
-        
+The function returns an integer representing the index of the string in the JSON list. If the string is not found, it returns -1.
+
+
+**Notes**
+
+
+- This function can be useful for quickly finding the index of a specific string in a JSON list.
+- The `ignore_case` parameter allows for flexible searching based on case sensitivity requirements.
 
 
 <!--====================================================-->
@@ -185,3 +191,4 @@ Returns the index of the string in the JSON array, or `-1` if not found.
 ``````
 
 ```````
+

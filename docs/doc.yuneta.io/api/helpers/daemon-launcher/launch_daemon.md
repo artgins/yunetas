@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (launch_daemon())=
 # `launch_daemon()`
 <!-- ============================================================== -->
 
 
-Launch a process as a daemon.
-        
+This function launches a daemon process with the specified program and optional arguments. It can redirect standard I/O to null if required.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,46 +23,51 @@ Launch a process as a daemon.
 
 ```C
 
-PUBLIC int launch_daemon(
-    const char  *command,
-    const char  *working_dir,
-    const char  *output_file
+int launch_daemon(
+    BOOL redirect_stdio_to_null,
+    const char *program, ...
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
-:widths: 20 20 60
+::: {list-table}
+:widths: 20 80
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `command`
-  - `const char *`
-  - The command to execute as a daemon.
+* - `redirect_stdio_to_null`
+  - `BOOL`
+  - Flag to indicate whether to redirect standard I/O to null.
 
-* - `working_dir`
+* - `program`
   - `const char *`
-  - The working directory for the daemon process.
+  - Path to the program to be executed.
 
-* - `output_file`
-  - `const char *`
-  - The file to redirect the daemon's output to.
+* - `...`
+  - `...`
+  - Optional arguments to be passed to the program.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the PID of the launched daemon on success, or a negative value on failure.
-        
+Returns the process ID (pid) of the launched daemon.
+
+
+**Notes**
+
+
+- The function launches a daemon process with the specified program and arguments.
+- It can redirect standard I/O to null if required.
 
 
 <!--====================================================-->
@@ -190,3 +193,4 @@ Returns the PID of the launched daemon on success, or a negative value on failur
 ``````
 
 ```````
+

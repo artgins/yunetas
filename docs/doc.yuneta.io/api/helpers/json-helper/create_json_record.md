@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (create_json_record())=
 # `create_json_record()`
 <!-- ============================================================== -->
 
 
-Create a JSON object record with predefined fields. Works with [`json_t *`](json_t).
-        
+This function creates a JSON record based on the provided JSON description. It generates a JSON object with keys and default values specified in the description.
+
+The JSON description is an array of `json_desc_t` structures containing information about the keys, types, default values, and space filling for the JSON record.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,47 @@ Create a JSON object record with predefined fields. Works with [`json_t *`](json
 
 ```C
 
-PUBLIC json_t *create_json_record(
-    const char  *schema,
-    const char  *data
+json_t *create_json_record(
+    hgobj gobj,
+    const json_desc_t *json_desc
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `schema`
-  - `const char *`
-  - The schema defining the structure of the record.
-
-* - `data`
-  - `const char *`
-  - The data to populate the record with.
+* - `gobj`
+  - `hgobj`
+  - The gobj instance.
+  
+* - `json_desc`
+  - `const json_desc_t *`
+  - An array of `json_desc_t` structures describing the keys and default values for the JSON record.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a [`json_t *`](json_t) object representing the JSON record, or `NULL` on failure.
-        
+Returns a JSON object representing the created JSON record based on the provided description.
+
+
+**Notes**
+
+
+- The `json_desc_t` structure defines the name, type, default value, and space filling for each key in the JSON record.
+- The function dynamically allocates memory for the JSON object and its contents, so remember to free the returned JSON object when no longer needed.
 
 
 <!--====================================================-->
@@ -185,3 +191,4 @@ Returns a [`json_t *`](json_t) object representing the JSON record, or `NULL` on
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (replace_string())=
 # `replace_string()`
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
-        
+The `replace_string` function replaces all occurrences of a substring `old` with another substring `snew` in a given string `str`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,52 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL replace_string(
-    const char  *path
+char *replace_string(
+    const char *str,
+    const char *old,
+    const char *snew
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `str`
   - `const char *`
-  - The path to check.
+  - The original string where replacements will be made.
+
+* - `old`
+  - `const char *`
+  - The substring to be replaced.
+
+* - `snew`
+  - `const char *`
+  - The new substring to replace the old substring.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
-        
+Returns a new string with all occurrences of `old` replaced by `snew`. The returned string should be deallocated using the appropriate memory deallocation function.
+
+
+**Notes**
+
+
+- The function replaces all occurrences of `old` in `str` with `snew`.
+- The function does not modify the original string `str` and returns a new string with replacements.
 
 
 <!--====================================================-->
@@ -180,3 +194,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

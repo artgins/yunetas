@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (filesize2())=
 # `filesize2()`
 <!-- ============================================================== -->
 
 
-Get the size of a file in bytes using a file descriptor.
-        
+The `filesize2` function retrieves the size of a file based on the provided file descriptor `fd`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,42 @@ Get the size of a file in bytes using a file descriptor.
 
 ```C
 
-PUBLIC off_t filesize2(
-    int         fd
+off_t filesize2(
+    int fd
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `fd`
   - `int`
-  - The file descriptor of the file to query.
+  - File descriptor of the file for which the size needs to be determined.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the size of the file in bytes, or a negative value on failure.
-        
+The function returns the size of the file associated with the provided file descriptor `fd` as an `off_t` value.
+
+
+**Notes**
+
+
+- This function operates on an open file descriptor and does not require the file path.
+- It provides a way to obtain the size of a file without explicitly opening the file.
 
 
 <!--====================================================-->
@@ -180,3 +184,4 @@ Returns the size of the file in bytes, or a negative value on failure.
 ``````
 
 ```````
+

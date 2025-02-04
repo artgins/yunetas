@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (get_last_segment())=
 # `get_last_segment()`
 <!-- ============================================================== -->
 
 
-Get the last segment of a path string.
-        
+This function extracts the last segment from a given path string. The last segment is considered as the substring after the last occurrence of a path separator character.
+
+For example, if the input path is "/home/user/documents/file.txt", the last segment extracted would be "file.txt".
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,42 @@ Get the last segment of a path string.
 
 ```C
 
-PUBLIC const char *get_last_segment(
-    const char  *path,
-    char         separator
+char *get_last_segment(
+    char *path
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
-  - `const char *`
-  - The path string to analyze.
-
-* - `separator`
-  - `char`
-  - The character used to separate path segments.
+  - `char *`
+  - The input path string from which the last segment needs to be extracted.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a pointer to the last segment in the path string.
-        
+The function returns a pointer to a string containing the last segment extracted from the input path. This string is part of the original input path and should not be modified or freed separately.
+
+
+**Notes**
+
+
+- The function modifies the input path string by inserting null characters to separate the last segment.
+- The extracted last segment is not allocated separately and is part of the input path string.
 
 
 <!--====================================================-->
@@ -185,3 +186,4 @@ Returns a pointer to the last segment in the path string.
 ``````
 
 ```````
+

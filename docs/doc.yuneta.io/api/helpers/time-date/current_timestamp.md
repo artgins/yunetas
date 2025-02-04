@@ -1,13 +1,15 @@
-
-
 <!-- ============================================================== -->
 (current_timestamp())=
 # `current_timestamp()`
 <!-- ============================================================== -->
 
 
-Get the current timestamp in seconds since the epoch.
-        
+The `current_timestamp` function generates the current timestamp and stores it in the provided buffer `bf`.
+
+The timestamp includes the date and time information up to milliseconds precision. The function ensures that the buffer `bf` is at least 90 bytes to accommodate the timestamp.
+
+If you need the current timestamp for logging or time-related operations, you can use this function to get the timestamp in a human-readable format.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +27,47 @@ Get the current timestamp in seconds since the epoch.
 
 ```C
 
-PUBLIC double current_timestamp(void);
-        
+char *current_timestamp(
+    char *bf,
+    size_t bfsize
+);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - `bf`
+  - `char *`
+  - Buffer to store the current timestamp.
+  
+* - `bfsize`
+  - `size_t`
+  - Size of the buffer `bf`.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the current timestamp as a `double` value in seconds since the epoch.
-        
+The function returns a pointer to the buffer `bf` containing the current timestamp in a human-readable format.
+
+
+**Notes**
+
+
+- The timestamp includes date and time information up to milliseconds precision.
+- The buffer `bf` must be at least 90 bytes to accommodate the timestamp.
 
 
 <!--====================================================-->
@@ -178,3 +193,4 @@ Returns the current timestamp as a `double` value in seconds since the epoch.
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (delete_right_char())=
 # `delete_right_char()`
 <!-- ============================================================== -->
 
 
-Delete a specified character from the right end of a string.
-        
+This function deletes the rightmost occurrence of a specific character `x` in the string `s`.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,47 @@ Delete a specified character from the right end of a string.
 
 ```C
 
-PUBLIC char *delete_right_char(
-    char        *string,
-    char         c
+char *delete_right_char(
+    char *s,
+    char x
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `s`
   - `char *`
-  - The string to modify.
+  - The input string where the character will be deleted.
 
-* - `c`
+* - `x`
   - `char`
-  - The character to remove from the right end of the string.
+  - The character to be deleted from the right side of the string.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the modified string.
-        
+The function returns a pointer to the modified string after deleting the character. The original string `s` is modified in place.
+
+
+**Notes**
+
+
+- This function modifies the input string `s` directly by deleting the rightmost occurrence of the character `x`.
+- If the character `x` is not found in the string `s`, no changes are made to the string.
 
 
 <!--====================================================-->
@@ -185,3 +189,4 @@ Returns the modified string.
 ``````
 
 ```````
+

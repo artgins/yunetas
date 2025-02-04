@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (all_numbers())=
 # `all_numbers()`
 <!-- ============================================================== -->
 
 
-Check if a string contains only numeric characters.
-        
+Check if all characters in the input string are numbers.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,41 @@ Check if a string contains only numeric characters.
 
 ```C
 
-PUBLIC BOOL all_numbers(
-    const char  *string
+BOOL all_numbers(
+    const char* s
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
-  - `const char *`
-  - The string to check.
+* - `s`
+  - `const char*`
+  - The input string to check if all characters are numbers.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the string contains only numeric characters, otherwise returns `FALSE`.
-        
+Return TRUE if all characters in the input string are numbers, otherwise FALSE.
+
+
+**Notes**
+
+
+This function returns TRUE only if all characters in the input string are numeric characters (0-9).
 
 
 <!--====================================================-->
@@ -180,3 +183,4 @@ Returns `TRUE` if the string contains only numeric characters, otherwise returns
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (test_sectimer())=
 # `test_sectimer()`
 <!-- ============================================================== -->
 
 
-Test the elapsed time since `start_sectimer()` was called, in seconds.
-        
+The `test_sectimer` function is used to check if a timer has finished counting the specified number of seconds.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,37 @@ Test the elapsed time since `start_sectimer()` was called, in seconds.
 
 ```C
 
-PUBLIC double test_sectimer(
-    double start
+BOOL test_sectimer(
+    time_t value
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `start`
-  - `double`
-  - The start timestamp returned by `start_sectimer()`.
+* - `value`
+  - `time_t`
+  - The number of seconds to check if the timer has finished.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the elapsed time in seconds as a `double` value.
-        
+Returns TRUE if the timer has finished counting the specified number of seconds.
+
+
+**Notes**
+
+
+This function is typically used in conjunction with `start_sectimer` to create a timer that triggers after a certain number of seconds.
 
 
 <!--====================================================-->
@@ -180,3 +179,4 @@ Returns the elapsed time in seconds as a `double` value.
 ``````
 
 ```````
+

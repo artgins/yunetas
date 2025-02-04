@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (comm_prot_register())=
 # `comm_prot_register()`
 <!-- ============================================================== -->
 
 
-Register a communication protocol handler.
-        
+Register a gclass with a communication protocol.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,46 +23,46 @@ Register a communication protocol handler.
 
 ```C
 
-PUBLIC int comm_prot_register(
-    const char  *protocol_name,
-    void        (*callback)(void *data, int size),
-    void        *user_data
+int comm_prot_register(
+    gclass_name_t gclass_name,
+    const char *schema
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `protocol_name`
+* - `gclass_name`
+  - `gclass_name_t`
+  - Name of the gclass to register with the protocol.
+
+* - `schema`
   - `const char *`
-  - The name of the protocol to register.
-
-* - `callback`
-  - `void (*)(void *, int)`
-  - The function to handle protocol events.
-
-* - `user_data`
-  - `void *`
-  - User-defined data to pass to the callback function.
+  - Schema associated with the communication protocol.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+Returns an integer indicating the success of the registration process.
+
+
+**Notes**
+
+
+This function is used to associate a gclass with a specific communication protocol using the provided schema.
 
 
 <!--====================================================-->
@@ -190,3 +188,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

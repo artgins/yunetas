@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (create_uuid())=
 # `create_uuid()`
 <!-- ============================================================== -->
 
 
-Generate a new universally unique identifier (UUID).
-        
+This function generates a new random UUID and stores it in the provided buffer.
+
+The UUID generated is a universally unique identifier that is used by the treedb system.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +25,49 @@ Generate a new universally unique identifier (UUID).
 
 ```C
 
-PUBLIC char *create_uuid(void);
-        
+int create_uuid(
+    char *bf,
+    int bfsize
+);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - `bf`
+  - `char *`
+  - Buffer to store the generated UUID.
+  
+* - `bfsize`
+  - `int`
+  - Size of the buffer `bf`.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a string containing the newly generated UUID. The caller is responsible for freeing the string.
-        
+Returns an integer indicating the success of generating the UUID:
+- `0` for success.
+- `-1` if there was an error.
+
+
+**Notes**
+
+
+- The generated UUID is used by the treedb system.
+- This function is used to create a new random UUID.
 
 
 <!--====================================================-->
@@ -178,3 +193,4 @@ Returns a string containing the newly generated UUID. The caller is responsible 
 ``````
 
 ```````
+

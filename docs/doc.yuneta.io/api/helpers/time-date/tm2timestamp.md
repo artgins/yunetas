@@ -1,13 +1,17 @@
-
-
 <!-- ============================================================== -->
 (tm2timestamp())=
 # `tm2timestamp()`
 <!-- ============================================================== -->
 
 
-Convert a `struct tm` to a timestamp in seconds since the epoch.
-        
+Converts a `struct tm` time structure to a timestamp string representation.
+
+This function takes a `struct tm` time structure and converts it into a timestamp string in the specified buffer.
+
+The timestamp format is suitable for representing time in a human-readable format.
+
+If successful, the function returns the buffer containing the timestamp string.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +29,52 @@ Convert a `struct tm` to a timestamp in seconds since the epoch.
 
 ```C
 
-PUBLIC double tm2timestamp(
-    const struct tm *tm
+char *tm2timestamp(
+    char *bf,
+    int bfsize,
+    struct tm *tm
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `bf`
+  - `char *`
+  - Buffer to store the timestamp string.
+  
+* - `bfsize`
+  - `int`
+  - Size of the buffer.
+  
 * - `tm`
-  - `const struct tm *`
-  - A pointer to the `struct tm` to convert.
+  - `struct tm *`
+  - Pointer to the `struct tm` time structure to convert.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the timestamp as a `double` value in seconds since the epoch.
-        
+The function returns a pointer to the buffer containing the timestamp string representation of the `struct tm` time structure.
+
+
+**Notes**
+
+
+- The timestamp string format is suitable for human-readable representation of time.
+- The function ensures that the timestamp string fits within the provided buffer size to prevent buffer overflow.
 
 
 <!--====================================================-->
@@ -180,3 +200,4 @@ Returns the timestamp as a `double` value in seconds since the epoch.
 ``````
 
 ```````
+

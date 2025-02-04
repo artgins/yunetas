@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (json2uglystr())=
 # `json2uglystr()`
 <!-- ============================================================== -->
 
 
-Convert a JSON object to a compact, unformatted JSON string. Works with [`json_t *`](json_t).
-        
+Converts a JSON object to an ugly (non-tabular) string representation. This function is used to generate a string representation of a JSON object without any formatting or indentation.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,41 @@ Convert a JSON object to a compact, unformatted JSON string. Works with [`json_t
 
 ```C
 
-PUBLIC char *json2uglystr(
-    json_t      *jn
+char *json2uglystr(
+    const json_t *jn
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `jn`
-  - [`json_t *`](json_t)
-  - The JSON object to convert to a string.
+  - `const json_t *`
+  - The JSON object to be converted to an ugly string representation.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a newly allocated string containing the compact JSON representation, or `NULL` on failure.
-        
+Returns a string representing the JSON object in an unformatted, non-tabular manner.
+
+
+**Notes**
+
+
+This function is useful for generating a compact, human-readable representation of a JSON object without any additional formatting or indentation.
 
 
 <!--====================================================-->
@@ -180,3 +183,4 @@ Returns a newly allocated string containing the compact JSON representation, or 
 ``````
 
 ```````
+

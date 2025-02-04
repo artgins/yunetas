@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (json_is_identical())=
 # `json_is_identical()`
 <!-- ============================================================== -->
 
 
-Check if two JSON objects or arrays are identical. Works with [`json_t *`](json_t).
-        
+The `json_is_identical` function compares two JSON objects to determine if they are identical. It checks if the structure and content of the two JSON objects are the same.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,48 @@ Check if two JSON objects or arrays are identical. Works with [`json_t *`](json_
 
 ```C
 
-PUBLIC BOOL json_is_identical(
-    json_t      *jn1,
-    json_t      *jn2
+int json_is_identical(
+    json_t *kw1,
+    json_t *kw2
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `jn1`
-  - [`json_t *`](json_t)
-  - The first JSON object or array to compare.
-
-* - `jn2`
-  - [`json_t *`](json_t)
-  - The second JSON object or array to compare.
+* - `kw1`
+  - `json_t *`
+  - First JSON object for comparison.
+  
+* - `kw2`
+  - `json_t *`
+  - Second JSON object for comparison.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `TRUE` if the JSON objects or arrays are identical, otherwise returns `FALSE`.
-        
+The function returns an integer:
+- `0` if the two JSON objects are identical.
+- `-1` if the two JSON objects are not identical.
+
+
+**Notes**
+
+
+This function only compares the structure and content of the JSON objects. It does not consider the order of elements within the objects.
 
 
 <!--====================================================-->
@@ -185,3 +190,4 @@ Returns `TRUE` if the JSON objects or arrays are identical, otherwise returns `F
 ``````
 
 ```````
+

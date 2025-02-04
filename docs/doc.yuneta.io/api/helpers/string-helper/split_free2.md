@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (split_free2())=
 # `split_free2()`
 <!-- ============================================================== -->
 
 
-Free the memory allocated for two strings that were split.
-        
+The `split_free2` function is used to free the memory allocated for a list of strings created by the `split2` function. It is important to call this function to release the memory properly and avoid memory leaks.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,38 @@ Free the memory allocated for two strings that were split.
 
 ```C
 
-PUBLIC void split_free2(
-    char        *part1,
-    char        *part2
+void split_free2(
+    const char **list
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `part1`
-  - `char *`
-  - The first string to free.
-
-* - `part2`
-  - `char *`
-  - The second string to free.
+* - `list`
+  - `const char **`
+  - List of strings to be freed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function frees the memory for the two strings.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- The `split2` function is used to split a string by a delimiter and return a list of strings. The `split_free2` function should be used to free the memory allocated for this list.
+- It is important to ensure that the `list` parameter passed to this function is the same list that was returned by the `split2` function.
 
 
 <!--====================================================-->
@@ -185,3 +180,4 @@ No return value. This function frees the memory for the two strings.
 ``````
 
 ```````
+

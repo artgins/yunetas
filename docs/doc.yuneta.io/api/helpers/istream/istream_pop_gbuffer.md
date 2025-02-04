@@ -3,7 +3,9 @@
 # `istream_pop_gbuffer()`
 <!-- ============================================================== -->
 
-Pops and returns the current [`gbuffer_t *`](gbuffer_t) associated with the specified istream. After calling this function, the istream will no longer hold the current [`gbuffer_t *`](gbuffer_t), and it becomes the caller's responsibility to manage it.
+
+This function pops a gbuffer from the istream, removing the data from the istream and returning it as a gbuffer.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,35 +22,39 @@ Pops and returns the current [`gbuffer_t *`](gbuffer_t) associated with the spec
 **Prototype**
 
 ```C
-PUBLIC gbuffer_t *istream_pop_gbuffer(
-    istream_h   istream
+
+gbuffer_t *istream_pop_gbuffer(
+    istream_h istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream whose current [`gbuffer_t *`](gbuffer_t) is to be popped.
+  - The istream from which to pop the gbuffer.
 :::
+
 
 ---
 
 **Return Value**
 
-Returns a pointer to the current [`gbuffer_t *`](gbuffer_t) of the istream.
-If the `istream` is `NULL`, the function logs an error and returns `NULL`.
+
+The function returns the popped gbuffer from the istream.
+
 
 **Notes**
-- After calling this function, the istream's internal [`gbuffer_t *`](gbuffer_t) is reset to `NULL`.
-- The returned [`gbuffer_t *`](gbuffer_t) must be properly decremented (`GBUFFER_DECREF`) or freed by the caller to avoid memory leaks.
+
+
+- This function removes the data from the istream and returns it as a gbuffer.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -173,3 +179,4 @@ If the `istream` is `NULL`, the function logs an error and returns `NULL`.
 ``````
 
 ```````
+

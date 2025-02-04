@@ -4,7 +4,11 @@
 <!-- ============================================================== -->
 
 
-Check if a file exists at the specified path.
+The `parse_date` function is responsible for parsing a date string and converting it into a formatted output string.
+
+It takes a date string as input and converts it into a formatted output string that represents the parsed date.
+
+The function ensures that the output string is within the specified output size limit to prevent buffer overflow.
 
 
 <!------------------------------------------------------------>
@@ -23,26 +27,36 @@ Check if a file exists at the specified path.
 
 ```C
 
-PUBLIC BOOL parse_date(
-    const char  *path
+int parse_date(
+    const char *date,
+    char *out,
+    int outsize
 );
-
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to check.
+  - The input date string to be parsed.
+
+* - `out`
+  - `char *`
+  - The output buffer to store the formatted date string.
+
+* - `outsize`
+  - `int`
+  - The size of the output buffer.
 :::
 
 
@@ -51,8 +65,16 @@ PUBLIC BOOL parse_date(
 **Return Value**
 
 
-Returns `TRUE` if the file exists, otherwise returns `FALSE`.
+The function returns an integer indicating the success or failure of the parsing operation:
+- Returns the number of characters written into the output buffer if successful.
+- Returns -1 if there was an error during parsing.
 
+
+**Notes**
+
+
+- The function ensures that the output buffer is not overflowed by limiting the output size to `outsize`.
+- The parsed date is formatted and stored in the `out` buffer.
 
 
 <!--====================================================-->
@@ -178,3 +200,4 @@ Returns `TRUE` if the file exists, otherwise returns `FALSE`.
 ``````
 
 ```````
+

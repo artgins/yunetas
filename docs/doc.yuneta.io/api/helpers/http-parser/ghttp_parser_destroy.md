@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (ghttp_parser_destroy())=
 # `ghttp_parser_destroy()`
 <!-- ============================================================== -->
 
 
-Destroy an HTTP parser and free associated resources.
-        
+This function is used to destroy a GHTTP_PARSER object created for parsing HTTP messages.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,41 @@ Destroy an HTTP parser and free associated resources.
 
 ```C
 
-PUBLIC void ghttp_parser_destroy(void);
-        
+void ghttp_parser_destroy(
+    GHTTP_PARSER *parser
+);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
+
+* - Parameter
   - Type
   - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - `parser`
+  - `GHTTP_PARSER *`
+  - The GHTTP_PARSER object to be destroyed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function releases resources associated with the HTTP parser.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- Make sure to call this function to free the memory allocated for the GHTTP_PARSER object when it is no longer needed.
 
 
 <!--====================================================-->
@@ -178,3 +183,4 @@ No return value. This function releases resources associated with the HTTP parse
 ``````
 
 ```````
+

@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (get_url_schema())=
 # `get_url_schema()`
 <!-- ============================================================== -->
 
 
-Extract the schema from a URL.
-        
+This function extracts the schema part from a given URI.
+
+The function takes a URI as input and extracts the schema part from it. The schema part represents the protocol used in the URI, such as 'http', 'https', 'ftp', etc.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +25,58 @@ Extract the schema from a URL.
 
 ```C
 
-PUBLIC char *get_url_schema(
-    const char  *url
+int get_url_schema(
+    hgobj   gobj,
+    const char *uri,
+    char *schema, size_t schema_size
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `url`
+* - `gobj`
+  - `hgobj`
+  - The gobj handler for logging and event processing.
+
+* - `uri`
   - `const char *`
-  - The URL to extract the schema from.
+  - The input URI from which the schema needs to be extracted.
+
+* - `schema`
+  - `char *`
+  - Buffer to store the extracted schema.
+  
+* - `schema_size`
+  - `size_t`
+  - Size of the buffer to store the extracted schema.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a newly allocated string containing the URL schema, or `NULL` on failure. The caller is responsible for freeing the string.
-        
+Returns an integer indicating the success or failure of the extraction process. 
+If successful, it returns the number of bytes consumed from the URI. 
+If an error occurs during extraction, it returns -1.
+
+
+**Notes**
+
+
+- The extracted schema will be stored in the `schema` buffer.
+- The `schema_size` parameter should be large enough to accommodate the extracted schema.
 
 
 <!--====================================================-->
@@ -180,3 +202,4 @@ Returns a newly allocated string containing the URL schema, or `NULL` on failure
 ``````
 
 ```````
+

@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (tdump2json())=
 # `tdump2json()`
 <!-- ============================================================== -->
 
 
-Convert a memory dump into a JSON object. Works with [`json_t *`](json_t).
-        
+Converts a buffer of binary data into a JSON object representing the data in a human-readable format.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,46 @@ Convert a memory dump into a JSON object. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC json_t *tdump2json(
-    const void  *data,
-    size_t       size
+json_t *tdump2json(
+    const uint8_t *s,
+    size_t len
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `data`
-  - `const void *`
-  - The memory block to convert.
-
-* - `size`
+* - `s`
+  - `const uint8_t *`
+  - Pointer to the binary data buffer.
+  
+* - `len`
   - `size_t`
-  - The size of the memory block in bytes.
+  - Length of the binary data buffer.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a [`json_t *`](json_t) object representing the memory dump, or `NULL` on failure.
-        
+A JSON object representing the binary data in a human-readable format.
+
+
+**Notes**
+
+
+This function is useful for debugging and analyzing binary data by converting it into a structured JSON representation.
 
 
 <!--====================================================-->
@@ -185,3 +188,4 @@ Returns a [`json_t *`](json_t) object representing the memory dump, or `NULL` on
 ``````
 
 ```````
+

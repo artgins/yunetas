@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (json2str())=
 # `json2str()`
 <!-- ============================================================== -->
 
 
-Convert a JSON object to a formatted JSON string. Works with [`json_t *`](json_t).
-        
+Converts a JSON object to an indented string representation. The function takes a JSON object `jn` as input and returns a dynamically allocated string representing the JSON object with proper indentation.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,40 @@ Convert a JSON object to a formatted JSON string. Works with [`json_t *`](json_t
 
 ```C
 
-PUBLIC char *json2str(
-    json_t      *jn
-);
-        
+char *json2str(const json_t *jn);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `jn`
-  - [`json_t *`](json_t)
-  - The JSON object to convert to a string.
+  - `const json_t *`
+  - The JSON object to be converted to a string representation.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a newly allocated string containing the formatted JSON representation, or `NULL` on failure.
-        
+Returns a dynamically allocated string representing the JSON object with proper indentation. The caller is responsible for freeing the memory allocated by the function.
+
+
+**Notes**
+
+
+- The function allocates memory for the string representation, and the caller must free this memory after use.
+- The output string will have proper indentation for readability.
 
 
 <!--====================================================-->
@@ -180,3 +182,4 @@ Returns a newly allocated string containing the formatted JSON representation, o
 ``````
 
 ```````
+

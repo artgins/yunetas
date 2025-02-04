@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (load_json_from_file())=
 # `load_json_from_file()`
 <!-- ============================================================== -->
 
 
-Load a JSON object from a file. Works with [`json_t *`](json_t).
-        
+This function loads a JSON file from the specified directory and filename. It reads the content of the file and returns a JSON object representing the data.
+
+If the file cannot be loaded or there is a critical error during the process, the function handles the error based on the specified logging options.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,58 @@ Load a JSON object from a file. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC json_t *load_json_from_file(
-    const char  *path,
-    int          verbose
+json_t *load_json_from_file(
+    hgobj gobj,
+    const char *directory,
+    const char *filename,
+    log_opt_t on_critical_error
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `gobj`
+  - `hgobj`
+  - The gobj instance associated with the function.
+  
+* - `directory`
   - `const char *`
-  - The path to the JSON file.
-
-* - `verbose`
-  - `int`
-  - The verbosity level for logging messages.
+  - The directory path where the JSON file is located.
+  
+* - `filename`
+  - `const char *`
+  - The name of the JSON file to load.
+  
+* - `on_critical_error`
+  - `log_opt_t`
+  - Logging options for critical errors.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a [`json_t *`](json_t) object containing the data from the file, or `NULL` on failure.
-        
+A JSON object representing the data loaded from the file. If there is an error during the loading process, it may return NULL.
+
+
+**Notes**
+
+
+- This function is designed to handle the loading of JSON files and return the data as a JSON object.
+- It is important to ensure that the directory and filename parameters are correctly specified to load the desired JSON file.
+- The on_critical_error parameter determines how critical errors are logged during the loading process.
 
 
 <!--====================================================-->
@@ -185,3 +202,4 @@ Returns a [`json_t *`](json_t) object containing the data from the file, or `NUL
 ``````
 
 ```````
+

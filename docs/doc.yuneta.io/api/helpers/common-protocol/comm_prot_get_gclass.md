@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (comm_prot_get_gclass())=
 # `comm_prot_get_gclass()`
 <!-- ============================================================== -->
 
 
-Retrieve the GClass (Generic Class) associated with a communication protocol.
-        
+This function retrieves the name of the GClass implementing a specific communication protocol schema.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +23,37 @@ Retrieve the GClass (Generic Class) associated with a communication protocol.
 
 ```C
 
-PUBLIC const char *comm_prot_get_gclass(
-    const char  *protocol_name
+gclass_name_t comm_prot_get_gclass(
+    const char *schema
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - Key
-  - Type
-  - Description
 
-* - `protocol_name`
+* - `schema`
   - `const char *`
-  - The name of the communication protocol.
+  - The schema of the communication protocol.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the name of the GClass associated with the protocol, or `NULL` if not found.
-        
+The name of the GClass implementing the specified communication protocol schema.
+
+
+**Notes**
+
+
+- This function is part of the helpers module and is used to map a communication protocol schema to the corresponding GClass name.
 
 
 <!--====================================================-->
@@ -180,3 +179,4 @@ Returns the name of the GClass associated with the protocol, or `NULL` if not fo
 ``````
 
 ```````
+

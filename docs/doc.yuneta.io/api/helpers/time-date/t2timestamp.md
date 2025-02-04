@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (t2timestamp())=
 # `t2timestamp()`
 <!-- ============================================================== -->
 
 
-Convert a time value in seconds since the epoch to a `double` timestamp.
-        
+Converts a Unix timestamp `t` to a human-readable date and time representation in the specified buffer `bf`.
+
+If `local` is set to TRUE, the conversion is done in the local timezone; otherwise, it is done in UTC.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +25,57 @@ Convert a time value in seconds since the epoch to a `double` timestamp.
 
 ```C
 
-PUBLIC double t2timestamp(
-    time_t t
+char *t2timestamp(
+    char *bf,
+    int bfsize,
+    time_t t,
+    BOOL local
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `bf`
+  - `char *`
+  - Buffer to store the formatted date and time.
+
+* - `bfsize`
+  - `int`
+  - Size of the buffer `bf`.
+
 * - `t`
   - `time_t`
-  - The time value in seconds since the epoch.
+  - Unix timestamp to convert.
+
+* - `local`
+  - `BOOL`
+  - Flag to indicate whether to convert to local timezone (TRUE) or UTC (FALSE).
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the timestamp as a `double` value in seconds since the epoch.
-        
+Returns a pointer to the buffer `bf` containing the formatted date and time representation.
+
+
+**Notes**
+
+
+- The function does not handle timezone changes or daylight saving time adjustments.
+- Ensure that the buffer `bf` has enough space to accommodate the formatted date and time.
 
 
 <!--====================================================-->
@@ -180,3 +201,4 @@ Returns the timestamp as a `double` value in seconds since the epoch.
 ``````
 
 ```````
+

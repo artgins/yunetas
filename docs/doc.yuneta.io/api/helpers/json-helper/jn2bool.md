@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (jn2bool())=
 # `jn2bool()`
 <!-- ============================================================== -->
 
 
-Convert a JSON value to a boolean. Works with [`json_t *`](json_t).
-        
+Converts a JSON value to a boolean value. It extracts and interprets the JSON value as a boolean, returning the corresponding boolean value.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +23,41 @@ Convert a JSON value to a boolean. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC BOOL jn2bool(
-    json_t      *jn,
-    BOOL        default_value
+BOOL jn2bool(
+    json_t *jn_var
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `jn`
-  - [`json_t *`](json_t)
-  - The JSON value to convert.
-
-* - `default_value`
-  - `BOOL`
-  - The default value to return if the JSON value cannot be converted to a boolean.
+* - `jn_var`
+  - `json_t *`
+  - The JSON value to be converted to a boolean.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the boolean value, or `default_value` if the conversion fails.
-        
+Returns a boolean value extracted from the JSON value. The function interprets the JSON value as a boolean and returns the corresponding boolean value.
+
+
+**Notes**
+
+
+This function only compares simple types (string, integer, real, boolean) and treats complex types as unmatched. It returns TRUE if the JSON value is equivalent to a boolean value.
 
 
 <!--====================================================-->
@@ -185,3 +183,4 @@ Returns the boolean value, or `default_value` if the conversion fails.
 ``````
 
 ```````
+

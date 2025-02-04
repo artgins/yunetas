@@ -1,13 +1,15 @@
-
-
 <!-- ============================================================== -->
 (jn2real())=
 # `jn2real()`
 <!-- ============================================================== -->
 
 
-Convert a JSON value to a real (floating-point) number. Works with [`json_t *`](json_t).
-        
+Converts a simple JSON value to a real (double) value. This function extracts the numeric value from the JSON object and returns it as a double.
+
+**Note:** This function only handles simple JSON values like numbers.
+
+If the JSON object contains a numeric value, this function will extract and return it as a double. If the JSON object does not contain a numeric value, the behavior is undefined.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +27,44 @@ Convert a JSON value to a real (floating-point) number. Works with [`json_t *`](
 
 ```C
 
-PUBLIC double jn2real(
-    json_t      *jn,
-    double      default_value
+double jn2real(
+    json_t *jn_var
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `jn`
-  - [`json_t *`](json_t)
-  - The JSON value to convert.
-
-* - `default_value`
-  - `double`
-  - The default value to return if the JSON value cannot be converted to a real.
+* - `jn_var`
+  - `json_t *`
+  - The JSON object containing the value to be converted to a real number.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns the real value, or `default_value` if the conversion fails.
-        
+Returns the extracted numeric value from the JSON object as a double.
+
+If the JSON object does not contain a numeric value, the behavior is undefined.
+
+
+**Notes**
+
+
+- This function is designed to handle simple JSON values like numbers.
+- If the JSON object contains a non-numeric value, the behavior is undefined.
 
 
 <!--====================================================-->
@@ -185,3 +190,4 @@ Returns the real value, or `default_value` if the conversion fails.
 ``````
 
 ```````
+

@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (rmrcontentdir())=
 # `rmrcontentdir()`
 <!-- ============================================================== -->
 
 
-Remove the contents of a directory without deleting the directory itself.
-        
+This function recursively removes all content (files and directories) within the specified root directory.
+
+It deletes all files and subdirectories within the root directory, leaving the root directory itself intact.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,36 +25,45 @@ Remove the contents of a directory without deleting the directory itself.
 
 ```C
 
-PUBLIC int rmrcontentdir(
-    const char  *path
+int rmrcontentdir(
+    const char *root_dir
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `root_dir`
   - `const char *`
-  - The path of the directory whose contents will be removed.
+  - The path to the root directory from which all content will be removed.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure.
-        
+Returns an integer indicating the success or failure of the operation:
+- `0` on success.
+- `-1` if an error occurs during the removal process.
+
+
+**Notes**
+
+
+- This function will delete all files and directories within the specified root directory recursively.
+- The root directory itself will not be deleted.
+- Use with caution as it permanently removes all content within the root directory.
 
 
 <!--====================================================-->
@@ -180,3 +189,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

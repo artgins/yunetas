@@ -1,13 +1,13 @@
-
-
 <!-- ============================================================== -->
 (load_persistent_json())=
 # `load_persistent_json()`
 <!-- ============================================================== -->
 
 
-Load a persistent JSON object from a file. Works with [`json_t *`](json_t).
-        
+This function loads a persistent JSON file from the specified directory and filename. It handles exclusive file opening and critical errors.
+
+If the file is successfully loaded, it returns the JSON data. If an error occurs, it handles the error according to the provided options.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +25,72 @@ Load a persistent JSON object from a file. Works with [`json_t *`](json_t).
 
 ```C
 
-PUBLIC json_t *load_persistent_json(
-    const char  *path,
-    int          verbose
+json_t *load_persistent_json(
+    hgobj   gobj,
+    const char *directory,
+    const char *filename,
+    log_opt_t on_critical_error,
+    int *pfd,
+    BOOL exclusive,
+    BOOL silence
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the persistent JSON file.
+* - `gobj`
+  - `hgobj`
+  - The gobj handle for the function context.
 
-* - `verbose`
-  - `int`
-  - The verbosity level for logging messages.
+* - `directory`
+  - `const char *`
+  - The directory path where the JSON file is located.
+
+* - `filename`
+  - `const char *`
+  - The name of the JSON file to load.
+
+* - `on_critical_error`
+  - `log_opt_t`
+  - Log options for critical errors.
+
+* - `pfd`
+  - `int *`
+  - Pointer to store the file descriptor if exclusive file opening is used.
+
+* - `exclusive`
+  - `BOOL`
+  - Flag to indicate exclusive file opening.
+
+* - `silence`
+  - `BOOL`
+  - Flag to silence the function by setting `on_critical_error=LOG_NONE`.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-Returns a [`json_t *`](json_t) object containing the persistent data, or `NULL` on failure.
-        
+If successful, it returns the loaded JSON data as a `json_t *`. If an error occurs, it returns `NULL`.
+
+
+**Notes**
+
+
+- The function handles the loading of persistent JSON files, managing file opening, critical errors, and silencing options.
+- It is important to handle the return value appropriately to check for successful loading.
 
 
 <!--====================================================-->
@@ -185,3 +216,4 @@ Returns a [`json_t *`](json_t) object containing the persistent data, or `NULL` 
 ``````
 
 ```````
+

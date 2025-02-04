@@ -1,15 +1,19 @@
-# Misc Utility functions
+# Debug / Backtrace Functions
 
 Source code in:
 
 - [helpers.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
+
+
 :::{toctree}
-:caption: Misc Utility functions
+:caption: Debug / Backtrace Functions
 :maxdepth: 1
 
-create_uuid
-get_hostname
-node_uuid
+backtrace/init_backtrace_with_backtrace
+backtrace/show_backtrace_with_backtrace
+backtrace/tdump
+backtrace/tdump2json
+
 :::

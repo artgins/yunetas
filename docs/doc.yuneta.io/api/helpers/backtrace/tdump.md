@@ -1,13 +1,15 @@
-
-
 <!-- ============================================================== -->
 (tdump())=
 # `tdump()`
 <!-- ============================================================== -->
 
 
-Dump the contents of memory in a human-readable format.
-        
+The `tdump` function is used to dump the content of a buffer in a human-readable format with a specified prefix.
+
+When called, it displays the content of the buffer `s` with a length of `len` bytes. The output is formatted with the provided `prefix` string and additional indentation specified by `nivel`. The function uses the `view_fn_t` function pointer to output the formatted data.
+
+This function is commonly used for debugging purposes to visualize the content of binary data in a readable format.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,41 +27,62 @@ Dump the contents of memory in a human-readable format.
 
 ```C
 
-PUBLIC void tdump(
-    const void  *data,
-    size_t       size
+void tdump(
+    const char *prefix,
+    const uint8_t *s,
+    size_t len,
+    view_fn_t view,
+    int nivel
 );
-        
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `data`
-  - `const void *`
-  - The memory block to dump.
+* - `prefix`
+  - `const char *`
+  - The prefix string to be displayed before each line of the dump.
 
-* - `size`
+* - `s`
+  - `const uint8_t *`
+  - Pointer to the buffer containing the data to be dumped.
+
+* - `len`
   - `size_t`
-  - The size of the memory block in bytes.
+  - The length of the buffer `s` in bytes.
+
+* - `view`
+  - `view_fn_t`
+  - Function pointer used to output the formatted data.
+
+* - `nivel`
+  - `int`
+  - Indentation level for the dump output.
 :::
-        
+
 
 ---
 
 **Return Value**
 
 
-No return value. This function outputs the memory dump to the standard output or log.
-        
+This function does not return any value.
+
+
+**Notes**
+
+
+- The `tdump` function is commonly used for debugging purposes to visualize binary data in a human-readable format.
+- It is important to ensure that the `view_fn_t` function pointer is properly defined to handle the output of the formatted data.
 
 
 <!--====================================================-->
@@ -185,3 +208,4 @@ No return value. This function outputs the memory dump to the standard output or
 ``````
 
 ```````
+

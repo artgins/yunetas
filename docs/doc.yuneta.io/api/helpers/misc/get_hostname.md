@@ -1,13 +1,11 @@
-
-
 <!-- ============================================================== -->
 (get_hostname())=
 # `get_hostname()`
 <!-- ============================================================== -->
 
 
-Retrieve the hostname of the current system.
-        
+This function retrieves the hostname of the machine where it is executed.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,34 +23,28 @@ Retrieve the hostname of the current system.
 
 ```C
 
-PUBLIC char *get_hostname(void);
-        
+const char *get_hostname(void);
 
 ```
 
 **Parameters**
 
 
-:::{list-table}
-:widths: 20 20 60
-:header-rows: 1
-* - Key
-  - Type
-  - Description
+None
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
-:::
-        
 
 ---
 
 **Return Value**
 
 
-Returns a string containing the hostname, or `NULL` on failure. The caller is responsible for freeing the string.
-        
+A constant string containing the hostname of the machine.
+
+
+**Notes**
+
+
+This function does not take any parameters and directly returns the hostname of the machine where it is executed.
 
 
 <!--====================================================-->
@@ -178,3 +170,4 @@ Returns a string containing the hostname, or `NULL` on failure. The caller is re
 ``````
 
 ```````
+
