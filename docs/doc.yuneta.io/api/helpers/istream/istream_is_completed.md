@@ -35,7 +35,7 @@ PUBLIC BOOL istream_is_completed(
   - Description
 
 * - `istream`
-  - `istream_h`
+  - [`istream_h`](istream_h)
   - The handle to the istream to check for completion status.
 :::
 
