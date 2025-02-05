@@ -4,7 +4,11 @@
 <!-- ============================================================== -->
 
 
-The `walk_dir_tree` function traverses a directory tree starting from the `root_dir`, calling the provided callback function `cb` for each file found. If the callback returns FALSE, the traversal stops. It supports various options specified by `opt`.
+The `walk_dir_tree` function traverses a directory tree starting from the specified `root_dir`. 
+For each file or directory found, it calls the provided callback function `cb` with details about the found item. 
+The traversal can be controlled using various options specified in `opt`, such as whether to include hidden files, 
+whether to match only directory names or regular files, and whether to traverse recursively. 
+If the callback function returns FALSE, the traversal will stop. The function returns 0 on success and -1 on failure.
 
 
 <!------------------------------------------------------------>
@@ -24,12 +28,12 @@ The `walk_dir_tree` function traverses a directory tree starting from the `root_
 ```C
 
 int walk_dir_tree(
-    hgobj gobj,
+    hgobj       gobj,
     const char *root_dir,
     const char *pattern,
-    wd_option opt,
-    walkdir_cb cb,
-    void *user_data
+    wd_option   opt,
+    walkdir_cb  cb,
+    void       *user_data
 );
 
 ```
@@ -47,27 +51,27 @@ int walk_dir_tree(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance.
-  
+  - The gobj associated with the operation, used for context in the callback.
+
 * - `root_dir`
   - `const char *`
-  - The root directory to start the traversal.
-  
+  - The path of the directory from which to start the traversal.
+
 * - `pattern`
   - `const char *`
-  - Pattern to match files or directories.
-  
+  - A pattern to match files and directories against.
+
 * - `opt`
   - `wd_option`
-  - Options for traversal (e.g., recursive, hidden files).
-  
+  - Options that control the behavior of the traversal (e.g., recursive, hidden files).
+
 * - `cb`
   - `walkdir_cb`
-  - Callback function to be called for each file found.
-  
+  - A callback function that is called for each file or directory found.
+
 * - `user_data`
   - `void *`
-  - User data to be passed to the callback function.
+  - User-defined data that is passed to the callback function.
 :::
 
 
@@ -76,14 +80,15 @@ int walk_dir_tree(
 **Return Value**
 
 
-Returns 0 on success, -1 on failure.
+Returns 0 on success, indicating that the directory tree was traversed successfully. 
+Returns -1 if an error occurred during the traversal.
 
 
 **Notes**
 
 
-- The callback function `cb` should return FALSE to stop the traversal.
-- The `opt` parameter allows specifying various options for traversal, such as recursive traversal, including hidden files, and more.
+The function may not handle symbolic links or other special file types unless specified in the options. 
+Ensure that the callback function is efficient to avoid performance issues during traversal.
 
 
 <!--====================================================-->

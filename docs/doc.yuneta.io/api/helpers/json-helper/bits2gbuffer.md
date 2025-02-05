@@ -4,25 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a set of bit values represented by a string table into a gbuffer with concatenated string values. The function takes a set of bit values and their corresponding string representations in a table and generates a gbuffer containing the concatenated string values.
-
-**Example:**
-Assume a sample_flag_t enum with string representations:
-```
-typedef enum {
-    case1 = 0x0001,
-    case2 = 0x0002,
-    case3 = 0x0004,
-} sample_flag_t;
-
-const char *sample_flag_names[] = {
-    "case1",
-    "case2",
-    "case3",
-    0
-};
-```
-The `bits2gbuffer` function will convert the bit values into a gbuffer with concatenated string representations.
+Converts a bitmask represented by `bits` into a `gbuffer_t` containing a list of strings. The strings are derived from the provided `strings_table`, which must be terminated with a NULL pointer. Each bit in `bits` corresponds to an index in the `strings_table`, where a bit set to 1 indicates that the corresponding string should be included in the resulting `gbuffer_t`. This function is useful for generating a dynamic list of string representations based on bitmask values.
 
 
 <!------------------------------------------------------------>
@@ -52,18 +34,20 @@ gbuffer_t *bits2gbuffer(
 
 
 ::: {list-table}
-:widths: 30 70
+:widths: 20 20 60
 :header-rows: 1
 
 * - Key
   - Type
   - Description
+
 * - `strings_table`
   - `const char **`
-  - Table of string representations corresponding to bit values.
+  - A NULL-terminated array of strings that represent the possible values corresponding to the bits.
+
 * - `bits`
   - `uint64_t`
-  - Bit values to be converted.
+  - A bitmask where each bit represents the inclusion of the corresponding string from `strings_table`.
 :::
 
 
@@ -72,14 +56,13 @@ gbuffer_t *bits2gbuffer(
 **Return Value**
 
 
-Returns a gbuffer containing the concatenated string values of the bit values represented in the `strings_table`.
+Returns a pointer to a `gbuffer_t` containing the selected strings based on the bitmask. The caller is responsible for freeing the returned `gbuffer_t` when it is no longer needed.
 
 
 **Notes**
 
 
-- The function is useful for converting bit values into a readable format based on string representations.
-- Ensure that the `strings_table` contains all possible bit values and their corresponding string representations.
+Ensure that the `strings_table` is properly terminated with a NULL pointer to avoid undefined behavior. The function assumes that the bits are strictly within the bounds of the provided string table.
 
 
 <!--====================================================-->

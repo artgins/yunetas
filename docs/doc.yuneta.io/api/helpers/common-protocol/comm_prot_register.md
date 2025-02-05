@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Register a gclass with a communication protocol.
+Register a `gclass` with a communication protocol. This function associates a specified communication protocol schema with a given `gclass`, allowing the system to recognize and handle messages that conform to that protocol. It is essential for enabling communication between different components in a structured manner.
 
 
 <!------------------------------------------------------------>
@@ -25,7 +25,7 @@ Register a gclass with a communication protocol.
 
 int comm_prot_register(
     gclass_name_t gclass_name,
-    const char *schema
+    const char    *schema
 );
 
 ```
@@ -43,11 +43,12 @@ int comm_prot_register(
 
 * - `gclass_name`
   - `gclass_name_t`
-  - Name of the gclass to register with the protocol.
+  - The name of the `gclass` to be registered with the communication protocol.
 
 * - `schema`
   - `const char *`
-  - Schema associated with the communication protocol.
+  - A string representing the schema of the communication protocol to be registered.
+  
 :::
 
 
@@ -56,13 +57,13 @@ int comm_prot_register(
 **Return Value**
 
 
-Returns an integer indicating the success of the registration process.
+Returns an integer indicating the success or failure of the registration process. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the registration.
 
 
 **Notes**
 
 
-This function is used to associate a gclass with a specific communication protocol using the provided schema.
+This function is crucial for establishing communication protocols in a system that utilizes `gclass` structures. Ensure that the `gclass_name` and `schema` provided are valid and conform to the expected formats to avoid registration failures.
 
 
 <!--====================================================-->

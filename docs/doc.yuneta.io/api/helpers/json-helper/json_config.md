@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Return a malloc'ed string with the final configuration by joining the json format input string parameters. Handles various configurations and loads them in a specific order. Can expand a dict of json data in a range. Allows for one-line comments in the json string.
+This function generates a final JSON configuration string by merging various input parameters. It takes fixed and variable configuration strings, as well as optional configuration files and parameters, to produce a comprehensive JSON output. If any JSON formatting errors occur, the function will terminate based on the `quit` parameter, printing the error message. Additionally, if `print_verbose_config` or `print_final_config` is set to TRUE, the function will print the resulting configuration and exit with a success status.
 
 
 <!------------------------------------------------------------>
@@ -48,31 +48,31 @@ char *json_config(
 
 * - `print_verbose_config`
   - `BOOL`
-  - If true, prints the result and exits(0).
+  - Indicates whether to print verbose configuration output and exit.
 
 * - `print_final_config`
   - `BOOL`
-  - If true, prints the result and exits(0).
+  - Indicates whether to print the final configuration output and exit.
 
 * - `fixed_config`
   - `const char *`
-  - String config that is not writable.
+  - A string representing fixed configuration that is not writable.
 
 * - `variable_config`
   - `const char *`
-  - Writable string config.
+  - A string representing writable variable configuration.
 
 * - `config_json_file`
   - `const char *`
-  - File of file's list, overwriting variable_config.
+  - A string representing the path to a configuration JSON file that can overwrite the variable configuration.
 
 * - `parameter_config`
   - `const char *`
-  - String overwriting variable_config.
+  - A string representing additional parameters that can overwrite the variable configuration.
 
 * - `quit`
   - `pe_flag_t`
-  - Parameter to handle errors in json format.
+  - A flag that determines the behavior of the function upon encountering an error.
 :::
 
 
@@ -81,15 +81,13 @@ char *json_config(
 **Return Value**
 
 
-A malloc'ed string with the final configuration. Remember to free the returned string with `jsonp_free()`.
+The function returns a pointer to a dynamically allocated string containing the final JSON configuration. It is important to free this string using `jsonp_free()` to avoid memory leaks.
 
 
 **Notes**
 
 
-- Handles various configurations and loads them in a specific order.
-- Can expand a dict of json data in a range.
-- Allows for one-line comments in the json string.
+The JSON input can include one-line comments using the combination `#^^`. Additionally, the function supports expanding a dictionary of JSON data within a specified range using `{^^ ^^}` syntax. A special key `__json_config_variables__` can be used to replace strings within parentheses with corresponding values from a global variable dictionary.
 
 
 <!--====================================================-->

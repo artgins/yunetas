@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a JSON object to an indented string representation. The function takes a JSON object `jn` as input and returns a dynamically allocated string representing the JSON object with proper indentation.
+Converts any JSON object into a formatted string representation. This function takes a JSON object as input and generates a string that represents the JSON structure in a human-readable format. The resulting string is dynamically allocated and should be freed using `gbmem_free` to avoid memory leaks.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,7 @@ Converts a JSON object to an indented string representation. The function takes 
 
 ```C
 
-char *json2str(const json_t *jn);
+char *json2str(const json_t *jn); // jn not owned
 
 ```
 
@@ -39,8 +39,8 @@ char *json2str(const json_t *jn);
   - Description
 
 * - `jn`
-  - `const json_t *`
-  - The JSON object to be converted to a string representation.
+  - `json_t *`
+  - A pointer to the JSON object that needs to be converted to a string. The function does not take ownership of this object and does not free it.
 :::
 
 
@@ -49,14 +49,13 @@ char *json2str(const json_t *jn);
 **Return Value**
 
 
-Returns a dynamically allocated string representing the JSON object with proper indentation. The caller is responsible for freeing the memory allocated by the function.
+Returns a dynamically allocated string that contains the formatted representation of the JSON object. The caller is responsible for freeing this string using `gbmem_free`.
 
 
 **Notes**
 
 
-- The function allocates memory for the string representation, and the caller must free this memory after use.
-- The output string will have proper indentation for readability.
+Ensure that the JSON object passed to this function is valid. If the JSON object is malformed, the behavior of the function may be undefined.
 
 
 <!--====================================================-->

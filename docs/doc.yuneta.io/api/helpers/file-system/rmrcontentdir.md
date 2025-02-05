@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function recursively removes all content (files and directories) within the specified root directory.
-
-It deletes all files and subdirectories within the root directory, leaving the root directory itself intact.
+The `rmrcontentdir` function is designed to remove all contents within a specified directory, including all files and subdirectories. It operates recursively, ensuring that every item within the directory is deleted. This function is useful for cleaning up directories without needing to delete the directory itself.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +42,8 @@ int rmrcontentdir(
 
 * - `root_dir`
   - `const char *`
-  - The path to the root directory from which all content will be removed.
+  - The path to the directory whose contents are to be removed.
+
 :::
 
 
@@ -53,17 +52,13 @@ int rmrcontentdir(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the operation:
-- `0` on success.
-- `-1` if an error occurs during the removal process.
+Returns an integer indicating the success or failure of the operation. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the removal process.
 
 
 **Notes**
 
 
-- This function will delete all files and directories within the specified root directory recursively.
-- The root directory itself will not be deleted.
-- Use with caution as it permanently removes all content within the root directory.
+This function does not remove the directory itself, only its contents. Care should be taken when using this function, as it will permanently delete files and subdirectories without confirmation.
 
 
 <!--====================================================-->

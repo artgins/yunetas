@@ -4,7 +4,11 @@
 <!-- ============================================================== -->
 
 
-The `approxidate_careful` function interprets various date formats and returns a timestamp representing the input date. It carefully handles ambiguous formats and incomplete information to deduce the most likely date based on context.
+The `approxidate_careful` function interprets a variety of date formats and returns a timestamp representing the parsed date. It can handle both absolute and relative date formats, including ISO 8601, English date formats, and shorthand notations. The function is designed to be robust against ambiguities and can interpret contextual phrases related to time, such as "tomorrow" or "next week". 
+
+In addition to parsing standard date formats, it can also interpret relative dates based on the current date, allowing for phrases like "3 days ago" or "in 2 months". The function is particularly useful for applications that require flexible date input from users.
+
+Error handling is incorporated, with the function returning a timestamp and optionally setting an error code if parsing fails.
 
 
 <!------------------------------------------------------------>
@@ -25,7 +29,7 @@ The `approxidate_careful` function interprets various date formats and returns a
 
 timestamp_t approxidate_careful(
     const char *date,
-    int *offset
+    int *error
 );
 
 ```
@@ -43,11 +47,12 @@ timestamp_t approxidate_careful(
 
 * - `date`
   - `const char *`
-  - The input date string to be interpreted.
+  - A string representing the date to be parsed. This can be in various formats, including absolute and relative dates.
 
-* - `offset`
+* - `error`
   - `int *`
-  - Pointer to an integer to store the offset of the date.
+  - A pointer to an integer where the function can store an error code if parsing fails. This parameter can be NULL if error reporting is not needed.
+
 :::
 
 
@@ -56,22 +61,29 @@ timestamp_t approxidate_careful(
 **Return Value**
 
 
-The function returns a `timestamp_t` representing the interpreted date. Additionally, it modifies the `offset` parameter to provide information about the offset in the date string.
+The function returns a `timestamp_t` representing the parsed date. If the date cannot be parsed, the return value may indicate an error, and the error code can be checked via the `error` parameter.
 
 
 **Notes**
 
 
-Here's a breakdown of the kinds of date formats `approxidate_careful()` can interpret:
-- Absolute Dates (Standard formats)
-- Relative Dates
-- Special Time Keywords
-- Combinations of Date and Time
-- Time-relative to specific date
-- Shorthand Dates
-- Special Cases and Contextual Phrases
+The function is capable of interpreting a wide range of date formats, including:
 
-The function carefully handles ambiguities and incomplete information to deduce the most likely date based on context.
+1. Absolute Dates:
+   - ISO 8601 format (e.g., YYYY-MM-DD)
+   - Basic English formats (e.g., "Sep 17 2024")
+   - US-centric formats (e.g., "09/17/2024")
+
+2. Relative Dates:
+   - Phrases like "3 days ago" or "next Friday".
+
+3. Special Time Keywords:
+   - Keywords like "noon" or "midnight".
+
+4. Shorthand Dates:
+   - Shortcuts like "0" for today or "-1" for yesterday.
+
+The function attempts to resolve ambiguities in date formats based on context.
 
 
 <!--====================================================-->

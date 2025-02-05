@@ -4,7 +4,10 @@
 <!-- ============================================================== -->
 
 
-Concatenates two input strings `str1` and `str2` into a new string. Memory is allocated for the new string, and the caller is responsible for freeing it when no longer needed.
+Concatenates two strings into a new dynamically allocated string. 
+The function takes two input strings, `str1` and `str2`, and combines them into a single string. 
+The resulting string is allocated on the heap, and the caller is responsible for freeing it using `str_concat_free()`.
+If either input string is NULL, it is treated as an empty string.
 
 
 <!------------------------------------------------------------>
@@ -43,11 +46,12 @@ char * str_concat(
 
 * - `str1`
   - `const char *`
-  - The first string to be concatenated.
+  - The first string to concatenate. If NULL, treated as an empty string.
 
 * - `str2`
   - `const char *`
-  - The second string to be concatenated.
+  - The second string to concatenate. If NULL, treated as an empty string.
+
 :::
 
 
@@ -56,13 +60,14 @@ char * str_concat(
 **Return Value**
 
 
-A new string resulting from concatenating `str1` and `str2`. The caller is responsible for freeing the memory allocated for the new string.
+Returns a pointer to a newly allocated string containing the concatenated result of `str1` and `str2`. 
+If memory allocation fails, it returns NULL.
 
 
 **Notes**
 
 
-Remember to free the memory allocated for the returned string using `str_concat_free()`. This function is case sensitive.
+The caller must free the returned string using `str_concat_free()` to avoid memory leaks.
 
 
 <!--====================================================-->

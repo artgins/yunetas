@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-This function launches a daemon process with the specified program and optional arguments. It can redirect standard I/O to null if required.
+The `launch_daemon` function is used to create a new daemon process. A daemon is a background process that runs independently of user control. This function allows the user to specify whether to redirect standard input/output/error streams to `/dev/null`, effectively silencing the daemon's output. The function takes a program name as an argument, followed by any additional arguments needed by the program.
+
+The function returns the process ID (PID) of the newly created daemon, which can be used to manage the daemon process later (e.g., for termination or monitoring).
 
 
 <!------------------------------------------------------------>
@@ -25,7 +27,8 @@ This function launches a daemon process with the specified program and optional 
 
 int launch_daemon(
     BOOL redirect_stdio_to_null,
-    const char *program, ...
+    const char *program,
+    ...
 );
 
 ```
@@ -34,7 +37,7 @@ int launch_daemon(
 
 
 ::: {list-table}
-:widths: 20 80
+:widths: 20 20 60
 :header-rows: 1
 
 * - Key
@@ -43,15 +46,16 @@ int launch_daemon(
 
 * - `redirect_stdio_to_null`
   - `BOOL`
-  - Flag to indicate whether to redirect standard I/O to null.
+  - Indicates whether to redirect standard input/output/error to `/dev/null`.
 
 * - `program`
   - `const char *`
-  - Path to the program to be executed.
+  - The name of the program to be executed as a daemon.
 
 * - `...`
   - `...`
-  - Optional arguments to be passed to the program.
+  - Additional arguments to be passed to the program being executed.
+
 :::
 
 
@@ -60,14 +64,13 @@ int launch_daemon(
 **Return Value**
 
 
-Returns the process ID (pid) of the launched daemon.
+The function returns an `int` representing the process ID (PID) of the launched daemon. If the daemon could not be launched, it may return a negative value indicating an error.
 
 
 **Notes**
 
 
-- The function launches a daemon process with the specified program and arguments.
-- It can redirect standard I/O to null if required.
+This function is typically used in server applications where background processing is required. The behavior of the daemon may depend on the operating system and its configuration. Ensure that the program being launched is designed to run as a daemon.
 
 
 <!--====================================================-->

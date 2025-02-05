@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function initializes backtrace for the specified program to enable debugging and error tracing.
+Initializes the backtrace functionality for the specified program. This function sets up the necessary environment to capture and display backtrace information, which is useful for debugging purposes. It is typically called at the start of a program to ensure that any subsequent errors can be traced back to their origin.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,7 @@ This function initializes backtrace for the specified program to enable debuggin
 
 ```C
 
-void init_backtrace_with_backtrace(
+int init_backtrace_with_backtrace(
     const char *program
 );
 
@@ -42,7 +42,8 @@ void init_backtrace_with_backtrace(
 
 * - `program`
   - `const char *`
-  - The name of the program for which backtrace needs to be initialized.
+  - The name of the program for which the backtrace is being initialized.
+
 :::
 
 
@@ -51,13 +52,13 @@ void init_backtrace_with_backtrace(
 **Return Value**
 
 
-This function does not return any value.
+Returns an integer indicating the success or failure of the initialization. A return value of 0 typically indicates success, while a non-zero value indicates an error occurred during the initialization process.
 
 
 **Notes**
 
 
-This function is useful for setting up backtrace functionality to capture and display stack traces for debugging purposes.
+This function should be called before any other backtrace-related functions to ensure that the backtrace information is correctly captured. It is important to handle the return value appropriately to detect any issues during initialization.
 
 
 <!--====================================================-->

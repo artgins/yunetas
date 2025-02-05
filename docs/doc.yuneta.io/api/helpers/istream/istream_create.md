@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `istream_create` function is used to create a new input stream handler for reading data. It initializes the input stream with the specified data size and maximum size for buffering incoming data.
+Creates a new input stream object that can be used to read data. The function initializes the stream with a specified size for the data it can hold and a maximum size limit. This is useful for managing data streams in a controlled manner, allowing for efficient reading and processing of data.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,16 @@ istream_h istream_create(
 
 * - `gobj`
   - `hgobj`
-  - The gobj handler associated with the input stream.
-  
+  - The object associated with the stream, which can be used for logging and event handling.
+
 * - `data_size`
   - `size_t`
-  - The initial size of the data buffer for the input stream.
-  
+  - The initial size of the data buffer for the stream.
+
 * - `max_size`
   - `size_t`
-  - The maximum size allowed for buffering incoming data in the input stream.
+  - The maximum size limit for the data buffer of the stream.
+
 :::
 
 
@@ -61,14 +62,13 @@ istream_h istream_create(
 **Return Value**
 
 
-The function returns an `istream_h` handler representing the created input stream.
+Returns a handle to the newly created input stream. If the creation fails, it may return NULL.
 
 
 **Notes**
 
 
-- If an `istream_h` handler already exists, it will be destroyed before creating a new one.
-- Use `ISTREAM_DESTROY(ptr)` macro to properly destroy an `istream_h` handler.
+If an input stream already exists for the given variable, it will be destroyed before creating a new one. This ensures that there are no memory leaks or dangling pointers.
 
 
 <!--====================================================-->

@@ -4,13 +4,10 @@
 <!-- ============================================================== -->
 
 
-Converts a `struct tm` time structure to a timestamp string representation.
-
-This function takes a `struct tm` time structure and converts it into a timestamp string in the specified buffer.
-
-The timestamp format is suitable for representing time in a human-readable format.
-
-If successful, the function returns the buffer containing the timestamp string.
+Converts a `struct tm` representation of time into a timestamp string format. 
+The resulting string is stored in the buffer provided by the user, which must 
+be large enough to hold the formatted timestamp. The function returns a pointer 
+to the buffer containing the timestamp string.
 
 
 <!------------------------------------------------------------>
@@ -30,8 +27,8 @@ If successful, the function returns the buffer containing the timestamp string.
 ```C
 
 char *tm2timestamp(
-    char *bf,
-    int bfsize,
+    char    *bf,
+    int     bfsize,
     struct tm *tm
 );
 
@@ -50,15 +47,15 @@ char *tm2timestamp(
 
 * - `bf`
   - `char *`
-  - Buffer to store the timestamp string.
-  
+  - A pointer to the buffer where the resulting timestamp string will be stored.
+
 * - `bfsize`
   - `int`
-  - Size of the buffer.
-  
+  - The size of the buffer `bf` in bytes. This should be sufficient to hold the formatted timestamp.
+
 * - `tm`
   - `struct tm *`
-  - Pointer to the `struct tm` time structure to convert.
+  - A pointer to a `struct tm` that contains the broken-down time representation to be converted.
 :::
 
 
@@ -67,14 +64,17 @@ char *tm2timestamp(
 **Return Value**
 
 
-The function returns a pointer to the buffer containing the timestamp string representation of the `struct tm` time structure.
+Returns a pointer to the buffer `bf` containing the formatted timestamp string. 
+If the buffer is not large enough to hold the formatted string, the behavior is 
+undefined.
 
 
 **Notes**
 
 
-- The timestamp string format is suitable for human-readable representation of time.
-- The function ensures that the timestamp string fits within the provided buffer size to prevent buffer overflow.
+Ensure that the buffer `bf` is at least 90 bytes in size to accommodate the 
+formatted timestamp. The function does not perform any checks on the validity 
+of the `struct tm` data.
 
 
 <!--====================================================-->

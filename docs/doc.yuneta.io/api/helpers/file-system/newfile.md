@@ -4,9 +4,10 @@
 <!-- ============================================================== -->
 
 
-The `newfile` function is used to create a new file at the specified path with the given permissions. If the file already exists and the `overwrite` parameter is set to TRUE, the existing file will be overwritten.
-
-This function provides a convenient way to create or overwrite files with the desired permissions.
+Creates a new file at the specified `path` with the given `permission`. 
+If a file already exists at the specified path and `overwrite` is set to TRUE, 
+the existing file will be replaced. If `overwrite` is FALSE and the file exists, 
+the function will fail and return an error code.
 
 
 <!------------------------------------------------------------>
@@ -46,15 +47,15 @@ int newfile(
 
 * - `path`
   - `const char *`
-  - The path where the new file will be created.
+  - The path where the new file should be created.
 
 * - `permission`
   - `int`
-  - The permissions to be set for the new file.
+  - The permission settings for the new file, typically specified in octal format.
 
 * - `overwrite`
   - `BOOL`
-  - Flag indicating whether to overwrite the file if it already exists.
+  - A flag indicating whether to overwrite an existing file at the specified path.
 :::
 
 
@@ -63,16 +64,17 @@ int newfile(
 **Return Value**
 
 
-The function returns an integer indicating the success or failure of the operation:
-- 0: Success.
-- -1: Failure.
+Returns 0 on success, or a negative error code if the file could not be created. 
+Possible error codes include issues with permissions or if the file already exists 
+and `overwrite` is FALSE.
 
 
 **Notes**
 
 
-- If the `overwrite` parameter is set to FALSE and the file already exists, the function will not create a new file and return -1.
-- The function will return -1 if there are any errors during the file creation process.
+Ensure that the specified `path` is valid and that the program has the necessary 
+permissions to create files in the target directory. The `permission` parameter 
+should be set according to the desired access rights for the file.
 
 
 <!--====================================================-->

@@ -4,8 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `file_size` function retrieves the size of a file specified by the given path.
-If the file does not exist or an error occurs while accessing the file, the function will return 0.
+The `file_size` function retrieves the size of a file specified by its path. It opens the file in a read-only mode and checks its size using system calls. If the file does not exist or cannot be accessed, the function will return -1 to indicate an error.
 
 
 <!------------------------------------------------------------>
@@ -43,7 +42,8 @@ off_t file_size(
 
 * - `path`
   - `const char *`
-  - The path to the file for which the size needs to be determined.
+  - The path to the file whose size is to be determined.
+
 :::
 
 
@@ -52,15 +52,13 @@ off_t file_size(
 **Return Value**
 
 
-The function returns the size of the file in bytes as an `off_t` type.
-If the file does not exist or an error occurs, the function returns 0.
+Returns the size of the file in bytes as an `off_t` type. If the file cannot be accessed, it returns -1.
 
 
 **Notes**
 
 
-- If the file specified by the path does not exist or cannot be accessed, the function will return 0.
-- The `off_t` type is used to represent file sizes, which may vary depending on the system.
+Ensure that the provided path is valid and points to a file. The function does not handle symbolic links; it will return the size of the target file if the path is a link.
 
 
 <!--====================================================-->

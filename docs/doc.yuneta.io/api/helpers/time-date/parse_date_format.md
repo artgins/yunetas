@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Parse the date format specified in the input string `format` and populate the `date_mode` structure with the parsed information.
+The `parse_date_format` function analyzes a given date format string and populates a `date_mode` structure with the corresponding settings. This function is useful for interpreting various date formats and determining how to handle them in applications that require date parsing or formatting.
 
 
 <!------------------------------------------------------------>
@@ -43,11 +43,12 @@ void parse_date_format(
 
 * - `format`
   - `const char *`
-  - The input string containing the date format to be parsed.
+  - A string representing the date format to be parsed.
 
 * - `mode`
   - `struct date_mode *`
-  - Pointer to the `date_mode` structure where the parsed information will be stored.
+  - A pointer to a `date_mode` structure that will be populated with the parsed format information.
+
 :::
 
 
@@ -56,13 +57,13 @@ void parse_date_format(
 **Return Value**
 
 
-This function does not return a value. It populates the `date_mode` structure passed as a parameter with the parsed date format information.
+This function does not return a value. Instead, it modifies the `date_mode` structure pointed to by the `mode` parameter to reflect the parsed date format.
 
 
 **Notes**
 
 
-The `date_mode` structure contains the parsed date format information, including the type of date mode and the strftime format if applicable.
+The `date_mode` structure must be properly initialized before calling this function. The function assumes that the provided format string is valid and may not handle errors related to invalid formats.
 
 
 <!--====================================================-->

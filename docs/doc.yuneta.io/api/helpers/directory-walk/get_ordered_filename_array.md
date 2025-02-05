@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function returns the ordered full tree filenames of the specified root directory based on the provided pattern and options.
+This function retrieves an ordered array of full filenames from a specified directory that match a given pattern. It traverses the directory tree starting from `root_dir`, applying the specified `pattern` to filter the files. The results are returned in an array of strings, which must be freed by the caller using `free_ordered_filename_array()`. The order of the filenames in the array is determined by the file system's natural ordering.
 
 
 <!------------------------------------------------------------>
@@ -46,23 +46,23 @@ char **get_ordered_filename_array(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance.
-  
+  - The gobj context in which the function is called.
+
 * - `root_dir`
   - `const char *`
-  - The root directory path.
-  
+  - The path to the root directory from which to start the search for files.
+
 * - `pattern`
   - `const char *`
-  - The pattern to match filenames.
-  
+  - The pattern used to filter the filenames. This can include wildcards.
+
 * - `opt`
   - `wd_option`
-  - Options for file matching.
-  
+  - Options that modify the behavior of the directory traversal (e.g., recursive search, hidden files).
+
 * - `size`
   - `int *`
-  - Pointer to store the size of the returned array.
+  - A pointer to an integer where the size of the returned array will be stored.
 :::
 
 
@@ -71,14 +71,13 @@ char **get_ordered_filename_array(
 **Return Value**
 
 
-An array of ordered filenames from the root directory matching the pattern.
+Returns a pointer to an array of strings (char **) containing the ordered filenames. The caller is responsible for freeing this array using `free_ordered_filename_array()`.
 
 
 **Notes**
 
 
-- Remember to free the returned array using `free_ordered_filename_array()`.
-- In some cases, using `glob()` may be more efficient for similar functionality.
+This function may reinvent the wheel for file searching; consider using `glob()` for similar functionality. The returned array must be freed by the caller to avoid memory leaks.
 
 
 <!--====================================================-->

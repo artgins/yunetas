@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a Unix timestamp `t` to a human-readable date and time representation in the specified buffer `bf`.
-
-If `local` is set to TRUE, the conversion is done in the local timezone; otherwise, it is done in UTC.
+Converts a given `time_t` value into a human-readable timestamp string. The function formats the timestamp according to the specified local time setting. The output is written into the provided buffer, which must be large enough to hold the resulting string.
 
 
 <!------------------------------------------------------------>
@@ -26,10 +24,10 @@ If `local` is set to TRUE, the conversion is done in the local timezone; otherwi
 ```C
 
 char *t2timestamp(
-    char *bf,
-    int bfsize,
-    time_t t,
-    BOOL local
+    char    *bf,
+    int     bfsize,
+    time_t  t,
+    BOOL    local
 );
 
 ```
@@ -47,19 +45,19 @@ char *t2timestamp(
 
 * - `bf`
   - `char *`
-  - Buffer to store the formatted date and time.
+  - A pointer to the buffer where the formatted timestamp will be stored.
 
 * - `bfsize`
   - `int`
-  - Size of the buffer `bf`.
+  - The size of the buffer `bf`, which must be sufficient to hold the resulting timestamp string.
 
 * - `t`
   - `time_t`
-  - Unix timestamp to convert.
+  - The `time_t` value representing the time to be converted.
 
 * - `local`
   - `BOOL`
-  - Flag to indicate whether to convert to local timezone (TRUE) or UTC (FALSE).
+  - A boolean flag indicating whether to convert the time to local time (TRUE) or to UTC (FALSE).
 :::
 
 
@@ -68,14 +66,13 @@ char *t2timestamp(
 **Return Value**
 
 
-Returns a pointer to the buffer `bf` containing the formatted date and time representation.
+Returns a pointer to the buffer `bf` containing the formatted timestamp string. If the buffer is too small, the behavior is undefined.
 
 
 **Notes**
 
 
-- The function does not handle timezone changes or daylight saving time adjustments.
-- Ensure that the buffer `bf` has enough space to accommodate the formatted date and time.
+Ensure that the buffer provided is at least 90 bytes in size to accommodate the formatted timestamp string. The function does not perform bounds checking on the buffer size.
 
 
 <!--====================================================-->

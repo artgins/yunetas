@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function is used to destroy a GHTTP_PARSER object created for parsing HTTP messages.
+This function is responsible for destroying a `GHTTP_PARSER` instance. It releases any resources that were allocated for the parser, ensuring that there are no memory leaks. After calling this function, the `parser` should not be used again unless it is re-initialized.
 
 
 <!------------------------------------------------------------>
@@ -36,13 +36,14 @@ void ghttp_parser_destroy(
 :widths: 20 20 60
 :header-rows: 1
 
-* - Parameter
+* - Key
   - Type
   - Description
 
 * - `parser`
   - `GHTTP_PARSER *`
-  - The GHTTP_PARSER object to be destroyed.
+  - A pointer to the `GHTTP_PARSER` instance that needs to be destroyed.
+
 :::
 
 
@@ -51,13 +52,13 @@ void ghttp_parser_destroy(
 **Return Value**
 
 
-This function does not return any value.
+This function does not return a value.
 
 
 **Notes**
 
 
-- Make sure to call this function to free the memory allocated for the GHTTP_PARSER object when it is no longer needed.
+It is important to ensure that the `parser` is not NULL before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

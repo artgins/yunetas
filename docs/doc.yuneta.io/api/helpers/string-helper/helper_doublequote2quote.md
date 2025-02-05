@@ -4,8 +4,10 @@
 <!-- ============================================================== -->
 
 
-Change " by '.
-Useful for easier json representation in C strings, **BUT** you cannot use true ".
+This function replaces all instances of double quotes (") in the input string with single quotes ('). 
+It is particularly useful for transforming strings to a format that is easier for JSON representation in C strings, 
+where double quotes are often problematic. However, it is important to note that the input string must not contain 
+actual single quotes, as they cannot be used in the resulting string.
 
 
 <!------------------------------------------------------------>
@@ -43,7 +45,8 @@ char *helper_doublequote2quote(
 
 * - `str`
   - `char *`
-  - The string in which to change " to '.
+  - A pointer to the input string that contains double quotes to be replaced.
+
 :::
 
 
@@ -52,13 +55,15 @@ char *helper_doublequote2quote(
 **Return Value**
 
 
-Returns a modified string with " replaced by '.
+The function returns a pointer to the modified string, where all double quotes have been replaced with single quotes. 
+The returned string is the same as the input string, modified in place.
 
 
 **Notes**
 
 
-This function is useful for converting double quotes to single quotes in C strings, typically for easier representation of JSON data. However, it should not be used if the string contains true double quotes that need to be preserved.
+The input string is modified directly, so it should not be a string literal. 
+Ensure that the input string does not contain any single quotes, as this may lead to unexpected behavior.
 
 
 <!--====================================================-->

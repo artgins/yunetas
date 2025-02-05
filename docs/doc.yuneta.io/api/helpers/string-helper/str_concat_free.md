@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `str_concat_free` function is used to free the memory allocated for a string that was concatenated using the `str_concat` or `str_concat3` functions.
+This function is responsible for freeing the memory allocated for a string that was previously concatenated using the `str_concat` or `str_concat3` functions. It ensures that any dynamically allocated memory associated with the string is properly released, preventing memory leaks in the application.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,8 @@ void str_concat_free(
 
 * - `s`
   - `char *`
-  - The string to be freed.
+  - A pointer to the string that needs to be freed. This string must have been allocated dynamically.
+
 :::
 
 
@@ -51,13 +52,13 @@ void str_concat_free(
 **Return Value**
 
 
-This function does not return any value.
+This function does not return a value.
 
 
 **Notes**
 
 
-- Remember to use this function to deallocate memory after using `str_concat` or `str_concat3`.
+It is crucial to ensure that the pointer passed to this function points to a valid dynamically allocated string. Passing a pointer that was not allocated by `str_concat` or `str_concat3` may lead to undefined behavior.
 
 
 <!--====================================================-->

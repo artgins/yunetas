@@ -4,7 +4,11 @@
 <!-- ============================================================== -->
 
 
-Converts a JSON object to an ugly (non-tabular) string representation. This function is used to generate a string representation of a JSON object without any formatting or indentation.
+Converts a JSON object into a non-tabular string representation. 
+This function is useful for obtaining a compact string format of 
+the JSON data, which can be easier to read in certain contexts 
+compared to its structured format. The resulting string is 
+allocated dynamically and should be freed using `gbmem_free`.
 
 
 <!------------------------------------------------------------>
@@ -41,8 +45,9 @@ char *json2uglystr(
   - Description
 
 * - `jn`
-  - `const json_t *`
-  - The JSON object to be converted to an ugly string representation.
+  - `json_t *`
+  - A pointer to the JSON object that needs to be converted to a string. The JSON object is not owned by this function.
+
 :::
 
 
@@ -51,13 +56,17 @@ char *json2uglystr(
 **Return Value**
 
 
-Returns a string representing the JSON object in an unformatted, non-tabular manner.
+Returns a dynamically allocated string representing the JSON object in 
+a non-tabular format. The caller is responsible for freeing the 
+returned string using `gbmem_free`.
 
 
 **Notes**
 
 
-This function is useful for generating a compact, human-readable representation of a JSON object without any additional formatting or indentation.
+Ensure that the input JSON object is valid; otherwise, the behavior 
+of the function may be undefined. The function does not take ownership 
+of the JSON object passed to it.
 
 
 <!--====================================================-->

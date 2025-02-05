@@ -4,7 +4,11 @@
 <!-- ============================================================== -->
 
 
-The `json_is_identical` function compares two JSON objects to determine if they are identical. It checks if the structure and content of the two JSON objects are the same.
+Compares two JSON objects to determine if they are identical. 
+This function checks for equality in terms of structure and content, 
+including the order of elements in arrays and the order of keys in objects.
+If both JSON objects are of the same type and contain the same data, 
+the function returns TRUE; otherwise, it returns FALSE.
 
 
 <!------------------------------------------------------------>
@@ -23,9 +27,9 @@ The `json_is_identical` function compares two JSON objects to determine if they 
 
 ```C
 
-int json_is_identical(
-    json_t *kw1,
-    json_t *kw2
+BOOL json_is_identical(
+    json_t *kw1,    // NOT owned
+    json_t *kw2     // NOT owned
 );
 
 ```
@@ -43,11 +47,12 @@ int json_is_identical(
 
 * - `kw1`
   - `json_t *`
-  - First JSON object for comparison.
-  
+  - The first JSON object to compare. This parameter is not owned by the function.
+
 * - `kw2`
   - `json_t *`
-  - Second JSON object for comparison.
+  - The second JSON object to compare. This parameter is not owned by the function.
+
 :::
 
 
@@ -56,15 +61,15 @@ int json_is_identical(
 **Return Value**
 
 
-The function returns an integer:
-- `0` if the two JSON objects are identical.
-- `-1` if the two JSON objects are not identical.
+Returns TRUE if the two JSON objects are identical; otherwise, returns FALSE.
 
 
 **Notes**
 
 
-This function only compares the structure and content of the JSON objects. It does not consider the order of elements within the objects.
+This function performs a deep comparison of the JSON objects. 
+It is important to ensure that both parameters are valid JSON objects 
+before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

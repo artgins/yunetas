@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `set_real_precision` function is used to set the precision for real numbers when converting them to strings. This precision affects the number of decimal places displayed in the string representation of real numbers.
+Sets the precision for real number conversions when converting json to string functions. This function allows the user to define how many decimal places should be used in the representation of real numbers. The previous precision value is returned, allowing the caller to restore it if needed.
 
 
 <!------------------------------------------------------------>
@@ -36,9 +36,14 @@ int set_real_precision(
 :widths: 20 20 60
 :header-rows: 1
 
+* - Key
+  - Type
+  - Description
+
 * - `precision`
   - `int`
-  - The desired precision to set for real numbers.
+  - The number of decimal places to set for real number representation.
+
 :::
 
 
@@ -47,13 +52,13 @@ int set_real_precision(
 **Return Value**
 
 
-The function returns the previous precision that was set before the new precision was applied.
+Returns the previous precision value that was set before this function was called.
 
 
 **Notes**
 
 
-This function is useful when converting real numbers to strings, allowing control over the number of decimal places displayed in the string representation.
+This function is particularly useful in contexts where consistent formatting of real numbers is required, such as in financial applications or when generating reports. Be cautious when changing the precision, as it may affect the output of subsequent json to string conversions.
 
 
 <!--====================================================-->

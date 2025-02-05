@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `open_exclusive` function opens a file exclusively, ensuring that the file is not already open by another process. It provides functionality to open a file with specific flags and permissions.
-
-This function is used to open a file exclusively, preventing other processes from opening the same file concurrently.
+The `open_exclusive` function is used to open a file in an exclusive mode, ensuring that no other process can access the file simultaneously. This is particularly useful in scenarios where file locking is necessary to prevent data corruption or conflicts. The function takes the file path, the desired flags for opening the file, and the permissions to set if the file is created.
 
 
 <!------------------------------------------------------------>
@@ -46,15 +44,15 @@ int open_exclusive(
 
 * - `path`
   - `const char *`
-  - The path to the file to be opened exclusively.
+  - The path to the file that needs to be opened exclusively.
 
 * - `flags`
   - `int`
-  - Flags to control the opening of the file.
+  - The flags that determine the mode in which the file is opened (e.g., read, write, create).
 
 * - `permission`
   - `int`
-  - Permissions to set for the opened file.
+  - The permissions to set for the file if it is created (e.g., read/write permissions).
 :::
 
 
@@ -63,14 +61,13 @@ int open_exclusive(
 **Return Value**
 
 
-The function returns an integer representing the file descriptor of the opened file. If an error occurs, it returns -1.
+The function returns a file descriptor (an integer) if the file is opened successfully. If the operation fails, it returns -1, indicating an error occurred during the file opening process.
 
 
 **Notes**
 
 
-- This function is useful for scenarios where exclusive access to a file is required to prevent conflicts with other processes.
-- It is important to handle errors returned by this function, especially when dealing with file operations.
+This function is particularly useful in multi-threaded or multi-process applications where file access needs to be controlled to avoid race conditions. Ensure to handle the returned file descriptor properly, closing it when it is no longer needed.
 
 
 <!--====================================================-->

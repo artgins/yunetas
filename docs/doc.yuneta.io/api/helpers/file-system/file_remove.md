@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `file_remove` function is used to remove a file located in a specified directory.
-
-If the file exists in the given directory, it will be deleted.
-
-This function takes the directory path and the filename as parameters to identify the file to be removed.
+The `file_remove` function is designed to delete a specified file from a given directory. It takes the directory path and the filename as parameters, and attempts to remove the file from the filesystem. If the file is successfully deleted, the function returns a success indicator; otherwise, it returns an error code indicating the failure reason.
 
 
 <!------------------------------------------------------------>
@@ -44,12 +40,15 @@ int file_remove(
 * - Key
   - Type
   - Description
+
 * - `directory`
   - `const char *`
   - The path to the directory where the file is located.
+
 * - `filename`
   - `const char *`
-  - The name of the file to be removed.
+  - The name of the file to be removed from the specified directory.
+
 :::
 
 
@@ -58,17 +57,13 @@ int file_remove(
 **Return Value**
 
 
-The function returns an integer value indicating the status of the file removal operation:
-- `0` if the file was successfully removed.
-- `-1` if an error occurred during the removal process.
+Returns an integer value indicating the success or failure of the file removal operation. A return value of 0 typically indicates success, while a non-zero value indicates an error.
 
 
 **Notes**
 
 
-- This function will attempt to remove the specified file from the provided directory.
-- If the file removal operation fails, it will return `-1`.
-- Ensure that the directory path and filename are correctly provided to avoid errors.
+Ensure that the specified file exists in the directory before calling this function, as attempting to remove a non-existent file will result in an error. Additionally, appropriate permissions must be set for the operation to succeed.
 
 
 <!--====================================================-->

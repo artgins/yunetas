@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the number of files in a specified directory matching a given pattern and options.
+This function counts the number of files in a specified directory that match a given pattern. It traverses the directory tree starting from `root_dir`, applying the specified options to filter the results. The function returns the total count of files that meet the criteria defined by the pattern and options.
 
 
 <!------------------------------------------------------------>
@@ -24,7 +24,7 @@ This function retrieves the number of files in a specified directory matching a 
 ```C
 
 int get_number_of_files(
-    hgobj   gobj,
+    hgobj    gobj,
     const char *root_dir,
     const char *pattern,
     wd_option opt
@@ -45,19 +45,19 @@ int get_number_of_files(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance.
-  
+  - The object that is associated with the operation, typically representing the context in which the function is called.
+
 * - `root_dir`
   - `const char *`
-  - The root directory path to search for files.
-  
+  - The path to the directory where the search for files will begin.
+
 * - `pattern`
   - `const char *`
-  - The pattern to match filenames in the directory.
-  
+  - A string pattern used to match file names. This can include wildcards to specify the types of files to count.
+
 * - `opt`
   - `wd_option`
-  - Options for file search.
+  - Options that modify the behavior of the file search, such as whether to include hidden files or to search recursively.
 :::
 
 
@@ -66,14 +66,13 @@ int get_number_of_files(
 **Return Value**
 
 
-The function returns an integer representing the number of files found in the specified directory.
+Returns the number of files that match the specified pattern in the given directory. If an error occurs, it may return a negative value indicating the failure.
 
 
 **Notes**
 
 
-- This function uses the `walk_dir_tree` function internally to traverse the directory tree and count the files.
-- The `wd_option` parameter allows specifying additional options for the file search.
+Ensure that the `root_dir` is accessible and that the pattern is correctly specified to avoid unexpected results. The function may have performance implications when searching large directory trees, especially with recursive options enabled.
 
 
 <!--====================================================-->

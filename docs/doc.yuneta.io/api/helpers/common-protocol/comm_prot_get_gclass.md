@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the name of the GClass implementing a specific communication protocol schema.
+This function retrieves the name of the gclass that implements a specified communication protocol schema. 
+It takes a schema string as input and returns the corresponding gclass name. 
+If the schema is not registered, the function may return a default or an error value.
 
 
 <!------------------------------------------------------------>
@@ -36,9 +38,14 @@ gclass_name_t comm_prot_get_gclass(
 :widths: 20 20 60
 :header-rows: 1
 
+* - Key
+  - Type
+  - Description
+
 * - `schema`
   - `const char *`
-  - The schema of the communication protocol.
+  - A string representing the communication protocol schema for which the gclass name is requested.
+
 :::
 
 
@@ -47,13 +54,13 @@ gclass_name_t comm_prot_get_gclass(
 **Return Value**
 
 
-The name of the GClass implementing the specified communication protocol schema.
+Returns the gclass name implementing the provided schema. If no matching gclass is found, it may return a default value or indicate an error.
 
 
 **Notes**
 
 
-- This function is part of the helpers module and is used to map a communication protocol schema to the corresponding GClass name.
+Ensure that the schema provided is correctly formatted and registered with the communication protocol system prior to calling this function.
 
 
 <!--====================================================-->

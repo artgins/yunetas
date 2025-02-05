@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function loads a JSON file from the specified directory and filename. It reads the content of the file and returns a JSON object representing the data.
-
-If the file cannot be loaded or there is a critical error during the process, the function handles the error based on the specified logging options.
+This function loads a JSON object from a specified file located in a given directory. It takes a handle to a gobj, the directory path, the filename, and a logging option for critical errors. If the file is successfully read and parsed, a pointer to the resulting JSON object is returned. If an error occurs during the loading process, the behavior is determined by the `on_critical_error` parameter, which dictates how the function should respond to critical issues.
 
 
 <!------------------------------------------------------------>
@@ -25,7 +23,7 @@ If the file cannot be loaded or there is a critical error during the process, th
 
 ```C
 
-json_t *load_json_from_file(
+PUBLIC json_t *load_json_from_file(
     hgobj gobj,
     const char *directory,
     const char *filename,
@@ -47,19 +45,19 @@ json_t *load_json_from_file(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance associated with the function.
-  
+  - A handle to the gobj that is requesting the JSON data.
+
 * - `directory`
   - `const char *`
-  - The directory path where the JSON file is located.
-  
+  - The path to the directory where the JSON file is located.
+
 * - `filename`
   - `const char *`
-  - The name of the JSON file to load.
-  
+  - The name of the JSON file to be loaded.
+
 * - `on_critical_error`
   - `log_opt_t`
-  - Logging options for critical errors.
+  - Logging option that determines the action taken on critical errors during loading.
 :::
 
 
@@ -68,15 +66,13 @@ json_t *load_json_from_file(
 **Return Value**
 
 
-A JSON object representing the data loaded from the file. If there is an error during the loading process, it may return NULL.
+Returns a pointer to a `json_t` object representing the loaded JSON data. If the loading fails, the return value may be NULL, depending on the error handling specified by `on_critical_error`.
 
 
 **Notes**
 
 
-- This function is designed to handle the loading of JSON files and return the data as a JSON object.
-- It is important to ensure that the directory and filename parameters are correctly specified to load the desired JSON file.
-- The on_critical_error parameter determines how critical errors are logged during the loading process.
+Ensure that the specified directory and filename are valid and accessible. The function may log errors based on the `on_critical_error` parameter, which can be set to different logging levels.
 
 
 <!--====================================================-->

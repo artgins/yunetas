@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `filesize` function retrieves the size of a file specified by the given path.
+The `filesize` function retrieves the size of a file specified by its path. It opens the file in read mode and uses system calls to determine the total number of bytes contained in the file. If the file does not exist or cannot be accessed, the function will return a negative value indicating an error.
 
 
 <!------------------------------------------------------------>
@@ -23,9 +23,7 @@ The `filesize` function retrieves the size of a file specified by the given path
 
 ```C
 
-off_t filesize(
-    const char *path
-);
+PUBLIC off_t filesize(const char *path);
 
 ```
 
@@ -42,7 +40,8 @@ off_t filesize(
 
 * - `path`
   - `const char *`
-  - The path to the file for which the size needs to be determined.
+  - The path to the file whose size is to be determined.
+
 :::
 
 
@@ -51,14 +50,13 @@ off_t filesize(
 **Return Value**
 
 
-The function returns the size of the file in bytes as an `off_t` data type.
+Returns the size of the file in bytes as an `off_t` type. If an error occurs (e.g., file not found), it returns a negative value.
 
 
 **Notes**
 
 
-- This function operates synchronously and may block the execution until the file size is determined.
-- It is important to ensure that the path provided is valid and points to an existing file.
+Ensure that the provided path is valid and that the file exists to avoid errors. The function does not handle symbolic links; it will return the size of the target file if the path is a link.
 
 
 <!--====================================================-->

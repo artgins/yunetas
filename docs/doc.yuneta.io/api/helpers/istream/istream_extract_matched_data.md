@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function extracts and returns the matched data from the input stream up to the current read pointer position. It also provides the length of the extracted data.
-
-If the input stream contains matched data, this function will return a pointer to the extracted data and update the length parameter accordingly.
+Extracts matched data from the input stream. This function reads data from the specified `istream` until a certain condition is met, which typically involves matching a specific pattern or delimiter. The extracted data is returned as a dynamically allocated string, and the length of the extracted data is stored in the variable pointed to by `len`.
 
 
 <!------------------------------------------------------------>
@@ -45,11 +43,12 @@ char *istream_extract_matched_data(
 
 * - `istream`
   - `istream_h`
-  - The input stream handle from which to extract the matched data.
+  - The input stream from which data will be extracted.
 
 * - `len`
   - `size_t *`
-  - Pointer to a variable where the length of the extracted data will be stored.
+  - A pointer to a variable where the length of the extracted data will be stored.
+
 :::
 
 
@@ -58,14 +57,13 @@ char *istream_extract_matched_data(
 **Return Value**
 
 
-The function returns a pointer to the extracted data from the input stream. The length of the extracted data is provided through the `len` parameter.
+Returns a pointer to the extracted data as a string. The caller is responsible for freeing this memory. If no data is matched, the function may return NULL.
 
 
 **Notes**
 
 
-- This function is useful for extracting data that matches certain criteria from an input stream.
-- It is important to handle the extracted data appropriately after calling this function.
+Ensure that the `istream` is properly initialized before calling this function. The extracted data should be freed by the caller to avoid memory leaks.
 
 
 <!--====================================================-->

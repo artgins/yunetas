@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-This function compares two JSON objects containing simple data types like strings, integers, reals, or booleans. Complex types are compared as matched. It returns -1 if the first JSON object is lower, 0 if they are equal, and 1 if the first JSON object is higher, similar to the behavior of `strcmp`.
+Compares two simple JSON values (string, integer, real, or boolean) and determines their relative order.
+The function returns an integer value indicating whether the first JSON variable is less than, equal to, or greater than the second one.
+For complex types, they are considered as matched, and the function does not perform a deep comparison.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,8 @@ This function compares two JSON objects containing simple data types like string
 ```C
 
 int cmp_two_simple_json(
-    json_t *jn_var1,
-    json_t *jn_var2
+    json_t *jn_var1,    // NOT owned
+    json_t *jn_var2     // NOT owned
 );
 
 ```
@@ -40,12 +42,15 @@ int cmp_two_simple_json(
 * - Key
   - Type
   - Description
+
 * - `jn_var1`
   - `json_t *`
-  - The first JSON object to compare.
+  - The first JSON variable to compare. This variable is not owned by the function.
+
 * - `jn_var2`
   - `json_t *`
-  - The second JSON object to compare.
+  - The second JSON variable to compare. This variable is also not owned by the function.
+
 :::
 
 
@@ -54,17 +59,16 @@ int cmp_two_simple_json(
 **Return Value**
 
 
-The function returns an integer value indicating the comparison result:
-- `-1`: First JSON object is lower.
-- `0`: Both JSON objects are equal.
-- `1`: First JSON object is higher.
+Returns an integer value:
+- `-1` if `jn_var1` is less than `jn_var2`
+- `0` if they are equal
+- `1` if `jn_var1` is greater than `jn_var2`
 
 
 **Notes**
 
 
-- Complex types within the JSON objects are compared as matched.
-- This function is designed for comparing simple JSON objects and may not handle complex structures.
+The function only compares simple JSON types and does not handle nested or complex JSON structures.
 
 
 <!--====================================================-->

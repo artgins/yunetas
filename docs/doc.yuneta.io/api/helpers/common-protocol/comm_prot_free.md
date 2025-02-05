@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function is responsible for freeing the resources used in the communication protocol registration.
+This function is responsible for freeing any resources associated with the communication protocol registration. It cleans up any memory or data structures that were allocated during the registration process, ensuring that there are no memory leaks or dangling pointers.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,7 @@ This function is responsible for freeing the resources used in the communication
 
 ```C
 
-void comm_prot_free();
+void comm_prot_free(void);
 
 ```
 
@@ -39,8 +39,9 @@ void comm_prot_free();
   - Description
 
 * - None
-  - N/A
-  - This function does not take any parameters.
+  - None
+  - This function does not accept any parameters.
+
 :::
 
 
@@ -49,13 +50,13 @@ void comm_prot_free();
 **Return Value**
 
 
-This function does not return any value.
+This function does not return a value.
 
 
 **Notes**
 
 
-- This function should be called to release the resources associated with communication protocol registration.
+It is important to call this function to properly clean up after using `comm_prot_register`, especially in applications that register multiple communication protocols to avoid memory leaks.
 
 
 <!--====================================================-->

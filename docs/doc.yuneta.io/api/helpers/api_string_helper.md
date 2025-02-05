@@ -41,5 +41,4 @@ string-helper/str_in_list
 string-helper/strntolower
 string-helper/strntoupper
 string-helper/translate_string
-string-helper/
 :::

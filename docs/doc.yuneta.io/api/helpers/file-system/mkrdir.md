@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `mkrdir` function creates a new directory at the specified `path` with the given `permission`.
-
-If the directory creation is successful, the function returns 0. If an error occurs during the creation process, a non-zero value is returned.
+The `mkrdir` function is used to create a new directory at the specified `path` with the given `permission` settings. It checks if the directory already exists and, if not, attempts to create it. The function ensures that the directory is created with the specified permissions, which dictate the access rights for the owner, group, and others.
 
 
 <!------------------------------------------------------------>
@@ -45,11 +43,11 @@ int mkrdir(
 
 * - `path`
   - `const char *`
-  - The path where the new directory will be created.
+  - The path where the new directory should be created.
 
 * - `permission`
   - `int`
-  - The permission to set for the new directory.
+  - The permission settings for the new directory, typically specified in octal format (e.g., 0755).
 :::
 
 
@@ -58,16 +56,13 @@ int mkrdir(
 **Return Value**
 
 
-The function returns an integer value:
-- 0: If the directory creation is successful.
-- Non-zero: If an error occurs during the creation process.
+Returns 0 on success, indicating that the directory was created successfully. Returns -1 on failure, indicating that the directory could not be created, which may be due to reasons such as insufficient permissions or an invalid path.
 
 
 **Notes**
 
 
-- The `permission` parameter specifies the permissions to set for the new directory. It follows the standard permission format used in Unix-like systems.
-- Any non-zero return value indicates that an error occurred during the directory creation process.
+Ensure that the provided `path` is valid and that the application has the necessary permissions to create directories in the specified location. The `permission` parameter should be set according to the desired access rights for the new directory.
 
 
 <!--====================================================-->

@@ -4,9 +4,9 @@
 <!-- ============================================================== -->
 
 
-This function generates a new random UUID and stores it in the provided buffer.
-
-The UUID generated is a universally unique identifier that is used by the treedb system.
+Generates a new random UUID (Universally Unique Identifier) and stores it in the provided buffer. 
+This function is typically used in applications that require unique identifiers for objects, 
+such as in databases or distributed systems.
 
 
 <!------------------------------------------------------------>
@@ -45,11 +45,11 @@ int create_uuid(
 
 * - `bf`
   - `char *`
-  - Buffer to store the generated UUID.
-  
+  - A pointer to the buffer where the generated UUID will be stored.
+
 * - `bfsize`
   - `int`
-  - Size of the buffer `bf`.
+  - The size of the buffer `bf`. This should be large enough to hold the UUID string representation.
 :::
 
 
@@ -58,16 +58,13 @@ int create_uuid(
 **Return Value**
 
 
-Returns an integer indicating the success of generating the UUID:
-- `0` for success.
-- `-1` if there was an error.
+Returns 0 on success, or a negative value on failure. The UUID is stored in the provided buffer upon success.
 
 
 **Notes**
 
 
-- The generated UUID is used by the treedb system.
-- This function is used to create a new random UUID.
+Ensure that the buffer size is sufficient to hold the UUID string, which is typically 36 characters long (including hyphens).
 
 
 <!--====================================================-->

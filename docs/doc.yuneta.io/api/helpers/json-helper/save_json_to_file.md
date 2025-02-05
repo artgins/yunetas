@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function saves a JSON data structure to a file in the specified directory with the given filename. It provides options for setting permissions, handling errors, and controlling file creation and read-only access.
+The `save_json_to_file` function is responsible for saving a JSON object to a specified file within a given directory. It allows for the specification of file permissions and provides options for file creation and read-only access. The function takes ownership of the JSON data, meaning that it will manage the memory associated with it, and the caller should not attempt to free it after the function call.
 
 
 <!------------------------------------------------------------>
@@ -30,9 +30,9 @@ int save_json_to_file(
     int xpermission,
     int rpermission,
     log_opt_t on_critical_error,
-    BOOL create,
+    BOOL create,        // Create file if not exists or overwrite.
     BOOL only_read,
-    json_t *jn_data
+    json_t *jn_data     // owned
 );
 
 ```
@@ -50,31 +50,39 @@ int save_json_to_file(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance.
+  - The handle to the gobj that is performing the operation.
+
 * - `directory`
   - `const char *`
-  - The directory path where the file will be saved.
+  - The path to the directory where the file will be saved.
+
 * - `filename`
   - `const char *`
-  - The name of the file to be saved.
+  - The name of the file to which the JSON data will be saved.
+
 * - `xpermission`
   - `int`
-  - The execution permission for the file.
+  - The permission settings for the file being created.
+
 * - `rpermission`
   - `int`
-  - The read permission for the file.
+  - The permission settings for the file's read access.
+
 * - `on_critical_error`
   - `log_opt_t`
-  - Log options for critical errors.
+  - The logging option to use in case of critical errors during the operation.
+
 * - `create`
   - `BOOL`
-  - Flag to create the file if it does not exist or overwrite it.
+  - Indicates whether to create the file if it does not exist or to overwrite it if it does.
+
 * - `only_read`
   - `BOOL`
-  - Flag to set the file as read-only.
+  - Specifies if the file should be opened in read-only mode.
+
 * - `jn_data`
   - `json_t *`
-  - The JSON data to be saved to the file.
+  - The JSON data to be saved, which is owned by this function.
 :::
 
 
@@ -83,15 +91,13 @@ int save_json_to_file(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the operation.
+The function returns an integer value indicating the success or failure of the operation. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the file save process.
 
 
 **Notes**
 
 
-- The function will handle critical errors based on the provided `on_critical_error` parameter.
-- The `create` flag determines whether the file should be created if it does not exist or overwritten if it does.
-- The `only_read` flag allows setting the file as read-only.
+This function will log errors based on the `on_critical_error` parameter. If the `create` parameter is set to TRUE, the function will create the file if it does not already exist. If the file exists and `create` is FALSE, the function may overwrite the existing file based on the specified permissions.
 
 
 <!--====================================================-->

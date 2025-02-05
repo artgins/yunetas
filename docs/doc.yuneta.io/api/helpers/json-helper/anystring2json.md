@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a string to a JSON object. This function is used to parse a string into a JSON object, especially useful for handling JSON strings efficiently.
+Converts a given string into a JSON object. The function takes a string buffer and its length as input, along with a verbosity flag that determines the level of detail in error reporting. If the conversion is successful, it returns a pointer to a `json_t` object representing the JSON structure. If the conversion fails, it may return NULL, and the verbosity flag can control whether additional error information is printed.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,7 @@ Converts a string to a JSON object. This function is used to parse a string into
 
 ```C
 
-json_t * anystring2json(
+PUBLIC json_t *anystring2json(
     const char *bf,
     size_t len,
     BOOL verbose
@@ -44,15 +44,16 @@ json_t * anystring2json(
 
 * - `bf`
   - `const char *`
-  - The input string to be converted to a JSON object.
+  - The input string buffer that contains the data to be converted to JSON.
 
 * - `len`
   - `size_t`
-  - The length of the input string.
+  - The length of the input string buffer.
 
 * - `verbose`
   - `BOOL`
-  - Flag indicating whether to enable verbose mode for conversion.
+  - A flag indicating whether to print verbose error messages during the conversion process.
+
 :::
 
 
@@ -61,14 +62,13 @@ json_t * anystring2json(
 **Return Value**
 
 
-A JSON object representing the converted input string. The returned JSON object can be used for further processing or data manipulation.
+Returns a pointer to a `json_t` object representing the converted JSON data. If the conversion fails, it returns NULL.
 
 
 **Notes**
 
 
-- This function is particularly helpful for handling JSON strings efficiently and converting them into a structured JSON object.
-- The `verbose` flag can be used to enable additional information or logging during the conversion process.
+The function assumes that the input string is properly formatted for JSON conversion. If the string contains invalid JSON syntax, the behavior may depend on the implementation of the JSON library used.
 
 
 <!--====================================================-->

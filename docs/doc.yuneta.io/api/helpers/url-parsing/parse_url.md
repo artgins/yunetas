@@ -4,21 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `parse_url` function extracts components from a given URI string and stores them in separate buffers.
-
-- `gobj`: The gobj instance associated with the function.
-- `uri`: The URI string to be parsed.
-- `schema`: Buffer to store the schema extracted from the URI.
-- `schema_size`: Size of the `schema` buffer.
-- `host`: Buffer to store the host extracted from the URI.
-- `host_size`: Size of the `host` buffer.
-- `port`: Buffer to store the port extracted from the URI.
-- `port_size`: Size of the `port` buffer.
-- `path`: Buffer to store the path extracted from the URI.
-- `path_size`: Size of the `path` buffer.
-- `query`: Buffer to store the query extracted from the URI.
-- `query_size`: Size of the `query` buffer.
-- `no_schema`: Flag to indicate if only host:port is present in the URI.
+The `parse_url` function is designed to parse a given URI into its constituent components, including the schema, host, port, path, and query string. It takes a URI as input and extracts these elements, storing them in the provided buffers. The function also allows for the option to ignore the schema if specified.
 
 
 <!------------------------------------------------------------>
@@ -40,12 +26,12 @@ The `parse_url` function extracts components from a given URI string and stores 
 int parse_url(
     hgobj   gobj,
     const char *uri,
-    char *schema, size_t schema_size,
-    char *host, size_t host_size,
-    char *port, size_t port_size,
-    char *path, size_t path_size,
-    char *query, size_t query_size,
-    BOOL no_schema
+    char    *schema,     size_t schema_size,
+    char    *host,       size_t host_size,
+    char    *port,       size_t port_size,
+    char    *path,       size_t path_size,
+    char    *query,      size_t query_size,
+    BOOL    no_schema    // only host:port
 );
 
 ```
@@ -60,45 +46,58 @@ int parse_url(
 * - Key
   - Type
   - Description
+
 * - `gobj`
   - `hgobj`
-  - The gobj instance associated with the function.
+  - The gobj instance that is associated with the parsing operation.
+
 * - `uri`
   - `const char *`
   - The URI string to be parsed.
+
 * - `schema`
   - `char *`
-  - Buffer to store the schema extracted from the URI.
+  - A buffer to store the extracted schema (e.g., "http", "https"). Must be large enough to hold the schema.
+
 * - `schema_size`
   - `size_t`
-  - Size of the `schema` buffer.
+  - The size of the schema buffer.
+
 * - `host`
   - `char *`
-  - Buffer to store the host extracted from the URI.
+  - A buffer to store the extracted host. Must be large enough to hold the host.
+
 * - `host_size`
   - `size_t`
-  - Size of the `host` buffer.
+  - The size of the host buffer.
+
 * - `port`
   - `char *`
-  - Buffer to store the port extracted from the URI.
+  - A buffer to store the extracted port. Must be large enough to hold the port.
+
 * - `port_size`
   - `size_t`
-  - Size of the `port` buffer.
+  - The size of the port buffer.
+
 * - `path`
   - `char *`
-  - Buffer to store the path extracted from the URI.
+  - A buffer to store the extracted path. Must be large enough to hold the path.
+
 * - `path_size`
   - `size_t`
-  - Size of the `path` buffer.
+  - The size of the path buffer.
+
 * - `query`
   - `char *`
-  - Buffer to store the query extracted from the URI.
+  - A buffer to store the extracted query string. Must be large enough to hold the query.
+
 * - `query_size`
   - `size_t`
-  - Size of the `query` buffer.
+  - The size of the query buffer.
+
 * - `no_schema`
   - `BOOL`
-  - Flag to indicate if only host:port is present in the URI.
+  - A flag indicating whether to ignore the schema in the parsing process (only host:port will be extracted if TRUE).
 :::
 
 
@@ -107,16 +106,13 @@ int parse_url(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the parsing operation:
-- `0` on success.
-- `-1` if an error occurs during parsing.
+Returns an integer indicating the success or failure of the parsing operation. A return value of 0 typically indicates success, while a non-zero value indicates an error occurred during parsing.
 
 
 **Notes**
 
 
-- The function extracts the schema, host, port, path, and query components from the given URI string.
-- If the `no_schema` flag is set to `TRUE`, only the host and port components are extracted.
+Ensure that the provided buffers are adequately sized to hold the expected components of the URI. If the buffers are too small, the function may not populate them correctly, leading to potential buffer overflows or incomplete data.
 
 
 <!--====================================================-->

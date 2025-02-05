@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `istream_consume` function reads and consumes data from an input stream until a specified length is reached. It extracts the data into the provided buffer.
-
-This function is part of the `istream` utility for handling input streams efficiently.
+The `istream_consume` function is designed to read and consume data from an input stream. It takes a specified number of bytes from the stream and stores them into a provided buffer. This function is useful for managing data flow in applications that handle streaming data, allowing the user to process or discard data as needed.
 
 
 <!------------------------------------------------------------>
@@ -46,15 +44,16 @@ size_t istream_consume(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream.
-  
+  - The input stream handle from which data will be consumed.
+
 * - `bf`
   - `char *`
-  - Buffer to store the extracted data.
-  
+  - A pointer to the buffer where the consumed data will be stored.
+
 * - `len`
   - `size_t`
-  - Maximum length of data to consume.
+  - The maximum number of bytes to consume from the stream.
+
 :::
 
 
@@ -63,14 +62,13 @@ size_t istream_consume(
 **Return Value**
 
 
-The function returns the actual number of bytes consumed and stored in the buffer.
+The function returns the number of bytes actually consumed from the stream. This value may be less than or equal to `len`, depending on the amount of data available in the stream.
 
 
 **Notes**
 
 
-- This function is useful for extracting a specific amount of data from an input stream efficiently.
-- It is recommended to check the return value to handle cases where fewer bytes are consumed than expected.
+If the stream is empty or if an error occurs, the function may return 0. It is important to ensure that the buffer provided is large enough to hold the expected number of bytes to avoid buffer overflows.
 
 
 <!--====================================================-->

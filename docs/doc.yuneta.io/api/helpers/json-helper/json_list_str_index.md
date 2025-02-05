@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-This function searches for a string value in a JSON list and returns the index of the string if found. It performs a case-sensitive or case-insensitive search based on the `ignore_case` parameter.
+This function retrieves the index of a specified string within a JSON list. 
+If the string is found, it returns the index of the string; otherwise, it returns -1. 
+The search can be case-sensitive or case-insensitive based on the `ignore_case` parameter.
 
 
 <!------------------------------------------------------------>
@@ -41,15 +43,18 @@ int json_list_str_index(
 * - Key
   - Type
   - Description
+
 * - `jn_list`
   - `json_t *`
-  - The JSON list in which to search for the string.
+  - A pointer to the JSON list in which to search for the string.
+
 * - `str`
   - `const char *`
-  - The string value to search for in the JSON list.
+  - The string to search for within the JSON list.
+
 * - `ignore_case`
   - `BOOL`
-  - Flag to indicate whether the search should be case-insensitive (TRUE) or case-sensitive (FALSE).
+  - A boolean value indicating whether the search should be case-insensitive.
 :::
 
 
@@ -58,14 +63,14 @@ int json_list_str_index(
 **Return Value**
 
 
-The function returns an integer representing the index of the string in the JSON list. If the string is not found, it returns -1.
+Returns the index of the string in the JSON list if found; otherwise, returns -1.
 
 
 **Notes**
 
 
-- This function can be useful for quickly finding the index of a specific string in a JSON list.
-- The `ignore_case` parameter allows for flexible searching based on case sensitivity requirements.
+The function assumes that the JSON list is an array of strings. 
+If the list is empty or if the string is not found, the function will return -1.
 
 
 <!--====================================================-->

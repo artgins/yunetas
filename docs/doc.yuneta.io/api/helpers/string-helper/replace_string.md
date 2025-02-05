@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `replace_string` function replaces all occurrences of a substring `old` with another substring `snew` in a given string `str`.
+The `replace_string` function is designed to search for occurrences of a specified substring (`old`) within a given string (`str`) and replace them with another substring (`snew`). This function dynamically allocates memory for the new string that contains the replacements, and it is the caller's responsibility to free this memory after use.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,15 @@ char *replace_string(
 
 * - `str`
   - `const char *`
-  - The original string where replacements will be made.
+  - The original string in which the replacements will be made.
 
 * - `old`
   - `const char *`
-  - The substring to be replaced.
+  - The substring that needs to be replaced.
 
 * - `snew`
   - `const char *`
-  - The new substring to replace the old substring.
+  - The substring that will replace occurrences of `old`.
 :::
 
 
@@ -61,14 +61,13 @@ char *replace_string(
 **Return Value**
 
 
-Returns a new string with all occurrences of `old` replaced by `snew`. The returned string should be deallocated using the appropriate memory deallocation function.
+Returns a pointer to a new string with all occurrences of `old` replaced by `snew`. If memory allocation fails, it may return `NULL`.
 
 
 **Notes**
 
 
-- The function replaces all occurrences of `old` in `str` with `snew`.
-- The function does not modify the original string `str` and returns a new string with replacements.
+The caller must ensure to free the memory allocated for the returned string to avoid memory leaks. If `old` is not found in `str`, the function will return a copy of `str`.
 
 
 <!--====================================================-->

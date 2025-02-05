@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-The `htonll` function converts a 64-bit integer `value` from host byte order to network byte order.
+Converts a 64-bit integer from host byte order to network byte order.
+This is essential for ensuring that data is transmitted in a consistent format across different architectures, particularly when communicating over networks.
+The function takes a 64-bit unsigned integer as input and rearranges the byte order to match the network byte order, which is big-endian.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +44,8 @@ uint64_t htonll(
 
 * - `value`
   - `uint64_t`
-  - The 64-bit integer value to be converted to network byte order.
+  - The 64-bit unsigned integer to be converted to network byte order.
+
 :::
 
 
@@ -51,13 +54,13 @@ uint64_t htonll(
 **Return Value**
 
 
-The function returns the converted 64-bit integer value in network byte order.
+Returns the converted 64-bit unsigned integer in network byte order.
 
 
 **Notes**
 
 
-This function is useful for ensuring consistency in data representation when transmitting data over networks.
+This function is particularly useful in network programming where data must be sent in a specific byte order to ensure compatibility between different systems.
 
 
 <!--====================================================-->

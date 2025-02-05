@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function modifies the input `path` by removing the last segment from it. The last segment is considered as the substring after the last occurrence of a path separator (e.g., '/'). The modified `path` is then returned.
-
-**WARNING:** The input `path` is modified in place.
+The `pop_last_segment` function removes the last segment from a given file path. This is useful for manipulating file paths in a way that allows the user to navigate up the directory structure. The function modifies the original `path` string by replacing the last segment with a null terminator, effectively shortening the path.
 
 
 <!------------------------------------------------------------>
@@ -25,9 +23,7 @@ This function modifies the input `path` by removing the last segment from it. Th
 
 ```C
 
-char *pop_last_segment(
-    char *path
-);
+char *pop_last_segment(char *path); // WARNING path modified
 
 ```
 
@@ -44,7 +40,8 @@ char *pop_last_segment(
 
 * - `path`
   - `char *`
-  - The path from which the last segment will be removed.
+  - A pointer to the string representing the file path from which the last segment will be removed. The original string will be modified.
+
 :::
 
 
@@ -53,14 +50,13 @@ char *pop_last_segment(
 **Return Value**
 
 
-The modified `path` after removing the last segment.
+Returns a pointer to the modified `path` string, which now represents the path without the last segment.
 
 
 **Notes**
 
 
-- This function modifies the input `path` directly and returns the modified path.
-- The last segment is identified as the substring after the last occurrence of a path separator.
+The function modifies the input `path` directly. Ensure that the `path` string has enough length to accommodate the removal of the last segment without causing buffer overflows. If the `path` is empty or consists solely of a single segment, the behavior may lead to unexpected results.
 
 
 <!--====================================================-->

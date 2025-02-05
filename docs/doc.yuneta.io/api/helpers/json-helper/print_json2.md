@@ -4,7 +4,10 @@
 <!-- ============================================================== -->
 
 
-This function prints the contents of a JSON object along with a label for identification purposes.
+The `print_json2` function is used to print a JSON object to the standard output with an optional label. 
+This function formats the JSON data in a human-readable way, making it easier to debug or log the contents 
+of the JSON object. The label can be used to provide context for the printed JSON, helping to identify 
+which part of the application the output is coming from.
 
 
 <!------------------------------------------------------------>
@@ -43,11 +46,11 @@ int print_json2(
 
 * - `label`
   - `const char *`
-  - A label to identify the JSON object being printed.
+  - A string label that precedes the printed JSON output, providing context.
 
 * - `jn`
   - `json_t *`
-  - The JSON object to be printed.
+  - A pointer to the JSON object that will be printed. This object should not be owned by the function.
 :::
 
 
@@ -56,14 +59,15 @@ int print_json2(
 **Return Value**
 
 
-This function does not return any value.
+The function returns an integer value. A return value of 0 indicates success, while a negative value indicates 
+an error occurred during the printing process.
 
 
 **Notes**
 
 
-- The function is responsible for printing the JSON object to the console or log.
-- It is useful for debugging purposes to visualize the contents of a JSON object.
+This function does not modify the JSON object passed to it. Ensure that the JSON object is valid before 
+calling this function to avoid unexpected behavior.
 
 
 <!--====================================================-->

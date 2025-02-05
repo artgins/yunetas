@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `rmrdir` function recursively removes a directory and all its contents.
-
-This function deletes the specified `root_dir` directory along with all its subdirectories and files.
-
-If the directory removal operation is successful, the function returns 0. Otherwise, it returns a non-zero integer to indicate an error.
+The `rmrdir` function is designed to remove a directory and all of its contents recursively. This includes all files and subdirectories within the specified root directory. It ensures that the directory is completely emptied before it is deleted, making it a useful utility for cleaning up file systems.
 
 
 <!------------------------------------------------------------>
@@ -27,9 +23,7 @@ If the directory removal operation is successful, the function returns 0. Otherw
 
 ```C
 
-int rmrdir(
-    const char *root_dir
-);
+int rmrdir(const char *root_dir);
 
 ```
 
@@ -46,7 +40,8 @@ int rmrdir(
 
 * - `root_dir`
   - `const char *`
-  - The path of the root directory to be removed recursively.
+  - The path to the root directory that needs to be removed.
+
 :::
 
 
@@ -55,17 +50,13 @@ int rmrdir(
 **Return Value**
 
 
-The function returns an integer value:
-- `0` if the directory removal operation is successful.
-- Non-zero value to indicate an error during the removal process.
+The function returns `0` on success, indicating that the directory and its contents were successfully removed. A return value of `-1` indicates an error occurred during the operation, such as if the specified directory does not exist or if there are permission issues.
 
 
 **Notes**
 
 
-- This function will delete the specified directory and all its contents recursively.
-- Ensure that the `root_dir` path is valid and points to the directory you want to remove.
-- Take caution when using this function as it permanently deletes directories and files.
+It is important to use this function with caution, as it will permanently delete all files and subdirectories within the specified directory without any confirmation. Ensure that the path provided is correct to avoid accidental data loss.
 
 
 <!--====================================================-->

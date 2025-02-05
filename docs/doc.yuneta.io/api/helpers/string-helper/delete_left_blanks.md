@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-The `delete_left_blanks` function removes leading blank spaces from the input string `s`.
+The `delete_left_blanks` function removes all leading whitespace characters from the input string `s`. 
+This includes spaces, tabs, and any other whitespace characters defined by the C standard library. 
+The function modifies the string in place, meaning that the original string is altered directly, and no new string is created.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +44,8 @@ void delete_left_blanks(
 
 * - `s`
   - `char *`
-  - The input string from which leading blank spaces will be removed.
+  - A pointer to the string from which leading blanks will be removed. The string is modified in place.
+
 :::
 
 
@@ -51,14 +54,13 @@ void delete_left_blanks(
 **Return Value**
 
 
-This function does not return any value.
+This function does not return a value. It modifies the input string directly.
 
 
 **Notes**
 
 
-- The function modifies the input string `s` directly by removing leading blank spaces.
-- No return value is provided as the modification is done in-place.
+The function assumes that the input string is null-terminated. If `s` is NULL, the behavior is undefined.
 
 
 <!--====================================================-->

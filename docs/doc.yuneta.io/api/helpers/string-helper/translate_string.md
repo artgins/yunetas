@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function translates a string from one format to another based on mapping tables provided. It replaces characters in the input string according to the mapping defined in the provided tables.
+The `translate_string` function is designed to transform a source string (`from`) into a target string (`to`) based on specified mappings. It replaces characters in the source string according to the mappings provided in `mk_from` and `mk_to`. Each character in `mk_from` corresponds to a character in `mk_to`, and characters in `from` that match those in `mk_from` are replaced with the corresponding characters from `mk_to`. The function ensures that the resulting string does not exceed the specified length (`tolen`).
 
 
 <!------------------------------------------------------------>
@@ -46,23 +46,23 @@ char *translate_string(
 
 * - `to`
   - `char *`
-  - Pointer to the buffer where the translated string will be stored.
+  - A pointer to the destination buffer where the translated string will be stored.
 
 * - `tolen`
   - `int`
-  - Maximum length of the translated string buffer.
+  - The maximum length of the destination buffer to prevent overflow.
 
 * - `from`
   - `const char *`
-  - Input string to be translated.
+  - A pointer to the source string that needs to be translated.
 
 * - `mk_to`
   - `const char *`
-  - Mapping table for characters in the input string to be replaced with in the output string.
+  - A string containing characters that will replace those in `from`.
 
 * - `mk_from`
   - `const char *`
-  - Mapping table for characters in the input string to be replaced.
+  - A string containing characters to be replaced in `from`.
 :::
 
 
@@ -71,14 +71,13 @@ char *translate_string(
 **Return Value**
 
 
-The function returns a pointer to the translated string stored in the `to` buffer.
+The function returns a pointer to the destination string (`to`). If no characters were replaced, it returns the original `to` pointer.
 
 
 **Notes**
 
 
-- This function modifies the input string `from` by replacing characters based on the mapping tables provided.
-- The length of the translated string will not exceed the specified `tolen`.
+Ensure that the destination buffer (`to`) is large enough to hold the translated string, including the null terminator. If `tolen` is less than the length of the resulting string, it may lead to buffer overflow.
 
 
 <!--====================================================-->

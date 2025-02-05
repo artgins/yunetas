@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function reads data from the input stream until a specified delimiter is encountered. It then triggers the specified event with the extracted data.
-
-The function is part of the istream module and is used to handle input stream data efficiently by reading until a delimiter is found.
+Reads data from the input stream until the specified delimiter is encountered. The function will fill the input stream buffer with the data read and will trigger the specified event once the delimiter is found. This is useful for processing data streams where messages or data segments are separated by specific delimiters.
 
 
 <!------------------------------------------------------------>
@@ -26,9 +24,9 @@ The function is part of the istream module and is used to handle input stream da
 ```C
 
 int istream_read_until_delimiter(
-    istream_h   istream,
-    const char  *delimiter,
-    size_t      delimiter_size,
+    istream_h istream,
+    const char *delimiter,
+    size_t delimiter_size,
     gobj_event_t event
 );
 
@@ -47,11 +45,11 @@ int istream_read_until_delimiter(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream.
+  - Handle to the input stream from which data is to be read.
 
 * - `delimiter`
   - `const char *`
-  - The delimiter to search for in the input stream.
+  - Pointer to the delimiter string that marks the end of the data to be read.
 
 * - `delimiter_size`
   - `size_t`
@@ -59,7 +57,7 @@ int istream_read_until_delimiter(
 
 * - `event`
   - `gobj_event_t`
-  - Event to trigger when the delimiter is found, passing the extracted data.
+  - Event to be triggered once the delimiter is encountered.
 :::
 
 
@@ -68,16 +66,13 @@ int istream_read_until_delimiter(
 **Return Value**
 
 
-The function returns an integer indicating the success of reading until the delimiter:
-- Returns the number of bytes consumed if successful.
-- Returns -1 if an error occurs during the operation.
+Returns an integer indicating the success or failure of the read operation. A return value of 0 typically indicates success, while a negative value indicates an error.
 
 
 **Notes**
 
 
-- This function is useful for efficiently extracting data from an input stream until a specific delimiter is encountered.
-- It is recommended to check the return value to handle errors or to process the extracted data accordingly.
+Ensure that the delimiter provided is valid and that the input stream is properly initialized before calling this function. The function may block if the delimiter is not found, depending on the implementation of the input stream.
 
 
 <!--====================================================-->

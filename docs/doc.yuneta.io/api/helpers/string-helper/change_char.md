@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Change 'old_c' by 'new_c' in the string 's'. This function is useful for easier JSON representation in C strings, but it restricts the use of true ' characters.
+The `change_char` function replaces all occurrences of a specified character in a string with a new character. This is particularly useful for modifying strings where certain characters need to be updated or sanitized, such as in data processing or formatting tasks.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,15 @@ int change_char(
 
 * - `s`
   - `char *`
-  - The string in which the character will be changed.
+  - A pointer to the string in which characters will be replaced.
 
 * - `old_c`
   - `char`
-  - The character to be replaced.
+  - The character in the string that will be replaced.
 
 * - `new_c`
   - `char`
-  - The character to replace 'old_c'.
+  - The character that will replace all occurrences of `old_c`.
 :::
 
 
@@ -61,13 +61,13 @@ int change_char(
 **Return Value**
 
 
-This function returns an integer indicating the success of the character replacement operation.
+The function returns an integer value indicating the success of the operation. Typically, it returns the number of characters that were replaced in the string.
 
 
 **Notes**
 
 
-This function is designed to change characters in a string, specifically for easier JSON representation in C strings. However, it has a limitation that true ' characters cannot be used.
+This function modifies the string in place. Ensure that the string is mutable and properly allocated before calling this function. If `old_c` does not exist in the string, no changes will be made.
 
 
 <!--====================================================-->

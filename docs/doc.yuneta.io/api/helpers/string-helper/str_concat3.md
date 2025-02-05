@@ -4,7 +4,10 @@
 <!-- ============================================================== -->
 
 
-The `str_concat3` function concatenates three input strings `str1`, `str2`, and `str3` into a single string and returns the result. Memory is allocated for the new string, and the caller is responsible for freeing it when no longer needed.
+Concatenates three strings into a single new string. The function allocates
+memory for the new string, which must be freed by the caller using 
+`str_concat_free()`. If any of the input strings are NULL, they are treated
+as empty strings during concatenation.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +26,7 @@ The `str_concat3` function concatenates three input strings `str1`, `str2`, and 
 
 ```C
 
-char * str_concat3(
+char *str_concat3(
     const char *str1,
     const char *str2,
     const char *str3
@@ -44,15 +47,16 @@ char * str_concat3(
 
 * - `str1`
   - `const char *`
-  - The first string to be concatenated.
+  - The first string to concatenate. If NULL, treated as an empty string.
 
 * - `str2`
   - `const char *`
-  - The second string to be concatenated.
+  - The second string to concatenate. If NULL, treated as an empty string.
 
 * - `str3`
   - `const char *`
-  - The third string to be concatenated.
+  - The third string to concatenate. If NULL, treated as an empty string.
+
 :::
 
 
@@ -61,13 +65,14 @@ char * str_concat3(
 **Return Value**
 
 
-The function returns a new string that is the concatenation of `str1`, `str2`, and `str3`. The caller is responsible for freeing the memory allocated for the returned string.
+Returns a pointer to the newly allocated string containing the concatenated
+result of `str1`, `str2`, and `str3`. If memory allocation fails, it returns NULL.
 
 
 **Notes**
 
 
-- Remember to free the memory allocated for the returned string using the appropriate memory deallocation function.
+Remember to free the returned string using `str_concat_free()` to avoid memory leaks.
 
 
 <!--====================================================-->

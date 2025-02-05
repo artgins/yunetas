@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function checks if a given string `str` is present in a JSON list `jn_list`. It can perform a case-sensitive or case-insensitive search based on the `ignore_case` parameter.
+This function checks if a given string is present in a JSON list. It takes into account the option to ignore case sensitivity based on the `ignore_case` parameter. The function is useful for validating the existence of specific string values within a JSON array, which can be particularly helpful in scenarios where JSON data is used for configuration or data exchange.
 
 
 <!------------------------------------------------------------>
@@ -23,11 +23,11 @@ This function checks if a given string `str` is present in a JSON list `jn_list`
 
 ```C
 
-int json_str_in_list(
+BOOL json_str_in_list(
     hgobj   gobj,
-    json_t *jn_list,
+    json_t  *jn_list,
     const char *str,
-    BOOL ignore_case
+    BOOL    ignore_case
 );
 
 ```
@@ -45,16 +45,19 @@ int json_str_in_list(
 
 * - `gobj`
   - `hgobj`
-  - The gobj context.
+  - The handle to the gobj instance, which may be used for logging or context.
+
 * - `jn_list`
   - `json_t *`
-  - The JSON list to search in.
+  - A pointer to the JSON list (array) in which to search for the string.
+
 * - `str`
   - `const char *`
-  - The string to search for.
+  - The string to search for within the JSON list.
+
 * - `ignore_case`
   - `BOOL`
-  - Flag to indicate if the search should be case-insensitive (TRUE) or case-sensitive (FALSE).
+  - A boolean flag indicating whether the search should be case insensitive.
 :::
 
 
@@ -63,16 +66,13 @@ int json_str_in_list(
 **Return Value**
 
 
-Returns an integer indicating whether the string `str` is found in the JSON list:
-- `0`: String not found.
-- `1`: String found.
+Returns `TRUE` if the string is found in the JSON list, otherwise returns `FALSE`. The search behavior is influenced by the `ignore_case` parameter.
 
 
 **Notes**
 
 
-- The function can search for a string in a JSON list and return the result.
-- It supports both case-sensitive and case-insensitive searches based on the `ignore_case` parameter.
+This function assumes that the JSON list is properly formatted and that the `gobj` parameter is valid. If the JSON list is empty or `NULL`, the function will return `FALSE`.
 
 
 <!--====================================================-->

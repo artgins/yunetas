@@ -4,7 +4,12 @@
 <!-- ============================================================== -->
 
 
-Converts a C string into a JSON object. The function only supports the formats of [] or {}, and is an old version of legalstring2json().
+Converts a string representation of JSON into a `json_t` object. 
+The function expects the input string to be formatted as valid JSON, 
+which can either be an array (denoted by square brackets `[]`) or an object 
+(denoted by curly braces `{}`). If the input string does not conform to 
+these formats, the behavior is undefined. The `verbose` parameter controls 
+the level of detail in error reporting, which can be useful for debugging.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +28,7 @@ Converts a C string into a JSON object. The function only supports the formats o
 
 ```C
 
-json_t *string2json(
+PUBLIC json_t *string2json(
     const char *str,
     BOOL verbose
 );
@@ -43,11 +48,12 @@ json_t *string2json(
 
 * - `str`
   - `const char *`
-  - The C string to be converted into a JSON object.
-  
+  - The input string that represents JSON data.
+
 * - `verbose`
   - `BOOL`
-  - A flag indicating whether to enable verbose mode for the conversion.
+  - A flag indicating whether to provide verbose error messages.
+
 :::
 
 
@@ -56,14 +62,17 @@ json_t *string2json(
 **Return Value**
 
 
-Returns a JSON object representing the converted C string. If the content-type is application/json, the function returns the body as an `anystring2json` object. Otherwise, it returns a `gbuffer` with the full body.
+Returns a pointer to a `json_t` object representing the parsed JSON data. 
+If the input string is invalid, the function may return NULL, and the 
+error handling will depend on the `verbose` parameter.
 
 
 **Notes**
 
 
-- This function is an older version of legalstring2json().
-- The function does not support true single quotes (') in the C string.
+The function is a wrapper for the older `legalstring2json` function, 
+which has been deprecated. Ensure that the input string is properly 
+formatted to avoid unexpected behavior.
 
 
 <!--====================================================-->

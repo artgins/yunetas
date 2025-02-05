@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `delete_right_blanks` function removes trailing blank spaces from the input string `s`.
+The `delete_right_blanks` function is designed to remove any trailing blank characters (spaces, tabs, etc.) from the end of the provided string. This function modifies the string in place, ensuring that the resulting string does not have any unnecessary whitespace at its end.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,8 @@ void delete_right_blanks(
 
 * - `s`
   - `char *`
-  - The input string from which trailing blank spaces will be removed.
+  - A pointer to the string from which trailing blanks will be removed. The string is modified directly.
+
 :::
 
 
@@ -51,13 +52,13 @@ void delete_right_blanks(
 **Return Value**
 
 
-This function does not return any value.
+This function does not return a value. It modifies the input string directly.
 
 
 **Notes**
 
 
-- This function modifies the input string `s` in place by removing any trailing blank spaces.
+The function assumes that the input string is null-terminated. If the input string is NULL, the behavior is undefined. It is important to ensure that the string passed to this function is mutable.
 
 
 <!--====================================================-->

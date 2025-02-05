@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `nice_size` function formats a given number of bytes into a human-readable size representation. It converts the number of bytes into a more readable format, such as KB, MB, GB, etc., based on the size. The function allows choosing between using base 1024 (binary) or base 1000 (decimal) for size conversions.
+The `nice_size` function formats a given size in bytes into a human-readable string representation. It converts the byte size into a more understandable format, such as KB, MB, GB, etc., depending on the value of the `b1024` parameter. The formatted string is stored in the buffer provided by the `bf` parameter, which must be large enough to hold the resulting string.
 
 
 <!------------------------------------------------------------>
@@ -24,10 +24,10 @@ The `nice_size` function formats a given number of bytes into a human-readable s
 ```C
 
 void nice_size(
-    char *bf,
-    size_t bfsize,
+    char*    bf,
+    size_t   bfsize,
     uint64_t bytes,
-    BOOL b1024
+    BOOL     b1024
 );
 
 ```
@@ -44,20 +44,20 @@ void nice_size(
   - Description
 
 * - `bf`
-  - `char *`
-  - Buffer to store the formatted size string.
-  
+  - `char*`
+  - A pointer to the buffer where the formatted size will be stored.
+
 * - `bfsize`
   - `size_t`
-  - Size of the buffer `bf`.
-  
+  - The size of the buffer `bf`, which indicates the maximum number of characters that can be written to it.
+
 * - `bytes`
   - `uint64_t`
-  - Number of bytes to convert into a human-readable size.
-  
+  - The size in bytes that needs to be formatted.
+
 * - `b1024`
   - `BOOL`
-  - Flag to indicate whether to use base 1024 (TRUE) or base 1000 (FALSE) for size conversions.
+  - A boolean flag that determines whether to use base 1024 (binary) or base 1000 (decimal) for the size conversion.
 :::
 
 
@@ -66,14 +66,13 @@ void nice_size(
 **Return Value**
 
 
-This function does not return a value. It populates the buffer `bf` with the human-readable size representation of the input number of bytes.
+This function does not return a value. Instead, it modifies the buffer pointed to by `bf` to contain the formatted size string.
 
 
 **Notes**
 
 
-- The function formats the size using binary prefixes (KiB, MiB, GiB, etc.) if `b1024` is TRUE, and decimal prefixes (KB, MB, GB, etc.) if `b1024` is FALSE.
-- The formatted size string is stored in the buffer `bf`, so ensure that `bf` has enough space to accommodate the formatted size.
+Ensure that the buffer `bf` is sufficiently sized to accommodate the formatted string. The function does not check for buffer overflow, so it is the caller's responsibility to provide an adequately sized buffer.
 
 
 <!--====================================================-->

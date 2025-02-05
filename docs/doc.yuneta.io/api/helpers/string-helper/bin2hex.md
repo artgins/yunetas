@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts binary data to a hexadecimal string representation.
+Converts a binary data buffer into its hexadecimal string representation. The function takes a buffer where the hexadecimal string will be stored, the size of that buffer, a pointer to the binary data, and the length of the binary data. The resulting hexadecimal string will be null-terminated.
 
 
 <!------------------------------------------------------------>
@@ -24,10 +24,10 @@ Converts binary data to a hexadecimal string representation.
 ```C
 
 char *bin2hex(
-    char *bf,
-    int bfsize,
+    char      *bf,
+    int       bfsize,
     const uint8_t *bin,
-    size_t bin_len
+    size_t    bin_len
 );
 
 ```
@@ -39,18 +39,26 @@ char *bin2hex(
 :widths: 20 20 60
 :header-rows: 1
 
+* - Key
+  - Type
+  - Description
+
 * - `bf`
   - `char *`
-  - Buffer to store the hexadecimal string.
+  - Pointer to the buffer where the hexadecimal string will be stored.
+
 * - `bfsize`
   - `int`
-  - Size of the buffer.
+  - Size of the buffer `bf` in bytes.
+
 * - `bin`
   - `const uint8_t *`
-  - Binary data to convert.
+  - Pointer to the binary data that needs to be converted to hexadecimal.
+
 * - `bin_len`
   - `size_t`
-  - Length of the binary data.
+  - Length of the binary data in bytes.
+
 :::
 
 
@@ -59,13 +67,13 @@ char *bin2hex(
 **Return Value**
 
 
-Returns the buffer `bf` containing the hexadecimal representation of the binary data.
+Returns a pointer to the buffer containing the hexadecimal string. If the buffer is not large enough to hold the resulting string, the behavior is undefined.
 
 
 **Notes**
 
 
-The function converts binary data to a hexadecimal string representation.
+Ensure that the buffer `bf` is large enough to hold the hexadecimal representation of the binary data, which is twice the size of the binary data plus one for the null terminator. If `bfsize` is less than `2 * bin_len + 1`, the function may not behave as expected.
 
 
 <!--====================================================-->

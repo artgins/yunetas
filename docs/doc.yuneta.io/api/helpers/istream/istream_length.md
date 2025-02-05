@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `istream_length` function returns the length of the data in the input stream.
-
-The input stream is a data structure used for reading and processing data incrementally. This function provides the current length of the data in the stream.
+This function retrieves the current length of the data available in the input stream represented by `istream`. It provides a way to determine how much data has been read into the stream, which can be useful for managing data processing and ensuring that the stream is being handled correctly.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +42,8 @@ size_t istream_length(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream.
+  - A handle to the input stream from which the length is to be determined.
+
 :::
 
 
@@ -53,14 +52,13 @@ size_t istream_length(
 **Return Value**
 
 
-The function returns the size of the data currently stored in the input stream.
+Returns the length of the data currently available in the input stream. The return value is of type `size_t`, which represents the number of bytes available for reading.
 
 
 **Notes**
 
 
-- The input stream must be created and initialized before calling this function.
-- This function does not modify the state of the input stream.
+This function does not modify the state of the input stream; it merely reports the length of the data available. It is important to ensure that the `istream` is valid and has been properly initialized before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a simple JSON value to a string representation. This function is used to extract the string value from a JSON object, handling simple types like strings, integers, reals, and booleans.
+Converts a JSON variable into a string representation. This function takes a pointer to a `json_t` object and returns a newly allocated string that represents the JSON data. The caller is responsible for freeing the returned string using `gbmem_free`.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,8 @@ char *jn2string(
 
 * - `jn_var`
   - `json_t *`
-  - The JSON object containing the value to be converted to a string.
+  - Pointer to the JSON variable that needs to be converted to a string.
+
 :::
 
 
@@ -51,14 +52,13 @@ char *jn2string(
 **Return Value**
 
 
-Returns a dynamically allocated string representing the value stored in the JSON object. The caller is responsible for freeing the memory allocated by this function.
+Returns a pointer to a string that represents the JSON variable. The returned string must be freed by the caller using `gbmem_free`.
 
 
 **Notes**
 
 
-- This function is designed to handle simple JSON values like strings, integers, reals, and booleans. Complex types are treated as matched.
-- The returned string must be freed using the `gbmem_free` function.
+Ensure that the input `jn_var` is a valid JSON object. The function may return NULL if the conversion fails or if the input is invalid.
 
 
 <!--====================================================-->

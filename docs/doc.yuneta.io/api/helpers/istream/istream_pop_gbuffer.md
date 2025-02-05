@@ -4,7 +4,11 @@
 <!-- ============================================================== -->
 
 
-This function pops a gbuffer from the istream, removing the data from the istream and returning it as a gbuffer.
+This function retrieves and removes the current `gbuffer` from the specified input stream (`istream`). 
+It is useful for managing the data flow within the stream, allowing the caller to access the buffer 
+that is currently being processed and then remove it from the stream for further manipulation or 
+processing. The function ensures that the state of the stream is updated accordingly after the 
+buffer is popped.
 
 
 <!------------------------------------------------------------>
@@ -36,9 +40,14 @@ gbuffer_t *istream_pop_gbuffer(
 :widths: 20 20 60
 :header-rows: 1
 
+* - Key
+  - Type
+  - Description
+
 * - `istream`
   - `istream_h`
-  - The istream from which to pop the gbuffer.
+  - The input stream from which the `gbuffer` will be popped.
+
 :::
 
 
@@ -47,13 +56,16 @@ gbuffer_t *istream_pop_gbuffer(
 **Return Value**
 
 
-The function returns the popped gbuffer from the istream.
+Returns a pointer to the `gbuffer_t` that was removed from the stream. If the stream is empty or 
+an error occurs, it may return NULL.
 
 
 **Notes**
 
 
-- This function removes the data from the istream and returns it as a gbuffer.
+Ensure that the returned `gbuffer_t` is properly managed and freed after use to avoid memory leaks. 
+This function modifies the state of the input stream, so subsequent calls may yield different results 
+if not handled correctly.
 
 
 <!--====================================================-->

@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-The `split_free2` function is used to free the memory allocated for a list of strings created by the `split2` function. It is important to call this function to release the memory properly and avoid memory leaks.
+Frees the memory allocated for a list of strings that was created by the `split2` function.
+This function is essential for preventing memory leaks by ensuring that dynamically allocated memory is properly released.
+It takes a pointer to the list of strings as an argument and deallocates the memory associated with each string in the list, as well as the list itself.
 
 
 <!------------------------------------------------------------>
@@ -36,9 +38,13 @@ void split_free2(
 :widths: 20 20 60
 :header-rows: 1
 
+* - Key
+  - Type
+  - Description
+
 * - `list`
   - `const char **`
-  - List of strings to be freed.
+  - A pointer to the list of strings to be freed. This list must have been previously allocated by `split2()`.
 :::
 
 
@@ -47,14 +53,13 @@ void split_free2(
 **Return Value**
 
 
-This function does not return any value.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `split2` function is used to split a string by a delimiter and return a list of strings. The `split_free2` function should be used to free the memory allocated for this list.
-- It is important to ensure that the `list` parameter passed to this function is the same list that was returned by the `split2` function.
+It is important to only call this function on lists that were created by `split2()`, as calling it on other pointers may lead to undefined behavior.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `build_path` function constructs a path by concatenating multiple strings together. It takes a variable number of string arguments and appends them to the buffer `bf` up to the specified `bfsize`. This function is commonly used to build file paths or directory paths in a C program.
+The `build_path` function constructs a file path by concatenating multiple string segments. It takes a buffer and its size as input, along with a variable number of string arguments that represent the path components. The function ensures that the resulting path does not exceed the specified buffer size and handles the necessary formatting to create a valid file path.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ The `build_path` function constructs a path by concatenating multiple strings to
 ```C
 
 char *build_path(
-    char *bf,
-    size_t bfsize,
+    char    *bf,
+    size_t  bfsize,
     ...
 );
 
@@ -44,15 +44,16 @@ char *build_path(
 
 * - `bf`
   - `char *`
-  - Buffer to store the constructed path.
-  
+  - A pointer to the buffer where the constructed path will be stored.
+
 * - `bfsize`
   - `size_t`
-  - Size of the buffer `bf`.
-  
+  - The size of the buffer `bf`, which limits the maximum length of the constructed path.
+
 * - `...`
-  - `const char *`
-  - Variable number of string arguments to concatenate into the path.
+  - `char *`
+  - A variable number of string arguments representing the components of the path to be concatenated.
+
 :::
 
 
@@ -61,14 +62,13 @@ char *build_path(
 **Return Value**
 
 
-The function returns a pointer to the buffer `bf` containing the constructed path. It is important to note that the buffer `bf` should be large enough to accommodate the concatenated strings to avoid buffer overflow.
+Returns a pointer to the buffer `bf` containing the constructed path. If the construction fails (e.g., due to buffer overflow), it may return `NULL`.
 
 
 **Notes**
 
 
-- The `build_path` function is useful for dynamically constructing paths in C programs.
-- Ensure that the total length of the concatenated strings does not exceed the buffer size `bfsize` to prevent buffer overflow.
+Ensure that the buffer `bf` is large enough to hold the resulting path. The function may not handle cases where the total length of the concatenated path exceeds `bfsize`, which could lead to buffer overflow.
 
 
 <!--====================================================-->

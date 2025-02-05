@@ -4,7 +4,10 @@
 <!-- ============================================================== -->
 
 
-Split a string by a delimiter, returning a list of strings. The function does not include empty strings in the list.
+Splits a given string `str` into a list of strings based on the specified delimiter `delim`. 
+The resulting list does not include empty strings. The function also provides the size of the 
+resulting list through the `list_size` parameter if it is not null. 
+It is important to remember to free the allocated memory for the list using `split_free2()`.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +47,7 @@ const char ** split2(
 
 * - `str`
   - `const char *`
-  - The string to be split.
+  - The input string to be split.
 
 * - `delim`
   - `const char *`
@@ -52,7 +55,9 @@ const char ** split2(
 
 * - `list_size`
   - `int *`
-  - Pointer to an integer to store the size of the resulting list.
+  - A pointer to an integer where the size of the resulting list will be stored. 
+    If you do not need the size, this can be set to NULL.
+
 :::
 
 
@@ -61,14 +66,16 @@ const char ** split2(
 **Return Value**
 
 
-The function returns a list of strings resulting from splitting the input string by the delimiter. Remember to free the memory allocated for the list using `split_free2()`.
+Returns a pointer to an array of strings (const char **) that contains the split parts of the input string. 
+If memory allocation fails, it may return NULL. 
+The caller is responsible for freeing the returned list using `split_free2()`.
 
 
 **Notes**
 
 
-- The function does not include empty strings in the resulting list.
-- Remember to free the memory allocated for the list using `split_free2()`.
+The function does not include empty strings in the resulting list. 
+Ensure to call `split_free2()` to avoid memory leaks after using the returned list.
 
 
 <!--====================================================-->

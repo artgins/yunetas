@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function extracts the schema part from a given URI.
-
-The function takes a URI as input and extracts the schema part from it. The schema part represents the protocol used in the URI, such as 'http', 'https', 'ftp', etc.
+Extracts the schema (protocol) from a given URL. The function parses the provided URI and fills the `schema` buffer with the detected schema, ensuring that the buffer does not exceed the specified size.
 
 
 <!------------------------------------------------------------>
@@ -28,7 +26,8 @@ The function takes a URI as input and extracts the schema part from it. The sche
 int get_url_schema(
     hgobj   gobj,
     const char *uri,
-    char *schema, size_t schema_size
+    char    *schema, 
+    size_t  schema_size
 );
 
 ```
@@ -46,19 +45,20 @@ int get_url_schema(
 
 * - `gobj`
   - `hgobj`
-  - The gobj handler for logging and event processing.
+  - A handle to the gobject that is calling the function, used for context.
 
 * - `uri`
   - `const char *`
-  - The input URI from which the schema needs to be extracted.
+  - The URL string from which the schema is to be extracted.
 
 * - `schema`
   - `char *`
-  - Buffer to store the extracted schema.
-  
+  - A buffer where the extracted schema will be stored.
+
 * - `schema_size`
   - `size_t`
-  - Size of the buffer to store the extracted schema.
+  - The size of the `schema` buffer to prevent overflow.
+
 :::
 
 
@@ -67,16 +67,13 @@ int get_url_schema(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the extraction process. 
-If successful, it returns the number of bytes consumed from the URI. 
-If an error occurs during extraction, it returns -1.
+Returns 0 on success, or a negative value if an error occurs during parsing.
 
 
 **Notes**
 
 
-- The extracted schema will be stored in the `schema` buffer.
-- The `schema_size` parameter should be large enough to accommodate the extracted schema.
+Ensure that the `schema` buffer is large enough to hold the expected schema. The function does not perform additional validation on the URI format.
 
 
 <!--====================================================-->

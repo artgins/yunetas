@@ -4,7 +4,10 @@
 <!-- ============================================================== -->
 
 
-Resets the state of the provided `GHTTP_PARSER` object, clearing all parsed data and preparing it for parsing a new HTTP message.
+Resets the state of the `GHTTP_PARSER` instance pointed to by `parser`. 
+This function clears any accumulated data and prepares the parser for 
+a new HTTP message. It is useful when reusing a parser instance to 
+ensure that previous parsing results do not interfere with new data.
 
 
 <!------------------------------------------------------------>
@@ -36,9 +39,14 @@ void ghttp_parser_reset(
 :widths: 20 20 60
 :header-rows: 1
 
+* - Key
+  - Type
+  - Description
+
 * - `parser`
   - `GHTTP_PARSER *`
-  - Pointer to the GHTTP_PARSER object to be reset.
+  - Pointer to the `GHTTP_PARSER` instance that needs to be reset.
+
 :::
 
 
@@ -47,13 +55,14 @@ void ghttp_parser_reset(
 **Return Value**
 
 
-This function does not return any value.
+This function does not return a value.
 
 
 **Notes**
 
 
-This function is useful for reusing a `GHTTP_PARSER` object to parse multiple HTTP messages without the need to create a new object each time.
+Ensure that the `parser` is a valid pointer to a `GHTTP_PARSER` instance 
+before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

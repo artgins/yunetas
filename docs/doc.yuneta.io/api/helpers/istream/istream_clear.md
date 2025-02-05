@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `istream_clear` function is used to reset both the write and read pointers of an input stream, effectively clearing the stream for new data.
+The `istream_clear` function is used to reset both the read and write pointers of an input stream. This effectively clears any data that may have been read or written, allowing the stream to be reused without residual data affecting subsequent operations.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,8 @@ void istream_clear(
 
 * - `istream`
   - `istream_h`
-  - The input stream to be cleared.
+  - The input stream handle that needs to be cleared.
+
 :::
 
 
@@ -57,8 +58,7 @@ This function does not return a value.
 **Notes**
 
 
-- This function resets both the write and read pointers of the input stream, making it ready for new data operations.
-- It does not deallocate the memory used by the input stream, only resets its internal state.
+This function is particularly useful in scenarios where the input stream needs to be reused after processing data, ensuring that no previous state interferes with new data operations.
 
 
 <!--====================================================-->

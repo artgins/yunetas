@@ -4,7 +4,12 @@
 <!-- ============================================================== -->
 
 
-The `strings2bits` function converts a string into a 64-bit value based on a table of strings and separators provided. It matches the input string with the strings in the table and sets the corresponding bits in the output value. The function allows customization of the separators used in the input string.
+Converts a string into a bit representation based on a provided table of strings. 
+The function interprets the input string by splitting it using specified separators 
+and maps each segment to its corresponding bit in the output. The strings table must 
+be terminated with a NULL pointer. The resulting bit representation is a 64-bit 
+unsigned integer where each bit corresponds to the presence of a string in the 
+input string.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +49,15 @@ uint64_t strings2bits(
 
 * - `strings_table`
   - `const char **`
-  - Table of strings to match against.
+  - A table of strings that defines the mapping for the bit representation. The table must end with a NULL pointer.
 
 * - `str`
   - `const char *`
-  - Input string to convert.
+  - The input string to be converted into bits. The string is split using the specified separators.
 
 * - `separators`
   - `const char *`
-  - Custom separators used in the input string.
+  - A string containing characters that will be used as delimiters to split the input string.
 :::
 
 
@@ -61,15 +66,13 @@ uint64_t strings2bits(
 **Return Value**
 
 
-The function returns a 64-bit value representing the matched strings from the input string based on the provided table.
+Returns a 64-bit unsigned integer where each bit represents the presence of a corresponding string from the `strings_table` in the input string. If a string is found, its corresponding bit is set to 1; otherwise, it is set to 0.
 
 
 **Notes**
 
 
-- The function is case sensitive.
-- The `strings_table` must be terminated with a NULL element.
-- The `separators` parameter allows customization of the delimiters used in the input string.
+The function assumes that the input string can be split using the specified separators. If the input string is empty or does not match any strings in the table, the return value will be 0.
 
 
 <!--====================================================-->

@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `datestamp` function generates a date stamp and stores it in the provided output buffer.
-
-The date stamp includes the current date and time information.
-
-If the output buffer is not large enough to hold the entire date stamp, the function will truncate the date stamp to fit within the buffer size.
+The `datestamp` function generates a timestamp string and stores it in the provided output buffer. The format of the timestamp is typically human-readable and can vary based on the implementation details. The function ensures that the output does not exceed the specified size, preventing buffer overflows.
 
 
 <!------------------------------------------------------------>
@@ -47,11 +43,11 @@ void datestamp(
 
 * - `out`
   - `char *`
-  - Pointer to the output buffer where the date stamp will be stored.
-  
+  - A pointer to the buffer where the timestamp string will be stored.
+
 * - `outsize`
   - `int`
-  - Size of the output buffer.
+  - The size of the output buffer, which is used to ensure that the function does not write beyond the allocated memory.
 :::
 
 
@@ -60,14 +56,13 @@ void datestamp(
 **Return Value**
 
 
-This function does not return a value.
+The function does not return a value. Instead, it writes the generated timestamp directly to the provided output buffer.
 
 
 **Notes**
 
 
-- The date stamp generated includes the current date and time information.
-- If the output buffer is not large enough to hold the entire date stamp, the function will truncate the date stamp to fit within the buffer size.
+Ensure that the `out` buffer is large enough to hold the generated timestamp string, including the null terminator. The function does not perform checks for the validity of the output buffer size beyond the provided `outsize`.
 
 
 <!--====================================================-->

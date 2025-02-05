@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function extracts a key=value or key='this value' parameter from a string and returns the value. The key is stored in `key`. The string `s` is modified during the extraction process.
+Extracts a key-value parameter from a given string. The function looks for a pattern in the format of `key=value` or `key='this value'`. It modifies the input string by inserting null characters at the appropriate positions to separate the key and value. The extracted key is stored in the variable pointed to by `key`, and the function returns a pointer to the value within the original string.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +24,9 @@ This function extracts a key=value or key='this value' parameter from a string a
 ```C
 
 char *get_key_value_parameter(
-    char *s,
-    char **key,
-    char **save_ptr
+    char   *s,
+    char  **key,
+    char  **save_ptr
 );
 
 ```
@@ -44,15 +44,15 @@ char *get_key_value_parameter(
 
 * - `s`
   - `char *`
-  - The input string containing the parameter.
-  
+  - The input string from which the key-value pair will be extracted.
+
 * - `key`
   - `char **`
-  - Pointer to store the extracted key.
-  
+  - A pointer to a variable where the extracted key will be stored.
+
 * - `save_ptr`
   - `char **`
-  - Pointer to save the state of the string for subsequent calls.
+  - A pointer to a variable used for saving the state of the string during extraction.
 :::
 
 
@@ -61,15 +61,13 @@ char *get_key_value_parameter(
 **Return Value**
 
 
-The function returns the extracted value of the key=value parameter as a string.
+Returns a pointer to the value part of the key-value pair extracted from the input string. If no valid key-value pair is found, it returns NULL.
 
 
 **Notes**
 
 
-- The function modifies the input string `s` by inserting nulls during the extraction process.
-- The extracted key is stored in the pointer `key`.
-- The state of the string after extraction can be saved using the `save_ptr` for subsequent calls.
+The input string `s` will be modified by the function, with null characters inserted to terminate the key and value strings. Ensure that the input string is mutable.
 
 
 <!--====================================================-->

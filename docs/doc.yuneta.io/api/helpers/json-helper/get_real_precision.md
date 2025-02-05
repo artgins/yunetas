@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the current real precision used in the conversion of JSON to string functions.
+Retrieve the current precision setting used for converting real numbers to strings in JSON representation. This function returns the precision value that is currently set, which determines how many digits are displayed after the decimal point when converting real numbers to string format.
 
 
 <!------------------------------------------------------------>
@@ -23,9 +23,7 @@ This function retrieves the current real precision used in the conversion of JSO
 
 ```C
 
-int get_real_precision(
-    void
-);
+int get_real_precision(void);
 
 ```
 
@@ -40,9 +38,10 @@ int get_real_precision(
   - Type
   - Description
 
-* - (no parameters)
-  - -
-  - This function does not take any parameters.
+* - None
+  - None
+  - This function does not accept any parameters.
+
 :::
 
 
@@ -51,13 +50,13 @@ int get_real_precision(
 **Return Value**
 
 
-The function returns an integer representing the current real precision used in the conversion of JSON to string functions.
+Returns an integer representing the current precision setting for real number conversions. The value indicates the number of digits after the decimal point.
 
 
 **Notes**
 
 
-- The real precision is set using the `set_real_precision` function.
+This function is useful for applications that require consistent formatting of real numbers in JSON outputs. The precision can be set using the `set_real_precision` function, and this function can be called to check the current setting.
 
 
 <!--====================================================-->

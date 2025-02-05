@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function creates a JSON record based on the provided JSON description. It generates a JSON object with keys and default values specified in the description.
-
-The JSON description is an array of `json_desc_t` structures containing information about the keys, types, default values, and space filling for the JSON record.
+Creates a new JSON record based on the provided description. The function takes a `gobj` and a pointer to a `json_desc_t` structure that defines the properties of the JSON record, including its name, type, default values, and fill space. The resulting JSON object is dynamically allocated and must be freed by the caller.
 
 
 <!------------------------------------------------------------>
@@ -26,7 +24,7 @@ The JSON description is an array of `json_desc_t` structures containing informat
 ```C
 
 json_t *create_json_record(
-    hgobj gobj,
+    hgobj            gobj,
     const json_desc_t *json_desc
 );
 
@@ -45,11 +43,11 @@ json_t *create_json_record(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance.
-  
+  - A handle to the gobj that is creating the JSON record.
+
 * - `json_desc`
   - `const json_desc_t *`
-  - An array of `json_desc_t` structures describing the keys and default values for the JSON record.
+  - A pointer to a `json_desc_t` structure that describes the JSON record's properties.
 :::
 
 
@@ -58,14 +56,13 @@ json_t *create_json_record(
 **Return Value**
 
 
-Returns a JSON object representing the created JSON record based on the provided description.
+Returns a pointer to a newly created `json_t` object representing the JSON record. If the creation fails, it may return `NULL`.
 
 
 **Notes**
 
 
-- The `json_desc_t` structure defines the name, type, default value, and space filling for each key in the JSON record.
-- The function dynamically allocates memory for the JSON object and its contents, so remember to free the returned JSON object when no longer needed.
+The caller is responsible for freeing the returned JSON object using the appropriate deallocation function. Ensure that the `json_desc` provided is valid and properly initialized to avoid undefined behavior.
 
 
 <!--====================================================-->

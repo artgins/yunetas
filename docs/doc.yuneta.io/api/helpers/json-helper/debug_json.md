@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function is used to debug and print a JSON object with optional verbosity.
+The `debug_json` function is used to print debug information about a JSON object. It outputs the contents of the JSON object in a readable format, which can be useful for debugging purposes. The function takes a label to identify the output and a verbosity flag that determines the level of detail in the output.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,15 @@ int debug_json(
 
 * - `label`
   - `const char *`
-  - Label for the JSON object being debugged.
+  - A string label that will be printed before the JSON output to identify the context of the debug information.
 
 * - `jn`
   - `json_t *`
-  - The JSON object to be debugged.
+  - A pointer to the JSON object that will be printed. This object is not owned by the function and should not be freed by it.
 
 * - `verbose`
   - `BOOL`
-  - Flag to indicate whether to print verbose information.
+  - A boolean flag that indicates whether to print additional details about the JSON object. If TRUE, more detailed information will be included in the output.
 :::
 
 
@@ -61,15 +61,13 @@ int debug_json(
 **Return Value**
 
 
-This function does not return any value.
+The function returns an integer value. Typically, it returns 0 on success and a negative value on failure, indicating an error in processing the JSON object.
 
 
 **Notes**
 
 
-- The `label` parameter is used to provide a descriptive label for the JSON object being debugged.
-- The `verbose` flag can be set to TRUE to print additional information along with the JSON object.
-- This function is useful for debugging JSON objects during development.
+This function is primarily intended for debugging purposes. The output format may vary based on the verbosity level specified. Ensure that the JSON object passed to the function is valid to avoid unexpected behavior.
 
 
 <!--====================================================-->

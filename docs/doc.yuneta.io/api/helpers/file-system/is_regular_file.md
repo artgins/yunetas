@@ -4,9 +4,11 @@
 <!-- ============================================================== -->
 
 
-The `is_regular_file` function checks if the specified path corresponds to a regular file.
-
-If the path points to a regular file, the function returns TRUE; otherwise, it returns FALSE.
+Determines whether the specified file path refers to a regular file. 
+A regular file is a file that is not a directory or a special file 
+such as a socket, pipe, or symbolic link. This function checks the 
+file type using the `stat` system call and returns TRUE if the 
+file is a regular file, otherwise it returns FALSE.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +46,8 @@ BOOL is_regular_file(
 
 * - `path`
   - `const char *`
-  - The path to the file being checked.
+  - The path to the file to be checked.
+
 :::
 
 
@@ -53,16 +56,15 @@ BOOL is_regular_file(
 **Return Value**
 
 
-The function returns a boolean value:
-- `TRUE` if the path corresponds to a regular file.
-- `FALSE` if the path does not correspond to a regular file.
+Returns TRUE if the file at the specified path is a regular file, 
+and FALSE otherwise.
 
 
 **Notes**
 
 
-- This function specifically checks for regular files and does not consider directories, symbolic links, or other types of files.
-- The function relies on the system's file structure and permissions to determine the file type.
+This function may fail if the path does not exist or if there are 
+insufficient permissions to access the file information.
 
 
 <!--====================================================-->

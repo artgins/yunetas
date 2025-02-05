@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `json_check_refcounts` function checks the reference counts of a JSON object recursively and reports if any reference count exceeds the specified maximum value.
-
-If the reference count of any JSON object within the hierarchy exceeds the `max_refcount`, the function will set the `result` parameter to a non-zero value.
-
-This function is useful for debugging and ensuring proper memory management when working with JSON objects.
+Checks the reference counts of the JSON object `kw`. This function traverses the JSON structure and verifies that the reference counts of all elements do not exceed the specified `max_refcount`. It is useful for debugging memory management issues in applications that manipulate JSON data.
 
 
 <!------------------------------------------------------------>
@@ -28,9 +24,9 @@ This function is useful for debugging and ensuring proper memory management when
 ```C
 
 int json_check_refcounts(
-    json_t *kw,
+    json_t *kw,          // not owned
     int max_refcount,
-    int *result
+    int *result           // firstly initialize to 0
 );
 
 ```
@@ -48,15 +44,15 @@ int json_check_refcounts(
 
 * - `kw`
   - `json_t *`
-  - The JSON object to check reference counts recursively.
+  - The JSON object to check. This parameter is not owned by the function and should not be freed by it.
 
 * - `max_refcount`
   - `int`
-  - The maximum allowed reference count.
+  - The maximum allowed reference count for any element in the JSON object.
 
 * - `result`
   - `int *`
-  - Pointer to an integer that will be set to a non-zero value if any reference count exceeds the maximum.
+  - A pointer to an integer where the function will store the result of the check. It should be initialized to 0 before calling the function.
 :::
 
 
@@ -65,14 +61,13 @@ int json_check_refcounts(
 **Return Value**
 
 
-The function returns an integer indicating the status of the reference count check. It does not return a specific value but uses the `result` parameter to signal if any reference count exceeds the specified maximum.
+Returns an integer indicating the success of the operation. A return value of 0 indicates that all reference counts are within the allowed limit, while a non-zero value indicates that at least one reference count exceeded `max_refcount`.
 
 
 **Notes**
 
 
-- This function is helpful for detecting memory leaks or improper handling of JSON objects.
-- It recursively traverses the JSON object hierarchy to check reference counts.
+This function is primarily intended for debugging purposes. It is important to initialize the `result` parameter to 0 before calling the function to ensure accurate results.
 
 
 <!--====================================================-->

@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `unlock_file` function is used to unlock a file descriptor for further access. It is part of a set of file system helper functions provided by the library. This function specifically unlocks a file identified by its file descriptor.
-
-When a file is locked for exclusive access, this function can be used to release the lock and allow other processes to access the file.
-
-This function is essential for managing file access and ensuring proper synchronization between processes when working with files.
+The `unlock_file` function releases a file lock that was previously acquired on the file associated with the given file descriptor. This is useful in scenarios where multiple processes or threads need to access the same file, ensuring that only one can write to it at a time while others can read or wait for access.
 
 
 <!------------------------------------------------------------>
@@ -47,6 +43,7 @@ int unlock_file(
 * - `fd`
   - `int`
   - The file descriptor of the file to be unlocked.
+
 :::
 
 
@@ -55,16 +52,13 @@ int unlock_file(
 **Return Value**
 
 
-The function returns an integer value indicating the success or failure of unlocking the file:
-- `0` if the file was successfully unlocked.
-- `-1` if an error occurred during the unlocking process.
+Returns 0 on success, indicating that the file has been successfully unlocked. A return value of -1 indicates an error occurred, such as if the file descriptor is invalid or if the file was not locked.
 
 
 **Notes**
 
 
-- This function is typically used after a file has been locked using the `lock_file` function to release the lock.
-- It is important to handle the return value of this function to ensure proper file access management.
+Ensure that the file descriptor provided to `unlock_file` was previously locked using the `lock_file` function. Attempting to unlock a file that is not locked or using an invalid file descriptor may lead to undefined behavior.
 
 
 <!--====================================================-->

@@ -3,7 +3,9 @@
 # `istream_reset_rd()`
 <!-- ============================================================== -->
 
-Resets the reading pointer of the [`gbuffer_t *`](gbuffer_t) associated with the given [`istream_h`](istream_h). This allows re-reading the data in the buffer from the beginning.
+
+The `istream_reset_rd` function resets the read pointer of the input stream represented by `istream`. This allows the stream to be read from the beginning again, effectively discarding any data that has already been read. It is particularly useful when the stream needs to be reprocessed or when the current read position is no longer valid.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,38 +22,43 @@ Resets the reading pointer of the [`gbuffer_t *`](gbuffer_t) associated with the
 **Prototype**
 
 ```C
-PUBLIC int istream_reset_rd(
-    istream_h   istream
+
+int istream_reset_rd(
+    istream_h istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream whose reading pointer needs to be reset.
+  - The input stream handle that is to be reset for reading.
+
 :::
+
 
 ---
 
 **Return Value**
 
-Returns `0` if the operation was successful.
-Returns `-1` if the `istream` or its associated [`gbuffer_t *`](gbuffer_t) is `NULL`.
+
+Returns `0` on success, or a negative value on failure. The specific error code can provide insight into what went wrong during the reset operation.
+
 
 **Notes**
-- This function logs an error if the `istream` or its buffer is invalid.
-- It does not affect the writing pointer or any other attributes of the `istream`.
 
-**Example Usage**
-This function can be used when you need to process the data in the buffer again from the start, such as during retries or repeated operations.
+
+Ensure that the stream is in a valid state before calling this function. If the stream has been destroyed or is otherwise invalid, the behavior of this function is undefined.
 
 
 <!--====================================================-->
@@ -177,3 +184,4 @@ This function can be used when you need to process the data in the buffer again 
 ``````
 
 ```````
+

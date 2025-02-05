@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `newdir` function creates a new directory at the specified `path` with the given `permission`.
-
-If the directory creation is successful, the function returns 0. Otherwise, it returns -1.
+The `newdir` function is used to create a new directory at the specified `path` with the given `permission` settings. It attempts to create the directory and returns an integer indicating the success or failure of the operation. If the directory already exists or if there are issues with the provided path or permissions, the function will return an error code.
 
 
 <!------------------------------------------------------------>
@@ -45,11 +43,11 @@ int newdir(
 
 * - `path`
   - `const char *`
-  - The path where the new directory will be created.
+  - The path where the new directory should be created.
 
 * - `permission`
   - `int`
-  - The permission mode for the new directory.
+  - The permission settings for the new directory, typically specified in octal format (e.g., 0755).
 :::
 
 
@@ -58,14 +56,13 @@ int newdir(
 **Return Value**
 
 
-The function returns 0 if the directory creation is successful. Otherwise, it returns -1.
+Returns 0 on success, or a negative error code on failure. The error code can indicate reasons such as the directory already existing or insufficient permissions.
 
 
 **Notes**
 
 
-- The function will attempt to create the directory with the specified permission.
-- If the directory creation fails, the function will return -1.
+Ensure that the `path` provided is valid and that the application has the necessary permissions to create a directory at that location. The `permission` parameter should be set according to the desired access rights for the new directory.
 
 
 <!--====================================================-->

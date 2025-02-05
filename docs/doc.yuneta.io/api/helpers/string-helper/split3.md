@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `split3` function splits a string by a delimiter character and returns a list of strings. It includes empty strings in the result list.
-
-**Note:** Remember to free the returned list using `split_free3()`.
+This function splits a given string `str` into an array of strings based on the specified delimiter `delim`. Unlike other split functions, `split3` includes empty strings in the resulting array if they occur between delimiters. The size of the resulting array can be optionally returned through the `plist_size` parameter, which will be filled with the number of elements in the array.
 
 
 <!------------------------------------------------------------>
@@ -46,15 +44,16 @@ const char **split3(
 
 * - `str`
   - `const char *`
-  - The string to be split.
+  - The input string to be split.
 
 * - `delim`
   - `const char *`
-  - The delimiter character used for splitting.
+  - The delimiter characters used to split the string.
 
 * - `plist_size`
   - `int *`
-  - Pointer to store the size of the resulting list.
+  - A pointer to an integer where the size of the resulting array will be stored. Can be NULL if the size is not needed.
+
 :::
 
 
@@ -63,14 +62,13 @@ const char **split3(
 **Return Value**
 
 
-The function returns a list of strings resulting from splitting the input string by the specified delimiter character.
+Returns a pointer to an array of strings (const char **), which contains the split parts of the input string. The caller is responsible for freeing this array using `split_free3()`.
 
 
 **Notes**
 
 
-- The `split3` function includes empty strings in the resulting list.
-- Remember to free the returned list using `split_free3()`.
+This function does not modify the original string. The resulting array may contain NULL pointers if the input string is empty or if memory allocation fails. Always ensure to call `split_free3()` to free the memory allocated for the resulting array.
 
 
 <!--====================================================-->

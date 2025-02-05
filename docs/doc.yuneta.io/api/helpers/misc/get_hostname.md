@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the hostname of the machine where it is executed.
+Retrieve the hostname of the current machine. This function returns a pointer to a string that contains the hostname. The returned string is statically allocated and should not be modified or freed by the caller.
 
 
 <!------------------------------------------------------------>
@@ -30,7 +30,19 @@ const char *get_hostname(void);
 **Parameters**
 
 
-None
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - None
+  - None
+  - This function does not accept any parameters.
+
+:::
 
 
 ---
@@ -38,13 +50,13 @@ None
 **Return Value**
 
 
-A constant string containing the hostname of the machine.
+Returns a pointer to a string containing the hostname of the machine. The string is statically allocated and should not be freed by the caller.
 
 
 **Notes**
 
 
-This function does not take any parameters and directly returns the hostname of the machine where it is executed.
+The hostname returned may vary depending on the system configuration and network settings. It is advisable to handle cases where the hostname may not be retrievable due to system limitations or errors.
 
 
 <!--====================================================-->

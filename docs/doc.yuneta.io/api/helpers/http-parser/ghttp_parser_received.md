@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function is used to feed data to the GHTTP_PARSER for parsing HTTP messages. It processes the input buffer `bf` of length `len` and updates the parser state accordingly. It returns the number of bytes consumed from the input buffer or -1 in case of an error.
+This function processes incoming data for an HTTP parser. It takes a buffer containing the data received and its length, and attempts to parse the data according to the HTTP protocol. The function updates the state of the `GHTTP_PARSER` instance based on the received data and returns the number of bytes consumed from the buffer. If an error occurs during parsing, it returns -1.
 
 
 <!------------------------------------------------------------>
@@ -25,8 +25,8 @@ This function is used to feed data to the GHTTP_PARSER for parsing HTTP messages
 
 int ghttp_parser_received(
     GHTTP_PARSER *parser,
-    char *bf,
-    size_t len
+    char        *bf,
+    size_t      len
 );
 
 ```
@@ -44,15 +44,16 @@ int ghttp_parser_received(
 
 * - `parser`
   - `GHTTP_PARSER *`
-  - Pointer to the GHTTP_PARSER structure for parsing HTTP messages.
+  - A pointer to the `GHTTP_PARSER` instance that is processing the incoming data.
 
 * - `bf`
   - `char *`
-  - Input buffer containing the data to be parsed.
+  - A pointer to the buffer containing the data to be parsed.
 
 * - `len`
   - `size_t`
-  - Length of the input buffer.
+  - The length of the data in the buffer to be parsed.
+
 :::
 
 
@@ -61,14 +62,13 @@ int ghttp_parser_received(
 **Return Value**
 
 
-The function returns the number of bytes consumed from the input buffer `bf` during the parsing process. In case of an error, it returns -1.
+Returns the number of bytes consumed from the buffer if successful, or -1 if an error occurs during parsing.
 
 
 **Notes**
 
 
-- This function is crucial for processing HTTP messages using the GHTTP_PARSER structure.
-- It is recommended to ensure that the input buffer `bf` contains valid data conforming to the HTTP message format.
+Ensure that the `GHTTP_PARSER` instance is properly initialized before calling this function. The function may modify the state of the parser, so it should be called in the correct sequence as per the HTTP parsing workflow.
 
 
 <!--====================================================-->

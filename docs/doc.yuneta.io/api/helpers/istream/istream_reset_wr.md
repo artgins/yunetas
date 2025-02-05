@@ -3,7 +3,9 @@
 # `istream_reset_wr()`
 <!-- ============================================================== -->
 
-Resets the writing pointer of the [`gbuffer_t *`](gbuffer_t) associated with the given [`istream_h`](istream_h). This effectively clears any written data in the buffer, making it empty for future writes.
+
+The `istream_reset_wr` function resets the write pointer of the input stream represented by `istream`. This allows for reusing the stream for writing new data from the beginning, effectively clearing any previously written data. It is particularly useful in scenarios where the stream needs to be reused without creating a new instance, ensuring that the data can be overwritten without the need for additional memory allocation.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,38 +22,44 @@ Resets the writing pointer of the [`gbuffer_t *`](gbuffer_t) associated with the
 **Prototype**
 
 ```C
-PUBLIC int istream_reset_wr(
-    istream_h   istream
+
+int istream_reset_wr(
+    istream_h istream
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream whose writing pointer needs to be reset.
+  - The input stream handle that needs to be reset for writing.
+
 :::
+
 
 ---
 
 **Return Value**
 
-Returns `0` if the operation was successful.
-Returns `-1` if the `istream` or its associated [`gbuffer_t *`](gbuffer_t) is `NULL`.
+
+Returns an integer status code. A return value of 0 indicates success, while a negative value indicates an error occurred during the reset operation.
+
 
 **Notes**
-- This function logs an error if the `istream` or its buffer is invalid.
-- It does not affect the reading pointer or any other attributes of the `istream`.
 
-**Example Usage**
-This function can be used when you need to clear the writing pointer and start writing new data into the [`istream_h`](istream_h) without affecting its reading pointer.
+
+This function does not free or deallocate the `istream` itself; it merely resets the write pointer. Ensure that the stream is properly initialized before calling this function to avoid undefined behavior.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +184,4 @@ This function can be used when you need to clear the writing pointer and start w
 ``````
 
 ```````
+

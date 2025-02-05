@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `start_sectimer` function is used to start a timer that counts seconds. The timer will run for the specified number of seconds before finishing.
+The `start_sectimer` function initializes a second-based timer. It accepts a time duration in seconds and starts the timer. If the provided value is less than or equal to zero, the timer is disabled. The function returns the current time when the timer is started.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,7 @@ The `start_sectimer` function is used to start a timer that counts seconds. The 
 
 ```C
 
-uint64_t start_sectimer(
+time_t start_sectimer(
     time_t seconds
 );
 
@@ -42,7 +42,8 @@ uint64_t start_sectimer(
 
 * - `seconds`
   - `time_t`
-  - Number of seconds for the timer to run.
+  - The duration in seconds for which the timer should run. A value less than or equal to zero disables the timer.
+
 :::
 
 
@@ -51,13 +52,13 @@ uint64_t start_sectimer(
 **Return Value**
 
 
-The function returns a `uint64_t` value indicating the start time of the timer in milliseconds.
+Returns the current time when the timer is started. If the timer is disabled, the behavior is undefined.
 
 
 **Notes**
 
 
-- To check if the timer has finished, use the `test_sectimer` function.
+This function is useful for implementing timeouts or delays in applications. Ensure that the value passed is positive to start the timer effectively.
 
 
 <!--====================================================-->

@@ -3,7 +3,9 @@
 # `istream_read_until_num_bytes()`
 <!-- ============================================================== -->
 
-Configures the istream to read data until a specified number of bytes (`num_bytes`) is accumulated. Once the condition is met, the specified event (`event`) will be triggered for the associated GObj.
+
+Reads data from the input stream until the specified number of bytes is reached. This function is useful for scenarios where a fixed amount of data needs to be read from a stream, ensuring that the operation does not proceed until the required data size is obtained. The function may trigger an event upon completion of the read operation, allowing for asynchronous handling of the data.
+
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,47 +22,54 @@ Configures the istream to read data until a specified number of bytes (`num_byte
 **Prototype**
 
 ```C
-PUBLIC int istream_read_until_num_bytes(
-    istream_h       istream,
-    size_t          num_bytes,
-    gobj_event_t    event
+
+int istream_read_until_num_bytes(
+    istream_h     istream,
+    size_t        num_bytes,
+    gobj_event_t  event
 );
+
 ```
 
 **Parameters**
 
+
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `istream`
   - `istream_h`
-  - The handle to the istream where data will be read.
+  - The input stream handle from which data will be read.
 
 * - `num_bytes`
   - `size_t`
-  - The number of bytes to accumulate before marking the reading operation as complete.
+  - The number of bytes to read from the stream.
 
 * - `event`
   - `gobj_event_t`
-  - The event to be triggered when the specified number of bytes is reached.
+  - The event to be triggered upon completion of the read operation.
+
 :::
+
 
 ---
 
 **Return Value**
 
-Returns `0` on successful configuration.
-Returns `-1` if the `istream` handle is invalid.
+
+Returns an integer indicating the success or failure of the read operation. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the read process.
+
 
 **Notes**
 
-- This function resets the delimiter configuration and sets the reading mode to accumulate data based on `num_bytes`.
-- Once the specified number of bytes is accumulated, the istream triggers the specified event (`event`) for its associated GObj.
-- The `event` name must be a unique pointer for optimized comparison during event dispatching.
+
+Ensure that the input stream is properly initialized before calling this function. The behavior of the function may depend on the underlying implementation of the stream and the event handling mechanism.
+
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +194,4 @@ Returns `-1` if the `istream` handle is invalid.
 ``````
 
 ```````
+

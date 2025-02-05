@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Extract parameter: delimited by blanks (	) or quotes ('' ""). The string is modified (nulls inserted)!
+Extracts a parameter from a given string `s`, which is delimited by whitespace characters (spaces or tabs) or quotes (single or double). The function modifies the input string by inserting null characters at the delimiters to separate the parameter from the rest of the string. The `save_ptr` is used to maintain context for subsequent calls, allowing for continued extraction from the same string.
 
 
 <!------------------------------------------------------------>
@@ -24,7 +24,7 @@ Extract parameter: delimited by blanks (	) or quotes ('' ""). The string is mod
 ```C
 
 char *get_parameter(
-    char *s,
+    char   *s,
     char **save_ptr
 );
 
@@ -43,11 +43,12 @@ char *get_parameter(
 
 * - `s`
   - `char *`
-  - The string from which to extract the parameter.
-  
+  - The input string from which the parameter will be extracted. This string will be modified by the function.
+
 * - `save_ptr`
   - `char **`
-  - Pointer to save the position in the string after the extracted parameter.
+  - A pointer to a pointer that stores the context for the next extraction. It allows the function to keep track of the position in the string for subsequent calls.
+
 :::
 
 
@@ -56,13 +57,13 @@ char *get_parameter(
 **Return Value**
 
 
-Returns a pointer to the extracted parameter in the string.
+Returns a pointer to the extracted parameter as a string. If no parameter can be extracted, it returns NULL.
 
 
 **Notes**
 
 
-This function extracts a parameter from a string, considering delimiters of blanks or quotes. The function modifies the string by inserting nulls and returns a pointer to the extracted parameter. The `save_ptr` parameter is used to save the position in the string after the extracted parameter.
+The input string `s` will be modified, and it is important to ensure that it is not used after the function call unless it is reinitialized. The function is designed to handle strings that may contain quoted values, and it will correctly parse these while ignoring whitespace outside of quotes.
 
 
 <!--====================================================-->

@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `current_timestamp` function generates the current timestamp and stores it in the provided buffer `bf`.
-
-The timestamp includes the date and time information up to milliseconds precision. The function ensures that the buffer `bf` is at least 90 bytes to accommodate the timestamp.
-
-If you need the current timestamp for logging or time-related operations, you can use this function to get the timestamp in a human-readable format.
+The `current_timestamp` function retrieves the current timestamp and formats it into a string. The formatted timestamp is stored in the buffer provided by the caller. The buffer must be at least 90 bytes in size to accommodate the formatted timestamp.
 
 
 <!------------------------------------------------------------>
@@ -47,11 +43,11 @@ char *current_timestamp(
 
 * - `bf`
   - `char *`
-  - Buffer to store the current timestamp.
-  
+  - A pointer to the buffer where the formatted timestamp will be stored.
+
 * - `bfsize`
   - `size_t`
-  - Size of the buffer `bf`.
+  - The size of the buffer `bf`, which must be at least 90 bytes.
 :::
 
 
@@ -60,14 +56,13 @@ char *current_timestamp(
 **Return Value**
 
 
-The function returns a pointer to the buffer `bf` containing the current timestamp in a human-readable format.
+Returns a pointer to the buffer containing the formatted timestamp. If the buffer is too small, the behavior is undefined.
 
 
 **Notes**
 
 
-- The timestamp includes date and time information up to milliseconds precision.
-- The buffer `bf` must be at least 90 bytes to accommodate the timestamp.
+Ensure that the buffer provided is at least 90 bytes to avoid buffer overflows. The function does not perform checks on the buffer size.
 
 
 <!--====================================================-->

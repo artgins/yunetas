@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `lock_file` function is used to lock a file descriptor to prevent other processes from accessing the same file concurrently. This function ensures exclusive access to the file.
-
-When a file is locked using `lock_file`, other processes attempting to access the same file will be blocked until the lock is released. This helps in preventing race conditions and data corruption that can occur when multiple processes write to the same file simultaneously.
-
-This function is commonly used in scenarios where multiple processes need to write to a shared file in a controlled manner.
+The `lock_file` function is used to acquire an exclusive lock on a file associated with the given file descriptor. This is particularly useful in scenarios where multiple processes may attempt to access the same file simultaneously, ensuring that only one process can modify the file at a time. If the lock is successfully acquired, subsequent calls to `lock_file` on the same file descriptor will block until the lock is released.
 
 
 <!------------------------------------------------------------>
@@ -27,9 +23,7 @@ This function is commonly used in scenarios where multiple processes need to wri
 
 ```C
 
-int lock_file(
-    int fd
-);
+int lock_file(int fd);
 
 ```
 
@@ -46,7 +40,8 @@ int lock_file(
 
 * - `fd`
   - `int`
-  - File descriptor of the file to be locked.
+  - The file descriptor of the file to be locked.
+
 :::
 
 
@@ -55,16 +50,13 @@ int lock_file(
 **Return Value**
 
 
-The function returns an integer value indicating the success or failure of locking the file:
-- `0` if the file is successfully locked.
-- `-1` if an error occurs while trying to lock the file.
+Returns 0 on success, indicating that the lock has been successfully acquired. If the lock cannot be acquired (for example, if it is already held by another process), it returns -1 and sets errno to indicate the error.
 
 
 **Notes**
 
 
-- It's important to handle potential errors that may occur during the file locking process.
-- The behavior of file locking may vary depending on the operating system and file system being used.
+It is important to ensure that the file descriptor is valid and corresponds to an open file. The function may block if the file is already locked by another process, so it should be used with caution in multi-threaded or multi-process applications.
 
 
 <!--====================================================-->

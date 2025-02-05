@@ -4,7 +4,10 @@
 <!-- ============================================================== -->
 
 
-The `approxidate_relative` function interprets relative dates based on the current date or a reference point. It can handle phrases like days ago/forward, weeks ago/forward, months ago/forward, years ago/forward, human-readable terms, named days of the week, special time keywords, combinations of date and time, time-relative to a specific date, shorthand dates, special cases, and contextual phrases.
+This function interprets a relative date string and converts it into a timestamp. 
+It can handle various formats that describe dates in relation to the current date, 
+such as "3 days ago", "next Friday", or "in 2 months". The function is designed 
+to parse human-readable date expressions and return a corresponding timestamp value.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +45,8 @@ timestamp_t approxidate_relative(
 
 * - `date`
   - `const char *`
-  - The relative date string to be interpreted.
+  - A string representing the relative date to be parsed. This can include phrases 
+    like "yesterday", "in 5 days", or specific dates like "2024-09-17".
 :::
 
 
@@ -51,13 +55,17 @@ timestamp_t approxidate_relative(
 **Return Value**
 
 
-The function returns a `timestamp_t` value representing the interpreted relative date.
+Returns a `timestamp_t` value representing the parsed date. If the input string 
+is not a valid relative date, the function may return a timestamp indicating an 
+error or an undefined state.
 
 
 **Notes**
 
 
-The `approxidate_relative` function is designed to handle various relative date formats and phrases, providing flexibility in interpreting dates based on context and reference points.
+The function is capable of interpreting a wide range of relative date formats, 
+including shorthand notations and contextual phrases. It is important to ensure 
+that the input string is well-formed to avoid ambiguities in parsing.
 
 
 <!--====================================================-->

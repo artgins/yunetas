@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `parse_expiry_date` function parses the expiry date string and converts it into a timestamp value.
-
-The function takes a date string as input and fills the provided `timestamp` pointer with the corresponding timestamp value.
-
-The date string can be in various formats, including absolute dates, relative dates, special time keywords, combinations of date and time, and more. The function interprets the date string carefully to determine the correct timestamp value.
+The `parse_expiry_date` function is designed to interpret a given date string and convert it into a `timestamp_t` format. This function can handle various date formats, including absolute and relative dates, and is particularly useful for parsing expiry dates in applications where date validation and conversion are necessary.
 
 
 <!------------------------------------------------------------>
@@ -47,11 +43,11 @@ int parse_expiry_date(
 
 * - `date`
   - `const char *`
-  - The date string to be parsed.
-  
+  - A string representing the date to be parsed. This can be in various formats, including ISO 8601, relative dates, and more.
+
 * - `timestamp`
   - `timestamp_t *`
-  - Pointer to a timestamp variable where the parsed timestamp value will be stored.
+  - A pointer to a `timestamp_t` variable where the parsed timestamp will be stored. This variable must be allocated before calling the function.
 :::
 
 
@@ -60,17 +56,13 @@ int parse_expiry_date(
 **Return Value**
 
 
-The function returns an integer value indicating the success or failure of the parsing operation:
-- Returns the number of bytes consumed if successful.
-- Returns -1 if an error occurs during parsing.
+The function returns an integer value indicating the success or failure of the parsing operation. A return value of 0 indicates success, while a non-zero value indicates an error in parsing the date string.
 
 
 **Notes**
 
 
-The `parse_expiry_date` function is capable of interpreting various date formats, including absolute dates, relative dates, special time keywords, and combinations of date and time. It carefully handles ambiguities and incomplete information in the date string to determine the correct timestamp value.
-
-The function is designed to provide flexibility in parsing date strings and converting them into timestamp values accurately.
+The function is capable of interpreting a wide range of date formats, including both absolute and relative dates. It is important to ensure that the `timestamp` pointer is valid and points to an allocated memory space before calling this function.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `ntohll` function converts a 64-bit integer from network byte order to host byte order.
+Converts a 64-bit integer from network byte order to host byte order. This function is essential for ensuring that data transmitted over a network is interpreted correctly by the receiving host, which may have a different byte order than the sender.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,8 @@ uint64_t ntohll(
 
 * - `value`
   - `uint64_t`
-  - The 64-bit integer value to be converted from network byte order to host byte order.
+  - The 64-bit integer value in network byte order that needs to be converted to host byte order.
+
 :::
 
 
@@ -51,13 +52,13 @@ uint64_t ntohll(
 **Return Value**
 
 
-The function returns the converted 64-bit integer value in host byte order.
+Returns the converted 64-bit integer in host byte order.
 
 
 **Notes**
 
 
-This function is useful for handling network communication where data needs to be converted between different byte orders.
+This function is particularly useful in network programming, where data is often transmitted in network byte order (big-endian) and needs to be converted to the host's byte order (which may be little-endian).
 
 
 <!--====================================================-->

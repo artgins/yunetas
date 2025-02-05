@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-Check if the input stream has been fully consumed or not.
+Determines whether the input stream has completed its reading process. 
+This function checks the internal state of the `istream` to ascertain if all expected data has been read and no further data is anticipated. 
+It is particularly useful in scenarios where the completion of data reading is critical, such as when processing streams of data that signal their end.
 
 
 <!------------------------------------------------------------>
@@ -23,8 +25,8 @@ Check if the input stream has been fully consumed or not.
 
 ```C
 
-int istream_is_completed(
-    istream_h   istream
+BOOL istream_is_completed(
+    istream_h istream
 );
 
 ```
@@ -36,9 +38,14 @@ int istream_is_completed(
 :widths: 20 20 60
 :header-rows: 1
 
+* - Key
+  - Type
+  - Description
+
 * - `istream`
   - `istream_h`
-  - The input stream handle to check for completion.
+  - A handle to the input stream whose completion status is being checked.
+
 :::
 
 
@@ -47,15 +54,13 @@ int istream_is_completed(
 **Return Value**
 
 
-Returns an integer indicating whether the input stream has been fully consumed:
-- 1: The input stream has been fully consumed.
-- 0: The input stream has not been fully consumed.
+Returns `TRUE` if the input stream has completed reading all expected data; otherwise, it returns `FALSE`.
 
 
 **Notes**
 
 
-This function is used to determine if all the data in the input stream has been read and processed. It returns 1 if the stream has been fully consumed, and 0 otherwise.
+This function is essential for managing the lifecycle of input streams, ensuring that operations dependent on the completion of data reading can be executed safely.
 
 
 <!--====================================================-->

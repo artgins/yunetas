@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function is used to test if a millisecond timer has finished counting up to a specified value.
+This function checks if a specified millisecond timer has finished. It takes a `value` parameter that represents the duration of the timer in milliseconds. The function returns `TRUE` if the timer has completed its duration, and `FALSE` otherwise.
 
 
 <!------------------------------------------------------------>
@@ -23,9 +23,7 @@ This function is used to test if a millisecond timer has finished counting up to
 
 ```C
 
-BOOL test_msectimer(
-    uint64_t value
-);
+BOOL test_msectimer(uint64_t value);
 
 ```
 
@@ -42,7 +40,8 @@ BOOL test_msectimer(
 
 * - `value`
   - `uint64_t`
-  - The value to test the millisecond timer against.
+  - The duration of the timer in milliseconds to check for completion.
+
 :::
 
 
@@ -51,13 +50,13 @@ BOOL test_msectimer(
 **Return Value**
 
 
-Returns TRUE if the millisecond timer has finished counting up to the specified value.
+Returns `TRUE` if the timer has finished, otherwise returns `FALSE`.
 
 
 **Notes**
 
 
-- The function is used to check if a millisecond timer has reached a certain value.
+This function is typically used in scenarios where timing operations are critical, such as in performance monitoring or timeout handling.
 
 
 <!--====================================================-->

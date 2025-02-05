@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function creates a GHTTP_PARSER object for parsing HTTP messages. It allows for handling headers, body, and complete messages separately.
-
-The parser can be configured to handle different types of HTTP messages and trigger events when specific parts of the message are received.
+Creates a new instance of `GHTTP_PARSER`, which is used to parse HTTP messages. This function initializes the parser with the specified event handlers for processing headers, body, and completed messages. The `gobj` parameter associates the parser with a specific object, while the `type` parameter specifies the type of HTTP parser to use (e.g., request or response). The event handlers are called when the respective parts of the HTTP message are received.
 
 
 <!------------------------------------------------------------>
@@ -49,11 +47,11 @@ GHTTP_PARSER *ghttp_parser_create(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance associated with the parser.
+  - The object associated with this parser instance.
 
 * - `type`
   - `enum http_parser_type`
-  - The type of HTTP parser to create.
+  - Specifies the type of HTTP parser (request or response).
 
 * - `on_header_event`
   - `gobj_event_t`
@@ -69,7 +67,7 @@ GHTTP_PARSER *ghttp_parser_create(
 
 * - `send_event`
   - `BOOL`
-  - Flag indicating whether to use `gobj_send_event()` to the parent (`TRUE`) or `gobj_publish_event()` (`FALSE`).
+  - Indicates whether to use `gobj_send_event()` to parent (TRUE) or `gobj_publish_event()` (FALSE).
 :::
 
 
@@ -78,16 +76,13 @@ GHTTP_PARSER *ghttp_parser_create(
 **Return Value**
 
 
-The function returns a pointer to the created GHTTP_PARSER object.
+Returns a pointer to a newly created `GHTTP_PARSER` instance, or NULL if the creation fails.
 
 
 **Notes**
 
 
-- The `on_header_event` should provide a key-value pair dictionary with information about the headers received.
-- The `on_body_event` should provide a partial body buffer as a key-value pair.
-- The `on_message_event` should provide information about the complete message, including headers and body.
-- The parser should be destroyed using `ghttp_parser_destroy()` when no longer needed.
+Ensure that the created parser is properly destroyed using `ghttp_parser_destroy()` when it is no longer needed to avoid memory leaks.
 
 
 <!--====================================================-->

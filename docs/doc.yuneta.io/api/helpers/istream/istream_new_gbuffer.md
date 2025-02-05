@@ -4,7 +4,10 @@
 <!-- ============================================================== -->
 
 
-The `istream_new_gbuffer` function is used to create a new gbuffer in the provided istream for storing data with specified sizes.
+This function creates a new `gbuffer` associated with the specified `istream`. 
+It allocates memory for the `gbuffer` based on the provided `data_size` and `max_size`. 
+If the `istream` already has an associated `gbuffer`, it will be replaced with the new one.
+The function ensures that the `istream` can handle the specified sizes and manages memory allocation accordingly.
 
 
 <!------------------------------------------------------------>
@@ -25,8 +28,8 @@ The `istream_new_gbuffer` function is used to create a new gbuffer in the provid
 
 int istream_new_gbuffer(
     istream_h istream,
-    size_t data_size,
-    size_t max_size
+    size_t    data_size,
+    size_t    max_size
 );
 
 ```
@@ -44,15 +47,15 @@ int istream_new_gbuffer(
 
 * - `istream`
   - `istream_h`
-  - Handle to the istream where the gbuffer will be created.
+  - The input stream for which the new `gbuffer` is being created.
 
 * - `data_size`
   - `size_t`
-  - Size of the data to be stored in the gbuffer.
+  - The size of the data to be stored in the new `gbuffer`.
 
 * - `max_size`
   - `size_t`
-  - Maximum size allowed for the gbuffer.
+  - The maximum size that the new `gbuffer` can grow to.
 :::
 
 
@@ -61,15 +64,15 @@ int istream_new_gbuffer(
 **Return Value**
 
 
-The function returns an integer indicating the success or failure of creating the new gbuffer:
-- Returns 0 on success.
-- Returns a negative value if an error occurs.
+Returns an integer indicating the success or failure of the operation. 
+A return value of 0 indicates success, while a negative value indicates an error occurred during the creation of the `gbuffer`.
 
 
 **Notes**
 
 
-This function is part of the istream utility for handling input streams in C. It is used to create a new gbuffer within the istream to store data with specified sizes.
+If the `istream` already has an associated `gbuffer`, it will be destroyed before creating the new one. 
+Ensure to handle any potential memory leaks by managing the lifecycle of the `istream` and its associated `gbuffer` properly.
 
 
 <!--====================================================-->

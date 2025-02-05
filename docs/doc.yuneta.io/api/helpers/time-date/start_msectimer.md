@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function starts a millisecond timer with the specified duration. The timer will count down from the given milliseconds value.
+The `start_msectimer` function initializes a millisecond timer. It starts counting down from the specified number of milliseconds. If the provided value is less than or equal to zero, the timer is disabled. The function returns the current value of the timer, which can be used for tracking or comparison purposes.
 
 
 <!------------------------------------------------------------>
@@ -36,9 +36,14 @@ uint64_t start_msectimer(
 :widths: 20 20 60
 :header-rows: 1
 
+* - Key
+  - Type
+  - Description
+
 * - `miliseconds`
   - `uint64_t`
-  - The duration in milliseconds for the timer to count down.
+  - The number of milliseconds to set for the timer. A value less than or equal to zero disables the timer.
+
 :::
 
 
@@ -47,13 +52,13 @@ uint64_t start_msectimer(
 **Return Value**
 
 
-Returns a boolean value indicating whether the timer has finished counting down (TRUE) or not (FALSE).
+Returns the current value of the timer after it has been started. This value can be used to determine the remaining time or for other timing-related calculations.
 
 
 **Notes**
 
 
-- To check if the timer has finished, use the function `test_msectimer` with the value returned by `start_msectimer`.
+If the timer is started with a value of zero or less, it will be disabled, and the function will return zero.
 
 
 <!--====================================================-->

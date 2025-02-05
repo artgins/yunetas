@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Check if all characters in the input string are numbers.
+This function checks if all characters in the provided string are numeric digits. It returns TRUE if the string is not empty and consists solely of characters that are digits (0-9). If the string is empty or contains any non-digit characters, it returns FALSE.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,8 @@ BOOL all_numbers(
 
 * - `s`
   - `const char*`
-  - The input string to check if all characters are numbers.
+  - A pointer to the string that needs to be checked for numeric characters.
+
 :::
 
 
@@ -51,13 +52,13 @@ BOOL all_numbers(
 **Return Value**
 
 
-Return TRUE if all characters in the input string are numbers, otherwise FALSE.
+The function returns a `BOOL` value: TRUE if all characters in the string are digits, and FALSE otherwise.
 
 
 **Notes**
 
 
-This function returns TRUE only if all characters in the input string are numeric characters (0-9).
+The function does not consider an empty string as containing all numbers, and it will return FALSE in such cases.
 
 
 <!--====================================================-->

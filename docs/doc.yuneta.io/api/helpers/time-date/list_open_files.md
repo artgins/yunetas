@@ -4,9 +4,9 @@
 <!-- ============================================================== -->
 
 
-This function lists all open files in the system.
-
-It is used to retrieve information about all files that are currently open in the system.
+This function retrieves and displays a list of currently open files in the system. 
+It provides a useful overview of file usage, which can be helpful for debugging or monitoring purposes.
+The output typically includes details such as file names, file descriptors, and possibly other relevant metadata.
 
 
 <!------------------------------------------------------------>
@@ -25,7 +25,7 @@ It is used to retrieve information about all files that are currently open in th
 
 ```C
 
-void list_open_files();
+void list_open_files(void);
 
 ```
 
@@ -40,9 +40,10 @@ void list_open_files();
   - Type
   - Description
 
-* - (No parameters)
-  - -
-  - This function does not take any parameters.
+* - None
+  - None
+  - This function does not accept any parameters.
+
 :::
 
 
@@ -51,13 +52,13 @@ void list_open_files();
 **Return Value**
 
 
-This function does not return any value.
+This function does not return a value. It performs its operation by printing the list of open files directly to the standard output.
 
 
 **Notes**
 
 
-- This function does not have any specific notes or limitations.
+This function may require appropriate permissions to access information about open files, depending on the operating system and its configuration.
 
 
 <!--====================================================-->
