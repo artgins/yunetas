@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(pop_last_segment())=
+# `pop_last_segment()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `pop_last_segment()` function removes the last segment of a file path or directory path, modifying the input string `path` in place. 
+This function is useful for manipulating file paths by trimming the last segment, such as a file name or directory name, from the path.
+
+The function modifies the input string directly and returns a pointer to the modified string.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *pop_last_segment(
+    char *path
 );
 
 ```
@@ -42,9 +44,8 @@ PUBLIC mode_t file_permission(
   - Description
 
 * - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
-
+  - `char *`
+  - The input string representing the file or directory path. This string will be modified in place.
 :::
 
 
@@ -53,15 +54,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to the modified string `path`, with the last segment removed. If the input string is empty or does not contain any segments, the function may return the original string or an empty string, depending on the implementation.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The input string `path` is modified directly; ensure that it is writable.
+- This function does not allocate new memory; it operates on the existing string.
+- The function assumes that the path segments are separated by a standard directory delimiter (e.g., `/` on Unix-like systems).
 
 
 <!--====================================================-->

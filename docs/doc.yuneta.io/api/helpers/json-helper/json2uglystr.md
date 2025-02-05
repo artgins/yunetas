@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(json2uglystr())=
+# `json2uglystr()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `json2uglystr()` function converts a JSON object (`json_t *`) into a compact, non-tabular string representation. 
+This is useful when a minimalistic JSON string format is required without any extra whitespace or indentation.
+
+The function does not modify the input JSON object and returns a newly allocated string that must be freed using `gbmem_free()`.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *json2uglystr(
+    const json_t *jn
 );
 
 ```
@@ -41,9 +43,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `jn`
+  - `const json_t *`
+  - The JSON object to be converted into a compact string. The object is not owned by the function.
 
 :::
 
@@ -53,15 +55,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to a newly allocated string containing the compact JSON representation. 
+The caller is responsible for freeing the returned string using `gbmem_free()`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function is designed for scenarios where a compact JSON format is needed, such as for network transmission or storage.
+- Ensure that the returned string is properly freed to avoid memory leaks.
+- For a formatted, indented JSON string, use the [`json2str()`](#json2str) function instead.
 
 
 <!--====================================================-->

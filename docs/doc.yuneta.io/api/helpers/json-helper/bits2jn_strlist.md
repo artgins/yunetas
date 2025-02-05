@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(bits2jn_strlist())=
+# `bits2jn_strlist()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `bits2jn_strlist()` function converts a bitmask (`bits`) into a JSON list of strings. 
+Each bit in the bitmask corresponds to a string in the `strings_table`. The function iterates 
+through the bitmask, and for each bit that is set, it adds the corresponding string from 
+`strings_table` to the resulting JSON list. The `strings_table` must be a NULL-terminated array of strings.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+json_t *bits2jn_strlist(
+    const char **strings_table,
+    uint64_t    bits
 );
 
 ```
@@ -41,9 +44,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `strings_table`
+  - `const char **`
+  - A NULL-terminated array of strings representing the names of the bits.
+
+* - `bits`
+  - `uint64_t`
+  - A bitmask where each bit corresponds to an entry in the `strings_table`.
 
 :::
 
@@ -53,15 +60,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a `json_t *` object representing a JSON array of strings. Each string in the array corresponds 
+to a bit set in the `bits` parameter. If no bits are set, the function returns an empty JSON array.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `strings_table` must be strictly ordered in ascending bit value, and it must end with a NULL entry.
+- The caller is responsible for managing the memory of the returned `json_t *` object, typically by using `json_decref()`.
+- This function is useful for converting bitmask representations into human-readable JSON formats.
 
 
 <!--====================================================-->

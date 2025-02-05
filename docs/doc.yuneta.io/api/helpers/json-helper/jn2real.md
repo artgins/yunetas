@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(jn2real())=
+# `jn2real()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `jn2real()` function converts a JSON value (`json_t *`) into a `double` (real number). 
+It is a utility function designed to simplify the extraction of numeric values from JSON objects. 
+If the JSON value is not a numeric type, the behavior of the function may vary depending on the implementation.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+double jn2real(
+    json_t *jn_var
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `jn_var`
+  - `json_t *`
+  - A pointer to the JSON value to be converted to a real number.
 
 :::
 
@@ -53,15 +54,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the `double` representation of the JSON value. If the JSON value cannot be converted to a real number, 
+the function may return an undefined or default value (e.g., 0.0), depending on the implementation.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function is intended for simple JSON values. Complex types (e.g., objects or arrays) are not supported.
+- Ensure that the input JSON value is of a numeric type to avoid unexpected behavior.
+- For related functionality, see [`jn2integer()`](#jn2integer), [`jn2string()`](#jn2string), and [`jn2bool()`](#jn2bool).
 
 
 <!--====================================================-->

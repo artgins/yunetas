@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(delete_right_char())=
+# `delete_right_char()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `delete_right_char()` function removes all trailing occurrences of the character `x` 
+from the string `s`. The function modifies the input string in place and returns the 
+same pointer `s` after modification.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *delete_right_char(
+    char *s,
+    char  x
 );
 
 ```
@@ -41,9 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `s`
+  - `char *`
+  - The input string to be modified.
+
+* - `x`
+  - `char`
+  - The character to be removed from the right end of the string.
 
 :::
 
@@ -53,15 +59,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the modified string `s` with all trailing occurrences of `x` removed.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function modifies the input string directly.
+- If `s` is `NULL`, the behavior is undefined.
+- If `x` does not appear at the end of `s`, the string remains unchanged.
 
 
 <!--====================================================-->

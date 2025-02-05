@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(node_uuid())=
+# `node_uuid()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `node_uuid()` function retrieves the unique identifier (UUID) of the machine. 
+This UUID is typically used to uniquely identify the machine in distributed systems or applications.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +24,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+const char *node_uuid(void);
 
 ```
 
@@ -41,9 +39,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - None
+  - None
+  - This function does not accept any parameters.
 
 :::
 
@@ -53,15 +51,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a `const char *` pointing to the UUID of the machine. 
+The UUID is represented as a string and is guaranteed to be unique for the machine.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+The UUID returned by `node_uuid()` is machine-specific and remains constant unless explicitly changed by the system or application.
 
 
 <!--====================================================-->

@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(parse_date())=
+# `parse_date()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `parse_date()` function parses a date string provided in various formats and converts it into a normalized string representation. 
+The normalized date is stored in the `out` buffer. This function supports a wide range of date formats, including absolute, relative, 
+and shorthand formats, as well as combinations of date and time. The function ensures that the output is formatted consistently 
+for further processing or display.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int parse_date(
+    const char *date,
+    char       *out,
+    int         outsize
 );
 
 ```
@@ -41,10 +45,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input date string to be parsed. It can be in various formats, such as ISO 8601, relative dates, or shorthand notations.
 
+* - `out`
+  - `char *`
+  - A buffer where the normalized date string will be stored. The buffer must be pre-allocated by the caller.
+
+* - `outsize`
+  - `int`
+  - The size of the `out` buffer in bytes. This ensures that the function does not write beyond the allocated memory.
 :::
 
 
@@ -53,15 +64,17 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, indicating that the date string was successfully parsed and normalized. 
+Returns `-1` on failure, indicating that the input date string could not be parsed or was invalid.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `out` buffer must be large enough to store the normalized date string. If the buffer is too small, the function may fail.
+- The function supports a wide range of date formats, including absolute dates (e.g., `2024-09-17`), relative dates (e.g., `3 days ago`), 
+  and shorthand notations (e.g., `yesterday`).
+- For more advanced parsing, consider using [`approxidate_careful()`](#approxidate_careful) or [`approxidate_relative()`](#approxidate_relative).
 
 
 <!--====================================================-->

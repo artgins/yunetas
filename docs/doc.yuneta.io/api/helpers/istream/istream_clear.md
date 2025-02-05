@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_clear())=
+# `istream_clear()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_clear()` function resets both the write and read pointers of the given [`istream_h`](#istream_h) instance. 
+This effectively clears the internal state of the input stream, making it ready for new data without deallocating or 
+reinitializing the underlying buffer.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void istream_clear(
+    istream_h istream
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream object to be cleared.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not free or reallocate the memory associated with the input stream. It only resets the pointers.
+- Use this function when you want to reuse an existing [`istream_h`](#istream_h) instance without creating a new one.
 
 
 <!--====================================================-->

@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(htonll())=
+# `htonll()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `htonll()` function converts a 64-bit integer (`uint64_t`) from host byte order to network byte order. 
+This is useful for ensuring consistent data representation across systems with different endianness.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+uint64_t htonll(
+    uint64_t value
 );
 
 ```
@@ -41,9 +41,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `value`
+  - `uint64_t`
+  - The 64-bit integer to be converted to network byte order.
 
 :::
 
@@ -53,15 +53,13 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the 64-bit integer in network byte order (`uint64_t`).
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function is particularly useful in network programming where data must be transmitted in a standard byte order (big-endian).
 
 
 <!--====================================================-->

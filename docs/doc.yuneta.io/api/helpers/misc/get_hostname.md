@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(get_hostname())=
+# `get_hostname()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `get_hostname()` function retrieves the hostname of the current machine. 
+It returns a pointer to a string containing the hostname, which is typically 
+used for network identification or logging purposes.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +25,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+const char *get_hostname(void);
 
 ```
 
@@ -41,9 +40,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - None
+  - None
+  - This function does not accept any parameters.
 
 :::
 
@@ -53,15 +52,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to a constant string containing the hostname of the machine. 
+The returned string should not be modified or freed by the caller.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+The function relies on system-level calls to retrieve the hostname. 
+If the hostname cannot be determined, the behavior may depend on the underlying implementation.
 
 
 <!--====================================================-->

@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_read_until_num_bytes())=
+# `istream_read_until_num_bytes()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_read_until_num_bytes()` function reads data from the input stream until the specified number of bytes (`num_bytes`) is available. Once the required number of bytes is read, the function triggers the specified event (`event`) to notify the caller. This function is useful for processing streams where a fixed amount of data needs to be read before further processing.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +23,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int istream_read_until_num_bytes(
+    istream_h       istream,
+    size_t          num_bytes,
+    gobj_event_t    event
 );
 
 ```
@@ -41,9 +42,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream from which data is being read.
+
+* - `num_bytes`
+  - `size_t`
+  - The number of bytes to read from the input stream before triggering the event.
+
+* - `event`
+  - `gobj_event_t`
+  - The event to be triggered once the specified number of bytes is read.
 
 :::
 
@@ -53,15 +62,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, or a negative value if an error occurs during the operation.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not consume the data from the stream; it only ensures that the specified number of bytes is available for reading.
+- If the stream does not contain enough data, the function will wait until the required amount is available.
+- Ensure that the `istream` handle is valid and properly initialized before calling this function.
 
 
 <!--====================================================-->

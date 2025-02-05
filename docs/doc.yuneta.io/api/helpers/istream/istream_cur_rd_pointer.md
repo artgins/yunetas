@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_cur_rd_pointer())=
+# `istream_cur_rd_pointer()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_cur_rd_pointer()` function retrieves the current read pointer of the provided [`istream_h`](#istream_h) instance. This pointer indicates the position in the input stream where the next read operation will begin. The function is useful for accessing the raw data in the stream without consuming it.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +23,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *istream_cur_rd_pointer(
+    istream_h istream
 );
 
 ```
@@ -41,9 +40,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream whose current read pointer is to be retrieved.
 
 :::
 
@@ -53,15 +52,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the current read position in the input stream. The returned pointer can be used to access the data directly without modifying the stream state.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The returned pointer is valid as long as the [`istream_h`](#istream_h) instance remains unchanged.
+- This function does not consume or modify the data in the stream.
+- Ensure that the `istream` handle is valid before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

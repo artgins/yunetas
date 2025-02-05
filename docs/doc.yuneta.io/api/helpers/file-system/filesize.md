@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(filesize())=
+# `filesize()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `filesize()` function retrieves the size of a file specified by its path. 
+It uses the `stat` system call to obtain the file's metadata and extracts the file size from the `st_size` field of the `stat` structure.
 
 
 <!------------------------------------------------------------>
@@ -24,7 +24,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
+PUBLIC off_t filesize(
     const char *path
 );
 
@@ -43,7 +43,7 @@ PUBLIC mode_t file_permission(
 
 * - `path`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The path to the file whose size is to be determined.
 
 :::
 
@@ -53,15 +53,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the size of the file in bytes as an `off_t` type. If the file does not exist or an error occurs, the function returns `-1`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the file specified by `path` exists and is accessible.
+- This function does not follow symbolic links; it retrieves the size of the link itself if the path points to a symbolic link.
 
 
 <!--====================================================-->

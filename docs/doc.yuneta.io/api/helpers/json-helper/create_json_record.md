@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(create_json_record())=
+# `create_json_record()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `create_json_record()` function generates a new JSON object based on the provided `json_desc_t` descriptor. 
+This descriptor defines the structure, types, and default values for the JSON object. 
+The function is useful for creating structured JSON records that adhere to a predefined schema.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC json_t *create_json_record(
+    hgobj               gobj,
+    const json_desc_t   *json_desc
 );
 
 ```
@@ -41,10 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `gobj`
+  - `hgobj`
+  - The gobj (generic object) associated with the operation.
 
+* - `json_desc`
+  - `const json_desc_t *`
+  - Pointer to a descriptor array defining the JSON structure, types, and default values. The array must end with a null entry.
 :::
 
 
@@ -53,15 +58,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to a newly created `json_t` object that represents the JSON record. 
+The caller is responsible for managing the memory of the returned object.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `json_desc_t` structure must be properly defined and terminated with a null entry.
+- The function dynamically allocates memory for the JSON object. Ensure to free it when no longer needed.
+- This function is particularly useful for creating JSON records that conform to a specific schema.
 
 
 <!--====================================================-->

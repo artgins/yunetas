@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_read_until_delimiter())=
+# `istream_read_until_delimiter()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_read_until_delimiter()` function reads data from the input stream (`istream`) until the specified delimiter is encountered. 
+The function triggers the specified event (`event`) once the delimiter is found. This allows for processing of the data read up to the delimiter.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,11 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int istream_read_until_delimiter(
+    istream_h       istream,
+    const char      *delimiter,
+    size_t          delimiter_size,
+    gobj_event_t    event
 );
 
 ```
@@ -41,10 +44,21 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream from which data is read.
 
+* - `delimiter`
+  - `const char *`
+  - Pointer to the delimiter string that marks the end of the data to be read.
+
+* - `delimiter_size`
+  - `size_t`
+  - Size of the delimiter in bytes.
+
+* - `event`
+  - `gobj_event_t`
+  - Event to be triggered when the delimiter is found.
 :::
 
 
@@ -53,15 +67,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, or a negative value if an error occurs. The error may indicate issues such as invalid parameters or internal stream errors.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not consume the delimiter itself; it only reads up to the delimiter.
+- Ensure that the `istream` is properly initialized before calling this function.
+- The `event` parameter must be a valid event that can handle the data read from the stream.
 
 
 <!--====================================================-->

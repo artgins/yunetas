@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(tm2timestamp())=
+# `tm2timestamp()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `tm2timestamp()` function converts a `struct tm` time structure into a formatted timestamp string.
+The resulting timestamp is stored in the provided buffer `bf` with a maximum size of `bfsize` bytes.
+The format of the timestamp follows the standard ISO 8601 format: `YYYY-MM-DD HH:MM:SS`.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *tm2timestamp(
+    char *bf,
+    int   bfsize,
+    struct tm *tm
 );
 
 ```
@@ -41,9 +44,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `bf`
+  - `char *`
+  - Pointer to the buffer where the formatted timestamp will be stored.
+
+* - `bfsize`
+  - `int`
+  - The size of the buffer `bf` in bytes.
+
+* - `tm`
+  - `struct tm *`
+  - Pointer to a `struct tm` containing the time information to be converted.
 
 :::
 
@@ -53,15 +64,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the buffer `bf` containing the formatted timestamp string.
+If an error occurs (e.g., `bf` is NULL or `bfsize` is too small), the function may return NULL or an incomplete string.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+Ensure that `bf` has enough space to store the formatted timestamp.
+A buffer size of at least 20 bytes is recommended to accommodate the full timestamp format.
 
 
 <!--====================================================-->

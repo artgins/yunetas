@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(approxidate_careful())=
+# `approxidate_careful()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `approxidate_careful()` function interprets a human-readable date string and converts it into a `timestamp_t` value. 
+It supports a wide range of date formats, including absolute dates, relative dates, special time keywords, and combinations of date and time. 
+The function is designed to handle ambiguous or incomplete input carefully, providing a robust and flexible date parsing mechanism.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+timestamp_t approxidate_careful(
+    const char *date,
+    int        *offset
 );
 
 ```
@@ -41,9 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The human-readable date string to be parsed.
+
+* - `offset`
+  - `int *`
+  - Pointer to an integer where the function stores the timezone offset in seconds. Can be `NULL` if the offset is not needed.
 
 :::
 
@@ -53,15 +59,17 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a `timestamp_t` value representing the parsed date and time. If the input is invalid or cannot be parsed, the return value is undefined.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function supports a wide range of date formats, including ISO 8601, relative dates (e.g., "3 days ago"), and special keywords (e.g., "noon today").
+- If `offset` is provided, it will contain the timezone offset in seconds relative to UTC.
+- Ambiguous or incomplete input is interpreted based on context, such as the current date or a reference point.
+- For shorthand dates like `0` or `-1`, the function interprets them as "today" and "yesterday," respectively.
+- This function is part of a broader set of utilities for date and time manipulation.
 
 
 <!--====================================================-->

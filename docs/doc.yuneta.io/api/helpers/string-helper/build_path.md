@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(build_path())=
+# `build_path()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `build_path()` function constructs a file path by concatenating multiple string segments. 
+It takes a buffer `bf` and its size `bfsize` as inputs, along with a variable number of string arguments. 
+The resulting path is stored in the provided buffer `bf`. 
+This function ensures that the constructed path does not exceed the buffer size.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *build_path(
+    char    *bf,
+    size_t  bfsize,
+    ...
 );
 
 ```
@@ -41,9 +45,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `bf`
+  - `char *`
+  - Pointer to the buffer where the constructed path will be stored.
+
+* - `bfsize`
+  - `size_t`
+  - Size of the buffer `bf` in bytes.
+
+* - `...`
+  - `variadic`
+  - Variable number of string arguments to be concatenated to form the path.
 
 :::
 
@@ -53,15 +65,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to the buffer `bf` containing the constructed path. 
+If the buffer size is insufficient, the resulting path may be truncated.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the buffer `bf` is large enough to hold the constructed path, including the null terminator.
+- The function does not allocate memory; it relies on the caller to provide a pre-allocated buffer.
+- The variadic arguments must be null-terminated strings, and the list of arguments must end with a `NULL` pointer.
 
 
 <!--====================================================-->

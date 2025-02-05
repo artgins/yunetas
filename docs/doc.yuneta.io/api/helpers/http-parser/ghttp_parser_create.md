@@ -1,11 +1,16 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(ghttp_parser_create())=
+# `ghttp_parser_create()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `ghttp_parser_create()` function initializes and returns a new HTTP parser instance (`GHTTP_PARSER`).
+This parser is used to process HTTP messages, including headers and body content, and trigger events
+when different parts of the message are received.
+
+The function allows specifying event handlers for when the headers are completed, when body data is received,
+and when the entire message is completed. The parser can either send events directly to the parent object
+or publish them globally, depending on the `send_event` flag.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +29,13 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+GHTTP_PARSER *ghttp_parser_create(
+    hgobj           gobj,
+    enum http_parser_type type,
+    gobj_event_t    on_header_event,
+    gobj_event_t    on_body_event,
+    gobj_event_t    on_message_event,
+    BOOL            send_event
 );
 
 ```
@@ -41,10 +51,30 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `gobj`
+  - `hgobj`
+  - The parent GObj that will receive the parsed HTTP events.
 
+* - `type`
+  - `enum http_parser_type`
+  - The type of HTTP parser, either `HTTP_REQUEST` or `HTTP_RESPONSE`.
+
+* - `on_header_event`
+  - `gobj_event_t`
+  - The event triggered when the HTTP headers are fully received.
+
+* - `on_body_event`
+  - `gobj_event_t`
+  - The event triggered when a portion of the HTTP body is received.
+
+* - `on_message_event`
+  - `gobj_event_t`
+  - The event triggered when the entire HTTP message is received.
+
+* - `send_event`
+  - `BOOL`
+  - If `TRUE`, events are sent to the parent object using `gobj_send_event()`;
+    if `FALSE`, events are published globally using `gobj_publish_event()`.
 :::
 
 
@@ -53,15 +83,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to a newly allocated `GHTTP_PARSER` instance, or `NULL` if an error occurs.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The caller is responsible for destroying the parser using [`ghttp_parser_destroy()`](#ghttp_parser_destroy).
+- The `on_header_event` event receives a JSON object containing HTTP headers and metadata.
+- The `on_body_event` event receives partial body data in a buffer.
+- The `on_message_event` event receives the full message, including headers and body.
 
 
 <!--====================================================-->

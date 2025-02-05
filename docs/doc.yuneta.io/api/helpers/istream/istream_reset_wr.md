@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_reset_wr())=
+# `istream_reset_wr()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_reset_wr()` function resets the write pointer of the given `istream_h` instance. 
+This effectively clears any data written to the stream, allowing it to be reused for new data. 
+The function is useful for managing memory and reinitializing the stream without destroying and recreating it.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int istream_reset_wr(
+    istream_h istream
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream whose write pointer is to be reset.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, or a negative value if an error occurs during the reset operation.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not affect the read pointer of the stream.
+- Ensure that the `istream_h` handle is valid before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(get_ordered_filename_array())=
+# `get_ordered_filename_array()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `get_ordered_filename_array()` function retrieves an ordered array of filenames from a directory tree rooted at `root_dir`. 
+It traverses the directory tree, applies the specified `pattern` and options (`opt`), and returns the filenames in a sorted order. 
+The function allocates memory for the returned array, which must be freed using `free_ordered_filename_array()` after use.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,12 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char **get_ordered_filename_array(
+    hgobj       gobj,
+    const char *root_dir,
+    const char *pattern,
+    wd_option   opt,
+    int        *size
 );
 
 ```
@@ -41,10 +46,25 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `gobj`
+  - `hgobj`
+  - Handle to the GObj (generic object) that may be used for logging or context.
 
+* - `root_dir`
+  - `const char *`
+  - The root directory from which to start the traversal.
+
+* - `pattern`
+  - `const char *`
+  - A pattern to match filenames (e.g., "*.txt"). Can be `NULL` to match all files.
+
+* - `opt`
+  - `wd_option`
+  - Options for traversal, such as recursive search or filtering by file type.
+
+* - `size`
+  - `int *`
+  - Pointer to an integer where the function will store the number of filenames found.
 :::
 
 
@@ -53,15 +73,17 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to an array of strings (`char **`) containing the ordered filenames. 
+If no files are found or an error occurs, the function returns `NULL`. 
+The caller is responsible for freeing the returned array using `free_ordered_filename_array()`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function allocates memory for the returned array and its contents. Use `free_ordered_filename_array()` to release this memory.
+- The traversal behavior and filtering are controlled by the `opt` parameter, which can include options like `WD_RECURSIVE` or `WD_HIDDENFILES`.
+- This function is a custom implementation and may be less efficient than using standard library functions like `glob()`.
 
 
 <!--====================================================-->

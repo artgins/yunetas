@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(ISTREAM_DESTROY())=
+# `ISTREAM_DESTROY()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `ISTREAM_DESTROY` macro safely destroys an `istream_h` instance by calling 
+[`istream_destroy()`](#istream_destroy) if the instance is not `NULL`. 
+After destruction, it sets the pointer to `0` to prevent dangling references.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +25,11 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+#define ISTREAM_DESTROY(istream)    \
+    if(istream) {                   \
+        istream_destroy(istream);   \
+    }                               \
+    (ptr) = 0;
 
 ```
 
@@ -41,9 +44,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - The input stream handle to be destroyed.
 
 :::
 
@@ -53,15 +56,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This macro does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This macro ensures that `istream_destroy()` is only called if `istream` is not `NULL`.
+- After destruction, the pointer is explicitly set to `0` to avoid accidental reuse.
 
 
 <!--====================================================-->

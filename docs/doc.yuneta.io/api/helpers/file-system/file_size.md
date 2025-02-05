@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(file_size())=
+# `file_size()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `file_size()` function retrieves the size of a file specified by its path. 
+It determines the size of the file in bytes and returns it as an `off_t` value. 
+This function is useful for checking the size of a file before performing operations such as reading or writing.
 
 
 <!------------------------------------------------------------>
@@ -24,7 +25,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
+PUBLIC off_t file_size(
     const char *path
 );
 
@@ -43,7 +44,7 @@ PUBLIC mode_t file_permission(
 
 * - `path`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The path to the file whose size is to be determined.
 
 :::
 
@@ -53,15 +54,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the size of the file in bytes as an `off_t` value. 
+If the file does not exist or an error occurs, the function returns `-1`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function uses system calls to retrieve file information, so it may fail if the file does not exist or the process lacks the necessary permissions.
+- This function is a wrapper for the `stat()` system call to extract the file size.
 
 
 <!--====================================================-->

@@ -1,11 +1,14 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(walk_dir_tree())=
+# `walk_dir_tree()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `walk_dir_tree()` function traverses a directory tree starting from the specified `root_dir`. 
+It calls the provided callback function `cb` for each file or directory found. The traversal can 
+be customized using the `opt` parameter, which specifies options such as recursion, matching 
+hidden files, or filtering by file types. If the callback function returns `FALSE`, the traversal 
+stops. This function is useful for processing files and directories in a structured manner.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +27,13 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int walk_dir_tree(
+    hgobj       gobj,
+    const char  *root_dir,
+    const char  *pattern,
+    wd_option   opt,
+    walkdir_cb  cb,
+    void        *user_data
 );
 
 ```
@@ -41,10 +49,29 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `gobj`
+  - `hgobj`
+  - The gobj instance used for logging or context.
 
+* - `root_dir`
+  - `const char *`
+  - The root directory from which the traversal begins.
+
+* - `pattern`
+  - `const char *`
+  - A pattern to match file or directory names. Can be `NULL` for no filtering.
+
+* - `opt`
+  - `wd_option`
+  - Options to customize the traversal behavior, such as recursion or file type matching.
+
+* - `cb`
+  - `walkdir_cb`
+  - Callback function to be called for each file or directory found.
+
+* - `user_data`
+  - `void *`
+  - User-defined data passed to the callback function.
 :::
 
 
@@ -53,15 +80,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success or `-1` on failure. The return value follows standard Unix conventions.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The callback function `cb` must return `TRUE` to continue traversal or `FALSE` to stop.
+- The `opt` parameter allows fine-grained control over the traversal, including options like 
+  `WD_RECURSIVE` for recursive traversal or `WD_HIDDENFILES` to include hidden files.
+- Ensure that the `root_dir` exists and is accessible; otherwise, the function will fail.
 
 
 <!--====================================================-->

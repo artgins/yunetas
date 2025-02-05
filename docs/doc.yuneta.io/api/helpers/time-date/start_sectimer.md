@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(start_sectimer())=
+# `start_sectimer()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `start_sectimer()` function initializes or disables a section timer. 
+If the `seconds` parameter is greater than 0, the timer is started with the specified duration in seconds. 
+If the `seconds` parameter is less than or equal to 0, the timer is disabled.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+time_t start_sectimer(
+    time_t seconds
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `seconds`
+  - `time_t`
+  - The duration in seconds for the timer. If the value is less than or equal to 0, the timer is disabled.
 
 :::
 
@@ -53,15 +54,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the current time in seconds (as a `time_t` value) when the timer is started. 
+If the timer is disabled, the return value is undefined.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function is useful for managing timed operations or delays. 
+Ensure that the `seconds` parameter is a positive value to start the timer.
 
 
 <!--====================================================-->

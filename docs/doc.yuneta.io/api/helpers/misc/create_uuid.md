@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(create_uuid())=
+# `create_uuid()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `create_uuid()` function generates a new random UUID and stores it in the provided buffer `bf`.
+The generated UUID is a string representation of a universally unique identifier (UUID).
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int create_uuid(
+    char   *bf,
+    int     bfsize
 );
 
 ```
@@ -41,9 +42,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `bf`
+  - `char *`
+  - Pointer to the buffer where the generated UUID will be stored.
+
+* - `bfsize`
+  - `int`
+  - Size of the buffer in bytes. It must be large enough to store the UUID string.
 
 :::
 
@@ -53,15 +58,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success if the UUID was successfully generated and stored in `bf`.
+Returns `-1` if an error occurs, such as if the buffer size is insufficient.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+The buffer `bf` must be large enough to store the UUID string, which typically requires at least 37 bytes (including the null terminator).
 
 
 <!--====================================================-->

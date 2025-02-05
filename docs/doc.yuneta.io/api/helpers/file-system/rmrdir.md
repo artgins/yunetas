@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(rmrdir())=
+# `rmrdir()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `rmrdir()` function recursively removes a directory and all its contents, including subdirectories and files. 
+It is designed to delete the specified directory and its entire hierarchy. 
+This function is useful for cleaning up directories that are no longer needed.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int rmrdir(
+    const char *root_dir
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `root_dir`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The path to the root directory that will be removed recursively.
 
 :::
 
@@ -53,15 +54,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, indicating that the directory and all its contents were successfully removed. 
+Returns `-1` on failure, with `errno` set to indicate the error (e.g., permission issues or non-existent directory).
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the directory specified in `root_dir` exists and is accessible before calling this function.
+- Use with caution, as this function will permanently delete all files and subdirectories within the specified directory.
+- This function does not follow symbolic links to avoid unintended deletions.
 
 
 <!--====================================================-->

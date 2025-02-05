@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(test_msectimer())=
+# `test_msectimer()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `test_msectimer()` function checks whether a previously started millisecond timer has expired.
+
+It compares the current monotonic time with the provided `value` and returns `TRUE` if the timer has finished, otherwise `FALSE`.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC BOOL test_msectimer(
+    uint64_t value
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `value`
+  - `uint64_t`
+  - The timestamp value returned by [`start_msectimer()`](#start_msectimer) to check if the timer has expired.
 
 :::
 
@@ -53,15 +54,13 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the timer has expired, otherwise `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function should be used in conjunction with [`start_msectimer()`](#start_msectimer) to manage millisecond-based timers.
 
 
 <!--====================================================-->

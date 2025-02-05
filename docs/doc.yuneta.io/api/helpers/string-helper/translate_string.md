@@ -1,11 +1,14 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(translate_string())=
+# `translate_string()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `translate_string()` function translates characters in the input string `from` 
+based on the mapping provided by `mk_from` and `mk_to`. Each character in `mk_from` 
+is replaced by the corresponding character in `mk_to`. The translated string is 
+stored in the buffer `to`, which has a maximum size of `tolen`. The function ensures 
+that the output string is null-terminated.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +27,12 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *translate_string(
+    char        *to,
+    int         tolen,
+    const char  *from,
+    const char  *mk_to,
+    const char  *mk_from
 );
 
 ```
@@ -41,9 +48,25 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `to`
+  - `char *`
+  - Pointer to the buffer where the translated string will be stored.
+
+* - `tolen`
+  - `int`
+  - The size of the `to` buffer, ensuring the translated string does not exceed this length.
+
+* - `from`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input string to be translated.
+
+* - `mk_to`
+  - `const char *`
+  - A string containing the characters to replace with.
+
+* - `mk_from`
+  - `const char *`
+  - A string containing the characters to be replaced.
 
 :::
 
@@ -53,15 +76,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the translated string stored in the `to` buffer.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `to` buffer must be large enough to hold the translated string, including the null terminator.
+- If `mk_from` and `mk_to` have different lengths, only the characters up to the length of the shorter string are considered.
+- The function does not handle overlapping memory between `to` and `from`.
 
 
 <!--====================================================-->

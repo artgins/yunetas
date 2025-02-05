@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(count_char())=
+# `count_char()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `count_char()` function counts the number of occurrences of the character `c` in the string `s`.
+It iterates through the string and increments a counter each time it encounters the specified character.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int count_char(
+    const char  *s,
+    char        c
 );
 
 ```
@@ -41,9 +42,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `s`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input string in which occurrences of `c` will be counted.
+
+* - `c`
+  - `char`
+  - The character to count within the string `s`.
 
 :::
 
@@ -53,15 +58,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the number of times the character `c` appears in the string `s`.
+If `s` is `NULL`, the function returns `0`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not modify the input string `s`.
+- If `s` is an empty string, the function returns `0`.
 
 
 <!--====================================================-->

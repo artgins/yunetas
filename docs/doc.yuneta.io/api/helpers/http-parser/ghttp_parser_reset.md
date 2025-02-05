@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(ghttp_parser_reset())=
+# `ghttp_parser_reset()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `ghttp_parser_reset()` function resets the internal state of a `GHTTP_PARSER` instance, 
+allowing it to be reused for parsing a new HTTP message. This function clears any stored 
+headers, body data, and resets internal flags related to message completion.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void ghttp_parser_reset(
+    GHTTP_PARSER *parser
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `parser`
+  - `GHTTP_PARSER *`
+  - Pointer to the `GHTTP_PARSER` instance to be reset.
 
 :::
 
@@ -53,15 +54,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This function should be called before reusing an existing `GHTTP_PARSER` instance for a new HTTP message.
+- It does not free the parser; it only resets its internal state.
+- If the parser contains allocated memory for headers or body data, ensure proper memory management before calling this function.
 
 
 <!--====================================================-->

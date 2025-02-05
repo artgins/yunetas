@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(json_list_str_index())=
+# `json_list_str_index()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `json_list_str_index()` function searches for a string within a JSON list and returns its index. If the string is not found, the function returns `-1`. The search can be case-sensitive or case-insensitive, depending on the `ignore_case` parameter.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +23,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int json_list_str_index(
+    json_t *jn_list,
+    const char *str,
+    BOOL ignore_case
 );
 
 ```
@@ -41,9 +42,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `jn_list`
+  - `json_t *`
+  - A JSON array to search within. Must be a valid JSON list.
+
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The string to search for in the JSON list.
+
+* - `ignore_case`
+  - `BOOL`
+  - If `TRUE`, the search will be case-insensitive. If `FALSE`, the search will be case-sensitive.
 
 :::
 
@@ -53,15 +62,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the index of the string in the JSON list if found. If the string is not found, the function returns `-1`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function assumes that `jn_list` is a valid JSON array. Passing a non-array JSON object may result in undefined behavior.
+- Use this function to efficiently locate string values in JSON arrays, especially when working with dynamic JSON data.
 
 
 <!--====================================================-->

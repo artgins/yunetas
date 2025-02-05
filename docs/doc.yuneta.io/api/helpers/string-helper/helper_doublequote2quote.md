@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(helper_doublequote2quote())=
+# `helper_doublequote2quote()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `helper_doublequote2quote()` function replaces all double quotes (`"`) in the input string `str` with single quotes (`'`). 
+This is useful for converting JSON-like strings or other text representations where single quotes are preferred over double quotes.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *helper_doublequote2quote(
+    char *str
 );
 
 ```
@@ -41,9 +41,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `str`
+  - `char *`
+  - A pointer to the input string that will be modified in place. The string must be null-terminated.
 
 :::
 
@@ -53,15 +53,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the modified string `str` where all double quotes have been replaced with single quotes.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The input string `str` is modified in place, so ensure that it is writable.
+- This function does not allocate new memory; it operates directly on the provided string.
+- If the input string contains no double quotes, it remains unchanged.
 
 
 <!--====================================================-->

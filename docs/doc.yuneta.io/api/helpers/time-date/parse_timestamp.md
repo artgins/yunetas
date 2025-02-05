@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(parse_timestamp())=
+# `parse_timestamp()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `parse_timestamp` macro is defined as an alias for `strtoumax`, 
+which converts a string to an unsigned integer of type `uintmax_t`. 
+It is typically used to parse timestamp values from string representations.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +25,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+#define parse_timestamp  strtoumax
 
 ```
 
@@ -41,9 +40,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The string containing the numeric representation of the timestamp.
+
+* - `endptr`
+  - `char **`
+  - Pointer to a pointer to character, where the function stores the address of the first invalid character.
+
+* - `base`
+  - `int`
+  - The numerical base to be used for conversion (e.g., 10 for decimal, 16 for hexadecimal).
 
 :::
 
@@ -53,15 +60,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the converted value as `uintmax_t`. If no valid conversion could be performed, 
+zero is returned. If the value is out of range, `UINTMAX_MAX` is returned.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This macro is a direct alias for `strtoumax`, so all behaviors and limitations of `strtoumax` apply.
+- The `endptr` parameter can be used to check if the entire string was successfully parsed.
+- The function does not detect signed overflows, as it only works with unsigned integers.
 
 
 <!--====================================================-->

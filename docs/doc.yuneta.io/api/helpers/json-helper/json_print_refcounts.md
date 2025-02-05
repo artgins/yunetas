@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(json_print_refcounts())=
+# `json_print_refcounts()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `json_print_refcounts()` function checks and prints the reference counts of a JSON object (`json_t *`) and its nested elements. 
+It traverses the JSON structure deeply and outputs the reference count of each element at the specified level of indentation.
+
+This function is useful for debugging memory management issues in JSON objects, particularly when working with libraries like Jansson.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int json_print_refcounts(
+    json_t *jn,   // not owned
+    int     level
 );
 
 ```
@@ -41,10 +44,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `jn`
+  - `json_t *`
+  - The JSON object to analyze. This object is not owned by the function.
 
+* - `level`
+  - `int`
+  - The indentation level for the output. Used to format the printed reference counts.
 :::
 
 
@@ -53,15 +59,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success. If an error occurs during the traversal or printing process, the function may return a non-zero value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This function is primarily intended for debugging purposes.
+- It does not modify the input JSON object.
+- Ensure that the `jn` parameter is a valid JSON object before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

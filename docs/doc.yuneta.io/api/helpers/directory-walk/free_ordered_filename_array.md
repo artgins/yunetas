@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(free_ordered_filename_array())=
+# `free_ordered_filename_array()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `free_ordered_filename_array()` function is used to deallocate memory for an array of ordered filenames that was previously allocated by [`get_ordered_filename_array()`](#get_ordered_filename_array). This function ensures that both the individual strings and the array itself are properly freed to prevent memory leaks.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +23,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void free_ordered_filename_array(
+    char **array,
+    int    size
 );
 
 ```
@@ -41,10 +41,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `array`
+  - `char **`
+  - Pointer to the array of filenames to be freed.
 
+* - `size`
+  - `int`
+  - The number of elements in the array.
 :::
 
 
@@ -53,15 +56,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `array` parameter must be a valid pointer to an array of strings allocated by [`get_ordered_filename_array()`](#get_ordered_filename_array).
+- Ensure that the `size` parameter matches the number of elements in the array to avoid undefined behavior.
+- This function should not be used with arrays that were not allocated dynamically or with arrays allocated by other means.
 
 
 <!--====================================================-->

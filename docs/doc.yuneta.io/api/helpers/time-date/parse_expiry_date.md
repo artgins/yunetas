@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(parse_expiry_date())=
+# `parse_expiry_date()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `parse_expiry_date()` function parses a date string and converts it into a `timestamp_t` value. 
+This function is designed to handle various date formats and interpret them into a timestamp representation. 
+The parsed timestamp is stored in the `timestamp` parameter. 
+The function is useful for converting human-readable date formats into machine-readable timestamps.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC int parse_expiry_date(
+    const char      *date,
+    timestamp_t     *timestamp
 );
 
 ```
@@ -41,9 +44,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input date string to be parsed. It can be in various formats, including absolute or relative dates.
+
+* - `timestamp`
+  - `timestamp_t *`
+  - A pointer to a `timestamp_t` variable where the parsed timestamp will be stored.
 
 :::
 
@@ -53,15 +60,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success if the date string is successfully parsed and the timestamp is stored in the provided pointer. 
+Returns `-1` on failure if the date string is invalid or cannot be interpreted.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `date` parameter supports a wide range of formats, including ISO 8601, relative dates (e.g., "3 days ago"), and shorthand notations.
+- Ensure that the `timestamp` pointer is valid and points to allocated memory before calling this function.
+- This function is part of the time utilities and is commonly used for expiration date calculations.
 
 
 <!--====================================================-->

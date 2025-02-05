@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(str_concat_free())=
+# `str_concat_free()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `str_concat_free()` function frees the memory allocated for a concatenated string.
+It is used to deallocate memory that was previously allocated by [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void str_concat_free(
+    char *s
 );
 
 ```
@@ -41,9 +41,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `s`
+  - `char *`
+  - Pointer to the dynamically allocated string to be freed.
 
 :::
 
@@ -53,15 +53,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The pointer `s` must have been allocated using [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
+- Passing a NULL pointer is safe and has no effect.
+- After calling this function, the pointer should not be used again unless reassigned.
 
 
 <!--====================================================-->

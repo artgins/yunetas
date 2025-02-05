@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(time_in_miliseconds())=
+# `time_in_miliseconds()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `time_in_miliseconds()` function retrieves the current real-world time in milliseconds since the Unix epoch (January 1, 1970). This function provides a high-resolution timestamp for real-time applications.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +23,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+uint64_t time_in_miliseconds(void);
 
 ```
 
@@ -41,9 +38,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - None
+  - None
+  - This function does not accept any parameters.
 
 :::
 
@@ -53,15 +50,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the current real-world time in milliseconds as a `uint64_t` value. This value represents the number of milliseconds elapsed since the Unix epoch.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This function is useful for measuring elapsed time or for timestamping events.
+- The resolution and accuracy depend on the underlying system clock.
 
 
 <!--====================================================-->

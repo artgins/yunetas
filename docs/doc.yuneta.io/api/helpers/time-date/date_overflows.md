@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(date_overflows())=
+# `date_overflows()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `date_overflows()` function checks whether a given timestamp exceeds the maximum allowable value for a timestamp. This is useful for validating timestamps to ensure they do not cause overflow errors in subsequent operations.
+
+The function is part of the time utilities and is designed to handle edge cases where timestamps might exceed the limits of the data type.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC int date_overflows(
+    timestamp_t date
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `date`
+  - `timestamp_t`
+  - The timestamp to be checked for overflow.
 
 :::
 
@@ -53,15 +54,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns an integer indicating whether the timestamp overflows:
+
+- `0`: The timestamp does not overflow.
+- `1`: The timestamp overflows.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function is particularly useful in scenarios where timestamps are derived from user input or external sources, ensuring that invalid or extreme values are handled gracefully.
 
 
 <!--====================================================-->

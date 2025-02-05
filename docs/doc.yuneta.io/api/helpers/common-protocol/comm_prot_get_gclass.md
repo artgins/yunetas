@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(comm_prot_get_gclass())=
+# `comm_prot_get_gclass()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `comm_prot_get_gclass()` function retrieves the `gclass_name_t` associated with a given communication protocol schema.
+
+This function allows querying the registered communication protocols to determine which `gclass` is responsible for handling a specific schema.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+gclass_name_t comm_prot_get_gclass(
+    const char *schema
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `schema`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The schema string representing the communication protocol.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the `gclass_name_t` corresponding to the given `schema`. If the schema is not found, it returns `NULL`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function relies on previously registered communication protocols using [`comm_prot_register()`](#comm_prot_register).
+- Ensure that the schema provided is correctly formatted and registered before calling this function.
 
 
 <!--====================================================-->

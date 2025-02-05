@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(split2())=
+# `split2()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `split2()` function splits a given string `str` into a list of substrings based on the specified delimiter `delim`. 
+It returns an array of strings, excluding any empty substrings. The size of the resulting list is stored in `list_size` 
+if it is not null. The returned list must be freed using [`split_free2()`](#split_free2) to avoid memory leaks.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+const char **split2(
+    const char *str,
+    const char *delim,
+    int        *list_size
 );
 
 ```
@@ -41,9 +44,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input string to be split.
+
+* - `delim`
+  - `const char *`
+  - The delimiter string used to split the input string.
+
+* - `list_size`
+  - `int *`
+  - Pointer to an integer where the size of the resulting list will be stored. Can be null.
 
 :::
 
@@ -53,15 +64,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to an array of strings containing the substrings of `str` split by `delim`. 
+The array does not include empty substrings. The caller must free the returned array using [`split_free2()`](#split_free2).
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not include empty substrings in the resulting list.
+- The returned array must be freed using [`split_free2()`](#split_free2) to avoid memory leaks.
+- If `list_size` is null, the size of the resulting list will not be stored.
 
 
 <!--====================================================-->

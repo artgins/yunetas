@@ -1,11 +1,15 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(cmp_two_simple_json())=
+# `cmp_two_simple_json()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `cmp_two_simple_json()` function compares two simple JSON values (`jn_var1` and `jn_var2`) and determines their relative order. 
+It is designed to handle basic JSON types such as strings, integers, real numbers, and booleans. 
+Complex JSON types (e.g., objects or arrays) are treated as equal if their structure matches.
+
+The function returns a value indicating whether the first JSON value is less than, equal to, or greater than the second, 
+similar to the behavior of `strcmp` for strings.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +28,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int cmp_two_simple_json(
+    json_t *jn_var1,    // NOT owned
+    json_t *jn_var2     // NOT owned
 );
 
 ```
@@ -41,9 +46,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `jn_var1`
+  - `json_t *`
+  - The first JSON value to compare. This parameter is not owned by the function.
+
+* - `jn_var2`
+  - `json_t *`
+  - The second JSON value to compare. This parameter is not owned by the function.
 
 :::
 
@@ -53,15 +62,19 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+The function returns an integer value:
+
+- `-1`: If `jn_var1` is less than `jn_var2`.
+- `0`: If `jn_var1` is equal to `jn_var2`.
+- `1`: If `jn_var1` is greater than `jn_var2`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This function only compares simple JSON types: strings, integers, real numbers, and booleans.
+- Complex JSON types such as objects or arrays are treated as equal if their structure matches.
+- The input JSON values are not modified or owned by the function.
 
 
 <!--====================================================-->

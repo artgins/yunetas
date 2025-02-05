@@ -1,11 +1,16 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(ISTREAM_CREATE())=
+# `ISTREAM_CREATE()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `ISTREAM_CREATE` macro is a utility for safely creating an `istream_h` instance. 
+It ensures that if the variable `var` already holds an existing `istream_h` instance, 
+it is destroyed before creating a new one. This prevents memory leaks or undefined 
+behavior caused by reusing an existing `istream_h` without proper cleanup.
+
+The macro logs an error message if the variable `var` is already initialized, 
+indicating that the previous instance is being destroyed.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +29,17 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+#define ISTREAM_CREATE(var, gobj, data_size, max_size)                  \
+    if(var) {                                                           \
+        gobj_log_error((gobj), LOG_OPT_TRACE_STACK,                     \
+            "function",     "%s", __FUNCTION__,                         \
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,                \
+            "msg",          "%s", "istream_h ALREADY exists! Destroyed",  \
+            NULL                                                        \
+        );                                                              \
+        istream_destroy(var);                                           \
+    }                                                                   \
+    (var) = istream_create((gobj), (data_size), (max_size));
 
 ```
 
@@ -41,10 +54,21 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `var`
+  - `istream_h`
+  - The variable to hold the `istream_h` instance. If it already exists, it will be destroyed.
 
+* - `gobj`
+  - `hgobj`
+  - The GObj instance associated with the `istream_h`.
+
+* - `data_size`
+  - `size_t`
+  - The size of the data buffer for the `istream_h`.
+
+* - `max_size`
+  - `size_t`
+  - The maximum size of the `istream_h` buffer.
 :::
 
 
@@ -53,15 +77,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This macro does not return a value. It initializes the `var` variable with a new `istream_h` instance.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The macro internally calls `istream_create()` to allocate the new `istream_h` instance.
+- If `var` already holds an `istream_h` instance, it is destroyed using `istream_destroy()` before creating a new one.
+- Ensure that `var` is properly initialized to `NULL` before using this macro for the first time.
+- The macro logs an error message if `var` is already initialized, which can help in debugging improper usage.
 
 
 <!--====================================================-->

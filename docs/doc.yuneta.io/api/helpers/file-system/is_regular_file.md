@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(is_regular_file())=
+# `is_regular_file()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `is_regular_file()` function checks whether the file specified by the `path` parameter is a regular file. 
+A regular file is a standard file that contains data, as opposed to directories, symbolic links, or special files.
 
 
 <!------------------------------------------------------------>
@@ -24,7 +24,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
+BOOL is_regular_file(
     const char *path
 );
 
@@ -43,7 +43,7 @@ PUBLIC mode_t file_permission(
 
 * - `path`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The path to the file that needs to be checked.
 
 :::
 
@@ -53,15 +53,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the file at the specified `path` is a regular file. 
+Otherwise, it returns `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function uses the `stat` system call to determine the file type. 
+Ensure that the `path` provided is valid and accessible to avoid unexpected behavior.
 
 
 <!--====================================================-->

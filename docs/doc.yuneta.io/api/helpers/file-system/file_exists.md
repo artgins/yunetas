@@ -4,9 +4,9 @@
 <!-- ============================================================== -->
 
 
-The `file_exists` function checks whether a file with the specified `filename` exists in the given `directory`. 
-It returns a boolean value indicating the presence of the file. This function is useful for validating the existence 
-of a file before performing operations such as reading or writing.
+The `file_exists()` function checks whether a file with the specified `filename` exists in the given `directory`. 
+It returns a boolean value indicating the presence of the file. This function is useful for verifying the existence 
+of files before performing operations such as reading or writing.
 
 
 <!------------------------------------------------------------>
@@ -65,7 +65,9 @@ Returns `TRUE` if the file exists in the specified directory, otherwise returns 
 **Notes**
 
 
-This function does not verify file permissions or file type. It only checks for the existence of the file.
+- This function does not differentiate between file types (e.g., regular files, symbolic links).
+- Ensure that the `directory` and `filename` parameters are valid and properly formatted strings.
+- The function does not check for permissions or accessibility of the file.
 
 
 <!--====================================================-->

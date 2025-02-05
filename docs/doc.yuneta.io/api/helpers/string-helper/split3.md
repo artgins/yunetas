@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(split3())=
+# `split3()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `split3()` function splits the input string `str` using the delimiter characters specified in `delim`.
+It returns an array of strings, where each element is a substring extracted from `str`.
+Unlike [`split2()`](#split2), this function includes empty strings in the resulting list.
+The caller must free the returned list using [`split_free3()`](#split_free3).
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+const char **split3(
+    const char *str,
+    const char *delim,
+    int        *plist_size
 );
 
 ```
@@ -41,10 +45,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input string to be split.
 
+* - `delim`
+  - `const char *`
+  - A string containing delimiter characters used to split `str`.
+
+* - `plist_size`
+  - `int *`
+  - A pointer to an integer that will be set to the number of elements in the returned list. Can be `NULL`.
 :::
 
 
@@ -53,15 +64,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to an array of strings (`const char **`), where each element is a substring extracted from `str`.
+The last element of the array is `NULL` to indicate the end of the list.
+The caller must free the returned list using [`split_free3()`](#split_free3).
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Unlike [`split2()`](#split2), `split3()` includes empty strings in the result.
+- The returned list must be freed using [`split_free3()`](#split_free3).
 
 
 <!--====================================================-->

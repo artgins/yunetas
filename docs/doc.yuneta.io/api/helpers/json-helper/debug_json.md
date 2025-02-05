@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(debug_json())=
+# `debug_json()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `debug_json()` function is used to print a JSON object (`jn`) for debugging purposes. 
+It outputs the JSON data along with an optional label (`label`) to provide context. 
+If the `verbose` parameter is set to `TRUE`, additional details about the JSON object may be printed.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int debug_json(
+    const char *label,
+    json_t     *jn,
+    BOOL       verbose
 );
 
 ```
@@ -41,10 +44,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `label`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - A string label to provide context for the debug output.
 
+* - `jn`
+  - `json_t *`
+  - The JSON object to be printed. This object is not owned by the function.
+
+* - `verbose`
+  - `BOOL`
+  - A flag indicating whether to print additional details about the JSON object.
 :::
 
 
@@ -53,15 +63,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success or a negative value if an error occurs during the debugging process.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not modify the JSON object (`jn`).
+- Ensure that the `jn` parameter is a valid JSON object before calling this function.
+- This function is typically used for debugging purposes and may not be suitable for production environments.
 
 
 <!--====================================================-->

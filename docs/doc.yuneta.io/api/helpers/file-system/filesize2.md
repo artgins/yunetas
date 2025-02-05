@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(filesize2())=
+# `filesize2()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `filesize2()` function retrieves the size of a file associated with the given file descriptor `fd`. 
+It uses the `fstat()` system call to obtain file metadata and extracts the file size from the `st_size` field of the `struct stat`.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+off_t filesize2(
+    int fd
 );
 
 ```
@@ -41,9 +41,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `fd`
+  - `int`
+  - File descriptor of the file whose size is to be determined.
 
 :::
 
@@ -53,15 +53,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the size of the file in bytes as an `off_t` type. If an error occurs, the function may return -1, and the error can be checked using `errno`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the file descriptor `fd` is valid and refers to an open file.
+- This function does not close the file descriptor; the caller is responsible for managing the file descriptor's lifecycle.
 
 
 <!--====================================================-->

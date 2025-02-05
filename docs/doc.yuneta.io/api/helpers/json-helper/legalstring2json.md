@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(legalstring2json())=
+# `legalstring2json()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `legalstring2json` macro is an alias for the [`string2json()`](#string2json) function. 
+It is used to convert a JSON-like string into a `json_t *` object. The input string must be a valid JSON array (`[]`) or object (`{}`).
+
+This macro provides backward compatibility for older code that used `legalstring2json` before it was replaced by `string2json()`.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +26,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+#define legalstring2json string2json
 
 ```
 
@@ -41,9 +41,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input string to be converted into a JSON object.
+
+* - `verbose`
+  - `BOOL`
+  - If `TRUE`, the function will print detailed error messages when parsing fails.
 
 :::
 
@@ -53,15 +57,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to a `json_t *` object representing the parsed JSON structure. 
+If the input string is invalid, the function returns `NULL`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The input string must be a valid JSON array (`[]`) or object (`{}`).
+- The returned `json_t *` object must be freed using the appropriate JSON library function to avoid memory leaks.
+- For more advanced JSON parsing, consider using [`anystring2json()`](#anystring2json).
 
 
 <!--====================================================-->

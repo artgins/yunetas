@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(json_is_identical())=
+# `json_is_identical()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `json_is_identical()` function compares two JSON objects (`kw1` and `kw2`) and determines if they are identical. 
+It performs a deep comparison of the JSON structures, including their keys, values, and types. 
+The function returns `TRUE` if the two JSON objects are identical and `FALSE` otherwise.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+BOOL json_is_identical(
+    json_t *kw1,    // NOT owned
+    json_t *kw2     // NOT owned
 );
 
 ```
@@ -41,9 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `kw1`
+  - `json_t *`
+  - The first JSON object to compare. This parameter is not owned by the function.
+
+* - `kw2`
+  - `json_t *`
+  - The second JSON object to compare. This parameter is not owned by the function.
 
 :::
 
@@ -53,15 +59,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the two JSON objects are identical, otherwise returns `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function only compares the content of the JSON objects, not their memory addresses.
+- Complex types such as arrays and objects are compared recursively.
+- The function does not modify the input JSON objects.
 
 
 <!--====================================================-->

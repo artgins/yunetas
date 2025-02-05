@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(delete_left_blanks())=
+# `delete_left_blanks()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `delete_left_blanks()` function removes all leading whitespace characters 
+(spaces and tabs) from the given string `s`. The function modifies the string 
+in place by shifting characters to the left to remove the leading blanks.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void delete_left_blanks(
+    char *s
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `s`
+  - `char *`
+  - Pointer to the null-terminated string to be modified.
 
 :::
 
@@ -53,15 +54,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value. The input string `s` is modified in place.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function assumes that `s` is a valid null-terminated string.
+- If `s` is `NULL` or an empty string, the function does nothing.
+- The function does not allocate or free memory; it only modifies the existing string.
 
 
 <!--====================================================-->

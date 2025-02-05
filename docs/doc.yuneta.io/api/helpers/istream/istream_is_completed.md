@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_is_completed())=
+# `istream_is_completed()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_is_completed()` function checks whether the input stream (`istream`) has completed processing all its data. 
+It is typically used to determine if the stream has reached the end of its data or if all operations on the stream have been finalized.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC BOOL istream_is_completed(
+    istream_h istream
 );
 
 ```
@@ -41,9 +41,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream to be checked for completion.
 
 :::
 
@@ -53,15 +53,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the input stream has completed processing all its data, otherwise returns `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function is useful for validating whether the stream has reached its end or if further operations are required. 
+Ensure that the `istream` handle is valid before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

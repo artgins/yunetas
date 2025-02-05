@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_new_gbuffer())=
+# `istream_new_gbuffer()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_new_gbuffer()` function creates a new [`gbuffer_t *`](#gbuffer_t) instance and associates it with the given `istream_h` object. 
+This function is useful for resetting or initializing the internal buffer of an input stream (`istream`) with specified size constraints.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int istream_new_gbuffer(
+    istream_h   istream,
+    size_t      data_size,
+    size_t      max_size
 );
 
 ```
@@ -41,10 +43,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - The input stream handle where the new gbuffer will be created.
 
+* - `data_size`
+  - `size_t`
+  - The initial size of the data buffer to allocate.
+
+* - `max_size`
+  - `size_t`
+  - The maximum size the buffer can grow to.
 :::
 
 
@@ -53,15 +62,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, or a negative value if an error occurs during the creation of the new gbuffer.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function will overwrite any existing gbuffer associated with the `istream`.
+- Ensure that the `istream` handle is valid before calling this function.
+- This function is typically used in scenarios where the buffer needs to be reinitialized with new size constraints.
 
 
 <!--====================================================-->

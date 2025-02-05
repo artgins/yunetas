@@ -1,11 +1,19 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(launch_daemon())=
+# `launch_daemon()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `launch_daemon()` function starts a new process as a daemon.
+
+It forks the current process, detaches it from the controlling terminal, 
+and runs the specified `program` in the background.
+
+If `redirect_stdio_to_null` is `TRUE`, standard input, output, and error 
+streams are redirected to `/dev/null`.
+
+The function accepts a variable number of arguments, which are passed 
+to the `program` as command-line arguments.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +32,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int launch_daemon(
+    BOOL        redirect_stdio_to_null,
+    const char  *program,
+    ...
 );
 
 ```
@@ -41,9 +51,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `redirect_stdio_to_null`
+  - `BOOL`
+  - If `TRUE`, redirects standard input, output, and error to `/dev/null`.
+
+* - `program`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The path to the executable program to be launched as a daemon.
+
+* - `...`
+  - `variadic`
+  - Additional arguments to be passed to the daemonized program.
 
 :::
 
@@ -53,15 +71,17 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the process ID (`pid`) of the newly created daemon process on success.
+
+Returns `-1` if an error occurs during the daemonization process.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not wait for the daemonized process to complete.
+- The caller is responsible for handling the lifecycle of the daemon process.
+- If `redirect_stdio_to_null` is `TRUE`, the daemon will not produce any console output.
 
 
 <!--====================================================-->

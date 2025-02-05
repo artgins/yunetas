@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(str_in_list())=
+# `str_in_list()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `str_in_list()` function checks if a given string `str` is present in a list of strings `list`. 
+The function can perform a case-sensitive or case-insensitive comparison based on the `ignore_case` parameter.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+BOOL str_in_list(
+    const char **list,
+    const char *str,
+    BOOL        ignore_case
 );
 
 ```
@@ -41,9 +43,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `list`
+  - `const char **`
+  - A null-terminated array of strings to search within.
+
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The string to search for in the list.
+
+* - `ignore_case`
+  - `BOOL`
+  - If `TRUE`, the comparison will ignore case differences. If `FALSE`, the comparison will be case-sensitive.
 
 :::
 
@@ -53,15 +63,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the string `str` is found in the list `list`. Otherwise, returns `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `list` parameter must be null-terminated.
+- If `ignore_case` is `TRUE`, the function uses a case-insensitive comparison.
+- The function does not modify the input list or string.
 
 
 <!--====================================================-->

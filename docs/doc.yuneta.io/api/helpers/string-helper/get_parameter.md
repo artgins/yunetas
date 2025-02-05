@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(get_parameter())=
+# `get_parameter()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `get_parameter()` function extracts a parameter from a string `s`, 
+delimited by blanks (`\b`, `\t`) or quotes (`'`, `"`). 
+The input string `s` is modified during the process, with null characters inserted to separate tokens. 
+This function is useful for parsing command-line arguments or similar input formats.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *get_parameter(
+    char    *s,
+    char    **save_ptr
 );
 
 ```
@@ -41,9 +44,14 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `s`
+  - `char *`
+  - The input string to be parsed. It will be modified in-place.
+
+* - `save_ptr`
+  - `char **`
+  - A pointer to save the context for subsequent calls to `get_parameter()`. 
+    This allows the function to continue parsing the same string across multiple calls.
 
 :::
 
@@ -53,15 +61,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the extracted parameter as a null-terminated string. 
+If no more parameters are available, the function returns `NULL`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The input string `s` is modified in-place, so ensure that it is writable.
+- This function is designed to handle quoted strings, allowing parameters to contain spaces if enclosed in quotes.
+- Use the `save_ptr` parameter to maintain parsing state across multiple calls.
 
 
 <!--====================================================-->

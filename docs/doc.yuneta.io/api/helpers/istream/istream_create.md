@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_create())=
+# `istream_create()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_create()` function initializes and returns a new input stream (`istream_h`) object. 
+This stream is used for managing data buffers with a specified initial size (`data_size`) and a maximum allowable size (`max_size`). 
+The function is typically used in scenarios where controlled data streaming is required.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+istream_h istream_create(
+    hgobj   gobj,
+    size_t  data_size,
+    size_t  max_size
 );
 
 ```
@@ -41,10 +44,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `gobj`
+  - `hgobj`
+  - The parent object that owns the input stream.
 
+* - `data_size`
+  - `size_t`
+  - The initial size of the data buffer.
+
+* - `max_size`
+  - `size_t`
+  - The maximum allowable size of the data buffer.
 :::
 
 
@@ -53,15 +63,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a handle (`istream_h`) to the newly created input stream. This handle is used to interact with the stream in subsequent operations.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- If the `data_size` exceeds `max_size`, the behavior is undefined.
+- The returned `istream_h` must be destroyed using [`istream_destroy()`](#istream_destroy) to free allocated resources.
 
 
 <!--====================================================-->

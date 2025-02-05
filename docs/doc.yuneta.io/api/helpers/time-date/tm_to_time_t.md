@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(tm_to_time_t())=
+# `tm_to_time_t()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `tm_to_time_t()` function converts a `struct tm` representation of a calendar time into a `time_t` value. 
+This is useful for converting broken-down time structures into a single time value that represents the number of seconds since the epoch (January 1, 1970, 00:00:00 UTC).
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+time_t tm_to_time_t(
+    const struct tm *tm
 );
 
 ```
@@ -41,9 +41,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `tm`
+  - `const struct tm *`
+  - Pointer to a `struct tm` that represents the broken-down time to be converted.
 
 :::
 
@@ -53,15 +53,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the `time_t` value corresponding to the input `struct tm`. 
+If the conversion fails, the function may return `-1`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `struct tm` should be properly initialized before calling this function to avoid undefined behavior.
+- The function assumes that the input time is in the local time zone.
 
 
 <!--====================================================-->

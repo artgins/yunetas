@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(json_str_in_list())=
+# `json_str_in_list()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `json_str_in_list()` function checks if a given string `str` exists within a JSON list `jn_list`. 
+It returns `TRUE` if the string is found, and `FALSE` otherwise. The comparison can be case-sensitive 
+or case-insensitive based on the value of the `ignore_case` parameter.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,11 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC BOOL json_str_in_list(
+    hgobj       gobj,
+    json_t      *jn_list,
+    const char  *str,
+    BOOL        ignore_case
 );
 
 ```
@@ -41,9 +45,21 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `gobj`
+  - `hgobj`
+  - A handle to the GObj (generic object) that may be used for logging or context.
+
+* - `jn_list`
+  - `json_t *`
+  - A JSON array containing the list of strings to search within.
+
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The string to search for in the JSON list.
+
+* - `ignore_case`
+  - `BOOL`
+  - If `TRUE`, the comparison is case-insensitive; otherwise, it is case-sensitive.
 
 :::
 
@@ -53,15 +69,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the string `str` is found in the JSON list `jn_list`, otherwise returns `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `jn_list` parameter must be a valid JSON array; otherwise, the behavior is undefined.
+- Use this function to efficiently check membership of a string in a JSON list.
+- If `ignore_case` is set to `TRUE`, the comparison ignores differences in letter casing.
 
 
 <!--====================================================-->

@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(subdir_exists())=
+# `subdir_exists()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `subdir_exists()` function checks whether a specified subdirectory exists within a given directory.
+
+It verifies the presence of `subdir` inside `directory` by constructing the full path and checking if it is a valid directory.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC BOOL subdir_exists(
+    const char *directory,
+    const char *subdir
 );
 
 ```
@@ -41,9 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `directory`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The path to the parent directory where the subdirectory is expected to be found.
+
+* - `subdir`
+  - `const char *`
+  - The name of the subdirectory to check for existence.
 
 :::
 
@@ -53,15 +59,13 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the specified subdirectory exists within the given directory, otherwise returns `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function does not check for symbolic links or special file types; it only verifies if the given path is a directory.
 
 
 <!--====================================================-->

@@ -1,11 +1,14 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(load_persistent_json())=
+# `load_persistent_json()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `load_persistent_json()` function loads a JSON object from a file located in the specified directory and filename. 
+It provides options for handling file access, error logging, and exclusive file locking. If the `exclusive` parameter 
+is set to `TRUE`, the file remains open and its file descriptor is returned via `pfd`. If `silence` is set to `TRUE`, 
+the function suppresses error messages, but this requires `on_critical_error` to be set to `LOG_NONE`. 
+The function is designed to handle persistent JSON data efficiently.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +27,14 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC json_t *load_persistent_json(
+    hgobj       gobj,
+    const char  *directory,
+    const char  *filename,
+    log_opt_t   on_critical_error,
+    int         *pfd,
+    BOOL        exclusive,
+    BOOL        silence
 );
 
 ```
@@ -41,9 +50,33 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `gobj`
+  - `hgobj`
+  - The gobj (generic object) that invokes the function.
+
+* - `directory`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The directory path where the JSON file is located.
+
+* - `filename`
+  - `const char *`
+  - The name of the JSON file to load.
+
+* - `on_critical_error`
+  - `log_opt_t`
+  - Logging option to handle critical errors during file operations.
+
+* - `pfd`
+  - `int *`
+  - Pointer to an integer where the file descriptor will be stored if `exclusive` is `TRUE`.
+
+* - `exclusive`
+  - `BOOL`
+  - If `TRUE`, the file remains open and its file descriptor is returned.
+
+* - `silence`
+  - `BOOL`
+  - If `TRUE`, suppresses error messages. Requires `on_critical_error` to be `LOG_NONE`.
 
 :::
 
@@ -53,15 +86,17 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a `json_t *` object representing the loaded JSON data. If the file cannot be loaded or parsed, 
+the function returns `NULL`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- If `exclusive` is `TRUE`, remember to close the file descriptor stored in `pfd` when it is no longer needed.
+- If `silence` is set to `TRUE`, ensure that `on_critical_error` is set to `LOG_NONE` to avoid conflicts.
+- The function is designed to handle persistent JSON data, making it suitable for scenarios where JSON configuration 
+  or state needs to be retained across sessions.
 
 
 <!--====================================================-->

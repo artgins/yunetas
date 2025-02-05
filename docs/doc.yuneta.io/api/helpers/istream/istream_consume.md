@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_consume())=
+# `istream_consume()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_consume()` function reads and removes up to `len` bytes from the input stream buffer `istream` 
+and copies them into the provided buffer `bf`. The function returns the number of bytes actually consumed.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+size_t istream_consume(
+    istream_h   istream,
+    char        *bf,
+    size_t      len
 );
 
 ```
@@ -41,10 +43,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream from which data will be consumed.
 
+* - `bf`
+  - `char *`
+  - Pointer to the buffer where the consumed data will be stored.
+
+* - `len`
+  - `size_t`
+  - Maximum number of bytes to consume from the input stream.
 :::
 
 
@@ -53,15 +62,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the number of bytes actually consumed from the input stream.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- If the requested `len` exceeds the available data in the input stream, only the available data is consumed.
+- The function does not null-terminate the buffer `bf`.
+- If `istream` is empty, the function returns `0`.
 
 
 <!--====================================================-->

@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(ghttp_parser_received())=
+# `ghttp_parser_received()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `ghttp_parser_received()` function processes a chunk of HTTP data received by the parser. 
+It parses the provided buffer `bf` of size `len` using the specified `GHTTP_PARSER` instance. 
+The function is responsible for consuming the data, updating the parser's state, and triggering 
+events (if configured) when headers, body, or the complete message are processed. 
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int ghttp_parser_received(
+    GHTTP_PARSER *parser,
+    char         *bf,
+    size_t       len
 );
 
 ```
@@ -41,10 +45,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `parser`
+  - `GHTTP_PARSER *`
+  - Pointer to the `GHTTP_PARSER` instance that will process the data.
 
+* - `bf`
+  - `char *`
+  - Pointer to the buffer containing the HTTP data to be parsed.
+
+* - `len`
+  - `size_t`
+  - Length of the data in the buffer `bf`.
 :::
 
 
@@ -53,15 +64,18 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the number of bytes successfully consumed from the buffer. 
+If an error occurs during parsing, the function returns `-1`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the `parser` is properly initialized using `ghttp_parser_create()` before calling this function.
+- The function may trigger events such as `on_header_event`, `on_body_event`, or `on_message_event` 
+  based on the parser's configuration and the data processed.
+- If the function returns `-1`, it indicates a parsing error, and the parser's state may need to be reset 
+  using `ghttp_parser_reset()`.
 
 
 <!--====================================================-->

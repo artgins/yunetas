@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(left_justify())=
+# `left_justify()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `left_justify()` function removes leading whitespace characters from the input string `s` and shifts the remaining characters to the beginning of the string. This operation modifies the input string in place. The function is useful for cleaning up strings by eliminating unnecessary leading spaces or tabs.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +23,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void left_justify(
+    char *s
 );
 
 ```
@@ -41,9 +40,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `s`
+  - `char *`
+  - Pointer to the string to be modified. The string must be null-terminated and writable.
 
 :::
 
@@ -53,15 +52,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value. The input string `s` is modified directly.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The input string `s` must be writable. Passing a read-only string (e.g., a string literal) will result in undefined behavior.
+- The function does not allocate or free memory; it operates directly on the provided string.
 
 
 <!--====================================================-->

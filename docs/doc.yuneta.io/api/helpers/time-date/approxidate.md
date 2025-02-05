@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(approxidate())=
+# `approxidate()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `approxidate` macro simplifies the process of parsing human-readable date and time strings into a `timestamp_t` value. It is a wrapper around the `approxidate_careful()` function, which provides robust parsing capabilities for a wide range of date and time formats. This macro assumes no additional context (`NULL` is passed as the second parameter to `approxidate_careful()`).
 
 
 <!------------------------------------------------------------>
@@ -24,9 +23,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+#define approxidate(s) approxidate_careful((s), NULL)
 
 ```
 
@@ -41,9 +38,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `s`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - A string representing the date and time to be parsed. It can include absolute dates, relative dates, or combinations of both.
 
 :::
 
@@ -53,15 +50,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a `timestamp_t` value representing the parsed date and time. If the input string cannot be parsed, the behavior depends on the implementation of `approxidate_careful()`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `approxidate` macro is a shorthand for calling `approxidate_careful()` with a `NULL` context.
+- The parsing capabilities include absolute dates (e.g., `2024-09-17`), relative dates (e.g., `3 days ago`), and combinations (e.g., `yesterday 3:00 PM`).
+- For more advanced usage or error handling, consider using `approxidate_careful()` directly.
 
 
 <!--====================================================-->

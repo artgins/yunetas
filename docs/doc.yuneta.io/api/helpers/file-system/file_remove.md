@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(file_remove())=
+# `file_remove()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `file_remove()` function removes a file specified by its `filename` from the given `directory`. 
+It combines the directory path and filename to locate the file and attempts to delete it. 
+This function is useful for managing file systems by programmatically deleting specific files.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int file_remove(
+    const char *directory,
+    const char *filename
 );
 
 ```
@@ -41,9 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `directory`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The path to the directory containing the file to be removed.
+
+* - `filename`
+  - `const char *`
+  - The name of the file to be removed.
 
 :::
 
@@ -53,15 +59,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on successful removal of the file. If the file cannot be removed, 
+it returns `-1` and sets `errno` to indicate the error.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the file exists and the process has the necessary permissions to delete it.
+- The function does not check if the directory or filename is valid before attempting to remove the file.
+- Use this function with caution as it permanently deletes the file.
 
 
 <!--====================================================-->

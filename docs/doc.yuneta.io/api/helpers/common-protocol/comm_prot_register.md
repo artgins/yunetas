@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(comm_prot_register())=
+# `comm_prot_register()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `comm_prot_register()` function registers a gclass with a specific communication protocol schema. 
+This allows the system to associate a gclass with a schema, enabling protocol-specific operations 
+and interactions.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int comm_prot_register(
+    gclass_name_t   gclass_name,
+    const char      *schema
 );
 
 ```
@@ -41,9 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `gclass_name`
+  - `gclass_name_t`
+  - The name of the gclass to be registered with the communication protocol.
+
+* - `schema`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The schema of the communication protocol to associate with the gclass.
 
 :::
 
@@ -53,15 +59,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns an integer indicating the success or failure of the operation. 
+A value of `0` indicates success, while a negative value indicates an error.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the `gclass_name` and `schema` are valid and properly initialized before calling this function.
+- This function is part of the common protocols utilities and is used to manage protocol registrations.
 
 
 <!--====================================================-->

@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(time_in_seconds())=
+# `time_in_seconds()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `time_in_seconds()` function returns the current time in seconds 
+since the Unix epoch (January 1, 1970). It provides a standard way 
+to retrieve the system time in seconds.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +25,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+uint64_t time_in_seconds(void);
 
 ```
 
@@ -41,9 +40,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - None
+  - None
+  - This function does not accept any parameters.
 
 :::
 
@@ -53,15 +52,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the current time in seconds as a `uint64_t` value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function is useful for obtaining a timestamp for logging, 
+calculations, or time-based operations.
 
 
 <!--====================================================-->

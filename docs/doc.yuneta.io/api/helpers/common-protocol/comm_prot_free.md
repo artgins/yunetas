@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(comm_prot_free())=
+# `comm_prot_free()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `comm_prot_free()` function releases all resources associated with the communication protocol registry.
+It should be called when the communication protocol registry is no longer needed to free allocated memory and avoid leaks.
 
 
 <!------------------------------------------------------------>
@@ -24,9 +24,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
-);
+void comm_prot_free(void);
 
 ```
 
@@ -41,9 +39,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - None
+  - None
+  - This function does not accept any parameters.
 
 :::
 
@@ -53,15 +51,13 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+Ensure that `comm_prot_free()` is called before program termination if communication protocols were registered using [`comm_prot_register()`](#comm_prot_register).
 
 
 <!--====================================================-->

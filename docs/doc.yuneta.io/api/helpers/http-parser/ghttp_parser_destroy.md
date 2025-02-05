@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(ghttp_parser_destroy())=
+# `ghttp_parser_destroy()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `ghttp_parser_destroy()` function releases all resources associated with a given `GHTTP_PARSER` instance.
+
+This function should be called when the HTTP parser is no longer needed to free allocated memory and prevent resource leaks.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void ghttp_parser_destroy(
+    GHTTP_PARSER *parser
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `parser`
+  - `GHTTP_PARSER *`
+  - Pointer to the `GHTTP_PARSER` instance to be destroyed.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `parser` pointer must be valid and allocated by [`ghttp_parser_create()`](#ghttp_parser_create).
+- After calling this function, the `parser` pointer should not be used.
 
 
 <!--====================================================-->

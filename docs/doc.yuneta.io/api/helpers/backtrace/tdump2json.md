@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(tdump2json())=
+# `tdump2json()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `tdump2json()` function converts a binary data buffer into a JSON representation.
+It takes a pointer to a byte array and its length, and returns a JSON object containing the data in a structured format.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC json_t *tdump2json(
+    const uint8_t  *s,
+    size_t         len
 );
 
 ```
@@ -41,10 +42,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `s`
+  - `const uint8_t *`
+  - Pointer to the binary data buffer.
 
+* - `len`
+  - `size_t`
+  - Length of the binary data buffer.
 :::
 
 
@@ -53,15 +57,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A `json_t *` object representing the binary data in JSON format.
+The caller is responsible for freeing the returned JSON object using `json_decref()`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function is useful for debugging or logging purposes, allowing binary data to be represented in a human-readable JSON format.
 
 
 <!--====================================================-->

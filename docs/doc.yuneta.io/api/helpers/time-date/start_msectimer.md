@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(start_msectimer())=
+# `start_msectimer()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `start_msectimer()` function initializes a millisecond timer with the specified duration. 
+If the `miliseconds` parameter is greater than 0, the timer starts and will expire after the given duration. 
+If the `miliseconds` parameter is less than or equal to 0, the timer is disabled.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+uint64_t start_msectimer(
+    uint64_t    miliseconds
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `miliseconds`
+  - `uint64_t`
+  - The duration of the timer in milliseconds. A value of 0 or less disables the timer.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the expiration time of the timer in milliseconds since an unspecified reference point. 
+If the timer is disabled, the return value is 0.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function uses a monotonic clock to calculate the expiration time, ensuring that it is not affected by system clock changes.
 
 
 <!--====================================================-->

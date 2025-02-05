@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(approxidate_relative())=
+# `approxidate_relative()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `approxidate_relative()` function interprets a date string in various formats and converts it into a `timestamp_t` value. 
+This function is particularly useful for parsing relative dates (e.g., "3 days ago", "next Friday") or absolute dates in standard formats (e.g., "2024-09-17").
+It leverages the current date or a reference point to resolve relative terms.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+timestamp_t approxidate_relative(
+    const char *date
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The date string to be parsed. It can include absolute dates, relative dates, or combinations of both.
 
 :::
 
@@ -53,15 +54,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a `timestamp_t` value representing the parsed date and time. The value is in seconds since the Unix epoch (January 1, 1970).
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function supports a wide range of date formats, including ISO 8601, US-centric formats, relative phrases (e.g., "yesterday", "3 days ago"), and shorthand notations.
+- For more advanced parsing, consider using [`approxidate_careful()`](#approxidate_careful), which allows for additional error handling and context.
+- Ambiguities in the input string are resolved based on context, but incorrect or unsupported formats may lead to undefined behavior.
 
 
 <!--====================================================-->

@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(current_timestamp())=
+# `current_timestamp()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `current_timestamp()` function generates a timestamp string representing the current date and time in a standard format. 
+The generated timestamp is stored in the provided buffer `bf`, which must be at least 90 bytes in size to ensure proper storage of the timestamp.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *current_timestamp(
+    char    *bf,
+    size_t  bfsize
 );
 
 ```
@@ -41,9 +42,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `bf`
+  - `char *`
+  - Pointer to a buffer where the generated timestamp will be stored.
+
+* - `bfsize`
+  - `size_t`
+  - Size of the buffer `bf`. It must be at least 90 bytes to accommodate the timestamp.
 
 :::
 
@@ -53,15 +58,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the buffer `bf` containing the generated timestamp string.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The buffer `bf` must be pre-allocated by the caller and should have a minimum size of 90 bytes.
+- The function does not perform any validation on the buffer size, so passing a smaller buffer may result in undefined behavior.
 
 
 <!--====================================================-->

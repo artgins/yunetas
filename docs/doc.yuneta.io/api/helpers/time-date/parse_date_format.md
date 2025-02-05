@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(parse_date_format())=
+# `parse_date_format()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `parse_date_format()` function parses a given date format string and configures the provided `date_mode` structure accordingly. 
+This function is used to interpret and set the desired date formatting options for subsequent date-related operations.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC void parse_date_format(
+    const char          *format,
+    struct date_mode    *mode
 );
 
 ```
@@ -41,9 +42,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `format`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - A string representing the desired date format. It can include standard date format specifiers.
+
+* - `mode`
+  - `struct date_mode *`
+  - A pointer to a `date_mode` structure that will be configured based on the provided format string.
 
 :::
 
@@ -53,15 +58,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value. The `mode` structure is updated in place with the parsed date format settings.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `format` string must follow valid date format conventions.
+- The `mode` structure should be properly allocated before calling this function.
+- This function is typically used in conjunction with other date-related utilities, such as [`show_date()`](#show_date).
 
 
 <!--====================================================-->

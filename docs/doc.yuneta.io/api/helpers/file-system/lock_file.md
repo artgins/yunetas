@@ -1,11 +1,14 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(lock_file())=
+# `lock_file()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `lock_file()` function attempts to acquire an advisory lock on the file 
+descriptor `fd`. This is useful for ensuring exclusive access to a file 
+in a multi-process or multi-threaded environment. The function uses 
+platform-specific mechanisms (e.g., `fcntl` on Unix-like systems) to 
+apply the lock.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +27,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int lock_file(
+    int fd
 );
 
 ```
@@ -41,9 +44,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `fd`
+  - `int`
+  - File descriptor of the file to be locked.
 
 :::
 
@@ -53,15 +56,17 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success if the lock is successfully acquired. 
+Returns `-1` on failure, with `errno` set to indicate the error.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `lock_file()` function applies an advisory lock, meaning it requires 
+  cooperation from other processes to respect the lock.
+- Ensure that the file descriptor `fd` is valid and open before calling this function.
+- This function does not block if the lock cannot be acquired; it fails immediately.
 
 
 <!--====================================================-->

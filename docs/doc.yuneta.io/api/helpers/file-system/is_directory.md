@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(is_directory())=
+# `is_directory()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `is_directory()` function checks whether the specified `path` corresponds to a directory in the file system. It uses system-level APIs to determine the type of the file at the given path. This function is useful for validating paths before performing directory-specific operations.
 
 
 <!------------------------------------------------------------>
@@ -24,7 +23,7 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
+PUBLIC BOOL is_directory(
     const char *path
 );
 
@@ -43,7 +42,7 @@ PUBLIC mode_t file_permission(
 
 * - `path`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The file system path to check. It must be a null-terminated string.
 
 :::
 
@@ -53,15 +52,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the specified `path` is a directory, otherwise returns `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function relies on system-level file attributes to determine if the path is a directory.
+- Ensure the `path` is valid and accessible to avoid unexpected behavior.
 
 
 <!--====================================================-->

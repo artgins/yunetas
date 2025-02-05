@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(delete_left_char())=
+# `delete_left_char()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `delete_left_char()` function removes the first occurrence of the character `x` from the left side of the string `s`. 
+If the character `x` is found at the beginning of the string, it is deleted, and the rest of the string is shifted left. 
+If `x` is not found, the string remains unchanged. The function modifies the input string `s` directly.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *delete_left_char(
+    char *s,
+    char x
 );
 
 ```
@@ -41,9 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `s`
+  - `char *`
+  - Pointer to the string to be modified.
+
+* - `x`
+  - `char`
+  - The character to be removed from the left side of the string.
 
 :::
 
@@ -53,15 +59,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the modified string `s`. If the character `x` is not found, the original string is returned unchanged.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The input string `s` must be null-terminated.
+- The function modifies the string `s` in place, so ensure that `s` is writable.
+- If `s` is `NULL`, the behavior is undefined.
 
 
 <!--====================================================-->

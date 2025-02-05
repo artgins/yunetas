@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(save_json_to_file())=
+# `save_json_to_file()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `save_json_to_file()` function saves a JSON object to a file in the specified directory with the given filename. 
+It allows for setting file permissions, handling critical errors, and controlling file creation or overwriting behavior. 
+The JSON data is passed as an owned object, meaning the caller relinquishes ownership of the JSON object to the function.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,16 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int save_json_to_file(
+    hgobj       gobj,
+    const char  *directory,
+    const char  *filename,
+    int         xpermission,
+    int         rpermission,
+    log_opt_t   on_critical_error,
+    BOOL        create,
+    BOOL        only_read,
+    json_t      *jn_data
 );
 
 ```
@@ -41,10 +50,41 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `gobj`
+  - `hgobj`
+  - The gobj context for logging or error handling.
 
+* - `directory`
+  - `const char *`
+  - The directory where the file will be saved.
+
+* - `filename`
+  - `const char *`
+  - The name of the file to save the JSON data.
+
+* - `xpermission`
+  - `int`
+  - The file's execute permissions.
+
+* - `rpermission`
+  - `int`
+  - The file's read permissions.
+
+* - `on_critical_error`
+  - `log_opt_t`
+  - Specifies the logging behavior in case of critical errors.
+
+* - `create`
+  - `BOOL`
+  - If `TRUE`, the function creates the file if it does not exist or overwrites it if it does.
+
+* - `only_read`
+  - `BOOL`
+  - If `TRUE`, the function ensures the file is only readable.
+
+* - `jn_data`
+  - `json_t *`
+  - The JSON object to be saved. Ownership is transferred to the function.
 :::
 
 
@@ -53,15 +93,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success or `-1` on failure. Errors may occur due to invalid paths, permission issues, or critical errors during file operations.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function assumes ownership of the `jn_data` JSON object. The caller should not use or free the object after calling this function.
+- If `on_critical_error` is set to `LOG_NONE`, the function will suppress error logging.
+- Ensure the directory exists before calling this function, as it does not create directories.
 
 
 <!--====================================================-->

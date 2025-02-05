@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(get_number_of_files())=
+# `get_number_of_files()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `get_number_of_files()` function traverses a directory tree starting from `root_dir` and counts the number of files that match the specified `pattern`. 
+The behavior of the traversal can be customized using the `opt` parameter, which allows for options such as recursive traversal, inclusion of hidden files, and file type matching.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,11 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC int get_number_of_files(
+    hgobj       gobj,
+    const char  *root_dir,
+    const char  *pattern,
+    wd_option   opt
 );
 
 ```
@@ -41,9 +44,21 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `gobj`
+  - `hgobj`
+  - A handle to the gobj (generic object) that may be used for logging or other purposes during the operation.
+
+* - `root_dir`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The root directory from which the traversal begins.
+
+* - `pattern`
+  - `const char *`
+  - A pattern to match file names. Can be `NULL` to include all files.
+
+* - `opt`
+  - `wd_option`
+  - Options to customize the traversal behavior, such as recursion, hidden file inclusion, and file type filtering.
 
 :::
 
@@ -53,15 +68,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the number of files matching the specified `pattern` in the directory tree. 
+If an error occurs during traversal, the function may return `-1`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This function relies on the `walk_dir_tree()` function internally to perform the directory traversal.
+- The `opt` parameter allows for fine-grained control over the traversal, such as limiting matches to specific file types or including hidden files.
+- Ensure that the `root_dir` is accessible and valid to avoid errors.
 
 
 <!--====================================================-->

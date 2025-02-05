@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(nice_size())=
+# `nice_size()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `nice_size()` function formats a given size in bytes into a human-readable string representation. 
+It converts the size into appropriate units (e.g., KB, MB, GB) and stores the result in the provided buffer. 
+The function supports both 1024-based (binary) and 1000-based (decimal) unit conversions, depending on the `b1024` parameter.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,11 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void nice_size(
+    char *bf,
+    size_t bfsize,
+    uint64_t bytes,
+    BOOL b1024
 );
 
 ```
@@ -41,10 +45,21 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `bf`
+  - `char *`
+  - Pointer to the buffer where the formatted size string will be stored.
 
+* - `bfsize`
+  - `size_t`
+  - Size of the buffer `bf` in bytes.
+
+* - `bytes`
+  - `uint64_t`
+  - The size in bytes to be formatted.
+
+* - `b1024`
+  - `BOOL`
+  - If `TRUE`, use 1024-based units (e.g., KiB, MiB). If `FALSE`, use 1000-based units (e.g., KB, MB).
 :::
 
 
@@ -53,15 +68,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value. The formatted size string is stored in the `bf` buffer.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the `bf` buffer is large enough to hold the formatted string, including the null terminator.
+- The function supports both binary (KiB, MiB, GiB) and decimal (KB, MB, GB) unit systems for flexibility.
+- The `b1024` parameter determines the unit system used for conversion.
 
 
 <!--====================================================-->

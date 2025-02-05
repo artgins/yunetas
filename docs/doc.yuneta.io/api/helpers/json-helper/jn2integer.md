@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(jn2integer())=
+# `jn2integer()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `jn2integer()` function converts a JSON value (`json_t *`) into an integer (`json_int_t`). 
+It is a utility function designed to simplify the extraction of integer values from JSON objects. 
+If the JSON value is not an integer, the behavior may depend on the underlying JSON library's handling of type mismatches.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+json_int_t jn2integer(
+    json_t *jn_var
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `jn_var`
+  - `json_t *`
+  - A pointer to the JSON value to be converted to an integer. The JSON value must represent an integer.
 
 :::
 
@@ -53,15 +54,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+The function returns the integer value (`json_int_t`) extracted from the provided JSON value. 
+If the JSON value is not an integer, the result may be undefined or an error, depending on the JSON library's implementation.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This function is part of the JSON utility functions and is used for simple type conversions.
+- Ensure that the input JSON value (`jn_var`) is of type integer to avoid unexpected behavior.
+- This function does not perform type checking or error handling for non-integer JSON values.
 
 
 <!--====================================================-->

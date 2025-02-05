@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(test_sectimer())=
+# `test_sectimer()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `test_sectimer()` function checks whether a previously started second-based timer has finished. 
+It evaluates the current time against the provided `value` and returns `TRUE` if the timer has completed, or `FALSE` otherwise.
+This function is typically used in conjunction with [`start_sectimer()`](#start_sectimer) to manage time-based operations.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+BOOL test_sectimer(
+    time_t value
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `value`
+  - `time_t`
+  - The timestamp value representing the timer's end time to check against the current time.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the timer has finished, or `FALSE` if the timer is still running.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the `value` provided is a valid timestamp.
+- This function is part of a timer utility and is often used with [`start_sectimer()`](#start_sectimer).
 
 
 <!--====================================================-->

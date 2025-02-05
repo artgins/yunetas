@@ -14,6 +14,8 @@ time-date/approxidate_careful
 time-date/approxidate_relative
 time-date/current_timestamp
 time-date/datestamp
+time-date/date_mode_from_type
+time-date/date_overflows
 time-date/formatdate
 time-date/htonll
 time-date/list_open_files
@@ -22,10 +24,13 @@ time-date/parse_date
 time-date/parse_date_basic
 time-date/parse_date_format
 time-date/parse_expiry_date
-time-date/parse_timestamp.md
+time-date/parse_timestamp
+time-date/show_date
+time-date/show_date_relative
 time-date/start_msectimer
 time-date/start_sectimer
 time-date/t2timestamp
+time-date/tm_to_time_t
 time-date/test_msectimer
 time-date/test_sectimer
 time-date/time_in_miliseconds

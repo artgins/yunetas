@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(init_backtrace_with_backtrace())=
+# `init_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+Initializes the backtrace mechanism using the `backtrace` library.
+The function sets up the necessary structures to capture and display stack traces
+for debugging purposes. The `program` parameter specifies the executable name,
+which is used to resolve symbols in the backtrace.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int init_backtrace_with_backtrace(
+    const char *program
 );
 
 ```
@@ -41,9 +43,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `program`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The name of the executable, used for symbol resolution in backtraces.
 
 :::
 
@@ -53,15 +55,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, or `-1` if an error occurs during initialization.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function must be called before using [`show_backtrace_with_backtrace()`](#show_backtrace_with_backtrace)
+to ensure that backtraces are properly captured.
 
 
 <!--====================================================-->

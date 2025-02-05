@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(print_json2())=
+# `print_json2()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `print_json2()` function prints a JSON object (`jn`) to the standard output, 
+preceded by an optional label (`label`). This function is useful for debugging 
+or logging JSON data in a human-readable format.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int print_json2(
+    const char *label,
+    json_t     *jn
 );
 
 ```
@@ -41,9 +43,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `label`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - A string label to be printed before the JSON object. Can be `NULL` if no label is needed.
+
+* - `jn`
+  - `json_t *`
+  - A pointer to the JSON object to be printed. The JSON object is not modified or owned by the function.
 
 :::
 
@@ -53,15 +59,17 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns an integer value indicating the success or failure of the operation:
+- `0`: Success.
+- Non-zero: Failure, typically due to invalid input or internal errors.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not modify the JSON object (`jn`).
+- Ensure that the `jn` parameter is a valid JSON object. Passing `NULL` or invalid pointers may result in undefined behavior.
+- This function is primarily intended for debugging purposes and may not be suitable for production logging in performance-critical applications.
 
 
 <!--====================================================-->

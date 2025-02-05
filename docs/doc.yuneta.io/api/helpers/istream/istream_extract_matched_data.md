@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_extract_matched_data())=
+# `istream_extract_matched_data()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_extract_matched_data()` function retrieves the matched data from the input stream (`istream`) and returns it as a dynamically allocated string. The length of the extracted data is stored in the `len` parameter. This function is useful for extracting specific portions of data that match a predefined pattern or delimiter in the input stream.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +23,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *istream_extract_matched_data(
+    istream_h   istream,
+    size_t      *len
 );
 
 ```
@@ -41,9 +41,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - A handle to the input stream from which the matched data will be extracted.
+
+* - `len`
+  - `size_t *`
+  - A pointer to a variable where the length of the extracted data will be stored.
 
 :::
 
@@ -53,15 +57,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to the dynamically allocated string containing the matched data. The caller is responsible for freeing this memory. If no matched data is found, the function returns `NULL`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the `istream` handle is valid before calling this function.
+- The returned string must be freed by the caller to avoid memory leaks.
+- The function does not modify the read/write pointers of the input stream.
 
 
 <!--====================================================-->

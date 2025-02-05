@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(replace_string())=
+# `replace_string()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `replace_string()` function searches for occurrences of the substring `old` 
+within the string `str` and replaces them with the substring `snew`. 
+The function returns a newly allocated string containing the modified content. 
+The caller is responsible for freeing the returned string using `free()`.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *replace_string(
+    const char *str,
+    const char *old,
+    const char *snew
 );
 
 ```
@@ -41,9 +45,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input string in which replacements will be made.
+
+* - `old`
+  - `const char *`
+  - The substring to be replaced.
+
+* - `snew`
+  - `const char *`
+  - The substring that will replace occurrences of `old`.
 
 :::
 
@@ -53,15 +65,18 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a newly allocated string with all occurrences of `old` replaced by `snew`. 
+If `old` is not found in `str`, a duplicate of `str` is returned. 
+The caller must free the returned string using `free()`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- If `str`, `old`, or `snew` is `NULL`, the function returns `NULL`.
+- If `old` is an empty string, the function returns a duplicate of `str`.
+- The function dynamically allocates memory for the new string, 
+  so it is the caller's responsibility to free the returned string.
 
 
 <!--====================================================-->

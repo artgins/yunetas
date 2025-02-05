@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(show_backtrace_with_backtrace())=
+# `show_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `show_backtrace_with_backtrace()` function generates a backtrace of the current execution stack and outputs it using the provided `fwrite_fn` function. This is useful for debugging purposes, as it allows developers to trace the sequence of function calls leading to the current point in the program. The output is written to the specified handler `h`.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +23,9 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void show_backtrace_with_backtrace(
+    loghandler_fwrite_fn_t fwrite_fn,
+    void                  *h
 );
 
 ```
@@ -41,9 +41,13 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `fwrite_fn`
+  - `loghandler_fwrite_fn_t`
+  - A function pointer used to write the backtrace output.
+
+* - `h`
+  - `void *`
+  - A handler passed to the `fwrite_fn` function, typically representing the output destination (e.g., a file or buffer).
 
 :::
 
@@ -53,15 +57,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `fwrite_fn` function must be capable of handling formatted output.
+- The backtrace is generated using the `backtrace()` library, which must be available on the system.
+- This function is primarily intended for debugging and should not be used in production environments unless necessary.
 
 
 <!--====================================================-->

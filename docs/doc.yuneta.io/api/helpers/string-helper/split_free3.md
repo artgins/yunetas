@@ -1,11 +1,14 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(split_free3())=
+# `split_free3()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `split_free3()` function releases the memory allocated for a list of strings 
+that was previously created using [`split3()`](#split3). 
+
+This function ensures that all dynamically allocated memory for the string list 
+is properly freed, preventing memory leaks.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +27,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void split_free3(
+    const char **list
 );
 
 ```
@@ -41,10 +44,10 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
-
+* - `list`
+  - `const char **`
+  - Pointer to the list of strings to be freed. The list must have been allocated 
+    by [`split3()`](#split3).
 :::
 
 
@@ -53,15 +56,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `list` parameter must be a valid pointer returned by [`split3()`](#split3).
+- Passing a NULL pointer to this function is safe and has no effect.
+- Ensure that `split_free3()` is called after using [`split3()`](#split3) to avoid memory leaks.
 
 
 <!--====================================================-->

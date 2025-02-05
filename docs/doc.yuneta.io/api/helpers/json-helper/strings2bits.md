@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(strings2bits())=
+# `strings2bits()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `strings2bits()` function converts a string containing multiple substrings, separated by specified delimiters, into a 64-bit bitmask. Each substring is matched against a table of strings (`strings_table`), and the corresponding bit in the bitmask is set if a match is found.
+
+The function is useful for managing bit-based flags where each flag is represented by a string in the `strings_table`. By default, the separators are `|`, `,`, and space (` `), but custom separators can also be provided.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+uint64_t strings2bits(
+    const char **strings_table,
+    const char *str,
+    const char *separators
 );
 
 ```
@@ -41,9 +44,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `strings_table`
+  - `const char **`
+  - A null-terminated array of strings representing the mapping of substrings to bit positions. Each string corresponds to a specific bit in the resulting bitmask.
+
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input string containing substrings to be converted into bits. Substrings are separated by the specified delimiters.
+
+* - `separators`
+  - `const char *`
+  - A string containing the characters used as delimiters to split the input string. If `NULL`, the default separators (`|`, `,`, and space) are used.
 
 :::
 
@@ -53,15 +64,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+The function returns a 64-bit unsigned integer (`uint64_t`) representing the bitmask. Each bit corresponds to a substring in the input string that matches an entry in the `strings_table`. If no matches are found, the function returns `0`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `strings_table` must be strictly null-terminated.
+- The function does not include empty substrings in the bitmask calculation.
+- If a substring in the input string does not match any entry in the `strings_table`, it is ignored.
+- The function assumes that the `strings_table` contains unique strings and that the table is properly ordered.
 
 
 <!--====================================================-->

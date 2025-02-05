@@ -1,11 +1,10 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(change_char())=
+# `change_char()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `change_char()` function replaces all occurrences of a specified character `old_c` in the string `s` with another character `new_c`. This function modifies the string `s` in place. It is useful for simple character substitutions within a string.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +23,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int change_char(
+    char    *s,
+    char    old_c,
+    char    new_c
 );
 
 ```
@@ -41,9 +42,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `s`
+  - `char *`
+  - Pointer to the string where the character substitution will occur. The string must be null-terminated.
+
+* - `old_c`
+  - `char`
+  - The character in the string `s` to be replaced.
+
+* - `new_c`
+  - `char`
+  - The character that will replace `old_c` in the string `s`.
 
 :::
 
@@ -53,15 +62,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the number of characters replaced in the string `s`. If no characters are replaced, the function returns 0.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The input string `s` must be writable, as it is modified in place.
+- If `old_c` does not exist in the string `s`, the function will return 0 without making any changes.
+- Ensure that the string `s` is null-terminated to avoid undefined behavior.
 
 
 <!--====================================================-->

@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(load_json_from_file())=
+# `load_json_from_file()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `load_json_from_file()` function loads a JSON object from a file located in the specified directory. 
+It reads the file content, parses it as JSON, and returns the resulting JSON object. 
+If an error occurs during the process, the behavior depends on the `on_critical_error` parameter, which determines how critical errors are handled.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,11 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC json_t *load_json_from_file(
+    hgobj           gobj,
+    const char      *directory,
+    const char      *filename,
+    log_opt_t       on_critical_error
 );
 
 ```
@@ -41,10 +45,21 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `gobj`
+  - `hgobj`
+  - The gobj (generic object) context used for logging or error handling.
 
+* - `directory`
+  - `const char *`
+  - The directory path where the JSON file is located.
+
+* - `filename`
+  - `const char *`
+  - The name of the JSON file to be loaded.
+
+* - `on_critical_error`
+  - `log_opt_t`
+  - Specifies the behavior in case of critical errors (e.g., logging or ignoring errors).
 :::
 
 
@@ -53,15 +68,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a `json_t *` object representing the parsed JSON data from the file. 
+If the file cannot be read or the JSON parsing fails, the function may return `NULL` depending on the `on_critical_error` parameter.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that the file exists and is accessible in the specified directory.
+- The returned `json_t *` object must be managed properly; remember to free it using appropriate JSON library functions when no longer needed.
+- If `on_critical_error` is set to `LOG_NONE`, the function will suppress error messages.
 
 
 <!--====================================================-->

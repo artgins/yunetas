@@ -1,11 +1,16 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(hex2bin())=
+# `hex2bin()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `hex2bin()` function converts a hexadecimal string representation into its binary equivalent.
+
+It takes a hexadecimal string `hex` of length `hex_len` and converts it into binary form, storing the result in `bf`. 
+The function ensures that the output does not exceed `bfsize` bytes. 
+If `out_len` is not `NULL`, it stores the length of the resulting binary data.
+
+The function returns `bf` on success.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +29,12 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *hex2bin(
+    char        *bf,
+    int         bfsize,
+    const char  *hex,
+    size_t      hex_len,
+    size_t      *out_len
 );
 
 ```
@@ -41,9 +50,25 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `bf`
+  - `char *`
+  - Buffer to store the binary output.
+
+* - `bfsize`
+  - `int`
+  - Size of the `bf` buffer in bytes.
+
+* - `hex`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - Input hexadecimal string to be converted.
+
+* - `hex_len`
+  - `size_t`
+  - Length of the hexadecimal string.
+
+* - `out_len`
+  - `size_t *`
+  - Pointer to store the length of the resulting binary data (optional).
 
 :::
 
@@ -53,15 +78,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to `bf` containing the binary representation of the input hexadecimal string.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not allocate memory; the caller must provide a sufficiently large buffer `bf`.
+- The hexadecimal string `hex` should contain only valid hexadecimal characters (`0-9`, `a-f`, `A-F`).
+- If `out_len` is provided, it will be set to the number of bytes written to `bf`.
 
 
 <!--====================================================-->

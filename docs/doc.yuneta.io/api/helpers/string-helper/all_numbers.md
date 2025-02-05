@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(all_numbers())=
+# `all_numbers()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `all_numbers()` function checks whether all characters in the given string `s` are numeric digits (`0-9`). 
+It returns `TRUE` if the string contains only numeric characters and is not empty; otherwise, it returns `FALSE`.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC BOOL all_numbers(
+    const char *s
 );
 
 ```
@@ -41,9 +41,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `s`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input string to be checked for numeric characters.
 
 :::
 
@@ -53,15 +53,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if all characters in `s` are numeric digits and the string is not empty. Otherwise, it returns `FALSE`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function does not consider an empty string as numeric and will return `FALSE` in such cases.
+- It only checks for ASCII numeric characters (`0-9`) and does not support localized or Unicode number representations.
 
 
 <!--====================================================-->

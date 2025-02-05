@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(get_last_segment())=
+# `get_last_segment()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `get_last_segment()` function extracts the last segment of a given file path.
+It returns a pointer to the last portion of the string after the last directory separator (`/`).
+If no separator is found, it returns the original string.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *get_last_segment(
+    char *path
 );
 
 ```
@@ -42,8 +43,8 @@ PUBLIC mode_t file_permission(
   - Description
 
 * - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - `char *`
+  - The input string representing the file path.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the last segment of the given `path`. 
+If no directory separator (`/`) is found, the function returns the original `path`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function does not modify the input string.
 
 
 <!--====================================================-->

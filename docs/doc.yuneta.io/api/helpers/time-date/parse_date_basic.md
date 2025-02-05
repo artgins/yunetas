@@ -1,11 +1,14 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(parse_date_basic())=
+# `parse_date_basic()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `parse_date_basic()` function parses a date string in a simplified format and converts it into a timestamp and an optional timezone offset. 
+This function is designed to handle basic date formats and is less flexible compared to other date-parsing utilities like `approxidate_careful()`.
+
+The function extracts the timestamp from the provided `date` string and stores it in the `timestamp` parameter. 
+If a timezone offset is present in the date string, it is stored in the `offset` parameter.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +27,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int parse_date_basic(
+    const char      *date,
+    timestamp_t     *timestamp,
+    int             *offset
 );
 
 ```
@@ -41,9 +46,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `date`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The input date string to be parsed.
+
+* - `timestamp`
+  - `timestamp_t *`
+  - Pointer to a variable where the parsed timestamp will be stored.
+
+* - `offset`
+  - `int *`
+  - Pointer to a variable where the timezone offset will be stored. Can be `NULL` if the offset is not needed.
 
 :::
 
@@ -53,15 +66,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, or `-1` if the date string cannot be parsed.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `timestamp` output is in seconds since the Unix epoch (January 1, 1970).
+- The `offset` is optional and represents the timezone offset in seconds from UTC.
+- This function is intended for basic date parsing and may not handle complex or relative date formats. For more advanced parsing, consider using [`approxidate_careful()`](#approxidate_careful).
 
 
 <!--====================================================-->

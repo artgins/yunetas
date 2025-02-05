@@ -1,11 +1,11 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(date_mode_from_type())=
+# `date_mode_from_type()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `date_mode_from_type()` function creates and returns a pointer to a `struct date_mode` object based on the specified `type`. 
+This function is used to configure date formatting modes, which determine how dates are displayed or processed.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+struct date_mode *date_mode_from_type(
+    enum date_mode_type type
 );
 
 ```
@@ -41,9 +41,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `type`
+  - `enum date_mode_type`
+  - The type of date mode to be created. Possible values include `DATE_NORMAL`, `DATE_RELATIVE`, `DATE_SHORT`, `DATE_ISO8601`, `DATE_ISO8601_STRICT`, `DATE_RFC2822`, `DATE_STRFTIME`, `DATE_RAW`, and `DATE_UNIX`.
 
 :::
 
@@ -53,15 +53,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to a `struct date_mode` object configured with the specified `type`. 
+The returned structure contains fields such as `strftime_fmt` for custom formatting and `local` for timezone settings.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `date_mode_from_type()` function is typically used in conjunction with other date-related functions, such as [`show_date()`](#show_date).
+- Ensure that the `type` parameter is a valid value from the `enum date_mode_type` enumeration.
 
 
 <!--====================================================-->

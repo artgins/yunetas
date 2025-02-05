@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(idx_in_list())=
+# `idx_in_list()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The function `idx_in_list()` searches for a given string `str` in a list of strings `list` 
+and returns the index of the first occurrence. If the string is not found, it returns `-1`.
+
+If `ignore_case` is `TRUE`, the comparison is case-insensitive; otherwise, it is case-sensitive.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int idx_in_list(
+    const char **list,
+    const char  *str,
+    BOOL        ignore_case
 );
 
 ```
@@ -41,9 +45,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `list`
+  - `const char **`
+  - A null-terminated array of string pointers to search within.
+
+* - `str`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The string to search for in the list.
+
+* - `ignore_case`
+  - `BOOL`
+  - If `TRUE`, performs a case-insensitive comparison; otherwise, it is case-sensitive.
 
 :::
 
@@ -53,15 +65,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns the index of the first occurrence of `str` in `list`. If `str` is not found, returns `-1`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `list` must be a null-terminated array of strings.
+- If `ignore_case` is `TRUE`, the function performs a case-insensitive comparison.
+- The function does not modify the input list or string.
 
 
 <!--====================================================-->

@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(set_real_precision())=
+# `set_real_precision()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `set_real_precision()` function sets the precision used for converting real numbers to strings in JSON-related operations. 
+This precision determines the number of decimal places displayed for real numbers. 
+The function returns the previous precision value before the change.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int set_real_precision(
+    int precision
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `precision`
+  - `int`
+  - The new precision value to set for real number conversions.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+The function returns the previous precision value as an `int` before the new precision was set.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+This function is useful when working with JSON serialization where control over the precision of real numbers is required. 
+It affects functions that convert JSON objects to strings, such as [`json2str()`](#json2str) and [`json2uglystr()`](#json2uglystr).
 
 
 <!--====================================================-->

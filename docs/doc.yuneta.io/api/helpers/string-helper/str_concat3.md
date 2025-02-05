@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(str_concat3())=
+# `str_concat3()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `str_concat3()` function concatenates three strings (`str1`, `str2`, and `str3`) into a single dynamically allocated string. 
+The caller is responsible for freeing the returned string using `str_concat_free()`. This function is useful for combining multiple strings into one, 
+especially when constructing paths, messages, or other compound strings.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,10 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+char *str_concat3(
+    const char *str1,
+    const char *str2,
+    const char *str3
 );
 
 ```
@@ -41,9 +44,17 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `str1`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The first string to concatenate.
+
+* - `str2`
+  - `const char *`
+  - The second string to concatenate.
+
+* - `str3`
+  - `const char *`
+  - The third string to concatenate.
 
 :::
 
@@ -53,15 +64,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+A pointer to the newly allocated string containing the concatenation of `str1`, `str2`, and `str3`. 
+The caller must free this memory using `str_concat_free()`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- If any of the input strings are `NULL`, they are treated as empty strings.
+- The function allocates memory for the resulting string, so it is essential to free it after use to avoid memory leaks.
+- This function is part of the string utilities provided in the helpers library.
 
 
 <!--====================================================-->

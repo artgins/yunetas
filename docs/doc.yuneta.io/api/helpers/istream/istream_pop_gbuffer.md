@@ -1,11 +1,13 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_pop_gbuffer())=
+# `istream_pop_gbuffer()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_pop_gbuffer()` function retrieves and removes the current [`gbuffer_t *`](#gbuffer_t) 
+from the specified input stream (`istream_h`). This operation transfers ownership of the 
+buffer to the caller, who is responsible for managing and freeing the buffer. 
+The function is useful for extracting accumulated data from the input stream for further processing.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +26,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+gbuffer_t *istream_pop_gbuffer(
+    istream_h istream
 );
 
 ```
@@ -41,9 +43,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream from which the `gbuffer_t *` will be retrieved.
 
 :::
 
@@ -53,15 +55,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns a pointer to the [`gbuffer_t`](#gbuffer_t) object containing the data from the input stream. 
+If no buffer is available, the function returns `NULL`.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The caller is responsible for freeing the returned [`gbuffer_t`](#gbuffer_t) using the appropriate method.
+- This function is typically used in scenarios where the input stream's accumulated data needs to be processed or transferred.
 
 
 <!--====================================================-->

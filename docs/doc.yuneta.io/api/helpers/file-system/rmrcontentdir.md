@@ -1,11 +1,14 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(rmrcontentdir())=
+# `rmrcontentdir()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `rmrcontentdir()` function removes all contents inside the specified directory `root_dir`, 
+but does not remove the directory itself. It recursively deletes all files and subdirectories 
+within `root_dir`.
+
+This function is useful for clearing the contents of a directory while keeping its structure intact.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +27,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+int rmrcontentdir(
+    const char *root_dir
 );
 
 ```
@@ -41,9 +44,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `root_dir`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - Path to the directory whose contents will be removed.
 
 :::
 
@@ -53,15 +56,16 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `0` on success, or `-1` if an error occurs (e.g., if `root_dir` does not exist or 
+if there are permission issues).
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- This function does **not** remove `root_dir` itself, only its contents.
+- If `root_dir` does not exist or is not accessible, the function will return `-1`.
+- Use [`rmrdir()`](#rmrdir) if you need to remove the directory itself along with its contents.
 
 
 <!--====================================================-->

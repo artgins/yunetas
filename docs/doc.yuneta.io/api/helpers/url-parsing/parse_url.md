@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(parse_url())=
+# `parse_url()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `parse_url()` function parses a given URI into its components: schema, host, port, path, and query. 
+It is designed to handle various URL formats and extract the specified parts into separate buffers. 
+If the `no_schema` parameter is set to TRUE, the function skips parsing the schema and focuses on the host and port.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,15 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC int parse_url(
+    hgobj   gobj,
+    const char *uri,
+    char    *schema, size_t schema_size,
+    char    *host, size_t host_size,
+    char    *port, size_t port_size,
+    char    *path, size_t path_size,
+    char    *query, size_t query_size,
+    BOOL    no_schema
 );
 
 ```
@@ -41,9 +49,57 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `gobj`
+  - `hgobj`
+  - The gobj context used for logging or error handling.
+
+* - `uri`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - The URI string to be parsed.
+
+* - `schema`
+  - `char *`
+  - Buffer to store the extracted schema (e.g., `http`, `https`).
+
+* - `schema_size`
+  - `size_t`
+  - The size of the `schema` buffer.
+
+* - `host`
+  - `char *`
+  - Buffer to store the extracted host.
+
+* - `host_size`
+  - `size_t`
+  - The size of the `host` buffer.
+
+* - `port`
+  - `char *`
+  - Buffer to store the extracted port.
+
+* - `port_size`
+  - `size_t`
+  - The size of the `port` buffer.
+
+* - `path`
+  - `char *`
+  - Buffer to store the extracted path.
+
+* - `path_size`
+  - `size_t`
+  - The size of the `path` buffer.
+
+* - `query`
+  - `char *`
+  - Buffer to store the extracted query string.
+
+* - `query_size`
+  - `size_t`
+  - The size of the `query` buffer.
+
+* - `no_schema`
+  - `BOOL`
+  - If TRUE, the schema is not parsed, and only the host and port are extracted.
 
 :::
 
@@ -53,15 +109,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns 0 on success, or -1 if an error occurs during parsing. Errors may include invalid URI formats or insufficient buffer sizes.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- Ensure that all buffers (`schema`, `host`, `port`, `path`, `query`) are properly allocated and their sizes are correctly specified.
+- If `no_schema` is TRUE, the `schema` parameter and its buffer are ignored.
+- This function does not validate the correctness of the URI components beyond basic parsing.
 
 
 <!--====================================================-->

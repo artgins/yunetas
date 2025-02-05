@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(jn2bool())=
+# `jn2bool()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `jn2bool()` function converts a JSON variable of type [`json_t`](https://jansson.readthedocs.io/en/latest/apiref.html#json-t) into a boolean value. 
+It evaluates the JSON variable and returns `TRUE` or `FALSE` based on its content. 
+This function is particularly useful when working with JSON objects and needing to extract boolean values reliably.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC BOOL jn2bool(
+    json_t *jn_var
 );
 
 ```
@@ -41,9 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+* - `jn_var`
+  - `json_t *`
+  - A pointer to the JSON variable to be converted to a boolean.
 
 :::
 
@@ -53,15 +54,14 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+Returns `TRUE` if the JSON variable evaluates to a boolean `true` value, and `FALSE` otherwise.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The function assumes the input is a valid JSON variable. If the input is not of a boolean-compatible type, the behavior might be undefined.
+- This function is part of the JSON utilities and simplifies the handling of JSON boolean values.
 
 
 <!--====================================================-->

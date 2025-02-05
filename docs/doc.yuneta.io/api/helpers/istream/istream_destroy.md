@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(istream_destroy())=
+# `istream_destroy()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `istream_destroy()` function is used to release the resources associated with an input stream (`istream_h`). 
+It ensures that all memory allocated for the input stream is properly freed, preventing memory leaks. 
+This function should be called when the input stream is no longer needed.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,8 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+PUBLIC void istream_destroy(
+    istream_h istream
 );
 
 ```
@@ -41,10 +42,9 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
-  - `const char *`
-  - The path to the file whose permissions are to be retrieved.
-
+* - `istream`
+  - `istream_h`
+  - Handle to the input stream to be destroyed. Must be a valid input stream created by `istream_create()`.
 :::
 
 
@@ -53,15 +53,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- If the `istream` parameter is `NULL`, the function does nothing.
+- After calling this function, the `istream` handle becomes invalid and should not be used.
+- Use the macro `ISTREAM_DESTROY()` for safer destruction of input streams.
 
 
 <!--====================================================-->

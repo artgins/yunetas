@@ -1,11 +1,12 @@
 <!-- ============================================================== -->
-(file_permission())=
-# `file_permission()`
+(tdump())=
+# `tdump()`
 <!-- ============================================================== -->
 
 
-The `file_permission()` function retrieves the permission bits of a file specified by the `path` parameter. 
-It returns the file's mode, which includes information about the file type and its access permissions.
+The `tdump()` function prints a hexadecimal and ASCII dump of a given binary buffer.
+It is useful for debugging purposes, allowing a structured visualization of raw data.
+The output format includes both the hexadecimal representation and the corresponding ASCII characters.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +25,12 @@ It returns the file's mode, which includes information about the file type and i
 
 ```C
 
-PUBLIC mode_t file_permission(
-    const char *path
+void tdump(
+    const char    *prefix,
+    const uint8_t *s,
+    size_t        len,
+    view_fn_t     view,
+    int           nivel
 );
 
 ```
@@ -41,10 +46,25 @@ PUBLIC mode_t file_permission(
   - Type
   - Description
 
-* - `path`
+* - `prefix`
   - `const char *`
-  - The path to the file whose permissions are to be retrieved.
+  - A string prefix that will be prepended to each line of the dump.
 
+* - `s`
+  - `const uint8_t *`
+  - Pointer to the binary data to be dumped.
+
+* - `len`
+  - `size_t`
+  - The length of the binary data in bytes.
+
+* - `view`
+  - `view_fn_t`
+  - A function pointer used to format and print the output.
+
+* - `nivel`
+  - `int`
+  - The indentation level for formatting the output.
 :::
 
 
@@ -53,15 +73,15 @@ PUBLIC mode_t file_permission(
 **Return Value**
 
 
-The function returns a `mode_t` value representing the file's mode. This includes the file type and its access permissions. 
-If the file does not exist or an error occurs, the behavior is undefined and should be handled by the caller.
+This function does not return a value.
 
 
 **Notes**
 
 
-- The `file_permission()` function is a utility for inspecting file permissions and is typically used in conjunction with other file system operations.
-- Ensure the `path` parameter is valid and points to an existing file to avoid undefined behavior.
+- The `view` function should be a printf-like function that handles formatted output.
+- The function prints both the hexadecimal and ASCII representation of the data.
+- Useful for debugging binary data, network packets, or file contents.
 
 
 <!--====================================================-->
