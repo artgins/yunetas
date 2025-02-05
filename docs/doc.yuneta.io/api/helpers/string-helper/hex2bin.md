@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a hexadecimal string into its binary representation. The function takes a buffer where the binary data will be stored, the size of that buffer, the hexadecimal string to convert, the length of the hexadecimal string, and a pointer to a variable that will hold the length of the output binary data.
+The `hex2bin` function converts a hexadecimal string representation into its binary form. It takes a buffer to store the binary data and its size, along with the hexadecimal string and its length. The function returns the buffer containing the binary data.
 
 
 <!------------------------------------------------------------>
@@ -71,13 +71,13 @@ char *hex2bin(
 **Return Value**
 
 
-Returns a pointer to the buffer containing the binary data. If the conversion fails, it may return NULL.
+The function returns a pointer to the buffer `bf` containing the binary data. If the conversion fails, it may return NULL.
 
 
 **Notes**
 
 
-Ensure that the buffer `bf` is large enough to hold the converted binary data. The function does not check for buffer overflow.
+Ensure that the buffer `bf` is large enough to hold the converted binary data. The function does not perform bounds checking on the input hexadecimal string.
 
 
 <!--====================================================-->

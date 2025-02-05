@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `istream_reset_rd` function resets the read pointer of the input stream represented by `istream`. This allows the stream to be read from the beginning again, effectively discarding any data that has already been read. It is particularly useful when the stream needs to be reprocessed or when the current read position is no longer valid.
+The `istream_reset_rd` function resets the read pointer of the input stream represented by `istream`. This allows for re-reading the data from the beginning of the stream, effectively enabling the user to process the data again without needing to recreate the stream.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ int istream_reset_rd(
 
 * - `istream`
   - `istream_h`
-  - The input stream handle that is to be reset for reading.
+  - The input stream handle that needs to be reset for reading.
 
 :::
 
@@ -52,13 +52,13 @@ int istream_reset_rd(
 **Return Value**
 
 
-Returns `0` on success, or a negative value on failure. The specific error code can provide insight into what went wrong during the reset operation.
+The function returns an integer value indicating the success or failure of the operation. A return value of 0 typically indicates success, while any negative value indicates an error occurred during the reset process.
 
 
 **Notes**
 
 
-Ensure that the stream is in a valid state before calling this function. If the stream has been destroyed or is otherwise invalid, the behavior of this function is undefined.
+This function is useful in scenarios where the data in the stream needs to be processed multiple times. It is important to ensure that the stream is in a valid state before calling this function.
 
 
 <!--====================================================-->

@@ -4,10 +4,9 @@
 <!-- ============================================================== -->
 
 
-This function creates a new `gbuffer` associated with the specified `istream`. 
-It allocates memory for the `gbuffer` based on the provided `data_size` and `max_size`. 
-If the `istream` already has an associated `gbuffer`, it will be replaced with the new one.
-The function ensures that the `istream` can handle the specified sizes and manages memory allocation accordingly.
+The `istream_new_gbuffer` function creates a new `gbuffer_t` associated with the provided `istream`. 
+It allocates memory for the buffer based on the specified `data_size` and `max_size`, allowing for 
+efficient data handling within the input stream.
 
 
 <!------------------------------------------------------------>
@@ -47,15 +46,15 @@ int istream_new_gbuffer(
 
 * - `istream`
   - `istream_h`
-  - The input stream for which the new `gbuffer` is being created.
+  - The input stream handle for which the new gbuffer is being created.
 
 * - `data_size`
   - `size_t`
-  - The size of the data to be stored in the new `gbuffer`.
+  - The size of the data that the gbuffer will hold.
 
 * - `max_size`
   - `size_t`
-  - The maximum size that the new `gbuffer` can grow to.
+  - The maximum size that the gbuffer can grow to.
 :::
 
 
@@ -64,15 +63,14 @@ int istream_new_gbuffer(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the operation. 
-A return value of 0 indicates success, while a negative value indicates an error occurred during the creation of the `gbuffer`.
+Returns 0 on success, or a negative value on failure, indicating an error in creating the gbuffer.
 
 
 **Notes**
 
 
-If the `istream` already has an associated `gbuffer`, it will be destroyed before creating the new one. 
-Ensure to handle any potential memory leaks by managing the lifecycle of the `istream` and its associated `gbuffer` properly.
+Ensure that the `istream` is properly initialized before calling this function. 
+If a gbuffer already exists for the given `istream`, it will be replaced.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Initializes the backtrace functionality for the specified program. This function sets up the necessary environment to capture and display backtrace information, which is useful for debugging purposes. It is typically called at the start of a program to ensure that any subsequent errors can be traced back to their origin.
+The `init_backtrace_with_backtrace` function initializes the backtrace mechanism for the specified program. It sets up the necessary environment to capture and display backtrace information, which is useful for debugging purposes when an error occurs.
 
 
 <!------------------------------------------------------------>
@@ -52,13 +52,13 @@ int init_backtrace_with_backtrace(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the initialization. A return value of 0 typically indicates success, while a non-zero value indicates an error occurred during the initialization process.
+Returns an integer indicating the success or failure of the initialization process. A return value of 0 typically indicates success, while a negative value indicates an error occurred during initialization.
 
 
 **Notes**
 
 
-This function should be called before any other backtrace-related functions to ensure that the backtrace information is correctly captured. It is important to handle the return value appropriately to detect any issues during initialization.
+This function is particularly useful in environments where detailed error reporting is required. It may have limitations based on the platform or the specific implementation of the backtrace mechanism.
 
 
 <!--====================================================-->

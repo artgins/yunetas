@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-Compares two simple JSON values (string, integer, real, or boolean) and determines their relative order.
-The function returns an integer value indicating whether the first JSON variable is less than, equal to, or greater than the second one.
-For complex types, they are considered as matched, and the function does not perform a deep comparison.
+The `cmp_two_simple_json` function compares two simple JSON values, which can be of types string, integer, real, or boolean. It returns an integer indicating the comparison result: -1 if the first value is less than the second, 0 if they are equal, and 1 if the first value is greater than the second.
 
 
 <!------------------------------------------------------------>
@@ -45,11 +43,11 @@ int cmp_two_simple_json(
 
 * - `jn_var1`
   - `json_t *`
-  - The first JSON variable to compare. This variable is not owned by the function.
+  - The first JSON variable to compare, not owned by the function.
 
 * - `jn_var2`
   - `json_t *`
-  - The second JSON variable to compare. This variable is also not owned by the function.
+  - The second JSON variable to compare, not owned by the function.
 
 :::
 
@@ -59,16 +57,13 @@ int cmp_two_simple_json(
 **Return Value**
 
 
-Returns an integer value:
-- `-1` if `jn_var1` is less than `jn_var2`
-- `0` if they are equal
-- `1` if `jn_var1` is greater than `jn_var2`
+The function returns an integer: -1 if `jn_var1` is less than `jn_var2`, 0 if they are equal, and 1 if `jn_var1` is greater than `jn_var2`.
 
 
 **Notes**
 
 
-The function only compares simple JSON types and does not handle nested or complex JSON structures.
+This function only compares simple JSON types and does not handle complex types. It is important to ensure that both JSON variables are of compatible types for a meaningful comparison.
 
 
 <!--====================================================-->

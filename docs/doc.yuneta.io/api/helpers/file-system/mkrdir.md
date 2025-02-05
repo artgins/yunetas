@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `mkrdir` function is used to create a new directory at the specified `path` with the given `permission` settings. It checks if the directory already exists and, if not, attempts to create it. The function ensures that the directory is created with the specified permissions, which dictate the access rights for the owner, group, and others.
+The `mkrdir` function creates a new directory specified by the `path` parameter with the given `permission` settings. It ensures that the directory is created with the appropriate access rights as defined by the permission argument.
 
 
 <!------------------------------------------------------------>
@@ -56,13 +56,13 @@ int mkrdir(
 **Return Value**
 
 
-Returns 0 on success, indicating that the directory was created successfully. Returns -1 on failure, indicating that the directory could not be created, which may be due to reasons such as insufficient permissions or an invalid path.
+Returns 0 on success, or -1 on failure, indicating that the directory could not be created.
 
 
 **Notes**
 
 
-Ensure that the provided `path` is valid and that the application has the necessary permissions to create directories in the specified location. The `permission` parameter should be set according to the desired access rights for the new directory.
+Ensure that the specified `path` does not already exist as a file or directory, as this will cause the function to fail. The `permission` should be set according to the desired access levels for the directory.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `pop_last_segment` function removes the last segment from a given file path. This is useful for manipulating file paths in a way that allows the user to navigate up the directory structure. The function modifies the original `path` string by replacing the last segment with a null terminator, effectively shortening the path.
+The `pop_last_segment` function modifies the input `path` by removing its last segment, which is typically the last directory or file name in the path. This function is useful for manipulating file paths in a file system context.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,9 @@ The `pop_last_segment` function removes the last segment from a given file path.
 
 ```C
 
-char *pop_last_segment(char *path); // WARNING path modified
+char *pop_last_segment(
+    char *path
+);
 
 ```
 
@@ -40,7 +42,7 @@ char *pop_last_segment(char *path); // WARNING path modified
 
 * - `path`
   - `char *`
-  - A pointer to the string representing the file path from which the last segment will be removed. The original string will be modified.
+  - A pointer to a string representing the file path from which the last segment will be removed. The original string is modified by this function.
 
 :::
 
@@ -50,13 +52,13 @@ char *pop_last_segment(char *path); // WARNING path modified
 **Return Value**
 
 
-Returns a pointer to the modified `path` string, which now represents the path without the last segment.
+The function returns a pointer to the modified `path` string, which now excludes the last segment. If the input path is empty or consists of only one segment, the function may return an empty string or a pointer to the original string.
 
 
 **Notes**
 
 
-The function modifies the input `path` directly. Ensure that the `path` string has enough length to accommodate the removal of the last segment without causing buffer overflows. If the `path` is empty or consists solely of a single segment, the behavior may lead to unexpected results.
+The input `path` is modified in place, which means that the original path string will be altered. Care should be taken to ensure that the caller does not rely on the original path after this function is called.
 
 
 <!--====================================================-->

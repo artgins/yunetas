@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Reads data from the input stream until the specified delimiter is encountered. The function will fill the input stream buffer with the data read and will trigger the specified event once the delimiter is found. This is useful for processing data streams where messages or data segments are separated by specific delimiters.
+The `istream_read_until_delimiter` function reads data from the input stream until the specified delimiter is encountered. It processes the data and triggers a specified event when the delimiter is found.
 
 
 <!------------------------------------------------------------>
@@ -45,19 +45,19 @@ int istream_read_until_delimiter(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream from which data is to be read.
+  - The input stream from which data is read.
 
 * - `delimiter`
   - `const char *`
-  - Pointer to the delimiter string that marks the end of the data to be read.
+  - A pointer to the delimiter string that marks the end of the reading operation.
 
 * - `delimiter_size`
   - `size_t`
-  - Size of the delimiter string.
+  - The size of the delimiter string.
 
 * - `event`
   - `gobj_event_t`
-  - Event to be triggered once the delimiter is encountered.
+  - The event to be triggered once the delimiter is found.
 :::
 
 
@@ -72,7 +72,7 @@ Returns an integer indicating the success or failure of the read operation. A re
 **Notes**
 
 
-Ensure that the delimiter provided is valid and that the input stream is properly initialized before calling this function. The function may block if the delimiter is not found, depending on the implementation of the input stream.
+Ensure that the delimiter is properly defined and that the input stream is valid before calling this function. The function may modify the state of the input stream.
 
 
 <!--====================================================-->

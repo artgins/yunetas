@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the current length of the data available in the input stream represented by `istream`. It provides a way to determine how much data has been read into the stream, which can be useful for managing data processing and ensuring that the stream is being handled correctly.
+The `istream_length` function retrieves the current length of the input stream represented by `istream`. This length indicates how many bytes are available to be read from the stream.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ size_t istream_length(
 
 * - `istream`
   - `istream_h`
-  - A handle to the input stream from which the length is to be determined.
+  - The input stream handle from which the length is to be retrieved.
 
 :::
 
@@ -52,13 +52,13 @@ size_t istream_length(
 **Return Value**
 
 
-Returns the length of the data currently available in the input stream. The return value is of type `size_t`, which represents the number of bytes available for reading.
+Returns the number of bytes currently available in the input stream.
 
 
 **Notes**
 
 
-This function does not modify the state of the input stream; it merely reports the length of the data available. It is important to ensure that the `istream` is valid and has been properly initialized before calling this function to avoid undefined behavior.
+This function does not modify the state of the input stream and can be called at any time to check the length of the data available for reading.
 
 
 <!--====================================================-->

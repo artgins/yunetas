@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Extracts a key-value parameter from a given string. The function looks for a pattern in the format of `key=value` or `key='this value'`. It modifies the input string by inserting null characters at the appropriate positions to separate the key and value. The extracted key is stored in the variable pointed to by `key`, and the function returns a pointer to the value within the original string.
+The `get_key_value_parameter` function extracts a key-value pair from a given string `s`. It modifies the string by inserting null characters to separate the key and value, and returns the value while storing the key in the provided pointer. The function is particularly useful for parsing parameters formatted as `key=value` or `key='this value'`.
 
 
 <!------------------------------------------------------------>
@@ -25,8 +25,8 @@ Extracts a key-value parameter from a given string. The function looks for a pat
 
 char *get_key_value_parameter(
     char   *s,
-    char  **key,
-    char  **save_ptr
+    char **key,
+    char **save_ptr
 );
 
 ```
@@ -44,15 +44,15 @@ char *get_key_value_parameter(
 
 * - `s`
   - `char *`
-  - The input string from which the key-value pair will be extracted.
+  - The input string from which the key-value pair is extracted. The string will be modified.
 
 * - `key`
   - `char **`
-  - A pointer to a variable where the extracted key will be stored.
+  - A pointer to a character pointer where the extracted key will be stored.
 
 * - `save_ptr`
   - `char **`
-  - A pointer to a variable used for saving the state of the string during extraction.
+  - A pointer to a character pointer used for saving the state between successive calls to this function.
 :::
 
 
@@ -67,7 +67,7 @@ Returns a pointer to the value part of the key-value pair extracted from the inp
 **Notes**
 
 
-The input string `s` will be modified by the function, with null characters inserted to terminate the key and value strings. Ensure that the input string is mutable.
+The input string `s` will be modified by the function. Ensure that the string is mutable and that the caller is aware of this modification.
 
 
 <!--====================================================-->

@@ -4,10 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `print_json2` function is used to print a JSON object to the standard output with an optional label. 
-This function formats the JSON data in a human-readable way, making it easier to debug or log the contents 
-of the JSON object. The label can be used to provide context for the printed JSON, helping to identify 
-which part of the application the output is coming from.
+The `print_json2` function is designed to print a JSON object in a formatted manner. It takes a label as a prefix for the output and a JSON object to be printed. This function is useful for debugging and logging purposes, allowing developers to visualize the structure and content of JSON data easily.
 
 
 <!------------------------------------------------------------>
@@ -46,11 +43,12 @@ int print_json2(
 
 * - `label`
   - `const char *`
-  - A string label that precedes the printed JSON output, providing context.
+  - A string label that will be printed before the JSON output, providing context for the printed data.
 
 * - `jn`
   - `json_t *`
-  - A pointer to the JSON object that will be printed. This object should not be owned by the function.
+  - A pointer to the JSON object that needs to be printed. This object is not owned by the function and should be managed by the caller.
+
 :::
 
 
@@ -59,15 +57,13 @@ int print_json2(
 **Return Value**
 
 
-The function returns an integer value. A return value of 0 indicates success, while a negative value indicates 
-an error occurred during the printing process.
+The function returns an integer value. Typically, it returns 0 on success and a negative value on failure, indicating an error in the printing process.
 
 
 **Notes**
 
 
-This function does not modify the JSON object passed to it. Ensure that the JSON object is valid before 
-calling this function to avoid unexpected behavior.
+This function is primarily intended for debugging and may not be suitable for production logging due to potential performance implications when printing large JSON objects.
 
 
 <!--====================================================-->

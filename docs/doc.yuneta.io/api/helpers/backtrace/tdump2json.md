@@ -4,12 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a binary dump represented by a byte array into a JSON object. 
-This function takes a pointer to the byte array and its length, 
-and processes the data to create a structured JSON representation 
-that can be easily manipulated or stored. The resulting JSON object 
-is dynamically allocated and should be freed by the caller when no 
-longer needed.
+The `tdump2json` function converts a binary data dump into a JSON object. It takes a pointer to the binary data and its length as input, and returns a JSON representation of that data.
 
 
 <!------------------------------------------------------------>
@@ -48,11 +43,11 @@ PUBLIC json_t *tdump2json(
 
 * - `s`
   - `const uint8_t *`
-  - Pointer to the byte array that contains the binary data to be converted.
+  - Pointer to the binary data that needs to be converted to JSON.
 
 * - `len`
   - `size_t`
-  - The length of the byte array to be processed.
+  - Length of the binary data to be converted.
 :::
 
 
@@ -61,16 +56,13 @@ PUBLIC json_t *tdump2json(
 **Return Value**
 
 
-Returns a pointer to a `json_t` object representing the converted JSON data. 
-If the conversion fails, it may return NULL.
+Returns a pointer to a `json_t` object representing the JSON conversion of the binary data. The caller is responsible for managing the memory of the returned object.
 
 
 **Notes**
 
 
-The caller is responsible for freeing the returned JSON object using the appropriate 
-deallocation function. Ensure that the input data is valid and properly formatted 
-to avoid conversion errors.
+Ensure that the input data is valid and properly formatted for conversion. The function may return NULL if the conversion fails.
 
 
 <!--====================================================-->

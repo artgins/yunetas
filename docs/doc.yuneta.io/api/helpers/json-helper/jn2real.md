@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a JSON variable to a real (double) value. This function is designed to handle simple JSON types, specifically converting a JSON number to its corresponding double representation. If the input JSON variable is not a valid number, the behavior is undefined, and the function may return unexpected results.
+The `jn2real` function converts a JSON variable to a `double` value. It is designed to handle simple JSON types and will return the corresponding real number representation of the input JSON variable.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ double jn2real(
 
 * - `jn_var`
   - `json_t *`
-  - A pointer to the JSON variable that is to be converted to a real value.
+  - A pointer to the JSON variable that needs to be converted to a real number.
 
 :::
 
@@ -52,13 +52,13 @@ double jn2real(
 **Return Value**
 
 
-Returns the double representation of the JSON variable. If the JSON variable is not a valid number, the return value may be undefined.
+The function returns the `double` representation of the JSON variable. If the conversion is not possible, the behavior is undefined.
 
 
 **Notes**
 
 
-Ensure that the JSON variable passed to this function is of a numeric type to avoid unexpected behavior. This function does not handle complex JSON types such as arrays or objects.
+This function assumes that the input JSON variable is of a type that can be converted to a real number. It does not handle complex JSON types.
 
 
 <!--====================================================-->

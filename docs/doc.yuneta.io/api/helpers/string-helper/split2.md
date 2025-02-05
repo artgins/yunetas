@@ -4,10 +4,7 @@
 <!-- ============================================================== -->
 
 
-Splits a given string `str` into a list of strings based on the specified delimiter `delim`. 
-The resulting list does not include empty strings. The function also provides the size of the 
-resulting list through the `list_size` parameter if it is not null. 
-It is important to remember to free the allocated memory for the list using `split_free2()`.
+The `split2` function splits a given string `str` into a list of strings based on the specified delimiter `delim`. It returns a dynamically allocated array of strings, which does not include empty strings. The size of the resulting list can be optionally stored in the variable pointed to by `list_size`. It is important to free the memory allocated for the list using `split_free2()` after use.
 
 
 <!------------------------------------------------------------>
@@ -51,12 +48,11 @@ const char ** split2(
 
 * - `delim`
   - `const char *`
-  - The delimiter used to split the string.
+  - The delimiter string used to split the input string.
 
 * - `list_size`
   - `int *`
-  - A pointer to an integer where the size of the resulting list will be stored. 
-    If you do not need the size, this can be set to NULL.
+  - A pointer to an integer where the size of the resulting list will be stored. Can be NULL if the size is not needed.
 
 :::
 
@@ -66,16 +62,13 @@ const char ** split2(
 **Return Value**
 
 
-Returns a pointer to an array of strings (const char **) that contains the split parts of the input string. 
-If memory allocation fails, it may return NULL. 
-The caller is responsible for freeing the returned list using `split_free2()`.
+Returns a pointer to an array of strings (const char **) that contains the split parts of the input string. If the input string is empty or if memory allocation fails, it returns NULL.
 
 
 **Notes**
 
 
-The function does not include empty strings in the resulting list. 
-Ensure to call `split_free2()` to avoid memory leaks after using the returned list.
+Remember to free the returned list using `split_free2()` to avoid memory leaks. The function does not include empty strings in the resulting list.
 
 
 <!--====================================================-->

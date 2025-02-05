@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `parse_date_basic` function is designed to interpret a date string and convert it into a timestamp. It supports various date formats, including absolute and relative dates, and can handle special time keywords. The function modifies the provided timestamp and offset pointers to reflect the parsed date and any timezone offset, respectively.
+The `parse_date_basic` function is designed to interpret a date string and convert it into a `timestamp_t` value. It also calculates the timezone offset, if applicable. This function supports various date formats, including absolute and relative dates, making it versatile for different input scenarios.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +44,7 @@ int parse_date_basic(
 
 * - `date`
   - `const char *`
-  - A string representing the date to be parsed. It can be in various formats, including ISO 8601, English date formats, and relative dates.
+  - A string representing the date to be parsed.
 
 * - `timestamp`
   - `timestamp_t *`
@@ -61,13 +61,13 @@ int parse_date_basic(
 **Return Value**
 
 
-The function returns an integer indicating the success or failure of the parsing operation. A return value of 0 typically indicates success, while a non-zero value indicates an error in parsing the date string.
+The function returns an integer indicating the success or failure of the parsing operation. A return value of 0 typically indicates success, while a non-zero value indicates an error in parsing the date.
 
 
 **Notes**
 
 
-This function is capable of interpreting a wide range of date formats, including both absolute and relative dates. It is important to ensure that the provided date string is in a recognizable format to avoid parsing errors.
+This function can handle a variety of date formats, including ISO 8601 and relative dates. It is important to ensure that the input string is in a recognizable format to avoid parsing errors.
 
 
 <!--====================================================-->

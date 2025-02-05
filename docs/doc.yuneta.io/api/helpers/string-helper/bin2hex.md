@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a binary data buffer into its hexadecimal string representation. The function takes a buffer where the hexadecimal string will be stored, the size of that buffer, a pointer to the binary data, and the length of the binary data. The resulting hexadecimal string will be null-terminated.
+The `bin2hex` function converts a binary data buffer into its hexadecimal string representation. It takes a buffer to store the resulting hexadecimal string, the size of that buffer, a pointer to the binary data, and the length of the binary data.
 
 
 <!------------------------------------------------------------>
@@ -45,20 +45,19 @@ char *bin2hex(
 
 * - `bf`
   - `char *`
-  - Pointer to the buffer where the hexadecimal string will be stored.
+  - A pointer to the buffer where the hexadecimal string will be stored.
 
 * - `bfsize`
   - `int`
-  - Size of the buffer `bf` in bytes.
+  - The size of the buffer `bf` in bytes.
 
 * - `bin`
   - `const uint8_t *`
-  - Pointer to the binary data that needs to be converted to hexadecimal.
+  - A pointer to the binary data that needs to be converted.
 
 * - `bin_len`
   - `size_t`
-  - Length of the binary data in bytes.
-
+  - The length of the binary data in bytes.
 :::
 
 
@@ -67,13 +66,13 @@ char *bin2hex(
 **Return Value**
 
 
-Returns a pointer to the buffer containing the hexadecimal string. If the buffer is not large enough to hold the resulting string, the behavior is undefined.
+The function returns a pointer to the buffer `bf`, which contains the hexadecimal representation of the binary data. If the buffer is not large enough to hold the result, the behavior is undefined.
 
 
 **Notes**
 
 
-Ensure that the buffer `bf` is large enough to hold the hexadecimal representation of the binary data, which is twice the size of the binary data plus one for the null terminator. If `bfsize` is less than `2 * bin_len + 1`, the function may not behave as expected.
+Ensure that the buffer `bf` is large enough to hold the resulting hexadecimal string, which will be twice the size of the binary data plus one for the null terminator.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `parse_date` function is designed to interpret and convert a variety of date formats from a string representation into a standardized output format. It supports multiple date formats, including absolute dates (like ISO 8601), relative dates (like "3 days ago"), and shorthand notations (like "today"). The function modifies the output string to reflect the parsed date, ensuring that it fits within the specified output size.
+The `parse_date` function is designed to interpret and convert a date string into a standardized format. It takes a variety of date formats, including absolute and relative dates, and outputs the parsed date into a specified output buffer.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,15 @@ int parse_date(
 
 * - `date`
   - `const char *`
-  - A string representing the date to be parsed. This can be in various formats, including absolute and relative dates.
+  - A string representing the date to be parsed. This can include various formats such as ISO 8601, relative dates, and more.
 
 * - `out`
   - `char *`
-  - A buffer where the parsed date will be stored as a string.
+  - A buffer where the parsed date will be stored.
 
 * - `outsize`
   - `int`
-  - The size of the output buffer to ensure that the parsed date does not exceed this limit.
+  - The size of the output buffer to ensure that the parsed date does not exceed the allocated space.
 
 :::
 
@@ -68,7 +68,7 @@ Returns an integer indicating the success or failure of the parsing operation. A
 **Notes**
 
 
-The function is capable of handling a wide range of date formats, including but not limited to ISO 8601, basic English formats, and relative dates. It is important to ensure that the output buffer is sufficiently sized to accommodate the formatted date string.
+The function can handle a wide range of date formats, including relative dates such as "3 days ago" or "next Friday". It is important to ensure that the output buffer is sufficiently sized to hold the parsed date representation.
 
 
 <!--====================================================-->

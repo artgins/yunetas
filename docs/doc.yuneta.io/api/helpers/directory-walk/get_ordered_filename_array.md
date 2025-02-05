@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves an ordered array of full filenames from a specified directory that match a given pattern. It traverses the directory tree starting from `root_dir`, applying the specified `pattern` to filter the files. The results are returned in an array of strings, which must be freed by the caller using `free_ordered_filename_array()`. The order of the filenames in the array is determined by the file system's natural ordering.
+The `get_ordered_filename_array` function retrieves an ordered array of full filenames from a specified directory (`root_dir`) that match a given pattern. The function allocates memory for the array, which must be freed by the caller using `free_ordered_filename_array()`. This function is useful for file management tasks where a sorted list of files is required.
 
 
 <!------------------------------------------------------------>
@@ -24,11 +24,11 @@ This function retrieves an ordered array of full filenames from a specified dire
 ```C
 
 char **get_ordered_filename_array(
-    hgobj gobj,
+    hgobj    gobj,
     const char *root_dir,
     const char *pattern,
     wd_option opt,
-    int *size
+    int     *size
 );
 
 ```
@@ -50,15 +50,15 @@ char **get_ordered_filename_array(
 
 * - `root_dir`
   - `const char *`
-  - The path to the root directory from which to start the search for files.
+  - The directory path from which to retrieve the filenames.
 
 * - `pattern`
   - `const char *`
-  - The pattern used to filter the filenames. This can include wildcards.
+  - A pattern to match filenames against (e.g., "*.txt").
 
 * - `opt`
   - `wd_option`
-  - Options that modify the behavior of the directory traversal (e.g., recursive search, hidden files).
+  - Options for the directory traversal, such as whether to include hidden files.
 
 * - `size`
   - `int *`
@@ -71,13 +71,13 @@ char **get_ordered_filename_array(
 **Return Value**
 
 
-Returns a pointer to an array of strings (char **) containing the ordered filenames. The caller is responsible for freeing this array using `free_ordered_filename_array()`.
+Returns a pointer to an array of strings (char **) containing the ordered filenames. If an error occurs, it returns NULL.
 
 
 **Notes**
 
 
-This function may reinvent the wheel for file searching; consider using `glob()` for similar functionality. The returned array must be freed by the caller to avoid memory leaks.
+The caller is responsible for freeing the memory allocated for the returned array using `free_ordered_filename_array()`. This function may reinvent the wheel for file retrieval; consider using `glob()` for similar functionality.
 
 
 <!--====================================================-->

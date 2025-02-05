@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the current read pointer of the input stream represented by `istream`. It allows the caller to access the position in the stream from which data can be read. This is particularly useful for managing the state of the stream during read operations, enabling the user to know where the next read will occur.
+The `istream_cur_rd_pointer` function retrieves the current read pointer of the input stream represented by `istream`. This allows the caller to access the data at the current read position without modifying the stream's state.
 
 
 <!------------------------------------------------------------>
@@ -52,13 +52,13 @@ char *istream_cur_rd_pointer(
 **Return Value**
 
 
-Returns a pointer to the current read position in the stream. If the stream is not valid or if an error occurs, the return value may be NULL.
+The function returns a pointer to the current read position in the stream. If the stream is invalid or an error occurs, the return value may be `NULL`.
 
 
 **Notes**
 
 
-Ensure that the `istream` is properly initialized before calling this function to avoid undefined behavior. The returned pointer should not be modified directly.
+Ensure that the `istream` is valid before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

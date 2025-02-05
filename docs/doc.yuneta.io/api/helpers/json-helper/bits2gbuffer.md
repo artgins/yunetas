@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a bitmask represented by `bits` into a `gbuffer_t` containing a list of strings. The strings are derived from the provided `strings_table`, which must be terminated with a NULL pointer. Each bit in `bits` corresponds to an index in the `strings_table`, where a bit set to 1 indicates that the corresponding string should be included in the resulting `gbuffer_t`. This function is useful for generating a dynamic list of string representations based on bitmask values.
+The `bits2gbuffer` function converts a bitmask represented by the `bits` parameter into a `gbuffer_t` structure. The conversion is based on a provided table of strings, `strings_table`, which must be terminated by a NULL pointer. Each bit in the `bits` value corresponds to an index in the `strings_table`, allowing for the creation of a buffer that contains the concatenated strings for the bits that are set.
 
 
 <!------------------------------------------------------------>
@@ -43,11 +43,12 @@ gbuffer_t *bits2gbuffer(
 
 * - `strings_table`
   - `const char **`
-  - A NULL-terminated array of strings that represent the possible values corresponding to the bits.
+  - A table of strings where each string corresponds to a specific bit position. The table must end with a NULL pointer.
 
 * - `bits`
   - `uint64_t`
-  - A bitmask where each bit represents the inclusion of the corresponding string from `strings_table`.
+  - A bitmask where each bit indicates whether the corresponding string in `strings_table` should be included in the resulting gbuffer.
+
 :::
 
 
@@ -56,13 +57,13 @@ gbuffer_t *bits2gbuffer(
 **Return Value**
 
 
-Returns a pointer to a `gbuffer_t` containing the selected strings based on the bitmask. The caller is responsible for freeing the returned `gbuffer_t` when it is no longer needed.
+Returns a pointer to a `gbuffer_t` structure containing the concatenated strings corresponding to the set bits in the `bits` parameter. The caller is responsible for freeing the returned gbuffer when it is no longer needed.
 
 
 **Notes**
 
 
-Ensure that the `strings_table` is properly terminated with a NULL pointer to avoid undefined behavior. The function assumes that the bits are strictly within the bounds of the provided string table.
+Ensure that the `strings_table` is properly terminated with a NULL pointer to avoid undefined behavior. The function allocates memory for the gbuffer, which must be freed by the caller.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Extracts the schema (protocol) from a given URL. The function parses the provided URI and fills the `schema` buffer with the detected schema, ensuring that the buffer does not exceed the specified size.
+The `get_url_schema` function extracts the schema (protocol) from a given URL. It populates the provided `schema` buffer with the extracted schema, ensuring that it does not exceed the specified `schema_size`. This function is useful for parsing URLs to determine the protocol being used, such as HTTP, HTTPS, FTP, etc.
 
 
 <!------------------------------------------------------------>
@@ -26,8 +26,7 @@ Extracts the schema (protocol) from a given URL. The function parses the provide
 int get_url_schema(
     hgobj   gobj,
     const char *uri,
-    char    *schema, 
-    size_t  schema_size
+    char *schema, size_t schema_size
 );
 
 ```
@@ -45,7 +44,7 @@ int get_url_schema(
 
 * - `gobj`
   - `hgobj`
-  - A handle to the gobject that is calling the function, used for context.
+  - A handle to the gobj instance that is calling this function.
 
 * - `uri`
   - `const char *`
@@ -67,13 +66,13 @@ int get_url_schema(
 **Return Value**
 
 
-Returns 0 on success, or a negative value if an error occurs during parsing.
+Returns an integer indicating the success or failure of the operation. A return value of 0 indicates success, while a negative value indicates an error occurred during the extraction process.
 
 
 **Notes**
 
 
-Ensure that the `schema` buffer is large enough to hold the expected schema. The function does not perform additional validation on the URI format.
+Ensure that the `schema` buffer is large enough to hold the schema to avoid buffer overflows. The function does not perform checks for the validity of the `uri` format.
 
 
 <!--====================================================-->

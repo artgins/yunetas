@@ -4,10 +4,9 @@
 <!-- ============================================================== -->
 
 
-This function returns the current monotonic time in milliseconds. 
-Monotonic time is a measure of elapsed time that is not affected by 
-system clock updates or adjustments. It is useful for measuring 
-intervals and durations in a reliable manner.
+The `time_in_miliseconds_monotonic` function returns the current monotonic time in milliseconds. 
+Monotonic time is a measure of time that is not affected by system clock updates, making it suitable 
+for measuring intervals and durations.
 
 
 <!------------------------------------------------------------>
@@ -53,19 +52,14 @@ uint64_t time_in_miliseconds_monotonic(void);
 **Return Value**
 
 
-The function returns the current monotonic time in milliseconds as a 
-`uint64_t` value. This value can be used to measure time intervals 
-accurately without being affected by changes to the system clock.
+The function returns a `uint64_t` value representing the current monotonic time in milliseconds.
 
 
 **Notes**
 
 
-This function is particularly useful in scenarios where precise 
-timing is required, such as performance measurements or timeout 
-calculations. It is important to note that the value returned by 
-this function is not the actual wall-clock time, but rather a 
-relative measure of time since an arbitrary point in the past.
+This function is useful for performance measurements and timing operations where the system clock 
+may change, ensuring that the time measured is consistent and reliable.
 
 
 <!--====================================================-->

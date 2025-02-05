@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Sets the precision for real number conversions when converting json to string functions. This function allows the user to define how many decimal places should be used in the representation of real numbers. The previous precision value is returned, allowing the caller to restore it if needed.
+The `set_real_precision` function sets the precision for real number conversions in JSON to string functions. It returns the previous precision value before the change.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ int set_real_precision(
 
 * - `precision`
   - `int`
-  - The number of decimal places to set for real number representation.
+  - The new precision value to be set for real number conversions.
 
 :::
 
@@ -52,13 +52,13 @@ int set_real_precision(
 **Return Value**
 
 
-Returns the previous precision value that was set before this function was called.
+The function returns the previous precision value that was set before the new precision was applied.
 
 
 **Notes**
 
 
-This function is particularly useful in contexts where consistent formatting of real numbers is required, such as in financial applications or when generating reports. Be cautious when changing the precision, as it may affect the output of subsequent json to string conversions.
+This function is useful for controlling the formatting of real numbers when converting JSON data to string representations. It is important to note that the precision value should be a non-negative integer.
 
 
 <!--====================================================-->

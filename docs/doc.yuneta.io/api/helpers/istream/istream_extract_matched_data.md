@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Extracts matched data from the input stream. This function reads data from the specified `istream` until a certain condition is met, which typically involves matching a specific pattern or delimiter. The extracted data is returned as a dynamically allocated string, and the length of the extracted data is stored in the variable pointed to by `len`.
+The `istream_extract_matched_data` function extracts matched data from the input stream represented by `istream`. It modifies the stream's internal state to reflect the extraction and provides the length of the extracted data through the `len` parameter.
 
 
 <!------------------------------------------------------------>
@@ -43,7 +43,7 @@ char *istream_extract_matched_data(
 
 * - `istream`
   - `istream_h`
-  - The input stream from which data will be extracted.
+  - The input stream from which data is to be extracted.
 
 * - `len`
   - `size_t *`
@@ -57,13 +57,13 @@ char *istream_extract_matched_data(
 **Return Value**
 
 
-Returns a pointer to the extracted data as a string. The caller is responsible for freeing this memory. If no data is matched, the function may return NULL.
+Returns a pointer to the extracted data. The caller is responsible for managing the memory of the returned string.
 
 
 **Notes**
 
 
-Ensure that the `istream` is properly initialized before calling this function. The extracted data should be freed by the caller to avoid memory leaks.
+Ensure that the `istream` is properly initialized and contains data before calling this function. The behavior is undefined if the stream is empty or not properly set up.
 
 
 <!--====================================================-->

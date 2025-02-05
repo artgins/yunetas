@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the index of a specified string within a JSON list. 
-If the string is found, it returns the index of the string; otherwise, it returns -1. 
-The search can be case-sensitive or case-insensitive based on the `ignore_case` parameter.
+The `json_list_str_index` function retrieves the index of a specified string within a JSON list. If the string is not found, the function returns -1. The search can be case-sensitive or case-insensitive based on the `ignore_case` parameter.
 
 
 <!------------------------------------------------------------>
@@ -54,7 +52,7 @@ int json_list_str_index(
 
 * - `ignore_case`
   - `BOOL`
-  - A boolean value indicating whether the search should be case-insensitive.
+  - A boolean flag indicating whether the search should ignore case differences.
 :::
 
 
@@ -69,8 +67,7 @@ Returns the index of the string in the JSON list if found; otherwise, returns -1
 **Notes**
 
 
-The function assumes that the JSON list is an array of strings. 
-If the list is empty or if the string is not found, the function will return -1.
+The function assumes that the JSON list is an array of strings. If the list is empty or not properly formatted, the behavior may be undefined.
 
 
 <!--====================================================-->

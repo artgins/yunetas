@@ -4,11 +4,9 @@
 <!-- ============================================================== -->
 
 
-The `walk_dir_tree` function traverses a directory tree starting from the specified `root_dir`. 
-For each file or directory found, it calls the provided callback function `cb` with details about the found item. 
-The traversal can be controlled using various options specified in `opt`, such as whether to include hidden files, 
-whether to match only directory names or regular files, and whether to traverse recursively. 
-If the callback function returns FALSE, the traversal will stop. The function returns 0 on success and -1 on failure.
+The `walk_dir_tree` function traverses a directory tree starting from `root_dir`. 
+It calls the provided callback function `cb` for each file or directory found that matches the specified `pattern`. 
+If the callback returns FALSE, the traversal is halted. The function returns 0 on success and -1 on failure.
 
 
 <!------------------------------------------------------------>
@@ -51,11 +49,11 @@ int walk_dir_tree(
 
 * - `gobj`
   - `hgobj`
-  - The gobj associated with the operation, used for context in the callback.
+  - The gobj context in which the function is executed.
 
 * - `root_dir`
   - `const char *`
-  - The path of the directory from which to start the traversal.
+  - The path to the root directory from which to start the traversal.
 
 * - `pattern`
   - `const char *`
@@ -63,7 +61,7 @@ int walk_dir_tree(
 
 * - `opt`
   - `wd_option`
-  - Options that control the behavior of the traversal (e.g., recursive, hidden files).
+  - Options that modify the behavior of the traversal (e.g., recursive, hidden files).
 
 * - `cb`
   - `walkdir_cb`
@@ -80,15 +78,15 @@ int walk_dir_tree(
 **Return Value**
 
 
-Returns 0 on success, indicating that the directory tree was traversed successfully. 
-Returns -1 if an error occurred during the traversal.
+The function returns 0 on success, indicating that the directory tree was traversed successfully. 
+It returns -1 if an error occurred during the traversal.
 
 
 **Notes**
 
 
-The function may not handle symbolic links or other special file types unless specified in the options. 
-Ensure that the callback function is efficient to avoid performance issues during traversal.
+The `pattern` can include wildcards to match multiple files. 
+The `opt` parameter allows for customization of the traversal behavior, such as including hidden files or only matching specific types of files.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Returns the current time in seconds since the Unix epoch (January 1, 1970). This function provides a way to retrieve the system's current time in a standardized format, which can be useful for time-stamping events or measuring elapsed time.
+The `time_in_seconds` function returns the current time in seconds since the epoch (standard time), which is defined as January 1, 1970, 00:00:00 UTC.
 
 
 <!------------------------------------------------------------>
@@ -50,13 +50,13 @@ uint64_t time_in_seconds(void);
 **Return Value**
 
 
-Returns the current time in seconds as a `uint64_t` value. This value represents the number of seconds elapsed since the Unix epoch.
+The function returns the current time in seconds as a `uint64_t` value.
 
 
 **Notes**
 
 
-This function is useful for applications that need to track time or perform time-based calculations. It is important to note that the returned value is based on the system's clock and may be affected by changes to the system time.
+This function provides a simple way to obtain the current time in seconds, which can be useful for time-stamping events or measuring elapsed time.
 
 
 <!--====================================================-->

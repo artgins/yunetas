@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `change_char` function replaces all occurrences of a specified character in a string with a new character. This is particularly useful for modifying strings where certain characters need to be updated or sanitized, such as in data processing or formatting tasks.
+The `change_char` function replaces all occurrences of a specified character (`old_c`) in a string (`s`) with a new character (`new_c`). This function is useful for modifying strings where character substitution is needed, such as formatting or data sanitization.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,15 @@ int change_char(
 
 * - `s`
   - `char *`
-  - A pointer to the string in which characters will be replaced.
+  - The string in which the character replacement will occur.
 
 * - `old_c`
   - `char`
-  - The character in the string that will be replaced.
+  - The character that needs to be replaced.
 
 * - `new_c`
   - `char`
-  - The character that will replace all occurrences of `old_c`.
+  - The character that will replace `old_c`.
 :::
 
 
@@ -61,13 +61,13 @@ int change_char(
 **Return Value**
 
 
-The function returns an integer value indicating the success of the operation. Typically, it returns the number of characters that were replaced in the string.
+The function returns an integer indicating the success of the operation. Typically, it returns 0 on success and a non-zero value on failure.
 
 
 **Notes**
 
 
-This function modifies the string in place. Ensure that the string is mutable and properly allocated before calling this function. If `old_c` does not exist in the string, no changes will be made.
+This function modifies the input string in place. Ensure that the string is mutable and properly allocated before calling this function.
 
 
 <!--====================================================-->

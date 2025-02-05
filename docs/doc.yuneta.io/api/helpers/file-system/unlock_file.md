@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `unlock_file` function releases a file lock that was previously acquired on the file associated with the given file descriptor. This is useful in scenarios where multiple processes or threads need to access the same file, ensuring that only one can write to it at a time while others can read or wait for access.
+The `unlock_file` function releases a file lock that was previously acquired on the file descriptor `fd`. This is essential for allowing other processes or threads to access the file after it has been locked.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ int unlock_file(
 
 * - `fd`
   - `int`
-  - The file descriptor of the file to be unlocked.
+  - The file descriptor of the file to unlock.
 
 :::
 
@@ -52,13 +52,13 @@ int unlock_file(
 **Return Value**
 
 
-Returns 0 on success, indicating that the file has been successfully unlocked. A return value of -1 indicates an error occurred, such as if the file descriptor is invalid or if the file was not locked.
+Returns 0 on success, or -1 if an error occurred while attempting to unlock the file.
 
 
 **Notes**
 
 
-Ensure that the file descriptor provided to `unlock_file` was previously locked using the `lock_file` function. Attempting to unlock a file that is not locked or using an invalid file descriptor may lead to undefined behavior.
+Ensure that the file descriptor `fd` was previously locked using `lock_file` before calling `unlock_file`. Failure to do so may result in undefined behavior.
 
 
 <!--====================================================-->

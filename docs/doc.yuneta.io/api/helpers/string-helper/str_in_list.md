@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function checks if a given string is present in a list of strings. It can perform the check in a case-sensitive or case-insensitive manner based on the `ignore_case` parameter. The function iterates through the provided list and compares each string with the specified string until a match is found or the end of the list is reached.
+The `str_in_list` function checks if a given string `str` is present in a list of strings `list`. It returns TRUE if the string is found, and FALSE otherwise. The search can be case-sensitive or case-insensitive based on the `ignore_case` parameter.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +44,7 @@ BOOL str_in_list(
 
 * - `list`
   - `const char **`
-  - A pointer to an array of strings (the list) to be searched.
+  - A pointer to an array of strings where the search will be performed.
 
 * - `str`
   - `const char *`
@@ -52,8 +52,7 @@ BOOL str_in_list(
 
 * - `ignore_case`
   - `BOOL`
-  - A boolean flag indicating whether the search should be case-insensitive (TRUE) or case-sensitive (FALSE).
-
+  - A boolean flag indicating whether the search should ignore case differences.
 :::
 
 
@@ -62,13 +61,13 @@ BOOL str_in_list(
 **Return Value**
 
 
-Returns TRUE if the string is found in the list; otherwise, it returns FALSE.
+Returns TRUE if the string `str` is found in the `list`, otherwise returns FALSE.
 
 
 **Notes**
 
 
-This function does not modify the original list or the strings within it. It is important to ensure that the list is properly terminated with a NULL pointer to avoid undefined behavior.
+The function performs a linear search through the list. If `ignore_case` is TRUE, it converts both the list strings and the target string to the same case for comparison.
 
 
 <!--====================================================-->

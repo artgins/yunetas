@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-Determines whether the specified path refers to a directory. 
-This function checks the file system to ascertain if the given path 
-is a directory and returns a boolean value indicating the result.
+The `is_directory` function checks if the specified `path` refers to a directory in the file system. It returns TRUE if the path is a directory and FALSE otherwise.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +42,7 @@ BOOL is_directory(
 
 * - `path`
   - `const char *`
-  - The path to be checked for directory status.
+  - The path to check for directory existence.
 
 :::
 
@@ -54,13 +52,13 @@ BOOL is_directory(
 **Return Value**
 
 
-Returns `TRUE` if the specified path is a directory; otherwise, returns `FALSE`.
+Returns TRUE if the specified path is a directory; otherwise, returns FALSE.
 
 
 **Notes**
 
 
-This function may return `FALSE` for paths that do not exist or for paths that are not accessible due to permission issues.
+This function may not handle symbolic links correctly, depending on the underlying file system implementation.
 
 
 <!--====================================================-->

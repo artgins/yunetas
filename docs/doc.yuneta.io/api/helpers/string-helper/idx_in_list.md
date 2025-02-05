@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-Return the index of the specified string `str` in the provided string list `list`. 
-If the string is not found, the function returns -1. The search can be case-sensitive 
-or case-insensitive based on the value of `ignore_case`.
+The `idx_in_list` function returns the index of a specified string within a list of strings. If the string is not found, it returns -1. The function can also perform a case-insensitive search based on the `ignore_case` parameter.
 
 
 <!------------------------------------------------------------>
@@ -54,7 +52,7 @@ int idx_in_list(
 
 * - `ignore_case`
   - `BOOL`
-  - A boolean flag indicating whether the search should ignore case differences.
+  - A boolean value that determines whether the search should be case-insensitive.
 :::
 
 
@@ -63,14 +61,13 @@ int idx_in_list(
 **Return Value**
 
 
-Returns the index of the string `str` in the `list`. If `str` is not found, returns -1.
+The function returns the index of the string `str` in the `list`. If `str` is not found, it returns -1.
 
 
 **Notes**
 
 
-This function is useful for quickly determining the position of a string within a list 
-of strings, and it can accommodate both case-sensitive and case-insensitive searches.
+This function is useful for searching through lists of strings, especially when the case of the characters may vary. If `ignore_case` is set to TRUE, the comparison will disregard case differences.
 
 
 <!--====================================================-->

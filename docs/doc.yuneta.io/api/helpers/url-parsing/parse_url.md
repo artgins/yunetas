@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `parse_url` function is designed to parse a given URI into its constituent components, including the schema, host, port, path, and query string. It takes a URI as input and extracts these elements, storing them in the provided buffers. The function also allows for the option to ignore the schema if specified.
+The `parse_url` function extracts components from a given URL (`uri`). It populates the provided buffers with the schema, host, port, path, and query parameters of the URL. The function can operate in a mode where it ignores the schema if specified by the `no_schema` parameter.
 
 
 <!------------------------------------------------------------>
@@ -49,15 +49,15 @@ int parse_url(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance that is associated with the parsing operation.
+  - The gobj context in which the URL is being parsed.
 
 * - `uri`
   - `const char *`
-  - The URI string to be parsed.
+  - The URL string to be parsed.
 
 * - `schema`
   - `char *`
-  - A buffer to store the extracted schema (e.g., "http", "https"). Must be large enough to hold the schema.
+  - A buffer to store the extracted schema (e.g., "http", "https").
 
 * - `schema_size`
   - `size_t`
@@ -65,7 +65,7 @@ int parse_url(
 
 * - `host`
   - `char *`
-  - A buffer to store the extracted host. Must be large enough to hold the host.
+  - A buffer to store the extracted host.
 
 * - `host_size`
   - `size_t`
@@ -73,7 +73,7 @@ int parse_url(
 
 * - `port`
   - `char *`
-  - A buffer to store the extracted port. Must be large enough to hold the port.
+  - A buffer to store the extracted port.
 
 * - `port_size`
   - `size_t`
@@ -81,7 +81,7 @@ int parse_url(
 
 * - `path`
   - `char *`
-  - A buffer to store the extracted path. Must be large enough to hold the path.
+  - A buffer to store the extracted path.
 
 * - `path_size`
   - `size_t`
@@ -89,7 +89,7 @@ int parse_url(
 
 * - `query`
   - `char *`
-  - A buffer to store the extracted query string. Must be large enough to hold the query.
+  - A buffer to store the extracted query string.
 
 * - `query_size`
   - `size_t`
@@ -97,7 +97,7 @@ int parse_url(
 
 * - `no_schema`
   - `BOOL`
-  - A flag indicating whether to ignore the schema in the parsing process (only host:port will be extracted if TRUE).
+  - If TRUE, the function will not extract the schema, focusing only on the host and port.
 :::
 
 
@@ -106,13 +106,13 @@ int parse_url(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the parsing operation. A return value of 0 typically indicates success, while a non-zero value indicates an error occurred during parsing.
+The function returns an integer indicating the success or failure of the parsing operation. A return value of 0 typically indicates success, while a negative value indicates an error occurred during parsing.
 
 
 **Notes**
 
 
-Ensure that the provided buffers are adequately sized to hold the expected components of the URI. If the buffers are too small, the function may not populate them correctly, leading to potential buffer overflows or incomplete data.
+This function modifies the provided buffers to store the parsed components of the URL. Ensure that the buffers are large enough to hold the expected values to avoid buffer overflows.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function displays a backtrace of the current call stack. It utilizes a user-defined write function to output the backtrace information. The backtrace provides insight into the sequence of function calls that led to the current point of execution, which is particularly useful for debugging purposes.
+The `show_backtrace_with_backtrace` function is designed to display the current backtrace of the program. It utilizes a specified logging function to output the backtrace information, which can be useful for debugging purposes. The function takes a handler that can be used to control how the backtrace is written, allowing for flexibility in logging mechanisms.
 
 
 <!------------------------------------------------------------>
@@ -43,12 +43,11 @@ void show_backtrace_with_backtrace(
 
 * - `fwrite_fn`
   - `loghandler_fwrite_fn_t`
-  - A function pointer to a logging handler that will be used to write the backtrace output.
+  - A function pointer to the logging function that will handle the output of the backtrace.
 
 * - `h`
   - `void *`
-  - A pointer to user-defined data that can be passed to the `fwrite_fn` for context or additional information during logging.
-
+  - A pointer to user-defined data that can be passed to the logging function.
 :::
 
 
@@ -63,7 +62,7 @@ This function does not return a value.
 **Notes**
 
 
-The `fwrite_fn` should be implemented to handle the output of the backtrace information appropriately. The function is primarily intended for debugging and may not be suitable for production environments without proper logging mechanisms in place.
+The function is primarily intended for debugging and may not be suitable for production environments due to potential performance implications. Ensure that the logging function provided is capable of handling the output format required for backtrace information.
 
 
 <!--====================================================-->

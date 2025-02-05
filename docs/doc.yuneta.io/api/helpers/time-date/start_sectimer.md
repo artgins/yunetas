@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `start_sectimer` function initializes a second-based timer. It accepts a time duration in seconds and starts the timer. If the provided value is less than or equal to zero, the timer is disabled. The function returns the current time when the timer is started.
+The `start_sectimer` function initializes a second-based timer with the specified duration in seconds. If the provided `seconds` value is less than or equal to zero, the timer is disabled. The function returns the current time when the timer is started.
 
 
 <!------------------------------------------------------------>
@@ -52,13 +52,13 @@ time_t start_sectimer(
 **Return Value**
 
 
-Returns the current time when the timer is started. If the timer is disabled, the behavior is undefined.
+The function returns the current time when the timer is started. If the timer is disabled, the return value is implementation-defined.
 
 
 **Notes**
 
 
-This function is useful for implementing timeouts or delays in applications. Ensure that the value passed is positive to start the timer effectively.
+This function is useful for implementing timeouts or delays in applications. Ensure to check the timer status using `test_sectimer` to determine if the timer has finished.
 
 
 <!--====================================================-->

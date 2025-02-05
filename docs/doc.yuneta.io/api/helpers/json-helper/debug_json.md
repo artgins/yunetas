@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `debug_json` function is used to print debug information about a JSON object. It outputs the contents of the JSON object in a readable format, which can be useful for debugging purposes. The function takes a label to identify the output and a verbosity flag that determines the level of detail in the output.
+The `debug_json` function is used to print debugging information about a JSON object. It takes a label for identification and the JSON object to be debugged, along with a verbosity flag that determines the level of detail in the output.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,16 @@ int debug_json(
 
 * - `label`
   - `const char *`
-  - A string label that will be printed before the JSON output to identify the context of the debug information.
+  - A string label that identifies the JSON object being debugged.
 
 * - `jn`
   - `json_t *`
-  - A pointer to the JSON object that will be printed. This object is not owned by the function and should not be freed by it.
+  - A pointer to the JSON object that will be printed for debugging.
 
 * - `verbose`
   - `BOOL`
-  - A boolean flag that indicates whether to print additional details about the JSON object. If TRUE, more detailed information will be included in the output.
+  - A boolean flag that indicates whether to print detailed information or a summary.
+
 :::
 
 
@@ -61,13 +62,13 @@ int debug_json(
 **Return Value**
 
 
-The function returns an integer value. Typically, it returns 0 on success and a negative value on failure, indicating an error in processing the JSON object.
+The function returns an integer value indicating the success or failure of the debug operation. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the process.
 
 
 **Notes**
 
 
-This function is primarily intended for debugging purposes. The output format may vary based on the verbosity level specified. Ensure that the JSON object passed to the function is valid to avoid unexpected behavior.
+This function is primarily intended for debugging purposes and may not be suitable for production use due to the potential for verbose output.
 
 
 <!--====================================================-->

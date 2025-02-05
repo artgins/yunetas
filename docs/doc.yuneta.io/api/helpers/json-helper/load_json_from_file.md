@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function loads a JSON object from a specified file located in a given directory. It takes a handle to a gobj, the directory path, the filename, and a logging option for critical errors. If the file is successfully read and parsed, a pointer to the resulting JSON object is returned. If an error occurs during the loading process, the behavior is determined by the `on_critical_error` parameter, which dictates how the function should respond to critical issues.
+The `load_json_from_file` function is designed to load a JSON object from a specified file within a given directory. It takes a `hgobj` as a context, the directory path, the filename, and a logging option for handling critical errors. The function will return a pointer to a `json_t` object representing the loaded JSON data, or NULL if an error occurs during the loading process.
 
 
 <!------------------------------------------------------------>
@@ -45,7 +45,7 @@ PUBLIC json_t *load_json_from_file(
 
 * - `gobj`
   - `hgobj`
-  - A handle to the gobj that is requesting the JSON data.
+  - The context object for the operation.
 
 * - `directory`
   - `const char *`
@@ -57,7 +57,8 @@ PUBLIC json_t *load_json_from_file(
 
 * - `on_critical_error`
   - `log_opt_t`
-  - Logging option that determines the action taken on critical errors during loading.
+  - Logging option to handle critical errors that may occur during the loading process.
+
 :::
 
 
@@ -66,13 +67,13 @@ PUBLIC json_t *load_json_from_file(
 **Return Value**
 
 
-Returns a pointer to a `json_t` object representing the loaded JSON data. If the loading fails, the return value may be NULL, depending on the error handling specified by `on_critical_error`.
+Returns a pointer to a `json_t` object containing the loaded JSON data. If the loading fails, it returns NULL.
 
 
 **Notes**
 
 
-Ensure that the specified directory and filename are valid and accessible. The function may log errors based on the `on_critical_error` parameter, which can be set to different logging levels.
+Ensure that the specified directory and filename are valid and accessible. The function may log errors based on the `on_critical_error` parameter.
 
 
 <!--====================================================-->

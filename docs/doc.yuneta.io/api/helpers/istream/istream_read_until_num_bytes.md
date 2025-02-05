@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Reads data from the input stream until the specified number of bytes is reached. This function is useful for scenarios where a fixed amount of data needs to be read from a stream, ensuring that the operation does not proceed until the required data size is obtained. The function may trigger an event upon completion of the read operation, allowing for asynchronous handling of the data.
+The `istream_read_until_num_bytes` function reads data from an input stream until a specified number of bytes have been read. It triggers a specified event once the reading operation is complete.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,15 @@ int istream_read_until_num_bytes(
 
 * - `istream`
   - `istream_h`
-  - The input stream handle from which data will be read.
+  - The input stream from which data is to be read.
 
 * - `num_bytes`
   - `size_t`
-  - The number of bytes to read from the stream.
+  - The number of bytes to read from the input stream.
 
 * - `event`
   - `gobj_event_t`
-  - The event to be triggered upon completion of the read operation.
+  - The event to trigger upon completion of the read operation.
 
 :::
 
@@ -62,13 +62,13 @@ int istream_read_until_num_bytes(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the read operation. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the read process.
+Returns an integer indicating the success or failure of the read operation. A return value of 0 typically indicates success, while a negative value indicates an error.
 
 
 **Notes**
 
 
-Ensure that the input stream is properly initialized before calling this function. The behavior of the function may depend on the underlying implementation of the stream and the event handling mechanism.
+Ensure that the input stream is properly initialized before calling this function. The behavior of the function may vary based on the implementation of the input stream.
 
 
 <!--====================================================-->

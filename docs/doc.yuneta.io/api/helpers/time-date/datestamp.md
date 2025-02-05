@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `datestamp` function generates a timestamp string and stores it in the provided output buffer. The format of the timestamp is typically human-readable and can vary based on the implementation details. The function ensures that the output does not exceed the specified size, preventing buffer overflows.
+The `datestamp` function generates a timestamp string and stores it in the provided output buffer. The output format is determined by the internal logic of the function, which typically formats the current date and time in a human-readable way.
 
 
 <!------------------------------------------------------------>
@@ -47,7 +47,8 @@ void datestamp(
 
 * - `outsize`
   - `int`
-  - The size of the output buffer, which is used to ensure that the function does not write beyond the allocated memory.
+  - The size of the output buffer to ensure that the function does not write beyond its limits.
+
 :::
 
 
@@ -56,13 +57,13 @@ void datestamp(
 **Return Value**
 
 
-The function does not return a value. Instead, it writes the generated timestamp directly to the provided output buffer.
+The function does not return a value. Instead, it writes the formatted timestamp directly into the provided output buffer.
 
 
 **Notes**
 
 
-Ensure that the `out` buffer is large enough to hold the generated timestamp string, including the null terminator. The function does not perform checks for the validity of the output buffer size beyond the provided `outsize`.
+Ensure that the output buffer is large enough to hold the generated timestamp string to avoid buffer overflow.
 
 
 <!--====================================================-->

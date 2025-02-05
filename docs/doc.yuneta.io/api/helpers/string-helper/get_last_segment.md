@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the last segment of a given file path. It processes the input string and identifies the portion after the last directory separator (typically a '/' or '\'). The function is useful for extracting the filename or the last directory from a complete path.
+The `get_last_segment` function extracts the last segment from a given file path. This is useful for obtaining the final component of a path, such as a filename or directory name, which can be important for file manipulation or analysis.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ char *get_last_segment(
 
 * - `path`
   - `char *`
-  - A pointer to the string representing the file path from which the last segment will be extracted.
+  - A pointer to a string representing the file path from which the last segment will be extracted.
 
 :::
 
@@ -52,13 +52,13 @@ char *get_last_segment(
 **Return Value**
 
 
-Returns a pointer to the last segment of the path. If the input path is empty or does not contain any directory separators, the function may return the original string or NULL.
+The function returns a pointer to a string containing the last segment of the provided path. If the path is empty or invalid, the behavior is undefined.
 
 
 **Notes**
 
 
-The input string `path` is expected to be mutable, as the function may modify it. If the path is malformed or does not contain any segments, the behavior may be undefined.
+Ensure that the input path is properly formatted. The function does not perform error checking on the validity of the path string.
 
 
 <!--====================================================-->

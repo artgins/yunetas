@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-The `delete_right_char` function removes the rightmost occurrence of a specified character from a given string. If the character is found, it modifies the string in place and returns a pointer to the modified string. If the character is not found, the original string remains unchanged and is returned.
+The `delete_right_char` function removes the rightmost occurrence of a specified character `x` from the string `s`. 
+If the character is found, it modifies the string in place and returns a pointer to the modified string. 
+If the character is not found, the original string is returned unchanged.
 
 
 <!------------------------------------------------------------>
@@ -43,7 +45,7 @@ char *delete_right_char(
 
 * - `s`
   - `char *`
-  - A pointer to the string from which the character will be removed.
+  - The input string from which the character will be removed.
 
 * - `x`
   - `char`
@@ -57,13 +59,13 @@ char *delete_right_char(
 **Return Value**
 
 
-Returns a pointer to the modified string. If the character was not found, the original string is returned unchanged.
+Returns a pointer to the modified string `s`, which may be the same as the input string if no changes were made.
 
 
 **Notes**
 
 
-The function modifies the input string directly. Ensure that the string has enough allocated memory to accommodate potential changes.
+The function modifies the input string in place. It is important to ensure that the string has enough allocated memory to accommodate any changes.
 
 
 <!--====================================================-->

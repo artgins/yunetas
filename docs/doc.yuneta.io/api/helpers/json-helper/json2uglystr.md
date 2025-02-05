@@ -4,11 +4,9 @@
 <!-- ============================================================== -->
 
 
-Converts a JSON object into a non-tabular string representation. 
-This function is useful for obtaining a compact string format of 
-the JSON data, which can be easier to read in certain contexts 
-compared to its structured format. The resulting string is 
-allocated dynamically and should be freed using `gbmem_free`.
+The `json2uglystr` function converts a JSON object into a non-tabular string representation. 
+This representation is intended for easier readability in a compact format, 
+suitable for logging or debugging purposes. The input JSON object is not owned by the function.
 
 
 <!------------------------------------------------------------>
@@ -45,8 +43,8 @@ char *json2uglystr(
   - Description
 
 * - `jn`
-  - `json_t *`
-  - A pointer to the JSON object that needs to be converted to a string. The JSON object is not owned by this function.
+  - `const json_t *`
+  - A pointer to the JSON object that needs to be converted to a string representation.
 
 :::
 
@@ -56,17 +54,14 @@ char *json2uglystr(
 **Return Value**
 
 
-Returns a dynamically allocated string representing the JSON object in 
-a non-tabular format. The caller is responsible for freeing the 
-returned string using `gbmem_free`.
+The function returns a pointer to a newly allocated string that contains the ugly representation of the JSON object. 
+This string should be freed using `gbmem_free`.
 
 
 **Notes**
 
 
-Ensure that the input JSON object is valid; otherwise, the behavior 
-of the function may be undefined. The function does not take ownership 
-of the JSON object passed to it.
+The input JSON object is not owned by the function, meaning it should not be freed by the function itself.
 
 
 <!--====================================================-->

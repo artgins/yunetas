@@ -4,9 +4,8 @@
 <!-- ============================================================== -->
 
 
-Generates a new random UUID (Universally Unique Identifier) and stores it in the provided buffer. 
-This function is typically used in applications that require unique identifiers for objects, 
-such as in databases or distributed systems.
+The `create_uuid` function generates a new random UUID and stores it in the provided buffer.
+This function is typically used for creating unique identifiers in applications.
 
 
 <!------------------------------------------------------------>
@@ -49,7 +48,8 @@ int create_uuid(
 
 * - `bfsize`
   - `int`
-  - The size of the buffer `bf`. This should be large enough to hold the UUID string representation.
+  - The size of the buffer `bf` to ensure that the UUID fits within the allocated space.
+
 :::
 
 
@@ -58,13 +58,14 @@ int create_uuid(
 **Return Value**
 
 
-Returns 0 on success, or a negative value on failure. The UUID is stored in the provided buffer upon success.
+Returns 0 on success, or a negative value on failure, indicating an error in UUID generation.
 
 
 **Notes**
 
 
-Ensure that the buffer size is sufficient to hold the UUID string, which is typically 36 characters long (including hyphens).
+Ensure that the buffer provided is large enough to hold the UUID string representation.
+Typically, a buffer size of at least 37 bytes is recommended to accommodate the UUID format.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a JSON record description into a topic schema. The input JSON record must contain fields such as `name`, `type`, `defaults`, and `fillspace`. The resulting schema will include an `id`, `header`, `type`, and `fillspace` represented as an integer.
+The `json_record_to_schema` function converts a JSON record description into a topic schema. The input is a JSON record that includes fields such as name, type, defaults, and fillspace, and the function outputs a schema that includes an id, header, type, and fillspace as an integer.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ json_t *json_record_to_schema(
 
 * - `json_desc`
   - `const json_desc_t *`
-  - Pointer to a `json_desc_t` structure that describes the JSON record to be converted into a schema.
+  - A pointer to a `json_desc_t` structure that describes the JSON record to be converted into a schema.
 
 :::
 
@@ -52,13 +52,13 @@ json_t *json_record_to_schema(
 **Return Value**
 
 
-Returns a pointer to a `json_t` object representing the schema derived from the input JSON record description. The caller is responsible for managing the memory of the returned object.
+Returns a pointer to a `json_t` structure representing the schema derived from the input JSON record description. The returned value is owned by the caller and should be freed appropriately.
 
 
 **Notes**
 
 
-Ensure that the `json_desc` structure is properly initialized before passing it to this function. The function assumes that the input JSON record is well-formed and contains the required fields.
+This function assumes that the input JSON record description is well-formed and adheres to the expected structure. If the input is invalid, the behavior is undefined.
 
 
 <!--====================================================-->

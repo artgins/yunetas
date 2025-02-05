@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `file_size` function retrieves the size of a file specified by its path. It opens the file in a read-only mode and checks its size using system calls. If the file does not exist or cannot be accessed, the function will return -1 to indicate an error.
+The `file_size` function retrieves the size of a file specified by its `path`. It returns the size in bytes, allowing the caller to determine the file's size for further processing or validation.
 
 
 <!------------------------------------------------------------>
@@ -52,13 +52,13 @@ off_t file_size(
 **Return Value**
 
 
-Returns the size of the file in bytes as an `off_t` type. If the file cannot be accessed, it returns -1.
+The function returns the size of the file in bytes as an `off_t` type. If the file does not exist or an error occurs, the return value may be negative, indicating an error condition.
 
 
 **Notes**
 
 
-Ensure that the provided path is valid and points to a file. The function does not handle symbolic links; it will return the size of the target file if the path is a link.
+Ensure that the provided `path` is valid and points to an existing file to avoid errors. The function may also return -1 if the file cannot be accessed.
 
 
 <!--====================================================-->

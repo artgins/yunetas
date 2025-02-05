@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `translate_string` function is designed to transform a source string (`from`) into a target string (`to`) based on specified mappings. It replaces characters in the source string according to the mappings provided in `mk_from` and `mk_to`. Each character in `mk_from` corresponds to a character in `mk_to`, and characters in `from` that match those in `mk_from` are replaced with the corresponding characters from `mk_to`. The function ensures that the resulting string does not exceed the specified length (`tolen`).
+The `translate_string` function translates characters from the `from` string to the `to` string based on the mappings provided in `mk_from` and `mk_to`. It modifies the `to` string in place, ensuring that the resulting string is constructed according to the specified mappings.
 
 
 <!------------------------------------------------------------>
@@ -46,23 +46,24 @@ char *translate_string(
 
 * - `to`
   - `char *`
-  - A pointer to the destination buffer where the translated string will be stored.
+  - The destination string where the translated characters will be stored.
 
 * - `tolen`
   - `int`
-  - The maximum length of the destination buffer to prevent overflow.
+  - The maximum length of the destination string.
 
 * - `from`
   - `const char *`
-  - A pointer to the source string that needs to be translated.
+  - The source string from which characters will be translated.
 
 * - `mk_to`
   - `const char *`
-  - A string containing characters that will replace those in `from`.
+  - A string that specifies the characters to which the characters in `from` will be translated.
 
 * - `mk_from`
   - `const char *`
-  - A string containing characters to be replaced in `from`.
+  - A string that specifies the characters in `from` that will be replaced by the corresponding characters in `mk_to`.
+
 :::
 
 
@@ -71,13 +72,13 @@ char *translate_string(
 **Return Value**
 
 
-The function returns a pointer to the destination string (`to`). If no characters were replaced, it returns the original `to` pointer.
+Returns a pointer to the translated string `to`. If no characters were translated, it returns the original `to` string.
 
 
 **Notes**
 
 
-Ensure that the destination buffer (`to`) is large enough to hold the translated string, including the null terminator. If `tolen` is less than the length of the resulting string, it may lead to buffer overflow.
+The function assumes that the `to` buffer is large enough to hold the translated string. If `tolen` is exceeded, the behavior is undefined.
 
 
 <!--====================================================-->

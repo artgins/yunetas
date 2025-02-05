@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `lock_file` function is used to acquire an exclusive lock on a file associated with the given file descriptor. This is particularly useful in scenarios where multiple processes may attempt to access the same file simultaneously, ensuring that only one process can modify the file at a time. If the lock is successfully acquired, subsequent calls to `lock_file` on the same file descriptor will block until the lock is released.
+The `lock_file` function is used to acquire an exclusive lock on a file associated with the given file descriptor `fd`. This is useful in scenarios where multiple processes may attempt to access the same file simultaneously, ensuring that only one process can modify the file at a time.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,9 @@ The `lock_file` function is used to acquire an exclusive lock on a file associat
 
 ```C
 
-int lock_file(int fd);
+int lock_file(
+    int fd
+);
 
 ```
 
@@ -50,13 +52,13 @@ int lock_file(int fd);
 **Return Value**
 
 
-Returns 0 on success, indicating that the lock has been successfully acquired. If the lock cannot be acquired (for example, if it is already held by another process), it returns -1 and sets errno to indicate the error.
+The function returns 0 on success, indicating that the file has been successfully locked. On failure, it returns -1 and sets errno to indicate the error.
 
 
 **Notes**
 
 
-It is important to ensure that the file descriptor is valid and corresponds to an open file. The function may block if the file is already locked by another process, so it should be used with caution in multi-threaded or multi-process applications.
+If the file is already locked by another process, the behavior of this function may depend on the underlying operating system's locking mechanism. It may block until the lock is available or return immediately with an error.
 
 
 <!--====================================================-->

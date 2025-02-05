@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function counts the number of files in a specified directory that match a given pattern. It traverses the directory tree starting from `root_dir`, applying the specified options to filter the results. The function returns the total count of files that meet the criteria defined by the pattern and options.
+The `get_number_of_files` function retrieves the count of files in a specified directory that match a given pattern. It traverses the directory tree starting from `root_dir`, applying the specified options to filter the results based on the provided pattern.
 
 
 <!------------------------------------------------------------>
@@ -24,10 +24,10 @@ This function counts the number of files in a specified directory that match a g
 ```C
 
 int get_number_of_files(
-    hgobj    gobj,
+    hgobj     gobj,
     const char *root_dir,
     const char *pattern,
-    wd_option opt
+    wd_option  opt
 );
 
 ```
@@ -45,19 +45,20 @@ int get_number_of_files(
 
 * - `gobj`
   - `hgobj`
-  - The object that is associated with the operation, typically representing the context in which the function is called.
+  - The handle to the gobj instance that is performing the operation.
 
 * - `root_dir`
   - `const char *`
-  - The path to the directory where the search for files will begin.
+  - The path to the directory where the file search begins.
 
 * - `pattern`
   - `const char *`
-  - A string pattern used to match file names. This can include wildcards to specify the types of files to count.
+  - The pattern used to match file names within the directory.
 
 * - `opt`
   - `wd_option`
-  - Options that modify the behavior of the file search, such as whether to include hidden files or to search recursively.
+  - Options that modify the behavior of the file search, such as whether to include hidden files or to traverse directories recursively.
+
 :::
 
 
@@ -66,13 +67,13 @@ int get_number_of_files(
 **Return Value**
 
 
-Returns the number of files that match the specified pattern in the given directory. If an error occurs, it may return a negative value indicating the failure.
+Returns the number of files that match the specified pattern in the given directory. If an error occurs, it returns -1.
 
 
 **Notes**
 
 
-Ensure that the `root_dir` is accessible and that the pattern is correctly specified to avoid unexpected results. The function may have performance implications when searching large directory trees, especially with recursive options enabled.
+Ensure that the `root_dir` is accessible and that the pattern is correctly specified to avoid unexpected results. The function may not handle symbolic links depending on the options set.
 
 
 <!--====================================================-->

@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-Compares two JSON objects to determine if they are identical. 
-This function checks for equality in terms of structure and content, 
-including the order of elements in arrays and the order of keys in objects.
-If both JSON objects are of the same type and contain the same data, 
-the function returns TRUE; otherwise, it returns FALSE.
+The `json_is_identical` function compares two JSON objects to determine if they are identical. It checks for equality in terms of structure and values, returning TRUE if both JSON objects are exactly the same, and FALSE otherwise.
 
 
 <!------------------------------------------------------------>
@@ -61,15 +57,13 @@ BOOL json_is_identical(
 **Return Value**
 
 
-Returns TRUE if the two JSON objects are identical; otherwise, returns FALSE.
+The function returns TRUE if the two JSON objects are identical, and FALSE otherwise.
 
 
 **Notes**
 
 
-This function performs a deep comparison of the JSON objects. 
-It is important to ensure that both parameters are valid JSON objects 
-before calling this function to avoid undefined behavior.
+This function only compares simple types such as strings, integers, reals, and booleans. Complex types are considered as matched regardless of their internal structure.
 
 
 <!--====================================================-->

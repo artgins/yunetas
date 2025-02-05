@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `nice_size` function formats a given size in bytes into a human-readable string representation. It converts the byte size into a more understandable format, such as KB, MB, GB, etc., depending on the value of the `b1024` parameter. The formatted string is stored in the buffer provided by the `bf` parameter, which must be large enough to hold the resulting string.
+The `nice_size` function formats a given size in bytes into a human-readable string representation. It can express the size in either binary (base 1024) or decimal (base 1000) format, depending on the value of the `b1024` parameter. The formatted string is stored in the buffer provided by the `bf` parameter, ensuring that it does not exceed the specified `bfsize`.
 
 
 <!------------------------------------------------------------>
@@ -45,19 +45,19 @@ void nice_size(
 
 * - `bf`
   - `char*`
-  - A pointer to the buffer where the formatted size will be stored.
+  - A pointer to the buffer where the formatted size string will be stored.
 
 * - `bfsize`
   - `size_t`
-  - The size of the buffer `bf`, which indicates the maximum number of characters that can be written to it.
+  - The size of the buffer `bf`, which limits the maximum length of the output string.
 
 * - `bytes`
   - `uint64_t`
-  - The size in bytes that needs to be formatted.
+  - The size in bytes to be formatted.
 
 * - `b1024`
   - `BOOL`
-  - A boolean flag that determines whether to use base 1024 (binary) or base 1000 (decimal) for the size conversion.
+  - A flag indicating whether to use binary (TRUE) or decimal (FALSE) formatting.
 :::
 
 
@@ -66,13 +66,13 @@ void nice_size(
 **Return Value**
 
 
-This function does not return a value. Instead, it modifies the buffer pointed to by `bf` to contain the formatted size string.
+The `nice_size` function does not return a value. Instead, it writes the formatted size string directly into the provided buffer.
 
 
 **Notes**
 
 
-Ensure that the buffer `bf` is sufficiently sized to accommodate the formatted string. The function does not check for buffer overflow, so it is the caller's responsibility to provide an adequately sized buffer.
+Ensure that the buffer `bf` is large enough to hold the formatted string, including the null terminator. If the buffer size is insufficient, the output may be truncated.
 
 
 <!--====================================================-->

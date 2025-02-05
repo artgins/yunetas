@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `left_justify` function modifies the input string `s` by removing any leading and trailing whitespace characters. This function is useful for formatting strings to ensure that they are aligned to the left without any unnecessary spaces at the beginning or end.
+The `left_justify` function modifies the input string `s` by removing any leading and trailing whitespace characters, effectively aligning the text to the left. This is useful for formatting strings where consistent alignment is required.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,9 @@ The `left_justify` function modifies the input string `s` by removing any leadin
 
 ```C
 
-void left_justify(char *s);
+void left_justify(
+    char *s
+);
 
 ```
 
@@ -40,7 +42,7 @@ void left_justify(char *s);
 
 * - `s`
   - `char *`
-  - A pointer to the string that will be modified in place to remove leading and trailing whitespace characters.
+  - A pointer to the string that needs to be left-justified. The string is modified in place.
 
 :::
 
@@ -50,13 +52,13 @@ void left_justify(char *s);
 **Return Value**
 
 
-This function does not return a value. It modifies the input string `s` directly.
+This function does not return a value. It modifies the input string directly.
 
 
 **Notes**
 
 
-The input string `s` is modified in place, meaning that the original string will be changed. Ensure that the string is mutable and has enough allocated memory to accommodate the changes.
+The input string `s` must be mutable, as the function modifies it in place. Ensure that the string has enough allocated memory to accommodate the changes.
 
 
 <!--====================================================-->

@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `filesize2` function retrieves the size of a file associated with the given file descriptor. 
-This function is useful for determining the size of files that are already open, as it avoids 
-the need to reopen the file or use the file path. The size is returned in bytes.
+The `filesize2` function retrieves the size of a file associated with the given file descriptor `fd`. It returns the size in bytes, allowing the caller to determine how much data is available in the file.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +42,7 @@ off_t filesize2(
 
 * - `fd`
   - `int`
-  - The file descriptor of the open file whose size is to be determined.
+  - The file descriptor of the file whose size is to be determined.
 
 :::
 
@@ -54,15 +52,13 @@ off_t filesize2(
 **Return Value**
 
 
-Returns the size of the file in bytes as an `off_t` type. If the file descriptor is invalid, 
-the function may return -1, indicating an error.
+Returns the size of the file in bytes as an `off_t` type. If an error occurs, the return value may be -1, and the error can be checked using `errno`.
 
 
 **Notes**
 
 
-Ensure that the file descriptor passed to this function is valid and refers to an open file. 
-Using an invalid file descriptor may lead to undefined behavior or errors.
+Ensure that the file descriptor is valid and refers to an open file. If the file descriptor is invalid or if the file cannot be accessed, the function may fail.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function generates a final JSON configuration string by merging various input parameters. It takes fixed and variable configuration strings, as well as optional configuration files and parameters, to produce a comprehensive JSON output. If any JSON formatting errors occur, the function will terminate based on the `quit` parameter, printing the error message. Additionally, if `print_verbose_config` or `print_final_config` is set to TRUE, the function will print the resulting configuration and exit with a success status.
+The `json_config` function generates a final configuration string by merging various JSON format input parameters. It processes fixed and variable configurations, along with optional configuration files and parameters. If any JSON format errors occur, the function will exit based on the `quit` parameter, printing the error message. Additionally, if `print_verbose_config` or `print_final_config` is set to TRUE, the function will print the resulting configuration and exit with a success status.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ This function generates a final JSON configuration string by merging various inp
 ```C
 
 char *json_config(
-    BOOL print_verbose_config,
-    BOOL print_final_config,
+    BOOL print_verbose_config,     // WARNING, if true will exit(0)
+    BOOL print_final_config,       // WARNING, if true will exit(0)
     const char *fixed_config,
     const char *variable_config,
     const char *config_json_file,
@@ -48,11 +48,11 @@ char *json_config(
 
 * - `print_verbose_config`
   - `BOOL`
-  - Indicates whether to print verbose configuration output and exit.
+  - Indicates whether to print verbose configuration details and exit.
 
 * - `print_final_config`
   - `BOOL`
-  - Indicates whether to print the final configuration output and exit.
+  - Indicates whether to print the final configuration and exit.
 
 * - `fixed_config`
   - `const char *`
@@ -68,11 +68,11 @@ char *json_config(
 
 * - `parameter_config`
   - `const char *`
-  - A string representing additional parameters that can overwrite the variable configuration.
+  - A string representing parameters that can overwrite the variable configuration.
 
 * - `quit`
   - `pe_flag_t`
-  - A flag that determines the behavior of the function upon encountering an error.
+  - A flag that determines the behavior of the function upon encountering errors.
 :::
 
 
@@ -81,13 +81,13 @@ char *json_config(
 **Return Value**
 
 
-The function returns a pointer to a dynamically allocated string containing the final JSON configuration. It is important to free this string using `jsonp_free()` to avoid memory leaks.
+The function returns a pointer to a dynamically allocated string containing the final configuration. This string must be freed using `jsonp_free()`.
 
 
 **Notes**
 
 
-The JSON input can include one-line comments using the combination `#^^`. Additionally, the function supports expanding a dictionary of JSON data within a specified range using `{^^ ^^}` syntax. A special key `__json_config_variables__` can be used to replace strings within parentheses with corresponding values from a global variable dictionary.
+The JSON string can include one-line comments using the combination `#^^`. Additionally, the function supports expanding a dictionary of JSON data within a specified range using the `{^^ ^^}` syntax. A special key `__json_config_variables__` can be used to replace strings within the configuration based on values found in a global variable dictionary.
 
 
 <!--====================================================-->

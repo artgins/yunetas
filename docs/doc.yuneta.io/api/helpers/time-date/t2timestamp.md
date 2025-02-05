@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a given `time_t` value into a human-readable timestamp string. The function formats the timestamp according to the specified local time setting. The output is written into the provided buffer, which must be large enough to hold the resulting string.
+The `t2timestamp` function converts a given `time_t` value into a human-readable timestamp string. It formats the timestamp based on the specified local time setting.
 
 
 <!------------------------------------------------------------>
@@ -45,19 +45,19 @@ char *t2timestamp(
 
 * - `bf`
   - `char *`
-  - A pointer to the buffer where the formatted timestamp will be stored.
+  - A buffer where the resulting timestamp string will be stored.
 
 * - `bfsize`
   - `int`
-  - The size of the buffer `bf`, which must be sufficient to hold the resulting timestamp string.
+  - The size of the buffer `bf`.
 
 * - `t`
   - `time_t`
-  - The `time_t` value representing the time to be converted.
+  - The `time_t` value to be converted into a timestamp.
 
 * - `local`
   - `BOOL`
-  - A boolean flag indicating whether to convert the time to local time (TRUE) or to UTC (FALSE).
+  - A flag indicating whether to convert the time to local time (TRUE) or to UTC (FALSE).
 :::
 
 
@@ -66,13 +66,13 @@ char *t2timestamp(
 **Return Value**
 
 
-Returns a pointer to the buffer `bf` containing the formatted timestamp string. If the buffer is too small, the behavior is undefined.
+Returns a pointer to the buffer `bf`, which contains the formatted timestamp string.
 
 
 **Notes**
 
 
-Ensure that the buffer provided is at least 90 bytes in size to accommodate the formatted timestamp string. The function does not perform bounds checking on the buffer size.
+Ensure that the buffer `bf` is at least 90 bytes in size to accommodate the formatted timestamp.
 
 
 <!--====================================================-->

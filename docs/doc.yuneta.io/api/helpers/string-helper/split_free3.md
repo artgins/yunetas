@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-Frees the memory allocated for a list of strings that was created by the `split3` function. 
-This function is essential for preventing memory leaks by ensuring that all dynamically allocated 
-memory for the string list is properly released.
+The `split_free3` function is used to free the memory allocated for a list of strings that was created by the `split3` function. It ensures that all allocated memory for the string list is properly released to prevent memory leaks.
 
 
 <!------------------------------------------------------------>
@@ -44,8 +42,7 @@ void split_free3(
 
 * - `list`
   - `const char **`
-  - A pointer to the list of strings to be freed. This list must have been previously allocated 
-    by the `split3` function.
+  - A pointer to the list of strings that needs to be freed.
 
 :::
 
@@ -61,7 +58,7 @@ This function does not return a value.
 **Notes**
 
 
-Ensure that the `list` parameter is not NULL before calling this function to avoid undefined behavior.
+Ensure that `split_free3` is called only with a list that was allocated by `split3`, as using it with other pointers may lead to undefined behavior.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `file_remove` function is designed to delete a specified file from a given directory. It takes the directory path and the filename as parameters, and attempts to remove the file from the filesystem. If the file is successfully deleted, the function returns a success indicator; otherwise, it returns an error code indicating the failure reason.
+The `file_remove` function is used to delete a specified file from a given directory. It takes the directory path and the filename as parameters and attempts to remove the file from the filesystem.
 
 
 <!------------------------------------------------------------>
@@ -57,13 +57,13 @@ int file_remove(
 **Return Value**
 
 
-Returns an integer value indicating the success or failure of the file removal operation. A return value of 0 typically indicates success, while a non-zero value indicates an error.
+The function returns an integer value. A return value of 0 indicates success, while a negative value indicates an error occurred during the file removal process.
 
 
 **Notes**
 
 
-Ensure that the specified file exists in the directory before calling this function, as attempting to remove a non-existent file will result in an error. Additionally, appropriate permissions must be set for the operation to succeed.
+Ensure that the specified file exists and that the program has the necessary permissions to delete it. The function does not perform checks for the existence of the file before attempting to remove it.
 
 
 <!--====================================================-->

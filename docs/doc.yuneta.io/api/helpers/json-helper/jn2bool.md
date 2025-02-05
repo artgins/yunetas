@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a JSON variable to a boolean value. The function checks the type of the provided JSON variable and returns `TRUE` if the variable represents a boolean true value, and `FALSE` otherwise. This is useful for interpreting JSON data where boolean values are expected.
+The `jn2bool` function converts a JSON variable to a boolean value. It interprets the JSON input and returns TRUE or FALSE based on the content of the JSON variable.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ BOOL jn2bool(
 
 * - `jn_var`
   - `json_t *`
-  - A pointer to the JSON variable to be converted to a boolean. This variable should be of a type that can be interpreted as a boolean.
+  - A pointer to the JSON variable to be converted to a boolean.
 
 :::
 
@@ -52,13 +52,13 @@ BOOL jn2bool(
 **Return Value**
 
 
-Returns `TRUE` if the JSON variable represents a true value, and `FALSE` otherwise. The interpretation of true values may depend on the specific JSON representation.
+The function returns a boolean value: TRUE if the JSON variable represents a truthy value, and FALSE otherwise.
 
 
 **Notes**
 
 
-This function assumes that the input JSON variable is not NULL. If the variable is of a type that cannot be converted to a boolean, the function may return `FALSE`.
+The function assumes that the input is a valid JSON variable. If the input is not a valid JSON type for conversion, the behavior may be undefined.
 
 
 <!--====================================================-->

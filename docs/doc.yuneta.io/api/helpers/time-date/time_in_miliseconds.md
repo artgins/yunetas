@@ -4,9 +4,8 @@
 <!-- ============================================================== -->
 
 
-This function returns the current real time in milliseconds since the epoch (January 1, 1970). 
-It provides a way to measure time intervals or timestamps in a more granular manner than seconds.
-The time is measured based on the system clock and is not affected by any adjustments made to the system time.
+The `time_in_miliseconds` function returns the current real time in milliseconds since the epoch (January 1, 1970).
+This function provides a way to measure time intervals or timestamps in a high-resolution format.
 
 
 <!------------------------------------------------------------>
@@ -58,8 +57,7 @@ The function returns the current real time in milliseconds as a `uint64_t` value
 **Notes**
 
 
-This function is useful for performance measurements and logging timestamps. 
-Keep in mind that the returned value is based on the system's real time clock, which can be adjusted by the user or system settings.
+This function is useful for performance measurements and logging timestamps.
 
 
 <!--====================================================-->

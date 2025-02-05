@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `current_timestamp` function retrieves the current timestamp and formats it into a string. The formatted timestamp is stored in the buffer provided by the caller. The buffer must be at least 90 bytes in size to accommodate the formatted timestamp.
+The `current_timestamp` function retrieves the current timestamp and formats it into a string. The formatted timestamp is stored in the buffer provided by the caller.
 
 
 <!------------------------------------------------------------>
@@ -24,8 +24,8 @@ The `current_timestamp` function retrieves the current timestamp and formats it 
 ```C
 
 char *current_timestamp(
-    char *bf,
-    size_t bfsize
+    char    *bf,
+    size_t  bfsize
 );
 
 ```
@@ -43,11 +43,11 @@ char *current_timestamp(
 
 * - `bf`
   - `char *`
-  - A pointer to the buffer where the formatted timestamp will be stored.
+  - A pointer to the buffer where the formatted timestamp will be stored. The buffer must be at least 90 bytes in size.
 
 * - `bfsize`
   - `size_t`
-  - The size of the buffer `bf`, which must be at least 90 bytes.
+  - The size of the buffer pointed to by `bf`.
 :::
 
 
@@ -56,13 +56,13 @@ char *current_timestamp(
 **Return Value**
 
 
-Returns a pointer to the buffer containing the formatted timestamp. If the buffer is too small, the behavior is undefined.
+Returns a pointer to the buffer containing the formatted timestamp.
 
 
 **Notes**
 
 
-Ensure that the buffer provided is at least 90 bytes to avoid buffer overflows. The function does not perform checks on the buffer size.
+Ensure that the buffer provided is at least 90 bytes to accommodate the formatted timestamp.
 
 
 <!--====================================================-->

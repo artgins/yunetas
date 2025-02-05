@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Creates a new JSON record based on the provided description. The function takes a `gobj` and a pointer to a `json_desc_t` structure that defines the properties of the JSON record, including its name, type, default values, and fill space. The resulting JSON object is dynamically allocated and must be freed by the caller.
+The `create_json_record` function generates a new JSON record based on the provided `json_desc` structure. It initializes the JSON object with the specified properties such as name, type, defaults, and fillspace, allowing for structured data representation in JSON format.
 
 
 <!------------------------------------------------------------>
@@ -24,7 +24,7 @@ Creates a new JSON record based on the provided description. The function takes 
 ```C
 
 json_t *create_json_record(
-    hgobj            gobj,
+    hgobj gobj,
     const json_desc_t *json_desc
 );
 
@@ -43,11 +43,12 @@ json_t *create_json_record(
 
 * - `gobj`
   - `hgobj`
-  - A handle to the gobj that is creating the JSON record.
+  - A handle to the global object that is associated with the JSON record being created.
 
 * - `json_desc`
   - `const json_desc_t *`
-  - A pointer to a `json_desc_t` structure that describes the JSON record's properties.
+  - A pointer to a `json_desc_t` structure that defines the properties of the JSON record, including its name, type, default value, and fillspace.
+
 :::
 
 
@@ -56,13 +57,13 @@ json_t *create_json_record(
 **Return Value**
 
 
-Returns a pointer to a newly created `json_t` object representing the JSON record. If the creation fails, it may return `NULL`.
+The function returns a pointer to a `json_t` object representing the newly created JSON record. If the creation fails, it may return NULL.
 
 
 **Notes**
 
 
-The caller is responsible for freeing the returned JSON object using the appropriate deallocation function. Ensure that the `json_desc` provided is valid and properly initialized to avoid undefined behavior.
+Ensure that the `json_desc` structure is properly initialized before passing it to the function. The returned JSON object should be freed using the appropriate JSON memory management functions to avoid memory leaks.
 
 
 <!--====================================================-->

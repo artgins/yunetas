@@ -4,8 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the `gbuffer` associated with the specified input stream (`istream`). 
-The `gbuffer` contains the data that has been read into the stream, allowing for further processing or manipulation.
+The `istream_get_gbuffer` function retrieves the current `gbuffer` associated with the specified input stream (`istream`). This allows access to the buffered data that has been read into the stream.
 
 
 <!------------------------------------------------------------>
@@ -53,15 +52,13 @@ gbuffer_t *istream_get_gbuffer(
 **Return Value**
 
 
-Returns a pointer to the `gbuffer_t` structure containing the data read from the input stream. 
-If no data is available, the function may return NULL.
+Returns a pointer to the `gbuffer_t` structure containing the buffered data. If there is no data available, the return value may be NULL.
 
 
 **Notes**
 
 
-Ensure that the `istream` is valid and has been properly initialized before calling this function. 
-The returned `gbuffer` should be managed appropriately to avoid memory leaks.
+Ensure that the `istream` is valid and has been properly initialized before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

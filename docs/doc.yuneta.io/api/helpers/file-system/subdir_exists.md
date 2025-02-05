@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Checks if a specified subdirectory exists within a given directory. This function verifies the presence of a subdirectory by constructing the full path and checking its existence in the file system.
+The `subdir_exists` function checks if a specified subdirectory exists within a given directory. It returns TRUE if the subdirectory is found, and FALSE otherwise.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,7 @@ Checks if a specified subdirectory exists within a given directory. This functio
 
 ```C
 
-PUBLIC BOOL subdir_exists(
+BOOL subdir_exists(
     const char *directory,
     const char *subdir
 );
@@ -43,7 +43,7 @@ PUBLIC BOOL subdir_exists(
 
 * - `directory`
   - `const char *`
-  - The path of the parent directory where the subdirectory is expected to exist.
+  - The path of the directory in which to check for the existence of the subdirectory.
 
 * - `subdir`
   - `const char *`
@@ -56,13 +56,13 @@ PUBLIC BOOL subdir_exists(
 **Return Value**
 
 
-Returns `TRUE` if the specified subdirectory exists; otherwise, returns `FALSE`.
+Returns TRUE if the specified subdirectory exists within the given directory; otherwise, returns FALSE.
 
 
 **Notes**
 
 
-This function does not create the subdirectory if it does not exist. It only checks for its presence.
+This function may not handle symbolic links or special filesystem cases. Ensure that the provided paths are valid and accessible.
 
 
 <!--====================================================-->

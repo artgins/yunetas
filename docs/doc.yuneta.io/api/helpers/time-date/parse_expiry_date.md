@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `parse_expiry_date` function is designed to interpret a given date string and convert it into a `timestamp_t` format. This function can handle various date formats, including absolute and relative dates, and is particularly useful for parsing expiry dates in applications where date validation and conversion are necessary.
+The `parse_expiry_date` function interprets a given date string and converts it into a `timestamp_t` format. This function is particularly useful for parsing expiry dates that may be provided in various formats, allowing for flexible date handling in applications.
 
 
 <!------------------------------------------------------------>
@@ -43,11 +43,12 @@ int parse_expiry_date(
 
 * - `date`
   - `const char *`
-  - A string representing the date to be parsed. This can be in various formats, including ISO 8601, relative dates, and more.
+  - A string representing the date to be parsed.
 
 * - `timestamp`
   - `timestamp_t *`
-  - A pointer to a `timestamp_t` variable where the parsed timestamp will be stored. This variable must be allocated before calling the function.
+  - A pointer to a `timestamp_t` variable where the parsed timestamp will be stored.
+
 :::
 
 
@@ -56,13 +57,13 @@ int parse_expiry_date(
 **Return Value**
 
 
-The function returns an integer value indicating the success or failure of the parsing operation. A return value of 0 indicates success, while a non-zero value indicates an error in parsing the date string.
+The function returns an integer value indicating success (0) or failure (-1) in parsing the date string. If successful, the parsed timestamp is stored in the variable pointed to by `timestamp`.
 
 
 **Notes**
 
 
-The function is capable of interpreting a wide range of date formats, including both absolute and relative dates. It is important to ensure that the `timestamp` pointer is valid and points to an allocated memory space before calling this function.
+This function can handle various date formats, including absolute and relative dates. It is important to ensure that the input string is in a recognizable format to avoid parsing errors.
 
 
 <!--====================================================-->

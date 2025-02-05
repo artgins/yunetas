@@ -4,12 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a string into a bit representation based on a provided table of strings. 
-The function interprets the input string by splitting it using specified separators 
-and maps each segment to its corresponding bit in the output. The strings table must 
-be terminated with a NULL pointer. The resulting bit representation is a 64-bit 
-unsigned integer where each bit corresponds to the presence of a string in the 
-input string.
+The `strings2bits` function converts a string into a bitmask based on a provided table of strings. It identifies which strings from the table are present in the input string, using specified separators to delimit the input string. The resulting bitmask represents the presence of each string in the input.
 
 
 <!------------------------------------------------------------>
@@ -49,15 +44,16 @@ uint64_t strings2bits(
 
 * - `strings_table`
   - `const char **`
-  - A table of strings that defines the mapping for the bit representation. The table must end with a NULL pointer.
+  - An array of strings that serves as the reference for the conversion. The array must be terminated with a NULL pointer.
 
 * - `str`
   - `const char *`
-  - The input string to be converted into bits. The string is split using the specified separators.
+  - The input string that will be parsed to determine which strings from the `strings_table` are present.
 
 * - `separators`
   - `const char *`
-  - A string containing characters that will be used as delimiters to split the input string.
+  - A string containing characters that will be used as delimiters to separate the input string into substrings.
+
 :::
 
 
@@ -66,13 +62,13 @@ uint64_t strings2bits(
 **Return Value**
 
 
-Returns a 64-bit unsigned integer where each bit represents the presence of a corresponding string from the `strings_table` in the input string. If a string is found, its corresponding bit is set to 1; otherwise, it is set to 0.
+The function returns a `uint64_t` bitmask, where each bit corresponds to a string in the `strings_table`. A bit is set if the corresponding string is found in the input string.
 
 
 **Notes**
 
 
-The function assumes that the input string can be split using the specified separators. If the input string is empty or does not match any strings in the table, the return value will be 0.
+The function assumes that the `strings_table` is properly terminated with a NULL pointer. If the input string is empty or contains no valid substrings, the returned bitmask will be zero.
 
 
 <!--====================================================-->

@@ -4,11 +4,8 @@
 <!-- ============================================================== -->
 
 
-This function retrieves the permission mode of a file specified by its path. 
-It returns the permission bits that indicate the access rights for the owner, group, 
-and others. The permission bits are represented in the form of a mode_t value, 
-which can be further analyzed using bitwise operations to determine specific permissions 
-like read, write, and execute.
+The `file_permission` function retrieves the permission bits of a file specified by its `path`. 
+It returns the permission settings, which can be used to determine the access rights of the file.
 
 
 <!------------------------------------------------------------>
@@ -46,7 +43,7 @@ mode_t file_permission(
 
 * - `path`
   - `const char *`
-  - The file system path of the file whose permissions are to be retrieved.
+  - The path to the file whose permissions are to be retrieved.
 
 :::
 
@@ -56,17 +53,13 @@ mode_t file_permission(
 **Return Value**
 
 
-Returns a `mode_t` value representing the permission bits of the specified file. 
-If the file does not exist or an error occurs, the return value may indicate an 
-error condition, typically represented by a value of `-1`.
+The function returns the permission bits of the file as a `mode_t` value, which indicates the access rights.
 
 
 **Notes**
 
 
-If the specified path does not point to a valid file, the behavior of this function 
-is undefined, and it may return an error code. It is advisable to check if the file 
-exists before calling this function.
+If the specified file does not exist or an error occurs while retrieving the permissions, the function may return an undefined value.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Checks if a specified file exists within a given directory. The function takes the directory path and the filename as input parameters and returns a boolean value indicating the existence of the file.
+The `file_exists` function checks for the existence of a file specified by `filename` within the given `directory`. It returns TRUE if the file exists and FALSE otherwise.
 
 
 <!------------------------------------------------------------>
@@ -56,13 +56,13 @@ BOOL file_exists(
 **Return Value**
 
 
-Returns `TRUE` if the file exists in the specified directory; otherwise, it returns `FALSE`.
+Returns TRUE if the specified file exists in the given directory; otherwise, it returns FALSE.
 
 
 **Notes**
 
 
-This function does not perform any checks on the permissions of the file or directory. It only checks for the existence of the file.
+This function does not differentiate between regular files and other types of files (e.g., directories, symbolic links).
 
 
 <!--====================================================-->

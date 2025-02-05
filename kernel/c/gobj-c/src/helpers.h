@@ -19,6 +19,22 @@ extern "C"{
 #endif
 
 /*****************************************************************
+ *     Macros
+ *****************************************************************/
+/*
+ * ARRAY_SIZE - get the number of elements in a visible array
+ *  <at> x: the array whose size you want.
+ *
+ * This does not work on pointers, or arrays declared as [], or
+ * function parameters.  With correct compiler support, such usage
+ * will cause a build error (see the build_assert_or_zero macro).
+ */
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+#endif
+
+
+/*****************************************************************
  *     Prototypes
  *****************************************************************/
 /*------------------------------------*
@@ -558,18 +574,6 @@ typedef uintmax_t timestamp_t;
 #define PRItime PRIuMAX
 #define parse_timestamp strtoumax
 #define TIME_MAX UINTMAX_MAX
-
-/*
- * ARRAY_SIZE - get the number of elements in a visible array
- *  <at> x: the array whose size you want.
- *
- * This does not work on pointers, or arrays declared as [], or
- * function parameters.  With correct compiler support, such usage
- * will cause a build error (see the build_assert_or_zero macro).
- */
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
-#endif
 
 #define bitsizeof(x)  (CHAR_BIT * sizeof(x))
 

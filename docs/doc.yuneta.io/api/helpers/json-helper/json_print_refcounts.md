@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function checks and prints the reference counts of a given JSON object. 
-It traverses the JSON structure recursively up to a specified level, 
-allowing for a detailed inspection of how many references exist for each 
-element within the JSON object. This can be useful for debugging memory 
-management issues or understanding the structure of complex JSON data.
+The `json_print_refcounts` function checks the reference counts of a JSON object, `jn`, and prints the results. It traverses the JSON structure up to a specified `level`, allowing for a detailed inspection of reference counts within nested JSON objects.
 
 
 <!------------------------------------------------------------>
@@ -28,7 +24,7 @@ management issues or understanding the structure of complex JSON data.
 ```C
 
 int json_print_refcounts(
-    json_t *jn, // not owned
+    json_t *jn,    // not owned
     int level
 );
 
@@ -47,12 +43,11 @@ int json_print_refcounts(
 
 * - `jn`
   - `json_t *`
-  - A pointer to the JSON object whose reference counts are to be printed. This parameter is not owned by the function.
+  - The JSON object to check for reference counts. This parameter is not owned by the function.
 
 * - `level`
   - `int`
-  - The depth level to which the function should traverse the JSON structure for printing reference counts.
-
+  - The depth level to which the function should traverse the JSON structure.
 :::
 
 
@@ -61,15 +56,13 @@ int json_print_refcounts(
 **Return Value**
 
 
-The function returns an integer indicating the success or failure of the operation. 
-Typically, a non-negative value indicates success, while a negative value indicates an error.
+The function returns an integer indicating the success or failure of the operation. Typically, a non-negative value indicates success, while a negative value indicates an error.
 
 
 **Notes**
 
 
-This function is primarily intended for debugging purposes. 
-It is important to ensure that the JSON object passed to this function is valid and properly initialized.
+This function is useful for debugging and ensuring that reference counts are managed correctly within JSON objects. It does not modify the JSON object.
 
 
 <!--====================================================-->

@@ -4,10 +4,9 @@
 <!-- ============================================================== -->
 
 
-Concatenates three strings into a single new string. The function allocates
-memory for the new string, which must be freed by the caller using 
-`str_concat_free()`. If any of the input strings are NULL, they are treated
-as empty strings during concatenation.
+The `str_concat3` function concatenates three strings into a single new string. 
+It allocates memory for the resulting string, which must be freed by the caller 
+using `str_concat_free()`.
 
 
 <!------------------------------------------------------------>
@@ -47,15 +46,15 @@ char *str_concat3(
 
 * - `str1`
   - `const char *`
-  - The first string to concatenate. If NULL, treated as an empty string.
+  - The first string to concatenate.
 
 * - `str2`
   - `const char *`
-  - The second string to concatenate. If NULL, treated as an empty string.
+  - The second string to concatenate.
 
 * - `str3`
   - `const char *`
-  - The third string to concatenate. If NULL, treated as an empty string.
+  - The third string to concatenate.
 
 :::
 
@@ -65,8 +64,8 @@ char *str_concat3(
 **Return Value**
 
 
-Returns a pointer to the newly allocated string containing the concatenated
-result of `str1`, `str2`, and `str3`. If memory allocation fails, it returns NULL.
+Returns a pointer to the newly allocated string containing the concatenation of 
+`str1`, `str2`, and `str3`. If memory allocation fails, it returns `NULL`.
 
 
 **Notes**

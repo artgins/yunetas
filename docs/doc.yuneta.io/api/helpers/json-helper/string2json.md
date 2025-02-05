@@ -4,12 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a string representation of JSON into a `json_t` object. 
-The function expects the input string to be formatted as valid JSON, 
-which can either be an array (denoted by square brackets `[]`) or an object 
-(denoted by curly braces `{}`). If the input string does not conform to 
-these formats, the behavior is undefined. The `verbose` parameter controls 
-the level of detail in error reporting, which can be useful for debugging.
+The `string2json` function converts a C string into a JSON object. It expects the input string to be formatted as a valid JSON structure, which can either be an array ([]) or an object ({}). The function also has a verbose mode that can provide additional output or error messages during the conversion process.
 
 
 <!------------------------------------------------------------>
@@ -48,11 +43,11 @@ PUBLIC json_t *string2json(
 
 * - `str`
   - `const char *`
-  - The input string that represents JSON data.
+  - The input string that needs to be converted to a JSON object.
 
 * - `verbose`
   - `BOOL`
-  - A flag indicating whether to provide verbose error messages.
+  - A flag indicating whether to enable verbose output during the conversion process.
 
 :::
 
@@ -62,17 +57,13 @@ PUBLIC json_t *string2json(
 **Return Value**
 
 
-Returns a pointer to a `json_t` object representing the parsed JSON data. 
-If the input string is invalid, the function may return NULL, and the 
-error handling will depend on the `verbose` parameter.
+The function returns a pointer to a `json_t` object representing the converted JSON structure. If the conversion fails, it may return NULL.
 
 
 **Notes**
 
 
-The function is a wrapper for the older `legalstring2json` function, 
-which has been deprecated. Ensure that the input string is properly 
-formatted to avoid unexpected behavior.
+The input string must be a valid JSON format; otherwise, the function may fail to convert it properly. The caller is responsible for freeing the returned JSON object using the appropriate deallocation function.
 
 
 <!--====================================================-->

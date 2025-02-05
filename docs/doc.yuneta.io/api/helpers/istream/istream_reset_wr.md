@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `istream_reset_wr` function resets the write pointer of the input stream represented by `istream`. This allows for reusing the stream for writing new data from the beginning, effectively clearing any previously written data. It is particularly useful in scenarios where the stream needs to be reused without creating a new instance, ensuring that the data can be overwritten without the need for additional memory allocation.
+The `istream_reset_wr` function resets the write pointer of the input stream represented by `istream`. This allows for reusing the stream for new data writing operations without needing to destroy and recreate the stream.
 
 
 <!------------------------------------------------------------>
@@ -52,13 +52,13 @@ int istream_reset_wr(
 **Return Value**
 
 
-Returns an integer status code. A return value of 0 indicates success, while a negative value indicates an error occurred during the reset operation.
+The function returns an integer value indicating the success or failure of the operation. A return value of 0 typically indicates success, while a negative value indicates an error occurred.
 
 
 **Notes**
 
 
-This function does not free or deallocate the `istream` itself; it merely resets the write pointer. Ensure that the stream is properly initialized before calling this function to avoid undefined behavior.
+This function is useful when you want to clear the current state of the write pointer in the stream without losing the existing data that has already been written.
 
 
 <!--====================================================-->

@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `istream_destroy` function is responsible for deallocating the resources associated with an input stream. 
-It takes a pointer to an input stream handle and frees any memory or resources that were allocated for that stream. 
-This function is crucial for preventing memory leaks in applications that utilize input streams.
+The `istream_destroy` function is responsible for deallocating and cleaning up resources associated with an input stream represented by `istream_h`. This function ensures that any memory allocated for the stream is properly released, preventing memory leaks.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +42,8 @@ void istream_destroy(
 
 * - `istream`
   - `istream_h`
-  - A handle to the input stream that needs to be destroyed. This handle must not be NULL.
+  - The input stream handle that needs to be destroyed.
+
 :::
 
 
@@ -59,8 +58,7 @@ This function does not return a value.
 **Notes**
 
 
-Ensure that the `istream` handle is valid and was previously created by `istream_create` before calling this function. 
-Calling `istream_destroy` on an invalid or already destroyed handle may lead to undefined behavior.
+It is important to ensure that the `istream` parameter is not NULL before calling this function to avoid undefined behavior.
 
 
 <!--====================================================-->

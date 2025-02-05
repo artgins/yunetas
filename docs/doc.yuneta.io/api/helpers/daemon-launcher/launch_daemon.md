@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `launch_daemon` function is used to create a new daemon process. A daemon is a background process that runs independently of user control. This function allows the user to specify whether to redirect standard input/output/error streams to `/dev/null`, effectively silencing the daemon's output. The function takes a program name as an argument, followed by any additional arguments needed by the program.
-
-The function returns the process ID (PID) of the newly created daemon, which can be used to manage the daemon process later (e.g., for termination or monitoring).
+The `launch_daemon` function is used to create a new daemon process. It allows for the option to redirect standard input/output to null, effectively detaching the daemon from the terminal. The function takes a program name and any additional arguments required by the program.
 
 
 <!------------------------------------------------------------>
@@ -25,7 +23,7 @@ The function returns the process ID (PID) of the newly created daemon, which can
 
 ```C
 
-int launch_daemon(
+PUBLIC int launch_daemon(
     BOOL redirect_stdio_to_null,
     const char *program,
     ...
@@ -46,7 +44,7 @@ int launch_daemon(
 
 * - `redirect_stdio_to_null`
   - `BOOL`
-  - Indicates whether to redirect standard input/output/error to `/dev/null`.
+  - Indicates whether to redirect standard input/output to null.
 
 * - `program`
   - `const char *`
@@ -54,7 +52,7 @@ int launch_daemon(
 
 * - `...`
   - `...`
-  - Additional arguments to be passed to the program being executed.
+  - Additional arguments to be passed to the program.
 
 :::
 
@@ -64,13 +62,13 @@ int launch_daemon(
 **Return Value**
 
 
-The function returns an `int` representing the process ID (PID) of the launched daemon. If the daemon could not be launched, it may return a negative value indicating an error.
+The function returns the process ID (PID) of the newly created daemon. If the daemon fails to launch, it returns a negative value indicating the error.
 
 
 **Notes**
 
 
-This function is typically used in server applications where background processing is required. The behavior of the daemon may depend on the operating system and its configuration. Ensure that the program being launched is designed to run as a daemon.
+This function is typically used in server applications where background processes are required. Ensure that the program specified is capable of running as a daemon.
 
 
 <!--====================================================-->

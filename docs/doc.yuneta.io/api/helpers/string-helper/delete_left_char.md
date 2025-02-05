@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-The `delete_left_char` function removes the first occurrence of a specified character from the left side of a given string. If the character is found, it modifies the string in place and returns a pointer to the modified string. If the character is not found, the original string is returned unchanged.
+The `delete_left_char` function removes the first occurrence of the character `x` from the string `s`. 
+If the character is found, it modifies the string in place and returns a pointer to the modified string.
+If the character is not found, it returns the original string unchanged.
 
 
 <!------------------------------------------------------------>
@@ -43,11 +45,11 @@ char *delete_left_char(
 
 * - `s`
   - `char *`
-  - Pointer to the string from which the character will be removed.
+  - The input string from which the leftmost occurrence of the character `x` will be removed.
 
 * - `x`
   - `char`
-  - The character to be removed from the left side of the string.
+  - The character to be removed from the string `s`.
 
 :::
 
@@ -57,13 +59,15 @@ char *delete_left_char(
 **Return Value**
 
 
-Returns a pointer to the modified string after the character has been removed. If the character was not found, the original string is returned.
+Returns a pointer to the modified string `s` after removing the leftmost occurrence of the character `x`.
+If `x` is not found, the original string is returned unchanged.
 
 
 **Notes**
 
 
-This function modifies the input string directly. Ensure that the string is mutable and has enough space to accommodate the changes.
+The function modifies the input string in place, which means that the original string will be altered.
+Ensure that the input string is mutable and properly allocated to avoid undefined behavior.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `build_path` function constructs a file path by concatenating multiple string segments. It takes a buffer and its size as input, along with a variable number of string arguments that represent the path components. The function ensures that the resulting path does not exceed the specified buffer size and handles the necessary formatting to create a valid file path.
+The `build_path` function constructs a file path by concatenating multiple string segments. It takes a buffer and its size as parameters, along with a variable number of string arguments that represent the segments of the path. The function ensures that the resulting path does not exceed the specified buffer size.
 
 
 <!------------------------------------------------------------>
@@ -51,8 +51,8 @@ char *build_path(
   - The size of the buffer `bf`, which limits the maximum length of the constructed path.
 
 * - `...`
-  - `char *`
-  - A variable number of string arguments representing the components of the path to be concatenated.
+  - `...`
+  - A variable number of string arguments representing the segments of the path to be concatenated.
 
 :::
 
@@ -62,13 +62,13 @@ char *build_path(
 **Return Value**
 
 
-Returns a pointer to the buffer `bf` containing the constructed path. If the construction fails (e.g., due to buffer overflow), it may return `NULL`.
+The function returns a pointer to the buffer `bf` containing the constructed path. If the path construction fails, it may return NULL.
 
 
 **Notes**
 
 
-Ensure that the buffer `bf` is large enough to hold the resulting path. The function may not handle cases where the total length of the concatenated path exceeds `bfsize`, which could lead to buffer overflow.
+Ensure that the total length of the segments does not exceed the buffer size specified by `bfsize`, as this may lead to buffer overflow.
 
 
 <!--====================================================-->

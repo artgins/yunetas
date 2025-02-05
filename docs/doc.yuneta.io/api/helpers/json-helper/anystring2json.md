@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a given string into a JSON object. The function takes a string buffer and its length as input, along with a verbosity flag that determines the level of detail in error reporting. If the conversion is successful, it returns a pointer to a `json_t` object representing the JSON structure. If the conversion fails, it may return NULL, and the verbosity flag can control whether additional error information is printed.
+The `anystring2json` function converts a given string into a JSON object. It takes a string buffer and its length as input, along with a verbosity flag that controls the level of detail in error reporting. This function is useful for parsing strings that represent JSON data and transforming them into a structured format that can be manipulated programmatically.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +44,7 @@ PUBLIC json_t *anystring2json(
 
 * - `bf`
   - `const char *`
-  - The input string buffer that contains the data to be converted to JSON.
+  - The input string buffer that contains the JSON representation.
 
 * - `len`
   - `size_t`
@@ -52,7 +52,7 @@ PUBLIC json_t *anystring2json(
 
 * - `verbose`
   - `BOOL`
-  - A flag indicating whether to print verbose error messages during the conversion process.
+  - A flag that indicates whether to provide verbose error messages during parsing.
 
 :::
 
@@ -62,13 +62,13 @@ PUBLIC json_t *anystring2json(
 **Return Value**
 
 
-Returns a pointer to a `json_t` object representing the converted JSON data. If the conversion fails, it returns NULL.
+Returns a pointer to a `json_t` object representing the parsed JSON data. If the conversion fails, it may return NULL.
 
 
 **Notes**
 
 
-The function assumes that the input string is properly formatted for JSON conversion. If the string contains invalid JSON syntax, the behavior may depend on the implementation of the JSON library used.
+This function is particularly useful for converting strings that may contain JSON data into a structured format. The verbosity flag can help in debugging by providing more detailed error messages if the input string is not valid JSON.
 
 
 <!--====================================================-->

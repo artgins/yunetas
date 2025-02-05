@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function converts a bitmask represented by `bits` into a JSON list of strings. The strings are derived from the provided `strings_table`, which must be terminated by a NULL pointer. Each bit in the `bits` value corresponds to an index in the `strings_table`. If a bit is set (i.e., it is 1), the corresponding string from the `strings_table` will be included in the resulting JSON list. The function returns a pointer to a JSON object that contains the list of selected strings.
+The `bits2jn_strlist` function converts a bitmask represented by `bits` into a JSON list of strings. The function uses a provided `strings_table`, which contains the string representations of the bits. Each bit set in `bits` corresponds to an entry in the `strings_table`, and the resulting JSON list will include only those strings whose corresponding bits are set.
 
 
 <!------------------------------------------------------------>
@@ -43,11 +43,11 @@ PUBLIC json_t *bits2jn_strlist(
 
 * - `strings_table`
   - `const char **`
-  - A NULL-terminated array of strings from which the JSON list will be created.
+  - An array of strings representing the names of the bits. The array must be terminated with a NULL pointer.
 
 * - `bits`
   - `uint64_t`
-  - A bitmask indicating which strings from `strings_table` should be included in the JSON list.
+  - A bitmask where each bit represents the presence (1) or absence (0) of the corresponding string in the `strings_table`.
 :::
 
 
@@ -56,13 +56,13 @@ PUBLIC json_t *bits2jn_strlist(
 **Return Value**
 
 
-Returns a pointer to a `json_t` object representing the list of strings corresponding to the set bits in the `bits` parameter. The caller is responsible for managing the memory of the returned JSON object.
+The function returns a pointer to a `json_t` object representing the list of strings corresponding to the set bits. The caller is responsible for freeing this object when it is no longer needed.
 
 
 **Notes**
 
 
-The function assumes that the `strings_table` is properly terminated with a NULL pointer. If `bits` contains values that exceed the bounds of the `strings_table`, those bits will be ignored. Ensure to free the returned JSON object when it is no longer needed.
+The `strings_table` must be properly terminated with a NULL pointer. If no bits are set, the resulting JSON list will be empty.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `rmrdir` function is designed to remove a directory and all of its contents recursively. This includes all files and subdirectories within the specified root directory. It ensures that the directory is completely emptied before it is deleted, making it a useful utility for cleaning up file systems.
+The `rmrdir` function is designed to remove a directory and all of its contents recursively. This includes all files and subdirectories within the specified `root_dir`. It ensures that the entire directory structure is deleted, making it useful for cleanup operations in file management.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +23,9 @@ The `rmrdir` function is designed to remove a directory and all of its contents 
 
 ```C
 
-int rmrdir(const char *root_dir);
+int rmrdir(
+    const char *root_dir
+);
 
 ```
 
@@ -40,7 +42,7 @@ int rmrdir(const char *root_dir);
 
 * - `root_dir`
   - `const char *`
-  - The path to the root directory that needs to be removed.
+  - The path to the directory that needs to be removed.
 
 :::
 
@@ -50,13 +52,13 @@ int rmrdir(const char *root_dir);
 **Return Value**
 
 
-The function returns `0` on success, indicating that the directory and its contents were successfully removed. A return value of `-1` indicates an error occurred during the operation, such as if the specified directory does not exist or if there are permission issues.
+The function returns an integer value indicating the success or failure of the operation. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the removal process.
 
 
 **Notes**
 
 
-It is important to use this function with caution, as it will permanently delete all files and subdirectories within the specified directory without any confirmation. Ensure that the path provided is correct to avoid accidental data loss.
+It is important to ensure that the specified `root_dir` is not in use or locked by another process, as this may prevent successful deletion. Additionally, the function may require appropriate permissions to delete the directory and its contents.
 
 
 <!--====================================================-->

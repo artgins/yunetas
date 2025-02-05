@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function retrieves and displays a list of currently open files in the system. 
-It provides a useful overview of file usage, which can be helpful for debugging or monitoring purposes.
-The output typically includes details such as file names, file descriptors, and possibly other relevant metadata.
+The `list_open_files` function retrieves and displays a list of all currently open files in the system. It provides a way to monitor file usage and can be useful for debugging or system administration purposes.
 
 
 <!------------------------------------------------------------>
@@ -52,13 +50,13 @@ void list_open_files(void);
 **Return Value**
 
 
-This function does not return a value. It performs its operation by printing the list of open files directly to the standard output.
+This function does not return a value.
 
 
 **Notes**
 
 
-This function may require appropriate permissions to access information about open files, depending on the operating system and its configuration.
+The output of this function may vary depending on the operating system and its configuration. It is primarily intended for diagnostic purposes.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Creates a new instance of `GHTTP_PARSER`, which is used to parse HTTP messages. This function initializes the parser with the specified event handlers for processing headers, body, and completed messages. The `gobj` parameter associates the parser with a specific object, while the `type` parameter specifies the type of HTTP parser to use (e.g., request or response). The event handlers are called when the respective parts of the HTTP message are received.
+The `ghttp_parser_create` function initializes a new `GHTTP_PARSER` instance for parsing HTTP messages. It sets up the parser with the specified event handlers for header, body, and message completion events, allowing for custom processing of incoming HTTP data.
 
 
 <!------------------------------------------------------------>
@@ -47,11 +47,11 @@ GHTTP_PARSER *ghttp_parser_create(
 
 * - `gobj`
   - `hgobj`
-  - The object associated with this parser instance.
+  - The gobj associated with the parser, used for event handling.
 
 * - `type`
   - `enum http_parser_type`
-  - Specifies the type of HTTP parser (request or response).
+  - The type of HTTP parser to create (e.g., request or response).
 
 * - `on_header_event`
   - `gobj_event_t`
@@ -76,13 +76,13 @@ GHTTP_PARSER *ghttp_parser_create(
 **Return Value**
 
 
-Returns a pointer to a newly created `GHTTP_PARSER` instance, or NULL if the creation fails.
+Returns a pointer to the newly created `GHTTP_PARSER` instance, or NULL if the creation fails.
 
 
 **Notes**
 
 
-Ensure that the created parser is properly destroyed using `ghttp_parser_destroy()` when it is no longer needed to avoid memory leaks.
+The `on_header_event`, `on_body_event`, and `on_message_event` parameters allow for flexible handling of different stages of HTTP message processing. Ensure that the event handlers are properly defined to handle the expected data.
 
 
 <!--====================================================-->

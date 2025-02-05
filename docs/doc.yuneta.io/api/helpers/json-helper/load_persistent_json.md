@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `load_persistent_json` function is designed to load a JSON object from a specified file within a given directory. It provides options for handling file access, including the ability to open the file exclusively or to silence error logging. 
-
-This function is particularly useful for applications that require persistent storage of JSON data, allowing for easy retrieval and manipulation of configuration or state information stored in JSON format. If the file cannot be accessed or if there are critical errors during the loading process, the behavior of the function can be controlled via the `on_critical_error` parameter.
+The `load_persistent_json` function is designed to load a JSON object from a specified file within a directory. It allows for options to handle file locking and error logging. The function can open the file exclusively or just read it, depending on the `exclusive` parameter. If an error occurs during the loading process, the behavior is determined by the `on_critical_error` parameter.
 
 
 <!------------------------------------------------------------>
@@ -50,7 +48,7 @@ PUBLIC json_t *load_persistent_json(
 
 * - `gobj`
   - `hgobj`
-  - The handle to the gobj that is requesting the JSON load operation.
+  - The handle to the gobj that is requesting the JSON load.
 
 * - `directory`
   - `const char *`
@@ -62,19 +60,20 @@ PUBLIC json_t *load_persistent_json(
 
 * - `on_critical_error`
   - `log_opt_t`
-  - Specifies the logging behavior in case of critical errors during the loading process.
+  - Logging option that determines the behavior on critical errors.
 
 * - `pfd`
   - `int *`
-  - A pointer to an integer where the file descriptor will be stored if the file is opened exclusively.
+  - Pointer to an integer where the file descriptor will be stored if opened.
 
 * - `exclusive`
   - `BOOL`
-  - Indicates whether the file should be opened in exclusive mode.
+  - If TRUE, the file will be opened exclusively.
 
 * - `silence`
   - `BOOL`
-  - If set to TRUE, suppresses error messages; requires `on_critical_error` to be set to `LOG_NONE`.
+  - If TRUE, suppresses error logging (requires `on_critical_error` to be set to `LOG_NONE`).
+
 :::
 
 
@@ -83,13 +82,13 @@ PUBLIC json_t *load_persistent_json(
 **Return Value**
 
 
-Returns a pointer to a `json_t` object representing the loaded JSON data. If the loading fails, it may return NULL, depending on the error handling specified by the `on_critical_error` parameter.
+Returns a pointer to a `json_t` object representing the loaded JSON data. If the loading fails, it returns NULL.
 
 
 **Notes**
 
 
-This function has a special behavior when the `silence` parameter is set to TRUE; in this case, the `on_critical_error` must be set to `LOG_NONE` to avoid logging any errors. This allows for silent failure modes in scenarios where error reporting is not desired.
+If the `silence` parameter is set to TRUE, the function will not log errors, which can lead to silent failures if not handled properly.
 
 
 <!--====================================================-->

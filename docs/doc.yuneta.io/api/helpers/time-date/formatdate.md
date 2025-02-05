@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-The `formatdate` function formats a given timestamp into a string representation based on the specified format. It takes a `time_t` value, which represents the time to be formatted, and converts it into a human-readable string according to the provided format string. The result is stored in the buffer provided by the caller.
-
-The function is useful for displaying dates and times in various formats, allowing for customization based on the needs of the application.
+The `formatdate` function formats a given timestamp `t` into a string representation based on the specified `format`. The formatted date string is stored in the buffer `bf`, which must be large enough to hold the resulting string.
 
 
 <!------------------------------------------------------------>
@@ -26,9 +24,9 @@ The function is useful for displaying dates and times in various formats, allowi
 ```C
 
 char *formatdate(
-    time_t  t,
-    char   *bf,
-    int     bfsize,
+    time_t t,
+    char *bf,
+    int bfsize,
     const char *format
 );
 
@@ -55,11 +53,11 @@ char *formatdate(
 
 * - `bfsize`
   - `int`
-  - The size of the buffer `bf` to ensure that it does not overflow.
+  - The size of the buffer `bf`.
 
 * - `format`
   - `const char *`
-  - A format string that specifies how the date should be formatted.
+  - The format string that specifies how the date should be represented.
 :::
 
 
@@ -68,13 +66,13 @@ char *formatdate(
 **Return Value**
 
 
-Returns a pointer to the buffer containing the formatted date string. If the formatting fails, it may return NULL.
+Returns a pointer to the buffer `bf`, which contains the formatted date string. If the formatting fails, it may return NULL.
 
 
 **Notes**
 
 
-Ensure that the buffer provided (`bf`) is large enough to hold the formatted date string to avoid buffer overflows. The function does not perform checks on the format string, so it is the caller's responsibility to provide a valid format.
+Ensure that the buffer `bf` is sufficiently sized to accommodate the formatted date string based on the specified `format`. If the buffer is too small, the behavior is undefined.
 
 
 <!--====================================================-->

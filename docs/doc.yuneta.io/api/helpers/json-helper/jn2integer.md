@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Converts a JSON variable to an integer. This function takes a `json_t` type variable as input and attempts to interpret it as an integer. If the conversion is successful, it returns the corresponding integer value. If the input is not a valid integer representation, the behavior is undefined, and the function may return an unexpected value.
+The `jn2integer` function converts a JSON variable into an integer. It takes a `json_t` pointer as an argument and returns the corresponding integer value.
 
 
 <!------------------------------------------------------------>
@@ -42,7 +42,7 @@ json_int_t jn2integer(
 
 * - `jn_var`
   - `json_t *`
-  - A pointer to a JSON variable that is to be converted to an integer.
+  - A pointer to the JSON variable that needs to be converted to an integer.
 
 :::
 
@@ -52,13 +52,13 @@ json_int_t jn2integer(
 **Return Value**
 
 
-Returns the integer value represented by the `json_t` variable. If the conversion fails, the return value may not be reliable.
+The function returns the integer representation of the provided JSON variable. If the conversion fails, the behavior is undefined.
 
 
 **Notes**
 
 
-Ensure that the input JSON variable is of a type that can be converted to an integer (e.g., a JSON number). Passing incompatible types may lead to undefined behavior.
+This function assumes that the input JSON variable is of a type that can be converted to an integer. If the input is not a valid integer representation, the result may not be as expected.
 
 
 <!--====================================================-->

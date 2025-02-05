@@ -4,10 +4,7 @@
 <!-- ============================================================== -->
 
 
-Counts the number of occurrences of the character `c` in the string `s`. 
-This function iterates through each character in the string and increments a counter 
-each time the specified character is found. It is useful for determining the frequency 
-of a specific character within a string.
+The `count_char` function counts the number of occurrences of a specified character `c` in the string `s`.
 
 
 <!------------------------------------------------------------>
@@ -50,7 +47,7 @@ int count_char(
 
 * - `c`
   - `char`
-  - The character to count within the string.
+  - The character to count in the input string.
 :::
 
 
@@ -59,16 +56,13 @@ int count_char(
 **Return Value**
 
 
-Returns the count of occurrences of the character `c` in the string `s`. 
-If the string is NULL, the function may return 0 or an undefined behavior.
+The function returns an integer representing the count of occurrences of the character `c` in the string `s`.
 
 
 **Notes**
 
 
-This function does not handle NULL strings gracefully. 
-If `s` is NULL, the behavior is undefined. 
-It is recommended to check for NULL before calling this function.
+This function does not handle null pointers for the string `s`. Ensure that `s` is a valid string before calling this function.
 
 
 <!--====================================================-->

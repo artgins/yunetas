@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function checks if a given string is present in a JSON list. It takes into account the option to ignore case sensitivity based on the `ignore_case` parameter. The function is useful for validating the existence of specific string values within a JSON array, which can be particularly helpful in scenarios where JSON data is used for configuration or data exchange.
+The `json_str_in_list` function checks if a specified string is present in a JSON list. It takes into account the option to ignore case sensitivity during the comparison.
 
 
 <!------------------------------------------------------------>
@@ -45,11 +45,11 @@ BOOL json_str_in_list(
 
 * - `gobj`
   - `hgobj`
-  - The handle to the gobj instance, which may be used for logging or context.
+  - The gobj context in which the function is executed.
 
 * - `jn_list`
   - `json_t *`
-  - A pointer to the JSON list (array) in which to search for the string.
+  - A pointer to the JSON list in which to search for the string.
 
 * - `str`
   - `const char *`
@@ -57,7 +57,7 @@ BOOL json_str_in_list(
 
 * - `ignore_case`
   - `BOOL`
-  - A boolean flag indicating whether the search should be case insensitive.
+  - A boolean flag indicating whether the search should ignore case differences.
 :::
 
 
@@ -66,13 +66,13 @@ BOOL json_str_in_list(
 **Return Value**
 
 
-Returns `TRUE` if the string is found in the JSON list, otherwise returns `FALSE`. The search behavior is influenced by the `ignore_case` parameter.
+Returns `TRUE` if the string is found in the JSON list; otherwise, it returns `FALSE`.
 
 
 **Notes**
 
 
-This function assumes that the JSON list is properly formatted and that the `gobj` parameter is valid. If the JSON list is empty or `NULL`, the function will return `FALSE`.
+This function is useful for validating the presence of specific string values in a JSON array, especially when dealing with user input or configuration settings.
 
 
 <!--====================================================-->

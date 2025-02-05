@@ -4,10 +4,7 @@
 <!-- ============================================================== -->
 
 
-Creates a new file at the specified `path` with the given `permission`. 
-If a file already exists at the specified path and `overwrite` is set to TRUE, 
-the existing file will be replaced. If `overwrite` is FALSE and the file exists, 
-the function will fail and return an error code.
+The `newfile` function creates a new file at the specified `path` with the given `permission`. If a file already exists at that path, the behavior is determined by the `overwrite` parameter: if `TRUE`, the existing file will be overwritten; if `FALSE`, the function will fail.
 
 
 <!------------------------------------------------------------>
@@ -47,7 +44,7 @@ int newfile(
 
 * - `path`
   - `const char *`
-  - The path where the new file should be created.
+  - The path where the new file will be created.
 
 * - `permission`
   - `int`
@@ -64,17 +61,13 @@ int newfile(
 **Return Value**
 
 
-Returns 0 on success, or a negative error code if the file could not be created. 
-Possible error codes include issues with permissions or if the file already exists 
-and `overwrite` is FALSE.
+Returns `0` on success, or a negative value on failure, indicating the error.
 
 
 **Notes**
 
 
-Ensure that the specified `path` is valid and that the program has the necessary 
-permissions to create files in the target directory. The `permission` parameter 
-should be set according to the desired access rights for the file.
+Ensure that the `path` provided is valid and accessible. The `permission` should be set according to the desired access rights for the file.
 
 
 <!--====================================================-->

@@ -4,11 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function checks if a previously started second timer has finished. 
-It returns TRUE if the timer has expired, indicating that the specified 
-duration has elapsed since the timer was started. If the timer is still 
-running, it returns FALSE. This function is useful for managing timeouts 
-and scheduling tasks that need to occur after a certain period.
+The `test_sectimer` function checks if a previously started second timer has finished. It returns TRUE if the timer has completed its countdown based on the specified `value`.
 
 
 <!------------------------------------------------------------>
@@ -46,10 +42,7 @@ BOOL test_sectimer(
 
 * - `value`
   - `time_t`
-  - The value representing the timer duration in seconds. This is the 
-    value that was set when the timer was started using `start_sectimer()`. 
-    If the timer is disabled (value <= 0), the function will not check 
-    for expiration.
+  - The time duration in seconds that the timer was set for. This is used to determine if the timer has finished.
 
 :::
 
@@ -59,16 +52,13 @@ BOOL test_sectimer(
 **Return Value**
 
 
-Returns TRUE if the timer has finished, otherwise returns FALSE. 
-This allows the caller to determine if the specified time period has elapsed.
+Returns TRUE if the timer has finished, otherwise returns FALSE.
 
 
 **Notes**
 
 
-Ensure that the timer was started using `start_sectimer()` before calling 
-this function. If the timer was not started or has been disabled, the 
-behavior may not be as expected.
+This function is intended to be used in conjunction with `start_sectimer`. If the timer was not started or has been disabled, the behavior may not be as expected.
 
 
 <!--====================================================-->

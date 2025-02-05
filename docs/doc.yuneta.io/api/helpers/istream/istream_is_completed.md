@@ -4,9 +4,7 @@
 <!-- ============================================================== -->
 
 
-Determines whether the input stream has completed its reading process. 
-This function checks the internal state of the `istream` to ascertain if all expected data has been read and no further data is anticipated. 
-It is particularly useful in scenarios where the completion of data reading is critical, such as when processing streams of data that signal their end.
+The `istream_is_completed` function checks if the input stream represented by `istream` has completed its reading process. It returns TRUE if the stream has finished reading all expected data, and FALSE otherwise.
 
 
 <!------------------------------------------------------------>
@@ -44,7 +42,7 @@ BOOL istream_is_completed(
 
 * - `istream`
   - `istream_h`
-  - A handle to the input stream whose completion status is being checked.
+  - The input stream handle to check for completion status.
 
 :::
 
@@ -54,13 +52,13 @@ BOOL istream_is_completed(
 **Return Value**
 
 
-Returns `TRUE` if the input stream has completed reading all expected data; otherwise, it returns `FALSE`.
+Returns TRUE if the input stream has completed reading; otherwise, it returns FALSE.
 
 
 **Notes**
 
 
-This function is essential for managing the lifecycle of input streams, ensuring that operations dependent on the completion of data reading can be executed safely.
+This function is useful for determining the state of an input stream, especially in scenarios where data is being read incrementally or in chunks.
 
 
 <!--====================================================-->

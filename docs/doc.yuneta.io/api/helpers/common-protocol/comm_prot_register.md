@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Register a `gclass` with a communication protocol. This function associates a specified communication protocol schema with a given `gclass`, allowing the system to recognize and handle messages that conform to that protocol. It is essential for enabling communication between different components in a structured manner.
+The `comm_prot_register` function registers a communication protocol with a specified gclass. This allows the system to associate a gclass with a particular schema, enabling the handling of communication according to that schema.
 
 
 <!------------------------------------------------------------>
@@ -43,12 +43,11 @@ int comm_prot_register(
 
 * - `gclass_name`
   - `gclass_name_t`
-  - The name of the `gclass` to be registered with the communication protocol.
+  - The name of the gclass to be registered with the communication protocol.
 
 * - `schema`
   - `const char *`
-  - A string representing the schema of the communication protocol to be registered.
-  
+  - A string representing the schema that defines the communication protocol.
 :::
 
 
@@ -57,13 +56,13 @@ int comm_prot_register(
 **Return Value**
 
 
-Returns an integer indicating the success or failure of the registration process. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the registration.
+Returns an integer indicating the success or failure of the registration. A return value of 0 typically indicates success, while a negative value indicates an error occurred during the registration process.
 
 
 **Notes**
 
 
-This function is crucial for establishing communication protocols in a system that utilizes `gclass` structures. Ensure that the `gclass_name` and `schema` provided are valid and conform to the expected formats to avoid registration failures.
+This function is essential for establishing communication protocols within the system. Ensure that the gclass name and schema are correctly defined to avoid registration errors.
 
 
 <!--====================================================-->

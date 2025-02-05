@@ -4,9 +4,8 @@
 <!-- ============================================================== -->
 
 
-Frees the memory allocated for an array of ordered filenames. 
-This function is essential for preventing memory leaks in applications that dynamically allocate memory for filename arrays.
-It takes care of deallocating the memory used by the array and each of its elements.
+The `free_ordered_filename_array` function deallocates memory previously allocated for an array of ordered filenames. 
+It takes a pointer to the array and its size as parameters, ensuring that all allocated memory is properly freed to prevent memory leaks.
 
 
 <!------------------------------------------------------------>
@@ -45,11 +44,11 @@ void free_ordered_filename_array(
 
 * - `array`
   - `char **`
-  - A pointer to the array of filenames that needs to be freed.
+  - A pointer to the array of ordered filenames that needs to be freed.
 
 * - `size`
   - `int`
-  - The number of elements in the array to be freed.
+  - The size of the array, indicating how many elements are present in it.
 
 :::
 
@@ -65,7 +64,7 @@ This function does not return a value.
 **Notes**
 
 
-Ensure that the `array` parameter is not NULL before calling this function to avoid undefined behavior.
+Ensure that the array passed to this function was allocated using the corresponding allocation function, as passing an invalid pointer may lead to undefined behavior.
 
 
 <!--====================================================-->

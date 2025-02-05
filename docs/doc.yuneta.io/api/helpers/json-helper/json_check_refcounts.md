@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-Checks the reference counts of the JSON object `kw`. This function traverses the JSON structure and verifies that the reference counts of all elements do not exceed the specified `max_refcount`. It is useful for debugging memory management issues in applications that manipulate JSON data.
+The `json_check_refcounts` function checks the reference counts of a given JSON object. It verifies whether the reference counts of the elements within the JSON object exceed a specified maximum reference count.
 
 
 <!------------------------------------------------------------>
@@ -44,15 +44,16 @@ int json_check_refcounts(
 
 * - `kw`
   - `json_t *`
-  - The JSON object to check. This parameter is not owned by the function and should not be freed by it.
+  - The JSON object to check, which is not owned by the function.
 
 * - `max_refcount`
   - `int`
-  - The maximum allowed reference count for any element in the JSON object.
+  - The maximum allowed reference count for the JSON object.
 
 * - `result`
   - `int *`
-  - A pointer to an integer where the function will store the result of the check. It should be initialized to 0 before calling the function.
+  - A pointer to an integer where the result of the check will be stored. It should be initialized to 0 before calling the function.
+
 :::
 
 
@@ -61,13 +62,13 @@ int json_check_refcounts(
 **Return Value**
 
 
-Returns an integer indicating the success of the operation. A return value of 0 indicates that all reference counts are within the allowed limit, while a non-zero value indicates that at least one reference count exceeded `max_refcount`.
+The function returns an integer indicating the success or failure of the reference count check. A return value of 0 typically indicates success, while a non-zero value indicates an error or that the reference count exceeded the specified maximum.
 
 
 **Notes**
 
 
-This function is primarily intended for debugging purposes. It is important to initialize the `result` parameter to 0 before calling the function to ensure accurate results.
+This function is useful for managing memory and ensuring that JSON objects are not being referenced excessively, which could lead to memory leaks or other issues.
 
 
 <!--====================================================-->

@@ -4,7 +4,7 @@
 <!-- ============================================================== -->
 
 
-This function is responsible for destroying a `GHTTP_PARSER` instance. It releases any resources that were allocated for the parser, ensuring that there are no memory leaks. After calling this function, the `parser` should not be used again unless it is re-initialized.
+The `ghttp_parser_destroy` function is responsible for cleaning up and freeing the resources associated with a `GHTTP_PARSER` instance. This includes deallocating any memory that was allocated for the parser's internal structures, ensuring that there are no memory leaks.
 
 
 <!------------------------------------------------------------>
@@ -58,7 +58,7 @@ This function does not return a value.
 **Notes**
 
 
-It is important to ensure that the `parser` is not NULL before calling this function to avoid undefined behavior.
+It is important to call this function when the `GHTTP_PARSER` is no longer needed to free up resources properly.
 
 
 <!--====================================================-->

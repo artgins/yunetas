@@ -4,7 +4,8 @@
 <!-- ============================================================== -->
 
 
-Converts any JSON object into a formatted string representation. This function takes a JSON object as input and generates a string that represents the JSON structure in a human-readable format. The resulting string is dynamically allocated and should be freed using `gbmem_free` to avoid memory leaks.
+The `json2str` function converts any JSON object into a formatted string representation. 
+This function is useful for debugging or logging JSON data in a human-readable format.
 
 
 <!------------------------------------------------------------>
@@ -23,7 +24,9 @@ Converts any JSON object into a formatted string representation. This function t
 
 ```C
 
-char *json2str(const json_t *jn); // jn not owned
+char *json2str(
+    const json_t *jn
+);
 
 ```
 
@@ -39,8 +42,9 @@ char *json2str(const json_t *jn); // jn not owned
   - Description
 
 * - `jn`
-  - `json_t *`
-  - A pointer to the JSON object that needs to be converted to a string. The function does not take ownership of this object and does not free it.
+  - `const json_t *`
+  - A pointer to the JSON object that needs to be converted to a string. The JSON object is not owned by this function and should not be freed by it.
+
 :::
 
 
@@ -49,13 +53,15 @@ char *json2str(const json_t *jn); // jn not owned
 **Return Value**
 
 
-Returns a dynamically allocated string that contains the formatted representation of the JSON object. The caller is responsible for freeing this string using `gbmem_free`.
+The function returns a pointer to a newly allocated string that contains the JSON representation. 
+This string must be freed using `gbmem_free` to avoid memory leaks.
 
 
 **Notes**
 
 
-Ensure that the JSON object passed to this function is valid. If the JSON object is malformed, the behavior of the function may be undefined.
+Ensure that the JSON object passed to this function is valid. 
+If the JSON object is malformed, the behavior of the function is undefined.
 
 
 <!--====================================================-->
