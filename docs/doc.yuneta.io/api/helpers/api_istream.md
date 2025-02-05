@@ -10,6 +10,8 @@ Source code in:
 :caption: IStream functions
 :maxdepth: 1
 
+istream/ISTREAM_CREATE
+istream/ISTREAM_DESTROY
 istream/istream_clear
 istream/istream_consume
 istream/istream_create

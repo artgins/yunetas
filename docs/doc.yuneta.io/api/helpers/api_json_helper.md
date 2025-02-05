@@ -29,12 +29,14 @@ json-helper/json_list_str_index
 json-helper/json_print_refcounts
 json-helper/json_record_to_schema
 json-helper/json_str_in_list
+json-helper/legalstring2json
 json-helper/load_json_from_file
 json-helper/load_persistent_json
 json-helper/print_json2
 json-helper/save_json_to_file
 json-helper/set_real_precision
 json-helper/string2json
+json-helper/str2json
 json-helper/strings2bits
 
 :::

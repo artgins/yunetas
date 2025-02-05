@@ -4,7 +4,9 @@
 <!-- ============================================================== -->
 
 
-The `file_exists` function checks for the existence of a file specified by `filename` within the given `directory`. It returns TRUE if the file exists and FALSE otherwise.
+The `file_exists` function checks whether a file with the specified `filename` exists in the given `directory`. 
+It returns a boolean value indicating the presence of the file. This function is useful for validating the existence 
+of a file before performing operations such as reading or writing.
 
 
 <!------------------------------------------------------------>
@@ -48,6 +50,7 @@ BOOL file_exists(
 * - `filename`
   - `const char *`
   - The name of the file to check for existence.
+
 :::
 
 
@@ -56,13 +59,13 @@ BOOL file_exists(
 **Return Value**
 
 
-Returns TRUE if the specified file exists in the given directory; otherwise, it returns FALSE.
+Returns `TRUE` if the file exists in the specified directory, otherwise returns `FALSE`.
 
 
 **Notes**
 
 
-This function does not differentiate between regular files and other types of files (e.g., directories, symbolic links).
+This function does not verify file permissions or file type. It only checks for the existence of the file.
 
 
 <!--====================================================-->

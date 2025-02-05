@@ -830,7 +830,11 @@ PUBLIC void comm_prot_free(void);
 /*------------------------------------*
  *  ### Daemons
  *------------------------------------*/
-PUBLIC int launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...); // Return pid of daemon
+PUBLIC int launch_daemon( // Return pid of daemon
+    BOOL redirect_stdio_to_null,
+    const char *program,
+    ...
+);
 
 /*------------------------------------*
  *  ### Parse url
@@ -858,8 +862,13 @@ PUBLIC int get_url_schema(
 /*------------------------------------*
  *  ### Debug
  *------------------------------------*/
-int init_backtrace_with_backtrace(const char *program);
-void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h);
+int init_backtrace_with_backtrace(
+    const char *program
+);
+void show_backtrace_with_backtrace(
+    loghandler_fwrite_fn_t fwrite_fn,
+    void *h
+);
 
 /*------------------------------------*
  *  ### GHttp parser
@@ -942,6 +951,12 @@ PUBLIC void ghttp_parser_reset(GHTTP_PARSER *parser);
 
 typedef void *istream_h;
 
+PUBLIC istream_h istream_create(
+    hgobj gobj,
+    size_t data_size,
+    size_t max_size
+);
+
 #define ISTREAM_CREATE(var, gobj, data_size, max_size)                  \
     if(var) {                                                           \
         gobj_log_error((gobj), LOG_OPT_TRACE_STACK,                     \
@@ -954,18 +969,18 @@ typedef void *istream_h;
     }                                                                   \
     (var) = istream_create((gobj), (data_size), (max_size));
 
-#define ISTREAM_DESTROY(ptr)    \
-    if(ptr) {                   \
-        istream_destroy(ptr);   \
-    }                           \
+
+PUBLIC void istream_destroy(
+    istream_h istream
+);
+
+#define ISTREAM_DESTROY(istream)    \
+    if(istream) {                   \
+        istream_destroy(istream);   \
+    }                               \
     (ptr) = 0;
 
-PUBLIC istream_h istream_create(
-    hgobj gobj,
-    size_t data_size,
-    size_t max_size
-);
-PUBLIC void istream_destroy(istream_h istream);
+
 PUBLIC int istream_read_until_num_bytes(
     istream_h istream,
     size_t num_bytes,
@@ -977,14 +992,41 @@ PUBLIC int istream_read_until_delimiter(
     size_t delimiter_size,
     gobj_event_t event
 );
-PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len);
-PUBLIC char *istream_cur_rd_pointer(istream_h istream);
-PUBLIC size_t istream_length(istream_h istream);
-PUBLIC gbuffer_t *istream_get_gbuffer(istream_h istream);
-PUBLIC gbuffer_t *istream_pop_gbuffer(istream_h istream);
-PUBLIC int istream_new_gbuffer(istream_h istream, size_t data_size, size_t max_size);
-PUBLIC char *istream_extract_matched_data(istream_h istream, size_t *len);
-PUBLIC int istream_reset_wr(istream_h istream);
-PUBLIC int istream_reset_rd(istream_h istream);
-PUBLIC void istream_clear(istream_h istream); // reset wr/rd
-PUBLIC BOOL istream_is_completed(istream_h istream);
+PUBLIC size_t istream_consume(
+    istream_h istream,
+    char *bf,
+    size_t len
+);
+PUBLIC char *istream_cur_rd_pointer(
+    istream_h istream
+);
+PUBLIC size_t istream_length(
+    istream_h istream
+);
+PUBLIC gbuffer_t *istream_get_gbuffer(
+    istream_h istream
+);
+PUBLIC gbuffer_t *istream_pop_gbuffer(
+    istream_h istream
+);
+PUBLIC int istream_new_gbuffer(
+    istream_h istream,
+    size_t data_size,
+    size_t max_size
+);
+PUBLIC char *istream_extract_matched_data(
+    istream_h istream,
+    size_t *len
+);
+PUBLIC int istream_reset_wr(
+    istream_h istream
+);
+PUBLIC int istream_reset_rd(
+    istream_h istream
+);
+PUBLIC void istream_clear(// reset wr/rd
+    istream_h istream
+);
+PUBLIC BOOL istream_is_completed(
+    istream_h istream
+);

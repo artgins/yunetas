@@ -4,8 +4,8 @@
 <!-- ============================================================== -->
 
 
-The `file_permission` function retrieves the permission bits of a file specified by its `path`. 
-It returns the permission settings, which can be used to determine the access rights of the file.
+The `file_permission` function retrieves the permission bits of a file specified by its path. 
+This function is useful for determining the access rights and permissions of a file in the file system.
 
 
 <!------------------------------------------------------------>
@@ -53,13 +53,13 @@ mode_t file_permission(
 **Return Value**
 
 
-The function returns the permission bits of the file as a `mode_t` value, which indicates the access rights.
+Returns the permission bits of the file as a `mode_t` value. This value can be used to check specific permissions such as read, write, and execute for the owner, group, and others.
 
 
 **Notes**
 
 
-If the specified file does not exist or an error occurs while retrieving the permissions, the function may return an undefined value.
+The function will fail if the file does not exist or if the path is invalid. Ensure the path provided is correct and accessible.
 
 
 <!--====================================================-->
