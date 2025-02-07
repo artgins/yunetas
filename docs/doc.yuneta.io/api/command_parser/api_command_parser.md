@@ -9,10 +9,10 @@ Source code in:
 :caption: Command Parser functions
 :maxdepth: 2
 
-command_parser/command_parser.md
-command_parser/gobj_build_cmds_doc.md
-command_parser/authzs_list.md
-command_parser/authz_get_level_desc.md
+command_parser/command_parser
+command_parser/gobj_build_cmds_doc
+command_parser/authzs_list
+command_parser/authz_get_level_desc
 command_parser/gobj_build_authzs_doc
 
 

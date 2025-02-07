@@ -9,12 +9,12 @@ Source code in:
 :caption: Testing functions
 :maxdepth: 2
 
-testing/capture_log_write.md
-testing/set_expected_results.md
-testing/test_directory_permission.md
-testing/test_file_permission_and_size.md
-testing/test_json_file.md
-testing/test_json.md
+testing/capture_log_write
+testing/set_expected_results
+testing/test_directory_permission
+testing/test_file_permission_and_size
+testing/test_json_file
+testing/test_json
 
 
 ```

@@ -9,15 +9,15 @@ Source code in:
 :caption: Rotatory functions
 :maxdepth: 2
 
-rotatory/rotatory_close.md
-rotatory/rotatory_end.md
-rotatory/rotatory_flush.md
-rotatory/rotatory_fwrite.md
-rotatory/rotatory_open.md
-rotatory/rotatory_path.md
-rotatory/rotatory_start_up.md
-rotatory/rotatory_trunk.md
-rotatory/rotatory_write.md
+rotatory/rotatory_close
+rotatory/rotatory_end
+rotatory/rotatory_flush
+rotatory/rotatory_fwrite
+rotatory/rotatory_open
+rotatory/rotatory_path
+rotatory/rotatory_start_up
+rotatory/rotatory_trunk
+rotatory/rotatory_write
 
 
 ```
