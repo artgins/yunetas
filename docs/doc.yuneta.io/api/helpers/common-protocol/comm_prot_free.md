@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(comm_prot_free())=
+(comm_prot_free)=
 # `comm_prot_free()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function should be called to clean up the communication protocol registry b
 ``````
 
 ```````
-

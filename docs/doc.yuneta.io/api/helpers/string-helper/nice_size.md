@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(nice_size())=
+(nice_size)=
 # `nice_size()`
 <!-- ============================================================== -->
 
@@ -186,4 +186,3 @@ The function ensures that the formatted string fits within `bfsize` and selects 
 ``````
 
 ```````
-

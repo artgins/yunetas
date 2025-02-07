@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(cmp_two_simple_json())=
+(cmp_two_simple_json)=
 # `cmp_two_simple_json()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function does not compare JSON objects or arrays. It first attempts to comp
 ``````
 
 ```````
-

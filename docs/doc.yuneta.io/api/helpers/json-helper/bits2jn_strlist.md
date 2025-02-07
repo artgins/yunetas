@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(bits2jn_strlist())=
+(bits2jn_strlist)=
 # `bits2jn_strlist()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ The function iterates through the `strings_table` and checks each bit in `bits`.
 ``````
 
 ```````
-

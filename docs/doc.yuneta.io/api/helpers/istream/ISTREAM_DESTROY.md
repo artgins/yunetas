@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ISTREAM_DESTROY())=
+(ISTREAM_DESTROY)=
 # `ISTREAM_DESTROY()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This macro ensures that the `istream_h` instance is properly deallocated and pre
 ``````
 
 ```````
-

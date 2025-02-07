@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_destroy())=
+(istream_destroy)=
 # `istream_destroy()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ After calling `istream_destroy()`, the `istream_h` handle becomes invalid and sh
 ``````
 
 ```````
-

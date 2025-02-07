@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_reset_rd())=
+(istream_reset_rd)=
 # `istream_reset_rd()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ This function ensures that subsequent reads start from the beginning of the buff
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(pop_last_segment())=
+(pop_last_segment)=
 # `pop_last_segment()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ If no '/' is found in `path`, the entire string is returned, and `path` remains 
 ``````
 
 ```````
-

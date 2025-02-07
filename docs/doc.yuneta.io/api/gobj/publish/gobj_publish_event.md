@@ -1,13 +1,12 @@
 
 
 <!-- ============================================================== -->
-(gobj_publish_event())=
+(gobj_publish_event)=
 # `gobj_publish_event()`
 <!-- ============================================================== -->
 
 
 Publishes an event from a GObj to all its subscribers. This is the primary mechanism for broadcasting events to multiple GObjs.
-        
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,7 +25,6 @@ Publishes an event from a GObj to all its subscribers. This is the primary mecha
 ```C
 
 int gobj_publish_event(hgobj gobj, gobj_event_t event, json_t *kw);
-        
 
 ```
 

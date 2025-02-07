@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_length())=
+(istream_length)=
 # `istream_length()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ Returns the number of unread bytes in the internal buffer of the input stream.
 ``````
 
 ```````
-

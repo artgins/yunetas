@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_extract_matched_data())=
+(istream_extract_matched_data)=
 # `istream_extract_matched_data()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ If no match is found, the function returns `NULL`. The extracted data is not cop
 ``````
 
 ```````
-

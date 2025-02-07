@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_hostname())=
+(get_hostname)=
 # `get_hostname()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ The returned string is statically allocated and should not be modified or freed 
 ``````
 
 ```````
-

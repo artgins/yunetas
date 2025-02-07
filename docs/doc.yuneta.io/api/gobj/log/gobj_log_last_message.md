@@ -1,7 +1,7 @@
 
 
 <!-- ============================================================== -->
-(gobj_log_last_message())=
+(gobj_log_last_message)=
 # `gobj_log_last_message()`
 <!-- ============================================================== -->
 
@@ -165,4 +165,3 @@ This function does not take any parameters.
 ``````
 
 ```````
-

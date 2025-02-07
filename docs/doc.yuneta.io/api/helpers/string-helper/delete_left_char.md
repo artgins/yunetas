@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(delete_left_char())=
+(delete_left_char)=
 # `delete_left_char()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ The function modifies the input string in place by shifting characters to the le
 ``````
 
 ```````
-

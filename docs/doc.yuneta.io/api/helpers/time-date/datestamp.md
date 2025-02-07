@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(datestamp())=
+(datestamp)=
 # `datestamp()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ The function formats the current date and time into a string and stores it in th
 ``````
 
 ```````
-

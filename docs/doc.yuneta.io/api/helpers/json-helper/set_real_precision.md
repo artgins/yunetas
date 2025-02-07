@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(set_real_precision())=
+(set_real_precision)=
 # `set_real_precision()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function affects the precision of floating-point numbers when converting JS
 ``````
 
 ```````
-

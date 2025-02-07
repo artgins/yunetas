@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(file_exists())=
+(file_exists)=
 # `file_exists()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function constructs the full file path by combining `directory` and `filena
 ``````
 
 ```````
-

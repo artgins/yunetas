@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(delete_right_blanks())=
+(delete_right_blanks)=
 # `delete_right_blanks()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ The function modifies the input string directly by replacing trailing whitespace
 ``````
 
 ```````
-

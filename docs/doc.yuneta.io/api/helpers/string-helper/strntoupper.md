@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(strntoupper())=
+(strntoupper)=
 # `strntoupper()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ If `s` is NULL or `n` is zero, the function returns NULL without modifying the s
 ``````
 
 ```````
-

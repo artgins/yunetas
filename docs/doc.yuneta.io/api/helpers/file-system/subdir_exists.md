@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(subdir_exists())=
+(subdir_exists)=
 # `subdir_exists()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function constructs the full path of the subdirectory and verifies its exis
 ``````
 
 ```````
-

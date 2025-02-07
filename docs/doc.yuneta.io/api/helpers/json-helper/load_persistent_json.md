@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(load_persistent_json())=
+(load_persistent_json)=
 # `load_persistent_json()`
 <!-- ============================================================== -->
 
@@ -203,4 +203,3 @@ If `exclusive` is `TRUE`, the caller is responsible for closing the file descrip
 ``````
 
 ```````
-

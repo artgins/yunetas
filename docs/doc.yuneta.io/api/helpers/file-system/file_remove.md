@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(file_remove())=
+(file_remove)=
 # `file_remove()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function checks if the file exists and is a regular file before attempting 
 ``````
 
 ```````
-

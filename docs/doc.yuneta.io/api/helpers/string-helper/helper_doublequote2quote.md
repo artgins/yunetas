@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(helper_doublequote2quote())=
+(helper_doublequote2quote)=
 # `helper_doublequote2quote()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function modifies the input string in place. Ensure that the input string i
 ``````
 
 ```````
-

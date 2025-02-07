@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(is_directory())=
+(is_directory)=
 # `is_directory()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function relies on `stat()` to determine the file type. If `stat()` fails, 
 ``````
 
 ```````
-

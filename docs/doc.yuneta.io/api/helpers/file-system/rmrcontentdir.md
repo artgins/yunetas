@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(rmrcontentdir())=
+(rmrcontentdir)=
 # `rmrcontentdir()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function does not remove the root directory itself, only its contents. It s
 ``````
 
 ```````
-

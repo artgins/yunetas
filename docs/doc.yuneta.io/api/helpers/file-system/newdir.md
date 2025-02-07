@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(newdir())=
+(newdir)=
 # `newdir()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function ensures that the umask is cleared before creating the directory to
 ``````
 
 ```````
-

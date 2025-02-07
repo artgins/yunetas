@@ -1,7 +1,7 @@
 
 
 <!-- ============================================================== -->
-(gobj_get_global_authz_table())=
+(gobj_get_global_authz_table)=
 # `gobj_get_global_authz_table()`
 <!-- ============================================================== -->
 
@@ -168,4 +168,3 @@ const sdata_desc_t *gobj_get_global_authz_table(void);
 ``````
 
 ```````
-

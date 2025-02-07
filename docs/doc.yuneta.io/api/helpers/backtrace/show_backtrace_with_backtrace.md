@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(show_backtrace_with_backtrace())=
+(show_backtrace_with_backtrace)=
 # `show_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function is only available when `CONFIG_DEBUG_WITH_BACKTRACE` is enabled. I
 ``````
 
 ```````
-

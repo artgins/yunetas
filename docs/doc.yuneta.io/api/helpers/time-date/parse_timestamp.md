@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_timestamp())=
+(parse_timestamp)=
 # `parse_timestamp()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ This function is a wrapper around `strtoumax`, ensuring safe conversion of strin
 ``````
 
 ```````
-

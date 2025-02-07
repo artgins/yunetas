@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ghttp_parser_received())=
+(ghttp_parser_received)=
 # `ghttp_parser_received()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ Returns the number of bytes successfully parsed. Returns `-1` if an error occurs
 ``````
 
 ```````
-

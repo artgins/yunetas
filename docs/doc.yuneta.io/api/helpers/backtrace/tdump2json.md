@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(tdump2json())=
+(tdump2json)=
 # `tdump2json()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function is useful for debugging and inspecting binary data in a human-read
 ``````
 
 ```````
-

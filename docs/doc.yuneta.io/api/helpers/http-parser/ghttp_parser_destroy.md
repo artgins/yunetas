@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ghttp_parser_destroy())=
+(ghttp_parser_destroy)=
 # `ghttp_parser_destroy()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ After calling `ghttp_parser_destroy()`, the `parser` pointer should not be used 
 ``````
 
 ```````
-

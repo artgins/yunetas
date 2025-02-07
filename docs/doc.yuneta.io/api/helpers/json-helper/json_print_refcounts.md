@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_print_refcounts())=
+(json_print_refcounts)=
 # `json_print_refcounts()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function is useful for debugging memory management issues related to JSON r
 ``````
 
 ```````
-

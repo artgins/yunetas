@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(file_permission())=
+(file_permission)=
 # `file_permission()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function internally uses `stat()` to obtain the file's mode and extracts th
 ``````
 
 ```````
-

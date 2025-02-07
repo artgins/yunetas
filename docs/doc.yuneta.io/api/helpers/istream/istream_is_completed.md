@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_is_completed())=
+(istream_is_completed)=
 # `istream_is_completed()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ Returns `TRUE` if the input stream has completed reading the expected data, othe
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_pop_gbuffer())=
+(istream_pop_gbuffer)=
 # `istream_pop_gbuffer()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ After calling [`istream_pop_gbuffer()`](#istream_pop_gbuffer), the internal buff
 ``````
 
 ```````
-

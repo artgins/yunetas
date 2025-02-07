@@ -1,7 +1,7 @@
 
 
 <!-- ============================================================== -->
-(gobj_log_clear_counters())=
+(gobj_log_clear_counters)=
 # `gobj_log_clear_counters()`
 <!-- ============================================================== -->
 
@@ -162,4 +162,3 @@ This function does not return a value.
 ``````
 
 ```````
-

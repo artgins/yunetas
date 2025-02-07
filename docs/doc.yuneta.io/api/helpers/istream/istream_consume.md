@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_consume())=
+(istream_consume)=
 # `istream_consume()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ If the `istream` is configured to read until a delimiter, it will check for the 
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(strings2bits())=
+(strings2bits)=
 # `strings2bits()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ A 64-bit bitmask where each bit corresponds to a matched string in `strings_tabl
 ``````
 
 ```````
-

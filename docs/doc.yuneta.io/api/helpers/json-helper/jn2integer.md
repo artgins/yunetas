@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(jn2integer())=
+(jn2integer)=
 # `jn2integer()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function supports parsing integers from strings with decimal, octal (prefix
 ``````
 
 ```````
-

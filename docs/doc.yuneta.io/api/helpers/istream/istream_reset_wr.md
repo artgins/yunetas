@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_reset_wr())=
+(istream_reset_wr)=
 # `istream_reset_wr()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ This function clears the write pointer but does not deallocate the buffer. Use [
 ``````
 
 ```````
-

@@ -1,4 +1,4 @@
-(sample_function())=
+(sample_function)=
 # `sample_function()`
 
 Describe the function

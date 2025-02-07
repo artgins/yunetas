@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(launch_daemon())=
+(launch_daemon)=
 # `launch_daemon()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ Returns the PID of the first child process if successful, or `-1` if an error oc
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(debug_json())=
+(debug_json)=
 # `debug_json()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ This function is useful for debugging JSON structures by displaying their conten
 ``````
 
 ```````
-

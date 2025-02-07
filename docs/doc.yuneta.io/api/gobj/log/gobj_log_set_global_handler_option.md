@@ -1,7 +1,7 @@
 
 
 <!-- ============================================================== -->
-(gobj_log_set_global_handler_option())=
+(gobj_log_set_global_handler_option)=
 # `gobj_log_set_global_handler_option()`
 <!-- ============================================================== -->
 

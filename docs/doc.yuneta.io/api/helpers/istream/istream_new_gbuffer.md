@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_new_gbuffer())=
+(istream_new_gbuffer)=
 # `istream_new_gbuffer()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ If a buffer already exists in `istream`, it is decremented and replaced with a n
 ``````
 
 ```````
-

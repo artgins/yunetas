@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_is_identical())=
+(json_is_identical)=
 # `json_is_identical()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ The function converts both JSON objects to their string representations and comp
 ``````
 
 ```````
-

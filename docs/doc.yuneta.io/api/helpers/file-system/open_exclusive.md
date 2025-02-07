@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(open_exclusive())=
+(open_exclusive)=
 # `open_exclusive()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ This function applies an exclusive lock (`LOCK_EX | LOCK_NB`) to the file, ensur
 ``````
 
 ```````
-

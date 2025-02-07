@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(test_msectimer())=
+(test_msectimer)=
 # `test_msectimer()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ The function uses `time_in_miliseconds_monotonic()` to obtain the current monoto
 ``````
 
 ```````
-

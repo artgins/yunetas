@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(change_char())=
+(change_char)=
 # `change_char()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The function modifies the input string in place. Ensure that `s` is a valid, mut
 ``````
 
 ```````
-

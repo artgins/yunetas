@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_date_basic())=
+(parse_date_basic)=
 # `parse_date_basic()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ This function is used internally by [`approxidate_careful()`](#approxidate_caref
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_key_value_parameter())=
+(get_key_value_parameter)=
 # `get_key_value_parameter()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The function expects the input string to be formatted as 'key=value' or 'key="va
 ``````
 
 ```````
-

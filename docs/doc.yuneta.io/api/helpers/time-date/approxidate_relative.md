@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(approxidate_relative())=
+(approxidate_relative)=
 # `approxidate_relative()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ This function interprets relative date expressions based on the current system t
 ``````
 
 ```````
-

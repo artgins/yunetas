@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(build_path())=
+(build_path)=
 # `build_path()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ Ensures that the resulting path does not have redundant slashes and properly for
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(t2timestamp())=
+(t2timestamp)=
 # `t2timestamp()`
 <!-- ============================================================== -->
 
@@ -188,4 +188,3 @@ The function uses `strftime()` to format the timestamp in ISO 8601 format with t
 ``````
 
 ```````
-

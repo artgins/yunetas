@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_list_str_index())=
+(json_list_str_index)=
 # `json_list_str_index()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The function expects `jn_list` to be a JSON array. If `jn_list` is not an array,
 ``````
 
 ```````
-

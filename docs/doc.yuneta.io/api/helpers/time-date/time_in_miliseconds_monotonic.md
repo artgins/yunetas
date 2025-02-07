@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(time_in_miliseconds_monotonic())=
+(time_in_miliseconds_monotonic)=
 # `time_in_miliseconds_monotonic()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function uses `clock_gettime(CLOCK_MONOTONIC, &spec)` to retrieve a time va
 ``````
 
 ```````
-

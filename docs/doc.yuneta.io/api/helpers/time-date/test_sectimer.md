@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(test_sectimer())=
+(test_sectimer)=
 # `test_sectimer()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ If `value` is less than or equal to zero, the function returns `FALSE` without p
 ``````
 
 ```````
-

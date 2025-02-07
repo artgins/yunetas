@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(approxidate())=
+(approxidate)=
 # `approxidate()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function is useful for parsing flexible date inputs in applications that re
 ``````
 
 ```````
-

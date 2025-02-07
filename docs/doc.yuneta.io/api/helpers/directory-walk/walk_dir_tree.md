@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(walk_dir_tree())=
+(walk_dir_tree)=
 # `walk_dir_tree()`
 <!-- ============================================================== -->
 
@@ -198,4 +198,3 @@ The callback function `cb` should return `TRUE` to continue traversal or `FALSE`
 ``````
 
 ```````
-

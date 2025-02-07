@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(time_in_miliseconds())=
+(time_in_miliseconds)=
 # `time_in_miliseconds()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ Returns the current time in milliseconds as a `uint64_t` value.
 ``````
 
 ```````
-

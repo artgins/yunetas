@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_number_of_files())=
+(get_number_of_files)=
 # `get_number_of_files()`
 <!-- ============================================================== -->
 
@@ -188,4 +188,3 @@ This function internally uses [`walk_dir_tree()`](#walk_dir_tree) to traverse th
 ``````
 
 ```````
-

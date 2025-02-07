@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(translate_string())=
+(translate_string)=
 # `translate_string()`
 <!-- ============================================================== -->
 
@@ -193,4 +193,3 @@ Returns a pointer to the `to` buffer containing the translated string.
 ``````
 
 ```````
-

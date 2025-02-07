@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_record_to_schema())=
+(json_record_to_schema)=
 # `json_record_to_schema()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ Each field in the schema includes an 'id', 'header', 'type', and 'fillspace' att
 ``````
 
 ```````
-

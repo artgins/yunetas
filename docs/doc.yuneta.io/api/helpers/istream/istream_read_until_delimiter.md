@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_read_until_delimiter())=
+(istream_read_until_delimiter)=
 # `istream_read_until_delimiter()`
 <!-- ============================================================== -->
 
@@ -188,4 +188,3 @@ If `delimiter_size` is `0`, an error is logged and `-1` is returned.
 ``````
 
 ```````
-

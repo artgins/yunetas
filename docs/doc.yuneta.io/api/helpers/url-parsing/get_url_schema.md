@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_url_schema())=
+(get_url_schema)=
 # `get_url_schema()`
 <!-- ============================================================== -->
 
@@ -187,4 +187,3 @@ Uses `http_parser_parse_url()` to parse the URL. If no schema is found, an error
 ``````
 
 ```````
-

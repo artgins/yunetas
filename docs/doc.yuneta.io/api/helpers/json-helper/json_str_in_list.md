@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_str_in_list())=
+(json_str_in_list)=
 # `json_str_in_list()`
 <!-- ============================================================== -->
 
@@ -188,4 +188,3 @@ If `jn_list` is not a JSON array, an error is logged using [`gobj_log_error()`](
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(load_json_from_file())=
+(load_json_from_file)=
 # `load_json_from_file()`
 <!-- ============================================================== -->
 
@@ -188,4 +188,3 @@ The function uses `json_loadfd()` to parse the JSON file. If the file does not e
 ``````
 
 ```````
-

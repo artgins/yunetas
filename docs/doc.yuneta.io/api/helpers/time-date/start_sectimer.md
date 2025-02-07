@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(start_sectimer())=
+(start_sectimer)=
 # `start_sectimer()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ Returns a `time_t` value representing the future timestamp when the timer will e
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ghttp_parser_reset())=
+(ghttp_parser_reset)=
 # `ghttp_parser_reset()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function should be called before reusing a [`GHTTP_PARSER`](#GHTTP_PARSER) 
 ``````
 
 ```````
-

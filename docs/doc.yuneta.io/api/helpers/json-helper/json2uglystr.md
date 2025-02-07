@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json2uglystr())=
+(json2uglystr)=
 # `json2uglystr()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function uses `JSON_COMPACT` and `JSON_ENCODE_ANY` flags to generate a mini
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(anystring2json())=
+(anystring2json)=
 # `anystring2json()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ Uses `json_loadb()` with `JSON_DECODE_ANY` to support multiple JSON formats. If 
 ``````
 
 ```````
-

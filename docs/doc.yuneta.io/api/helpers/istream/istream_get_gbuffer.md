@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_get_gbuffer())=
+(istream_get_gbuffer)=
 # `istream_get_gbuffer()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ The returned [`gbuffer_t *`](#gbuffer_t) is not owned by the caller and should n
 ``````
 
 ```````
-

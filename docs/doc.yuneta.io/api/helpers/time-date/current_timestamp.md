@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(current_timestamp())=
+(current_timestamp)=
 # `current_timestamp()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ The function uses `clock_gettime(CLOCK_REALTIME, &ts)` to obtain the current tim
 ``````
 
 ```````
-

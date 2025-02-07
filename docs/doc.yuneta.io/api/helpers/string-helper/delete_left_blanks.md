@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(delete_left_blanks())=
+(delete_left_blanks)=
 # `delete_left_blanks()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ If the input string is empty or contains only whitespace, it will be reduced to 
 ``````
 
 ```````
-

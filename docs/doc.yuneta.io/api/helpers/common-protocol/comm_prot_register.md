@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(comm_prot_register())=
+(comm_prot_register)=
 # `comm_prot_register()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ The function initializes the internal communication protocol registry if it has 
 ``````
 
 ```````
-

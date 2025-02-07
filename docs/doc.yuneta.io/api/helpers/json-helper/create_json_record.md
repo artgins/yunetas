@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(create_json_record())=
+(create_json_record)=
 # `create_json_record()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ A newly allocated `json_t *` object containing the initialized JSON structure, o
 ``````
 
 ```````
-

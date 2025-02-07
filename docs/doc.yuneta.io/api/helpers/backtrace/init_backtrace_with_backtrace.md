@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(init_backtrace_with_backtrace())=
+(init_backtrace_with_backtrace)=
 # `init_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ This function should be called early in the program execution to enable stack tr
 ``````
 
 ```````
-

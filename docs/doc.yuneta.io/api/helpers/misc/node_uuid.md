@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(node_uuid())=
+(node_uuid)=
 # `node_uuid()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ The returned UUID is generated once and stored persistently. On Linux, if the UU
 ``````
 
 ```````
-

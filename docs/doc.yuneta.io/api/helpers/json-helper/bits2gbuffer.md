@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(bits2gbuffer())=
+(bits2gbuffer)=
 # `bits2gbuffer()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ The caller is responsible for managing the memory of the returned [`gbuffer_t *`
 ``````
 
 ```````
-

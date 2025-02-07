@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(comm_prot_get_gclass())=
+(comm_prot_get_gclass)=
 # `comm_prot_get_gclass()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ This function searches the registered communication protocols and returns the co
 ``````
 
 ```````
-

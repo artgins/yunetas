@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(str_in_list())=
+(str_in_list)=
 # `str_in_list()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The function iterates through the list and compares each entry with `str` using 
 ``````
 
 ```````
-

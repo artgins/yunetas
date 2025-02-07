@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(save_json_to_file())=
+(save_json_to_file)=
 # `save_json_to_file()`
 <!-- ============================================================== -->
 
@@ -213,4 +213,3 @@ The function ensures that the directory exists before saving the file. If `only_
 ``````
 
 ```````
-

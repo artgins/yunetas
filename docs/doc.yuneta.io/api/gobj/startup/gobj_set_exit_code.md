@@ -1,4 +1,4 @@
-(gobj_set_exit_code())=
+(gobj_set_exit_code)=
 # `gobj_set_exit_code()`
 
 Sets the exit code that indicates the reason for the Yuno's termination. 

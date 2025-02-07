@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(string2json())=
+(string2json)=
 # `string2json()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ Returns a `json_t *` object if parsing is successful. Returns `NULL` if parsing 
 ``````
 
 ```````
-

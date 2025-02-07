@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(rmrdir())=
+(rmrdir)=
 # `rmrdir()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ This function removes all files and subdirectories within the specified director
 ``````
 
 ```````
-

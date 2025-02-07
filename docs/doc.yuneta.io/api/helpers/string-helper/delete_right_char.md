@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(delete_right_char())=
+(delete_right_char)=
 # `delete_right_char()`
 <!-- ============================================================== -->
 
@@ -175,4 +175,3 @@ The function modifies the input string in place by replacing trailing occurrence
 ``````
 
 ```````
-

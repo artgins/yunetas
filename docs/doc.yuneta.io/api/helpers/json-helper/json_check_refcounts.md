@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_check_refcounts())=
+(json_check_refcounts)=
 # `json_check_refcounts()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ This function recursively checks all elements in the JSON object, including arra
 ``````
 
 ```````
-

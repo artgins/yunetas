@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(create_uuid())=
+(create_uuid)=
 # `create_uuid()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ The function generates a UUID using platform-specific secure random number gener
 ``````
 
 ```````
-

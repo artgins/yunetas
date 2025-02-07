@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_read_until_num_bytes())=
+(istream_read_until_num_bytes)=
 # `istream_read_until_num_bytes()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ Once the specified number of bytes is accumulated, the event is triggered with t
 ``````
 
 ```````
-

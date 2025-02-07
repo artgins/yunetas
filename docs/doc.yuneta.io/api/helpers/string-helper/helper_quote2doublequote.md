@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(helper_quote2doublequote())=
+(helper_quote2doublequote)=
 # `helper_quote2doublequote()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function modifies the input string in place and does not allocate new memor
 ``````
 
 ```````
-

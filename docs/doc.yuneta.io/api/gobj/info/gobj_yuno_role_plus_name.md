@@ -1,7 +1,7 @@
 
 
 <!-- ============================================================== -->
-(gobj_yuno_role_plus_name())=
+(gobj_yuno_role_plus_name)=
 # `gobj_yuno_role_plus_name()`
 <!-- ============================================================== -->
 
@@ -168,4 +168,3 @@ const char *gobj_yuno_role_plus_name(void);
 ``````
 
 ```````
-

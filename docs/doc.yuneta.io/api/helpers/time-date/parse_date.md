@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_date())=
+(parse_date)=
 # `parse_date()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The function supports various date formats, including relative dates like 'yeste
 ``````
 
 ```````
-

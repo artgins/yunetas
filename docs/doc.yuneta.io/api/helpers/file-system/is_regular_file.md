@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(is_regular_file())=
+(is_regular_file)=
 # `is_regular_file()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ Returns `TRUE` if the path corresponds to a regular file, otherwise returns `FAL
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_date_format())=
+(parse_date_format)=
 # `parse_date_format()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ If the format string starts with `auto:`, the function selects an appropriate fo
 ``````
 
 ```````
-

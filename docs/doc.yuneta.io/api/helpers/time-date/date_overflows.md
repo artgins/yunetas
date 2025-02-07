@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(date_overflows())=
+(date_overflows)=
 # `date_overflows()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function ensures that the given timestamp does not exceed the maximum repre
 ``````
 
 ```````
-

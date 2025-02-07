@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ghttp_parser_create())=
+(ghttp_parser_create)=
 # `ghttp_parser_create()`
 <!-- ============================================================== -->
 
@@ -198,4 +198,3 @@ The returned `GHTTP_PARSER` instance must be destroyed using [`ghttp_parser_dest
 ``````
 
 ```````
-

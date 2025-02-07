@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_cur_rd_pointer())=
+(istream_cur_rd_pointer)=
 # `istream_cur_rd_pointer()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ Ensure that `istream` is properly initialized before calling this function to av
 ``````
 
 ```````
-

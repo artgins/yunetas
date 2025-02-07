@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(idx_in_list())=
+(idx_in_list)=
 # `idx_in_list()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The function iterates through the list and compares each element with `str` usin
 ``````
 
 ```````
-

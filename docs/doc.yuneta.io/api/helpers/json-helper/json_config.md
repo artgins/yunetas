@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(json_config())=
+(json_config)=
 # `json_config()`
 <!-- ============================================================== -->
 
@@ -203,4 +203,3 @@ Returns a dynamically allocated JSON string containing the merged configuration.
 ``````
 
 ```````
-

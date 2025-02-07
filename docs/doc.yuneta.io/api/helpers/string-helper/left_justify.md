@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(left_justify())=
+(left_justify)=
 # `left_justify()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ If `s` is NULL, the function does nothing. The function modifies the input strin
 ``````
 
 ```````
-

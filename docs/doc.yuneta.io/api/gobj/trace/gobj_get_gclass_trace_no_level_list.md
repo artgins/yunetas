@@ -1,7 +1,7 @@
 
 
 <!-- ============================================================== -->
-(gobj_get_gclass_trace_no_level_list())=
+(gobj_get_gclass_trace_no_level_list)=
 # `gobj_get_gclass_trace_no_level_list()`
 <!-- ============================================================== -->
 

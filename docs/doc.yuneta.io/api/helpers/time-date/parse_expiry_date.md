@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(parse_expiry_date())=
+(parse_expiry_date)=
 # `parse_expiry_date()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ If the `date` string is `never`, the function sets `timestamp` to 0. If `date` i
 ``````
 
 ```````
-

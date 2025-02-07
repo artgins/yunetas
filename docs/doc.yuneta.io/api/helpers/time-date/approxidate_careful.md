@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(approxidate_careful())=
+(approxidate_careful)=
 # `approxidate_careful()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ This function supports a wide range of date formats, including ISO 8601, RFC 282
 ``````
 
 ```````
-

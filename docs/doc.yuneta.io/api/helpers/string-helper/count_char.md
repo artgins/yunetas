@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(count_char())=
+(count_char)=
 # `count_char()`
 <!-- ============================================================== -->
 
@@ -175,4 +175,3 @@ If `s` is NULL, the behavior is undefined. The function does not modify the inpu
 ``````
 
 ```````
-

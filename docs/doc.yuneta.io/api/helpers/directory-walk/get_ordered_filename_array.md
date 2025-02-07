@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_ordered_filename_array())=
+(get_ordered_filename_array)=
 # `get_ordered_filename_array()`
 <!-- ============================================================== -->
 
@@ -193,4 +193,3 @@ This function uses `qsort()` to sort the filenames. The returned array must be f
 ``````
 
 ```````
-

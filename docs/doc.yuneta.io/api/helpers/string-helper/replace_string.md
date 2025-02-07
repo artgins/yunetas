@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(replace_string())=
+(replace_string)=
 # `replace_string()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The caller is responsible for freeing the returned string using `free()`. If `ol
 ``````
 
 ```````
-

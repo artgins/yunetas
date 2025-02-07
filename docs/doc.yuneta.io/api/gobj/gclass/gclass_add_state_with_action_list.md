@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_add_state_with_action_list())=
+(gclass_add_state_with_action_list)=
 # `gclass_add_state_with_action_list()`
 <!-- ============================================================== -->
 

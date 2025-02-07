@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(date_mode_from_type())=
+(date_mode_from_type)=
 # `date_mode_from_type()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ The returned pointer refers to a static structure, so it should not be modified 
 ``````
 
 ```````
-

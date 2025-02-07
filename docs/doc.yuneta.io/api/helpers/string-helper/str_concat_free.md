@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(str_concat_free())=
+(str_concat_free)=
 # `str_concat_free()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function should only be used to free memory allocated by [`str_concat()`](#
 ``````
 
 ```````
-

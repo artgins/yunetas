@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(ISTREAM_CREATE())=
+(ISTREAM_CREATE)=
 # `ISTREAM_CREATE()`
 <!-- ============================================================== -->
 
@@ -188,4 +188,3 @@ If `var` is already allocated, it is destroyed before creating a new instance. T
 ``````
 
 ```````
-

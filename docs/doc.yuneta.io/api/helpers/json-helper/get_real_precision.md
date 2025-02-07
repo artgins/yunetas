@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_real_precision())=
+(get_real_precision)=
 # `get_real_precision()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ This function is useful for checking the precision setting before modifying it w
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(start_msectimer())=
+(start_msectimer)=
 # `start_msectimer()`
 <!-- ============================================================== -->
 
@@ -171,4 +171,3 @@ Use [`test_msectimer()`](#test_msectimer) to check if the timer has expired.
 ``````
 
 ```````
-

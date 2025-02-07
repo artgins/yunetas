@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(free_ordered_filename_array())=
+(free_ordered_filename_array)=
 # `free_ordered_filename_array()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ Each filename string in the array is individually freed before freeing the array
 ``````
 
 ```````
-

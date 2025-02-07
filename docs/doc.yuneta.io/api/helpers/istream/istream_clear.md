@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_clear())=
+(istream_clear)=
 # `istream_clear()`
 <!-- ============================================================== -->
 
@@ -173,4 +173,3 @@ This function is equivalent to calling [`istream_reset_rd()`](#istream_reset_rd)
 ``````
 
 ```````
-

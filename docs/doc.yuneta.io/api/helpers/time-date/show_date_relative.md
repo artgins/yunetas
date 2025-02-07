@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(show_date_relative())=
+(show_date_relative)=
 # `show_date_relative()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The function calculates the difference between the given timestamp and the curre
 ``````
 
 ```````
-

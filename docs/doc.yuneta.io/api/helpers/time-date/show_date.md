@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(show_date())=
+(show_date)=
 # `show_date()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The returned string is stored in a static buffer and should not be modified or f
 ``````
 
 ```````
-

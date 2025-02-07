@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(get_parameter())=
+(get_parameter)=
 # `get_parameter()`
 <!-- ============================================================== -->
 
@@ -178,4 +178,3 @@ If the parameter is enclosed in quotes (`'` or `"`), the function ensures that t
 ``````
 
 ```````
-

@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(istream_create())=
+(istream_create)=
 # `istream_create()`
 <!-- ============================================================== -->
 
@@ -183,4 +183,3 @@ The returned `istream_h` must be destroyed using [`istream_destroy()`](#istream_
 ``````
 
 ```````
-
