@@ -3,10 +3,7 @@
 # `current_timestamp()`
 <!-- ============================================================== -->
 
-
-The `current_timestamp()` function generates a timestamp string representing the current date and time in a standard format. 
-The generated timestamp is stored in the provided buffer `bf`, which must be at least 90 bytes in size to ensure proper storage of the timestamp.
-
+Generates a timestamp string with nanosecond precision in ISO 8601 format, including the local timezone offset.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,16 +20,13 @@ The generated timestamp is stored in the provided buffer `bf`, which must be at 
 **Prototype**
 
 ```C
-
 char *current_timestamp(
-    char    *bf,
-    size_t  bfsize
+    char *bf,
+    size_t bfsize
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,29 +38,22 @@ char *current_timestamp(
 
 * - `bf`
   - `char *`
-  - Pointer to a buffer where the generated timestamp will be stored.
+  - Buffer to store the generated timestamp. Must be at least 90 bytes long.
 
 * - `bfsize`
   - `size_t`
-  - Size of the buffer `bf`. It must be at least 90 bytes to accommodate the timestamp.
-
+  - Size of the buffer in bytes.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the buffer `bf` containing the generated timestamp string.
-
+Returns a pointer to the buffer `bf` containing the formatted timestamp string.
 
 **Notes**
 
-
-- The buffer `bf` must be pre-allocated by the caller and should have a minimum size of 90 bytes.
-- The function does not perform any validation on the buffer size, so passing a smaller buffer may result in undefined behavior.
-
+The function uses `clock_gettime(CLOCK_REALTIME, &ts)` to obtain the current time with nanosecond precision and formats it as `YYYY-MM-DDTHH:MM:SS.nnnnnnnnn±hhmm`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

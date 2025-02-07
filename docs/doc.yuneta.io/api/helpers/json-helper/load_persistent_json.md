@@ -3,13 +3,7 @@
 # `load_persistent_json()`
 <!-- ============================================================== -->
 
-
-The `load_persistent_json()` function loads a JSON object from a file located in the specified directory and filename. 
-It provides options for handling file access, error logging, and exclusive file locking. If the `exclusive` parameter 
-is set to `TRUE`, the file remains open and its file descriptor is returned via `pfd`. If `silence` is set to `TRUE`, 
-the function suppresses error messages, but this requires `on_critical_error` to be set to `LOG_NONE`. 
-The function is designed to handle persistent JSON data efficiently.
-
+The function `load_persistent_json()` loads a JSON object from a file in a specified directory. It supports exclusive access by keeping the file open if requested.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,21 +20,18 @@ The function is designed to handle persistent JSON data efficiently.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *load_persistent_json(
-    hgobj       gobj,
-    const char  *directory,
-    const char  *filename,
-    log_opt_t   on_critical_error,
-    int         *pfd,
-    BOOL        exclusive,
-    BOOL        silence
+json_t *load_persistent_json(
+    hgobj gobj,
+    const char *directory,
+    const char *filename,
+    log_opt_t on_critical_error,
+    int *pfd,
+    BOOL exclusive,
+    BOOL silence
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -52,52 +43,42 @@ PUBLIC json_t *load_persistent_json(
 
 * - `gobj`
   - `hgobj`
-  - The gobj (generic object) that invokes the function.
+  - A handle to the gobj (generic object) that is requesting the JSON load.
 
 * - `directory`
   - `const char *`
-  - The directory path where the JSON file is located.
+  - The directory where the JSON file is located.
 
 * - `filename`
   - `const char *`
-  - The name of the JSON file to load.
+  - The name of the JSON file to be loaded.
 
 * - `on_critical_error`
   - `log_opt_t`
-  - Logging option to handle critical errors during file operations.
+  - Logging options to handle critical errors during file operations.
 
 * - `pfd`
   - `int *`
-  - Pointer to an integer where the file descriptor will be stored if `exclusive` is `TRUE`.
+  - Pointer to an integer where the file descriptor will be stored if `exclusive` is `TRUE`. If `exclusive` is `FALSE`, the file is closed after reading.
 
 * - `exclusive`
   - `BOOL`
-  - If `TRUE`, the file remains open and its file descriptor is returned.
+  - If `TRUE`, the file remains open and its descriptor is stored in `pfd`. If `FALSE`, the file is closed after reading.
 
 * - `silence`
   - `BOOL`
-  - If `TRUE`, suppresses error messages. Requires `on_critical_error` to be `LOG_NONE`.
-
+  - If `TRUE`, suppresses error logging when the file does not exist.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a `json_t *` object representing the loaded JSON data. If the file cannot be loaded or parsed, 
-the function returns `NULL`.
-
+Returns a `json_t *` representing the loaded JSON object. Returns `NULL` if the file does not exist or if an error occurs.
 
 **Notes**
 
-
-- If `exclusive` is `TRUE`, remember to close the file descriptor stored in `pfd` when it is no longer needed.
-- If `silence` is set to `TRUE`, ensure that `on_critical_error` is set to `LOG_NONE` to avoid conflicts.
-- The function is designed to handle persistent JSON data, making it suitable for scenarios where JSON configuration 
-  or state needs to be retained across sessions.
-
+If `exclusive` is `TRUE`, the caller is responsible for closing the file descriptor stored in `pfd`. The function logs errors unless `silence` is `TRUE` and `on_critical_error` is set to `LOG_NONE`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

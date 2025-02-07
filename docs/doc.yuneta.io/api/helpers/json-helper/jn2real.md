@@ -3,11 +3,7 @@
 # `jn2real()`
 <!-- ============================================================== -->
 
-
-The `jn2real()` function converts a JSON value (`json_t *`) into a `double` (real number). 
-It is a utility function designed to simplify the extraction of numeric values from JSON objects. 
-If the JSON value is not a numeric type, the behavior of the function may vary depending on the implementation.
-
+The function `jn2real` converts a JSON numeric value to a double-precision floating-point number. It supports JSON integers, real numbers, strings representing numbers, and boolean values.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ If the JSON value is not a numeric type, the behavior of the function may vary d
 **Prototype**
 
 ```C
-
-double jn2real(
-    json_t *jn_var
-);
-
+double jn2real(json_t *jn_var);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,27 +35,18 @@ double jn2real(
 
 * - `jn_var`
   - `json_t *`
-  - A pointer to the JSON value to be converted to a real number.
-
+  - A pointer to a JSON value that will be converted to a double. It can be an integer, real, string, boolean, or null.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the `double` representation of the JSON value. If the JSON value cannot be converted to a real number, 
-the function may return an undefined or default value (e.g., 0.0), depending on the implementation.
-
+Returns the double representation of the JSON value. If the input is null, it returns 0.0.
 
 **Notes**
 
-
-- The function is intended for simple JSON values. Complex types (e.g., objects or arrays) are not supported.
-- Ensure that the input JSON value is of a numeric type to avoid unexpected behavior.
-- For related functionality, see [`jn2integer()`](#jn2integer), [`jn2string()`](#jn2string), and [`jn2bool()`](#jn2bool).
-
+If `jn_var` is a string, it is converted using `atof()`. Boolean values are mapped to 1.0 (true) and 0.0 (false).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

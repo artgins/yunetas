@@ -3,10 +3,7 @@
 # `istream_consume()`
 <!-- ============================================================== -->
 
-
-The `istream_consume()` function reads and removes up to `len` bytes from the input stream buffer `istream` 
-and copies them into the provided buffer `bf`. The function returns the number of bytes actually consumed.
-
+`istream_consume()` reads data from the provided buffer and appends it to the internal gbuffer of the given `istream_h` instance until a specified delimiter or byte count is reached.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,17 +20,14 @@ and copies them into the provided buffer `bf`. The function returns the number o
 **Prototype**
 
 ```C
-
 size_t istream_consume(
-    istream_h   istream,
-    char        *bf,
-    size_t      len
+    istream_h istream,
+    char *bf,
+    size_t len
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,33 +39,26 @@ size_t istream_consume(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream from which data will be consumed.
+  - The input stream handle managing the internal gbuffer.
 
 * - `bf`
   - `char *`
-  - Pointer to the buffer where the consumed data will be stored.
+  - Pointer to the buffer containing the data to be consumed.
 
 * - `len`
   - `size_t`
-  - Maximum number of bytes to consume from the input stream.
+  - The number of bytes available in `bf` to be consumed.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the number of bytes actually consumed from the input stream.
-
+Returns the number of bytes successfully consumed from `bf` and appended to the internal gbuffer.
 
 **Notes**
 
-
-- If the requested `len` exceeds the available data in the input stream, only the available data is consumed.
-- The function does not null-terminate the buffer `bf`.
-- If `istream` is empty, the function returns `0`.
-
+If the `istream` is configured to read until a delimiter, it will check for the delimiter sequence in the accumulated data. If configured to read a fixed number of bytes, it will stop once the required amount is reached. If the delimiter or byte count is reached, the function triggers the configured event.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

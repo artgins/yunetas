@@ -3,9 +3,7 @@
 # `istream_length()`
 <!-- ============================================================== -->
 
-
-The `istream_length()` function retrieves the current length of data available in the input stream represented by the `istream_h` handle. This function is useful for determining how much data is currently stored in the stream buffer.
-
+`istream_length()` returns the number of unread bytes in the internal buffer of the given input stream.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,15 +20,12 @@ The `istream_length()` function retrieves the current length of data available i
 **Prototype**
 
 ```C
-
-size_t istream_length(
+PUBLIC size_t istream_length(
     istream_h istream
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -42,24 +37,18 @@ size_t istream_length(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream whose length is to be determined.
-
+  - Handle to the input stream whose unread byte count is to be retrieved.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the size of the data currently available in the input stream buffer, measured in bytes.
-
+Returns the number of unread bytes in the internal buffer of the input stream.
 
 **Notes**
 
-
-This function does not modify the state of the input stream. It simply provides the length of the data currently stored in the stream.
-
+['If `istream` is NULL, an error is logged, and the function returns 0.', 'This function is useful for checking how much data remains to be read from the stream.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

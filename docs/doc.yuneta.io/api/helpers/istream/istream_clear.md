@@ -3,11 +3,7 @@
 # `istream_clear()`
 <!-- ============================================================== -->
 
-
-The `istream_clear()` function resets both the write and read pointers of the given [`istream_h`](#istream_h) instance. 
-This effectively clears the internal state of the input stream, making it ready for new data without deallocating or 
-reinitializing the underlying buffer.
-
+`istream_clear()` resets both the reading and writing pointers of the given `istream_h` instance, effectively clearing its internal buffer.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,12 @@ reinitializing the underlying buffer.
 **Prototype**
 
 ```C
-
 void istream_clear(
     istream_h istream
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,25 +37,18 @@ void istream_clear(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream object to be cleared.
-
+  - The input stream handle whose buffer will be cleared.
 :::
-
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-
 
 **Notes**
 
-
-- The function does not free or reallocate the memory associated with the input stream. It only resets the pointers.
-- Use this function when you want to reuse an existing [`istream_h`](#istream_h) instance without creating a new one.
-
+This function is equivalent to calling [`istream_reset_rd()`](#istream_reset_rd) and [`istream_reset_wr()`](#istream_reset_wr) in sequence.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

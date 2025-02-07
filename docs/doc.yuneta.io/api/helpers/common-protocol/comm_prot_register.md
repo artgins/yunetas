@@ -3,11 +3,7 @@
 # `comm_prot_register()`
 <!-- ============================================================== -->
 
-
-The `comm_prot_register()` function registers a gclass with a specific communication protocol schema. 
-This allows the system to associate a gclass with a schema, enabling protocol-specific operations 
-and interactions.
-
+Registers a `gclass` with a specified communication protocol schema, allowing it to be retrieved later by schema name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ and interactions.
 **Prototype**
 
 ```C
-
 int comm_prot_register(
-    gclass_name_t   gclass_name,
-    const char      *schema
+    gclass_name_t gclass_name,
+    const char *schema
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,30 +38,22 @@ int comm_prot_register(
 
 * - `gclass_name`
   - `gclass_name_t`
-  - The name of the gclass to be registered with the communication protocol.
+  - The name of the `gclass` to be associated with the schema.
 
 * - `schema`
   - `const char *`
-  - The schema of the communication protocol to associate with the gclass.
-
+  - The communication protocol schema to register with the `gclass`.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns an integer indicating the success or failure of the operation. 
-A value of `0` indicates success, while a negative value indicates an error.
-
+Returns `0` on success, or `-1` if memory allocation fails.
 
 **Notes**
 
-
-- Ensure that the `gclass_name` and `schema` are valid and properly initialized before calling this function.
-- This function is part of the common protocols utilities and is used to manage protocol registrations.
-
+The function initializes the internal communication protocol registry if it has not been initialized yet. The schema is stored as a dynamically allocated string, which will be freed when the registry is cleared.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

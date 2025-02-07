@@ -3,10 +3,7 @@
 # `all_numbers()`
 <!-- ============================================================== -->
 
-
-The `all_numbers()` function checks whether all characters in the given string `s` are numeric digits (`0-9`). 
-It returns `TRUE` if the string contains only numeric characters and is not empty; otherwise, it returns `FALSE`.
-
+`all_numbers()` checks if a given string consists entirely of numeric characters.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,10 @@ It returns `TRUE` if the string contains only numeric characters and is not empt
 **Prototype**
 
 ```C
-
-PUBLIC BOOL all_numbers(
-    const char *s
-);
-
+BOOL all_numbers(const char *s);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,25 +35,18 @@ PUBLIC BOOL all_numbers(
 
 * - `s`
   - `const char *`
-  - The input string to be checked for numeric characters.
-
+  - The input string to be checked.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if all characters in `s` are numeric digits and the string is not empty. Otherwise, it returns `FALSE`.
-
+Returns `TRUE` if the string contains only numeric characters and is not empty; otherwise, returns `FALSE`.
 
 **Notes**
 
-
-- The function does not consider an empty string as numeric and will return `FALSE` in such cases.
-- It only checks for ASCII numeric characters (`0-9`) and does not support localized or Unicode number representations.
-
+An empty string is considered non-numeric and will return `FALSE`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

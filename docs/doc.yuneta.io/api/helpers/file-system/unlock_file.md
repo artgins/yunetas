@@ -3,12 +3,7 @@
 # `unlock_file()`
 <!-- ============================================================== -->
 
-
-The `unlock_file()` function releases an advisory lock on the file 
-descriptor `fd`. This function is typically used in conjunction with 
-[`lock_file()`](#lock_file) to manage file access in multi-process 
-environments.
-
+The `unlock_file()` function releases an advisory lock on a file descriptor using the `fcntl` system call.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,15 +20,10 @@ environments.
 **Prototype**
 
 ```C
-
-int unlock_file(
-    int fd
-);
-
+int unlock_file(int fd);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,27 +35,18 @@ int unlock_file(
 
 * - `fd`
   - `int`
-  - The file descriptor of the locked file that should be unlocked.
-
+  - The file descriptor of the file to be unlocked.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success. On failure, returns `-1` and sets `errno` 
-to indicate the error.
-
+Returns 0 on success, or -1 if an error occurs.
 
 **Notes**
 
-
-- The function uses `fcntl()` to remove an advisory lock.
-- Ensure that the file descriptor `fd` is valid and was previously 
-  locked using [`lock_file()`](#lock_file).
-
+This function is typically used in conjunction with [`lock_file()`](#lock_file) to manage file locking in multi-process environments.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

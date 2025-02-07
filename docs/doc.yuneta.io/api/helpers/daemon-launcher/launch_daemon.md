@@ -3,18 +3,7 @@
 # `launch_daemon()`
 <!-- ============================================================== -->
 
-
-The `launch_daemon()` function starts a new process as a daemon.
-
-It forks the current process, detaches it from the controlling terminal, 
-and runs the specified `program` in the background.
-
-If `redirect_stdio_to_null` is `TRUE`, standard input, output, and error 
-streams are redirected to `/dev/null`.
-
-The function accepts a variable number of arguments, which are passed 
-to the `program` as command-line arguments.
-
+`launch_daemon()` creates a detached daemon process by performing a double fork and returns the PID of the first child process.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -31,17 +20,14 @@ to the `program` as command-line arguments.
 **Prototype**
 
 ```C
-
-int launch_daemon(
-    BOOL        redirect_stdio_to_null,
-    const char  *program,
+pid_t launch_daemon(
+    BOOL redirect_stdio_to_null,
+    const char *program,
     ...
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -57,32 +43,22 @@ int launch_daemon(
 
 * - `program`
   - `const char *`
-  - The path to the executable program to be launched as a daemon.
+  - The name of the program to execute as a daemon.
 
 * - `...`
   - `variadic`
-  - Additional arguments to be passed to the daemonized program.
-
+  - Additional arguments to pass to the program, terminated by `NULL`.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the process ID (`pid`) of the newly created daemon process on success.
-
-Returns `-1` if an error occurs during the daemonization process.
-
+Returns the PID of the first child process if successful, or `-1` if an error occurs.
 
 **Notes**
 
-
-- The function does not wait for the daemonized process to complete.
-- The caller is responsible for handling the lifecycle of the daemon process.
-- If `redirect_stdio_to_null` is `TRUE`, the daemon will not produce any console output.
-
+['Uses a double fork technique to ensure the daemon process is fully detached from the terminal.', 'The parent process does not wait for the first child, allowing it to continue execution immediately.', 'If `execvp()` fails, an error is written to a pipe and the function returns `-1`.', 'The caller can use the returned PID to monitor or control the daemon process.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

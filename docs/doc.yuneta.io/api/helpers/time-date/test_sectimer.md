@@ -3,11 +3,7 @@
 # `test_sectimer()`
 <!-- ============================================================== -->
 
-
-The `test_sectimer()` function checks whether a previously started second-based timer has finished. 
-It evaluates the current time against the provided `value` and returns `TRUE` if the timer has completed, or `FALSE` otherwise.
-This function is typically used in conjunction with [`start_sectimer()`](#start_sectimer) to manage time-based operations.
-
+Checks if the given `value` time has elapsed compared to the current system time.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ This function is typically used in conjunction with [`start_sectimer()`](#start_
 **Prototype**
 
 ```C
-
-BOOL test_sectimer(
-    time_t value
-);
-
+BOOL test_sectimer(time_t value);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,25 +35,18 @@ BOOL test_sectimer(
 
 * - `value`
   - `time_t`
-  - The timestamp value representing the timer's end time to check against the current time.
-
+  - The target time to check against the current system time.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the timer has finished, or `FALSE` if the timer is still running.
-
+Returns `TRUE` if the current time is greater than or equal to `value`, otherwise returns `FALSE`.
 
 **Notes**
 
-
-- Ensure that the `value` provided is a valid timestamp.
-- This function is part of a timer utility and is often used with [`start_sectimer()`](#start_sectimer).
-
+If `value` is less than or equal to zero, the function returns `FALSE` without performing any time comparison.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

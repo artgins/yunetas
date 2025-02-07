@@ -3,11 +3,7 @@
 # `tdump()`
 <!-- ============================================================== -->
 
-
-The `tdump()` function prints a hexadecimal and ASCII dump of a given binary buffer.
-It is useful for debugging purposes, allowing a structured visualization of raw data.
-The output format includes both the hexadecimal representation and the corresponding ASCII characters.
-
+`tdump` prints a formatted hexadecimal and ASCII dump of a given byte array.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,19 +20,16 @@ The output format includes both the hexadecimal representation and the correspon
 **Prototype**
 
 ```C
-
 void tdump(
-    const char    *prefix,
+    const char *prefix,
     const uint8_t *s,
-    size_t        len,
-    view_fn_t     view,
-    int           nivel
+    size_t len,
+    view_fn_t view,
+    int nivel
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -48,41 +41,34 @@ void tdump(
 
 * - `prefix`
   - `const char *`
-  - A string prefix that will be prepended to each line of the dump.
+  - A string prefix to prepend to each line of the dump.
 
 * - `s`
   - `const uint8_t *`
-  - Pointer to the binary data to be dumped.
+  - Pointer to the byte array to be dumped.
 
 * - `len`
   - `size_t`
-  - The length of the binary data in bytes.
+  - The number of bytes to dump.
 
 * - `view`
   - `view_fn_t`
-  - A function pointer used to format and print the output.
+  - A function pointer for output formatting, typically `printf`.
 
 * - `nivel`
   - `int`
-  - The indentation level for formatting the output.
+  - The verbosity level: 1 for hex only, 2 for hex and ASCII, 3 for hex, ASCII, and byte index.
 :::
-
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-
 
 **Notes**
 
-
-- The `view` function should be a printf-like function that handles formatted output.
-- The function prints both the hexadecimal and ASCII representation of the data.
-- Useful for debugging binary data, network packets, or file contents.
-
+If `nivel` is 0, it defaults to 3. The function formats the output in a structured manner, displaying hexadecimal values alongside their ASCII representation.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

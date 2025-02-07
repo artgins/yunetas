@@ -3,11 +3,7 @@
 # `get_ordered_filename_array()`
 <!-- ============================================================== -->
 
-
-The `get_ordered_filename_array()` function retrieves an ordered array of filenames from a directory tree rooted at `root_dir`. 
-It traverses the directory tree, applies the specified `pattern` and options (`opt`), and returns the filenames in a sorted order. 
-The function allocates memory for the returned array, which must be freed using `free_ordered_filename_array()` after use.
-
+Retrieves an ordered list of filenames from a specified directory, optionally filtered by a pattern and search options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,19 +20,16 @@ The function allocates memory for the returned array, which must be freed using 
 **Prototype**
 
 ```C
-
 char **get_ordered_filename_array(
-    hgobj       gobj,
+    hgobj gobj,
     const char *root_dir,
     const char *pattern,
-    wd_option   opt,
-    int        *size
+    wd_option opt,
+    int *size
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -48,43 +41,34 @@ char **get_ordered_filename_array(
 
 * - `gobj`
   - `hgobj`
-  - Handle to the GObj (generic object) that may be used for logging or context.
+  - A handle to the GObj instance, used for logging and error reporting.
 
 * - `root_dir`
   - `const char *`
-  - The root directory from which to start the traversal.
+  - The root directory from which to retrieve filenames.
 
 * - `pattern`
   - `const char *`
-  - A pattern to match filenames (e.g., "*.txt"). Can be `NULL` to match all files.
+  - A regex pattern to filter filenames. If NULL, all files are included.
 
 * - `opt`
   - `wd_option`
-  - Options for traversal, such as recursive search or filtering by file type.
+  - Options for directory traversal, such as recursion and file type filtering.
 
 * - `size`
   - `int *`
-  - Pointer to an integer where the function will store the number of filenames found.
+  - Pointer to an integer that will be set to the number of files found.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to an array of strings (`char **`) containing the ordered filenames. 
-If no files are found or an error occurs, the function returns `NULL`. 
-The caller is responsible for freeing the returned array using `free_ordered_filename_array()`.
-
+Returns a dynamically allocated array of strings containing the ordered filenames. The caller must free the array using `free_ordered_filename_array()`.
 
 **Notes**
 
-
-- The function allocates memory for the returned array and its contents. Use `free_ordered_filename_array()` to release this memory.
-- The traversal behavior and filtering are controlled by the `opt` parameter, which can include options like `WD_RECURSIVE` or `WD_HIDDENFILES`.
-- This function is a custom implementation and may be less efficient than using standard library functions like `glob()`.
-
+This function uses `qsort()` to sort the filenames. The returned array must be freed properly to avoid memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

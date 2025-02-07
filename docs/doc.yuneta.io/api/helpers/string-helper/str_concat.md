@@ -3,11 +3,7 @@
 # `str_concat()`
 <!-- ============================================================== -->
 
-
-The `str_concat()` function concatenates two strings, `str1` and `str2`, into a newly allocated string. 
-The caller is responsible for freeing the returned string using `str_concat_free()`. 
-This function is useful for dynamically combining two strings without modifying the original inputs.
-
+`str_concat()` concatenates two strings into a newly allocated buffer and returns the result.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ This function is useful for dynamically combining two strings without modifying 
 **Prototype**
 
 ```C
-
 char *str_concat(
     const char *str1,
     const char *str2
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -50,26 +43,17 @@ char *str_concat(
 * - `str2`
   - `const char *`
   - The second string to concatenate.
-
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to a newly allocated string containing the concatenation of `str1` and `str2`. 
-The caller must free the returned string using `str_concat_free()`.
-
+A newly allocated string containing the concatenation of `str1` and `str2`. The caller must free the returned string using `str_concat_free()`.
 
 **Notes**
 
-
-- The function allocates memory for the concatenated string. Ensure to free it using `str_concat_free()` to avoid memory leaks.
-- If either `str1` or `str2` is `NULL`, the behavior is undefined.
-- For concatenating three strings, consider using `str_concat3()`.
-
+If either `str1` or `str2` is `NULL`, it is treated as an empty string.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

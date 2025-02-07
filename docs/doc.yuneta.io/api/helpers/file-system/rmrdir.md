@@ -3,11 +3,7 @@
 # `rmrdir()`
 <!-- ============================================================== -->
 
-
-The `rmrdir()` function recursively removes a directory and all its contents, including subdirectories and files. 
-It is designed to delete the specified directory and its entire hierarchy. 
-This function is useful for cleaning up directories that are no longer needed.
-
+`rmrdir()` recursively removes a directory and all its contents, including subdirectories and files.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,12 @@ This function is useful for cleaning up directories that are no longer needed.
 **Prototype**
 
 ```C
-
 int rmrdir(
-    const char *root_dir
+    const char *path
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -42,29 +35,20 @@ int rmrdir(
   - Type
   - Description
 
-* - `root_dir`
+* - `path`
   - `const char *`
-  - The path to the root directory that will be removed recursively.
-
+  - The path of the directory to be removed.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success, indicating that the directory and all its contents were successfully removed. 
-Returns `-1` on failure, with `errno` set to indicate the error (e.g., permission issues or non-existent directory).
-
+Returns 0 on success, or -1 if an error occurs.
 
 **Notes**
 
-
-- Ensure that the directory specified in `root_dir` exists and is accessible before calling this function.
-- Use with caution, as this function will permanently delete all files and subdirectories within the specified directory.
-- This function does not follow symbolic links to avoid unintended deletions.
-
+This function removes all files and subdirectories within the specified directory before deleting the directory itself.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,11 +3,7 @@
 # `show_date_relative()`
 <!-- ============================================================== -->
 
-
-The `show_date_relative()` function formats a given timestamp into a human-readable relative date string. 
-It calculates the relative time difference (e.g., "2 days ago", "3 hours from now") and stores the result 
-in the provided buffer. This function is useful for displaying time differences in a user-friendly format.
-
+Formats a timestamp into a human-readable relative time string, such as '3 days ago' or '2 hours ago'.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,17 +20,14 @@ in the provided buffer. This function is useful for displaying time differences 
 **Prototype**
 
 ```C
-
 void show_date_relative(
-    timestamp_t  time,
-    char        *timebuf,
-    int          timebufsize
+    timestamp_t time,
+    char *timebuf,
+    int timebufsize
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,34 +39,26 @@ void show_date_relative(
 
 * - `time`
   - `timestamp_t`
-  - The timestamp to be converted into a relative date.
+  - The timestamp to be converted into a relative time string.
 
 * - `timebuf`
   - `char *`
-  - A pointer to the buffer where the formatted relative date string will be stored.
+  - A buffer where the formatted relative time string will be stored.
 
 * - `timebufsize`
   - `int`
-  - The size of the buffer `timebuf` in bytes, ensuring the function does not write beyond its bounds.
-
+  - The size of the buffer `timebuf` to ensure safe string operations.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value. The formatted relative date string is stored in the `timebuf` buffer.
-
+This function does not return a value. The formatted relative time string is stored in `timebuf`.
 
 **Notes**
 
-
-- Ensure that the `timebuf` buffer is large enough to hold the resulting string, as specified by `timebufsize`.
-- The function uses relative time calculations, so the result depends on the current system time.
-- This function is particularly useful for displaying user-friendly time differences in logs or UI elements.
-
+The function calculates the difference between the given timestamp and the current time, then formats it into a human-readable string. It supports various time units such as seconds, minutes, hours, days, weeks, months, and years.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

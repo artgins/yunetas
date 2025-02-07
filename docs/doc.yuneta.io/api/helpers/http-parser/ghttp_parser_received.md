@@ -3,12 +3,7 @@
 # `ghttp_parser_received()`
 <!-- ============================================================== -->
 
-
-The `ghttp_parser_received()` function processes a chunk of HTTP data received by the parser. 
-It parses the provided buffer `bf` of size `len` using the specified `GHTTP_PARSER` instance. 
-The function is responsible for consuming the data, updating the parser's state, and triggering 
-events (if configured) when headers, body, or the complete message are processed. 
-
+Parses an HTTP message from the given buffer using the [`ghttp_parser_create()`](#ghttp_parser_create) instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,17 +20,14 @@ events (if configured) when headers, body, or the complete message are processed
 **Prototype**
 
 ```C
-
 int ghttp_parser_received(
     GHTTP_PARSER *parser,
-    char         *bf,
-    size_t       len
+    char *buf,
+    size_t received
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,36 +39,26 @@ int ghttp_parser_received(
 
 * - `parser`
   - `GHTTP_PARSER *`
-  - Pointer to the `GHTTP_PARSER` instance that will process the data.
+  - Pointer to the [`GHTTP_PARSER`](#GHTTP_PARSER) instance handling the HTTP parsing.
 
-* - `bf`
+* - `buf`
   - `char *`
-  - Pointer to the buffer containing the HTTP data to be parsed.
+  - Pointer to the buffer containing the HTTP message data.
 
-* - `len`
+* - `received`
   - `size_t`
-  - Length of the data in the buffer `bf`.
+  - Number of bytes available in `buf` for parsing.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the number of bytes successfully consumed from the buffer. 
-If an error occurs during parsing, the function returns `-1`.
-
+Returns the number of bytes successfully parsed. Returns `-1` if an error occurs during parsing.
 
 **Notes**
 
-
-- Ensure that the `parser` is properly initialized using `ghttp_parser_create()` before calling this function.
-- The function may trigger events such as `on_header_event`, `on_body_event`, or `on_message_event` 
-  based on the parser's configuration and the data processed.
-- If the function returns `-1`, it indicates a parsing error, and the parser's state may need to be reset 
-  using `ghttp_parser_reset()`.
-
+['This function uses `http_parser_execute()` to process the HTTP message.', 'If the parser encounters an error, it logs the issue and returns `-1`.', 'The function checks for upgrade requests and handles them accordingly.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

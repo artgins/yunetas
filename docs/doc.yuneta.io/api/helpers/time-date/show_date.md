@@ -3,9 +3,7 @@
 # `show_date()`
 <!-- ============================================================== -->
 
-
-The `show_date()` function formats a given timestamp into a human-readable date string based on the specified timezone and date mode. It is a utility function for converting timestamps into various date formats, such as ISO 8601, RFC 2822, or custom formats defined in the `date_mode` structure.
-
+Formats a given timestamp into a human-readable date string based on the specified date mode and timezone offset.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,17 +20,14 @@ The `show_date()` function formats a given timestamp into a human-readable date 
 **Prototype**
 
 ```C
-
 const char *show_date(
-    timestamp_t           time,
-    int                   timezone,
+    timestamp_t time,
+    int timezone,
     const struct date_mode *mode
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -52,25 +47,18 @@ const char *show_date(
 
 * - `mode`
   - `const struct date_mode *`
-  - A pointer to a `date_mode` structure that specifies the desired date format and options.
+  - Pointer to a [`date_mode`](#date_mode) structure specifying the formatting style.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to a statically allocated string containing the formatted date. The string is not dynamically allocated, so it should not be freed by the caller.
-
+A pointer to a statically allocated string containing the formatted date.
 
 **Notes**
 
-
-- The `date_mode` structure allows for flexible formatting, including predefined formats like ISO 8601 and custom formats using `strftime`.
-- The returned string is statically allocated, so its content may be overwritten by subsequent calls to `show_date()`.
-- This function is useful for logging, debugging, or displaying timestamps in user interfaces.
-
+The returned string is stored in a static buffer and should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

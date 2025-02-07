@@ -3,11 +3,7 @@
 # `approxidate_careful()`
 <!-- ============================================================== -->
 
-
-The `approxidate_careful()` function interprets a human-readable date string and converts it into a `timestamp_t` value. 
-It supports a wide range of date formats, including absolute dates, relative dates, special time keywords, and combinations of date and time. 
-The function is designed to handle ambiguous or incomplete input carefully, providing a robust and flexible date parsing mechanism.
-
+Parses a human-readable date string and converts it into a timestamp, handling relative and absolute date formats. Returns a timestamp representing the parsed date.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ The function is designed to handle ambiguous or incomplete input carefully, prov
 **Prototype**
 
 ```C
-
 timestamp_t approxidate_careful(
     const char *date,
-    int        *offset
+    int *error_ret
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,32 +38,22 @@ timestamp_t approxidate_careful(
 
 * - `date`
   - `const char *`
-  - The human-readable date string to be parsed.
+  - A human-readable date string, supporting absolute dates (e.g., '2024-09-17') and relative dates (e.g., '3 days ago').
 
-* - `offset`
+* - `error_ret`
   - `int *`
-  - Pointer to an integer where the function stores the timezone offset in seconds. Can be `NULL` if the offset is not needed.
-
+  - Pointer to an integer that will be set to a nonzero value if an error occurs during parsing.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a `timestamp_t` value representing the parsed date and time. If the input is invalid or cannot be parsed, the return value is undefined.
-
+Returns a `timestamp_t` representing the parsed date. If parsing fails, the function returns the current time and sets `error_ret` to a nonzero value.
 
 **Notes**
 
-
-- The function supports a wide range of date formats, including ISO 8601, relative dates (e.g., "3 days ago"), and special keywords (e.g., "noon today").
-- If `offset` is provided, it will contain the timezone offset in seconds relative to UTC.
-- Ambiguous or incomplete input is interpreted based on context, such as the current date or a reference point.
-- For shorthand dates like `0` or `-1`, the function interprets them as "today" and "yesterday," respectively.
-- This function is part of a broader set of utilities for date and time manipulation.
-
+This function supports a wide range of date formats, including ISO 8601, RFC 2822, and relative expressions like 'yesterday' or 'next Monday'. It is a more cautious version of [`approxidate()`](#approxidate), ensuring better error handling.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

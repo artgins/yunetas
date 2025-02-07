@@ -3,11 +3,7 @@
 # `istream_get_gbuffer()`
 <!-- ============================================================== -->
 
-
-The `istream_get_gbuffer()` function retrieves the internal [`gbuffer_t *`](#gbuffer_t) instance 
-associated with the provided `istream_h` handle. This function allows access to the underlying 
-buffer used for managing the input stream's data.
-
+Retrieves the internal [`gbuffer_t *`](#gbuffer_t) associated with the given [`istream_t *`](#istream_t).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,12 @@ buffer used for managing the input stream's data.
 **Prototype**
 
 ```C
-
 gbuffer_t *istream_get_gbuffer(
     istream_h istream
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,26 +37,18 @@ gbuffer_t *istream_get_gbuffer(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream from which the `gbuffer_t *` is to be retrieved.
-
+  - Handle to the [`istream_t *`](#istream_t) instance.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the [`gbuffer_t`](#gbuffer_t) instance associated with the input stream. 
-The returned buffer contains the data currently managed by the input stream.
-
+Returns a pointer to the [`gbuffer_t *`](#gbuffer_t) associated with the given [`istream_t *`](#istream_t).
 
 **Notes**
 
-
-- The returned [`gbuffer_t`](#gbuffer_t) is owned by the `istream_h` and should not be freed manually.
-- Use this function to inspect or manipulate the internal buffer of the input stream.
-
+The returned [`gbuffer_t *`](#gbuffer_t) is not owned by the caller and should not be freed directly.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,11 +3,7 @@
 # `parse_url()`
 <!-- ============================================================== -->
 
-
-The `parse_url()` function parses a given URI into its components: schema, host, port, path, and query. 
-It is designed to handle various URL formats and extract the specified parts into separate buffers. 
-If the `no_schema` parameter is set to TRUE, the function skips parsing the schema and focuses on the host and port.
-
+Parses a given URL into its components, including schema, host, port, path, and query. Supports optional schema parsing.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,22 +20,19 @@ If the `no_schema` parameter is set to TRUE, the function skips parsing the sche
 **Prototype**
 
 ```C
-
-PUBLIC int parse_url(
-    hgobj   gobj,
+int parse_url(
+    hgobj gobj,
     const char *uri,
-    char    *schema, size_t schema_size,
-    char    *host, size_t host_size,
-    char    *port, size_t port_size,
-    char    *path, size_t path_size,
-    char    *query, size_t query_size,
-    BOOL    no_schema
+    char *schema, size_t schema_size,
+    char *host, size_t host_size,
+    char *port, size_t port_size,
+    char *path, size_t path_size,
+    char *query, size_t query_size,
+    BOOL no_schema
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -51,74 +44,66 @@ PUBLIC int parse_url(
 
 * - `gobj`
   - `hgobj`
-  - The gobj context used for logging or error handling.
+  - Handle to the calling object, used for logging errors.
 
 * - `uri`
   - `const char *`
-  - The URI string to be parsed.
+  - The URL string to be parsed.
 
 * - `schema`
   - `char *`
-  - Buffer to store the extracted schema (e.g., `http`, `https`).
+  - Buffer to store the extracted schema (e.g., 'http').
 
 * - `schema_size`
   - `size_t`
-  - The size of the `schema` buffer.
+  - Size of the schema buffer.
 
 * - `host`
   - `char *`
-  - Buffer to store the extracted host.
+  - Buffer to store the extracted host (e.g., 'example.com').
 
 * - `host_size`
   - `size_t`
-  - The size of the `host` buffer.
+  - Size of the host buffer.
 
 * - `port`
   - `char *`
-  - Buffer to store the extracted port.
+  - Buffer to store the extracted port (e.g., '8080').
 
 * - `port_size`
   - `size_t`
-  - The size of the `port` buffer.
+  - Size of the port buffer.
 
 * - `path`
   - `char *`
-  - Buffer to store the extracted path.
+  - Buffer to store the extracted path (e.g., '/index.html').
 
 * - `path_size`
   - `size_t`
-  - The size of the `path` buffer.
+  - Size of the path buffer.
 
 * - `query`
   - `char *`
-  - Buffer to store the extracted query string.
+  - Buffer to store the extracted query string (e.g., 'id=123').
 
 * - `query_size`
   - `size_t`
-  - The size of the `query` buffer.
+  - Size of the query buffer.
 
 * - `no_schema`
   - `BOOL`
-  - If TRUE, the schema is not parsed, and only the host and port are extracted.
-
+  - If TRUE, the function does not parse the schema.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns 0 on success, or -1 if an error occurs during parsing. Errors may include invalid URI formats or insufficient buffer sizes.
-
+Returns 0 on success, or -1 if the URL cannot be parsed.
 
 **Notes**
 
-
-- Ensure that all buffers (`schema`, `host`, `port`, `path`, `query`) are properly allocated and their sizes are correctly specified.
-- If `no_schema` is TRUE, the `schema` parameter and its buffer are ignored.
-- This function does not validate the correctness of the URI components beyond basic parsing.
-
+Uses `http_parser_parse_url()` to extract URL components. If `no_schema` is TRUE, the schema is ignored.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

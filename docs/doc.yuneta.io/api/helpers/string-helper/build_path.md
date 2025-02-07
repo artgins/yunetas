@@ -3,12 +3,7 @@
 # `build_path()`
 <!-- ============================================================== -->
 
-
-The `build_path()` function constructs a file path by concatenating multiple string segments. 
-It takes a buffer `bf` and its size `bfsize` as inputs, along with a variable number of string arguments. 
-The resulting path is stored in the provided buffer `bf`. 
-This function ensures that the constructed path does not exceed the buffer size.
-
+`build_path()` constructs a file path by concatenating multiple path segments, ensuring proper directory separators and removing redundant slashes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,17 +20,14 @@ This function ensures that the constructed path does not exceed the buffer size.
 **Prototype**
 
 ```C
-
 char *build_path(
-    char    *bf,
-    size_t  bfsize,
+    char *bf,
+    size_t bfsize,
     ...
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,35 +39,26 @@ char *build_path(
 
 * - `bf`
   - `char *`
-  - Pointer to the buffer where the constructed path will be stored.
+  - Buffer to store the constructed path.
 
 * - `bfsize`
   - `size_t`
-  - Size of the buffer `bf` in bytes.
+  - Size of the buffer `bf`.
 
 * - `...`
   - `variadic`
-  - Variable number of string arguments to be concatenated to form the path.
-
+  - Variable number of path segments to concatenate, terminated by `NULL`.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to the buffer `bf` containing the constructed path. 
-If the buffer size is insufficient, the resulting path may be truncated.
-
+Returns a pointer to `bf` containing the constructed path.
 
 **Notes**
 
-
-- Ensure that the buffer `bf` is large enough to hold the constructed path, including the null terminator.
-- The function does not allocate memory; it relies on the caller to provide a pre-allocated buffer.
-- The variadic arguments must be null-terminated strings, and the list of arguments must end with a `NULL` pointer.
-
+Ensures that the resulting path does not have redundant slashes and properly formats directory separators.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

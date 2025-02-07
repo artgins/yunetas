@@ -3,11 +3,7 @@
 # `time_in_seconds()`
 <!-- ============================================================== -->
 
-
-The `time_in_seconds()` function returns the current time in seconds 
-since the Unix epoch (January 1, 1970). It provides a standard way 
-to retrieve the system time in seconds.
-
+`time_in_seconds()` returns the current system time in seconds since the Unix epoch (January 1, 1970).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,13 +20,10 @@ to retrieve the system time in seconds.
 **Prototype**
 
 ```C
-
 uint64_t time_in_seconds(void);
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -40,27 +33,20 @@ uint64_t time_in_seconds(void);
   - Type
   - Description
 
-* - None
-  - None
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the current time in seconds as a `uint64_t` value.
-
+Returns the current time in seconds as a `uint64_t` integer.
 
 **Notes**
 
-
-This function is useful for obtaining a timestamp for logging, 
-calculations, or time-based operations.
-
+['This function retrieves the current time using `time(&t)`, which provides the number of seconds elapsed since the Unix epoch.', 'It is useful for timestamping and time-based calculations.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

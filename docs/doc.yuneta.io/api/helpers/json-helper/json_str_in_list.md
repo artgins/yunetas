@@ -3,11 +3,7 @@
 # `json_str_in_list()`
 <!-- ============================================================== -->
 
-
-The `json_str_in_list()` function checks if a given string `str` exists within a JSON list `jn_list`. 
-It returns `TRUE` if the string is found, and `FALSE` otherwise. The comparison can be case-sensitive 
-or case-insensitive based on the value of the `ignore_case` parameter.
-
+Checks if a given string exists within a JSON array of strings.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,15 @@ or case-insensitive based on the value of the `ignore_case` parameter.
 **Prototype**
 
 ```C
-
 PUBLIC BOOL json_str_in_list(
-    hgobj       gobj,
-    json_t      *jn_list,
-    const char  *str,
-    BOOL        ignore_case
+    hgobj gobj,
+    json_t *jn_list,
+    const char *str,
+    BOOL ignore_case
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,38 +40,30 @@ PUBLIC BOOL json_str_in_list(
 
 * - `gobj`
   - `hgobj`
-  - A handle to the GObj (generic object) that may be used for logging or context.
+  - A handle to the gobj instance, used for logging errors.
 
 * - `jn_list`
   - `json_t *`
-  - A JSON array containing the list of strings to search within.
+  - A JSON array containing string elements to be searched.
 
 * - `str`
   - `const char *`
-  - The string to search for in the JSON list.
+  - The string to search for within the JSON array.
 
 * - `ignore_case`
   - `BOOL`
-  - If `TRUE`, the comparison is case-insensitive; otherwise, it is case-sensitive.
-
+  - If TRUE, the comparison is case-insensitive; otherwise, it is case-sensitive.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the string `str` is found in the JSON list `jn_list`, otherwise returns `FALSE`.
-
+Returns TRUE if the string is found in the JSON array, otherwise returns FALSE.
 
 **Notes**
 
-
-- The `jn_list` parameter must be a valid JSON array; otherwise, the behavior is undefined.
-- Use this function to efficiently check membership of a string in a JSON list.
-- If `ignore_case` is set to `TRUE`, the comparison ignores differences in letter casing.
-
+If `jn_list` is not a JSON array, an error is logged using [`gobj_log_error()`](#gobj_log_error).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

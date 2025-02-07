@@ -3,10 +3,7 @@
 # `istream_new_gbuffer()`
 <!-- ============================================================== -->
 
-
-The `istream_new_gbuffer()` function creates a new [`gbuffer_t *`](#gbuffer_t) instance and associates it with the given `istream_h` object. 
-This function is useful for resetting or initializing the internal buffer of an input stream (`istream`) with specified size constraints.
-
+Creates a new `gbuffer_t` for the given `istream_h` instance, replacing the existing buffer if present.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,17 +20,14 @@ This function is useful for resetting or initializing the internal buffer of an 
 **Prototype**
 
 ```C
-
 int istream_new_gbuffer(
-    istream_h   istream,
-    size_t      data_size,
-    size_t      max_size
+    istream_h istream,
+    size_t    data_size,
+    size_t    max_size
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,33 +39,26 @@ int istream_new_gbuffer(
 
 * - `istream`
   - `istream_h`
-  - The input stream handle where the new gbuffer will be created.
+  - The input stream handle whose buffer will be replaced.
 
 * - `data_size`
   - `size_t`
-  - The initial size of the data buffer to allocate.
+  - The initial size of the new buffer.
 
 * - `max_size`
   - `size_t`
-  - The maximum size the buffer can grow to.
+  - The maximum allowed size of the new buffer.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success, or a negative value if an error occurs during the creation of the new gbuffer.
-
+Returns `0` on success, or `-1` if memory allocation fails.
 
 **Notes**
 
-
-- The function will overwrite any existing gbuffer associated with the `istream`.
-- Ensure that the `istream` handle is valid before calling this function.
-- This function is typically used in scenarios where the buffer needs to be reinitialized with new size constraints.
-
+If a buffer already exists in `istream`, it is decremented and replaced with a new one.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

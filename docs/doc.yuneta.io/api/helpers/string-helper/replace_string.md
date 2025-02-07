@@ -3,12 +3,7 @@
 # `replace_string()`
 <!-- ============================================================== -->
 
-
-The `replace_string()` function searches for occurrences of the substring `old` 
-within the string `str` and replaces them with the substring `snew`. 
-The function returns a newly allocated string containing the modified content. 
-The caller is responsible for freeing the returned string using `free()`.
-
+`replace_string()` replaces all occurrences of a substring within a given string with another substring, dynamically allocating memory for the new string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,17 +20,14 @@ The caller is responsible for freeing the returned string using `free()`.
 **Prototype**
 
 ```C
-
 char *replace_string(
     const char *str,
     const char *old,
     const char *snew
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -55,29 +47,18 @@ char *replace_string(
 
 * - `snew`
   - `const char *`
-  - The substring that will replace occurrences of `old`.
-
+  - The substring to replace occurrences of `old`.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a newly allocated string with all occurrences of `old` replaced by `snew`. 
-If `old` is not found in `str`, a duplicate of `str` is returned. 
-The caller must free the returned string using `free()`.
-
+A newly allocated string with all occurrences of `old` replaced by `snew`. Returns `NULL` if memory allocation fails.
 
 **Notes**
 
-
-- If `str`, `old`, or `snew` is `NULL`, the function returns `NULL`.
-- If `old` is an empty string, the function returns a duplicate of `str`.
-- The function dynamically allocates memory for the new string, 
-  so it is the caller's responsibility to free the returned string.
-
+The caller is responsible for freeing the returned string using `free()`. If `old` is an empty string, the function will enter an infinite loop.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

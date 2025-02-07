@@ -3,11 +3,7 @@
 # `set_real_precision()`
 <!-- ============================================================== -->
 
-
-The `set_real_precision()` function sets the precision used for converting real numbers to strings in JSON-related operations. 
-This precision determines the number of decimal places displayed for real numbers. 
-The function returns the previous precision value before the change.
-
+Sets the precision for real number formatting in JSON encoding and returns the previous precision value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ The function returns the previous precision value before the change.
 **Prototype**
 
 ```C
-
-int set_real_precision(
-    int precision
-);
-
+int set_real_precision(int precision);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,25 +35,18 @@ int set_real_precision(
 
 * - `precision`
   - `int`
-  - The new precision value to set for real number conversions.
-
+  - The new precision value for real number formatting.
 :::
-
 
 ---
 
 **Return Value**
 
-
-The function returns the previous precision value as an `int` before the new precision was set.
-
+Returns the previous precision value before the update.
 
 **Notes**
 
-
-This function is useful when working with JSON serialization where control over the precision of real numbers is required. 
-It affects functions that convert JSON objects to strings, such as [`json2str()`](#json2str) and [`json2uglystr()`](#json2uglystr).
-
+This function affects the precision of floating-point numbers when converting JSON objects to strings.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

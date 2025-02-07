@@ -3,11 +3,7 @@
 # `ghttp_parser_destroy()`
 <!-- ============================================================== -->
 
-
-The `ghttp_parser_destroy()` function releases all resources associated with a given `GHTTP_PARSER` instance.
-
-This function should be called when the HTTP parser is no longer needed to free allocated memory and prevent resource leaks.
-
+Releases all resources associated with a `GHTTP_PARSER` instance, including allocated memory and internal buffers.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ This function should be called when the HTTP parser is no longer needed to free 
 **Prototype**
 
 ```C
-
-void ghttp_parser_destroy(
-    GHTTP_PARSER *parser
-);
-
+void ghttp_parser_destroy(GHTTP_PARSER *parser);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,24 +36,17 @@ void ghttp_parser_destroy(
 * - `parser`
   - `GHTTP_PARSER *`
   - Pointer to the `GHTTP_PARSER` instance to be destroyed.
-
 :::
-
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-
 
 **Notes**
 
-
-- The `parser` pointer must be valid and allocated by [`ghttp_parser_create()`](#ghttp_parser_create).
-- After calling this function, the `parser` pointer should not be used.
-
+After calling `ghttp_parser_destroy()`, the `parser` pointer should not be used as it becomes invalid.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

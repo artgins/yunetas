@@ -3,14 +3,7 @@
 # `split_free2()`
 <!-- ============================================================== -->
 
-
-The `split_free2()` function is used to free the memory allocated for a list of strings 
-that was previously created by the [`split2()`](#split2) function. This function ensures 
-that all strings in the list, as well as the list itself, are properly deallocated. 
-
-It is important to use this function to avoid memory leaks when working with string lists 
-returned by `split2()`.
-
+Frees the memory allocated for a list of strings created by [`split2()`](#split2).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,15 +20,10 @@ returned by `split2()`.
 **Prototype**
 
 ```C
-
-void split_free2(
-    const char **list
-);
-
+void split_free2(const char **list);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,25 +35,18 @@ void split_free2(
 
 * - `list`
   - `const char **`
-  - Pointer to the list of strings to be freed. The list must have been allocated dynamically.
+  - Pointer to the list of strings to be freed.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value.
-
+None.
 
 **Notes**
 
-
-- The `list` parameter must be a valid pointer to a dynamically allocated list of strings.
-- The function does not check if the `list` is `NULL`. Ensure that the `list` is valid before calling this function.
-- This function is specifically designed to work with lists created by [`split2()`](#split2). Using it with other dynamically allocated lists may result in undefined behavior.
-
+This function should be used to deallocate memory allocated by [`split2()`](#split2) to prevent memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

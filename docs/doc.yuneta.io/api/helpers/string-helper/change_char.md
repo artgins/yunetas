@@ -3,9 +3,7 @@
 # `change_char()`
 <!-- ============================================================== -->
 
-
-The `change_char()` function replaces all occurrences of a specified character `old_c` in the string `s` with another character `new_c`. This function modifies the string `s` in place. It is useful for simple character substitutions within a string.
-
+`change_char()` replaces all occurrences of a specified character in a string with another character and returns the count of replacements.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,17 +20,14 @@ The `change_char()` function replaces all occurrences of a specified character `
 **Prototype**
 
 ```C
-
 int change_char(
-    char    *s,
-    char    old_c,
-    char    new_c
+    char *s,    /* Input string to modify */
+    char old_c, /* Character to be replaced */
+    char new_c  /* Replacement character */
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,34 +39,26 @@ int change_char(
 
 * - `s`
   - `char *`
-  - Pointer to the string where the character substitution will occur. The string must be null-terminated.
+  - Pointer to the input string to be modified.
 
 * - `old_c`
   - `char`
-  - The character in the string `s` to be replaced.
+  - Character in the string to be replaced.
 
 * - `new_c`
   - `char`
-  - The character that will replace `old_c` in the string `s`.
-
+  - Character to replace occurrences of `old_c`.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the number of characters replaced in the string `s`. If no characters are replaced, the function returns 0.
-
+Returns the number of characters replaced in the string.
 
 **Notes**
 
-
-- The input string `s` must be writable, as it is modified in place.
-- If `old_c` does not exist in the string `s`, the function will return 0 without making any changes.
-- Ensure that the string `s` is null-terminated to avoid undefined behavior.
-
+The function modifies the input string in place. Ensure that `s` is a valid, mutable string.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

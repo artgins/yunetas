@@ -3,9 +3,7 @@
 # `approxidate()`
 <!-- ============================================================== -->
 
-
-The `approxidate` macro simplifies the process of parsing human-readable date and time strings into a `timestamp_t` value. It is a wrapper around the `approxidate_careful()` function, which provides robust parsing capabilities for a wide range of date and time formats. This macro assumes no additional context (`NULL` is passed as the second parameter to `approxidate_careful()`).
-
+The `approxidate` function interprets a human-readable date string and converts it into a timestamp. It supports various date formats, including absolute dates, relative dates, and special keywords.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,13 +20,10 @@ The `approxidate` macro simplifies the process of parsing human-readable date an
 **Prototype**
 
 ```C
-
-#define approxidate(s) approxidate_careful((s), NULL)
-
+timestamp_t approxidate(const char *date);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -38,28 +33,20 @@ The `approxidate` macro simplifies the process of parsing human-readable date an
   - Type
   - Description
 
-* - `s`
+* - `date`
   - `const char *`
-  - A string representing the date and time to be parsed. It can include absolute dates, relative dates, or combinations of both.
-
+  - A human-readable date string that can include absolute dates (e.g., '2024-09-17'), relative dates (e.g., '3 days ago'), or special keywords (e.g., 'yesterday', 'now').
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a `timestamp_t` value representing the parsed date and time. If the input string cannot be parsed, the behavior depends on the implementation of `approxidate_careful()`.
-
+Returns a `timestamp_t` representing the parsed date as a Unix timestamp. If parsing fails, it returns `TIME_MAX`.
 
 **Notes**
 
-
-- The `approxidate` macro is a shorthand for calling `approxidate_careful()` with a `NULL` context.
-- The parsing capabilities include absolute dates (e.g., `2024-09-17`), relative dates (e.g., `3 days ago`), and combinations (e.g., `yesterday 3:00 PM`).
-- For more advanced usage or error handling, consider using `approxidate_careful()` directly.
-
+This function is useful for parsing flexible date inputs in applications that require user-friendly date handling. It internally calls [`approxidate_careful()`](#approxidate_careful) to process the input string.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,12 +3,7 @@
 # `parse_expiry_date()`
 <!-- ============================================================== -->
 
-
-The `parse_expiry_date()` function parses a date string and converts it into a `timestamp_t` value. 
-This function is designed to handle various date formats and interpret them into a timestamp representation. 
-The parsed timestamp is stored in the `timestamp` parameter. 
-The function is useful for converting human-readable date formats into machine-readable timestamps.
-
+Parses a date string and converts it into a timestamp. Special keywords like `never`, `all`, and `now` are handled explicitly.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,16 +20,13 @@ The function is useful for converting human-readable date formats into machine-r
 **Prototype**
 
 ```C
-
-PUBLIC int parse_expiry_date(
-    const char      *date,
-    timestamp_t     *timestamp
+int parse_expiry_date(
+    const char *date,
+    timestamp_t *timestamp
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,31 +38,22 @@ PUBLIC int parse_expiry_date(
 
 * - `date`
   - `const char *`
-  - The input date string to be parsed. It can be in various formats, including absolute or relative dates.
+  - A string representing the date to be parsed. Can be a standard date format or special keywords like `never`, `all`, or `now`.
 
 * - `timestamp`
   - `timestamp_t *`
-  - A pointer to a `timestamp_t` variable where the parsed timestamp will be stored.
-
+  - Pointer to a variable where the parsed timestamp will be stored.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success if the date string is successfully parsed and the timestamp is stored in the provided pointer. 
-Returns `-1` on failure if the date string is invalid or cannot be interpreted.
-
+Returns 0 on success, or a nonzero value if an error occurs during parsing.
 
 **Notes**
 
-
-- The `date` parameter supports a wide range of formats, including ISO 8601, relative dates (e.g., "3 days ago"), and shorthand notations.
-- Ensure that the `timestamp` pointer is valid and points to allocated memory before calling this function.
-- This function is part of the time utilities and is commonly used for expiration date calculations.
-
+If the `date` string is `never`, the function sets `timestamp` to 0. If `date` is `all` or `now`, `timestamp` is set to the maximum possible value (`TIME_MAX`). Otherwise, it attempts to parse the date using [`approxidate_careful()`](#approxidate_careful).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

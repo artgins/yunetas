@@ -3,11 +3,7 @@
 # `load_json_from_file()`
 <!-- ============================================================== -->
 
-
-The `load_json_from_file()` function loads a JSON object from a file located in the specified directory. 
-It reads the file content, parses it as JSON, and returns the resulting JSON object. 
-If an error occurs during the process, the behavior depends on the `on_critical_error` parameter, which determines how critical errors are handled.
-
+The function `load_json_from_file()` loads a JSON object from a file located in the specified directory. It returns a parsed JSON object if successful, or NULL if the file does not exist or an error occurs.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,15 @@ If an error occurs during the process, the behavior depends on the `on_critical_
 **Prototype**
 
 ```C
-
-PUBLIC json_t *load_json_from_file(
-    hgobj           gobj,
-    const char      *directory,
-    const char      *filename,
-    log_opt_t       on_critical_error
+json_t *load_json_from_file(
+    hgobj gobj,
+    const char *directory,
+    const char *filename,
+    log_opt_t on_critical_error
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,11 +40,11 @@ PUBLIC json_t *load_json_from_file(
 
 * - `gobj`
   - `hgobj`
-  - The gobj (generic object) context used for logging or error handling.
+  - A handle to a GObj, used for logging errors.
 
 * - `directory`
   - `const char *`
-  - The directory path where the JSON file is located.
+  - The directory where the JSON file is located.
 
 * - `filename`
   - `const char *`
@@ -59,26 +52,18 @@ PUBLIC json_t *load_json_from_file(
 
 * - `on_critical_error`
   - `log_opt_t`
-  - Specifies the behavior in case of critical errors (e.g., logging or ignoring errors).
+  - Logging options to handle critical errors.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a `json_t *` object representing the parsed JSON data from the file. 
-If the file cannot be read or the JSON parsing fails, the function may return `NULL` depending on the `on_critical_error` parameter.
-
+Returns a `json_t *` object containing the parsed JSON data if successful, or NULL if the file does not exist or an error occurs.
 
 **Notes**
 
-
-- Ensure that the file exists and is accessible in the specified directory.
-- The returned `json_t *` object must be managed properly; remember to free it using appropriate JSON library functions when no longer needed.
-- If `on_critical_error` is set to `LOG_NONE`, the function will suppress error messages.
-
+The function uses `json_loadfd()` to parse the JSON file. If the file does not exist, it returns NULL without logging an error. If an error occurs while opening or parsing the file, it logs an error message using [`gobj_log_critical()`](#gobj_log_critical).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

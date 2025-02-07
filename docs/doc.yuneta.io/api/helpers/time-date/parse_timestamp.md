@@ -3,11 +3,7 @@
 # `parse_timestamp()`
 <!-- ============================================================== -->
 
-
-The `parse_timestamp` macro is defined as an alias for `strtoumax`, 
-which converts a string to an unsigned integer of type `uintmax_t`. 
-It is typically used to parse timestamp values from string representations.
-
+`parse_timestamp` converts a string representation of a number into an unsigned integer using the specified base.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,13 +20,14 @@ It is typically used to parse timestamp values from string representations.
 **Prototype**
 
 ```C
-
-#define parse_timestamp  strtoumax
-
+uintmax_t parse_timestamp(
+    const char *str,
+    char **endptr,
+    int base
+);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -42,35 +39,26 @@ It is typically used to parse timestamp values from string representations.
 
 * - `str`
   - `const char *`
-  - The string containing the numeric representation of the timestamp.
+  - Pointer to the null-terminated string containing the number to convert.
 
 * - `endptr`
   - `char **`
-  - Pointer to a pointer to character, where the function stores the address of the first invalid character.
+  - Pointer to a character pointer that will be set to the first invalid character after the number.
 
 * - `base`
   - `int`
-  - The numerical base to be used for conversion (e.g., 10 for decimal, 16 for hexadecimal).
-
+  - Numerical base to use for conversion (e.g., 10 for decimal, 16 for hexadecimal).
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the converted value as `uintmax_t`. If no valid conversion could be performed, 
-zero is returned. If the value is out of range, `UINTMAX_MAX` is returned.
-
+Returns the converted unsigned integer value. If no valid conversion is performed, returns `UINTMAX_MAX`.
 
 **Notes**
 
-
-- This macro is a direct alias for `strtoumax`, so all behaviors and limitations of `strtoumax` apply.
-- The `endptr` parameter can be used to check if the entire string was successfully parsed.
-- The function does not detect signed overflows, as it only works with unsigned integers.
-
+This function is a wrapper around `strtoumax`, ensuring safe conversion of string-based timestamps.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

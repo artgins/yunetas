@@ -3,11 +3,7 @@
 # `newdir()`
 <!-- ============================================================== -->
 
-
-The `newdir()` function creates a new directory at the specified `path` with the given `permission` mode.
-
-If the directory already exists, the function does nothing and returns success.
-
+`newdir()` creates a new directory with the specified permissions, ensuring that the umask is set to zero for controlled permission handling.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ If the directory already exists, the function does nothing and returns success.
 **Prototype**
 
 ```C
-
 int newdir(
-    const char  *path,
+    const char *path,
     int         permission
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -49,24 +42,18 @@ int newdir(
 
 * - `permission`
   - `int`
-  - The permission mode for the new directory, specified in octal format (e.g., `0755`).
+  - The permission mode for the new directory.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success, or `-1` if an error occurs (e.g., insufficient permissions or invalid path).
-
+Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-
-This function does not create parent directories if they do not exist.
-To create a directory along with its parent directories, consider using [`mkrdir()`](#mkrdir).
-
+This function ensures that the umask is cleared before creating the directory to allow precise permission control.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

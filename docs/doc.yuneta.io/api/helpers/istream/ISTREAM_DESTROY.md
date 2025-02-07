@@ -3,11 +3,7 @@
 # `ISTREAM_DESTROY()`
 <!-- ============================================================== -->
 
-
-The `ISTREAM_DESTROY` macro safely destroys an `istream_h` instance by calling 
-[`istream_destroy()`](#istream_destroy) if the instance is not `NULL`. 
-After destruction, it sets the pointer to `0` to prevent dangling references.
-
+The `ISTREAM_DESTROY` macro safely destroys an `istream_h` instance by calling `istream_destroy()` and setting the pointer to `NULL`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,17 +20,10 @@ After destruction, it sets the pointer to `0` to prevent dangling references.
 **Prototype**
 
 ```C
-
-#define ISTREAM_DESTROY(istream)    \
-    if(istream) {                   \
-        istream_destroy(istream);   \
-    }                               \
-    (ptr) = 0;
-
+#define ISTREAM_DESTROY(istream)
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,25 +35,18 @@ After destruction, it sets the pointer to `0` to prevent dangling references.
 
 * - `istream`
   - `istream_h`
-  - The input stream handle to be destroyed.
-
+  - A pointer to the `istream_h` instance to be destroyed.
 :::
-
 
 ---
 
 **Return Value**
 
-
 This macro does not return a value.
-
 
 **Notes**
 
-
-- This macro ensures that `istream_destroy()` is only called if `istream` is not `NULL`.
-- After destruction, the pointer is explicitly set to `0` to avoid accidental reuse.
-
+This macro ensures that the `istream_h` instance is properly deallocated and prevents accidental use of a dangling pointer by setting it to `NULL`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

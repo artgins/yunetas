@@ -3,11 +3,7 @@
 # `bits2gbuffer()`
 <!-- ============================================================== -->
 
-
-The `bits2gbuffer()` function converts a set of bit flags represented by a 64-bit integer (`bits`) into a `gbuffer_t` object containing a string representation of the flags. The function uses a `strings_table` to map each bit position to its corresponding string. The resulting string in the `gbuffer_t` object contains the flag names separated by the default delimiters (`|`).
-
-This function is useful for translating bit-based flags into human-readable string representations.
-
+Converts a bitmask into a gbuffer_t structure containing a string representation of the set bits, separated by '|'.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ This function is useful for translating bit-based flags into human-readable stri
 **Prototype**
 
 ```C
-
 gbuffer_t *bits2gbuffer(
     const char **strings_table,
-    uint64_t    bits
+    uint64_t bits
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,30 +38,22 @@ gbuffer_t *bits2gbuffer(
 
 * - `strings_table`
   - `const char **`
-  - A null-terminated array of strings representing the names of the bit flags. Each string corresponds to a specific bit position.
+  - An array of strings representing bit names, terminated by a NULL pointer.
 
 * - `bits`
   - `uint64_t`
-  - A 64-bit integer representing the set of bit flags to be converted.
-
+  - A bitmask where each set bit corresponds to an index in `strings_table`.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to a `gbuffer_t` object containing the string representation of the bit flags. The caller is responsible for managing the memory of the returned `gbuffer_t` object.
-
+A newly allocated [`gbuffer_t *`](#gbuffer_t) containing the string representation of the set bits, or NULL if memory allocation fails.
 
 **Notes**
 
-
-- The `strings_table` must be null-terminated, and the strings must correspond to strict ascending bit values (e.g., 0x0001, 0x0002, 0x0004, etc.).
-- If no bits are set, the resulting `gbuffer_t` will contain an empty string.
-- Ensure that the `gbuffer_t` object is properly freed after use to avoid memory leaks.
-
+The caller is responsible for managing the memory of the returned [`gbuffer_t *`](#gbuffer_t) using [`gbuffer_decref()`](#gbuffer_decref).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

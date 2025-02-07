@@ -3,13 +3,7 @@
 # `translate_string()`
 <!-- ============================================================== -->
 
-
-The `translate_string()` function translates characters in the input string `from` 
-based on the mapping provided by `mk_from` and `mk_to`. Each character in `mk_from` 
-is replaced by the corresponding character in `mk_to`. The translated string is 
-stored in the buffer `to`, which has a maximum size of `tolen`. The function ensures 
-that the output string is null-terminated.
-
+`translate_string` replaces characters in the `from` string with corresponding characters from the `mk_to` string, based on the mapping defined in `mk_from`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,19 +20,16 @@ that the output string is null-terminated.
 **Prototype**
 
 ```C
-
 char *translate_string(
-    char        *to,
-    int         tolen,
-    const char  *from,
-    const char  *mk_to,
-    const char  *mk_from
+    char *to,
+    int   tolen,
+    const char *from,
+    const char *mk_to,
+    const char *mk_from
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -50,42 +41,34 @@ char *translate_string(
 
 * - `to`
   - `char *`
-  - Pointer to the buffer where the translated string will be stored.
+  - Buffer to store the translated string.
 
 * - `tolen`
   - `int`
-  - The size of the `to` buffer, ensuring the translated string does not exceed this length.
+  - Size of the `to` buffer.
 
 * - `from`
   - `const char *`
-  - The input string to be translated.
+  - Input string containing characters to be replaced.
 
 * - `mk_to`
   - `const char *`
-  - A string containing the characters to replace with.
+  - String containing replacement characters.
 
 * - `mk_from`
   - `const char *`
-  - A string containing the characters to be replaced.
-
+  - String containing characters to be replaced.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the translated string stored in the `to` buffer.
-
+Returns a pointer to the `to` buffer containing the translated string.
 
 **Notes**
 
-
-- The `to` buffer must be large enough to hold the translated string, including the null terminator.
-- If `mk_from` and `mk_to` have different lengths, only the characters up to the length of the shorter string are considered.
-- The function does not handle overlapping memory between `to` and `from`.
-
+['The `mk_from` and `mk_to` strings define a mapping where each character in `mk_from` is replaced by the corresponding character in `mk_to`.', 'If `tolen` is too small, the function may not fully translate the input.', 'The function does not allocate memory; the caller must ensure `to` has sufficient space.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

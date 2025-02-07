@@ -3,12 +3,7 @@
 # `get_key_value_parameter()`
 <!-- ============================================================== -->
 
-
-The `get_key_value_parameter()` function extracts a key-value pair from a given string `s` formatted as `key=value` or `key='value'`. 
-The function modifies the input string `s` by inserting null characters (`\0`) to separate the key and value. 
-The key is stored in the memory location pointed to by `key`, and the value is returned as the function's result. 
-This function is useful for parsing strings containing key-value pairs, such as configuration parameters or command-line arguments.
-
+Extracts a key-value pair from a given string, where the key and value are separated by an '=' character. The function modifies the input string by inserting null terminators and returns a pointer to the extracted value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,17 +20,14 @@ This function is useful for parsing strings containing key-value pairs, such as 
 **Prototype**
 
 ```C
-
 char *get_key_value_parameter(
-    char    *s,
-    char    **key,
-    char    **save_ptr
+    char *s,
+    char **key,
+    char **save_ptr
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,34 +39,26 @@ char *get_key_value_parameter(
 
 * - `s`
   - `char *`
-  - The input string containing the key-value pair. This string will be modified in-place.
+  - The input string containing the key-value pair. This string is modified in-place.
 
 * - `key`
   - `char **`
-  - Pointer to a `char *` where the extracted key will be stored.
+  - Pointer to store the extracted key. The key is null-terminated.
 
 * - `save_ptr`
   - `char **`
-  - Pointer to a `char *` used to save the parsing state between successive calls. This is typically used for iterative parsing.
+  - Pointer to store the remaining part of the string after the key-value pair.
 :::
-
 
 ---
 
 **Return Value**
 
-
-The function returns a pointer to the extracted value as a null-terminated string. 
-If no valid key-value pair is found, the function returns `NULL`.
-
+A pointer to the extracted value, or NULL if no valid key-value pair is found.
 
 **Notes**
 
-
-- The input string `s` is modified in-place, so ensure that the original content is no longer needed or is backed up.
-- The function expects the input string to be properly formatted. Malformed strings may lead to undefined behavior.
-- Quoted values (e.g., `key='value'`) are supported, and the quotes are removed in the returned value.
-
+The function expects the input string to be formatted as 'key=value' or 'key="value"'. The input string is modified by inserting null terminators to separate the key and value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

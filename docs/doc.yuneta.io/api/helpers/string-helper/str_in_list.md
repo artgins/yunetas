@@ -3,10 +3,7 @@
 # `str_in_list()`
 <!-- ============================================================== -->
 
-
-The `str_in_list()` function checks if a given string `str` is present in a list of strings `list`. 
-The function can perform a case-sensitive or case-insensitive comparison based on the `ignore_case` parameter.
-
+The function `str_in_list()` checks if a given string exists within a list of strings, with an option to perform a case-insensitive comparison.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,17 +20,14 @@ The function can perform a case-sensitive or case-insensitive comparison based o
 **Prototype**
 
 ```C
-
 BOOL str_in_list(
     const char **list,
     const char *str,
-    BOOL        ignore_case
+    BOOL ignore_case
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,34 +39,26 @@ BOOL str_in_list(
 
 * - `list`
   - `const char **`
-  - A null-terminated array of strings to search within.
+  - A null-terminated array of string pointers representing the list to search.
 
 * - `str`
   - `const char *`
-  - The string to search for in the list.
+  - The string to search for within the list.
 
 * - `ignore_case`
   - `BOOL`
-  - If `TRUE`, the comparison will ignore case differences. If `FALSE`, the comparison will be case-sensitive.
-
+  - If `TRUE`, the comparison is case-insensitive; otherwise, it is case-sensitive.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the string `str` is found in the list `list`. Otherwise, returns `FALSE`.
-
+Returns `TRUE` if the string is found in the list, otherwise returns `FALSE`.
 
 **Notes**
 
-
-- The `list` parameter must be null-terminated.
-- If `ignore_case` is `TRUE`, the function uses a case-insensitive comparison.
-- The function does not modify the input list or string.
-
+The function iterates through the list and compares each entry with `str` using either `strcmp()` or `strcasecmp()` based on the `ignore_case` flag.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

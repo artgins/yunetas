@@ -3,11 +3,7 @@
 # `start_sectimer()`
 <!-- ============================================================== -->
 
-
-The `start_sectimer()` function initializes or disables a section timer. 
-If the `seconds` parameter is greater than 0, the timer is started with the specified duration in seconds. 
-If the `seconds` parameter is less than or equal to 0, the timer is disabled.
-
+`start_sectimer()` initializes a timer by adding the specified number of seconds to the current system time and returns the future timestamp.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ If the `seconds` parameter is less than or equal to 0, the timer is disabled.
 **Prototype**
 
 ```C
-
-time_t start_sectimer(
-    time_t seconds
-);
-
+time_t start_sectimer(time_t seconds);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,26 +35,18 @@ time_t start_sectimer(
 
 * - `seconds`
   - `time_t`
-  - The duration in seconds for the timer. If the value is less than or equal to 0, the timer is disabled.
-
+  - The number of seconds to add to the current system time.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the current time in seconds (as a `time_t` value) when the timer is started. 
-If the timer is disabled, the return value is undefined.
-
+Returns a `time_t` value representing the future timestamp when the timer will expire.
 
 **Notes**
 
-
-This function is useful for managing timed operations or delays. 
-Ensure that the `seconds` parameter is a positive value to start the timer.
-
+['Use [`test_sectimer()`](#test_sectimer) to check if the timer has expired.', 'If `seconds` is less than or equal to zero, the function still returns the current time.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

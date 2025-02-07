@@ -3,10 +3,7 @@
 # `parse_date_format()`
 <!-- ============================================================== -->
 
-
-The `parse_date_format()` function parses a given date format string and configures the provided `date_mode` structure accordingly. 
-This function is used to interpret and set the desired date formatting options for subsequent date-related operations.
-
+Parses a date format string and initializes a [`date_mode`](#date_mode) structure with the corresponding format type and localization settings.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,16 +20,13 @@ This function is used to interpret and set the desired date formatting options f
 **Prototype**
 
 ```C
-
-PUBLIC void parse_date_format(
-    const char          *format,
-    struct date_mode    *mode
+void parse_date_format(
+    const char *format,
+    struct date_mode *mode
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,30 +38,22 @@ PUBLIC void parse_date_format(
 
 * - `format`
   - `const char *`
-  - A string representing the desired date format. It can include standard date format specifiers.
+  - The date format string to be parsed.
 
 * - `mode`
   - `struct date_mode *`
-  - A pointer to a `date_mode` structure that will be configured based on the provided format string.
-
+  - Pointer to a [`date_mode`](#date_mode) structure that will be initialized based on the parsed format.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value. The `mode` structure is updated in place with the parsed date format settings.
-
+This function does not return a value.
 
 **Notes**
 
-
-- The `format` string must follow valid date format conventions.
-- The `mode` structure should be properly allocated before calling this function.
-- This function is typically used in conjunction with other date-related utilities, such as [`show_date()`](#show_date).
-
+If the format string starts with `auto:`, the function selects an appropriate format based on whether the output is a terminal. The function also supports historical aliases such as `default-local` for local time formatting.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

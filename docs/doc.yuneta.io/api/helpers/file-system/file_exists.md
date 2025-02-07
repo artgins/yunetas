@@ -3,7 +3,7 @@
 # `file_exists()`
 <!-- ============================================================== -->
 
-The `file_exists()` function checks if a regular file exists in the specified directory with the given filename.
+The `file_exists()` function checks if a given file exists within a specified directory and is a regular file.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -53,7 +53,7 @@ Returns `TRUE` if the file exists and is a regular file, otherwise returns `FALS
 
 **Notes**
 
-This function uses `is_regular_file()` internally to verify that the file exists and is not a directory or special file.
+This function constructs the full file path by combining `directory` and `filename`, then checks if the file exists and is a regular file using `is_regular_file()`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

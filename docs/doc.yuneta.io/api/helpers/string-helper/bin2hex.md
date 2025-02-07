@@ -3,11 +3,7 @@
 # `bin2hex()`
 <!-- ============================================================== -->
 
-
-The `bin2hex()` function converts a binary data buffer into its hexadecimal string representation. 
-The resulting hexadecimal string is stored in the provided buffer `bf`. 
-This function is useful for representing binary data in a human-readable format.
-
+`bin2hex` converts a binary buffer into a hexadecimal string representation.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,15 @@ This function is useful for representing binary data in a human-readable format.
 **Prototype**
 
 ```C
-
 char *bin2hex(
-    char        *bf,
-    int         bfsize,
+    char *bf,
+    int bfsize,
     const uint8_t *bin,
-    size_t      bin_len
+    size_t bin_len
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,38 +40,30 @@ char *bin2hex(
 
 * - `bf`
   - `char *`
-  - Pointer to the buffer where the hexadecimal string will be stored.
+  - Pointer to the output buffer where the hexadecimal string will be stored.
 
 * - `bfsize`
   - `int`
-  - Size of the buffer `bf` in bytes. It must be large enough to hold the resulting hexadecimal string and the null terminator.
+  - Size of the output buffer in bytes.
 
 * - `bin`
   - `const uint8_t *`
-  - Pointer to the binary data to be converted.
+  - Pointer to the input binary data to be converted.
 
 * - `bin_len`
   - `size_t`
-  - Length of the binary data in bytes.
+  - Length of the input binary data in bytes.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the buffer `bf` containing the hexadecimal string representation of the binary data. 
-If the buffer size `bfsize` is insufficient, the behavior is undefined.
-
+Returns a pointer to the output buffer `bf` containing the hexadecimal string.
 
 **Notes**
 
-
-- The resulting hexadecimal string will be null-terminated.
-- Ensure that `bfsize` is at least `(2 * bin_len + 1)` to accommodate the hexadecimal representation and the null terminator.
-- This function does not allocate memory; the caller must provide a sufficiently large buffer.
-
+The output buffer `bf` must be large enough to store the hexadecimal representation (2 * `bin_len` + 1 bytes for the null terminator).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

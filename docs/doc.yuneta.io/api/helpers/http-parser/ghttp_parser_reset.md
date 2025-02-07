@@ -3,11 +3,7 @@
 # `ghttp_parser_reset()`
 <!-- ============================================================== -->
 
-
-The `ghttp_parser_reset()` function resets the internal state of a `GHTTP_PARSER` instance, 
-allowing it to be reused for parsing a new HTTP message. This function clears any stored 
-headers, body data, and resets internal flags related to message completion.
-
+Resets the internal state of a [`GHTTP_PARSER`](#GHTTP_PARSER) structure, clearing accumulated data such as headers, body, and URL.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ headers, body data, and resets internal flags related to message completion.
 **Prototype**
 
 ```C
-
-void ghttp_parser_reset(
-    GHTTP_PARSER *parser
-);
-
+void ghttp_parser_reset(GHTTP_PARSER *parser);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,26 +35,18 @@ void ghttp_parser_reset(
 
 * - `parser`
   - `GHTTP_PARSER *`
-  - Pointer to the `GHTTP_PARSER` instance to be reset.
-
+  - Pointer to the [`GHTTP_PARSER`](#GHTTP_PARSER) structure to reset.
 :::
-
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-
 
 **Notes**
 
-
-- This function should be called before reusing an existing `GHTTP_PARSER` instance for a new HTTP message.
-- It does not free the parser; it only resets its internal state.
-- If the parser contains allocated memory for headers or body data, ensure proper memory management before calling this function.
-
+This function should be called before reusing a [`GHTTP_PARSER`](#GHTTP_PARSER) instance to ensure a clean state.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,9 +3,7 @@
 # `istream_read_until_num_bytes()`
 <!-- ============================================================== -->
 
-
-The `istream_read_until_num_bytes()` function reads data from the input stream until the specified number of bytes (`num_bytes`) is available. Once the required number of bytes is read, the function triggers the specified event (`event`) to notify the caller. This function is useful for processing streams where a fixed amount of data needs to be read before further processing.
-
+Configures the `istream_h` stream to read until a specified number of bytes is accumulated before triggering an event.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,17 +20,14 @@ The `istream_read_until_num_bytes()` function reads data from the input stream u
 **Prototype**
 
 ```C
-
 int istream_read_until_num_bytes(
-    istream_h       istream,
-    size_t          num_bytes,
-    gobj_event_t    event
+    istream_h istream,
+    size_t    num_bytes,
+    gobj_event_t event
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,34 +39,26 @@ int istream_read_until_num_bytes(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream from which data is being read.
+  - Handle to the input stream.
 
 * - `num_bytes`
   - `size_t`
-  - The number of bytes to read from the input stream before triggering the event.
+  - The number of bytes to accumulate before triggering the event.
 
 * - `event`
   - `gobj_event_t`
-  - The event to be triggered once the specified number of bytes is read.
-
+  - The event to trigger when the specified number of bytes is reached.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success, or a negative value if an error occurs during the operation.
-
+Returns 0 on success, or -1 if an error occurs.
 
 **Notes**
 
-
-- The function does not consume the data from the stream; it only ensures that the specified number of bytes is available for reading.
-- If the stream does not contain enough data, the function will wait until the required amount is available.
-- Ensure that the `istream` handle is valid and properly initialized before calling this function.
-
+Once the specified number of bytes is accumulated, the event is triggered with the collected data.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,12 +3,7 @@
 # `get_parameter()`
 <!-- ============================================================== -->
 
-
-The `get_parameter()` function extracts a parameter from a string `s`, 
-delimited by blanks (`\b`, `\t`) or quotes (`'`, `"`). 
-The input string `s` is modified during the process, with null characters inserted to separate tokens. 
-This function is useful for parsing command-line arguments or similar input formats.
-
+`get_parameter()` extracts a parameter from a string, delimited by blanks (`' '` or `'	'`) or quotes (`'` or `"`). The input string is modified by inserting null terminators.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,16 +20,13 @@ This function is useful for parsing command-line arguments or similar input form
 **Prototype**
 
 ```C
-
 char *get_parameter(
-    char    *s,
-    char    **save_ptr
+    char *s,
+    char **save_ptr
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,32 +38,22 @@ char *get_parameter(
 
 * - `s`
   - `char *`
-  - The input string to be parsed. It will be modified in-place.
+  - The input string to parse. It is modified in-place.
 
 * - `save_ptr`
   - `char **`
-  - A pointer to save the context for subsequent calls to `get_parameter()`. 
-    This allows the function to continue parsing the same string across multiple calls.
-
+  - Pointer to store the next position in the string for subsequent calls.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the extracted parameter as a null-terminated string. 
-If no more parameters are available, the function returns `NULL`.
-
+Returns a pointer to the extracted parameter, or `NULL` if no parameter is found.
 
 **Notes**
 
-
-- The input string `s` is modified in-place, so ensure that it is writable.
-- This function is designed to handle quoted strings, allowing parameters to contain spaces if enclosed in quotes.
-- Use the `save_ptr` parameter to maintain parsing state across multiple calls.
-
+If the parameter is enclosed in quotes (`'` or `"`), the function ensures that the returned string does not include them.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

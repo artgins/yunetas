@@ -3,10 +3,7 @@
 # `get_number_of_files()`
 <!-- ============================================================== -->
 
-
-The `get_number_of_files()` function traverses a directory tree starting from `root_dir` and counts the number of files that match the specified `pattern`. 
-The behavior of the traversal can be customized using the `opt` parameter, which allows for options such as recursive traversal, inclusion of hidden files, and file type matching.
-
+The function `get_number_of_files()` counts the number of files in a directory tree that match a given pattern and options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,18 +20,15 @@ The behavior of the traversal can be customized using the `opt` parameter, which
 **Prototype**
 
 ```C
-
-PUBLIC int get_number_of_files(
-    hgobj       gobj,
-    const char  *root_dir,
-    const char  *pattern,
-    wd_option   opt
+int get_number_of_files(
+    hgobj gobj,
+    const char *root_dir,
+    const char *pattern,
+    wd_option opt
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,39 +40,30 @@ PUBLIC int get_number_of_files(
 
 * - `gobj`
   - `hgobj`
-  - A handle to the gobj (generic object) that may be used for logging or other purposes during the operation.
+  - A handle to the gobj (generic object) system, used for logging and error handling.
 
 * - `root_dir`
   - `const char *`
-  - The root directory from which the traversal begins.
+  - The root directory where the search begins.
 
 * - `pattern`
   - `const char *`
-  - A pattern to match file names. Can be `NULL` to include all files.
+  - A regular expression pattern to match filenames.
 
 * - `opt`
   - `wd_option`
-  - Options to customize the traversal behavior, such as recursion, hidden file inclusion, and file type filtering.
-
+  - Options that control the search behavior, such as recursion and file type filtering.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the number of files matching the specified `pattern` in the directory tree. 
-If an error occurs during traversal, the function may return `-1`.
-
+Returns the number of matching files found in the directory tree. Returns -1 on error.
 
 **Notes**
 
-
-- This function relies on the `walk_dir_tree()` function internally to perform the directory traversal.
-- The `opt` parameter allows for fine-grained control over the traversal, such as limiting matches to specific file types or including hidden files.
-- Ensure that the `root_dir` is accessible and valid to avoid errors.
-
+This function internally uses [`walk_dir_tree()`](#walk_dir_tree) to traverse the directory tree and count matching files.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,15 +3,7 @@
 # `ghttp_parser_create()`
 <!-- ============================================================== -->
 
-
-The `ghttp_parser_create()` function initializes and returns a new HTTP parser instance (`GHTTP_PARSER`).
-This parser is used to process HTTP messages, including headers and body content, and trigger events
-when different parts of the message are received.
-
-The function allows specifying event handlers for when the headers are completed, when body data is received,
-and when the entire message is completed. The parser can either send events directly to the parent object
-or publish them globally, depending on the `send_event` flag.
-
+Creates and initializes a new `GHTTP_PARSER` instance for parsing HTTP messages. The parser processes incoming HTTP data and triggers events when headers, body, or complete messages are received.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,20 +20,17 @@ or publish them globally, depending on the `send_event` flag.
 **Prototype**
 
 ```C
-
 GHTTP_PARSER *ghttp_parser_create(
-    hgobj           gobj,
+    hgobj gobj,
     enum http_parser_type type,
-    gobj_event_t    on_header_event,
-    gobj_event_t    on_body_event,
-    gobj_event_t    on_message_event,
-    BOOL            send_event
+    gobj_event_t on_header_event,
+    gobj_event_t on_body_event,
+    gobj_event_t on_message_event,
+    BOOL send_event
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -53,15 +42,15 @@ GHTTP_PARSER *ghttp_parser_create(
 
 * - `gobj`
   - `hgobj`
-  - The parent GObj that will receive the parsed HTTP events.
+  - The parent GObj that will handle the parsed HTTP events.
 
 * - `type`
   - `enum http_parser_type`
-  - The type of HTTP parser, either `HTTP_REQUEST` or `HTTP_RESPONSE`.
+  - The type of HTTP parser (`HTTP_REQUEST`, `HTTP_RESPONSE`, or `HTTP_BOTH`).
 
 * - `on_header_event`
   - `gobj_event_t`
-  - The event triggered when the HTTP headers are fully received.
+  - The event triggered when HTTP headers are fully received.
 
 * - `on_body_event`
   - `gobj_event_t`
@@ -73,27 +62,18 @@ GHTTP_PARSER *ghttp_parser_create(
 
 * - `send_event`
   - `BOOL`
-  - If `TRUE`, events are sent to the parent object using `gobj_send_event()`;
-    if `FALSE`, events are published globally using `gobj_publish_event()`.
+  - If `TRUE`, events are sent using [`gobj_send_event()`](#gobj_send_event); otherwise, they are published using [`gobj_publish_event()`](#gobj_publish_event).
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to a newly allocated `GHTTP_PARSER` instance, or `NULL` if an error occurs.
-
+A pointer to the newly created `GHTTP_PARSER` instance, or `NULL` if memory allocation fails.
 
 **Notes**
 
-
-- The caller is responsible for destroying the parser using [`ghttp_parser_destroy()`](#ghttp_parser_destroy).
-- The `on_header_event` event receives a JSON object containing HTTP headers and metadata.
-- The `on_body_event` event receives partial body data in a buffer.
-- The `on_message_event` event receives the full message, including headers and body.
-
+The returned `GHTTP_PARSER` instance must be destroyed using [`ghttp_parser_destroy()`](#ghttp_parser_destroy) when no longer needed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,12 +3,7 @@
 # `newfile()`
 <!-- ============================================================== -->
 
-
-The `newfile()` function creates a new file at the specified `path` with the given `permission` mode.
-If the file already exists, the behavior depends on the `overwrite` flag:
-- If `overwrite` is `TRUE`, the existing file will be truncated.
-- If `overwrite` is `FALSE`, the function will fail if the file already exists.
-
+`newfile()` creates a new file with the specified permissions, optionally overwriting an existing file.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,17 +20,14 @@ If the file already exists, the behavior depends on the `overwrite` flag:
 **Prototype**
 
 ```C
-
 int newfile(
-    const char  *path,
+    const char *path,
     int         permission,
     BOOL        overwrite
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,34 +39,26 @@ int newfile(
 
 * - `path`
   - `const char *`
-  - The path where the new file should be created.
+  - The file path to create.
 
 * - `permission`
   - `int`
-  - The file permission mode, typically specified using octal values (e.g., `0666`).
+  - The file permission mode (e.g., 0660).
 
 * - `overwrite`
   - `BOOL`
-  - If `TRUE`, an existing file will be truncated; otherwise, the function fails if the file exists.
-
+  - If `TRUE`, an existing file will be truncated; otherwise, creation fails if the file exists.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success. Returns `-1` on failure, typically due to permission issues or if the file exists and `overwrite` is `FALSE`.
-
+Returns a file descriptor on success, or `-1` on failure.
 
 **Notes**
 
-
-- The `permission` argument follows standard Unix file permission conventions.
-- If `overwrite` is `FALSE` and the file exists, the function does not modify the file.
-- Use [`newdir()`](#newdir) if you need to create a directory instead.
-
+This function sets `umask(0)` to ensure the specified permissions are applied.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

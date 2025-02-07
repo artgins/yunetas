@@ -3,9 +3,7 @@
 # `time_in_miliseconds()`
 <!-- ============================================================== -->
 
-
-The `time_in_miliseconds()` function retrieves the current real-world time in milliseconds since the Unix epoch (January 1, 1970). This function provides a high-resolution timestamp for real-time applications.
-
+`time_in_miliseconds()` returns the current real-world time in milliseconds since the Unix epoch using the `CLOCK_REALTIME` clock source.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,13 +20,10 @@ The `time_in_miliseconds()` function retrieves the current real-world time in mi
 **Prototype**
 
 ```C
-
 uint64_t time_in_miliseconds(void);
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -38,27 +33,20 @@ uint64_t time_in_miliseconds(void);
   - Type
   - Description
 
-* - None
-  - None
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the current real-world time in milliseconds as a `uint64_t` value. This value represents the number of milliseconds elapsed since the Unix epoch.
-
+Returns the current time in milliseconds as a `uint64_t` value.
 
 **Notes**
 
-
-- This function is useful for measuring elapsed time or for timestamping events.
-- The resolution and accuracy depend on the underlying system clock.
-
+['Uses `clock_gettime(CLOCK_REALTIME, &spec)` to retrieve the current time.', 'The returned value represents the number of milliseconds elapsed since January 1, 1970 (Unix epoch).', 'For a monotonic time source, use [`time_in_miliseconds_monotonic()`](#time_in_miliseconds_monotonic).']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

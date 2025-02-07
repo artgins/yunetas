@@ -3,11 +3,7 @@
 # `istream_create()`
 <!-- ============================================================== -->
 
-
-The `istream_create()` function initializes and returns a new input stream (`istream_h`) object. 
-This stream is used for managing data buffers with a specified initial size (`data_size`) and a maximum allowable size (`max_size`). 
-The function is typically used in scenarios where controlled data streaming is required.
-
+`istream_create()` initializes and returns a new input stream (`istream_h`) with a specified buffer size and maximum capacity.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,17 +20,14 @@ The function is typically used in scenarios where controlled data streaming is r
 **Prototype**
 
 ```C
-
 istream_h istream_create(
-    hgobj   gobj,
-    size_t  data_size,
-    size_t  max_size
+    hgobj gobj,
+    size_t data_size,
+    size_t max_size
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,32 +39,26 @@ istream_h istream_create(
 
 * - `gobj`
   - `hgobj`
-  - The parent object that owns the input stream.
+  - The parent object managing the input stream.
 
 * - `data_size`
   - `size_t`
-  - The initial size of the data buffer.
+  - The initial size of the buffer allocated for the input stream.
 
 * - `max_size`
   - `size_t`
-  - The maximum allowable size of the data buffer.
+  - The maximum allowed size of the buffer.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a handle (`istream_h`) to the newly created input stream. This handle is used to interact with the stream in subsequent operations.
-
+Returns a handle (`istream_h`) to the newly created input stream, or `NULL` if memory allocation fails.
 
 **Notes**
 
-
-- If the `data_size` exceeds `max_size`, the behavior is undefined.
-- The returned `istream_h` must be destroyed using [`istream_destroy()`](#istream_destroy) to free allocated resources.
-
+The returned `istream_h` must be destroyed using [`istream_destroy()`](#istream_destroy) to free allocated resources.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

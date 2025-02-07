@@ -3,10 +3,7 @@
 # `json2str()`
 <!-- ============================================================== -->
 
-
-The `json2str()` function converts a JSON object (`json_t *`) into a human-readable, indented string representation. 
-The returned string is dynamically allocated and must be freed using `gbmem_free()` after use.
-
+`json2str` converts a JSON object into a formatted string with indentation.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,12 @@ The returned string is dynamically allocated and must be freed using `gbmem_free
 **Prototype**
 
 ```C
-
 char *json2str(
     const json_t *jn
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,27 +37,18 @@ char *json2str(
 
 * - `jn`
   - `const json_t *`
-  - The JSON object to be converted into a string. This parameter is not owned by the function and must remain valid during the call.
-
+  - The JSON object to be converted into a string.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A dynamically allocated string containing the indented representation of the JSON object. 
-The caller is responsible for freeing the returned string using `gbmem_free()`.
-
+A newly allocated string containing the formatted JSON representation. The caller must free the returned string using `gbmem_free()`.
 
 **Notes**
 
-
-- This function is useful for debugging or logging JSON objects in a readable format.
-- If the input JSON object is `NULL`, the behavior is undefined.
-- For a compact, non-indented string representation, use [`json2uglystr()`](#json2uglystr).
-
+The function uses `JSON_INDENT(4)` for formatting and `JSON_REAL_PRECISION(get_real_precision())` to control floating-point precision.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

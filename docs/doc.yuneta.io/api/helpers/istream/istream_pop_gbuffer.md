@@ -3,12 +3,7 @@
 # `istream_pop_gbuffer()`
 <!-- ============================================================== -->
 
-
-The `istream_pop_gbuffer()` function retrieves and removes the current [`gbuffer_t *`](#gbuffer_t) 
-from the specified input stream (`istream_h`). This operation transfers ownership of the 
-buffer to the caller, who is responsible for managing and freeing the buffer. 
-The function is useful for extracting accumulated data from the input stream for further processing.
-
+Retrieves and removes the current [`gbuffer_t *`](#gbuffer_t) from the given [`istream_t *`](#istream_t), returning ownership to the caller.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,15 +20,12 @@ The function is useful for extracting accumulated data from the input stream for
 **Prototype**
 
 ```C
-
 gbuffer_t *istream_pop_gbuffer(
     istream_h istream
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,26 +37,18 @@ gbuffer_t *istream_pop_gbuffer(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream from which the `gbuffer_t *` will be retrieved.
-
+  - The input stream handle from which the [`gbuffer_t *`](#gbuffer_t) will be extracted.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the [`gbuffer_t`](#gbuffer_t) object containing the data from the input stream. 
-If no buffer is available, the function returns `NULL`.
-
+Returns the [`gbuffer_t *`](#gbuffer_t) extracted from the [`istream_t *`](#istream_t). The caller assumes ownership and must manage its lifecycle. Returns `NULL` if `istream` is invalid or empty.
 
 **Notes**
 
-
-- The caller is responsible for freeing the returned [`gbuffer_t`](#gbuffer_t) using the appropriate method.
-- This function is typically used in scenarios where the input stream's accumulated data needs to be processed or transferred.
-
+After calling [`istream_pop_gbuffer()`](#istream_pop_gbuffer), the internal buffer of the [`istream_t *`](#istream_t) is set to `NULL`, meaning subsequent reads will require a new buffer.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

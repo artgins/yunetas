@@ -3,13 +3,7 @@
 # `parse_date_basic()`
 <!-- ============================================================== -->
 
-
-The `parse_date_basic()` function parses a date string in a simplified format and converts it into a timestamp and an optional timezone offset. 
-This function is designed to handle basic date formats and is less flexible compared to other date-parsing utilities like `approxidate_careful()`.
-
-The function extracts the timestamp from the provided `date` string and stores it in the `timestamp` parameter. 
-If a timezone offset is present in the date string, it is stored in the `offset` parameter.
-
+Parses a date string into a timestamp and timezone offset. The function supports various date formats and extracts the corresponding Unix timestamp and timezone offset.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,17 +20,14 @@ If a timezone offset is present in the date string, it is stored in the `offset`
 **Prototype**
 
 ```C
-
 int parse_date_basic(
-    const char      *date,
-    timestamp_t     *timestamp,
-    int             *offset
+    const char *date,
+    timestamp_t *timestamp,
+    int *offset
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -52,30 +43,22 @@ int parse_date_basic(
 
 * - `timestamp`
   - `timestamp_t *`
-  - Pointer to a variable where the parsed timestamp will be stored.
+  - Pointer to store the parsed Unix timestamp.
 
 * - `offset`
   - `int *`
-  - Pointer to a variable where the timezone offset will be stored. Can be `NULL` if the offset is not needed.
-
+  - Pointer to store the parsed timezone offset in minutes.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success, or `-1` if the date string cannot be parsed.
-
+Returns 0 on success, or -1 if the date string could not be parsed.
 
 **Notes**
 
-
-- The `timestamp` output is in seconds since the Unix epoch (January 1, 1970).
-- The `offset` is optional and represents the timezone offset in seconds from UTC.
-- This function is intended for basic date parsing and may not handle complex or relative date formats. For more advanced parsing, consider using [`approxidate_careful()`](#approxidate_careful).
-
+This function is used internally by [`approxidate_careful()`](#approxidate_careful) and [`approxidate_relative()`](#approxidate_relative) to interpret date strings in various formats.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

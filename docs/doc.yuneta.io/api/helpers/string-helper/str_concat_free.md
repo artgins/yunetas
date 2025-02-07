@@ -3,10 +3,7 @@
 # `str_concat_free()`
 <!-- ============================================================== -->
 
-
-The `str_concat_free()` function frees the memory allocated for a concatenated string.
-It is used to deallocate memory that was previously allocated by [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
-
+Frees memory allocated for a concatenated string created by [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,10 @@ It is used to deallocate memory that was previously allocated by [`str_concat()`
 **Prototype**
 
 ```C
-
-void str_concat_free(
-    char *s
-);
-
+void str_concat_free(char *s);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,25 +36,17 @@ void str_concat_free(
 * - `s`
   - `char *`
   - Pointer to the dynamically allocated string to be freed.
-
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value.
-
+None.
 
 **Notes**
 
-
-- The pointer `s` must have been allocated using [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
-- Passing a NULL pointer is safe and has no effect.
-- After calling this function, the pointer should not be used again unless reassigned.
-
+This function should only be used to free memory allocated by [`str_concat()`](#str_concat) or [`str_concat3()`](#str_concat3).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

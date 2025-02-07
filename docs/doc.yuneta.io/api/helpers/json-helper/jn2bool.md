@@ -3,11 +3,7 @@
 # `jn2bool()`
 <!-- ============================================================== -->
 
-
-The `jn2bool()` function converts a JSON variable of type [`json_t`](https://jansson.readthedocs.io/en/latest/apiref.html#json-t) into a boolean value. 
-It evaluates the JSON variable and returns `TRUE` or `FALSE` based on its content. 
-This function is particularly useful when working with JSON objects and needing to extract boolean values reliably.
-
+The function `jn2bool` converts a JSON value to a boolean representation, interpreting various JSON types accordingly.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ This function is particularly useful when working with JSON objects and needing 
 **Prototype**
 
 ```C
-
-PUBLIC BOOL jn2bool(
-    json_t *jn_var
-);
-
+BOOL jn2bool(json_t *jn_var);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,25 +35,18 @@ PUBLIC BOOL jn2bool(
 
 * - `jn_var`
   - `json_t *`
-  - A pointer to the JSON variable to be converted to a boolean.
-
+  - A pointer to a JSON value to be converted to a boolean.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the JSON variable evaluates to a boolean `true` value, and `FALSE` otherwise.
-
+Returns `TRUE` if the JSON value represents a truthy value, otherwise returns `FALSE`. Specifically, `true` JSON values return `TRUE`, `false` and `null` return `FALSE`, numbers return `TRUE` if nonzero, and strings return `TRUE` if non-empty.
 
 **Notes**
 
-
-- The function assumes the input is a valid JSON variable. If the input is not of a boolean-compatible type, the behavior might be undefined.
-- This function is part of the JSON utilities and simplifies the handling of JSON boolean values.
-
+This function is useful for safely interpreting JSON values as boolean flags. It ensures that various JSON types are correctly mapped to boolean values.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

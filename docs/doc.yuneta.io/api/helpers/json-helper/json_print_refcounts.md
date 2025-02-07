@@ -3,12 +3,7 @@
 # `json_print_refcounts()`
 <!-- ============================================================== -->
 
-
-The `json_print_refcounts()` function checks and prints the reference counts of a JSON object (`json_t *`) and its nested elements. 
-It traverses the JSON structure deeply and outputs the reference count of each element at the specified level of indentation.
-
-This function is useful for debugging memory management issues in JSON objects, particularly when working with libraries like Jansson.
-
+Prints the reference counts of a JSON object and its nested elements recursively.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,16 +20,13 @@ This function is useful for debugging memory management issues in JSON objects, 
 **Prototype**
 
 ```C
-
-int json_print_refcounts(
-    json_t *jn,   // not owned
-    int     level
+PUBLIC int json_print_refcounts(
+    json_t *jn,  // not owned
+    int level
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,29 +38,22 @@ int json_print_refcounts(
 
 * - `jn`
   - `json_t *`
-  - The JSON object to analyze. This object is not owned by the function.
+  - The JSON object whose reference counts will be printed. It is not owned by the function.
 
 * - `level`
   - `int`
-  - The indentation level for the output. Used to format the printed reference counts.
+  - The indentation level for formatting the output.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success. If an error occurs during the traversal or printing process, the function may return a non-zero value.
-
+Returns 0 on success.
 
 **Notes**
 
-
-- This function is primarily intended for debugging purposes.
-- It does not modify the input JSON object.
-- Ensure that the `jn` parameter is a valid JSON object before calling this function to avoid undefined behavior.
-
+This function is useful for debugging memory management issues related to JSON reference counts.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

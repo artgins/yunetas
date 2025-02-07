@@ -3,11 +3,7 @@
 # `anystring2json()`
 <!-- ============================================================== -->
 
-
-The `anystring2json()` function converts a string representation of JSON data into a `json_t *` object. 
-It accepts a string buffer and its length, and optionally logs verbose output for debugging purposes. 
-This function is useful for parsing JSON data from arbitrary strings, ensuring compatibility with JSON libraries.
-
+Converts a given string into a JSON object, supporting various formats including arrays and objects. Returns NULL if parsing fails.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,17 +20,14 @@ This function is useful for parsing JSON data from arbitrary strings, ensuring c
 **Prototype**
 
 ```C
-
-PUBLIC json_t *anystring2json(
+json_t *anystring2json(
     const char *bf,
-    size_t      len,
-    BOOL        verbose
+    size_t len,
+    BOOL verbose
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,35 +39,26 @@ PUBLIC json_t *anystring2json(
 
 * - `bf`
   - `const char *`
-  - Pointer to the string buffer containing the JSON data.
+  - The input string to be converted into a JSON object.
 
 * - `len`
   - `size_t`
-  - Length of the string buffer.
+  - The length of the input string.
 
 * - `verbose`
   - `BOOL`
-  - If `TRUE`, enables verbose logging for debugging purposes.
-
+  - If TRUE, logs errors when parsing fails.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to a `json_t *` object representing the parsed JSON data. 
-If the input string is not valid JSON, the function returns `NULL`.
-
+Returns a `json_t *` representing the parsed JSON object, or NULL if parsing fails.
 
 **Notes**
 
-
-- The returned `json_t *` object must be properly managed and freed using the appropriate JSON library functions.
-- This function is designed to handle both valid JSON objects (`{}`) and arrays (`[]`).
-- If `verbose` is enabled, detailed error messages or parsing information may be logged.
-
+Uses `json_loadb()` with `JSON_DECODE_ANY` to support multiple JSON formats. If `verbose` is TRUE, logs errors when parsing fails.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

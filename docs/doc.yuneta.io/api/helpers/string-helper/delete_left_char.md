@@ -3,11 +3,7 @@
 # `delete_left_char()`
 <!-- ============================================================== -->
 
-
-The `delete_left_char()` function removes the first occurrence of the character `x` from the left side of the string `s`. 
-If the character `x` is found at the beginning of the string, it is deleted, and the rest of the string is shifted left. 
-If `x` is not found, the string remains unchanged. The function modifies the input string `s` directly.
-
+Removes all leading occurrences of the specified character `x` from the string `s`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ If `x` is not found, the string remains unchanged. The function modifies the inp
 **Prototype**
 
 ```C
-
 char *delete_left_char(
     char *s,
     char x
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,30 +38,22 @@ char *delete_left_char(
 
 * - `s`
   - `char *`
-  - Pointer to the string to be modified.
+  - The input string to modify in place.
 
 * - `x`
   - `char`
-  - The character to be removed from the left side of the string.
-
+  - The character to remove from the beginning of `s`.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the modified string `s`. If the character `x` is not found, the original string is returned unchanged.
-
+A pointer to the modified string `s`.
 
 **Notes**
 
-
-- The input string `s` must be null-terminated.
-- The function modifies the string `s` in place, so ensure that `s` is writable.
-- If `s` is `NULL`, the behavior is undefined.
-
+The function modifies the input string in place by shifting characters to the left.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

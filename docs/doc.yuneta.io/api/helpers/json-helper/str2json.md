@@ -3,11 +3,7 @@
 # `str2json()`
 <!-- ============================================================== -->
 
-
-The `str2json()` function converts a JSON-formatted string into a `json_t *` object. 
-This function is useful for parsing JSON strings into a structured format that can be manipulated programmatically. 
-It is an alias for the `string2json()` function.
-
+The function `str2json` converts a legal JSON string into a JSON object. The input string must be a valid JSON array `[]` or object `{}`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ It is an alias for the `string2json()` function.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *str2json(
+json_t *str2json(
     const char *str,
     BOOL verbose
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,31 +38,22 @@ PUBLIC json_t *str2json(
 
 * - `str`
   - `const char *`
-  - The JSON-formatted string to be converted.
+  - A null-terminated string containing a valid JSON object or array.
 
 * - `verbose`
   - `BOOL`
-  - If `TRUE`, additional information about the parsing process will be printed.
-
+  - If `TRUE`, logs errors when parsing fails.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a `json_t *` object representing the parsed JSON structure. 
-If the input string is not valid JSON, the function may return `NULL`.
-
+Returns a `json_t *` representing the parsed JSON object. Returns `NULL` if parsing fails.
 
 **Notes**
 
-
-- The returned `json_t *` object must be freed using appropriate functions, such as `json_decref()`.
-- This function only supports JSON objects (`{}`) and arrays (`[]`) as valid input.
-- The macro `legalstring2json` is also an alias for this function.
-
+['This function is an alias for [`string2json()`](#string2json).', 'Use [`anystring2json()`](#anystring2json) if the input may contain other JSON types such as numbers or strings.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

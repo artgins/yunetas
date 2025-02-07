@@ -3,11 +3,7 @@
 # `tm2timestamp()`
 <!-- ============================================================== -->
 
-
-The `tm2timestamp()` function converts a `struct tm` time structure into a formatted timestamp string.
-The resulting timestamp is stored in the provided buffer `bf` with a maximum size of `bfsize` bytes.
-The format of the timestamp follows the standard ISO 8601 format: `YYYY-MM-DD HH:MM:SS`.
-
+Converts a `struct tm` time representation into an ISO 8601 formatted timestamp string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,17 +20,14 @@ The format of the timestamp follows the standard ISO 8601 format: `YYYY-MM-DD HH
 **Prototype**
 
 ```C
-
 char *tm2timestamp(
     char *bf,
     int   bfsize,
     struct tm *tm
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,34 +39,26 @@ char *tm2timestamp(
 
 * - `bf`
   - `char *`
-  - Pointer to the buffer where the formatted timestamp will be stored.
+  - Buffer to store the formatted timestamp.
 
 * - `bfsize`
   - `int`
-  - The size of the buffer `bf` in bytes.
+  - Size of the buffer `bf`.
 
 * - `tm`
   - `struct tm *`
-  - Pointer to a `struct tm` containing the time information to be converted.
-
+  - Pointer to a `struct tm` containing the time to be formatted.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the buffer `bf` containing the formatted timestamp string.
-If an error occurs (e.g., `bf` is NULL or `bfsize` is too small), the function may return NULL or an incomplete string.
-
+Returns a pointer to the buffer `bf` containing the formatted timestamp.
 
 **Notes**
 
-
-Ensure that `bf` has enough space to store the formatted timestamp.
-A buffer size of at least 20 bytes is recommended to accommodate the full timestamp format.
-
+The output format follows the ISO 8601 standard: `YYYY-MM-DDTHH:MM:SS.0±HHMM`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

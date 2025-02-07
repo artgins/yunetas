@@ -3,7 +3,7 @@
 # `file_permission()`
 <!-- ============================================================== -->
 
-The `file_permission()` function retrieves the permission mode of a specified file path using the `stat()` system call.
+The `file_permission()` function retrieves the permission mode of a specified file path.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,9 +20,7 @@ The `file_permission()` function retrieves the permission mode of a specified fi
 **Prototype**
 
 ```C
-mode_t file_permission(
-    const char *path
-);
+mode_t file_permission(const char *path);
 ```
 
 **Parameters**
@@ -44,11 +42,11 @@ mode_t file_permission(
 
 **Return Value**
 
-Returns the file permission mode as a `mode_t` value. If the `stat()` call fails, it returns `0`.
+Returns the permission mode of the file as a `mode_t` value. If the file does not exist or an error occurs, returns 0.
 
 **Notes**
 
-This function uses `stat()` to obtain the file's metadata and extracts the permission bits using bitwise operations.
+This function internally uses `stat()` to obtain the file's mode and extracts the permission bits using bitwise operations.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

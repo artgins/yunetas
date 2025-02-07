@@ -3,9 +3,7 @@
 # `left_justify()`
 <!-- ============================================================== -->
 
-
-The `left_justify()` function removes leading whitespace characters from the input string `s` and shifts the remaining characters to the beginning of the string. This operation modifies the input string in place. The function is useful for cleaning up strings by eliminating unnecessary leading spaces or tabs.
-
+The `left_justify()` function removes leading and trailing whitespace characters from the given string `s`, ensuring that the string is left-aligned with no extra spaces at the beginning or end.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,15 +20,10 @@ The `left_justify()` function removes leading whitespace characters from the inp
 **Prototype**
 
 ```C
-
-void left_justify(
-    char *s
-);
-
+void left_justify(char *s);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -42,25 +35,18 @@ void left_justify(
 
 * - `s`
   - `char *`
-  - Pointer to the string to be modified. The string must be null-terminated and writable.
-
+  - A pointer to a null-terminated string that will be modified in place to remove leading and trailing whitespace.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value. The input string `s` is modified directly.
-
+This function does not return a value.
 
 **Notes**
 
-
-- The input string `s` must be writable. Passing a read-only string (e.g., a string literal) will result in undefined behavior.
-- The function does not allocate or free memory; it operates directly on the provided string.
-
+If `s` is NULL, the function does nothing. The function modifies the input string directly.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

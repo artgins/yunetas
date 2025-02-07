@@ -3,12 +3,7 @@
 # `pop_last_segment()`
 <!-- ============================================================== -->
 
-
-The `pop_last_segment()` function removes the last segment of a file path or directory path, modifying the input string `path` in place. 
-This function is useful for manipulating file paths by trimming the last segment, such as a file name or directory name, from the path.
-
-The function modifies the input string directly and returns a pointer to the modified string.
-
+`pop_last_segment()` removes and returns the last segment of a given file path, modifying the original string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,15 +20,10 @@ The function modifies the input string directly and returns a pointer to the mod
 **Prototype**
 
 ```C
-
-char *pop_last_segment(
-    char *path
-);
-
+char *pop_last_segment(char *path);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,25 +35,18 @@ char *pop_last_segment(
 
 * - `path`
   - `char *`
-  - The input string representing the file or directory path. This string will be modified in place.
+  - A mutable string representing a file path. The function modifies this string in place.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to the modified string `path`, with the last segment removed. If the input string is empty or does not contain any segments, the function may return the original string or an empty string, depending on the implementation.
-
+A pointer to the last segment of the path. The original `path` string is modified, with the last segment removed.
 
 **Notes**
 
-
-- The input string `path` is modified directly; ensure that it is writable.
-- This function does not allocate new memory; it operates on the existing string.
-- The function assumes that the path segments are separated by a standard directory delimiter (e.g., `/` on Unix-like systems).
-
+If no '/' is found in `path`, the entire string is returned, and `path` remains unchanged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

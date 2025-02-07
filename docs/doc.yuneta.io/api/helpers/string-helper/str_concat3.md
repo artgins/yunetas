@@ -3,11 +3,7 @@
 # `str_concat3()`
 <!-- ============================================================== -->
 
-
-The `str_concat3()` function concatenates three strings (`str1`, `str2`, and `str3`) into a single dynamically allocated string. 
-The caller is responsible for freeing the returned string using `str_concat_free()`. This function is useful for combining multiple strings into one, 
-especially when constructing paths, messages, or other compound strings.
-
+Concatenates three strings into a newly allocated buffer and returns the result. The caller must free the returned string using `str_concat_free()`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,17 +20,14 @@ especially when constructing paths, messages, or other compound strings.
 **Prototype**
 
 ```C
-
 char *str_concat3(
     const char *str1,
     const char *str2,
     const char *str3
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,35 +39,26 @@ char *str_concat3(
 
 * - `str1`
   - `const char *`
-  - The first string to concatenate.
+  - First string to concatenate. Can be NULL.
 
 * - `str2`
   - `const char *`
-  - The second string to concatenate.
+  - Second string to concatenate. Can be NULL.
 
 * - `str3`
   - `const char *`
-  - The third string to concatenate.
-
+  - Third string to concatenate. Can be NULL.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to the newly allocated string containing the concatenation of `str1`, `str2`, and `str3`. 
-The caller must free this memory using `str_concat_free()`.
-
+A newly allocated string containing the concatenation of `str1`, `str2`, and `str3`. The caller must free the returned string using [`str_concat_free()`](#str_concat_free). Returns NULL if memory allocation fails.
 
 **Notes**
 
-
-- If any of the input strings are `NULL`, they are treated as empty strings.
-- The function allocates memory for the resulting string, so it is essential to free it after use to avoid memory leaks.
-- This function is part of the string utilities provided in the helpers library.
-
+If any of the input strings are NULL, they are treated as empty strings.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

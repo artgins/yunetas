@@ -3,9 +3,7 @@
 # `json_list_str_index()`
 <!-- ============================================================== -->
 
-
-The `json_list_str_index()` function searches for a string within a JSON list and returns its index. If the string is not found, the function returns `-1`. The search can be case-sensitive or case-insensitive, depending on the `ignore_case` parameter.
-
+The function `json_list_str_index()` searches for a string in a JSON array and returns its index if found, or -1 if not found.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,17 +20,14 @@ The `json_list_str_index()` function searches for a string within a JSON list an
 **Prototype**
 
 ```C
-
 int json_list_str_index(
     json_t *jn_list,
     const char *str,
     BOOL ignore_case
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,33 +39,26 @@ int json_list_str_index(
 
 * - `jn_list`
   - `json_t *`
-  - A JSON array to search within. Must be a valid JSON list.
+  - A JSON array to search within.
 
 * - `str`
   - `const char *`
-  - The string to search for in the JSON list.
+  - The string to search for in the JSON array.
 
 * - `ignore_case`
   - `BOOL`
-  - If `TRUE`, the search will be case-insensitive. If `FALSE`, the search will be case-sensitive.
-
+  - If `TRUE`, the search is case-insensitive; otherwise, it is case-sensitive.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the index of the string in the JSON list if found. If the string is not found, the function returns `-1`.
-
+Returns the index of the string in the JSON array if found, or -1 if not found.
 
 **Notes**
 
-
-- The function assumes that `jn_list` is a valid JSON array. Passing a non-array JSON object may result in undefined behavior.
-- Use this function to efficiently locate string values in JSON arrays, especially when working with dynamic JSON data.
-
+The function expects `jn_list` to be a JSON array. If `jn_list` is not an array, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

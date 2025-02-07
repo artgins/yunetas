@@ -3,13 +3,7 @@
 # `lock_file()`
 <!-- ============================================================== -->
 
-
-The `lock_file()` function attempts to acquire an advisory lock on the file 
-descriptor `fd`. This is useful for ensuring exclusive access to a file 
-in a multi-process or multi-threaded environment. The function uses 
-platform-specific mechanisms (e.g., `fcntl` on Unix-like systems) to 
-apply the lock.
-
+The `lock_file()` function applies an advisory write lock to the specified file descriptor using the `fcntl` system call.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,15 +20,10 @@ apply the lock.
 **Prototype**
 
 ```C
-
-int lock_file(
-    int fd
-);
-
+int lock_file(int fd);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,28 +35,18 @@ int lock_file(
 
 * - `fd`
   - `int`
-  - File descriptor of the file to be locked.
-
+  - The file descriptor of the file to be locked.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success if the lock is successfully acquired. 
-Returns `-1` on failure, with `errno` set to indicate the error.
-
+Returns 0 on success. On failure, returns -1 and sets `errno` to indicate the error.
 
 **Notes**
 
-
-- The `lock_file()` function applies an advisory lock, meaning it requires 
-  cooperation from other processes to respect the lock.
-- Ensure that the file descriptor `fd` is valid and open before calling this function.
-- This function does not block if the lock cannot be acquired; it fails immediately.
-
+This function uses `fcntl` with `F_SETLKW` to apply a blocking write lock. Ensure that the file descriptor is valid before calling this function.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

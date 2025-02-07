@@ -3,11 +3,7 @@
 # `start_msectimer()`
 <!-- ============================================================== -->
 
-
-The `start_msectimer()` function initializes a millisecond timer with the specified duration. 
-If the `miliseconds` parameter is greater than 0, the timer starts and will expire after the given duration. 
-If the `miliseconds` parameter is less than or equal to 0, the timer is disabled.
-
+`start_msectimer()` initializes a millisecond-resolution timer and returns the expiration timestamp.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ If the `miliseconds` parameter is less than or equal to 0, the timer is disabled
 **Prototype**
 
 ```C
-
-uint64_t start_msectimer(
-    uint64_t    miliseconds
-);
-
+uint64_t start_msectimer(uint64_t miliseconds);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,25 +35,18 @@ uint64_t start_msectimer(
 
 * - `miliseconds`
   - `uint64_t`
-  - The duration of the timer in milliseconds. A value of 0 or less disables the timer.
-
+  - The duration of the timer in milliseconds. A value of 0 disables the timer.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the expiration time of the timer in milliseconds since an unspecified reference point. 
-If the timer is disabled, the return value is 0.
-
+Returns the absolute expiration timestamp in milliseconds since an unspecified epoch. If `miliseconds` is 0, the function returns 0.
 
 **Notes**
 
-
-This function uses a monotonic clock to calculate the expiration time, ensuring that it is not affected by system clock changes.
-
+Use [`test_msectimer()`](#test_msectimer) to check if the timer has expired.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

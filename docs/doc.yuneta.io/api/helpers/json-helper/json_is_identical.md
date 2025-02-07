@@ -3,11 +3,7 @@
 # `json_is_identical()`
 <!-- ============================================================== -->
 
-
-The `json_is_identical()` function compares two JSON objects (`kw1` and `kw2`) and determines if they are identical. 
-It performs a deep comparison of the JSON structures, including their keys, values, and types. 
-The function returns `TRUE` if the two JSON objects are identical and `FALSE` otherwise.
-
+The function `json_is_identical()` compares two JSON objects and returns `TRUE` if they are identical, otherwise `FALSE`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ The function returns `TRUE` if the two JSON objects are identical and `FALSE` ot
 **Prototype**
 
 ```C
-
-BOOL json_is_identical(
-    json_t *kw1,    // NOT owned
-    json_t *kw2     // NOT owned
+PUBLIC BOOL json_is_identical(
+    json_t *kw1,    /* NOT owned */
+    json_t *kw2     /* NOT owned */
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,30 +38,22 @@ BOOL json_is_identical(
 
 * - `kw1`
   - `json_t *`
-  - The first JSON object to compare. This parameter is not owned by the function.
+  - The first JSON object to compare. It is not owned by the function.
 
 * - `kw2`
   - `json_t *`
-  - The second JSON object to compare. This parameter is not owned by the function.
-
+  - The second JSON object to compare. It is not owned by the function.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the two JSON objects are identical, otherwise returns `FALSE`.
-
+Returns `TRUE` if `kw1` and `kw2` are identical, otherwise returns `FALSE`.
 
 **Notes**
 
-
-- The function only compares the content of the JSON objects, not their memory addresses.
-- Complex types such as arrays and objects are compared recursively.
-- The function does not modify the input JSON objects.
-
+The function converts both JSON objects to their string representations and compares them. It ensures deep comparison of JSON structures.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

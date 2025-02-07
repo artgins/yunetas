@@ -3,9 +3,7 @@
 # `istream_reset_rd()`
 <!-- ============================================================== -->
 
-
-The `istream_reset_rd()` function resets the read pointer of the given input stream (`istream`) to the beginning of the stream. This allows the stream to be read again from the start without altering the data or the write pointer. The function is useful when reprocessing the same data is required.
-
+Resets the reading pointer of the `istream_h` stream, allowing data to be read again from the beginning.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,15 +20,12 @@ The `istream_reset_rd()` function resets the read pointer of the given input str
 **Prototype**
 
 ```C
-
 int istream_reset_rd(
     istream_h istream
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -42,25 +37,18 @@ int istream_reset_rd(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream whose read pointer needs to be reset.
-
+  - The input stream whose reading pointer will be reset.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success. If the operation fails (e.g., if the `istream` handle is invalid), a negative error code is returned.
-
+Returns 0 on success, or -1 if the `istream` or its internal buffer is NULL.
 
 **Notes**
 
-
-- This function does not modify the write pointer or the data in the stream.
-- Ensure that the `istream` handle is valid before calling this function to avoid undefined behavior.
-
+This function ensures that subsequent reads start from the beginning of the buffer. If the `istream` or its buffer is NULL, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

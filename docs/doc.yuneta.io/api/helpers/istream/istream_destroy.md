@@ -3,11 +3,7 @@
 # `istream_destroy()`
 <!-- ============================================================== -->
 
-
-The `istream_destroy()` function is used to release the resources associated with an input stream (`istream_h`). 
-It ensures that all memory allocated for the input stream is properly freed, preventing memory leaks. 
-This function should be called when the input stream is no longer needed.
-
+Releases all resources associated with the given `istream_h` instance, including its internal buffer and allocated memory.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,12 @@ This function should be called when the input stream is no longer needed.
 **Prototype**
 
 ```C
-
-PUBLIC void istream_destroy(
+void istream_destroy(
     istream_h istream
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,25 +37,18 @@ PUBLIC void istream_destroy(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream to be destroyed. Must be a valid input stream created by `istream_create()`.
+  - Handle to the input stream instance to be destroyed.
 :::
-
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-
 
 **Notes**
 
-
-- If the `istream` parameter is `NULL`, the function does nothing.
-- After calling this function, the `istream` handle becomes invalid and should not be used.
-- Use the macro `ISTREAM_DESTROY()` for safer destruction of input streams.
-
+After calling `istream_destroy()`, the `istream_h` handle becomes invalid and should not be used.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

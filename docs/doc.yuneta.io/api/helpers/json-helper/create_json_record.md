@@ -3,11 +3,7 @@
 # `create_json_record()`
 <!-- ============================================================== -->
 
-
-The `create_json_record()` function generates a new JSON object based on the provided `json_desc_t` descriptor. 
-This descriptor defines the structure, types, and default values for the JSON object. 
-The function is useful for creating structured JSON records that adhere to a predefined schema.
-
+`create_json_record()` initializes a JSON object based on a predefined schema, setting default values for each field.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ The function is useful for creating structured JSON records that adhere to a pre
 **Prototype**
 
 ```C
-
-PUBLIC json_t *create_json_record(
-    hgobj               gobj,
-    const json_desc_t   *json_desc
+json_t *create_json_record(
+    hgobj gobj,
+    const json_desc_t *json_desc
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,30 +38,22 @@ PUBLIC json_t *create_json_record(
 
 * - `gobj`
   - `hgobj`
-  - The gobj (generic object) associated with the operation.
+  - A handle to the GObj instance, used for logging errors.
 
 * - `json_desc`
   - `const json_desc_t *`
-  - Pointer to a descriptor array defining the JSON structure, types, and default values. The array must end with a null entry.
+  - A pointer to an array of `json_desc_t` structures defining the JSON schema.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to a newly created `json_t` object that represents the JSON record. 
-The caller is responsible for managing the memory of the returned object.
-
+A newly allocated `json_t *` object containing the initialized JSON structure, or `NULL` on failure.
 
 **Notes**
 
-
-- The `json_desc_t` structure must be properly defined and terminated with a null entry.
-- The function dynamically allocates memory for the JSON object. Ensure to free it when no longer needed.
-- This function is particularly useful for creating JSON records that conform to a specific schema.
-
+['The `json_desc_t` structure must be properly terminated with a NULL entry.', 'The function supports various JSON types including `string`, `integer`, `real`, `boolean`, `null`, `object`, and `array`.', 'If an unknown type is encountered, an error is logged using [`gobj_log_error()`](#gobj_log_error).']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

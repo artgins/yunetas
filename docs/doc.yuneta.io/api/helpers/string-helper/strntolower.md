@@ -3,11 +3,7 @@
 # `strntolower()`
 <!-- ============================================================== -->
 
-
-The `strntolower()` function converts up to `n` characters of the string `s` to lowercase.
-The conversion stops if a null terminator is encountered before `n` characters are processed.
-The function modifies the input string in place and returns a pointer to it.
-
+`strntolower()` converts the first `n` characters of the input string to lowercase.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ The function modifies the input string in place and returns a pointer to it.
 **Prototype**
 
 ```C
-
 char *strntolower(
-    char   *s,
-    size_t  n
+    char *s,
+    size_t n
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,30 +38,22 @@ char *strntolower(
 
 * - `s`
   - `char *`
-  - The string to be converted to lowercase. The string is modified in place.
+  - Pointer to the null-terminated string to be converted.
 
 * - `n`
   - `size_t`
-  - The maximum number of characters to convert.
-
+  - Maximum number of characters to convert.
 :::
-
 
 ---
 
 **Return Value**
 
-
 Returns a pointer to the modified string `s`.
-
 
 **Notes**
 
-
-- The function modifies the input string directly.
-- If `s` is NULL, the behavior is undefined.
-- The function stops processing if it encounters a null terminator before reaching `n` characters.
-
+If `s` is NULL or `n` is zero, the function returns NULL without modifying the string.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

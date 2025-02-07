@@ -3,9 +3,7 @@
 # `free_ordered_filename_array()`
 <!-- ============================================================== -->
 
-
-The `free_ordered_filename_array()` function is used to deallocate memory for an array of ordered filenames that was previously allocated by [`get_ordered_filename_array()`](#get_ordered_filename_array). This function ensures that both the individual strings and the array itself are properly freed to prevent memory leaks.
-
+Deallocates memory used by an array of ordered filenames, freeing each filename string and the array itself.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,16 +20,13 @@ The `free_ordered_filename_array()` function is used to deallocate memory for an
 **Prototype**
 
 ```C
-
 void free_ordered_filename_array(
     char **array,
     int    size
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,29 +38,22 @@ void free_ordered_filename_array(
 
 * - `array`
   - `char **`
-  - Pointer to the array of filenames to be freed.
+  - Pointer to an array of dynamically allocated filename strings.
 
 * - `size`
   - `int`
-  - The number of elements in the array.
+  - Number of elements in the array.
 :::
-
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-
 
 **Notes**
 
-
-- The `array` parameter must be a valid pointer to an array of strings allocated by [`get_ordered_filename_array()`](#get_ordered_filename_array).
-- Ensure that the `size` parameter matches the number of elements in the array to avoid undefined behavior.
-- This function should not be used with arrays that were not allocated dynamically or with arrays allocated by other means.
-
+Each filename string in the array is individually freed before freeing the array itself. Ensure that `array` was allocated using [`get_ordered_filename_array()`](#get_ordered_filename_array) to avoid undefined behavior.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

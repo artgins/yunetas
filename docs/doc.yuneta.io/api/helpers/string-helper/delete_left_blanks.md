@@ -3,11 +3,7 @@
 # `delete_left_blanks()`
 <!-- ============================================================== -->
 
-
-The `delete_left_blanks()` function removes all leading whitespace characters 
-(spaces and tabs) from the given string `s`. The function modifies the string 
-in place by shifting characters to the left to remove the leading blanks.
-
+Removes leading whitespace characters (spaces, tabs, newlines, and carriage returns) from the given string `s` by shifting the non-whitespace characters to the left.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ in place by shifting characters to the left to remove the leading blanks.
 **Prototype**
 
 ```C
-
-void delete_left_blanks(
-    char *s
-);
-
+void delete_left_blanks(char *s);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,26 +35,18 @@ void delete_left_blanks(
 
 * - `s`
   - `char *`
-  - Pointer to the null-terminated string to be modified.
-
+  - The null-terminated string from which leading whitespace characters will be removed. The string is modified in place.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value. The input string `s` is modified in place.
-
+None.
 
 **Notes**
 
-
-- The function assumes that `s` is a valid null-terminated string.
-- If `s` is `NULL` or an empty string, the function does nothing.
-- The function does not allocate or free memory; it only modifies the existing string.
-
+If the input string is empty or contains only whitespace, it will be reduced to an empty string.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

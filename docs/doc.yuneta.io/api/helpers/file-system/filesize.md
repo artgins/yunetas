@@ -3,10 +3,7 @@
 # `filesize()`
 <!-- ============================================================== -->
 
-
-The `filesize()` function retrieves the size of a file specified by its path. 
-It uses the `stat` system call to obtain the file's metadata and extracts the file size from the `st_size` field of the `stat` structure.
-
+`filesize()` returns the size of a file in bytes by using the `stat()` system call.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,10 @@ It uses the `stat` system call to obtain the file's metadata and extracts the fi
 **Prototype**
 
 ```C
-
-PUBLIC off_t filesize(
-    const char *path
-);
-
+off_t filesize(const char *path);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,25 +35,18 @@ PUBLIC off_t filesize(
 
 * - `path`
   - `const char *`
-  - The path to the file whose size is to be determined.
-
+  - Path to the file whose size is to be determined.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the size of the file in bytes as an `off_t` type. If the file does not exist or an error occurs, the function returns `-1`.
-
+Returns the size of the file in bytes. If the file does not exist or an error occurs, returns 0.
 
 **Notes**
 
-
-- Ensure that the file specified by `path` exists and is accessible.
-- This function does not follow symbolic links; it retrieves the size of the link itself if the path points to a symbolic link.
-
+This function relies on `stat()`, which may fail if the file does not exist or if there are insufficient permissions.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

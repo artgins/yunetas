@@ -3,11 +3,7 @@
 # `delete_right_char()`
 <!-- ============================================================== -->
 
-
-The `delete_right_char()` function removes all trailing occurrences of the character `x` 
-from the string `s`. The function modifies the input string in place and returns the 
-same pointer `s` after modification.
-
+`delete_right_char()` removes all trailing occurrences of the specified character `x` from the string `s`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,10 @@ same pointer `s` after modification.
 **Prototype**
 
 ```C
-
-char *delete_right_char(
-    char *s,
-    char  x
-);
-
+char *delete_right_char(char *s, char x);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,30 +35,22 @@ char *delete_right_char(
 
 * - `s`
   - `char *`
-  - The input string to be modified.
+  - The input string from which trailing occurrences of `x` will be removed.
 
 * - `x`
   - `char`
-  - The character to be removed from the right end of the string.
-
+  - The character to be removed from the end of the string.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the modified string `s` with all trailing occurrences of `x` removed.
-
+Returns a pointer to the modified string `s`.
 
 **Notes**
 
-
-- The function modifies the input string directly.
-- If `s` is `NULL`, the behavior is undefined.
-- If `x` does not appear at the end of `s`, the string remains unchanged.
-
+The function modifies the input string in place by replacing trailing occurrences of `x` with the null terminator.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

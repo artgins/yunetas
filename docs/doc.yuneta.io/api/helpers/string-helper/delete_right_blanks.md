@@ -3,10 +3,7 @@
 # `delete_right_blanks()`
 <!-- ============================================================== -->
 
-
-The `delete_right_blanks()` function removes all trailing whitespace characters (such as spaces, tabs, or newlines) from the end of the string `s`. 
-This function modifies the input string directly by replacing the trailing whitespace characters with null terminators (`\0`).
-
+Removes trailing whitespace characters (spaces, tabs, carriage returns, and line feeds) from the end of the given string `s`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,10 @@ This function modifies the input string directly by replacing the trailing white
 **Prototype**
 
 ```C
-
-void delete_right_blanks(
-    char *s
-);
-
+void delete_right_blanks(char *s);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,26 +35,18 @@ void delete_right_blanks(
 
 * - `s`
   - `char *`
-  - Pointer to the null-terminated string from which trailing blanks will be removed.
-
+  - The null-terminated string to be modified in place.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value. The input string `s` is modified in place.
-
+None.
 
 **Notes**
 
-
-- The function assumes that the input string `s` is null-terminated.
-- If the string is empty or contains no trailing whitespace, it remains unchanged.
-- This function is useful for cleaning up strings before further processing or storage.
-
+The function modifies the input string directly by replacing trailing whitespace characters with null terminators.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

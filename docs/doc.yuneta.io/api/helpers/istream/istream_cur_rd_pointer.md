@@ -3,9 +3,7 @@
 # `istream_cur_rd_pointer()`
 <!-- ============================================================== -->
 
-
-The `istream_cur_rd_pointer()` function retrieves the current read pointer of the provided [`istream_h`](#istream_h) instance. This pointer indicates the position in the input stream where the next read operation will begin. The function is useful for accessing the raw data in the stream without consuming it.
-
+Returns the current read pointer of the `istream_h` instance, allowing access to the unread portion of the internal buffer.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,15 +20,12 @@ The `istream_cur_rd_pointer()` function retrieves the current read pointer of th
 **Prototype**
 
 ```C
-
 char *istream_cur_rd_pointer(
     istream_h istream
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -42,26 +37,18 @@ char *istream_cur_rd_pointer(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream whose current read pointer is to be retrieved.
-
+  - Handle to the input stream whose read pointer is to be retrieved.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the current read position in the input stream. The returned pointer can be used to access the data directly without modifying the stream state.
-
+A pointer to the current read position in the internal buffer. Returns `NULL` if the `istream_h` handle is invalid.
 
 **Notes**
 
-
-- The returned pointer is valid as long as the [`istream_h`](#istream_h) instance remains unchanged.
-- This function does not consume or modify the data in the stream.
-- Ensure that the `istream` handle is valid before calling this function to avoid undefined behavior.
-
+Ensure that `istream` is properly initialized before calling this function to avoid undefined behavior.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

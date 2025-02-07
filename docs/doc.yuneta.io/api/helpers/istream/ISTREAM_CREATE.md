@@ -3,15 +3,7 @@
 # `ISTREAM_CREATE()`
 <!-- ============================================================== -->
 
-
-The `ISTREAM_CREATE` macro is a utility for safely creating an `istream_h` instance. 
-It ensures that if the variable `var` already holds an existing `istream_h` instance, 
-it is destroyed before creating a new one. This prevents memory leaks or undefined 
-behavior caused by reusing an existing `istream_h` without proper cleanup.
-
-The macro logs an error message if the variable `var` is already initialized, 
-indicating that the previous instance is being destroyed.
-
+Macro to create an `istream_h` instance with specified buffer sizes, ensuring proper memory management and error handling.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -28,23 +20,15 @@ indicating that the previous instance is being destroyed.
 **Prototype**
 
 ```C
-
-#define ISTREAM_CREATE(var, gobj, data_size, max_size)                  \
-    if(var) {                                                           \
-        gobj_log_error((gobj), LOG_OPT_TRACE_STACK,                     \
-            "function",     "%s", __FUNCTION__,                         \
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,                \
-            "msg",          "%s", "istream_h ALREADY exists! Destroyed",  \
-            NULL                                                        \
-        );                                                              \
-        istream_destroy(var);                                           \
-    }                                                                   \
-    (var) = istream_create((gobj), (data_size), (max_size));
-
+ISTREAM_CREATE(
+    var,       istream_h *
+    gobj,      hgobj
+    data_size, size_t
+    max_size,  size_t
+)
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -55,39 +39,31 @@ indicating that the previous instance is being destroyed.
   - Description
 
 * - `var`
-  - `istream_h`
-  - The variable to hold the `istream_h` instance. If it already exists, it will be destroyed.
+  - `istream_h *`
+  - Pointer to the `istream_h` instance to be created.
 
 * - `gobj`
   - `hgobj`
-  - The GObj instance associated with the `istream_h`.
+  - Handle to the gobj that owns the istream.
 
 * - `data_size`
   - `size_t`
-  - The size of the data buffer for the `istream_h`.
+  - Initial buffer size for the istream.
 
 * - `max_size`
   - `size_t`
-  - The maximum size of the `istream_h` buffer.
+  - Maximum buffer size allowed for the istream.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This macro does not return a value. It initializes the `var` variable with a new `istream_h` instance.
-
+None. The macro initializes `var` with a new `istream_h` instance or destroys an existing one before reinitialization.
 
 **Notes**
 
-
-- The macro internally calls `istream_create()` to allocate the new `istream_h` instance.
-- If `var` already holds an `istream_h` instance, it is destroyed using `istream_destroy()` before creating a new one.
-- Ensure that `var` is properly initialized to `NULL` before using this macro for the first time.
-- The macro logs an error message if `var` is already initialized, which can help in debugging improper usage.
-
+If `var` is already allocated, it is destroyed before creating a new instance. The macro logs an error if `var` is not NULL before reallocation.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

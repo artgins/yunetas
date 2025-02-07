@@ -3,14 +3,7 @@
 # `cmp_two_simple_json()`
 <!-- ============================================================== -->
 
-
-The `cmp_two_simple_json()` function compares two simple JSON values (`jn_var1` and `jn_var2`) and determines their relative order. 
-It is designed to handle basic JSON types such as strings, integers, real numbers, and booleans. 
-Complex JSON types (e.g., objects or arrays) are treated as equal if their structure matches.
-
-The function returns a value indicating whether the first JSON value is less than, equal to, or greater than the second, 
-similar to the behavior of `strcmp` for strings.
-
+`cmp_two_simple_json()` compares two JSON values that are either strings, integers, reals, or booleans. It returns a value indicating their relative order.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,16 +20,13 @@ similar to the behavior of `strcmp` for strings.
 **Prototype**
 
 ```C
-
 int cmp_two_simple_json(
-    json_t *jn_var1,    // NOT owned
-    json_t *jn_var2     // NOT owned
+    json_t *jn_var1,  // not owned
+    json_t *jn_var2   // not owned
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -48,34 +38,22 @@ int cmp_two_simple_json(
 
 * - `jn_var1`
   - `json_t *`
-  - The first JSON value to compare. This parameter is not owned by the function.
+  - The first JSON value to compare. Must be a string, integer, real, or boolean.
 
 * - `jn_var2`
   - `json_t *`
-  - The second JSON value to compare. This parameter is not owned by the function.
-
+  - The second JSON value to compare. Must be a string, integer, real, or boolean.
 :::
-
 
 ---
 
 **Return Value**
 
-
-The function returns an integer value:
-
-- `-1`: If `jn_var1` is less than `jn_var2`.
-- `0`: If `jn_var1` is equal to `jn_var2`.
-- `1`: If `jn_var1` is greater than `jn_var2`.
-
+Returns -1 if `jn_var1` is less than `jn_var2`, 0 if they are equal, and 1 if `jn_var1` is greater than `jn_var2`. If either value is a complex JSON type (object or array), they are considered equal.
 
 **Notes**
 
-
-- This function only compares simple JSON types: strings, integers, real numbers, and booleans.
-- Complex JSON types such as objects or arrays are treated as equal if their structure matches.
-- The input JSON values are not modified or owned by the function.
-
+This function does not compare JSON objects or arrays. It first attempts to compare as real numbers, then as integers, then as booleans, and finally as strings if necessary.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

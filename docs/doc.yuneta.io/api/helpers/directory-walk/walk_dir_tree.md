@@ -3,13 +3,7 @@
 # `walk_dir_tree()`
 <!-- ============================================================== -->
 
-
-The `walk_dir_tree()` function traverses a directory tree starting from the specified `root_dir`. 
-It calls the provided callback function `cb` for each file or directory found. The traversal can 
-be customized using the `opt` parameter, which specifies options such as recursion, matching 
-hidden files, or filtering by file types. If the callback function returns `FALSE`, the traversal 
-stops. This function is useful for processing files and directories in a structured manner.
-
+The `walk_dir_tree()` function traverses a directory tree starting from `root_dir`, applying a user-defined callback function `cb` to each file or directory that matches the specified `pattern` and `opt` options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,20 +20,17 @@ stops. This function is useful for processing files and directories in a structu
 **Prototype**
 
 ```C
-
 int walk_dir_tree(
-    hgobj       gobj,
-    const char  *root_dir,
-    const char  *pattern,
-    wd_option   opt,
-    walkdir_cb  cb,
-    void        *user_data
+    hgobj gobj,
+    const char *root_dir,
+    const char *pattern,
+    wd_option opt,
+    walkdir_cb cb,
+    void *user_data
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -51,7 +42,7 @@ int walk_dir_tree(
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance used for logging or context.
+  - A handle to the Yuneta framework object, used for logging and error handling.
 
 * - `root_dir`
   - `const char *`
@@ -59,38 +50,30 @@ int walk_dir_tree(
 
 * - `pattern`
   - `const char *`
-  - A pattern to match file or directory names. Can be `NULL` for no filtering.
+  - A regular expression pattern to match file or directory names.
 
 * - `opt`
   - `wd_option`
-  - Options to customize the traversal behavior, such as recursion or file type matching.
+  - Options controlling the traversal behavior, such as recursion, hidden file inclusion, and file type matching.
 
 * - `cb`
   - `walkdir_cb`
-  - Callback function to be called for each file or directory found.
+  - A callback function that is invoked for each matching file or directory.
 
 * - `user_data`
   - `void *`
-  - User-defined data passed to the callback function.
+  - A user-defined pointer passed to the callback function.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success or `-1` on failure. The return value follows standard Unix conventions.
-
+Returns 0 on success, or -1 if an error occurs (e.g., if `root_dir` does not exist or `pattern` is invalid).
 
 **Notes**
 
-
-- The callback function `cb` must return `TRUE` to continue traversal or `FALSE` to stop.
-- The `opt` parameter allows fine-grained control over the traversal, including options like 
-  `WD_RECURSIVE` for recursive traversal or `WD_HIDDENFILES` to include hidden files.
-- Ensure that the `root_dir` exists and is accessible; otherwise, the function will fail.
-
+The callback function `cb` should return `TRUE` to continue traversal or `FALSE` to stop. The function uses `regcomp()` to compile the `pattern` and `regexec()` to match file names.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

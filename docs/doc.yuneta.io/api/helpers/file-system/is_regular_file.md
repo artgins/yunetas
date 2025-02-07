@@ -3,10 +3,7 @@
 # `is_regular_file()`
 <!-- ============================================================== -->
 
-
-The `is_regular_file()` function checks whether the file specified by the `path` parameter is a regular file. 
-A regular file is a standard file that contains data, as opposed to directories, symbolic links, or special files.
-
+The `is_regular_file()` function checks if the given path corresponds to a regular file.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,10 @@ A regular file is a standard file that contains data, as opposed to directories,
 **Prototype**
 
 ```C
-
-BOOL is_regular_file(
-    const char *path
-);
-
+BOOL is_regular_file(const char *path);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,26 +35,18 @@ BOOL is_regular_file(
 
 * - `path`
   - `const char *`
-  - The path to the file that needs to be checked.
-
+  - The file system path to check.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the file at the specified `path` is a regular file. 
-Otherwise, it returns `FALSE`.
-
+Returns `TRUE` if the path corresponds to a regular file, otherwise returns `FALSE`.
 
 **Notes**
 
-
-This function uses the `stat` system call to determine the file type. 
-Ensure that the `path` provided is valid and accessible to avoid unexpected behavior.
-
+['This function uses `stat()` to determine the file type.', 'If `stat()` fails, the function returns `FALSE`.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,11 +3,7 @@
 # `json_config()`
 <!-- ============================================================== -->
 
-
-The `json_config()` function generates a final JSON configuration string by merging multiple input configurations in a specific order. 
-It supports fixed, variable, file-based, and parameter-based configurations, and allows for verbose and final output printing. 
-The function also handles JSON format validation and can terminate the program based on the `quit` parameter if errors occur.
-
+The `json_config` function merges multiple JSON configuration sources into a single JSON string, allowing for variable substitution and expansion. It processes fixed, variable, file-based, and parameter-based configurations in a structured order.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,21 +20,18 @@ The function also handles JSON format validation and can terminate the program b
 **Prototype**
 
 ```C
-
 char *json_config(
-    BOOL        print_verbose_config,  // WARNING, if true will exit(0)
-    BOOL        print_final_config,    // WARNING, if true will exit(0)
+    BOOL        print_verbose_config,
+    BOOL        print_final_config,
     const char  *fixed_config,
     const char  *variable_config,
     const char  *config_json_file,
     const char  *parameter_config,
     pe_flag_t   quit
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -50,62 +43,42 @@ char *json_config(
 
 * - `print_verbose_config`
   - `BOOL`
-  - If `TRUE`, prints the verbose configuration and exits the program.
+  - If `TRUE`, prints the verbose configuration and exits.
 
 * - `print_final_config`
   - `BOOL`
-  - If `TRUE`, prints the final configuration and exits the program.
+  - If `TRUE`, prints the final merged configuration and exits.
 
 * - `fixed_config`
   - `const char *`
-  - A non-writable JSON string used as the base configuration.
+  - A fixed JSON configuration string that cannot be modified.
 
 * - `variable_config`
   - `const char *`
-  - A writable JSON string that can be modified by subsequent configurations.
+  - A JSON configuration string that can be modified.
 
 * - `config_json_file`
   - `const char *`
-  - A file or list of files containing JSON configurations that overwrite `variable_config`.
+  - A file path containing JSON configuration data.
 
 * - `parameter_config`
   - `const char *`
-  - A JSON string containing parameters that overwrite `variable_config`.
+  - A JSON string containing additional configuration parameters.
 
 * - `quit`
   - `pe_flag_t`
-  - Determines the program's behavior on JSON format errors. If set, the program exits on error.
+  - Determines the behavior on error, such as exiting or continuing execution.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a dynamically allocated string containing the final merged JSON configuration. 
-The caller must free the returned string using `jsonp_free()`.
-
+Returns a dynamically allocated JSON string containing the merged configuration. The caller must free the returned string using `jsonp_free()`.
 
 **Notes**
 
-
-- The function processes configurations in the following order:
-  1. `fixed_config` (non-writable).
-  2. `variable_config` (writable).
-  3. `config_json_file` (overwrites `variable_config`).
-  4. `parameter_config` (overwrites `variable_config`).
-
-- The function supports one-line comments in JSON strings using the `#^^` syntax.
-
-- Special JSON expansion syntax `{^^ ^^}` is supported for generating ranges and variable substitutions.
-
-- A special key `__json_config_variables__` allows for replacing placeholders `( ^^ ^^ )` in the JSON string with values from a dictionary.
-
-- If `print_verbose_config` or `print_final_config` is `TRUE`, the function prints the respective configuration and exits the program.
-
-- Ensure to free the returned string using `jsonp_free()` to avoid memory leaks.
-
+['The function processes configurations in the following order: `fixed_config`, `variable_config`, `config_json_file`, and `parameter_config`.', 'If `print_verbose_config` or `print_final_config` is `TRUE`, the function prints the configuration and exits.', 'The function supports variable substitution using the `__json_config_variables__` key.', 'The JSON string can contain one-line comments using `##^`.', 'If an error occurs in JSON parsing, the function may exit based on the `quit` parameter.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

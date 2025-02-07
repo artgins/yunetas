@@ -3,10 +3,7 @@
 # `date_mode_from_type()`
 <!-- ============================================================== -->
 
-
-The `date_mode_from_type()` function creates and returns a pointer to a `struct date_mode` object based on the specified `type`. 
-This function is used to configure date formatting modes, which determine how dates are displayed or processed.
-
+The function `date_mode_from_type()` returns a pointer to a static `struct date_mode` initialized with the given `date_mode_type`. If the type is `DATE_STRFTIME`, an error message is logged.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,12 @@ This function is used to configure date formatting modes, which determine how da
 **Prototype**
 
 ```C
-
 struct date_mode *date_mode_from_type(
     enum date_mode_type type
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,26 +37,18 @@ struct date_mode *date_mode_from_type(
 
 * - `type`
   - `enum date_mode_type`
-  - The type of date mode to be created. Possible values include `DATE_NORMAL`, `DATE_RELATIVE`, `DATE_SHORT`, `DATE_ISO8601`, `DATE_ISO8601_STRICT`, `DATE_RFC2822`, `DATE_STRFTIME`, `DATE_RAW`, and `DATE_UNIX`.
-
+  - The date mode type to initialize the `date_mode` structure.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to a `struct date_mode` object configured with the specified `type`. 
-The returned structure contains fields such as `strftime_fmt` for custom formatting and `local` for timezone settings.
-
+A pointer to a static `struct date_mode` initialized with the given type. If `DATE_STRFTIME` is passed, an error message is logged.
 
 **Notes**
 
-
-- The `date_mode_from_type()` function is typically used in conjunction with other date-related functions, such as [`show_date()`](#show_date).
-- Ensure that the `type` parameter is a valid value from the `enum date_mode_type` enumeration.
-
+The returned pointer refers to a static structure, so it should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

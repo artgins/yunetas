@@ -3,11 +3,7 @@
 # `strntoupper()`
 <!-- ============================================================== -->
 
-
-The `strntoupper()` function converts the first `n` characters of the string `s` to uppercase. 
-If the string is shorter than `n` characters, the conversion stops at the null terminator. 
-The function modifies the input string `s` in place and returns a pointer to it.
-
+Converts the first `n` characters of the string `s` to uppercase in place.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ The function modifies the input string `s` in place and returns a pointer to it.
 **Prototype**
 
 ```C
-
 char *strntoupper(
-    char    *s,
-    size_t  n
+    char *s,
+    size_t n
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,30 +38,22 @@ char *strntoupper(
 
 * - `s`
   - `char *`
-  - Pointer to the null-terminated string to be converted to uppercase.
+  - Pointer to the null-terminated string to be converted.
 
 * - `n`
   - `size_t`
-  - Maximum number of characters to convert to uppercase.
-
+  - Maximum number of characters to convert.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the modified string `s` after converting its characters to uppercase.
-
+Returns a pointer to the modified string `s`.
 
 **Notes**
 
-
-- The function modifies the input string `s` directly.
-- Ensure that the string `s` is writable and has sufficient space for modifications.
-- The function does not check for invalid pointers or buffer overflows.
-
+If `s` is NULL or `n` is zero, the function returns NULL without modifying the string.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,13 +3,7 @@
 # `split_free3()`
 <!-- ============================================================== -->
 
-
-The `split_free3()` function releases the memory allocated for a list of strings 
-that was previously created using [`split3()`](#split3). 
-
-This function ensures that all dynamically allocated memory for the string list 
-is properly freed, preventing memory leaks.
-
+Frees the memory allocated for a list of strings created by `split3()`, ensuring proper deallocation of each string and the list itself.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,15 +20,10 @@ is properly freed, preventing memory leaks.
 **Prototype**
 
 ```C
-
-void split_free3(
-    const char **list
-);
-
+void split_free3(const char **list);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,26 +35,18 @@ void split_free3(
 
 * - `list`
   - `const char **`
-  - Pointer to the list of strings to be freed. The list must have been allocated 
-    by [`split3()`](#split3).
+  - Pointer to the list of strings to be freed. Each string in the list and the list itself are deallocated.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value.
-
+None.
 
 **Notes**
 
-
-- The `list` parameter must be a valid pointer returned by [`split3()`](#split3).
-- Passing a NULL pointer to this function is safe and has no effect.
-- Ensure that `split_free3()` is called after using [`split3()`](#split3) to avoid memory leaks.
-
+This function should be used to free memory allocated by [`split3()`](#split3). It iterates through the list, freeing each string before deallocating the list itself.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

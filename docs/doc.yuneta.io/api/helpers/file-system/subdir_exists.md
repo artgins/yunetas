@@ -3,11 +3,7 @@
 # `subdir_exists()`
 <!-- ============================================================== -->
 
-
-The `subdir_exists()` function checks whether a specified subdirectory exists within a given directory.
-
-It verifies the presence of `subdir` inside `directory` by constructing the full path and checking if it is a valid directory.
-
+Checks if a given subdirectory exists within a specified directory.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ It verifies the presence of `subdir` inside `directory` by constructing the full
 **Prototype**
 
 ```C
-
-PUBLIC BOOL subdir_exists(
+BOOL subdir_exists(
     const char *directory,
     const char *subdir
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,28 +38,22 @@ PUBLIC BOOL subdir_exists(
 
 * - `directory`
   - `const char *`
-  - The path to the parent directory where the subdirectory is expected to be found.
+  - The path of the parent directory.
 
 * - `subdir`
   - `const char *`
-  - The name of the subdirectory to check for existence.
-
+  - The name of the subdirectory to check.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the specified subdirectory exists within the given directory, otherwise returns `FALSE`.
-
+Returns `TRUE` if the subdirectory exists, otherwise returns `FALSE`.
 
 **Notes**
 
-
-This function does not check for symbolic links or special file types; it only verifies if the given path is a directory.
-
+This function constructs the full path of the subdirectory and verifies its existence using `is_directory()`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

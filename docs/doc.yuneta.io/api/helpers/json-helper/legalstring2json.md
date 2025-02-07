@@ -3,12 +3,7 @@
 # `legalstring2json()`
 <!-- ============================================================== -->
 
-
-The `legalstring2json` macro is an alias for the [`string2json()`](#string2json) function. 
-It is used to convert a JSON-like string into a `json_t *` object. The input string must be a valid JSON array (`[]`) or object (`{}`).
-
-This macro provides backward compatibility for older code that used `legalstring2json` before it was replaced by `string2json()`.
-
+The function `legalstring2json` converts a legal JSON string into a JSON object. A legal JSON string must be either an array (`[]`) or an object (`{}`).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,13 +20,13 @@ This macro provides backward compatibility for older code that used `legalstring
 **Prototype**
 
 ```C
-
-#define legalstring2json string2json
-
+json_t *legalstring2json(
+    const char *str,
+    BOOL verbose
+);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,31 +38,22 @@ This macro provides backward compatibility for older code that used `legalstring
 
 * - `str`
   - `const char *`
-  - The input string to be converted into a JSON object.
+  - A null-terminated string containing a legal JSON representation (either an array or an object).
 
 * - `verbose`
   - `BOOL`
-  - If `TRUE`, the function will print detailed error messages when parsing fails.
-
+  - If `TRUE`, logs errors when parsing fails.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to a `json_t *` object representing the parsed JSON structure. 
-If the input string is invalid, the function returns `NULL`.
-
+Returns a `json_t *` representing the parsed JSON object. Returns `NULL` if parsing fails.
 
 **Notes**
 
-
-- The input string must be a valid JSON array (`[]`) or object (`{}`).
-- The returned `json_t *` object must be freed using the appropriate JSON library function to avoid memory leaks.
-- For more advanced JSON parsing, consider using [`anystring2json()`](#anystring2json).
-
+This function is an alias for [`string2json()`](#string2json).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

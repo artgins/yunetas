@@ -3,9 +3,7 @@
 # `istream_extract_matched_data()`
 <!-- ============================================================== -->
 
-
-The `istream_extract_matched_data()` function retrieves the matched data from the input stream (`istream`) and returns it as a dynamically allocated string. The length of the extracted data is stored in the `len` parameter. This function is useful for extracting specific portions of data that match a predefined pattern or delimiter in the input stream.
-
+Extracts the matched data from the input stream [`istream_h`](#istream_h) if the matching condition is met.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,16 +20,13 @@ The `istream_extract_matched_data()` function retrieves the matched data from th
 **Prototype**
 
 ```C
-
 char *istream_extract_matched_data(
-    istream_h   istream,
-    size_t      *len
+    istream_h istream,
+    size_t   *len
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,30 +38,22 @@ char *istream_extract_matched_data(
 
 * - `istream`
   - `istream_h`
-  - A handle to the input stream from which the matched data will be extracted.
+  - The input stream handle from which the matched data is extracted.
 
 * - `len`
   - `size_t *`
-  - A pointer to a variable where the length of the extracted data will be stored.
-
+  - Pointer to store the length of the extracted data.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to the dynamically allocated string containing the matched data. The caller is responsible for freeing this memory. If no matched data is found, the function returns `NULL`.
-
+Returns a pointer to the extracted data if a match is found, otherwise returns `NULL`. The caller does not own the returned pointer.
 
 **Notes**
 
-
-- Ensure that the `istream` handle is valid before calling this function.
-- The returned string must be freed by the caller to avoid memory leaks.
-- The function does not modify the read/write pointers of the input stream.
-
+If no match is found, the function returns `NULL`. The extracted data is not copied, and the pointer references internal memory.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

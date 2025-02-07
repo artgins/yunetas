@@ -3,11 +3,7 @@
 # `jn2string()`
 <!-- ============================================================== -->
 
-
-The `jn2string()` function converts a JSON value (`json_t *`) into a string representation. 
-The returned string is dynamically allocated and must be freed by the caller using `gbmem_free()`. 
-This function is useful for extracting string data from JSON objects or arrays in a safe and consistent manner.
-
+`jn2string()` converts a JSON value into a dynamically allocated string representation, ensuring proper memory management.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ This function is useful for extracting string data from JSON objects or arrays i
 **Prototype**
 
 ```C
-
-char *jn2string(
-    json_t *jn_var
-);
-
+char *jn2string(json_t *jn_var);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,27 +35,18 @@ char *jn2string(
 
 * - `jn_var`
   - `json_t *`
-  - A pointer to the JSON value to be converted into a string. This parameter is not owned by the function, and the caller is responsible for its lifecycle.
-
+  - The JSON value to be converted into a string.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A dynamically allocated string containing the string representation of the JSON value. 
-The caller must free the returned string using `gbmem_free()`. If the conversion fails, the function may return `NULL`.
-
+A dynamically allocated string representation of the JSON value. The caller must free the returned string using `GBMEM_FREE()`.
 
 **Notes**
 
-
-- The function only works with JSON values that can be represented as strings.
-- Ensure that the returned string is freed using `gbmem_free()` to avoid memory leaks.
-- This function is part of a suite of JSON utility functions, such as [`jn2integer()`](#jn2integer) and [`jn2real()`](#jn2real), which provide similar conversions for other data types.
-
+If `jn_var` is a string, it returns a duplicate of the string. If it is an integer or real, it converts the value to a string. If it is a boolean, it returns "1" for true and "0" for false.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

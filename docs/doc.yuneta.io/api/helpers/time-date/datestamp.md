@@ -3,11 +3,7 @@
 # `datestamp()`
 <!-- ============================================================== -->
 
-
-The `datestamp()` function generates a timestamp string representing the current date and time in a predefined format. 
-The resulting string is stored in the provided `out` buffer. This function is useful for logging or displaying 
-the current date and time in a human-readable format.
-
+Generates a timestamp string representing the current date and time in a standard format.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ the current date and time in a human-readable format.
 **Prototype**
 
 ```C
-
 void datestamp(
     char *out,
-    int  outsize
+    int   outsize
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,29 +38,22 @@ void datestamp(
 
 * - `out`
   - `char *`
-  - Pointer to the buffer where the generated timestamp will be stored.
+  - Buffer to store the generated timestamp string.
 
 * - `outsize`
   - `int`
-  - Size of the `out` buffer in bytes to ensure no buffer overflow occurs.
-
+  - Size of the output buffer to ensure safe string operations.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value. The generated timestamp is written directly into the `out` buffer.
-
+None.
 
 **Notes**
 
-
-- Ensure that the `out` buffer is large enough to hold the generated timestamp. A buffer size of at least 20 bytes is recommended.
-- The format of the timestamp is fixed and cannot be customized using this function.
-
+The function formats the current date and time into a string and stores it in the provided buffer. The format used is compatible with standard timestamp representations.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

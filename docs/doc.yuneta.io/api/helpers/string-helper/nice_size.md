@@ -3,11 +3,7 @@
 # `nice_size()`
 <!-- ============================================================== -->
 
-
-The `nice_size()` function formats a given size in bytes into a human-readable string representation. 
-It converts the size into appropriate units (e.g., KB, MB, GB) and stores the result in the provided buffer. 
-The function supports both 1024-based (binary) and 1000-based (decimal) unit conversions, depending on the `b1024` parameter.
-
+`nice_size()` formats a byte count into a human-readable string with appropriate units (B, KB, MB, etc.), using either base-1000 or base-1024 scaling.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,13 @@ The function supports both 1024-based (binary) and 1000-based (decimal) unit con
 **Prototype**
 
 ```C
-
 void nice_size(
-    char *bf,
-    size_t bfsize,
-    uint64_t bytes,
-    BOOL b1024
+    char *bf,      size_t bfsize,
+    uint64_t bytes, BOOL   b1024
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,37 +38,30 @@ void nice_size(
 
 * - `bf`
   - `char *`
-  - Pointer to the buffer where the formatted size string will be stored.
+  - Buffer to store the formatted size string.
 
 * - `bfsize`
   - `size_t`
-  - Size of the buffer `bf` in bytes.
+  - Size of the buffer `bf`.
 
 * - `bytes`
   - `uint64_t`
-  - The size in bytes to be formatted.
+  - The number of bytes to format.
 
 * - `b1024`
   - `BOOL`
-  - If `TRUE`, use 1024-based units (e.g., KiB, MiB). If `FALSE`, use 1000-based units (e.g., KB, MB).
+  - If `TRUE`, uses base-1024 (binary units); otherwise, uses base-1000 (decimal units).
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value. The formatted size string is stored in the `bf` buffer.
-
+None.
 
 **Notes**
 
-
-- Ensure that the `bf` buffer is large enough to hold the formatted string, including the null terminator.
-- The function supports both binary (KiB, MiB, GiB) and decimal (KB, MB, GB) unit systems for flexibility.
-- The `b1024` parameter determines the unit system used for conversion.
-
+The function ensures that the formatted string fits within `bfsize` and selects the most appropriate unit for readability.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

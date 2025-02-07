@@ -3,12 +3,7 @@
 # `split3()`
 <!-- ============================================================== -->
 
-
-The `split3()` function splits the input string `str` using the delimiter characters specified in `delim`.
-It returns an array of strings, where each element is a substring extracted from `str`.
-Unlike [`split2()`](#split2), this function includes empty strings in the resulting list.
-The caller must free the returned list using [`split_free3()`](#split_free3).
-
+Splits the input string `str` into a list of substrings using the specified delimiters `delim`. Unlike [`split2()`](#split2), this function includes empty substrings in the result.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,17 +20,14 @@ The caller must free the returned list using [`split_free3()`](#split_free3).
 **Prototype**
 
 ```C
-
 const char **split3(
     const char *str,
     const char *delim,
-    int        *plist_size
+    int *plist_size
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -55,26 +47,18 @@ const char **split3(
 
 * - `plist_size`
   - `int *`
-  - A pointer to an integer that will be set to the number of elements in the returned list. Can be `NULL`.
+  - Pointer to an integer that will be set to the number of substrings found.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to an array of strings (`const char **`), where each element is a substring extracted from `str`.
-The last element of the array is `NULL` to indicate the end of the list.
-The caller must free the returned list using [`split_free3()`](#split_free3).
-
+A dynamically allocated array of strings containing the split substrings. The caller must free the returned array using [`split_free3()`](#split_free3). Returns `NULL` on failure.
 
 **Notes**
 
-
-- Unlike [`split2()`](#split2), `split3()` includes empty strings in the result.
-- The returned list must be freed using [`split_free3()`](#split_free3).
-
+This function differs from [`split2()`](#split2) in that it includes empty substrings in the result when consecutive delimiters are found.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

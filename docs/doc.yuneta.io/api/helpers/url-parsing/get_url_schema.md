@@ -3,10 +3,7 @@
 # `get_url_schema()`
 <!-- ============================================================== -->
 
-
-The `get_url_schema()` function extracts the schema (protocol) from a given URL string and stores it in the provided buffer. 
-This function is useful for parsing URLs to determine their schema, such as `http`, `https`, `ftp`, etc.
-
+Extracts the schema (protocol) from a given URL and stores it in the provided buffer.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,18 +20,14 @@ This function is useful for parsing URLs to determine their schema, such as `htt
 **Prototype**
 
 ```C
-
-PUBLIC int get_url_schema(
-    hgobj   gobj,
+int get_url_schema(
+    hgobj gobj,
     const char *uri,
-    char    *schema,
-    size_t  schema_size
+    char *schema,    size_t schema_size
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,7 +39,7 @@ PUBLIC int get_url_schema(
 
 * - `gobj`
   - `hgobj`
-  - The gobj context in which the function is executed.
+  - A handle to the GObj instance, used for logging errors.
 
 * - `uri`
   - `const char *`
@@ -58,28 +51,18 @@ PUBLIC int get_url_schema(
 
 * - `schema_size`
   - `size_t`
-  - The size of the `schema` buffer to ensure no overflow occurs.
-
+  - The size of the schema buffer to prevent overflow.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns an integer indicating the success or failure of the operation:
-- `0`: Success, the schema was successfully extracted.
-- `-1`: Failure, an error occurred (e.g., invalid URL or insufficient buffer size).
-
+Returns 0 on success if the schema is extracted successfully, or -1 if no schema is found or an error occurs.
 
 **Notes**
 
-
-- Ensure that the `schema` buffer is large enough to hold the extracted schema, including the null terminator.
-- The function does not validate the full URL, only the schema portion.
-- If the `uri` does not contain a schema, the function will return `-1`.
-
+Uses `http_parser_parse_url()` to parse the URL. If no schema is found, an error is logged using [`gobj_log_error()`](#gobj_log_error).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

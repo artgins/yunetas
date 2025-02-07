@@ -3,10 +3,7 @@
 # `comm_prot_free()`
 <!-- ============================================================== -->
 
-
-The `comm_prot_free()` function releases all resources associated with the communication protocol registry.
-It should be called when the communication protocol registry is no longer needed to free allocated memory and avoid leaks.
-
+The `comm_prot_free` function releases all registered communication protocol mappings, freeing associated memory.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,13 +20,10 @@ It should be called when the communication protocol registry is no longer needed
 **Prototype**
 
 ```C
-
 void comm_prot_free(void);
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -39,26 +33,20 @@ void comm_prot_free(void);
   - Type
   - Description
 
-* - None
-  - None
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-
 
 **Notes**
 
-
-Ensure that `comm_prot_free()` is called before program termination if communication protocols were registered using [`comm_prot_register()`](#comm_prot_register).
-
+This function should be called to clean up the communication protocol registry before program termination.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

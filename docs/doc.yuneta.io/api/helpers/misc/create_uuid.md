@@ -3,10 +3,7 @@
 # `create_uuid()`
 <!-- ============================================================== -->
 
-
-The `create_uuid()` function generates a new random UUID and stores it in the provided buffer `bf`.
-The generated UUID is a string representation of a universally unique identifier (UUID).
-
+Generates a cryptographically secure UUID and stores it in the provided buffer.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,16 +20,13 @@ The generated UUID is a string representation of a universally unique identifier
 **Prototype**
 
 ```C
-
 int create_uuid(
-    char   *bf,
-    int     bfsize
+    char *bf,
+    int   bfsize
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,29 +38,22 @@ int create_uuid(
 
 * - `bf`
   - `char *`
-  - Pointer to the buffer where the generated UUID will be stored.
+  - Pointer to a character buffer where the generated UUID will be stored.
 
 * - `bfsize`
   - `int`
-  - Size of the buffer in bytes. It must be large enough to store the UUID string.
-
+  - Size of the buffer in bytes; must be at least 37 to accommodate the UUID and null terminator.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success if the UUID was successfully generated and stored in `bf`.
-Returns `-1` if an error occurs, such as if the buffer size is insufficient.
-
+Returns 0 on success, or -1 if an error occurs (e.g., insufficient buffer size).
 
 **Notes**
 
-
-The buffer `bf` must be large enough to store the UUID string, which typically requires at least 37 bytes (including the null terminator).
-
+The function generates a UUID using platform-specific secure random number generators. On Linux, it uses `getrandom()`, while on ESP32, it uses `esp_fill_random()`. The generated UUID follows the version 4 format.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

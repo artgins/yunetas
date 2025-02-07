@@ -3,10 +3,7 @@
 # `node_uuid()`
 <!-- ============================================================== -->
 
-
-The `node_uuid()` function retrieves the unique identifier (UUID) of the machine. 
-This UUID is typically used to uniquely identify the machine in distributed systems or applications.
-
+The `node_uuid()` function retrieves a unique identifier for the current machine. On Linux, it reads or generates a UUID stored in `/yuneta/store/agent/uuid/uuid.json`. On ESP32, it derives the UUID from the device's MAC address.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,13 +20,10 @@ This UUID is typically used to uniquely identify the machine in distributed syst
 **Prototype**
 
 ```C
-
 const char *node_uuid(void);
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -39,27 +33,20 @@ const char *node_uuid(void);
   - Type
   - Description
 
-* - None
-  - None
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a `const char *` pointing to the UUID of the machine. 
-The UUID is represented as a string and is guaranteed to be unique for the machine.
-
+Returns a pointer to a string containing the unique node UUID.
 
 **Notes**
 
-
-The UUID returned by `node_uuid()` is machine-specific and remains constant unless explicitly changed by the system or application.
-
+The returned UUID is generated once and stored persistently. On Linux, if the UUID file does not exist, a new one is created. On ESP32, the UUID is derived from the MAC address.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

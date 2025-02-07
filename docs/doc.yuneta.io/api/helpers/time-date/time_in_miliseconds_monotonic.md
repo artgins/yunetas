@@ -3,11 +3,7 @@
 # `time_in_miliseconds_monotonic()`
 <!-- ============================================================== -->
 
-
-The function `time_in_miliseconds_monotonic()` returns the current monotonic time in milliseconds.
-
-Monotonic time is a continuously increasing clock that is not affected by system time changes, making it suitable for measuring time intervals.
-
+`time_in_miliseconds_monotonic()` returns the current monotonic time in milliseconds, unaffected by system clock changes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,13 +20,10 @@ Monotonic time is a continuously increasing clock that is not affected by system
 **Prototype**
 
 ```C
-
 uint64_t time_in_miliseconds_monotonic(void);
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -40,26 +33,20 @@ uint64_t time_in_miliseconds_monotonic(void);
   - Type
   - Description
 
-* - None
-  - None
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-
 
 ---
 
 **Return Value**
 
-
 Returns the current monotonic time in milliseconds as a `uint64_t` value.
-
 
 **Notes**
 
-
-Monotonic time is useful for measuring elapsed time without being affected by system clock adjustments.
-
+This function uses `clock_gettime(CLOCK_MONOTONIC, &spec)` to retrieve a time value that is not subject to system clock adjustments.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

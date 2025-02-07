@@ -3,10 +3,7 @@
 # `tdump2json()`
 <!-- ============================================================== -->
 
-
-The `tdump2json()` function converts a binary data buffer into a JSON representation.
-It takes a pointer to a byte array and its length, and returns a JSON object containing the data in a structured format.
-
+`tdump2json` converts a binary buffer into a JSON object, representing the data in a structured hexadecimal and ASCII format.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,16 +20,13 @@ It takes a pointer to a byte array and its length, and returns a JSON object con
 **Prototype**
 
 ```C
-
-PUBLIC json_t *tdump2json(
-    const uint8_t  *s,
-    size_t         len
+json_t *tdump2json(
+    const uint8_t *s,
+    size_t len
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -51,21 +45,15 @@ PUBLIC json_t *tdump2json(
   - Length of the binary data buffer.
 :::
 
-
 ---
 
 **Return Value**
 
-
-A `json_t *` object representing the binary data in JSON format.
-The caller is responsible for freeing the returned JSON object using `json_decref()`.
-
+A JSON object where each key represents an address offset and the value is a string containing the hexadecimal and ASCII representation of the corresponding data.
 
 **Notes**
 
-
-This function is useful for debugging or logging purposes, allowing binary data to be represented in a human-readable JSON format.
-
+This function is useful for debugging and inspecting binary data in a human-readable format.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

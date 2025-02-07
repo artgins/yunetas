@@ -3,11 +3,7 @@
 # `file_remove()`
 <!-- ============================================================== -->
 
-
-The `file_remove()` function removes a file specified by its `filename` from the given `directory`. 
-It combines the directory path and filename to locate the file and attempts to delete it. 
-This function is useful for managing file systems by programmatically deleting specific files.
-
+`file_remove()` deletes a specified file from a given directory if it exists and is a regular file.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ This function is useful for managing file systems by programmatically deleting s
 **Prototype**
 
 ```C
-
 int file_remove(
     const char *directory,
     const char *filename
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,31 +38,22 @@ int file_remove(
 
 * - `directory`
   - `const char *`
-  - The path to the directory containing the file to be removed.
+  - The path to the directory containing the file.
 
 * - `filename`
   - `const char *`
   - The name of the file to be removed.
-
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on successful removal of the file. If the file cannot be removed, 
-it returns `-1` and sets `errno` to indicate the error.
-
+Returns 0 on success, or -1 if the file does not exist or is not a regular file.
 
 **Notes**
 
-
-- Ensure that the file exists and the process has the necessary permissions to delete it.
-- The function does not check if the directory or filename is valid before attempting to remove the file.
-- Use this function with caution as it permanently deletes the file.
-
+This function checks if the file exists and is a regular file before attempting to delete it.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

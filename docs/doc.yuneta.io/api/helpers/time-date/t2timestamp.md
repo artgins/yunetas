@@ -3,12 +3,7 @@
 # `t2timestamp()`
 <!-- ============================================================== -->
 
-
-The `t2timestamp()` function converts a given `time_t` value `t` into a timestamp string 
-and stores the result in the provided buffer `bf`. The format of the timestamp is 
-`YYYY-MM-DD HH:MM:SS`. If `local` is `TRUE`, the function converts the time to the local 
-timezone; otherwise, it uses UTC.
-
+`t2timestamp()` converts a given time value into a formatted timestamp string, supporting both local and UTC time representations.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,18 +20,15 @@ timezone; otherwise, it uses UTC.
 **Prototype**
 
 ```C
-
 char *t2timestamp(
-    char    *bf,
-    int     bfsize,
-    time_t  t,
-    BOOL    local
+    char *bf,
+    int bfsize,
+    time_t t,
+    BOOL local
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -48,37 +40,30 @@ char *t2timestamp(
 
 * - `bf`
   - `char *`
-  - Pointer to the buffer where the formatted timestamp will be stored.
+  - Buffer to store the formatted timestamp.
 
 * - `bfsize`
   - `int`
-  - Size of the buffer in bytes.
+  - Size of the buffer to ensure safe string formatting.
 
 * - `t`
   - `time_t`
-  - The time value to be converted into a timestamp.
+  - Time value to be converted into a timestamp.
 
 * - `local`
   - `BOOL`
-  - If `TRUE`, the timestamp is formatted in the local timezone; otherwise, UTC is used.
-
+  - Flag indicating whether to use local time (`TRUE`) or UTC (`FALSE`).
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the buffer `bf` containing the formatted timestamp string.
-
+Returns a pointer to the formatted timestamp string stored in `bf`.
 
 **Notes**
 
-
-Ensure that `bf` has enough space to store the formatted timestamp. A buffer of at least 
-20 bytes is recommended to accommodate the full timestamp format (`YYYY-MM-DD HH:MM:SS`).
-
+The function uses `strftime()` to format the timestamp in ISO 8601 format with timezone information.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

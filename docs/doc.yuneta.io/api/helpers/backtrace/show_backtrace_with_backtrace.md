@@ -3,9 +3,7 @@
 # `show_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
-
-The `show_backtrace_with_backtrace()` function generates a backtrace of the current execution stack and outputs it using the provided `fwrite_fn` function. This is useful for debugging purposes, as it allows developers to trace the sequence of function calls leading to the current point in the program. The output is written to the specified handler `h`.
-
+Generates and logs a backtrace using the `backtrace` library, providing detailed function call information.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,16 +20,13 @@ The `show_backtrace_with_backtrace()` function generates a backtrace of the curr
 **Prototype**
 
 ```C
-
 void show_backtrace_with_backtrace(
     loghandler_fwrite_fn_t fwrite_fn,
-    void                  *h
+    void *h
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,30 +38,22 @@ void show_backtrace_with_backtrace(
 
 * - `fwrite_fn`
   - `loghandler_fwrite_fn_t`
-  - A function pointer used to write the backtrace output.
+  - Function pointer for writing log output.
 
 * - `h`
   - `void *`
-  - A handler passed to the `fwrite_fn` function, typically representing the output destination (e.g., a file or buffer).
-
+  - Handle to be passed to the log function.
 :::
-
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-
 
 **Notes**
 
-
-- The `fwrite_fn` function must be capable of handling formatted output.
-- The backtrace is generated using the `backtrace()` library, which must be available on the system.
-- This function is primarily intended for debugging and should not be used in production environments unless necessary.
-
+This function is only available when `CONFIG_DEBUG_WITH_BACKTRACE` is enabled. It utilizes the `backtrace` library to capture and log stack traces.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

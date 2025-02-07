@@ -3,11 +3,7 @@
 # `file_size()`
 <!-- ============================================================== -->
 
-
-The `file_size()` function retrieves the size of a file specified by its path. 
-It determines the size of the file in bytes and returns it as an `off_t` value. 
-This function is useful for checking the size of a file before performing operations such as reading or writing.
-
+`file_size()` returns the size of a file in bytes, given its path.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ This function is useful for checking the size of a file before performing operat
 **Prototype**
 
 ```C
-
-PUBLIC off_t file_size(
-    const char *path
-);
-
+off_t file_size(const char *path);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,26 +35,18 @@ PUBLIC off_t file_size(
 
 * - `path`
   - `const char *`
-  - The path to the file whose size is to be determined.
-
+  - Path to the file whose size is to be determined.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the size of the file in bytes as an `off_t` value. 
-If the file does not exist or an error occurs, the function returns `-1`.
-
+Returns the file size in bytes on success. Returns 0 if the file does not exist or an error occurs.
 
 **Notes**
 
-
-- The function uses system calls to retrieve file information, so it may fail if the file does not exist or the process lacks the necessary permissions.
-- This function is a wrapper for the `stat()` system call to extract the file size.
-
+This function uses `stat()` to retrieve file information. If `stat()` fails, the function returns 0.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

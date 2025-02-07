@@ -3,10 +3,7 @@
 # `count_char()`
 <!-- ============================================================== -->
 
-
-The `count_char()` function counts the number of occurrences of the character `c` in the string `s`.
-It iterates through the string and increments a counter each time it encounters the specified character.
-
+The function `count_char()` counts the occurrences of a specified character in a given string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,16 +20,10 @@ It iterates through the string and increments a counter each time it encounters 
 **Prototype**
 
 ```C
-
-int count_char(
-    const char  *s,
-    char        c
-);
-
+int count_char(const char *s, char c);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -49,25 +40,17 @@ int count_char(
 * - `c`
   - `char`
   - The character to count within the string `s`.
-
 :::
-
 
 ---
 
 **Return Value**
 
-
 Returns the number of times the character `c` appears in the string `s`.
-If `s` is `NULL`, the function returns `0`.
-
 
 **Notes**
 
-
-- The function does not modify the input string `s`.
-- If `s` is an empty string, the function returns `0`.
-
+If `s` is NULL, the behavior is undefined. The function does not modify the input string.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

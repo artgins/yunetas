@@ -3,11 +3,7 @@
 # `list_open_files()`
 <!-- ============================================================== -->
 
-
-The `list_open_files()` function is used to list all currently open files in the system or process. 
-This function provides a utility for debugging or monitoring purposes, allowing developers to inspect 
-which files are currently being accessed.
-
+Lists all open file descriptors for the current process by reading symbolic links in `/proc/self/fd` and printing their resolved paths.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,13 +20,10 @@ which files are currently being accessed.
 **Prototype**
 
 ```C
-
-PUBLIC void list_open_files(void);
-
+void list_open_files(void);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -40,29 +33,20 @@ PUBLIC void list_open_files(void);
   - Type
   - Description
 
-* - None
-  - None
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-
 
 ---
 
 **Return Value**
 
-
-This function does not return a value. It performs its operation internally, likely printing the list 
-of open files to a log or standard output.
-
+None.
 
 **Notes**
 
-
-- The specific implementation details of how the open files are listed are not provided in the header file.
-- This function is primarily intended for debugging or diagnostic purposes.
-- Ensure that the function is used in a context where listing open files is permitted and does not violate security or privacy policies.
-
+['This function is only available on Linux systems.', 'It reads the `/proc/self/fd` directory to obtain a list of open file descriptors.', 'For each file descriptor, it resolves the symbolic link to determine the actual file path.', 'Errors encountered while reading symbolic links are printed using `perror`.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

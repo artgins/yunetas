@@ -3,13 +3,7 @@
 # `mkrdir()`
 <!-- ============================================================== -->
 
-
-The `mkrdir()` function creates a new directory at the specified `path` with the given `permission` mode.
-
-If the directory already exists, the function does nothing and returns success. If any parent directories in the path do not exist, they will be created as needed.
-
-The `permission` argument specifies the access permissions for the new directory, using standard Unix permission bits.
-
+`mkrdir()` creates a directory and all its parent directories if they do not exist, similar to the `mkdir -p` command.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,16 +20,13 @@ The `permission` argument specifies the access permissions for the new directory
 **Prototype**
 
 ```C
-
 int mkrdir(
-    const char  *path,
+    const char *path,
     int         permission
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,29 +38,22 @@ int mkrdir(
 
 * - `path`
   - `const char *`
-  - The path of the directory to be created.
+  - The directory path to be created.
 
 * - `permission`
   - `int`
-  - The permission mode for the new directory, specified using Unix permission bits.
+  - The permission mode for the created directories.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success, or `-1` if an error occurs (e.g., insufficient permissions or invalid path).
-
+Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-
-- If the directory already exists, `mkrdir()` does nothing and returns success.
-- Parent directories are created as needed.
-- The `permission` argument is subject to the process's `umask` setting.
-
+If a directory in the path already exists, it is not modified. The function ensures that all parent directories are created as needed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

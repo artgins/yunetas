@@ -3,11 +3,7 @@
 # `debug_json()`
 <!-- ============================================================== -->
 
-
-The `debug_json()` function is used to print a JSON object (`jn`) for debugging purposes. 
-It outputs the JSON data along with an optional label (`label`) to provide context. 
-If the `verbose` parameter is set to `TRUE`, additional details about the JSON object may be printed.
-
+Prints a JSON object with its reference counts, providing a structured view of its contents.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,17 +20,14 @@ If the `verbose` parameter is set to `TRUE`, additional details about the JSON o
 **Prototype**
 
 ```C
-
 int debug_json(
     const char *label,
-    json_t     *jn,
-    BOOL       verbose
+    json_t *jn,
+    BOOL verbose
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,33 +39,26 @@ int debug_json(
 
 * - `label`
   - `const char *`
-  - A string label to provide context for the debug output.
+  - A label to prefix the output, used for identification.
 
 * - `jn`
   - `json_t *`
-  - The JSON object to be printed. This object is not owned by the function.
+  - The JSON object to be printed, must not be NULL.
 
 * - `verbose`
   - `BOOL`
-  - A flag indicating whether to print additional details about the JSON object.
+  - If TRUE, prints detailed information including indentation.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success or a negative value if an error occurs during the debugging process.
-
+Returns 0 on success, or -1 if the JSON object is NULL or has an invalid reference count.
 
 **Notes**
 
-
-- The function does not modify the JSON object (`jn`).
-- Ensure that the `jn` parameter is a valid JSON object before calling this function.
-- This function is typically used for debugging purposes and may not be suitable for production environments.
-
+This function is useful for debugging JSON structures by displaying their contents and reference counts.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

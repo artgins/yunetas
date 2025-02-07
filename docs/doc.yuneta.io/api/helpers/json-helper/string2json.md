@@ -3,12 +3,7 @@
 # `string2json()`
 <!-- ============================================================== -->
 
-
-The `string2json()` function converts a JSON-formatted string into a `json_t *` object. 
-It is specifically designed to handle JSON strings that are either arrays (`[]`) or objects (`{}`).
-If the input string is not valid JSON, the function will return `NULL`. 
-This function is a modern replacement for the older `legalstring2json()` function.
-
+`string2json` converts a legal JSON string into a `json_t` object. The input string must be a valid JSON array (`[]`) or object (`{}`).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,16 +20,13 @@ This function is a modern replacement for the older `legalstring2json()` functio
 **Prototype**
 
 ```C
-
-PUBLIC json_t *string2json(
+json_t *string2json(
     const char *str,
-    BOOL        verbose
+    BOOL verbose
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -46,31 +38,22 @@ PUBLIC json_t *string2json(
 
 * - `str`
   - `const char *`
-  - The input string containing the JSON data to be parsed.
+  - A null-terminated string containing a valid JSON object or array.
 
 * - `verbose`
   - `BOOL`
-  - If `TRUE`, additional information about parsing errors will be printed to the console.
-
+  - If `TRUE`, logs errors when parsing fails.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a `json_t *` object representing the parsed JSON data if the input string is valid.
-If the input string is invalid or an error occurs, the function returns `NULL`.
-
+Returns a `json_t *` object if parsing is successful. Returns `NULL` if parsing fails.
 
 **Notes**
 
-
-- The returned `json_t *` object must be managed and freed by the caller using appropriate functions like `json_decref()`.
-- This function is equivalent to the macro `legalstring2json` and `str2json`.
-- Use this function only for JSON strings that are arrays or objects.
-
+['This function only accepts JSON objects (`{}`) or arrays (`[]`).', 'For more flexible JSON parsing, use [`anystring2json()`](#anystring2json).', 'The returned `json_t *` must be freed using `json_decref()` to avoid memory leaks.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

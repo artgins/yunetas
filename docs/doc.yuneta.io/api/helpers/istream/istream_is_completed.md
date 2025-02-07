@@ -3,10 +3,7 @@
 # `istream_is_completed()`
 <!-- ============================================================== -->
 
-
-The `istream_is_completed()` function checks whether the input stream (`istream`) has completed processing all its data. 
-It is typically used to determine if the stream has reached the end of its data or if all operations on the stream have been finalized.
-
+`istream_is_completed()` checks if the input stream has completed reading the expected data.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,12 @@ It is typically used to determine if the stream has reached the end of its data 
 **Prototype**
 
 ```C
-
 PUBLIC BOOL istream_is_completed(
     istream_h istream
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,25 +37,18 @@ PUBLIC BOOL istream_is_completed(
 
 * - `istream`
   - `istream_h`
-  - Handle to the input stream to be checked for completion.
-
+  - Handle to the input stream.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the input stream has completed processing all its data, otherwise returns `FALSE`.
-
+Returns `TRUE` if the input stream has completed reading the expected data, otherwise returns `FALSE`.
 
 **Notes**
 
-
-This function is useful for validating whether the stream has reached its end or if further operations are required. 
-Ensure that the `istream` handle is valid before calling this function to avoid undefined behavior.
-
+['If `istream` is `NULL`, an error is logged and `FALSE` is returned.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

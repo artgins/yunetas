@@ -3,9 +3,7 @@
 # `get_real_precision()`
 <!-- ============================================================== -->
 
-
-The `get_real_precision()` function retrieves the current precision setting used for converting real numbers to string representations in JSON or other contexts. This precision determines the number of decimal places included in the string representation of real numbers.
-
+Retrieves the current precision setting for real number representation in JSON encoding.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,13 +20,10 @@ The `get_real_precision()` function retrieves the current precision setting used
 **Prototype**
 
 ```C
-
 int get_real_precision(void);
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -38,26 +33,20 @@ int get_real_precision(void);
   - Type
   - Description
 
-* - None
-  - None
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the current precision setting as an integer. This value indicates the number of decimal places used for real number conversions.
-
+Returns the current precision value used for encoding real numbers in JSON.
 
 **Notes**
 
-
-This function is often used in conjunction with [`set_real_precision()`](#set_real_precision) to manage and adjust the precision of real number conversions dynamically.
-
+This function is useful for checking the precision setting before modifying it with [`set_real_precision()`](#set_real_precision).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,10 +3,7 @@
 # `filesize2()`
 <!-- ============================================================== -->
 
-
-The `filesize2()` function retrieves the size of a file associated with the given file descriptor `fd`. 
-It uses the `fstat()` system call to obtain file metadata and extracts the file size from the `st_size` field of the `struct stat`.
-
+`filesize2()` returns the size of an open file descriptor in bytes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,10 @@ It uses the `fstat()` system call to obtain file metadata and extracts the file 
 **Prototype**
 
 ```C
-
-off_t filesize2(
-    int fd
-);
-
+off_t filesize2(int fd);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,25 +35,18 @@ off_t filesize2(
 
 * - `fd`
   - `int`
-  - File descriptor of the file whose size is to be determined.
-
+  - The file descriptor of the open file.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the size of the file in bytes as an `off_t` type. If an error occurs, the function may return -1, and the error can be checked using `errno`.
-
+Returns the size of the file in bytes. If an error occurs, returns 0.
 
 **Notes**
 
-
-- Ensure that the file descriptor `fd` is valid and refers to an open file.
-- This function does not close the file descriptor; the caller is responsible for managing the file descriptor's lifecycle.
-
+This function uses `fstat()` to retrieve the file size.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

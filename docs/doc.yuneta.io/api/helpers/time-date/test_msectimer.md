@@ -3,11 +3,7 @@
 # `test_msectimer()`
 <!-- ============================================================== -->
 
-
-The `test_msectimer()` function checks whether a previously started millisecond timer has expired.
-
-It compares the current monotonic time with the provided `value` and returns `TRUE` if the timer has finished, otherwise `FALSE`.
-
+Checks if the given millisecond timer has expired by comparing it with the current monotonic time.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ It compares the current monotonic time with the provided `value` and returns `TR
 **Prototype**
 
 ```C
-
-PUBLIC BOOL test_msectimer(
-    uint64_t value
-);
-
+PUBLIC BOOL test_msectimer(uint64_t value);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,24 +35,18 @@ PUBLIC BOOL test_msectimer(
 
 * - `value`
   - `uint64_t`
-  - The timestamp value returned by [`start_msectimer()`](#start_msectimer) to check if the timer has expired.
-
+  - The timestamp in milliseconds to check against the current monotonic time.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the timer has expired, otherwise `FALSE`.
-
+Returns `TRUE` if the timer has expired, otherwise returns `FALSE`.
 
 **Notes**
 
-
-This function should be used in conjunction with [`start_msectimer()`](#start_msectimer) to manage millisecond-based timers.
-
+The function uses `time_in_miliseconds_monotonic()` to obtain the current monotonic time and compares it with `value`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

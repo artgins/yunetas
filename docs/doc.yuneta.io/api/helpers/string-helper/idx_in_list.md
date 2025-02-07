@@ -3,12 +3,7 @@
 # `idx_in_list()`
 <!-- ============================================================== -->
 
-
-The function `idx_in_list()` searches for a given string `str` in a list of strings `list` 
-and returns the index of the first occurrence. If the string is not found, it returns `-1`.
-
-If `ignore_case` is `TRUE`, the comparison is case-insensitive; otherwise, it is case-sensitive.
-
+The function `idx_in_list()` searches for a string in a list of strings and returns its index if found, or -1 if not found.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,17 +20,14 @@ If `ignore_case` is `TRUE`, the comparison is case-insensitive; otherwise, it is
 **Prototype**
 
 ```C
-
 int idx_in_list(
     const char **list,
-    const char  *str,
-    BOOL        ignore_case
+    const char *str,
+    BOOL ignore_case
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -55,26 +47,18 @@ int idx_in_list(
 
 * - `ignore_case`
   - `BOOL`
-  - If `TRUE`, performs a case-insensitive comparison; otherwise, it is case-sensitive.
-
+  - If `TRUE`, the comparison is case-insensitive; otherwise, it is case-sensitive.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the index of the first occurrence of `str` in `list`. If `str` is not found, returns `-1`.
-
+Returns the index of `str` in `list` if found, or -1 if not found.
 
 **Notes**
 
-
-- The `list` must be a null-terminated array of strings.
-- If `ignore_case` is `TRUE`, the function performs a case-insensitive comparison.
-- The function does not modify the input list or string.
-
+The function iterates through the list and compares each element with `str` using either `strcmp()` or `strcasecmp()` based on the `ignore_case` flag.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

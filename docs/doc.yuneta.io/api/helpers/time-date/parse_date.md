@@ -3,12 +3,7 @@
 # `parse_date()`
 <!-- ============================================================== -->
 
-
-The `parse_date()` function parses a date string provided in various formats and converts it into a normalized string representation. 
-The normalized date is stored in the `out` buffer. This function supports a wide range of date formats, including absolute, relative, 
-and shorthand formats, as well as combinations of date and time. The function ensures that the output is formatted consistently 
-for further processing or display.
-
+Parses a date string into a structured timestamp and timezone offset. The function supports various date formats and converts them into a standardized format.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,17 +20,14 @@ for further processing or display.
 **Prototype**
 
 ```C
-
 int parse_date(
     const char *date,
-    char       *out,
-    int         outsize
+    char *out,
+    int outsize
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -47,35 +39,26 @@ int parse_date(
 
 * - `date`
   - `const char *`
-  - The input date string to be parsed. It can be in various formats, such as ISO 8601, relative dates, or shorthand notations.
+  - The input date string to be parsed.
 
 * - `out`
   - `char *`
-  - A buffer where the normalized date string will be stored. The buffer must be pre-allocated by the caller.
+  - Buffer to store the formatted date output.
 
 * - `outsize`
   - `int`
-  - The size of the `out` buffer in bytes. This ensures that the function does not write beyond the allocated memory.
+  - Size of the output buffer.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success, indicating that the date string was successfully parsed and normalized. 
-Returns `-1` on failure, indicating that the input date string could not be parsed or was invalid.
-
+Returns 0 on success, or -1 if the date string could not be parsed.
 
 **Notes**
 
-
-- The `out` buffer must be large enough to store the normalized date string. If the buffer is too small, the function may fail.
-- The function supports a wide range of date formats, including absolute dates (e.g., `2024-09-17`), relative dates (e.g., `3 days ago`), 
-  and shorthand notations (e.g., `yesterday`).
-- For more advanced parsing, consider using [`approxidate_careful()`](#approxidate_careful) or [`approxidate_relative()`](#approxidate_relative).
-
+The function supports various date formats, including relative dates like 'yesterday' and 'now'. It converts the parsed date into a standardized format with a timestamp and timezone offset.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

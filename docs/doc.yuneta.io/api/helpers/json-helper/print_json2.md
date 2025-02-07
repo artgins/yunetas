@@ -3,11 +3,7 @@
 # `print_json2()`
 <!-- ============================================================== -->
 
-
-The `print_json2()` function prints a JSON object (`jn`) to the standard output, 
-preceded by an optional label (`label`). This function is useful for debugging 
-or logging JSON data in a human-readable format.
-
+Prints a JSON object to stdout with indentation and a label.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ or logging JSON data in a human-readable format.
 **Prototype**
 
 ```C
-
 int print_json2(
     const char *label,
-    json_t     *jn
+    json_t *jn
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,32 +38,22 @@ int print_json2(
 
 * - `label`
   - `const char *`
-  - A string label to be printed before the JSON object. Can be `NULL` if no label is needed.
+  - A label to print before the JSON output.
 
 * - `jn`
   - `json_t *`
-  - A pointer to the JSON object to be printed. The JSON object is not modified or owned by the function.
-
+  - The JSON object to print.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns an integer value indicating the success or failure of the operation:
-- `0`: Success.
-- Non-zero: Failure, typically due to invalid input or internal errors.
-
+Returns 0 on success, or -1 if the JSON object is NULL or has an invalid reference count.
 
 **Notes**
 
-
-- The function does not modify the JSON object (`jn`).
-- Ensure that the `jn` parameter is a valid JSON object. Passing `NULL` or invalid pointers may result in undefined behavior.
-- This function is primarily intended for debugging purposes and may not be suitable for production logging in performance-critical applications.
-
+Uses `json_dumpf()` to print the JSON object with indentation.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

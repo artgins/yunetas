@@ -3,11 +3,7 @@
 # `comm_prot_get_gclass()`
 <!-- ============================================================== -->
 
-
-The `comm_prot_get_gclass()` function retrieves the `gclass_name_t` associated with a given communication protocol schema.
-
-This function allows querying the registered communication protocols to determine which `gclass` is responsible for handling a specific schema.
-
+Retrieves the gclass name associated with a given communication protocol schema.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,12 @@ This function allows querying the registered communication protocols to determin
 **Prototype**
 
 ```C
-
-gclass_name_t comm_prot_get_gclass(
+PUBLIC gclass_name_t comm_prot_get_gclass(
     const char *schema
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,25 +37,18 @@ gclass_name_t comm_prot_get_gclass(
 
 * - `schema`
   - `const char *`
-  - The schema string representing the communication protocol.
-
+  - The communication protocol schema to look up.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the `gclass_name_t` corresponding to the given `schema`. If the schema is not found, it returns `NULL`.
-
+Returns the gclass name associated with the given schema. If the schema is not found, logs an error and returns NULL.
 
 **Notes**
 
-
-- The function relies on previously registered communication protocols using [`comm_prot_register()`](#comm_prot_register).
-- Ensure that the schema provided is correctly formatted and registered before calling this function.
-
+This function searches the registered communication protocols and returns the corresponding gclass name. If the schema is not found, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

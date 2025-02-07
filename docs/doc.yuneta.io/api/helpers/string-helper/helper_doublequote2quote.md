@@ -3,10 +3,7 @@
 # `helper_doublequote2quote()`
 <!-- ============================================================== -->
 
-
-The `helper_doublequote2quote()` function replaces all double quotes (`"`) in the input string `str` with single quotes (`'`). 
-This is useful for converting JSON-like strings or other text representations where single quotes are preferred over double quotes.
-
+The function `helper_doublequote2quote()` replaces all double quotes (`"`) in the given string with single quotes (`'`).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,10 @@ This is useful for converting JSON-like strings or other text representations wh
 **Prototype**
 
 ```C
-
-char *helper_doublequote2quote(
-    char *str
-);
-
+char *helper_doublequote2quote(char *str);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,26 +35,18 @@ char *helper_doublequote2quote(
 
 * - `str`
   - `char *`
-  - A pointer to the input string that will be modified in place. The string must be null-terminated.
-
+  - The input string in which double quotes will be replaced with single quotes.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns a pointer to the modified string `str` where all double quotes have been replaced with single quotes.
-
+Returns the modified string with all double quotes replaced by single quotes.
 
 **Notes**
 
-
-- The input string `str` is modified in place, so ensure that it is writable.
-- This function does not allocate new memory; it operates directly on the provided string.
-- If the input string contains no double quotes, it remains unchanged.
-
+This function modifies the input string in place. Ensure that the input string is mutable and properly allocated.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

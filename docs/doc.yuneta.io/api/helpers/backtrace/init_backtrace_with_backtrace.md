@@ -3,12 +3,7 @@
 # `init_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 
-
-Initializes the backtrace mechanism using the `backtrace` library.
-The function sets up the necessary structures to capture and display stack traces
-for debugging purposes. The `program` parameter specifies the executable name,
-which is used to resolve symbols in the backtrace.
-
+Initializes the backtrace system for capturing stack traces using the `backtrace` library. This function sets up the backtrace state for later use in debugging.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,15 +20,12 @@ which is used to resolve symbols in the backtrace.
 **Prototype**
 
 ```C
-
 int init_backtrace_with_backtrace(
     const char *program
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -45,25 +37,18 @@ int init_backtrace_with_backtrace(
 
 * - `program`
   - `const char *`
-  - The name of the executable, used for symbol resolution in backtraces.
-
+  - The name of the program, used to initialize the backtrace state.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `0` on success, or `-1` if an error occurs during initialization.
-
+Returns 0 on success, or -1 if the backtrace state could not be created.
 
 **Notes**
 
-
-This function must be called before using [`show_backtrace_with_backtrace()`](#show_backtrace_with_backtrace)
-to ensure that backtraces are properly captured.
-
+This function should be called early in the program execution to enable stack trace capturing. It is only available when `CONFIG_DEBUG_WITH_BACKTRACE` is enabled.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

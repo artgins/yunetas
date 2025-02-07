@@ -3,11 +3,7 @@
 # `date_overflows()`
 <!-- ============================================================== -->
 
-
-The `date_overflows()` function checks whether a given timestamp exceeds the maximum allowable value for a timestamp. This is useful for validating timestamps to ensure they do not cause overflow errors in subsequent operations.
-
-The function is part of the time utilities and is designed to handle edge cases where timestamps might exceed the limits of the data type.
-
+Checks if a given timestamp exceeds the system's time_t limits, ensuring it fits within the supported range.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,15 +20,10 @@ The function is part of the time utilities and is designed to handle edge cases 
 **Prototype**
 
 ```C
-
-PUBLIC int date_overflows(
-    timestamp_t date
-);
-
+int date_overflows(timestamp_t date);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -44,27 +35,18 @@ PUBLIC int date_overflows(
 
 * - `date`
   - `timestamp_t`
-  - The timestamp to be checked for overflow.
-
+  - The timestamp to check for overflow.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns an integer indicating whether the timestamp overflows:
-
-- `0`: The timestamp does not overflow.
-- `1`: The timestamp overflows.
-
+Returns 1 if the timestamp exceeds the system's time_t limits, otherwise returns 0.
 
 **Notes**
 
-
-This function is particularly useful in scenarios where timestamps are derived from user input or external sources, ensuring that invalid or extreme values are handled gracefully.
-
+This function ensures that the given timestamp does not exceed the maximum representable value in time_t, preventing potential overflows.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

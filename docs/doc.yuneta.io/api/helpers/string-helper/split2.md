@@ -3,11 +3,7 @@
 # `split2()`
 <!-- ============================================================== -->
 
-
-The `split2()` function splits a given string `str` into a list of substrings based on the specified delimiter `delim`. 
-It returns an array of strings, excluding any empty substrings. The size of the resulting list is stored in `list_size` 
-if it is not null. The returned list must be freed using [`split_free2()`](#split_free2) to avoid memory leaks.
-
+`split2()` splits a string into a list of substrings using the specified delimiters, excluding empty substrings.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,17 +20,14 @@ if it is not null. The returned list must be freed using [`split_free2()`](#spli
 **Prototype**
 
 ```C
-
 const char **split2(
     const char *str,
     const char *delim,
-    int        *list_size
+    int *list_size
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -50,31 +43,22 @@ const char **split2(
 
 * - `delim`
   - `const char *`
-  - The delimiter string used to split the input string.
+  - A string containing delimiter characters used to split `str`.
 
 * - `list_size`
   - `int *`
-  - Pointer to an integer where the size of the resulting list will be stored. Can be null.
-
+  - Pointer to an integer that will store the number of substrings found.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to an array of strings containing the substrings of `str` split by `delim`. 
-The array does not include empty substrings. The caller must free the returned array using [`split_free2()`](#split_free2).
-
+A dynamically allocated array of strings containing the split substrings. The caller must free the array using [`split_free2()`](#split_free2). Returns `NULL` on failure.
 
 **Notes**
 
-
-- The function does not include empty substrings in the resulting list.
-- The returned array must be freed using [`split_free2()`](#split_free2) to avoid memory leaks.
-- If `list_size` is null, the size of the resulting list will not be stored.
-
+['Empty substrings are not included in the result.', 'The returned array is null-terminated.', 'Use [`split_free2()`](#split_free2) to free the allocated memory.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -3,10 +3,7 @@
 # `tm_to_time_t()`
 <!-- ============================================================== -->
 
-
-The `tm_to_time_t()` function converts a `struct tm` representation of a calendar time into a `time_t` value. 
-This is useful for converting broken-down time structures into a single time value that represents the number of seconds since the epoch (January 1, 1970, 00:00:00 UTC).
-
+`tm_to_time_t()` converts a `struct tm` representation of a date and time into a `time_t` value, assuming UTC and without normalizing `tm_wday` or `tm_yday`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,15 +20,12 @@ This is useful for converting broken-down time structures into a single time val
 **Prototype**
 
 ```C
-
 time_t tm_to_time_t(
     const struct tm *tm
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -43,26 +37,18 @@ time_t tm_to_time_t(
 
 * - `tm`
   - `const struct tm *`
-  - Pointer to a `struct tm` that represents the broken-down time to be converted.
-
+  - Pointer to a `struct tm` containing the broken-down time representation.
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns the `time_t` value corresponding to the input `struct tm`. 
-If the conversion fails, the function may return `-1`.
-
+Returns the corresponding `time_t` value representing the given time in seconds since the Unix epoch (1970-01-01 00:00:00 UTC). Returns `-1` if the input is out of range.
 
 **Notes**
 
-
-- The `struct tm` should be properly initialized before calling this function to avoid undefined behavior.
-- The function assumes that the input time is in the local time zone.
-
+This function does not perform normalization of `tm_wday` or `tm_yday`, and it assumes the input time is in UTC.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
