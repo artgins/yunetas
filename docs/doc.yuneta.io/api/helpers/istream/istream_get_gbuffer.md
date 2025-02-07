@@ -3,7 +3,7 @@
 # `istream_get_gbuffer()`
 <!-- ============================================================== -->
 
-Retrieves the internal [`gbuffer_t *`](#gbuffer_t) associated with the given [`istream_t *`](#istream_t).
+Retrieves the internal [`gbuffer_t *`](#gbuffer_t) associated with the given [`istream_h *`](#istream_h).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -37,14 +37,14 @@ gbuffer_t *istream_get_gbuffer(
 
 * - `istream`
   - `istream_h`
-  - Handle to the [`istream_t *`](#istream_t) instance.
+  - Handle to the [`istream_h *`](#istream_h) instance.
 :::
 
 ---
 
 **Return Value**
 
-Returns a pointer to the [`gbuffer_t *`](#gbuffer_t) associated with the given [`istream_t *`](#istream_t).
+Returns a pointer to the [`gbuffer_t *`](#gbuffer_t) associated with the given [`istream_h *`](#istream_h).
 
 **Notes**
 

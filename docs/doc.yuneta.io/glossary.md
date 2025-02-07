@@ -73,6 +73,9 @@ _build_stats
 match_record
     Internal function
 
+_duplicate_object
+    Internal function
+
 GHTTP_PARSER
 
     ```C
@@ -98,6 +101,26 @@ GHTTP_PARSER
             char *last_key; // save last key for the case value arriving in several callbacks
         } GHTTP_PARSER;
     ```
+
+date_mode
+    ```C
+        struct date_mode {
+            enum date_mode_type {
+                DATE_NORMAL = 0,
+                DATE_RELATIVE,
+                DATE_SHORT,
+                DATE_ISO8601,
+                DATE_ISO8601_STRICT,
+                DATE_RFC2822,
+                DATE_STRFTIME,
+                DATE_RAW,
+                DATE_UNIX
+            } type;
+            char strftime_fmt[256];
+            int local;
+        };
+    ```
+
 
 gobj_state_t
     Unique pointer that exposes state names, defined as:

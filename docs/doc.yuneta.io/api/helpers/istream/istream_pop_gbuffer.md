@@ -3,7 +3,7 @@
 # `istream_pop_gbuffer()`
 <!-- ============================================================== -->
 
-Retrieves and removes the current [`gbuffer_t *`](#gbuffer_t) from the given [`istream_t *`](#istream_t), returning ownership to the caller.
+Retrieves and removes the current [`gbuffer_t *`](#gbuffer_t) from the given [`istream_h *`](#istream_h), returning ownership to the caller.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -44,11 +44,11 @@ gbuffer_t *istream_pop_gbuffer(
 
 **Return Value**
 
-Returns the [`gbuffer_t *`](#gbuffer_t) extracted from the [`istream_t *`](#istream_t). The caller assumes ownership and must manage its lifecycle. Returns `NULL` if `istream` is invalid or empty.
+Returns the [`gbuffer_t *`](#gbuffer_t) extracted from the [`istream_h *`](#istream_h). The caller assumes ownership and must manage its lifecycle. Returns `NULL` if `istream` is invalid or empty.
 
 **Notes**
 
-After calling [`istream_pop_gbuffer()`](#istream_pop_gbuffer), the internal buffer of the [`istream_t *`](#istream_t) is set to `NULL`, meaning subsequent reads will require a new buffer.
+After calling [`istream_pop_gbuffer()`](#istream_pop_gbuffer), the internal buffer of the [`istream_h *`](#istream_h) is set to `NULL`, meaning subsequent reads will require a new buffer.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

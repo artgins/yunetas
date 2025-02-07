@@ -72,3 +72,60 @@ This multi-language approach ensures the library remains idiomatic in each envir
 - Acts as an intermediary between low-level JSON handling (via Jansson in C) and high-level application logic (e.g., in GObjs).
 - Ensures compatibility across Yuneta's multi-language ecosystem by abstracting JSON operations into reusable, extensible utilities.
 - Provides a standardized API that abstracts the complexities of JSON manipulation while remaining native to each language environment.
+
+
+
+
+
+
+
+
+
+
+
+
+# JSON Reference Count Macros: `JSON_DECREF` and `JSON_INCREF`
+
+## 📌 Overview
+
+The macros `JSON_DECREF` and `JSON_INCREF` manage the reference count of `json_t *` objects, ensuring proper memory management in applications using the Jansson library.
+
+---
+
+(JSON_DECREF)=
+## 🔻 `JSON_DECREF(json)`
+
+### **Description**
+Decreases the reference count of a JSON object and frees it if the count reaches zero.
+
+### **Parameters**
+- **json** ([`json_t *`](json_t)) → The JSON object whose reference count should be decreased.
+
+### **Return Value**
+- **None** → This macro does not return a value.
+
+### **Notes**
+Use this macro to safely free JSON objects when they are no longer needed.
+
+---
+
+(JSON_INCREF)=
+## 🔺 `JSON_INCREF(json)`
+
+### **Description**
+Increases the reference count of a JSON object, preventing it from being freed prematurely.
+
+### **Parameters**
+- **json** ([`json_t *`](json_t)) → The JSON object whose reference count should be increased.
+
+### **Return Value**
+- **None** → This macro does not return a value.
+
+### **Notes**
+Use this macro when passing a JSON object to multiple owners to ensure it remains valid while in use.
+
+---
+
+## ✅ Conclusion
+
+These macros help prevent memory leaks and segmentation faults when managing `json_t *` objects in Yuneta and other systems using Jansson.

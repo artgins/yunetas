@@ -3,7 +3,7 @@
 # `gbuffer_append_gbuf()`
 <!-- ============================================================== -->
 
-Appends the contents of one `gbuffer_t` to another. The data from [`src`](#src) is copied into [`dst`](#dst), preserving the read position of [`src`](#src).
+Appends the contents of one `gbuffer_t` to another. The data from `src` is copied into `dst`, preserving the read position of `src`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -42,7 +42,7 @@ int gbuffer_append_gbuf(
 
 * - `src`
   - `gbuffer_t *`
-  - The source buffer whose data will be copied into [`dst`](#dst).
+  - The source buffer whose data will be copied into `dst`.
 :::
 
 ---
@@ -53,7 +53,7 @@ Returns `0` on success, or `-1` if an error occurs during the append operation.
 
 **Notes**
 
-The function iterates over [`src`](#src) in chunks, copying data into [`dst`](#dst). Ensure that [`dst`](#dst) has enough space to accommodate the data from [`src`](#src).
+The function iterates over `src` in chunks, copying data into `dst`. Ensure that `dst` has enough space to accommodate the data from `src`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
