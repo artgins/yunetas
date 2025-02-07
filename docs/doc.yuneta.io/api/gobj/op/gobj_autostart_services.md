@@ -3,7 +3,7 @@
 # `gobj_autostart_services()`
 <!-- ============================================================== -->
 
-Starts all services marked with `gobj_flag_autostart`. If a service has a `mt_play` method, only the service gobj is started; otherwise, the entire tree is started using [`gobj_start_tree()`](#gobj_start_tree).
+Starts all services marked with `gobj_flag_autostart`. If a service has a `mt_play` method, only the service gobj is started; otherwise, the entire tree is started using [`gobj_start_tree`](#gobj_start_tree).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->

@@ -46,7 +46,7 @@ Returns `0` on success, or `-1` if the rotatory system is already initialized.
 
 **Notes**
 
-This function registers [`rotatory_end()`](#rotatory_end) with `atexit()` to ensure proper cleanup.
+This function registers [`rotatory_end`](#rotatory_end) with `atexit()` to ensure proper cleanup.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

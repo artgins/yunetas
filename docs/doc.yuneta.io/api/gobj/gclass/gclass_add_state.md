@@ -53,7 +53,7 @@ Returns `0` on success, or `-1` if an error occurs (e.g., `gclass` is NULL or me
 
 **Notes**
 
-This function is used to define states in a gclass's finite state machine. Each state can later be associated with event-action pairs using [`gclass_add_ev_action()`](#gclass_add_ev_action).
+This function is used to define states in a gclass's finite state machine. Each state can later be associated with event-action pairs using [`gclass_add_ev_action`](#gclass_add_ev_action).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

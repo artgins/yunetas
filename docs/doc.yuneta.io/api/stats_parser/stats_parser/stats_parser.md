@@ -48,7 +48,7 @@ json_t *stats_parser(
 
 * - `kw`
   - `json_t *`
-  - A JSON object containing additional parameters. Ownership is transferred to [`stats_parser()`](#stats_parser).
+  - A JSON object containing additional parameters. Ownership is transferred to [`stats_parser`](#stats_parser).
 
 * - `src`
   - `hgobj`

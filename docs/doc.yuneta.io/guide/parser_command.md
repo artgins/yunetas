@@ -3,7 +3,7 @@
 
 The command parser in Yuneta validates and processes commands defined in a GClass's `command_table`. It ensures commands sent to a GObj are properly formatted and conform to the schema for that GClass. The parser dynamically selects between an instance-specific method (`mt_command`), a global parser, or an internal parser to handle commands.
 
-Commands are executed using the API  [`gobj_command()`](gobj_command()):
+Commands are executed using the API  [`gobj_command`](gobj_command()):
 
 `json_t *gobj_command(hgobj gobj, const char *cmd, json_t *kw, hgobj src);`
 

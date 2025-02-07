@@ -53,7 +53,7 @@ Returns the value of the specified statistical attribute as a `json_int_t`. If t
 
 **Notes**
 
-This function does not check if the attribute exists before retrieving its value. Ensure that the attribute is valid before calling [`gobj_get_stat()`](#gobj_get_stat).
+This function does not check if the attribute exists before retrieving its value. Ensure that the attribute is valid before calling [`gobj_get_stat`](#gobj_get_stat).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

@@ -66,7 +66,7 @@ Returns the number of bytes written on success, or `-1` on error.
 If `priority` is `LOG_AUDIT`, the message is written without a header.
 If `priority` is outside the valid range, it defaults to `LOG_DEBUG`.
 The function appends a newline character (`\n`) to the log message.
-Internally calls [`_rotatory()`](#_rotatory) to perform the actual writing.
+Internally calls [`_rotatory`](#_rotatory) to perform the actual writing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

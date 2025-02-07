@@ -58,7 +58,7 @@ This function does not return a value.
 
 **Notes**
 
-Internally, [`trace_vjson()`](#trace_vjson) is used to format and log the message.
+Internally, [`trace_vjson`](#trace_vjson) is used to format and log the message.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

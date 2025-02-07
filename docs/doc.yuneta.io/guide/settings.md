@@ -32,7 +32,7 @@ The return of `json_config()` is a string that must be converted to JSON.
 (global_settings)=
 ## Global Settings
 If the final JSON has a key `global`, his value will be used as 
-the argument `jn_global_settings` in [`gobj_start_up()`](gobj_start_up()),
+the argument `jn_global_settings` in [`gobj_start_up`](gobj_start_up()),
 and will be merge to `kw` when creating a `gobj`.
 
 

@@ -80,7 +80,7 @@ Returns a handle to the rotatory log (`hrotatory_h`) on success, or `NULL` on fa
 
 If the specified log directory does not exist, `rotatory_open()` attempts to create it.
 If the log file does not exist, `rotatory_open()` creates a new one with the specified permissions.
-Use [`rotatory_close()`](#rotatory_close) to properly close the log handle.
+Use [`rotatory_close`](#rotatory_close) to properly close the log handle.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

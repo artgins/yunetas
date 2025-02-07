@@ -9,8 +9,8 @@ Source code in:
 
 Authentication and authorization in Yuneta ensure secure identification of users and
 validation of their permissions to access resources or perform actions. 
-These processes are managed via APIs such as [`gobj_authenticate()`](gobj_authenticate())
-and [`gobj_user_has_authz()`](gobj_user_has_authz()), with the ability to use custom or
+These processes are managed via APIs such as [`gobj_authenticate`](gobj_authenticate())
+and [`gobj_user_has_authz`](gobj_user_has_authz()), with the ability to use custom or
 built-in parsers and checkers.
 
 ---
