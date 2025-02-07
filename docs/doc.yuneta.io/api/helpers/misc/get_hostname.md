@@ -3,11 +3,7 @@
 # `get_hostname()`
 <!-- ============================================================== -->
 
-
-The `get_hostname()` function retrieves the hostname of the current machine. 
-It returns a pointer to a string containing the hostname, which is typically 
-used for network identification or logging purposes.
-
+Retrieves the hostname of the system. The function attempts to read the hostname from '/etc/hostname' on Linux systems or uses predefined values for other platforms.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,13 +20,10 @@ used for network identification or logging purposes.
 **Prototype**
 
 ```C
-
-const char *get_hostname(void);
-
+PUBLIC const char *get_hostname(void);
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -40,28 +33,20 @@ const char *get_hostname(void);
   - Type
   - Description
 
-* - None
-  - None
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-
 
 ---
 
 **Return Value**
 
-
-A pointer to a constant string containing the hostname of the machine. 
-The returned string should not be modified or freed by the caller.
-
+Returns a pointer to a static string containing the hostname. The returned string should not be modified by the caller.
 
 **Notes**
 
-
-The function relies on system-level calls to retrieve the hostname. 
-If the hostname cannot be determined, the behavior may depend on the underlying implementation.
-
+On Linux, the function reads '/etc/hostname' to determine the hostname. On ESP32, it returns a predefined string ('esp32'). The function ensures that the hostname is retrieved only once and cached for subsequent calls.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

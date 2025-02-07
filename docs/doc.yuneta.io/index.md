@@ -88,23 +88,23 @@ guide/guide_authz.md
 :maxdepth: 1
 
 
-api/gobj/startup/api_gobj_startup.md
-api/gobj/gclass/api_gobj_gclass.md
-api/gobj/creation/api_gobj_creation.md
-api/gobj/attrs/api_gobj_attrs.md
-api/gobj/op/api_gobj_op.md
-api/gobj/events_state/api_gobj_events_state.md
-api/gobj/resource/api_gobj_resource.md
-api/gobj/publish/api_gobj_publish.md
-api/gobj/authz/api_gobj_authz.md
-api/gobj/info/api_gobj_info.md
-api/gobj/stats/api_gobj_stats.md
-api/gobj/node/api_gobj_node.md
-api/gobj/memory/api_gobj_memory.md
-api/gobj/log/api_gobj_log.md
-api/gobj/trace/api_gobj_trace.md
-api/gobj/gbuffer/api_gobj_gbuffer.md
-api/gobj/dl/api_gobj_dl.md
+api/gobj/api_gobj_startup.md
+api/gobj/api_gobj_gclass.md
+api/gobj/api_gobj_creation.md
+api/gobj/api_gobj_attrs.md
+api/gobj/api_gobj_op.md
+api/gobj/api_gobj_events_state.md
+api/gobj/api_gobj_resource.md
+api/gobj/api_gobj_publish.md
+api/gobj/api_gobj_authz.md
+api/gobj/api_gobj_info.md
+api/gobj/api_gobj_stats.md
+api/gobj/api_gobj_node.md
+api/gobj/api_gobj_memory.md
+api/gobj/api_gobj_log.md
+api/gobj/api_gobj_trace.md
+api/gobj/api_gobj_gbuffer.md
+api/gobj/api_gobj_dl.md
 
 :::
 

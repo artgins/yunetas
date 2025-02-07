@@ -3,11 +3,7 @@
 # `file_exists()`
 <!-- ============================================================== -->
 
-
-The `file_exists()` function checks whether a file with the specified `filename` exists in the given `directory`. 
-It returns a boolean value indicating the presence of the file. This function is useful for verifying the existence 
-of files before performing operations such as reading or writing.
-
+The `file_exists()` function checks if a regular file exists in the specified directory with the given filename.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,16 +20,13 @@ of files before performing operations such as reading or writing.
 **Prototype**
 
 ```C
-
 BOOL file_exists(
     const char *directory,
     const char *filename
 );
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
@@ -50,25 +43,17 @@ BOOL file_exists(
 * - `filename`
   - `const char *`
   - The name of the file to check for existence.
-
 :::
-
 
 ---
 
 **Return Value**
 
-
-Returns `TRUE` if the file exists in the specified directory, otherwise returns `FALSE`.
-
+Returns `TRUE` if the file exists and is a regular file, otherwise returns `FALSE`.
 
 **Notes**
 
-
-- This function does not differentiate between file types (e.g., regular files, symbolic links).
-- Ensure that the `directory` and `filename` parameters are valid and properly formatted strings.
-- The function does not check for permissions or accessibility of the file.
-
+This function uses `is_regular_file()` internally to verify that the file exists and is not a directory or special file.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

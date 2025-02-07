@@ -8,13 +8,13 @@ Source code in:
 :caption: Startup functions
 :maxdepth: 1
 
-gobj_start_up.md
-gobj_end.md
-gobj_shutdown.md
-gobj_is_shutdowning.md
-gobj_set_yuno_must_die.md
-gobj_get_yuno_must_die.md
-gobj_set_exit_code.md
-gobj_get_exit_code.md
+startup/gobj_end.md
+startup/gobj_get_exit_code.md
+startup/gobj_get_yuno_must_die.md
+startup/gobj_is_shutdowning.md
+startup/gobj_set_exit_code.md
+startup/gobj_set_yuno_must_die.md
+startup/gobj_shutdown.md
+startup/gobj_start_up.md
 
 ```
