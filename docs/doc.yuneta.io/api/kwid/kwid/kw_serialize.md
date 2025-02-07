@@ -178,4 +178,3 @@ This function iterates over predefined binary fields and applies their correspon
 ``````
 
 ```````
-

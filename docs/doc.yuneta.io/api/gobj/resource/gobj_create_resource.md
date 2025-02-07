@@ -188,4 +188,3 @@ The function requires that the GObj has the `mt_create_resource` method implemen
 ``````
 
 ```````
-

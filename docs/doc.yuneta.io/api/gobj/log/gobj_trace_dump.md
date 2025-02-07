@@ -193,4 +193,3 @@ The `gobj_trace_dump()` function is useful for debugging by providing a hex dump
 ``````
 
 ```````
-

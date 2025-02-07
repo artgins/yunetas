@@ -191,4 +191,3 @@ The function calls [`gobj_unsubscribe_event()`](#gobj_unsubscribe_event) to remo
 ``````
 
 ```````
-

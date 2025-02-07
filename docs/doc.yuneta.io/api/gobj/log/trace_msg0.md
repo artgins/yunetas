@@ -178,4 +178,3 @@ This function formats the message using `vsnprintf()` and logs it with a debug p
 ``````
 
 ```````
-

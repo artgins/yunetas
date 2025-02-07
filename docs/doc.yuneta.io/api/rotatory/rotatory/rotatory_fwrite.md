@@ -188,4 +188,3 @@ This function formats the log message using `vsnprintf()` and then writes it usi
 ``````
 
 ```````
-

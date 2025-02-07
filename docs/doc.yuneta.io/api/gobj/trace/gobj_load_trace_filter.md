@@ -178,4 +178,3 @@ This function replaces any existing trace filter in the specified [`hgclass`](#h
 ``````
 
 ```````
-

@@ -171,4 +171,3 @@ This function does not modify the list; it only retrieves the count of elements.
 ``````
 
 ```````
-

@@ -171,4 +171,3 @@ The returned array contains predefined flag names used in structured data attrib
 ``````
 
 ```````
-

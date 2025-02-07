@@ -189,4 +189,3 @@ The function iterates through the hierarchy of [`hgobj`](#hgobj) instances, aggr
 ``````
 
 ```````
-

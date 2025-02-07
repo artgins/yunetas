@@ -173,4 +173,3 @@ Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a chi
 ``````
 
 ```````
-

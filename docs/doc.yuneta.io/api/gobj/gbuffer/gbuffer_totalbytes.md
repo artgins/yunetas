@@ -171,4 +171,3 @@ This function does not modify the `gbuffer_t` instance; it only retrieves the cu
 ``````
 
 ```````
-

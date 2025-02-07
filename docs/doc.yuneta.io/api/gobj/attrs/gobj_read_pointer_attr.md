@@ -178,4 +178,3 @@ If the attribute is inherited from a bottom object, [`gobj_read_pointer_attr()`]
 ``````
 
 ```````
-

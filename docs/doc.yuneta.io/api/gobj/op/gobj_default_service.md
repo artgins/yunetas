@@ -171,4 +171,3 @@ The default service is typically set using [`gobj_create_default_service()`](#go
 ``````
 
 ```````
-

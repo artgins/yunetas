@@ -173,4 +173,3 @@ Ensure that `gbuffer_leftbytes(gbuf)` is greater than zero before calling [`gbuf
 ``````
 
 ```````
-

@@ -171,4 +171,3 @@ The exit code is set using [`gobj_set_exit_code()`](#gobj_set_exit_code).
 ``````
 
 ```````
-

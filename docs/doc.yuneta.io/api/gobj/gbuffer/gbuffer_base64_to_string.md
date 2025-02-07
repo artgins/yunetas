@@ -178,4 +178,3 @@ The returned [`gbuffer_t *`](#gbuffer_t) must be freed using [`gbuffer_decref()`
 ``````
 
 ```````
-

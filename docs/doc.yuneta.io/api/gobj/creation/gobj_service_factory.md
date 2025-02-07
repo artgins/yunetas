@@ -178,4 +178,3 @@ The function extracts global settings, applies configuration variables, and invo
 ``````
 
 ```````
-

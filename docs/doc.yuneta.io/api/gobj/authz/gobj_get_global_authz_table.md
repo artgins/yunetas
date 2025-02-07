@@ -171,4 +171,3 @@ The returned table contains predefined authorization levels such as `__read_attr
 ``````
 
 ```````
-

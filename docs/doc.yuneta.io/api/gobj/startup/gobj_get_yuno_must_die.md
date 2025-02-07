@@ -172,4 +172,3 @@ The flag is typically set using [`gobj_set_yuno_must_die()`](#gobj_set_yuno_must
 ``````
 
 ```````
-

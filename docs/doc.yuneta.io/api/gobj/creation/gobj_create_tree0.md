@@ -178,4 +178,3 @@ Returns the root `gobj` of the created tree, or `NULL` if creation fails.
 ``````
 
 ```````
-

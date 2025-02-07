@@ -178,4 +178,3 @@ The function verifies if the attribute has the `SDF_WR` or `SDF_PERSIST` flag se
 ``````
 
 ```````
-

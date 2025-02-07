@@ -171,4 +171,3 @@ Ensure that the list is properly initialized before calling [`dl_last()`](#dl_la
 ``````
 
 ```````
-

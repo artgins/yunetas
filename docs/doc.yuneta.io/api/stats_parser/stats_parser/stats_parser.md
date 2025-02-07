@@ -189,4 +189,3 @@ The function wraps the generated statistics in a standard command response forma
 ``````
 
 ```````
-

@@ -171,4 +171,3 @@ A service object is identified by the `gobj_flag_service` flag.
 ``````
 
 ```````
-

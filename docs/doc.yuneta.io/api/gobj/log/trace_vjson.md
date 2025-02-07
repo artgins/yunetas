@@ -198,4 +198,3 @@ The function formats the log message as JSON, including metadata such as timesta
 ``````
 
 ```````
-

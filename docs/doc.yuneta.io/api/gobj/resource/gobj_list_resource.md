@@ -188,4 +188,3 @@ If the `gobj` does not implement `mt_list_resource`, an error is logged and `NUL
 ``````
 
 ```````
-

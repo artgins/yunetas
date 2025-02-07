@@ -183,4 +183,3 @@ If the buffer is too small, [`gbuffer_vprintf()`](#gbuffer_vprintf) attempts to 
 ``````
 
 ```````
-

@@ -188,4 +188,3 @@ A pure child does not publish events but instead sends them directly to its pare
 ``````
 
 ```````
-

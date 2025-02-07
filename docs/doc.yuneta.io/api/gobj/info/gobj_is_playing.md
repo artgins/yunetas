@@ -171,4 +171,3 @@ If the [`hgobj`](#hgobj) is `NULL` or has been destroyed, an error is logged and
 ``````
 
 ```````
-

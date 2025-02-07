@@ -173,4 +173,3 @@ If `kw` contains binary fields registered with [`kw_add_binary_type()`](#kw_add_
 ``````
 
 ```````
-

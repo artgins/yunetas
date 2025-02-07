@@ -171,4 +171,3 @@ This function provides a list of services that have been registered using [`gobj
 ``````
 
 ```````
-

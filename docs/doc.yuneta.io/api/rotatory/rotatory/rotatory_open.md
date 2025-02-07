@@ -205,4 +205,3 @@ Use [`rotatory_close()`](#rotatory_close) to properly close the log handle.
 ``````
 
 ```````
-

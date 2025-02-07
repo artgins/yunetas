@@ -173,4 +173,3 @@ If [`gobj`](#hgobj) is `NULL`, the function returns the global trace level bitma
 ``````
 
 ```````
-

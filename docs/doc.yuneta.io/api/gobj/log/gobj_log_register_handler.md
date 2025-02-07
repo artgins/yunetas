@@ -188,4 +188,3 @@ This function allows the registration of custom log handlers, which can be later
 ``````
 
 ```````
-

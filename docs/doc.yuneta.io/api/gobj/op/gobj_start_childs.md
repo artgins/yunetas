@@ -173,4 +173,3 @@ This function only starts the direct children of [`gobj`](#gobj). It does not re
 ``````
 
 ```````
-

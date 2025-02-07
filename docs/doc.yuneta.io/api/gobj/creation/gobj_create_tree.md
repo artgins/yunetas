@@ -183,4 +183,3 @@ This function internally calls [`gobj_create_tree0()`](#gobj_create_tree0) after
 ``````
 
 ```````
-

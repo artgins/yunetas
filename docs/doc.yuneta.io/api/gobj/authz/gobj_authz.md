@@ -178,4 +178,3 @@ This function internally calls `authzs_list()` to fetch the authorization detail
 ``````
 
 ```````
-

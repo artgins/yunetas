@@ -188,4 +188,3 @@ Only a chunk of the [`gbuffer_t *`](#gbuffer_t) data is printed. Use [`gobj_trac
 ``````
 
 ```````
-

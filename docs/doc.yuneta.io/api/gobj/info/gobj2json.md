@@ -178,4 +178,3 @@ The `jn_filter` parameter allows selective inclusion of attributes such as `full
 ``````
 
 ```````
-

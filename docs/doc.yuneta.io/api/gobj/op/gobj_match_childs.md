@@ -178,4 +178,3 @@ Use [`gobj_free_iter()`](#gobj_free_iter) to free the returned JSON array when i
 ``````
 
 ```````
-

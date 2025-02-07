@@ -188,4 +188,3 @@ The created GObj is marked as a service using the `gobj_flag_service` flag. If t
 ``````
 
 ```````
-

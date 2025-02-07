@@ -178,4 +178,3 @@ Ensure that `len` does not exceed the available data in [`gbuffer_t`](#gbuffer_t
 ``````
 
 ```````
-

@@ -173,4 +173,3 @@ If `hr` is `NULL`, [`rotatory_trunk()`](#rotatory_trunk) iterates over all activ
 ``````
 
 ```````
-

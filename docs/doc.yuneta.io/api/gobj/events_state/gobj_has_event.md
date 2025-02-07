@@ -183,4 +183,3 @@ This function does not differentiate between input and output events. Use [`gobj
 ``````
 
 ```````
-

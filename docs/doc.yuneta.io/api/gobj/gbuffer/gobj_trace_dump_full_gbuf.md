@@ -188,4 +188,3 @@ Unlike [`gobj_trace_dump_gbuf()`](#gobj_trace_dump_gbuf), this function logs the
 ``````
 
 ```````
-

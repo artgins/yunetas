@@ -171,4 +171,3 @@ Ensure that `gbuf` is not NULL before calling [`gbuffer_freebytes()`](#gbuffer_f
 ``````
 
 ```````
-

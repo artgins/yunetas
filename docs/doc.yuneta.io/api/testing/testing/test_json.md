@@ -175,4 +175,3 @@ Calls [`check_log_result()`](#check_log_result) to validate log messages.
 ``````
 
 ```````
-

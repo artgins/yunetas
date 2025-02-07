@@ -171,4 +171,3 @@ This function should not be called directly. Instead, use [`gbuffer_decref()`](#
 ``````
 
 ```````
-

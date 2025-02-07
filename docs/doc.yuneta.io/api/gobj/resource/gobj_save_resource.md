@@ -188,4 +188,3 @@ If the GObj does not implement the `mt_save_resource` method, an error is logged
 ``````
 
 ```````
-

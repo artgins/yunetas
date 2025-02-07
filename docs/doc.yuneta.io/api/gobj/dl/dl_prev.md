@@ -171,4 +171,3 @@ Ensure that `curr` is a valid pointer to an item in a properly initialized doubl
 ``````
 
 ```````
-

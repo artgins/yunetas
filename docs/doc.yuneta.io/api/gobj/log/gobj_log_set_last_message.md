@@ -178,4 +178,3 @@ The stored message can be retrieved using [`gobj_log_last_message()`](#gobj_log_
 ``````
 
 ```````
-

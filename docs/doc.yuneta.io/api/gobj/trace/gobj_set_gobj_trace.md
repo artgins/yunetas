@@ -188,4 +188,3 @@ If `gobj` is not `NULL`, this function invokes [`mt_trace_on()`](#mt_trace_on) o
 ``````
 
 ```````
-

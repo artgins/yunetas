@@ -183,4 +183,3 @@ If the [`gbuffer_t`](#gbuffer_t) does not have enough space, it will attempt to 
 ``````
 
 ```````
-

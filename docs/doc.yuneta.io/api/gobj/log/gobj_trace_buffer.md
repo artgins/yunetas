@@ -193,4 +193,3 @@ The function internally calls [`trace_vjson()`](#trace_vjson) to format and log 
 ``````
 
 ```````
-

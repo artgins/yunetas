@@ -193,4 +193,3 @@ The function [`gobj_create_node()`](#gobj_create_node) requires that the gobj in
 ``````
 
 ```````
-

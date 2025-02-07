@@ -171,4 +171,3 @@ This function iterates through all active UDP clients and calls [`udpc_close()`]
 ``````
 
 ```````
-

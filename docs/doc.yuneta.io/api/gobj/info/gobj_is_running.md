@@ -171,4 +171,3 @@ If the provided [`hgobj`](#hgobj) is `NULL` or has been destroyed, an error is l
 ``````
 
 ```````
-

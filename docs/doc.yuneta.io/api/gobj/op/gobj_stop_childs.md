@@ -173,4 +173,3 @@ This function only stops the direct children of `gobj`, not the entire hierarchy
 ``````
 
 ```````
-

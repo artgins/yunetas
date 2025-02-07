@@ -173,4 +173,3 @@ If a handler is removed, its associated resources are freed, and if it has a clo
 ``````
 
 ```````
-

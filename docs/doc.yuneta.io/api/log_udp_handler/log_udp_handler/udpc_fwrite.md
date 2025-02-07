@@ -188,4 +188,3 @@ Internally, `udpc_fwrite()` formats the message using `vsnprintf()` and then cal
 ``````
 
 ```````
-

@@ -171,4 +171,3 @@ This function registers [`rotatory_end()`](#rotatory_end) with `atexit()` to ens
 ``````
 
 ```````
-

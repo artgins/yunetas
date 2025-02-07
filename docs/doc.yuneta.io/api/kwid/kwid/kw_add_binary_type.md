@@ -198,4 +198,3 @@ The function maintains an internal table of registered binary types. If the tabl
 ``````
 
 ```````
-

@@ -178,4 +178,3 @@ This function is useful when using [`gbuffer_t`](#gbuffer_t) as a write buffer, 
 ``````
 
 ```````
-

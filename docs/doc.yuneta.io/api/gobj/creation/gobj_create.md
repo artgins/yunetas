@@ -188,4 +188,3 @@ Returns a handle to the newly created `gobj` (`hgobj`). Returns `NULL` if the cr
 ``````
 
 ```````
-

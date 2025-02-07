@@ -178,4 +178,3 @@ This function does not check if the attribute exists before retrieving its value
 ``````
 
 ```````
-

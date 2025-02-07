@@ -188,4 +188,3 @@ A volatile `gobj` is automatically destroyed when its parent is destroyed. Use [
 ``````
 
 ```````
-
