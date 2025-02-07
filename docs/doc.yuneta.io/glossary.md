@@ -58,12 +58,6 @@ check_log_result
 data_type_t
     Internal type
 
-__global_list_persistent_attrs_fn__
-    Internal data
-
-__global_list_persistent_attrs_fn__
-    Internal data
-
 _rotatory
     Internal data
 
