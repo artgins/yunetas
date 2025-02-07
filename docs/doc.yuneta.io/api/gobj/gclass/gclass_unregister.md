@@ -20,7 +20,7 @@ Unregisters a `gclass`, freeing its allocated resources if no instances exist.
 **Prototype**
 
 ```C
-void gclass_unregister(hgclass hgclass);
+void gclass_unregister(hgclass gclass);
 ```
 
 **Parameters**
@@ -34,7 +34,7 @@ void gclass_unregister(hgclass hgclass);
   - Description
 
 * - `hgclass`
-  - `hgclass`
+  - `gclass`
   - Handle to the `gclass` to be unregistered.
 :::
 
