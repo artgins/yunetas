@@ -33,8 +33,8 @@ void gclass_unregister(hgclass gclass);
   - Type
   - Description
 
-* - `hgclass`
-  - `gclass`
+* - `gclass`
+  - `hgclass`
   - Handle to the `gclass` to be unregistered.
 :::
 
