@@ -55,11 +55,11 @@ A `GClass` consists of several key components that define its operation:
 ## How a GClass Works
 
 1. **Definition**:
-    - A `GClass` is created using the [`gclass_create()`](gclass_create()) function, combining its attributes, methods, states, events, and other metadata.
+    - A `GClass` is created using the [`gclass_create()`](gclass_create) function, combining its attributes, methods, states, events, and other metadata.
 2. **Instantiation**:
     - A GObject instance is created from a `GClass` using the GObject API.
 3. **Interaction**:
-    - The GObject API (e.g., [`gobj_start()`](gobj_start()), [`gobj_stop()`](gobj_stop())) dynamically invokes the global methods ([`gmt`](GMETHODS)) defined in the `GClass`.
+    - The GObject API (e.g., [`gobj_start()`](gobj_start), [`gobj_stop()`](gobj_stop)) dynamically invokes the global methods ([`gmt`](GMETHODS)) defined in the `GClass`.
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
@@ -578,7 +578,7 @@ The `LMETHOD` structure in the Yuneta framework defines the local methods
 that can be implemented by a `GClass`. 
 These methods are specific to the internal operation of the `GClass` 
 and are not intended to be invoked dynamically via 
-the [`gobj_local_method()`](gobj_local_method()) API, 
+the [`gobj_local_method()`](gobj_local_method) API, 
 unlike the global methods (`GMETHODS`).
 
 
