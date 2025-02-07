@@ -8,10 +8,10 @@ Source code in:
 :caption: Statistic functions
 :maxdepth: 1
 
-stats/gobj_decr_stat.md
-stats/gobj_get_stat.md
-stats/gobj_incr_stat.md
-stats/gobj_jn_stats.md
-stats/gobj_set_stat.md
+stats/gobj_decr_stat
+stats/gobj_get_stat
+stats/gobj_incr_stat
+stats/gobj_jn_stats
+stats/gobj_set_stat
 
 ```

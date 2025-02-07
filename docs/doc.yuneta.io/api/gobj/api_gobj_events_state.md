@@ -8,14 +8,14 @@ Source code in:
 :caption: Events/State functions
 :maxdepth: 1
 
-events_state/gobj_change_state.md
-events_state/gobj_current_state.md
-events_state/gobj_event_type_by_name.md
-events_state/gobj_event_type.md
-events_state/gobj_has_event.md
-events_state/gobj_has_output_event.md
-events_state/gobj_in_this_state.md
-events_state/gobj_send_event.md
+events_state/gobj_change_state
+events_state/gobj_current_state
+events_state/gobj_event_type_by_name
+events_state/gobj_event_type
+events_state/gobj_has_event
+events_state/gobj_has_output_event
+events_state/gobj_in_this_state
+events_state/gobj_send_event
 
 
 ```

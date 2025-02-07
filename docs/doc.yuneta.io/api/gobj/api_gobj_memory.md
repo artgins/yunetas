@@ -8,16 +8,16 @@ Source code in:
 :caption: Memory functions
 :maxdepth: 1
 
-memory/gobj_calloc_func.md
-memory/gobj_free_func.md
-memory/gobj_get_allocators.md
-memory/gobj_get_maximum_block.md
-memory/gobj_malloc_func.md
-memory/gobj_realloc_func.md
-memory/gobj_set_allocators.md
-memory/gobj_strdup.md
-memory/gobj_strndup.md
-memory/print_track_mem.md
-memory/set_memory_check_list.md
+memory/gobj_calloc_func
+memory/gobj_free_func
+memory/gobj_get_allocators
+memory/gobj_get_maximum_block
+memory/gobj_malloc_func
+memory/gobj_realloc_func
+memory/gobj_set_allocators
+memory/gobj_strdup
+memory/gobj_strndup
+memory/print_track_mem
+memory/set_memory_check_list
 
 ```

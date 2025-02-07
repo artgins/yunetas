@@ -8,14 +8,14 @@ Source code in:
 :caption: GClass functions
 :maxdepth: 1
 
-gclass/gclass_add_ev_action.md
-gclass/gclass_add_state.md
-gclass/gclass_add_state_with_action_list.md
-gclass/gclass_create.md
-gclass/gclass_find_by_name.md
-gclass/gclass_find_public_event.md
-gclass/gclass_gclass_name.md
-gclass/gclass_gclass_register.md
-gclass/gclass_unregister.md
+gclass/gclass_add_ev_action
+gclass/gclass_add_state
+gclass/gclass_add_state_with_action_list
+gclass/gclass_create
+gclass/gclass_find_by_name
+gclass/gclass_find_public_event
+gclass/gclass_gclass_name
+gclass/gclass_gclass_register
+gclass/gclass_unregister
 
 ```

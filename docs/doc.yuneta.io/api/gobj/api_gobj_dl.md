@@ -16,17 +16,17 @@ Source code in:
 :caption: Double List functions
 :maxdepth: 1
 
-dl/dl_add.md
-dl/dl_delete.md
-dl/dl_find.md
-dl/dl_first.md
-dl/dl_flush.md
-dl/dl_init.md
-dl/dl_insert.md
-dl/dl_last.md
-dl/dl_next.md
-dl/dl_prev.md
-dl/dl_size.md
+dl/dl_add
+dl/dl_delete
+dl/dl_find
+dl/dl_first
+dl/dl_flush
+dl/dl_init
+dl/dl_insert
+dl/dl_last
+dl/dl_next
+dl/dl_prev
+dl/dl_size
 
 
 ```

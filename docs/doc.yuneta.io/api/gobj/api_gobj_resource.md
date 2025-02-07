@@ -32,11 +32,11 @@ Source code in:
 :caption: Resource functions
 :maxdepth: 1
 
-resource/gobj_create_resource.md
-resource/gobj_delete_resource.md
-resource/gobj_get_resource.md
-resource/gobj_list_resource.md
-resource/gobj_save_resource.md
+resource/gobj_create_resource
+resource/gobj_delete_resource
+resource/gobj_get_resource
+resource/gobj_list_resource
+resource/gobj_save_resource
 
 
 ```
