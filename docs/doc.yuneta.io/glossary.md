@@ -52,6 +52,53 @@ json_function_fn
     - Returns a `json_t` object as the result of the processing.
 
 
+check_log_result
+    Internal function
+
+data_type_t
+    Internal type
+
+__global_list_persistent_attrs_fn__
+    Internal data
+
+_rotatory
+    Internal data
+
+_log_jnbf
+    Internal function
+
+_build_stats
+    Internal function
+
+match_record
+    Internal function
+
+GHTTP_PARSER
+
+    ```C
+        typedef struct _GHTTP_PARSER {
+            http_parser http_parser;
+            hgobj gobj;
+            gobj_event_t on_header_event;
+            gobj_event_t on_body_event;
+            gobj_event_t on_message_event;
+            BOOL send_event;
+
+            enum http_parser_type type;
+            char message_completed;
+            char headers_completed;
+
+            char *url;
+            json_t *jn_headers;
+            //char *body;
+            size_t body_size;
+            gbuffer_t *gbuf_body;
+
+            char *cur_key;  // key can arrive in several callbacks
+            char *last_key; // save last key for the case value arriving in several callbacks
+        } GHTTP_PARSER;
+    ```
+
 gobj_state_t
     Unique pointer that exposes state names, defined as:
 

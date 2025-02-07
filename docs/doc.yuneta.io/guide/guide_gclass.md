@@ -319,8 +319,10 @@ These events represent system signals for timeouts, state transitions, messaging
 
 These predefined states and events form the core of Yuneta's GObj framework, enabling structured event-driven programming and state management. States define the behavior of an object at any given time, while events act as triggers that drive transitions between these states. Together, they create a dynamic and responsive system that efficiently handles various operational scenarios.
 
+(EV_STATE_CHANGED)=
+- `EV_STATE_CHANGED`
 
-
+Is a system event. TODO
 
 
 
