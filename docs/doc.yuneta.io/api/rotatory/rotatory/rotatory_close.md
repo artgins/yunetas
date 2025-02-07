@@ -173,4 +173,3 @@ If `hr` is `NULL` or the rotatory system is not initialized, the function does n
 ``````
 
 ```````
-

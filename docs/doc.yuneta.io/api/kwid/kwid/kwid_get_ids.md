@@ -173,4 +173,3 @@ The function supports extracting IDs from various JSON structures, including obj
 ``````
 
 ```````
-

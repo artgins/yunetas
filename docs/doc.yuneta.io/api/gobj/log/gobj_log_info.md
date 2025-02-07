@@ -183,4 +183,3 @@ The function formats the message and sends it to all registered log handlers tha
 ``````
 
 ```````
-

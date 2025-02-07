@@ -183,4 +183,3 @@ The log message is formatted using `vsnprintf()` and logged with priority `LOG_I
 ``````
 
 ```````
-

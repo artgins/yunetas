@@ -183,4 +183,3 @@ This function internally calls `file_permission()` and `file_size()` to retrieve
 ``````
 
 ```````
-

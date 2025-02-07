@@ -178,4 +178,3 @@ If `gobj` is `NULL`, the function checks the global trace level. The function co
 ``````
 
 ```````
-

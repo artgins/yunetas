@@ -178,4 +178,3 @@ Ensures that the list is completely emptied. If `fnfree` is provided, it is call
 ``````
 
 ```````
-

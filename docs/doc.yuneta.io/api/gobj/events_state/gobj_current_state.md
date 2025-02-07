@@ -173,4 +173,3 @@ If `hgobj` is `NULL`, an error is logged, and an empty string is returned.
 ``````
 
 ```````
-

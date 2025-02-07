@@ -173,4 +173,3 @@ The returned string must be freed using `gobj_free_func()` to avoid memory leaks
 ``````
 
 ```````
-

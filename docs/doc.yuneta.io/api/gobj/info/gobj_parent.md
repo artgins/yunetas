@@ -171,4 +171,3 @@ If the provided [`hgobj`](#hgobj) is NULL, an error is logged.
 ``````
 
 ```````
-

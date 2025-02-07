@@ -171,4 +171,3 @@ The function retrieves the value from the `realm_owner` attribute of the Yuno in
 ``````
 
 ```````
-

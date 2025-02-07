@@ -171,4 +171,3 @@ The function assumes that `curr` is a valid pointer to an item in a doubly linke
 ``````
 
 ```````
-

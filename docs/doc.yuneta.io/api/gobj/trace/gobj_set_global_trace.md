@@ -178,4 +178,3 @@ If `level` is empty, all global trace levels are affected. The function ensures 
 ``````
 
 ```````
-

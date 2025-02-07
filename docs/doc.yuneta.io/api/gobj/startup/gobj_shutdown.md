@@ -171,4 +171,3 @@ If the Yuno is already in the process of shutting down, `gobj_shutdown()` will r
 ``````
 
 ```````
-

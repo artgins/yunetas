@@ -183,4 +183,3 @@ This function is useful for verifying if a GObj can publish a specific event bef
 ``````
 
 ```````
-

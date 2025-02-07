@@ -188,4 +188,3 @@ This function formats the message using `vsnprintf()` and writes it to `stdout`.
 ``````
 
 ```````
-

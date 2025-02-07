@@ -178,4 +178,3 @@ This function searches for the event in the gobj's event list and the global eve
 ``````
 
 ```````
-

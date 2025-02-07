@@ -188,4 +188,3 @@ This function searches for subscriptions where `subscriber` is subscribed to eve
 ``````
 
 ```````
-

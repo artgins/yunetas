@@ -203,4 +203,3 @@ This function relies on the `mt_link_nodes` method of the GObj's class to perfor
 ``````
 
 ```````
-

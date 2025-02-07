@@ -171,4 +171,3 @@ The function returns the trace filter settings applied to the specified [`hgclas
 ``````
 
 ```````
-

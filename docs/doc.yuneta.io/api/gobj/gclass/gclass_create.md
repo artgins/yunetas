@@ -223,4 +223,3 @@ Returns a handle (`hgclass`) to the newly created GClass, or `NULL` if an error 
 ``````
 
 ```````
-

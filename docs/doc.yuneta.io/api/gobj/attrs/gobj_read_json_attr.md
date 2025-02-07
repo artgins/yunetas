@@ -178,4 +178,3 @@ If the attribute is not found in `gobj`, the function searches in its bottom GOb
 ``````
 
 ```````
-

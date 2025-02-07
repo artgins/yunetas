@@ -171,4 +171,3 @@ A function pointer of type `sys_realloc_fn_t` that points to the system's memory
 ``````
 
 ```````
-

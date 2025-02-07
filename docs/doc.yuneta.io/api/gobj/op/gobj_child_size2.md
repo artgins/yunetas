@@ -178,4 +178,3 @@ The function iterates over the children of [`gobj_`](#gobj_child_size2) and appl
 ``````
 
 ```````
-

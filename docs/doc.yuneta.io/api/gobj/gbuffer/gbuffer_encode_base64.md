@@ -173,4 +173,3 @@ The caller is responsible for managing the reference count of the returned [`gbu
 ``````
 
 ```````
-
