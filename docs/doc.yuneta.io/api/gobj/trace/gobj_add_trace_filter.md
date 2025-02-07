@@ -21,7 +21,7 @@ Adds a trace filter to a given gclass, allowing selective tracing based on attri
 
 ```C
 int gobj_add_trace_filter(
-    hgclass gclass_,
+    hgclass gclass,
     const char *attr,
     const char *value
 );
