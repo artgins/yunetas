@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_deep_tracing)=
 # `gobj_set_deep_tracing()`
 <!-- ============================================================== -->
 
-
-Enable or disable deep tracing for a GObj.
-        
+Sets the deep tracing level for all gobjs, controlling the verbosity of trace logs.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,33 @@ Enable or disable deep tracing for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_set_deep_tracing(
-    hgobj       gobj,
-    BOOL        enable
-);
-        
-
+int gobj_set_deep_tracing(int level);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - `hgobj`
-  - The GObj for which deep tracing is being set.
-
-* - `enable`
-  - `BOOL`
-  - If `TRUE`, enables deep tracing; if `FALSE`, disables it.
+* - `level`
+  - `int`
+  - The tracing depth level. A value of 1 enables tracing while considering `__gobj_trace_no_level__`, and values greater than 1 enable full tracing.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+This function is useful for debugging and monitoring gobj behavior at different levels of detail.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +171,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

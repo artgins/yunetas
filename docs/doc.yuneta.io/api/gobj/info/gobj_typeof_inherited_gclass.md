@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_typeof_inherited_gclass)=
 # `gobj_typeof_inherited_gclass()`
 <!-- ============================================================== -->
 
-
-Retrieves the inherited GClass of the specified GObj. This is used when a GObj derives behavior from another GClass.
-        
+Checks if the given [`hgobj`](#hgobj) belongs to a specific inherited gclass.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,40 @@ Retrieves the inherited GClass of the specified GObj. This is used when a GObj d
 **Prototype**
 
 ```C
-
-hgclass gobj_typeof_inherited_gclass(hgobj gobj);
-        
-
+BOOL gobj_typeof_inherited_gclass(
+    hgobj gobj,
+    const char *gclass_name
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose inherited GClass is being queried.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to check.
 
+* - `gclass_name`
+  - `const char *`
+  - The name of the gclass to compare against.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the [`gobj`](#hgobj) or any of its inherited (bottom) gobjs belong to the specified gclass, otherwise returns `FALSE`.
 
-- Returns the handle ([`hgclass`](hgclass)) of the inherited GClass associated with the GObj.
-        
+**Notes**
 
+This function traverses the bottom gobj hierarchy to determine if any of them match the given `gclass_name`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +178,4 @@ hgclass gobj_typeof_inherited_gclass(hgobj gobj);
 ``````
 
 ```````
+

@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_read_integer_attr)=
 # `gobj_read_integer_attr()`
 <!-- ============================================================== -->
 
-Reads the value of an integer attribute in a GObj.
+Retrieves the integer value of a specified attribute from the given [`hgobj`](#hgobj). The function supports attribute inheritance from bottom objects.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,40 @@ Reads the value of an integer attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC json_int_t gobj_read_integer_attr(
-    hgobj       gobj,
-    const char  *name
+json_int_t gobj_read_integer_attr(
+    hgobj gobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attribute is being read.
+  - `hgobj`
+  - The object from which the attribute value is retrieved.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the integer attribute to read.
-
+  - The name of the attribute to retrieve.
 :::
+
+---
 
 **Return Value**
 
-- Returns the value of the integer attribute.
-- Returns `0` if the attribute does not exist or is unreadable.
+Returns the integer value of the specified attribute. If the attribute is not found, returns 0.
+
+**Notes**
+
+If the attribute is inherited from a bottom object, the function will traverse the hierarchy to retrieve the value. If the attribute is not found, a warning is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +178,4 @@ PUBLIC json_int_t gobj_read_integer_attr(
 ``````
 
 ```````
+

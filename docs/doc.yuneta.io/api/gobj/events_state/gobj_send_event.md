@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_send_event)=
 # `gobj_send_event()`
 <!-- ============================================================== -->
 
-
-Sends an event to a GObj, optionally transferring ownership of the associated data (kw). This is the primary mechanism for triggering actions or changes in GObjs.
-        
+The `gobj_send_event` function processes an event in the given destination gobj, executing the corresponding action in its current state.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,50 +20,50 @@ Sends an event to a GObj, optionally transferring ownership of the associated da
 **Prototype**
 
 ```C
-
-int gobj_send_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
-        
-
+int gobj_send_event(
+    hgobj        dst,
+    gobj_event_t event,
+    json_t       *kw,
+    hgobj        src
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the target GObj receiving the event.
+* - `dst`
+  - `hgobj`
+  - The destination gobj that will process the event.
 
 * - `event`
-  - [`gobj_event_t`](gobj_event_t)
-  - The event to send to the target GObj.
+  - `gobj_event_t`
+  - The event to be processed.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing additional data for the event. Ownership is transferred to the function.
+  - `json_t *`
+  - A JSON object containing event-specific data. The ownership is transferred to the function.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - Handle to the source GObj sending the event.
-
+  - `hgobj`
+  - The source gobj that is sending the event.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, -1 if the event is not defined in the current state, or if an error occurs.
 
-- `0`: The event was successfully processed.  
-- `-1`: An error occurred while processing the event.
-        
+**Notes**
 
+If the event is not found in the current state of `dst`, the function checks if `dst` has a custom event injection method (`mt_inject_event`). If defined, it delegates event processing to that method.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -192,3 +188,4 @@ int gobj_send_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src);
 ``````
 
 ```````
+

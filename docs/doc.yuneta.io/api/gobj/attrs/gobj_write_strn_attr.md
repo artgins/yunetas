@@ -3,8 +3,7 @@
 # `gobj_write_strn_attr()`
 <!-- ============================================================== -->
 
-
-The `gobj_write_strn_attr` function writes a string value (with a specified length) to a named attribute of a GObj. It ensures that the string is safely duplicated and updates the attribute in the GObj's hierarchical data store (HDS). If the GClass of the GObj implements the `mt_writing` method, it is invoked to handle any post-write actions.
+Writes a string attribute to a [`hgobj`](#hgobj) object, ensuring the string is properly truncated to the specified length.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,11 +20,11 @@ The `gobj_write_strn_attr` function writes a string value (with a specified leng
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_strn_attr(
-    hgobj       gobj,
-    const char  *name,
-    const char  *value,
-    size_t      len
+int gobj_write_strn_attr(
+    hgobj gobj,   /* Target object */
+    const char *name, /* Attribute name */
+    const char *value, /* String value */
+    size_t len /* Maximum length */
 );
 ```
 
@@ -35,45 +34,36 @@ PUBLIC int gobj_write_strn_attr(
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj instance where the attribute will be written.
+  - The target object where the attribute will be written.
 
 * - `name`
   - `const char *`
-  - The name of the attribute to write.
+  - The name of the attribute to be written.
 
 * - `value`
   - `const char *`
-  - The string value to write to the attribute.
+  - The string value to be written to the attribute.
 
 * - `len`
   - `size_t`
-  - The length of the string to write.
+  - The maximum length of the string to be written.
 :::
+
+---
 
 **Return Value**
 
-- Returns `0` on success.
-- Returns `-1` if:
-  - The attribute does not exist.
-  - Memory allocation for the string duplication fails.
+Returns 0 on success, or -1 if the attribute is not found or an error occurs.
 
 **Notes**
 
-### Notes
-- **Memory Management:**
-  - The function duplicates the input string using `GBMEM_STRNDUP`, ensuring safety when handling the string.
-  - The duplicated string is freed after being used to update the attribute.
-- **Lifecycle Handling:**
-  - The `mt_writing` method of the GClass is called if the GObj is fully created and not destroyed.
-- **Error Logging:**
-  - If the attribute is not found or memory allocation fails, an error is logged.
-
+If `value` is longer than `len`, it is truncated before being written. If `value` is NULL, the attribute is set to `json_null()`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -198,3 +188,4 @@ PUBLIC int gobj_write_strn_attr(
 ``````
 
 ```````
+

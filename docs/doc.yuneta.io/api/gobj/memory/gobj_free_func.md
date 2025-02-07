@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_free_func)=
 # `gobj_free_func()`
 <!-- ============================================================== -->
 
-Returns the current free function.
+Returns the function pointer for the system's memory deallocation function.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,24 +20,33 @@ Returns the current free function.
 **Prototype**
 
 ```C
-
-PUBLIC sys_free_fn_t gobj_free_func(void);
-        
-
+sys_free_fn_t gobj_free_func(void);
 ```
 
 **Parameters**
 
-None.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A function pointer of type `sys_free_fn_t` that can be used to free allocated memory.
 
-- Returns the current free function.
-        
+**Notes**
 
+This function provides access to the currently set memory deallocation function, which may be customized using [`gobj_set_allocators()`](#gobj_set_allocators).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -164,3 +171,4 @@ None.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_pointer_attr)=
 # `gobj_write_pointer_attr()`
 <!-- ============================================================== -->
 
-Updates the value of a pointer attribute in a GObj.
-
-
+Sets the value of a pointer attribute in the given [`hgobj`](#hgobj) object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,40 +20,45 @@ Updates the value of a pointer attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_pointer_attr(
-    hgobj       gobj,
-    const char  *name,
-    void        *value
+int gobj_write_pointer_attr(
+    hgobj gobj,
+    const char *name,
+    void *value
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose pointer attribute is being written.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) object whose attribute is being modified.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the pointer attribute to write.
+  - The name of the attribute to modify.
 
 * - `value`
   - `void *`
-  - The new pointer value for the attribute.
-
+  - The new pointer value to assign to the attribute.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The pointer attribute was successfully updated.
-- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
+Returns 0 on success, or -1 if the attribute is not found.
+
+**Notes**
+
+If the attribute does not exist, an error is logged and -1 is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +183,4 @@ PUBLIC int gobj_write_pointer_attr(
 ``````
 
 ```````
+

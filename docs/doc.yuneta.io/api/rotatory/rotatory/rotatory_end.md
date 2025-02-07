@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (rotatory_end)=
 # `rotatory_end()`
 <!-- ============================================================== -->
 
-
-Shut down the rotatory logging system.
-        
+`rotatory_end()` closes all active rotatory log instances and resets the internal state.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,15 @@ Shut down the rotatory logging system.
 **Prototype**
 
 ```C
-
-PUBLIC void rotatory_end(void);
-        
-
+void rotatory_end(void);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
@@ -44,16 +37,17 @@ PUBLIC void rotatory_end(void);
   - `-`
   - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function shuts down and cleans up resources used by the rotatory logging system.
-        
+**Notes**
 
+This function iterates through all active rotatory log instances and closes them using [`rotatory_close()`](#rotatory_close).
+After execution, the internal initialization flag is reset, preventing further operations until [`rotatory_start_up()`](#rotatory_start_up) is called again.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -178,3 +172,4 @@ No return value. This function shuts down and cleans up resources used by the ro
 ``````
 
 ```````
+

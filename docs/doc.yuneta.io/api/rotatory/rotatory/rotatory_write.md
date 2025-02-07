@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (rotatory_write)=
 # `rotatory_write()`
 <!-- ============================================================== -->
 
-
-Write data to a rotatory log file.
-        
+`rotatory_write()` writes a log message to the rotatory log file with the specified priority level.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,53 @@ Write data to a rotatory log file.
 **Prototype**
 
 ```C
-
-PUBLIC int rotatory_write(
-    int          handle,
-    const void  *data,
-    size_t       size
+int rotatory_write(
+    hrotatory_h  hr,
+    int          priority,
+    const char*  bf,
+    size_t       len
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
+* - `hr`
+  - `hrotatory_h`
+  - Handle to the rotatory log instance.
+
+* - `priority`
   - `int`
-  - The handle of the rotatory log to write to.
+  - Priority level of the log message, ranging from `LOG_EMERG` to `LOG_AUDIT`.
 
-* - `data`
-  - `const void *`
-  - The data to write.
+* - `bf`
+  - `const char*`
+  - Pointer to the buffer containing the log message.
 
-* - `size`
+* - `len`
   - `size_t`
-  - The size of the data in bytes.
+  - Length of the log message in bytes.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of bytes written on success, or `-1` on error.
 
-Returns the number of bytes successfully written, or a negative value on failure.
-        
+**Notes**
 
+If `priority` is `LOG_AUDIT`, the message is written without a header.
+If `priority` is outside the valid range, it defaults to `LOG_DEBUG`.
+The function appends a newline character (`\n`) to the log message.
+Internally calls [`_rotatory()`](#_rotatory) to perform the actual writing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +191,4 @@ Returns the number of bytes successfully written, or a negative value on failure
 ``````
 
 ```````
+

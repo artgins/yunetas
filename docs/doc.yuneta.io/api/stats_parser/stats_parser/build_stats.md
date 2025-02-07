@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (build_stats)=
 # `build_stats()`
 <!-- ============================================================== -->
 
-
-Build statistical data for a GObj and format it as a JSON object.
-        
+`build_stats()` constructs a JSON object containing statistical data extracted from the attributes of a given [`hgobj`](#hgobj) instance, including attributes marked with `SFD_STATS` flags.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,51 @@ Build statistical data for a GObj and format it as a JSON object.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *build_stats(
-    hgobj       gobj,
-    const char *stats_name,
-    const char *options
+json_t *build_stats(
+    hgobj      gobj,
+    const char *stats,
+    json_t     *kw,
+    hgobj      src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj to build statistical data for.
+  - The [`hgobj`](#hgobj) instance from which statistics are gathered.
 
-* - `stats_name`
+* - `stats`
   - `const char *`
-  - The name of the specific statistics to build, or `NULL` for all statistics.
+  - A string specifying which statistics to include. If `"__reset__"`, resets the statistics.
 
-* - `options`
-  - `const char *`
-  - Options to customize the data building process (e.g., filters or format specifications).
+* - `kw`
+  - `json_t *`
+  - A JSON object containing additional parameters. This object is decremented after use.
+
+* - `src`
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) instance, used for context in the statistics gathering process.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the collected statistics, structured by the short names of the [`hgobj`](#hgobj) instances.
 
-Returns a [`json_t *`](json_t) object containing the built statistical data, or `NULL` on failure.
-        
+**Notes**
 
+Internally, [`_build_stats()`](#_build_stats) is used to extract statistics from the [`hgobj`](#hgobj) instance and its bottom-level objects.
+The function iterates through the hierarchy of [`hgobj`](#hgobj) instances, aggregating statistics from each level.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +189,4 @@ Returns a [`json_t *`](json_t) object containing the built statistical data, or 
 ``````
 
 ```````
+

@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_strdup)=
 # `gobj_strdup()`
 <!-- ============================================================== -->
 
-Duplicates a string.
+`gobj_strdup()` duplicates a given string by allocating memory for a new copy and returning a pointer to it.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,36 +20,35 @@ Duplicates a string.
 **Prototype**
 
 ```C
-
-PUBLIC char *gobj_strdup(const char *string);
-        
-
+char *gobj_strdup(
+    const char *string
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `string`
   - `const char *`
-  - The string to duplicate.
+  - The null-terminated string to duplicate.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to the newly allocated duplicate string, or `NULL` if memory allocation fails.
 
-- Returns a pointer to the duplicated string or `NULL` on failure.
-        
+**Notes**
 
+The returned string must be freed using `gobj_free_func()` to avoid memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +173,4 @@ PUBLIC char *gobj_strdup(const char *string);
 ``````
 
 ```````
+

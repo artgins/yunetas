@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_warning)=
 # `gobj_log_warning()`
 <!-- ============================================================== -->
 
-Logs a warning-level message.
+Logs a warning message with the specified format and arguments. The function increments the internal warning counter and processes the log message through registered handlers.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,44 +20,45 @@ Logs a warning-level message.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_log_warning(hgobj gobj, log_opt_t opt, ...);
-        
-
+void gobj_log_warning(
+    hgobj gobj,
+    log_opt_t opt,
+    ...
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance initiating the log.
+  - The object generating the log message. Can be NULL if not associated with a specific object.
 
 * - `opt`
   - `log_opt_t`
-  - Options for log customization, such as stack tracing or exit behavior.
+  - Logging options that control additional behavior such as stack tracing or process termination.
 
 * - `...`
   - `variadic`
-  - The message and optional variables for formatting.
+  - Format string followed by arguments, similar to printf, specifying the log message.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-- **None**
-        
+**Notes**
 
+The function checks if logging is initialized before proceeding. If logging is already in progress, it prevents recursive calls. The log message is processed by registered handlers, and if configured, a backtrace may be printed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ PUBLIC void gobj_log_warning(hgobj gobj, log_opt_t opt, ...);
 ``````
 
 ```````
+

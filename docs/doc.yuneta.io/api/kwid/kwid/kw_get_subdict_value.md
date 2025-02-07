@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_get_subdict_value)=
 # `kw_get_subdict_value()`
 <!-- ============================================================== -->
 
-
-Get the value of a sub-dictionary's key from a JSON object at a specified path. Works with [`json_t *`](json_t).
-        
+Retrieve a value from a subdictionary within a JSON object. If the subdictionary does not exist, it can be created based on the provided flags. The function searches for the key within the subdictionary and returns the corresponding value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,53 +20,60 @@ Get the value of a sub-dictionary's key from a JSON object at a specified path. 
 **Prototype**
 
 ```C
-
-PUBLIC const char *kw_get_subdict_value(
-    json_t      *kw,
-    const char  *path,
-    const char  *key,
-    const char  *default_value
+json_t *kw_get_subdict_value(
+    hgobj      gobj,
+    json_t    *kw,
+    const char *path,
+    const char *key,
+    json_t    *jn_default_value,  // owned
+    kw_flag_t  flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - Pointer to the GObj (generic object) context.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to query.
+  - `json_t *`
+  - JSON object containing the dictionary to search within.
 
 * - `path`
   - `const char *`
-  - The path to the sub-dictionary.
+  - Path to the subdictionary within the JSON object.
 
 * - `key`
   - `const char *`
-  - The key in the sub-dictionary to retrieve.
+  - Key to retrieve from the subdictionary.
 
-* - `default_value`
-  - `const char *`
-  - The default value to return if the key or subkey does not exist.
+* - `jn_default_value`
+  - `json_t *`
+  - Default value to return if the key is not found. This value is owned by the caller.
+
+* - `flag`
+  - `kw_flag_t`
+  - Flags controlling behavior, such as whether to create the subdictionary if it does not exist.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the JSON value associated with the specified key in the subdictionary. If the key is not found, the default value is returned. If `KW_CREATE` is set, the subdictionary is created if it does not exist.
 
-Returns the string value of the key in the sub-dictionary, or `default_value` if not found.
-        
+**Notes**
 
+If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_EXTRACT` is set, the value is removed from the dictionary before returning.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -195,3 +198,4 @@ Returns the string value of the key in the sub-dictionary, or `default_value` if
 ``````
 
 ```````
+

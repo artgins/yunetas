@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_node_parents)=
 # `gobj_node_parents()`
 <!-- ============================================================== -->
 
-
-Retrieve the parent nodes of a specific node in a topic.
-        
+`gobj_node_parents()` returns a list of parent references for a given node in a tree database, optionally filtered by a specific link.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,64 +20,60 @@ Retrieve the parent nodes of a specific node in a topic.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_node_parents(
+json_t *gobj_node_parents(
     hgobj gobj,
     const char *topic_name,
     json_t *kw,
     const char *link,
-    json_t *options,
+    json_t *jn_options,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj handle initiating the request.
+  - The GObj instance managing the tree database.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic containing the node.
+  - The name of the topic representing the node.
 
 * - `kw`
   - `json_t *`
-  - JSON data identifying the node (owned).
+  - A JSON object containing the node's primary key fields. Owned by the caller.
 
 * - `link`
   - `const char *`
-  - The link type connecting the parent and child nodes.
+  - The specific link to filter parent references. If NULL, all parent references are returned.
 
-* - `options`
+* - `jn_options`
   - `json_t *`
-  - Additional options for retrieval (owned).
+  - A JSON object specifying options for retrieving parent references. Owned by the caller.
 
 * - `src`
   - `hgobj`
-  - The source GObj making the request.
+  - The source GObj requesting the operation.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the parent references. The caller must decrement the reference count when done.
 
-Returns a JSON object containing the parent nodes.  
-If no parents exist or the operation fails, returns `NULL`.
-        
+**Notes**
 
+['If `gobj` is NULL or destroyed, an error is logged and NULL is returned.', 'If `gobj->gclass->gmt->mt_node_parents` is not defined, an error is logged and NULL is returned.', 'The returned JSON array contains references formatted according to the specified options.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -206,3 +198,4 @@ If no parents exist or the operation fails, returns `NULL`.
 ``````
 
 ```````
+

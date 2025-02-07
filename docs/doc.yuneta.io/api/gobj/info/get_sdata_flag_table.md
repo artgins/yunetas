@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (get_sdata_flag_table)=
 # `get_sdata_flag_table()`
 <!-- ============================================================== -->
 
-
-Retrieves the table of data flags used in the GObj system.
-        
+Returns a table of sdata (structured data) flag names as a null-terminated array of strings.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Retrieves the table of data flags used in the GObj system.
 **Prototype**
 
 ```C
-
-json_t *get_sdata_flag_table(void);
-        
-
+const char **get_sdata_flag_table(void);
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A pointer to a null-terminated array of strings representing sdata flag names.
 
-- Returns a JSON object ([`json_t`](json_t)) containing the data flag table.
-        
+**Notes**
 
+The returned array contains predefined flag names used in structured data attributes. The caller should not modify or free the returned pointer.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ json_t *get_sdata_flag_table(void);
 ``````
 
 ```````
+

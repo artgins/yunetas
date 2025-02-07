@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_gobj_trace_level)=
 # `gobj_get_gobj_trace_level()`
 <!-- ============================================================== -->
 
-
-Get the value of a specific trace level for a GObj.
-        
+Retrieves the trace levels set for the specified [`hgobj`](#hgobj). The function returns a JSON array containing the active trace levels.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,35 @@ Get the value of a specific trace level for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC BOOL gobj_get_gobj_trace_level(
-    hgobj       gobj,
-    const char  *level
+PUBLIC json_t *gobj_get_gobj_trace_level(
+    hgobj gobj
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj whose trace level is being retrieved.
-
-* - `level`
-  - `const char *`
-  - The name of the trace level to retrieve.
+  - The [`hgobj`](#hgobj) instance whose trace levels are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the active trace levels for the given [`hgobj`](#hgobj).
 
-Returns `TRUE` if the specified trace level is enabled for the GObj, otherwise returns `FALSE`.
-        
+**Notes**
 
+If `gobj` is `NULL`, the function returns the global trace levels.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +173,4 @@ Returns `TRUE` if the specified trace level is enabled for the GObj, otherwise r
 ``````
 
 ```````
+

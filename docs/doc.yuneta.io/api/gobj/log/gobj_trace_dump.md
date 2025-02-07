@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_dump)=
 # `gobj_trace_dump()`
 <!-- ============================================================== -->
 
-Logs the content of a buffer in a detailed dump format.
+The `gobj_trace_dump()` function logs a hex dump of a given buffer with an associated formatted message.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,54 +20,45 @@ Logs the content of a buffer in a detailed dump format.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_trace_dump(
+void gobj_trace_dump(
     hgobj gobj,
-    int priority,
     const char *bf,
-    int len,
+    size_t len,
     const char *fmt,
     ...
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj instance.
-
-* - `priority`
-  - `int`
-  - Priority level for the log message.
+  - `hgobj`
+  - The GObj instance associated with the trace log.
 
 * - `bf`
   - `const char *`
-  - Pointer to the buffer content.
+  - Pointer to the buffer containing the data to be dumped.
 
 * - `len`
-  - `int`
-  - Length of the buffer.
+  - `size_t`
+  - The length of the buffer in bytes.
 
 * - `fmt`
   - `const char *`
-  - Format string for additional message details.
+  - A format string for the log message.
 
 * - `...`
   - `variadic`
-  - Additional arguments for formatting.
+  - Additional arguments for the format string.
 :::
-        
 
 ---
 
@@ -77,6 +66,9 @@ PUBLIC void gobj_trace_dump(
 
 This function does not return a value.
 
+**Notes**
+
+The `gobj_trace_dump()` function is useful for debugging by providing a hex dump of a buffer. It formats the message using the provided format string and arguments before logging the output.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -201,3 +193,4 @@ This function does not return a value.
 ``````
 
 ```````
+

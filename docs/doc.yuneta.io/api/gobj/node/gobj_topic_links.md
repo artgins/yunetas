@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_topic_links)=
 # `gobj_topic_links()`
 <!-- ============================================================== -->
 
-
-Retrieve the links associated with a topic in a treedb.
-        
+`gobj_topic_links()` retrieves the links of a specified topic within a TreeDB instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,59 +20,55 @@ Retrieve the links associated with a topic in a treedb.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_topic_links(
+json_t *gobj_topic_links(
     hgobj gobj,
     const char *treedb_name,
     const char *topic_name,
     json_t *kw,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj from which to query the topic links.
+  - `hgobj`
+  - The GObj instance managing the TreeDB.
 
 * - `treedb_name`
   - `const char *`
-  - The name of the treedb.
+  - The name of the TreeDB instance.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic.
+  - The name of the topic whose links are to be retrieved.
 
 * - `kw`
-  - [`json_t`](json_t)
-  - Optional parameters to refine the query (owned).
+  - `json_t *`
+  - A JSON object containing additional query parameters. Owned by the caller.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - The source GObj making the request.
+  - `hgobj`
+  - The source GObj requesting the operation.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the topic links, or `NULL` if an error occurs.
 
-Returns a JSON object containing the links of the topic.  
-If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
-        
+**Notes**
 
+['If `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned.', 'If the method `mt_topic_links` is not defined in the GClass, an error is logged and `NULL` is returned.', 'The returned JSON object must be decremented (`json_decref()`) by the caller when no longer needed.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -201,3 +193,4 @@ If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
 ``````
 
 ```````
+

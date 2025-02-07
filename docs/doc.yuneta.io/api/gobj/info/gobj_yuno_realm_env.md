@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_realm_env)=
 # `gobj_yuno_realm_env()`
 <!-- ============================================================== -->
 
-
-Retrieves the environment of the `Yuno` realm. The environment specifies the context in which the `Yuno` operates, such as "production" or "testing".
-        
+Returns the realm environment of the Yuno instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Retrieves the environment of the `Yuno` realm. The environment specifies the con
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_realm_env(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A string representing the realm environment of the Yuno instance. Returns an empty string if the Yuno instance is not available.
 
-- Returns a string (`const char *`) containing the environment of the `Yuno` realm.
-        
+**Notes**
 
+This function retrieves the value of the `realm_env` attribute from the Yuno instance.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_realm_env(void);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_find_path)=
 # `kw_find_path()`
 <!-- ============================================================== -->
 
-
-Find a value in a JSON object using a specified path. Works with [`json_t *`](json_t).
-        
+The function `kw_find_path()` retrieves a JSON value from a hierarchical JSON structure by following a specified path. It traverses dictionaries and lists to locate the desired value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,50 @@ Find a value in a JSON object using a specified path. Works with [`json_t *`](js
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_find_path(
-    json_t      *kw,
-    const char  *path,
-    BOOL        create
+json_t *kw_find_path(
+    hgobj      gobj,
+    json_t    *kw,
+    const char *path,
+    BOOL       verbose
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - A handle to the calling object, used for logging and error reporting.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to search.
+  - `json_t *`
+  - The JSON object or array to search within.
 
 * - `path`
   - `const char *`
-  - The path to search for in the JSON object.
+  - The path to the desired value, using the configured delimiter (default: '`').
 
-* - `create`
+* - `verbose`
   - `BOOL`
-  - If `TRUE`, creates the path if it does not exist.
+  - If `TRUE`, logs errors when the path is not found.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the JSON value found at the specified path. If the path is invalid or not found, returns `NULL`.
 
-Returns a pointer to the value at the specified path, or `NULL` if not found or creation failed.
-        
+**Notes**
 
+The function [`kw_find_path()`](#kw_find_path) supports traversing both dictionaries and lists. If the path is invalid or the JSON structure is not an object or array, it logs an error if `verbose` is enabled.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +188,4 @@ Returns a pointer to the value at the specified path, or `NULL` if not found or 
 ``````
 
 ```````
+

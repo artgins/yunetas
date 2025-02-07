@@ -3,7 +3,7 @@
 # `gobj_set_yuno_must_die()`
 <!-- ============================================================== -->
 
-Signal the Yuno to terminate by breaking its infinite loop.
+Sets a flag indicating that the Yuno process must terminate.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +17,36 @@ Signal the Yuno to terminate by breaking its infinite loop.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC void gobj_set_yuno_must_die(void);
-````
+```C
+void gobj_set_yuno_must_die(void);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+
+---
+
+**Return Value**
+
+This function does not return a value.
+
+**Notes**
+
+This function is used to signal that the Yuno process should exit. It is typically used in scenarios where an external condition requires the process to terminate gracefully.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -70,6 +91,7 @@ PUBLIC void gobj_set_yuno_must_die(void);
 ````Python
 # Not applicable in Python
 ````
+
 <!--====================================================-->
 <!--                    End Tab Python                   -->
 <!--====================================================-->
@@ -149,3 +171,4 @@ PUBLIC void gobj_set_yuno_must_die(void);
 ``````
 
 ```````
+

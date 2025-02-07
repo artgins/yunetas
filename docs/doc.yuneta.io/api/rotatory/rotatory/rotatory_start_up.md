@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (rotatory_start_up)=
 # `rotatory_start_up()`
 <!-- ============================================================== -->
 
-
-Initialize the rotatory logging system.
-        
+`rotatory_start_up()` initializes the rotatory logging system, ensuring it is only initialized once and registering cleanup functions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,15 @@ Initialize the rotatory logging system.
 **Prototype**
 
 ```C
-
-PUBLIC int rotatory_start_up(void);
-        
-
+int rotatory_start_up(void);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
@@ -44,16 +37,16 @@ PUBLIC int rotatory_start_up(void);
   - `-`
   - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if the rotatory system is already initialized.
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+This function registers [`rotatory_end()`](#rotatory_end) with `atexit()` to ensure proper cleanup.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -178,3 +171,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

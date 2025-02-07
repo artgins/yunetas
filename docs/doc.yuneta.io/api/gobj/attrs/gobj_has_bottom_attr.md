@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_has_bottom_attr)=
 # `gobj_has_bottom_attr()`
 <!-- ============================================================== -->
 
-Checks if an attribute exists in the bottom (child) hierarchy of a GObj.
+Checks if the given [`hgobj`](#hgobj) or any of its bottom objects has the specified attribute.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,40 @@ Checks if an attribute exists in the bottom (child) hierarchy of a GObj.
 **Prototype**
 
 ```C
-PUBLIC BOOL gobj_has_bottom_attr(
-    hgobj       gobj_,
-    const char  *name
+BOOL gobj_has_bottom_attr(
+    hgobj gobj, 
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj being checked.
+  - `hgobj`
+  - The object to check for the attribute.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the attribute to check.
-
+  - The name of the attribute to search for.
 :::
+
+---
 
 **Return Value**
 
-- `TRUE`: The attribute exists in the bottom (child) hierarchy of the GObj.
-- `FALSE`: The attribute does not exist or the GObj is invalid.
+Returns `TRUE` if the attribute exists in the given [`hgobj`](#hgobj) or any of its bottom objects, otherwise returns `FALSE`.
+
+**Notes**
+
+This function traverses the bottom hierarchy of the given [`hgobj`](#hgobj) to check for the presence of the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +178,4 @@ PUBLIC BOOL gobj_has_bottom_attr(
 ``````
 
 ```````
+

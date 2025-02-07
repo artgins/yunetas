@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_build_authzs_doc)=
 # `gobj_build_authzs_doc()`
 <!-- ============================================================== -->
 
-
-Build documentation for all available authorizations in a GObj.
-        
+`gobj_build_authzs_doc()` generates a JSON object describing the authorization levels available for a given service or globally.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Build documentation for all available authorizations in a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_build_authzs_doc(
-    hgobj       gobj,
-    const char *topic
+json_t *gobj_build_authzs_doc(
+    hgobj      gobj,
+    const char *cmd,
+    json_t     *kw
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj to retrieve authorization documentation from.
+  - The GObj instance from which to retrieve authorization levels.
 
-* - `topic`
+* - `cmd`
   - `const char *`
-  - The topic to filter authorizations by, or `NULL` for all authorizations.
+  - The command name, currently unused in the function.
+
+* - `kw`
+  - `json_t *`
+  - A JSON object containing optional parameters: 'authz' to filter by authorization level and 'service' to specify a particular service.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the authorization levels for the specified service or globally. If a specific authorization level is requested and not found, an error message is returned as a JSON string.
 
-Returns a [`json_t *`](json_t) object containing the documentation for the authorizations, or `NULL` on failure.
-        
+**Notes**
 
+If 'service' is provided in `kw`, the function retrieves the authorization levels for that service. If 'authz' is specified, it filters the results to include only the requested authorization level.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns a [`json_t *`](json_t) object containing the documentation for the autho
 ``````
 
 ```````
+

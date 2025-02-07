@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_buffer)=
 # `gobj_trace_buffer()`
 <!-- ============================================================== -->
 
-Logs the content of a buffer for debugging.
+Logs a buffer of data with a debug-level message. The function formats the buffer as a JSON string and includes it in the log entry.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,54 +20,45 @@ Logs the content of a buffer for debugging.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_trace_buffer(
-    hgobj gobj,
-    int priority,
-    const char *bf,
-    int len,
-    const char *fmt,
-    ...
+void gobj_trace_buffer(
+    hgobj gobj,      
+    const char *bf,  
+    size_t len,      
+    const char *fmt, 
+    ...              
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj instance.
-
-* - `priority`
-  - `int`
-  - Priority level for the log message.
+  - `hgobj`
+  - The GObj instance associated with the log entry.
 
 * - `bf`
   - `const char *`
-  - Pointer to the buffer content.
+  - Pointer to the buffer containing the data to be logged.
 
 * - `len`
-  - `int`
-  - Length of the buffer.
+  - `size_t`
+  - Length of the buffer in bytes.
 
 * - `fmt`
   - `const char *`
-  - Format string for additional message details.
+  - Format string for the log message.
 
 * - `...`
   - `variadic`
-  - Additional arguments for formatting.
+  - Additional arguments for the format string.
 :::
-        
 
 ---
 
@@ -77,6 +66,9 @@ PUBLIC void gobj_trace_buffer(
 
 This function does not return a value.
 
+**Notes**
+
+The function internally calls [`trace_vjson()`](#trace_vjson) to format and log the buffer data. The buffer content is stored as a JSON string in the log entry.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -201,3 +193,4 @@ This function does not return a value.
 ``````
 
 ```````
+

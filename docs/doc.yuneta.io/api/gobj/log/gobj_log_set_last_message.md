@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_set_last_message)=
 # `gobj_log_set_last_message()`
 <!-- ============================================================== -->
 
-Set the last log message for later retrieval.
+Sets the last log message for retrieval using [`gobj_log_last_message()`](#gobj_log_last_message).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,40 +20,40 @@ Set the last log message for later retrieval.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_log_set_last_message(const char *msg, ...);
-        
-
+void gobj_log_set_last_message(
+    const char *msg,
+    ...
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `msg`
   - `const char *`
-  - The message to set as the last log message.
+  - The format string for the log message.
 
 * - `...`
   - `variadic`
-  - Additional arguments for formatting the message.
+  - Additional arguments for the format string.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-- This function does not return a value.
-        
+**Notes**
 
+The stored message can be retrieved using [`gobj_log_last_message()`](#gobj_log_last_message).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ PUBLIC void gobj_log_set_last_message(const char *msg, ...);
 ``````
 
 ```````
+

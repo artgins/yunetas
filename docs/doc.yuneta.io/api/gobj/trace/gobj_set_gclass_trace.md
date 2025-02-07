@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_gclass_trace)=
 # `gobj_set_gclass_trace()`
 <!-- ============================================================== -->
 
-
-Set the trace levels for a specific GClass.
-        
+Sets or resets the trace level for a given [`hgclass`](#hgclass). If `level` is `NULL`, all trace levels are set or reset. If `level` is an empty string, only user-defined trace levels are affected.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Set the trace levels for a specific GClass.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_set_gclass_trace(
-    hgclass     gclass,
-    const char  *trace_levels
+int gobj_set_gclass_trace(
+    hgclass gclass,
+    const char *level,
+    BOOL set
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
   - `hgclass`
-  - The GClass for which the trace levels are being set.
+  - The [`hgclass`](#hgclass) whose trace level is being modified.
 
-* - `trace_levels`
+* - `level`
   - `const char *`
-  - A comma-separated string of trace levels to enable for the GClass.
+  - The trace level to set or reset. If `NULL`, all levels are affected. If an empty string, only user-defined levels are affected.
+
+* - `set`
+  - `BOOL`
+  - If `TRUE`, the trace level is set; if `FALSE`, it is reset.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if the specified trace level is not found.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+If `gclass` is `NULL`, the function modifies the global trace level instead.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

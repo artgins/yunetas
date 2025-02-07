@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_calloc_func)=
 # `gobj_calloc_func()`
 <!-- ============================================================== -->
 
-Returns the current calloc function.
+Returns the current system memory allocation function for zero-initialized memory blocks.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,24 +20,33 @@ Returns the current calloc function.
 **Prototype**
 
 ```C
-
-PUBLIC sys_calloc_fn_t gobj_calloc_func(void);
-        
-
+sys_calloc_fn_t gobj_calloc_func(void);
 ```
 
 **Parameters**
 
-None.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A function pointer of type `sys_calloc_fn_t` that points to the current memory allocation function used for zero-initialized memory blocks.
 
-- Returns the current calloc function.
-        
+**Notes**
 
+This function allows retrieval of the memory allocation function used internally for zero-initialized memory blocks. The returned function can be used to allocate memory in a manner consistent with the system's memory management strategy.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -164,3 +171,4 @@ None.
 ``````
 
 ```````
+

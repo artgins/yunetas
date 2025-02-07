@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_deep_tracing)=
 # `gobj_get_deep_tracing()`
 <!-- ============================================================== -->
 
-
-Check if deep tracing is enabled for a GObj.
-        
+Retrieves the current deep tracing level, which determines the verbosity of trace logging.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Check if deep tracing is enabled for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC BOOL gobj_get_deep_tracing(
-    hgobj       gobj
-);
-        
-
+int gobj_get_deep_tracing(void);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - `hgobj`
-  - The GObj to check for deep tracing.
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns an integer representing the deep tracing level. A value of 1 enables tracing while considering `__gobj_trace_no_level__`, and values greater than 1 enable full tracing.
 
-Returns `TRUE` if deep tracing is enabled, otherwise returns `FALSE`.
-        
+**Notes**
 
+This function is useful for debugging and monitoring purposes, allowing developers to control the depth of trace logging.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns `TRUE` if deep tracing is enabled, otherwise returns `FALSE`.
 ``````
 
 ```````
+

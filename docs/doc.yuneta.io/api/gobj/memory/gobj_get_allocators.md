@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_allocators)=
 # `gobj_get_allocators()`
 <!-- ============================================================== -->
 
-Retrieves the current memory allocation functions.
+Retrieves the current memory allocation function pointers used by the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,53 +20,50 @@ Retrieves the current memory allocation functions.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_get_allocators(
+void gobj_get_allocators(
     sys_malloc_fn_t *malloc_func,
     sys_realloc_fn_t *realloc_func,
     sys_calloc_fn_t *calloc_func,
     sys_free_fn_t *free_func
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `malloc_func`
   - `sys_malloc_fn_t *`
-  - Pointer to store the current malloc function.
+  - Pointer to store the current `malloc` function.
 
 * - `realloc_func`
   - `sys_realloc_fn_t *`
-  - Pointer to store the current realloc function.
+  - Pointer to store the current `realloc` function.
 
 * - `calloc_func`
   - `sys_calloc_fn_t *`
-  - Pointer to store the current calloc function.
+  - Pointer to store the current `calloc` function.
 
 * - `free_func`
   - `sys_free_fn_t *`
-  - Pointer to store the current free function.
+  - Pointer to store the current `free` function.
 :::
-        
 
 ---
 
 **Return Value**
 
+None.
 
-- `0`: Success.
-        
+**Notes**
 
+This function allows retrieving the function pointers for memory allocation routines, which can be useful for debugging or replacing the default memory management functions.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -193,3 +188,4 @@ PUBLIC int gobj_get_allocators(
 ``````
 
 ```````
+

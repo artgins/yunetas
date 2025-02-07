@@ -3,7 +3,7 @@
 # `gclass_add_state()`
 <!-- ============================================================== -->
 
-Adds a new state to the finite state machine (FSM) of a GClass.
+Adds a new state to the finite state machine of the specified `hgclass`. The state is identified by `state_name` and is used to define event transitions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,34 +20,40 @@ Adds a new state to the finite state machine (FSM) of a GClass.
 **Prototype**
 
 ```C
-PUBLIC int gclass_add_state(
-    hgclass gclass,
-    gobj_state_t state_name
+int gclass_add_state(
+    hgclass         gclass,
+    gobj_state_t    state_name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
+
 * - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass to which the state is being added.
+  - `hgclass`
+  - The handle to the gclass where the state will be added.
+
 * - `state_name`
-  - [`gobj_state_t`](gobj_state_t)
-  - The name of the state to add to the FSM.
+  - `gobj_state_t`
+  - The name of the state to be added.
 :::
 
 ---
 
 **Return Value**
 
-- `0`: The state was successfully added.  
-- `-1`: The state could not be added (e.g., if it already exists).
+Returns `0` on success, or `-1` if an error occurs (e.g., `gclass` is NULL or memory allocation fails).
+
+**Notes**
+
+This function is used to define states in a gclass's finite state machine. Each state can later be associated with event-action pairs using [`gclass_add_ev_action()`](#gclass_add_ev_action).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -172,3 +178,4 @@ PUBLIC int gclass_add_state(
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_list_subscriptions)=
 # `gobj_list_subscriptions()`
 <!-- ============================================================== -->
 
-
-Lists all subscriptions of a GObj, providing details about the subscribed events and their filters.
-        
+Retrieves a list of event subscriptions for a given [`hgobj`](#hgobj). The function returns details about events the object is subscribed to and the objects that have subscribed to its events.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Lists all subscriptions of a GObj, providing details about the subscribed events
 **Prototype**
 
 ```C
-
-json_t *gobj_list_subscriptions(hgobj gobj);
-        
-
+json_t *gobj_list_subscriptions(
+    hgobj gobj2view
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose subscriptions are being listed.
-
+* - `gobj2view`
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose subscriptions are to be listed.
 :::
-        
 
 ---
 
 **Return Value**
 
+A [`json_t *`](#json_t) object containing two lists: `subscriptions` (events published by `gobj2view` and their subscribers) and `subscribings` (events `gobj2view` is subscribed to). Each entry includes event names, publisher, and subscriber details.
 
-- Returns a JSON array ([`json_t`](json_t)) containing details of all subscriptions for the GObj.  
-- Returns an empty array if the GObj has no subscriptions.
-        
+**Notes**
 
+The returned JSON object must be managed by the caller. The function internally calls [`gobj_find_subscriptions()`](#gobj_find_subscriptions) and [`gobj_find_subscribings()`](#gobj_find_subscribings) to gather the relevant data.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ json_t *gobj_list_subscriptions(hgobj gobj);
 ``````
 
 ```````
+

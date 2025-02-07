@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_read_user_data)=
 # `gobj_read_user_data()`
 <!-- ============================================================== -->
 
-Reads user-defined data from a GObj.
+Retrieves user-defined data associated with the given [`hgobj`](#hgobj). If a specific key is provided, it returns the corresponding value; otherwise, it returns the entire user data dictionary.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,40 @@ Reads user-defined data from a GObj.
 **Prototype**
 
 ```C
-PUBLIC json_t *gobj_read_user_data(
-    hgobj       gobj,
-    const char  *name  // If empty, return all user record
+json_t *gobj_read_user_data(
+    hgobj gobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose user data is being read.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance from which to retrieve user data.
 
-* - `key`
+* - `name`
   - `const char *`
-  - The key identifying the user data field to be read.
-
+  - The key of the user data to retrieve. If NULL or empty, the entire user data dictionary is returned.
 :::
+
+---
 
 **Return Value**
 
-- Returns a pointer to the value associated with the specified user data key.
-- Returns `NULL` if the key does not exist or the GObj is invalid.
+A JSON object containing the requested user data. If `name` is specified, the corresponding value is returned. If `name` is NULL or empty, the entire user data dictionary is returned. Returns NULL if `gobj` is NULL.
+
+**Notes**
+
+The returned JSON object is not owned by the caller and should not be modified or freed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +178,4 @@ PUBLIC json_t *gobj_read_user_data(
 ``````
 
 ```````
+

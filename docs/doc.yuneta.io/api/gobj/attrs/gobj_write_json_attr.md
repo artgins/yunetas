@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_json_attr)=
 # `gobj_write_json_attr()`
 <!-- ============================================================== -->
 
-Updates the value of a JSON attribute in a GObj.
-
-
+Writes a JSON value to the specified attribute of a [`hgobj`](#hgobj). The function ensures that the attribute exists and is of the correct type before updating its value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,40 +20,45 @@ Updates the value of a JSON attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_json_attr(
-    hgobj       gobj,
-    const char  *name,
-    json_t      *value
+int gobj_write_json_attr(
+    hgobj gobj,
+    const char *name,
+    json_t *jn_value
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose JSON attribute is being written.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose attribute is being updated.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the JSON attribute to write.
+  - The name of the attribute to update.
 
-* - `value`
-  - [`json_t *`](json_t)
-  - The new value for the JSON attribute. This parameter is not owned by the function.
-
+* - `jn_value`
+  - `json_t *`
+  - The new JSON value to assign to the attribute. The function increases the reference count of this value.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The JSON attribute was successfully updated.
-- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
+Returns 0 on success, or -1 if the attribute does not exist or an error occurs.
+
+**Notes**
+
+If the attribute does not exist, a warning is logged. The function does not check if the provided value matches the expected type of the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +183,4 @@ PUBLIC int gobj_write_json_attr(
 ``````
 
 ```````
+

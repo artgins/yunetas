@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_get_list_value)=
 # `kw_get_list_value()`
 <!-- ============================================================== -->
 
-
-Get the value at a specified index in a JSON array (list). Works with [`json_t *`](json_t).
-        
+Retrieves the JSON value at the specified index from the JSON list `kw`. If the index is out of bounds and `KW_REQUIRED` is set, an error is logged. If `KW_EXTRACT` is set, the value is removed from the list.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,50 @@ Get the value at a specified index in a JSON array (list). Works with [`json_t *
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_get_list_value(
-    json_t      *kw,
-    size_t      index
+json_t *kw_get_list_value(
+    hgobj     gobj,
+    json_t    *kw,
+    int        idx,
+    kw_flag_t  flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON array to query.
+* - `gobj`
+  - `hgobj`
+  - Pointer to the gobj context, used for logging errors.
 
-* - `index`
-  - `size_t`
+* - `kw`
+  - `json_t *`
+  - A JSON list from which the value is retrieved.
+
+* - `idx`
+  - `int`
   - The index of the value to retrieve.
+
+* - `flag`
+  - `kw_flag_t`
+  - Flags controlling behavior, such as `KW_REQUIRED` for error logging and `KW_EXTRACT` for removing the value.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the JSON value at the specified index. If `KW_EXTRACT` is set, the value is removed from the list. Returns `NULL` if the index is out of bounds or `kw` is not a list.
 
-Returns a pointer to the value at the specified index, or `NULL` if the index is out of bounds.
-        
+**Notes**
 
+If `kw` is not a JSON array, an error is logged. If `KW_REQUIRED` is set and the index is out of bounds, an error is also logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +188,4 @@ Returns a pointer to the value at the specified index, or `NULL` if the index is
 ``````
 
 ```````
+

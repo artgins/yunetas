@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (tab)=
 # `tab()`
 <!-- ============================================================== -->
 
-
-Provide a tab character or an indented string for formatting purposes.
-        
+Generates an indentation string based on the current depth level of nested function calls.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Provide a tab character or an indented string for formatting purposes.
 **Prototype**
 
 ```C
-
-PUBLIC const char *tab(
-    int         count
+char *tab(
+    char *bf,
+    int   bflen
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `count`
+* - `bf`
+  - `char *`
+  - Buffer to store the generated indentation string.
+
+* - `bflen`
   - `int`
-  - The number of tab characters to generate or apply to the string.
+  - Maximum length of the buffer.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to the buffer containing the generated indentation string.
 
-Returns a string containing the specified number of tab characters for formatting purposes.
-        
+**Notes**
 
+The indentation is determined by the global variable `__inside__`, which tracks the depth level of nested function calls.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a string containing the specified number of tab characters for formattin
 ``````
 
 ```````
+

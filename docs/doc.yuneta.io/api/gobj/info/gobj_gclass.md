@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_gclass)=
 # `gobj_gclass()`
 <!-- ============================================================== -->
 
-
-Retrieves the handle to the GClass associated with a specified GObj.
-        
+Returns the gclass associated with the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,33 @@ Retrieves the handle to the GClass associated with a specified GObj.
 **Prototype**
 
 ```C
-
 hgclass gobj_gclass(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose GClass is being queried.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose gclass is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the [`hgclass`](#hgclass) associated with the given [`hgobj`](#hgobj), or NULL if the input is invalid.
 
-- Returns the handle ([`hgclass`](hgclass)) to the GClass of the specified GObj.
-        
+**Notes**
 
+This function does not perform extensive validation on the input [`hgobj`](#hgobj). Ensure that the object is properly initialized before calling this function.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +171,4 @@ hgclass gobj_gclass(hgobj gobj);
 ``````
 
 ```````
+

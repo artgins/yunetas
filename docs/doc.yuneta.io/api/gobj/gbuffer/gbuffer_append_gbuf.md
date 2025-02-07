@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_append_gbuf)=
 # `gbuffer_append_gbuf()`
 <!-- ============================================================== -->
 
-
-Append the contents of one gbuffer to another.
-        
+Appends the contents of one `gbuffer_t` to another. The data from [`src`](#src) is copied into [`dst`](#dst), preserving the read position of [`src`](#src).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Append the contents of one gbuffer to another.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_append_gbuf(
-    gbuffer_t   *dest,
-    gbuffer_t   *src
+int gbuffer_append_gbuf(
+    gbuffer_t *dst,
+    gbuffer_t *src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `dest`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The destination gbuffer to which data will be appended.
+* - `dst`
+  - `gbuffer_t *`
+  - The destination buffer where data will be appended.
 
 * - `src`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The source gbuffer whose contents will be appended.
+  - `gbuffer_t *`
+  - The source buffer whose data will be copied into [`dst`](#dst).
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if an error occurs during the append operation.
 
-Returns `0` on success, or a negative value if the operation fails.
-        
+**Notes**
 
+The function iterates over [`src`](#src) in chunks, copying data into [`dst`](#dst). Ensure that [`dst`](#dst) has enough space to accommodate the data from [`src`](#src).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns `0` on success, or a negative value if the operation fails.
 ``````
 
 ```````
+

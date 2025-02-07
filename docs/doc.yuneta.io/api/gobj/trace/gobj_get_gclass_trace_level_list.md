@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_gclass_trace_level_list)=
 # `gobj_get_gclass_trace_level_list()`
 <!-- ============================================================== -->
 
-
-Retrieve a list of all enabled trace levels for a GClass.
-        
+Retrieves a list of trace levels set for a given `gclass`. If `gclass` is NULL, it returns the trace levels for all registered `gclass` instances.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieve a list of all enabled trace levels for a GClass.
 **Prototype**
 
 ```C
-
 PUBLIC json_t *gobj_get_gclass_trace_level_list(
-    hgclass     gclass
+    hgclass gclass
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
   - `hgclass`
-  - The handle of the GClass whose enabled trace levels are being retrieved.
+  - The `gclass` whose trace levels are to be retrieved. If NULL, retrieves trace levels for all `gclass` instances.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing objects with `gclass` names and their respective trace levels.
 
-Returns a JSON array containing all enabled trace levels for the GClass.
-        
+**Notes**
 
+The returned JSON array must be freed by the caller using `json_decref()`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a JSON array containing all enabled trace levels for the GClass.
 ``````
 
 ```````
+

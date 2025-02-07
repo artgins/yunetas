@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (set_memory_check_list)=
 # `set_memory_check_list()`
 <!-- ============================================================== -->
 
-Sets a list of memory references to check for tracking.
+Sets a global list of memory addresses to be checked for tracking memory allocations.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,34 +20,33 @@ Sets a list of memory references to check for tracking.
 **Prototype**
 
 ```C
-
-PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
-        
-
+void set_memory_check_list(unsigned long *memory_check_list);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `memory_check_list`
   - `unsigned long *`
-  - Pointer to a list of memory references to check.
+  - Pointer to an array of memory addresses to be monitored.
 :::
-        
 
 ---
 
 **Return Value**
 
-None.
+This function does not return a value.
 
+**Notes**
+
+This function is only available when `CONFIG_TRACK_MEMORY` is defined. It allows tracking specific memory allocations for debugging purposes.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -174,3 +171,4 @@ None.
 ``````
 
 ```````
+

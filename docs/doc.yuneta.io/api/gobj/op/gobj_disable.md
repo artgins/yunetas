@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_disable)=
 # `gobj_disable()`
 <!-- ============================================================== -->
 
-
-Disables a GObj, marking it as inactive. A disabled GObj cannot be started or operate.
-        
+Disables the given [`hgobj`](#hgobj) instance, preventing it from running or playing. If the object has a `mt_disable` method, it is executed; otherwise, [`gobj_stop_tree()`](#gobj_stop_tree) is called.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Disables a GObj, marking it as inactive. A disabled GObj cannot be started or op
 **Prototype**
 
 ```C
-
 int gobj_disable(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be disabled.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to disable.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the object is already disabled or an error occurs.
 
-- `0`: The GObj was successfully disabled.  
-- `-1`: An error occurred during the disable process.
-        
+**Notes**
 
+If the object is already disabled, a warning is logged, and no action is taken.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ int gobj_disable(hgobj gobj);
 ``````
 
 ```````
+

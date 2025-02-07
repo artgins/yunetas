@@ -1,12 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_user_data)=
 # `gobj_write_user_data()`
 <!-- ============================================================== -->
 
-Writes user-defined data to a GObj.
-
+Stores a JSON value in the user data dictionary of the given `hgobj` instance under the specified key.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,40 +20,45 @@ Writes user-defined data to a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_user_data(
-    hgobj       gobj,
-    const char  *name,
-    json_t      *value  // owned
+int gobj_write_user_data(
+    hgobj gobj,
+    const char *name,
+    json_t *value // owned
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose user data is being written.
+  - `hgobj`
+  - The GObj instance where the user data will be stored.
 
-* - `key`
+* - `name`
   - `const char *`
-  - The key identifying the user data field to be written.
+  - The key under which the JSON value will be stored.
 
 * - `value`
-  - `void *`
-  - Pointer to the new value for the specified user data field.
-
+  - `json_t *`
+  - The JSON value to store. The function takes ownership of this value.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The user data was successfully updated.  
-- `-1`: An error occurred (e.g., the key does not exist or the operation is invalid).
+Returns 0 on success, or -1 if an error occurs.
+
+**Notes**
+
+If `name` is empty, the entire user data dictionary is replaced with `value`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -181,3 +183,4 @@ PUBLIC int gobj_write_user_data(
 ``````
 
 ```````
+

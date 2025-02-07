@@ -1,15 +1,9 @@
-
-
 <!-- ============================================================== -->
 (glog_end)=
 # `glog_end()`
 <!-- ============================================================== -->
 
-
-Terminate the global logging system. It frees resources associated with logging.
-Better avoided since memory usage for logging is minimal, and logs are generally 
-kept running for the application lifecycle.
-        
+The `glog_end()` function deinitializes the logging system, freeing allocated resources and unregistering log handlers.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,26 +20,33 @@ kept running for the application lifecycle.
 **Prototype**
 
 ```C
-
 void glog_end(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-No parameters.
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-        
 
+**Notes**
+
+This function should generally not be called, as the logging system consumes minimal memory and should remain available throughout the program's execution.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -170,3 +171,4 @@ This function does not return a value.
 ``````
 
 ```````
+

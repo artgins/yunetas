@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_list_nodes)=
 # `gobj_list_nodes()`
 <!-- ============================================================== -->
 
-
-List all nodes in a specific topic of a treedb.
-        
+Retrieves a list of nodes from a specified topic in the given [`hgobj`](#hgobj). The function allows filtering and additional options to refine the query.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,59 +20,55 @@ List all nodes in a specific topic of a treedb.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_list_nodes(
+json_t *gobj_list_nodes(
     hgobj gobj,
     const char *topic_name,
     json_t *jn_filter,
-    json_t *options,
+    json_t *jn_options,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj responsible for listing the nodes.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance from which to retrieve the nodes.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic to list nodes from.
+  - The name of the topic from which nodes will be listed.
 
 * - `jn_filter`
-  - [`json_t`](json_t)
-  - JSON filter to refine the results (owned).
+  - `json_t *`
+  - A JSON object containing filter criteria to apply to the node list. Owned by the caller.
 
-* - `options`
-  - [`json_t`](json_t)
-  - Additional options for the list operation (owned).
+* - `jn_options`
+  - `json_t *`
+  - A JSON object specifying additional options such as 'include-instances' and fkey/hook options. Owned by the caller.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - The source GObj initiating the request.
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) making the request.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object containing the list of nodes that match the specified criteria. The caller must free the returned JSON object.
 
-Returns a JSON array of nodes matching the specified criteria.  
-If no nodes match, returns an empty JSON array.
-        
+**Notes**
 
+If `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned. If the `mt_list_nodes` method is not defined in the gclass, an error is logged and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -201,3 +193,4 @@ If no nodes match, returns an empty JSON array.
 ``````
 
 ```````
+

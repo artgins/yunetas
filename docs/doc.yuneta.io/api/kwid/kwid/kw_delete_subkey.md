@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_delete_subkey)=
 # `kw_delete_subkey()`
 <!-- ============================================================== -->
 
-
-Delete a subkey from a JSON object at a specified path. Works with [`json_t *`](json_t).
-        
+Deletes a sub-key from a JSON dictionary located at the specified path. If the sub-key does not exist, an error is logged.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,50 @@ Delete a subkey from a JSON object at a specified path. Works with [`json_t *`](
 **Prototype**
 
 ```C
-
-PUBLIC int kw_delete_subkey(
-    json_t      *kw,
-    const char  *path,
-    const char  *key
+int kw_delete_subkey(
+    hgobj    gobj,
+    json_t  *kw,
+    const char *path,
+    const char *key
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - The handler object used for logging errors.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to modify.
+  - `json_t *`
+  - The JSON dictionary from which the sub-key will be deleted.
 
 * - `path`
   - `const char *`
-  - The path to the subkey's parent object.
+  - The path to the dictionary containing the sub-key.
 
 * - `key`
   - `const char *`
-  - The subkey to delete from the parent object.
+  - The sub-key to be deleted.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the sub-key or dictionary is not found.
 
-Returns `0` on success, or a negative value if the subkey does not exist or deletion fails.
-        
+**Notes**
 
+If the dictionary at the specified path does not exist, an error is logged. If the sub-key does not exist, an error is also logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +188,4 @@ Returns `0` on success, or a negative value if the subkey does not exist or dele
 ``````
 
 ```````
+

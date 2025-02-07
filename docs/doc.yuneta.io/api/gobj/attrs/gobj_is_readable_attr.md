@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_is_readable_attr)=
 # `gobj_is_readable_attr()`
 <!-- ============================================================== -->
 
-Checks if a specific attribute in a GObj is readable.
+Checks if a given attribute of a [`hgobj`](#hgobj) is readable, meaning it has the `SDF_RD` flag set.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,36 +20,40 @@ Checks if a specific attribute in a GObj is readable.
 **Prototype**
 
 ```C
-PUBLIC BOOL gobj_is_readable_attr(
-    hgobj       gobj,
-    const char  *name
+BOOL gobj_is_readable_attr(
+    hgobj gobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attribute is being checked.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose attribute is being checked.
 
-* - `attr_name`
+* - `name`
   - `const char *`
   - The name of the attribute to check.
-
 :::
+
+---
 
 **Return Value**
 
-- `TRUE`: The attribute is readable.
-- `FALSE`: The attribute is not readable or does not exist.
+Returns `TRUE` if the attribute is readable (`SDF_RD` flag is set), otherwise returns `FALSE`.
 
+**Notes**
+
+If the attribute does not exist, the function returns `FALSE` and logs an error.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +178,4 @@ PUBLIC BOOL gobj_is_readable_attr(
 ``````
 
 ```````
+

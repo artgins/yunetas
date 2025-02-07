@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (test_json)=
 # `test_json()`
 <!-- ============================================================== -->
 
-
-Test if a JSON object meets specific conditions. Works with [`json_t *`](json_t).
-        
+`test_json()` compares a given JSON object with an expected JSON object and verifies if they match. It also checks for expected and unexpected log messages.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,37 @@ Test if a JSON object meets specific conditions. Works with [`json_t *`](json_t)
 **Prototype**
 
 ```C
-
-PUBLIC int test_json(
-    json_t      *json,
-    int          verbose
+int test_json(
+    json_t *jn_found   // owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `json`
-  - [`json_t *`](json_t)
-  - The JSON object to test.
-
-* - `verbose`
-  - `int`
-  - The verbosity level for the test output.
+* - `jn_found`
+  - `json_t *`
+  - The JSON object to be tested. It is owned and will be decremented after use.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` if the JSON object matches the expected JSON and all expected log messages are consumed. Returns `-1` if there is a mismatch or unexpected log messages are found.
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+If both `jn_found` and the expected JSON are `NULL`, only the log messages are checked.
+Uses [`match_record()`](#match_record) to compare JSON objects.
+Calls [`check_log_result()`](#check_log_result) to validate log messages.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +175,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

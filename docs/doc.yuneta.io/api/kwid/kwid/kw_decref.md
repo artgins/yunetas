@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_decref)=
 # `kw_decref()`
 <!-- ============================================================== -->
 
-
-Decrease the reference count of a JSON object and free it if the count reaches zero with [`json_t *`](json_t).
-        
+`kw_decref()` decrements the reference count of a JSON object and its associated binary fields, freeing memory if necessary.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,38 @@ Decrease the reference count of a JSON object and free it if the count reaches z
 **Prototype**
 
 ```C
-
-PUBLIC void kw_decref(
-    json_t      *kw
+json_t *kw_decref(
+    json_t *kw
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object whose reference count will be decreased.
+  - `json_t *`
+  - The JSON object whose reference count will be decremented.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `NULL` if the operation is successful or if `kw` is already `NULL`. If an error occurs, logs an error message and returns `NULL`.
 
-No return value. This function modifies the reference count of the JSON object and may free it.
-        
+**Notes**
 
+If `kw` is `NULL`, the function returns immediately.
+If the reference count of `kw` is already zero or negative, an error is logged.
+If `kw` contains binary fields, their reference counts are also decremented using the appropriate function.
+Uses [`JSON_DECREF`](#JSON_DECREF) to safely decrement the reference count of `kw`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +176,4 @@ No return value. This function modifies the reference count of the JSON object a
 ``````
 
 ```````
+

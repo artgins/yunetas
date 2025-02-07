@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_walk_gobj_childs)=
 # `gobj_walk_gobj_childs()`
 <!-- ============================================================== -->
 
-
-Traverses the immediate child GObjs of the specified parent GObj and applies a user-provided callback function to each.
-        
+Traverses the direct child objects of the given [`hgobj`](#hgobj) using the specified traversal method and applies a callback function to each child.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,46 +20,55 @@ Traverses the immediate child GObjs of the specified parent GObj and applies a u
 **Prototype**
 
 ```C
-
-int gobj_walk_gobj_childs(hgobj gobj, int (*cb)(hgobj child, void *user_data), void *user_data);
-        
-
+int gobj_walk_gobj_childs(
+    hgobj         gobj,
+    walk_type_t   walk_type,
+    cb_walking_t  cb_walking,
+    void         *user_data,
+    void         *user_data2
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj.
+  - `hgobj`
+  - The parent [`hgobj`](#hgobj) whose direct children will be traversed.
 
-* - `cb`
-  - `int (*cb)(hgobj, void *)`
-  - Callback function to be applied to each child GObj.
+* - `walk_type`
+  - `walk_type_t`
+  - The traversal method, which determines the order in which child objects are visited.
+
+* - `cb_walking`
+  - `cb_walking_t`
+  - A callback function that is applied to each child [`hgobj`](#hgobj).
 
 * - `user_data`
   - `void *`
-  - Pointer to user-defined data passed to the callback function.
+  - User-defined data passed to the callback function.
 
+* - `user_data2`
+  - `void *`
+  - Additional user-defined data passed to the callback function.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or a negative value if an error occurs.
 
-- Returns `0` if the traversal completes successfully.  
-- Returns a negative value if the callback function halts the traversal.
-        
+**Notes**
 
+This function only traverses the direct children of the given [`hgobj`](#hgobj). To traverse the entire hierarchy, use [`gobj_walk_gobj_childs_tree()`](#gobj_walk_gobj_childs_tree).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -188,3 +193,4 @@ int gobj_walk_gobj_childs(hgobj gobj, int (*cb)(hgobj child, void *user_data), v
 ``````
 
 ```````
+

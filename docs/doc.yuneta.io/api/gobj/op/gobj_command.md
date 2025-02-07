@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_command)=
 # `gobj_command()`
 <!-- ============================================================== -->
 
-
-Executes a command on the specified GObj. Commands allow direct interaction with GObjs, enabling specific actions or behaviors.
-        
+Executes a command on the given [`hgobj`](#hgobj) instance, using either the local command parser or the global command parser if available.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,50 +20,50 @@ Executes a command on the specified GObj. Commands allow direct interaction with
 **Prototype**
 
 ```C
-
-json_t *gobj_command(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-        
-
+json_t *gobj_command(
+    hgobj gobj,
+    const char *command,
+    json_t *kw,
+    hgobj src
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj on which the command is executed.
+  - `hgobj`
+  - The target [`hgobj`](#hgobj) instance on which the command is executed.
 
-* - `cmd`
+* - `command`
   - `const char *`
   - The name of the command to execute.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing parameters for the command. Ownership is transferred to the function.
+  - `json_t *`
+  - A JSON object containing the command parameters. Ownership is transferred to the function.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - Handle to the source GObj initiating the command.
-
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) instance that initiated the command.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the command response. The response follows the format `{ "result": int, "comment": string, "schema": json_t *, "data": json_t * }`. The caller is responsible for managing the returned JSON object.
 
-- Returns a JSON object ([`json_t`](json_t)) containing the command's result and data.  
-- Returns `NULL` if the command could not be executed.
-        
+**Notes**
 
+If the target [`hgobj`](#hgobj) has a local command parser (`mt_command_parser`), it is used. Otherwise, the global command parser is invoked if available. If neither is present, an error response is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -192,3 +188,4 @@ json_t *gobj_command(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 ``````
 
 ```````
+

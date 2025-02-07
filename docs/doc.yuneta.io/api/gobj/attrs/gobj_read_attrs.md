@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_read_attrs)=
 # `gobj_read_attrs()`
 <!-- ============================================================== -->
 
-Reads the values of all readable attributes in a GObj.
+Retrieves a JSON object containing attributes of the given [`hgobj`](#hgobj) that match the specified flag criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,33 +20,45 @@ Reads the values of all readable attributes in a GObj.
 **Prototype**
 
 ```C
-PUBLIC json_t *gobj_read_attrs( // Return is yours!
-    hgobj       gobj,
+json_t *gobj_read_attrs(
+    hgobj gobj,
     sdata_flag_t include_flag,
-    hgobj       src
+    hgobj src
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attributes are being read.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose attributes are to be read.
 
+* - `include_flag`
+  - `sdata_flag_t`
+  - A flag specifying which attributes to include in the result.
+
+* - `src`
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) requesting the attributes.
 :::
+
+---
 
 **Return Value**
 
-- Returns a JSON object ([`json_t`](json_t)) containing all readable attributes of the GObj.
-- Returns `NULL` if the GObj is invalid or has no readable attributes.
+A new JSON object containing the selected attributes. The caller is responsible for freeing the returned object.
 
+**Notes**
+
+This function filters attributes based on the provided `include_flag`. If `include_flag` is set to `-1`, all attributes are included.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -173,3 +183,4 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
 ``````
 
 ```````
+

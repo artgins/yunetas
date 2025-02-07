@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_authz)=
 # `gobj_authz()`
 <!-- ============================================================== -->
 
-
-Checks if a specific authorization rule applies to the specified GObj. This function validates whether a certain action is permitted.
-        
+Retrieves the authorization details for a given [`hgobj`](#hgobj). If `authz` is specified, it returns the details of that specific authorization; otherwise, it returns all authorizations available for the object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,50 +20,40 @@ Checks if a specific authorization rule applies to the specified GObj. This func
 **Prototype**
 
 ```C
-
-BOOL gobj_authz(hgobj gobj, const char *authz, json_t *kw, hgobj src);
-        
-
+json_t *gobj_authz(
+    hgobj gobj,
+    const char *authz
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj being checked.
+  - `hgobj`
+  - The object whose authorizations are being queried.
 
 * - `authz`
   - `const char *`
-  - The name of the authorization rule to check.
-
-* - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing additional parameters for the authorization check.
-
-* - `src`
-  - [`hgobj`](hgobj)
-  - Handle to the source GObj requesting the authorization check.
-
+  - The specific authorization to retrieve. If empty, all authorizations are returned.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the authorization details. Returns `NULL` if the object is `NULL` or destroyed.
 
-- Returns `TRUE` if the authorization rule applies to the GObj.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+This function internally calls `authzs_list()` to fetch the authorization details.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -192,3 +178,4 @@ BOOL gobj_authz(hgobj gobj, const char *authz, json_t *kw, hgobj src);
 ``````
 
 ```````
+

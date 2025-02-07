@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_set_rd_offset)=
 # `gbuffer_set_rd_offset()`
 <!-- ============================================================== -->
 
-
-Set the read offset of the gbuffer to a specific position.
-        
+Sets the read offset of the given `gbuffer_t` instance to the specified position, ensuring it does not exceed the allocated data size or the current write position.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Set the read offset of the gbuffer to a specific position.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_set_rd_offset(
-    gbuffer_t   *gbuffer,
-    size_t      offset
+int gbuffer_set_rd_offset(
+    gbuffer_t *gbuf,
+    size_t     position
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose read offset will be set.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose read offset is to be set.
 
-* - `offset`
+* - `position`
   - `size_t`
-  - The new read offset in the gbuffer.
+  - The new read offset position within the buffer.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success. Returns `-1` if the specified position exceeds the allocated data size or the current write position.
 
-Returns `0` on success, or a negative value if the offset is invalid.
-        
+**Notes**
 
+If `position` is greater than the allocated data size or the current write position, an error is logged and `-1` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns `0` on success, or a negative value if the offset is invalid.
 ``````
 
 ```````
+

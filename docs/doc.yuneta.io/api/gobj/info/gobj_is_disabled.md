@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_is_disabled)=
 # `gobj_is_disabled()`
 <!-- ============================================================== -->
 
-
-Checks if the specified GObj is currently disabled.
-        
+Checks if the given [`hgobj`](#hgobj) is disabled. A disabled [`hgobj`](#hgobj) is prevented from starting or playing.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Checks if the specified GObj is currently disabled.
 **Prototype**
 
 ```C
-
 BOOL gobj_is_disabled(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj being checked.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the [`hgobj`](#hgobj) is disabled, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj is disabled.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+A disabled [`hgobj`](#hgobj) cannot be started or played until it is explicitly enabled using [`gobj_enable()`](#gobj_enable).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ BOOL gobj_is_disabled(hgobj gobj);
 ``````
 
 ```````
+

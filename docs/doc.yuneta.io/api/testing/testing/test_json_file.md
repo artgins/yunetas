@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (test_json_file)=
 # `test_json_file()`
 <!-- ============================================================== -->
 
-
-Test if a JSON file meets specific conditions. Works with [`json_t *`](json_t).
-        
+`test_json_file()` compares the JSON content of a file with the expected JSON structure and validates log results.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,37 @@ Test if a JSON file meets specific conditions. Works with [`json_t *`](json_t).
 **Prototype**
 
 ```C
-
-PUBLIC int test_json_file(
-    const char  *path,
-    int          verbose
+int test_json_file(
+    const char *file
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `path`
+* - `file`
   - `const char *`
-  - The path to the JSON file.
-
-* - `verbose`
-  - `int`
-  - The verbosity level for the test output.
+  - Path to the JSON file to be tested.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` if the JSON content matches the expected structure and logs are as expected, otherwise returns `-1`.
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+Uses [`match_record()`](#match_record) to compare the JSON structures.
+Calls [`check_log_result()`](#check_log_result) to validate log messages.
+If `verbose` mode is enabled, additional debug information is printed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +175,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

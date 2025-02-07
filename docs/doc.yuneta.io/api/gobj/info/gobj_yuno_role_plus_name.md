@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_role_plus_name)=
 # `gobj_yuno_role_plus_name()`
 <!-- ============================================================== -->
 
-
-Combines the role and name of the `Yuno` into a single string, providing a more descriptive identifier.
-        
+Returns the concatenated role and name of the Yuno instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Combines the role and name of the `Yuno` into a single string, providing a more 
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_role_plus_name(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A string containing the Yuno's role and name concatenated.
 
-- Returns a string (`const char *`) in the format `"<role>:<name>"`.
-        
+**Notes**
 
+If the Yuno instance is not initialized, an empty string is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_role_plus_name(void);
 ``````
 
 ```````
+

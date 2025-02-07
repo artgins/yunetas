@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_gclass_trace_level)=
 # `gobj_get_gclass_trace_level()`
 <!-- ============================================================== -->
 
-
-Get the value of a specific trace level for a GClass.
-        
+Retrieves the trace levels set for the specified [`hgclass`](#hgclass).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,35 @@ Get the value of a specific trace level for a GClass.
 **Prototype**
 
 ```C
-
-PUBLIC BOOL gobj_get_gclass_trace_level(
-    hgclass     gclass,
-    const char  *level
+json_t *gobj_get_gclass_trace_level(
+    hgclass gclass
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
   - `hgclass`
-  - The handle of the GClass whose trace level is being retrieved.
-
-* - `level`
-  - `const char *`
-  - The name of the trace level to retrieve.
+  - The [`hgclass`](#hgclass) whose trace levels are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the active trace levels for the given [`hgclass`](#hgclass).
 
-Returns `TRUE` if the specified trace level is enabled for the GClass, otherwise returns `FALSE`.
-        
+**Notes**
 
+The returned JSON array must be freed by the caller using `json_decref()`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +173,4 @@ Returns `TRUE` if the specified trace level is enabled for the GClass, otherwise
 ``````
 
 ```````
+

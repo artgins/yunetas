@@ -3,11 +3,7 @@
 # `gobj_shutdown()`
 <!-- ============================================================== -->
 
-Shut down the Yuno by pausing and stopping its default service, its service GObj, and finally, the `__root__` GObj.
-
-```{warning}
-In Yunos, use [`gobj_set_yuno_must_die()`](gobj_set_yuno_must_die()) to terminate the infinite loop instead of directly calling `gobj_shutdown()`.
-```
+`gobj_shutdown()` gracefully shuts down the Yuno framework, ensuring that all services and objects are properly stopped and cleaned up.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,15 +17,36 @@ In Yunos, use [`gobj_set_yuno_must_die()`](gobj_set_yuno_must_die()) to terminat
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC void gobj_shutdown(void);
-````
+```C
+void gobj_shutdown(void);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+
+---
+
+**Return Value**
+
+This function does not return a value.
+
+**Notes**
+
+If the Yuno is already in the process of shutting down, `gobj_shutdown()` will return immediately without performing any additional operations.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -154,3 +171,4 @@ PUBLIC void gobj_shutdown(void);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_start_childs)=
 # `gobj_start_childs()`
 <!-- ============================================================== -->
 
-
-Starts all child GObjs of the specified parent GObj, transitioning them to the "running" state.
-        
+Starts all direct child objects of the given [`hgobj`](#hgobj) instance by invoking [`gobj_start()`](#gobj_start) on each child that is not already running and not disabled.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Starts all child GObjs of the specified parent GObj, transitioning them to the "
 **Prototype**
 
 ```C
-
-int gobj_start_childs(hgobj gobj);
-        
-
+int gobj_start_childs(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj whose child GObjs will be started.
-
+  - `hgobj`
+  - The parent object whose direct child objects will be started.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success.
 
-- `0`: All child GObjs were successfully started.  
-- `-1`: An error occurred during the start process for one or more child GObjs.
-        
+**Notes**
 
+This function only starts the direct children of [`gobj`](#gobj). It does not recursively start the entire tree of child objects. To start all descendants, use [`gobj_start_tree()`](#gobj_start_tree).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ int gobj_start_childs(hgobj gobj);
 ``````
 
 ```````
+

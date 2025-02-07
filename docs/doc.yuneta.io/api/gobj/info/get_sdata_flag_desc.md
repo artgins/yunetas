@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (get_sdata_flag_desc)=
 # `get_sdata_flag_desc()`
 <!-- ============================================================== -->
 
-
-Retrieves the description of a specific data flag.
-        
+Returns a dynamically allocated `gbuffer_t` containing a string representation of the `sdata_flag_t` bitmask.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,33 @@ Retrieves the description of a specific data flag.
 **Prototype**
 
 ```C
-
-const char *get_sdata_flag_desc(int flag);
-        
-
+gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `flag`
-  - `int`
-  - The data flag whose description is being retrieved.
-
+  - `sdata_flag_t`
+  - Bitmask representing the flags of structured data attributes.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to a `gbuffer_t` containing a string representation of the flags. The caller is responsible for freeing the returned buffer.
 
-- Returns a string (`const char *`) containing the description of the specified data flag.
-        
+**Notes**
 
+If no flags are set, the returned buffer will be empty.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +171,4 @@ const char *get_sdata_flag_desc(int flag);
 ``````
 
 ```````
+

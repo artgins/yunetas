@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_reset_wr)=
 # `gbuffer_reset_wr()`
 <!-- ============================================================== -->
 
-
-Reset the write pointer of the gbuffer to the beginning.
-        
+Resets the write pointer of the given `gbuffer_t` instance, effectively clearing its contents.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Reset the write pointer of the gbuffer to the beginning.
 **Prototype**
 
 ```C
-
-PUBLIC void gbuffer_reset_wr(
-    gbuffer_t   *gbuffer
-);
-        
-
+void gbuffer_reset_wr(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose write pointer will be reset.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose write pointer is to be reset.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function modifies the write pointer of the gbuffer.
-        
+**Notes**
 
+This function sets both the write (`tail`) and read (`curp`) pointers to zero, effectively clearing the buffer. A null terminator is placed at the beginning of the buffer to ensure it remains a valid C string.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ No return value. This function modifies the write pointer of the gbuffer.
 ``````
 
 ```````
+

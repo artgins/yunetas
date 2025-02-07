@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_dump_full_gbuf)=
 # `gobj_trace_dump_full_gbuf()`
 <!-- ============================================================== -->
 
-
-Dump the full contents of a gbuffer as trace information, including metadata.
-        
+Logs a full hexdump of the given [`gbuffer_t *`](#gbuffer_t) including all written data.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,50 @@ Dump the full contents of a gbuffer as trace information, including metadata.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_trace_dump_full_gbuf(
-    gbuffer_t   *gbuffer,
-    const char  *format,
+void gobj_trace_dump_full_gbuf(
+    hgobj       gobj,
+    gbuffer_t  *gbuf,
+    const char *fmt,
     ...
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose full contents will be dumped.
+* - `gobj`
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance used for logging.
 
-* - `format`
+* - `gbuf`
+  - `gbuffer_t *`
+  - The [`gbuffer_t *`](#gbuffer_t) to be dumped.
+
+* - `fmt`
   - `const char *`
-  - A printf-style format string for the trace message.
+  - A format string for additional log message details.
 
 * - `...`
-  - `varargs`
+  - `variadic`
   - Additional arguments for the format string.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function logs the full contents of the gbuffer, including metadata, as trace information.
-        
+**Notes**
 
+Unlike [`gobj_trace_dump_gbuf()`](#gobj_trace_dump_gbuf), this function logs the entire buffer, not just a chunk.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +188,4 @@ No return value. This function logs the full contents of the gbuffer, including 
 ``````
 
 ```````
+

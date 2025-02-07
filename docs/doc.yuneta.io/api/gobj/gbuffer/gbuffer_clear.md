@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_clear)=
 # `gbuffer_clear()`
 <!-- ============================================================== -->
 
-
-Clear the contents of the gbuffer and reset its read and write pointers.
-        
+Resets the write and read pointers of the given [`gbuffer_t *`](#gbuffer_t), effectively clearing its contents.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Clear the contents of the gbuffer and reset its read and write pointers.
 **Prototype**
 
 ```C
-
-PUBLIC void gbuffer_clear(
-    gbuffer_t   *gbuffer
+void gbuffer_clear(
+    gbuffer_t *gbuf
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to clear.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the [`gbuffer_t`](#gbuffer_t) structure to be cleared.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function clears the contents of the gbuffer.
-        
+**Notes**
 
+This function does not deallocate memory; it only resets the buffer's state.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ No return value. This function clears the contents of the gbuffer.
 ``````
 
 ```````
+

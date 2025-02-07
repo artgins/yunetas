@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_json)=
 # `gobj_trace_json()`
 <!-- ============================================================== -->
 
-Logs a JSON object with a trace message.
+Logs a JSON object with an associated message for debugging purposes. The function formats the log entry with metadata such as timestamp, gobj attributes, and system memory usage.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,41 +20,40 @@ Logs a JSON object with a trace message.
 **Prototype**
 
 ```C
-
-        PUBLIC void gobj_trace_json(
-            hgobj gobj,
-            json_t *jn,
-            const char *fmt,
-            ...
-        );
-        
-
+void gobj_trace_json(
+    hgobj gobj,
+    json_t *jn,
+    const char *fmt,
+    ...
+);
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-        :::{list-table}
-        :widths: 20 20 60
-        :header-rows: 1
-        * - Key
-          - Type
-          - Description
+* - Key
+  - Type
+  - Description
 
-        * - `gobj`
-          - [`hgobj`](hgobj)
-          - Handle to the GObj instance.
-        * - `jn`
-          - `json_t *`
-          - JSON object to log.
-        * - `fmt`
-          - `const char *`
-          - Format string for the log message.
-        * - `...`
-          - `variadic`
-          - Additional arguments for formatting the message.
-        :::
-        
+* - `gobj`
+  - `hgobj`
+  - The gobj instance associated with the log entry.
+
+* - `jn`
+  - `json_t *`
+  - The JSON object to be logged. This parameter is not owned by the function.
+
+* - `fmt`
+  - `const char *`
+  - A format string for the log message.
+
+* - `...`
+  - `variadic`
+  - Additional arguments for formatting the log message.
+:::
 
 ---
 
@@ -64,6 +61,9 @@ Logs a JSON object with a trace message.
 
 This function does not return a value.
 
+**Notes**
+
+If the gobj has the `TRACE_GBUFFERS` trace level enabled, the function will also log the contents of the associated [`gbuffer_t`](#gbuffer_t).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -188,3 +188,4 @@ This function does not return a value.
 ``````
 
 ```````
+

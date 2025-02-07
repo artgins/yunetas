@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_read_bool_attr)=
 # `gobj_read_bool_attr()`
 <!-- ============================================================== -->
 
-Reads the value of a boolean attribute in a GObj.
+The function `gobj_read_bool_attr()` retrieves the boolean value of a specified attribute from a given [`hgobj`](#hgobj). It traverses the object's hierarchy to find the attribute if it is not directly present in the object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,40 @@ Reads the value of a boolean attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC BOOL gobj_read_bool_attr(
-    hgobj       gobj,
-    const char  *name
+BOOL gobj_read_bool_attr(
+    hgobj gobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attribute is being read.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance from which the attribute is read.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the boolean attribute to read.
-
+  - The name of the attribute to retrieve.
 :::
+
+---
 
 **Return Value**
 
-- Returns the value of the boolean attribute (`TRUE` or `FALSE`).
-- Returns `FALSE` if the attribute does not exist or is unreadable.
+Returns `TRUE` if the attribute is set to a boolean true value, `FALSE` otherwise.
+
+**Notes**
+
+If the attribute is not found, a warning is logged, and `FALSE` is returned. If the object has a `mt_reading` method, it is invoked before returning the attribute value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +178,4 @@ PUBLIC BOOL gobj_read_bool_attr(
 ``````
 
 ```````
+

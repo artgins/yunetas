@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_del_handler)=
 # `gobj_log_del_handler()`
 <!-- ============================================================== -->
 
-
-Delete an existing log handler by its name. If the name is empty, all handlers are deleted.
-        
+Removes a registered log handler by its name. If the handler name is empty, all handlers are removed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,35 @@ Delete an existing log handler by its name. If the name is empty, all handlers a
 **Prototype**
 
 ```C
-
-int gobj_log_del_handler(const char *handler_name);
-        
-
+int gobj_log_del_handler(
+    const char *handler_name
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `handler_name`
   - `const char *`
-  - Name of the handler to be deleted. If empty, all handlers are removed.
+  - The name of the log handler to remove. If empty, all handlers are removed.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 if the handler was successfully removed, or -1 if the handler was not found.
 
-- Returns `0` on success.
-- Returns `-1` on error (e.g., handler not found).
-        
+**Notes**
 
+If a handler is removed, its associated resources are freed, and if it has a close function, it is called.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +173,4 @@ int gobj_log_del_handler(const char *handler_name);
 ``````
 
 ```````
+

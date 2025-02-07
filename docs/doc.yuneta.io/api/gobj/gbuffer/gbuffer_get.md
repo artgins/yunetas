@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_get)=
 # `gbuffer_get()`
 <!-- ============================================================== -->
 
-
-Read a block of data from the gbuffer and advance the read pointer.
-        
+`gbuffer_get()` extracts a specified number of bytes from the given `gbuffer_t` and returns a pointer to the extracted data.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,40 @@ Read a block of data from the gbuffer and advance the read pointer.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_get(
-    gbuffer_t   *gbuffer,
-    void        *data,
-    size_t      size
+void *gbuffer_get(
+    gbuffer_t *gbuf,
+    size_t      len
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer from which data will be read.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance from which data will be extracted.
 
-* - `data`
-  - `void *`
-  - The buffer where the data will be copied.
-
-* - `size`
+* - `len`
   - `size_t`
-  - The number of bytes to read from the gbuffer.
+  - Number of bytes to extract from the buffer.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the extracted data if `len` bytes are available; otherwise, returns `NULL`.
 
-Returns `0` on success, or a negative value if the operation fails (e.g., insufficient data).
-        
+**Notes**
 
+Ensure that `len` does not exceed the available data in [`gbuffer_t`](#gbuffer_t). If `len` is greater than the remaining bytes, the function returns `NULL` without modifying the buffer.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +178,4 @@ Returns `0` on success, or a negative value if the operation fails (e.g., insuff
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (capture_log_write)=
 # `capture_log_write()`
 <!-- ============================================================== -->
 
-
-Write a message to the capture log.
-        
+`capture_log_write()` processes log messages, comparing them against expected log messages and categorizing them as expected or unexpected.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,50 @@ Write a message to the capture log.
 **Prototype**
 
 ```C
-
-PUBLIC int capture_log_write(
-    const char  *message,
-    const char  *log_level
+int capture_log_write(
+    void        *v,
+    int         priority,
+    const char  *bf,
+    size_t      len
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `message`
-  - `const char *`
-  - The message to write to the capture log.
+* - `v`
+  - `void *`
+  - Unused parameter, typically reserved for user-defined data.
 
-* - `log_level`
+* - `priority`
+  - `int`
+  - Log priority level, typically used for filtering log messages.
+
+* - `bf`
   - `const char *`
-  - The log level of the message (e.g., `info`, `error`).
+  - Log message content in JSON format.
+
+* - `len`
+  - `size_t`
+  - Length of the log message.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `-1` to indicate that the log message has been processed internally.
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+If a log message matches an expected message, it is removed from the expected list. Otherwise, it is added to the unexpected log messages list.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +188,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

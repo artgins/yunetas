@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_realloc_func)=
 # `gobj_realloc_func()`
 <!-- ============================================================== -->
 
-Returns the current realloc function.
+Returns the function pointer for memory reallocation used by the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,24 +20,33 @@ Returns the current realloc function.
 **Prototype**
 
 ```C
-
-PUBLIC sys_realloc_fn_t gobj_realloc_func(void);
-        
-
+sys_realloc_fn_t gobj_realloc_func(void);
 ```
 
 **Parameters**
 
-None.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A function pointer of type `sys_realloc_fn_t` that points to the system's memory reallocation function.
 
-- Returns the current realloc function.
-        
+**Notes**
 
+['The returned function pointer can be used to reallocate memory dynamically.', 'By default, it points to the internal `_mem_realloc()` function unless overridden by `gobj_set_allocators()`.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -164,3 +171,4 @@ None.
 ``````
 
 ```````
+

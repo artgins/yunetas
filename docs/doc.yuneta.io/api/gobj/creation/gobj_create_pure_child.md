@@ -3,7 +3,7 @@
 # `gobj_create_pure_child()`
 <!-- ============================================================== -->
 
-The `gobj_create_pure_child` function creates a new pure child GObj. Pure child Gobjs send events directly to their parent without publishing them.
+Creates a new `gobj` as a pure child of the specified parent. A pure child sends events directly to its parent instead of publishing them.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,51 +20,50 @@ The `gobj_create_pure_child` function creates a new pure child GObj. Pure child 
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create_pure_child(
-    const char      *gobj_name,
-    gclass_name_t   gclass_name,
-    json_t          *kw, // owned
-    hgobj           parent
+hgobj gobj_create_pure_child(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw,    // owned
+    hgobj parent
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `name`
+* - `gobj_name`
   - `const char *`
-  - The name of the pure child GObj to be created.
+  - The name of the new `gobj`.
 
-* - `gclass`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass from which the GObj will be instantiated.
+* - `gclass_name`
+  - `gclass_name_t`
+  - The `gclass` type of the new `gobj`.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing attributes to initialize the GObj. This parameter is owned by the function.
+  - `json_t *`
+  - A JSON object containing the configuration attributes for the new `gobj`. This parameter is owned and will be consumed by the function.
 
 * - `parent`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj under which the pure child GObj will be created.
-
+  - `hgobj`
+  - The parent `gobj` to which the new `gobj` will be attached.
 :::
+
+---
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the created pure child GObj.  
-- Returns `NULL` if the creation fails.
+Returns a handle to the newly created `gobj`, or `NULL` if creation fails.
 
 **Notes**
-- **Flags Behavior:**
-  - Automatically sets the `gobj_flag_pure_child` flag.
-- **Lifecycle Management:**
-  - Internally calls `gobj_create2` with the `gobj_flag_pure_child` flag.
+
+A pure child does not publish events but instead sends them directly to its parent. This function internally calls [`gobj_create2()`](#gobj_create2) with the `gobj_flag_pure_child` flag.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -189,3 +188,4 @@ PUBLIC hgobj gobj_create_pure_child(
 ``````
 
 ```````
+

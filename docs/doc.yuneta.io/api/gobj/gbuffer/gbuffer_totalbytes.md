@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_totalbytes)=
 # `gbuffer_totalbytes()`
 <!-- ============================================================== -->
 
-
-Get the total number of bytes in the gbuffer.
-        
+`gbuffer_totalbytes()` returns the total number of bytes written in the given `gbuffer_t` instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the total number of bytes in the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC size_t gbuffer_totalbytes(
-    gbuffer_t   *gbuffer
-);
-        
-
+size_t gbuffer_totalbytes(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to query for the total number of bytes.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose total written bytes are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the total number of bytes written in the `gbuffer_t` instance.
 
-Returns the total number of bytes in the gbuffer.
-        
+**Notes**
 
+This function does not modify the `gbuffer_t` instance; it only retrieves the current write position.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns the total number of bytes in the gbuffer.
 ``````
 
 ```````
+

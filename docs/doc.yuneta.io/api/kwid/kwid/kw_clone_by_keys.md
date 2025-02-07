@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_clone_by_keys)=
 # `kw_clone_by_keys()`
 <!-- ============================================================== -->
 
-
-Create a clone of a JSON object by including only specified keys. Works with [`json_t *`](json_t).
-        
+The function `kw_clone_by_keys()` returns a new JSON object containing only the keys specified in `keys`. The keys can be provided as a string, a list of strings, or a dictionary where the keys are the desired fields. If `keys` is empty, the original JSON object is returned.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,50 @@ Create a clone of a JSON object by including only specified keys. Works with [`j
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_clone_by_keys(
-    json_t      *kw,
-    const char  **keys
+json_t *kw_clone_by_keys(
+    hgobj   gobj,
+    json_t *kw,     // owned
+    json_t *keys,   // owned
+    BOOL    verbose
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - A handle to the GObj (Generic Object) system, used for logging and error handling.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to clone.
+  - `json_t *`
+  - The JSON object to be filtered. This parameter is owned and will be decremented.
 
 * - `keys`
-  - `const char **`
-  - A null-terminated array of keys to include in the clone.
+  - `json_t *`
+  - A JSON object specifying the keys to retain. It can be a string, a list of strings, or a dictionary. This parameter is owned and will be decremented.
+
+* - `verbose`
+  - `BOOL`
+  - If `TRUE`, logs an error when a specified key is not found in `kw`.
 :::
-        
 
 ---
 
 **Return Value**
 
+A new JSON object containing only the specified keys. If `keys` is empty, the original `kw` is returned. The caller owns the returned JSON object.
 
-Returns a new [`json_t *`](json_t) object containing only the specified keys, or `NULL` on failure.
-        
+**Notes**
 
+If `keys` is a dictionary or list, only the keys present in `keys` will be retained in the returned JSON object. If `verbose` is enabled, missing keys will be logged as errors.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +188,4 @@ Returns a new [`json_t *`](json_t) object containing only the specified keys, or
 ``````
 
 ```````
+

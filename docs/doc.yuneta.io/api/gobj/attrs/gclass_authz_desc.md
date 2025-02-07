@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gclass_authz_desc)=
 # `gclass_authz_desc()`
 <!-- ============================================================== -->
 
-Retrieves the authorization description table for a GClass.
+Retrieves the authorization descriptor table for a given `gclass`. The descriptor table defines the access control list (ACL) for the `gclass`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,31 +20,35 @@ Retrieves the authorization description table for a GClass.
 **Prototype**
 
 ```C
-PUBLIC const sdata_desc_t *gclass_authz_desc(
-    hgclass     gclass
+const sdata_desc_t *gclass_authz_desc(
+    hgclass gclass
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass whose authorization descriptions are being retrieved.
-
+  - `hgclass`
+  - The `gclass` whose authorization descriptor table is to be retrieved.
 :::
+
+---
 
 **Return Value**
 
-- Returns a pointer to the authorization description table ([`sdata_desc_t`](sdata_desc_t)).
-- Returns `NULL` if no authorization table is defined or the GClass is invalid.
+A pointer to the `sdata_desc_t` structure representing the authorization descriptor table of the `gclass`. Returns `NULL` if the `gclass` is invalid.
 
+**Notes**
+
+This function is useful for inspecting the access control definitions of a `gclass`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -171,3 +173,4 @@ PUBLIC const sdata_desc_t *gclass_authz_desc(
 ``````
 
 ```````
+

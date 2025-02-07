@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_attr_desc)=
 # `gobj_attr_desc()`
 <!-- ============================================================== -->
 
-Retrieves the description of attributes for a specific GObj instance.
+Retrieves the attribute description of a given gobj. If the attribute name is NULL, it returns the full attribute table of the gobj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,32 +20,45 @@ Retrieves the description of attributes for a specific GObj instance.
 **Prototype**
 
 ```C
-PUBLIC const sdata_desc_t *gobj_attr_desc(
-    hgobj       gobj,
-    const char  *attr,
-    BOOL        verbose
+const sdata_desc_t *gobj_attr_desc(
+    hgobj gobj, 
+    const char *attr, 
+    BOOL verbose
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attributes' description is being retrieved.
+  - `hgobj`
+  - The gobj whose attribute description is to be retrieved.
 
+* - `attr`
+  - `const char *`
+  - The name of the attribute. If NULL, the function returns the full attribute table.
+
+* - `verbose`
+  - `BOOL`
+  - If TRUE, logs an error message when the attribute is not found.
 :::
+
+---
 
 **Return Value**
 
-- Returns a pointer to the attribute description table ([`sdata_desc_t`](sdata_desc_t)).
-- Returns `NULL` if no attributes are defined or the GObj is invalid.
+A pointer to the attribute description (`sdata_desc_t *`). Returns NULL if the attribute is not found.
+
+**Notes**
+
+If `verbose` is set to TRUE and the attribute is not found, an error message is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -172,3 +183,4 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(
 ``````
 
 ```````
+

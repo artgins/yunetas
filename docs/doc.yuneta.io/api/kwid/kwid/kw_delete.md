@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_delete)=
 # `kw_delete()`
 <!-- ============================================================== -->
 
-
-Delete a key from a JSON object. Works with [`json_t *`](json_t).
-        
+The function `kw_delete()` removes a value from a JSON dictionary based on a specified path.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Delete a key from a JSON object. Works with [`json_t *`](json_t).
 **Prototype**
 
 ```C
-
-PUBLIC int kw_delete(
-    json_t      *kw,
-    const char  *key
+int kw_delete(
+    hgobj    gobj,
+    json_t  *kw,
+    const char *path
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to modify.
+* - `gobj`
+  - `hgobj`
+  - A handle to the gobj (generic object) that may be used for logging or context.
 
-* - `key`
+* - `kw`
+  - `json_t *`
+  - A JSON dictionary from which the value will be deleted.
+
+* - `path`
   - `const char *`
-  - The key to delete from the JSON object.
+  - The path to the value that should be removed from the dictionary.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the specified path does not exist.
 
-Returns `0` on success, or a negative value if the key does not exist or deletion fails.
-        
+**Notes**
 
+If the path does not exist, an error is logged, and the function returns -1. The function does not support deleting values from JSON arrays.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns `0` on success, or a negative value if the key does not exist or deletio
 ``````
 
 ```````
+

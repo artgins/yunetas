@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_string_to_base64)=
 # `gbuffer_string_to_base64()`
 <!-- ============================================================== -->
 
-
-Convert a string into a gbuffer containing its Base64 representation.
-        
+`gbuffer_string_to_base64()` encodes a given string into a Base64-encoded `gbuffer_t` object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Convert a string into a gbuffer containing its Base64 representation.
 **Prototype**
 
 ```C
-
-PUBLIC gbuffer_t *gbuffer_string_to_base64(
-    const char  *string
+gbuffer_t *gbuffer_string_to_base64(
+    const char *src,
+    size_t      len
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `string`
+* - `src`
   - `const char *`
-  - The null-terminated string to encode into Base64.
+  - Pointer to the input string to be encoded.
+
+* - `len`
+  - `size_t`
+  - Length of the input string.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a newly allocated `gbuffer_t *` containing the Base64-encoded representation of the input string. Returns `NULL` on failure.
 
-Returns a [`gbuffer_t *`](gbuffer_t) containing the Base64-encoded string, or `NULL` on failure.
-        
+**Notes**
 
+The returned `gbuffer_t *` must be freed using [`gbuffer_decref()`](#gbuffer_decref).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a [`gbuffer_t *`](gbuffer_t) containing the Base64-encoded string, or `N
 ``````
 
 ```````
+

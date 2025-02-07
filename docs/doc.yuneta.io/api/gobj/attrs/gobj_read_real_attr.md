@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_read_real_attr)=
 # `gobj_read_real_attr()`
 <!-- ============================================================== -->
 
-Reads the value of a real (floating-point) attribute in a GObj.
+Retrieves the value of a real (floating-point) attribute from the given [`hgobj`](#hgobj). The function searches for the attribute in the object's hierarchy, including inherited attributes from bottom objects.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,40 @@ Reads the value of a real (floating-point) attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC double gobj_read_real_attr(
-    hgobj       gobj,
-    const char  *name
+double gobj_read_real_attr(
+    hgobj gobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose real (floating-point) attribute is being read.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance from which the attribute value is retrieved.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the real attribute to read.
-
+  - The name of the attribute to retrieve.
 :::
+
+---
 
 **Return Value**
 
-- Returns the value of the real attribute as a `double`.
-- Returns `0.0` if the attribute does not exist or is unreadable.
+Returns the floating-point value of the specified attribute. If the attribute is not found, logs a warning and returns 0.
+
+**Notes**
+
+If the attribute is found and the [`hgobj`](#hgobj) has a `mt_reading` method, that method is called before returning the value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +178,4 @@ PUBLIC double gobj_read_real_attr(
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_treedbs)=
 # `gobj_treedbs()`
 <!-- ============================================================== -->
 
-
-Return a list of treedb names available in the specified GObj.
-        
+Retrieves a list of TreeDB names available in the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,49 +20,45 @@ Return a list of treedb names available in the specified GObj.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_treedbs(
+json_t *gobj_treedbs(
     hgobj gobj,
     json_t *kw,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj to query for treedb names.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance from which to retrieve the TreeDB names.
 
 * - `kw`
-  - [`json_t`](json_t)
-  - Optional input parameters in JSON format (owned).
+  - `json_t *`
+  - A JSON object containing additional options for filtering the TreeDB list. Owned by the function.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - The source GObj making the request.
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) requesting the TreeDB list.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the names of available TreeDBs. Returns `NULL` if an error occurs.
 
-Returns a JSON list of treedb names available in the specified GObj.  
-If `gobj` is null or destroyed, returns `NULL`.
-        
+**Notes**
 
+If the `gobj` does not implement `mt_treedbs`, an error is logged and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -191,3 +183,4 @@ If `gobj` is null or destroyed, returns `NULL`.
 ``````
 
 ```````
+

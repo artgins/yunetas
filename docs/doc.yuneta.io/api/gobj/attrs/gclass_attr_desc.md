@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gclass_attr_desc)=
 # `gclass_attr_desc()`
 <!-- ============================================================== -->
 
-Retrieves the description of attributes defined in a GClass.
+Retrieves the attribute description of a given `gclass`. If `attr` is NULL, it returns the full attribute table.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,34 +20,45 @@ Retrieves the description of attributes defined in a GClass.
 **Prototype**
 
 ```C
-PUBLIC const sdata_desc_t *gclass_attr_desc(
-    hgclass     gclass,
-    const char  *attr,
-    BOOL        verbose
+const sdata_desc_t *gclass_attr_desc(
+    hgclass gclass, 
+    const char *attr, 
+    BOOL verbose
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass whose attributes' description is being retrieved.
+  - `hgclass`
+  - The `gclass` whose attribute description is to be retrieved.
 
+* - `attr`
+  - `const char *`
+  - The name of the attribute to retrieve. If NULL, returns the full attribute table.
+
+* - `verbose`
+  - `BOOL`
+  - If TRUE, logs an error message when the attribute is not found.
 :::
+
+---
 
 **Return Value**
 
-- Returns a pointer to the attribute description table ([`sdata_desc_t`](sdata_desc_t)).
-- Returns `NULL` if no attributes are defined or the GClass is invalid.
+A pointer to the `sdata_desc_t` structure describing the attribute, or NULL if the attribute is not found.
 
+**Notes**
 
+If `verbose` is set to TRUE and the attribute is not found, an error message is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -174,3 +183,4 @@ PUBLIC const sdata_desc_t *gclass_attr_desc(
 ``````
 
 ```````
+

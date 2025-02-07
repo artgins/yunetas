@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_topic_desc)=
 # `gobj_topic_desc()`
 <!-- ============================================================== -->
 
-
-Get the description of a specific topic in a treedb.
-        
+Retrieves the description of a topic in the given [`hgobj`](#hgobj). The function returns a JSON object containing metadata about the specified topic.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,44 +20,40 @@ Get the description of a specific topic in a treedb.
 **Prototype**
 
 ```C
-
 PUBLIC json_t *gobj_topic_desc(
     hgobj gobj,
     const char *topic_name
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj from which to query the topic description.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance representing the object that manages the topic.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic.
+  - The name of the topic whose description is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object containing the topic description. If the [`hgobj`](#hgobj) is NULL or destroyed, or if the function is not implemented, it returns NULL.
 
-Returns a JSON object containing the description of the topic.  
-If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
-        
+**Notes**
 
+This function checks if the [`hgobj`](#hgobj) is valid before proceeding. If the method `mt_topic_desc` is not defined in the [`hgobj`](#hgobj)'s gclass, an error is logged and NULL is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -186,3 +178,4 @@ If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
 ``````
 
 ```````
+

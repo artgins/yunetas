@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_add)=
 # `dl_add()`
 <!-- ============================================================== -->
 
-
-Add a node to the end of the doubly-linked list.
-        
+Adds an item to the end of a doubly linked list `dl`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,37 @@ Add a node to the end of the doubly-linked list.
 **Prototype**
 
 ```C
-
-PUBLIC void dl_add(
-    dl_list_t   *list,
-    dl_node_t   *new_node
-);
-        
-
+int dl_add(dl_list_t *dl, void *item);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list`
-  - [`dl_list_t *`](dl_list_t)
-  - The doubly-linked list to modify.
+* - `dl`
+  - `dl_list_t *`
+  - Pointer to the doubly linked list where the item will be added.
 
-* - `new_node`
-  - [`dl_node_t *`](dl_node_t)
-  - The new node to add to the list.
+* - `item`
+  - `void *`
+  - Pointer to the item to be added to the list.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the item already has links.
 
-No return value. This function modifies the doubly-linked list.
-        
+**Notes**
 
+The function checks if the item already has links before adding it to the list.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +175,4 @@ No return value. This function modifies the doubly-linked list.
 ``````
 
 ```````
+

@@ -1,12 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_publish_event)=
 # `gobj_publish_event()`
 <!-- ============================================================== -->
 
-
-Publishes an event from a GObj to all its subscribers. This is the primary mechanism for broadcasting events to multiple GObjs.
+The `gobj_publish_event` function publishes an event from a given publisher to all its subscribers, applying optional filters and transformations before dispatching the event.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,45 +20,49 @@ Publishes an event from a GObj to all its subscribers. This is the primary mecha
 **Prototype**
 
 ```C
-
-int gobj_publish_event(hgobj gobj, gobj_event_t event, json_t *kw);
-
+int gobj_publish_event(
+    hgobj        publisher,
+    gobj_event_t event,
+    json_t       *kw  // this kw extends kw_request.
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj publishing the event.
+* - `publisher`
+  - `hgobj`
+  - The gobj (generic object) that is publishing the event.
 
 * - `event`
-  - [`gobj_event_t`](gobj_event_t)
-  - The event to publish.
+  - `gobj_event_t`
+  - The event to be published.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing data associated with the event. Ownership is transferred to the function.
-
+  - `json_t *`
+  - A JSON object containing additional data for the event. This object is extended with the subscription's global parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the sum of the return values from [`gobj_send_event()`](#gobj_send_event) calls to all subscribers. A return value of -1 indicates that an event was owned and should not be further published.
 
-- `0`: The event was successfully published to all subscribers.  
-- `-1`: An error occurred while publishing the event.
-        
+**Notes**
 
+If the publisher has a `mt_publish_event` method, it is called first. If it returns <= 0, the function returns immediately.
+Each subscriber's `mt_publication_pre_filter` method is called before dispatching the event, allowing for filtering or modification of the event data.
+If a subscriber has a `mt_publication_filter` method, it is used to determine whether the event should be sent to that subscriber.
+Local and global keyword modifications are applied before sending the event.
+If the event is a system event, it is only sent to subscribers that support system events.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -186,3 +187,4 @@ int gobj_publish_event(hgobj gobj, gobj_event_t event, json_t *kw);
 ``````
 
 ```````
+

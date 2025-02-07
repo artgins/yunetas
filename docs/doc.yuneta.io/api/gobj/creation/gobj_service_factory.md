@@ -3,7 +3,7 @@
 # `gobj_service_factory()`
 <!-- ============================================================== -->
 
-Creates a service GObj using the specified configuration. This is typically used in the entry point to initialize and run services.
+Creates a service gobj using [`gobj_create_tree0()`](#gobj_create_tree0) and registers it as a service.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,35 +20,40 @@ Creates a service GObj using the specified configuration. This is typically used
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_service_factory(
-    const char  *name,
-    json_t      *jn_service_config // owned
+hgobj gobj_service_factory(
+    const char *name,
+    json_t *jn_service_config // owned
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `name`
   - `const char *`
-  - The name of the service GObj to be created.
+  - The name of the service to be created.
 
 * - `jn_service_config`
-  - [`json_t *`](json_t)
-  - JSON configuration for the service, specifying attributes and initialization parameters. This parameter is owned by the function.
-
+  - `json_t *`
+  - A JSON object containing the service configuration. This parameter is owned and will be consumed by the function.
 :::
+
+---
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the created service GObj.  
-- Returns `NULL` if the creation fails.
+Returns a handle to the created service gobj, or `NULL` if the creation fails.
+
+**Notes**
+
+The function extracts global settings, applies configuration variables, and invokes [`gobj_create_tree0()`](#gobj_create_tree0) to instantiate the service.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -173,3 +178,4 @@ PUBLIC hgobj gobj_service_factory(
 ``````
 
 ```````
+

@@ -3,8 +3,7 @@
 # `gobj_create_volatil()`
 <!-- ============================================================== -->
 
-Creates a new GObj instance configured as volatile.  
-Volatile Gobjs are short-lived objects that are destroyed after completing their purpose.
+Creates a new volatile `gobj` instance of the specified `gclass_name` with the given attributes and parent. A volatile `gobj` is automatically destroyed when its parent is destroyed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,52 +20,50 @@ Volatile Gobjs are short-lived objects that are destroyed after completing their
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create_volatil(
-    const char      *gobj_name,
-    gclass_name_t   gclass_name,
-    json_t          *kw, // owned
-    hgobj           parent
+hgobj gobj_create_volatil(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `name`
+* - `gobj_name`
   - `const char *`
-  - The name of the volatile GObj to be created.
+  - The name of the `gobj` instance.
 
-* - `gclass`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass from which the GObj will be instantiated.
+* - `gclass_name`
+  - `gclass_name_t`
+  - The name of the `gclass` to instantiate.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing attributes to initialize the GObj. This parameter is owned by the function.
+  - `json_t *`
+  - A JSON object containing the attributes for the `gobj`. The ownership of this object is transferred to the function.
 
 * - `parent`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj under which the volatile GObj will be created. If `NULL`, the GObj is created without a parent.
-
+  - `hgobj`
+  - The parent `gobj` to which the new `gobj` will be attached.
 :::
+
+---
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the created volatile GObj.  
-- Returns `NULL` if the creation fails.
+Returns a handle to the newly created volatile `gobj`, or `NULL` if creation fails.
 
 **Notes**
-- **Flags Behavior:**
-  - Automatically sets the `gobj_flag_volatil` flag.
-- **Lifecycle Management:**
-  - Internally calls `gobj_create2` with the `gobj_flag_volatil` flag.
 
+A volatile `gobj` is automatically destroyed when its parent is destroyed. Use [`gobj_create2()`](#gobj_create2) for more control over `gobj` creation.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -191,3 +188,4 @@ PUBLIC hgobj gobj_create_volatil(
 ``````
 
 ```````
+

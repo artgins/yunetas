@@ -1,15 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_match_childs)=
 # `gobj_match_childs()`
 <!-- ============================================================== -->
 
-
-The `gobj_match_childs` function retrieves a JSON list (iterator) of all child Gobjs that match the given filter. It only checks the first level of child Gobjs.
-
-The returned JSON list must be freed using the [`gobj_free_iter()`](gobj_free_iter()) function.
-        
+Returns a list of child objects that match the specified filter criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,56 +20,40 @@ The returned JSON list must be freed using the [`gobj_free_iter()`](gobj_free_it
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_match_childs(
-    hgobj       gobj,
-    json_t      *jn_filter   // owned
+json_t *gobj_match_childs(
+    hgobj gobj,
+    json_t *jn_filter   // owned
 );
-        
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `gobj`
   - `hgobj`
-  - The parent GObj whose children are being checked.
+  - The parent object whose children will be searched.
 
 * - `jn_filter`
   - `json_t *`
-  - JSON object defining the criteria for filtering child Gobjs (owned).
+  - A JSON object containing filter criteria. The function takes ownership of this parameter.
 :::
-        
 
 ---
 
 **Return Value**
 
-
-- Returns a JSON array containing handles (`hgobj`) of the matched child Gobjs.
-- Returns `NULL` if an error occurs (e.g., `gobj` is `NULL`).
-        
-
----
+A JSON array containing matching child objects. The caller is responsible for freeing the returned JSON object.
 
 **Notes**
 
-
-- **Ownership:**
-  - The `jn_filter` parameter is owned by the function and will be decremented internally.
-  - The returned JSON array must be freed using [`gobj_free_iter()`](gobj_free_iter()).
-- **Error Handling:**
-  - If the `gobj` is `NULL`, the function logs an error and returns `NULL`.
-        
+Use [`gobj_free_iter()`](#gobj_free_iter) to free the returned JSON array when it is no longer needed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -200,3 +178,4 @@ PUBLIC json_t *gobj_match_childs(
 ``````
 
 ```````
+

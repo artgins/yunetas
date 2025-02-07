@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_stop_childs)=
 # `gobj_stop_childs()`
 <!-- ============================================================== -->
 
-
-Stops all child GObjs of the specified parent GObj, transitioning them to the "stopped" state.
-        
+Stops all direct child objects of the given [`hgobj`](#hgobj) instance by invoking [`gobj_stop()`](#gobj_stop) on each child.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Stops all child GObjs of the specified parent GObj, transitioning them to the "s
 **Prototype**
 
 ```C
-
-int gobj_stop_childs(hgobj gobj);
-        
-
+int gobj_stop_childs(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj whose child GObjs will be stopped.
-
+  - `hgobj`
+  - The parent [`hgobj`](#hgobj) whose direct child objects will be stopped.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if an error occurs (e.g., if `gobj` is `NULL` or being destroyed).
 
-- `0`: All child GObjs were successfully stopped.  
-- `-1`: An error occurred during the stop process for one or more child GObjs.
-        
+**Notes**
 
+This function only stops the direct children of `gobj`, not the entire hierarchy. To stop all descendants, use [`gobj_stop_tree()`](#gobj_stop_tree).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ int gobj_stop_childs(hgobj gobj);
 ``````
 
 ```````
+

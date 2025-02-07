@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_autoplay_services)=
 # `gobj_autoplay_services()`
 <!-- ============================================================== -->
 
-
-Automatically plays all services marked for autoplay within a Yuno. This ensures that the required services transition into an operational state.
-        
+Starts all services marked with `gobj_flag_autoplay` by calling [`gobj_play()`](#gobj_play) on them.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Automatically plays all services marked for autoplay within a Yuno. This ensures
 **Prototype**
 
 ```C
-
 int gobj_autoplay_services(void);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - None
-  - -
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 after attempting to start all autoplay services.
 
-- `0`: All autoplay services were successfully played.  
-- `-1`: An error occurred while playing one or more services.
-        
+**Notes**
 
+This function iterates over all registered services and plays those that have the `gobj_flag_autoplay` flag set.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ int gobj_autoplay_services(void);
 ``````
 
 ```````
+

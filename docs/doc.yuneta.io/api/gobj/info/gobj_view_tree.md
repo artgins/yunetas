@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_view_tree)=
 # `gobj_view_tree()`
 <!-- ============================================================== -->
 
-
-Generates a JSON representation of the GObj tree, including attributes, states, and runtime details such as whether each GObj is running or playing.
-        
+Generates a hierarchical JSON representation of the given [`hgobj`](#hgobj) and its child objects, including selected attributes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,44 +20,40 @@ Generates a JSON representation of the GObj tree, including attributes, states, 
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_view_tree(
-    hgobj gobj,      // The root GObj to start from.
-    json_t *jn_filter // Optional filter to refine the view.
+json_t *gobj_view_tree(
+    hgobj gobj,
+    json_t *jn_filter // owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj tree root from where the view should begin.
+  - `hgobj`
+  - The root [`hgobj`](#hgobj) whose tree structure will be represented.
 
 * - `jn_filter`
-  - [`json_t`](json_t)
-  - A JSON filter to customize the output. This can include attributes like `__state__` or `__gclass_name__`.
+  - `json_t *`
+  - A JSON object specifying which attributes to include in the output. Owned by the function.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object representing the hierarchical structure of [`gobj`](#hgobj) and its children, including the requested attributes.
 
-- Returns a JSON object ([`json_t`](json_t)) representing the GObj hierarchy. The returned JSON contains details of attributes, runtime states, and child objects.
-- If an error occurs, the function returns `NULL`.
-        
+**Notes**
 
+The returned JSON object must be freed by the caller. The `jn_filter` parameter allows selective inclusion of attributes such as `fullname`, `state`, `attrs`, etc.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -186,3 +178,4 @@ PUBLIC json_t *gobj_view_tree(
 ``````
 
 ```````
+

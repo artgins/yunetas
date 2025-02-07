@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_find_gobj)=
 # `gobj_find_gobj()`
 <!-- ============================================================== -->
 
-
-Finds a GObj by its name within the hierarchy. This is useful for locating specific GObjs for interaction or management.
-        
+Finds a `gobj` by its path within the hierarchical structure of `gobj` instances.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Finds a GObj by its name within the hierarchy. This is useful for locating speci
 **Prototype**
 
 ```C
-
-hgobj gobj_find_gobj(const char *gobj_name);
-        
-
+PUBLIC hgobj gobj_find_gobj(
+    const char *path
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj_name`
+* - `path`
   - `const char *`
-  - The name of the GObj to find.
-
+  - The hierarchical path of the `gobj` to find, using '`' as a separator.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a handle to the `gobj` if found, otherwise returns `NULL`.
 
-- Returns the handle ([`hgobj`](hgobj)) of the GObj with the specified name.  
-- Returns `NULL` if no matching GObj is found.
-        
+**Notes**
 
+If `path` is `__default_service__`, it returns the default service `gobj`. If `path` is `__yuno__` or `__root__`, it returns the root `gobj`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ hgobj gobj_find_gobj(const char *gobj_name);
 ``````
 
 ```````
+

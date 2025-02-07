@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gclass_has_attr)=
 # `gclass_has_attr()`
 <!-- ============================================================== -->
 
-Checks if a specific attribute exists in a GClass.
+Checks if the given `gclass` contains an attribute with the specified `name`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,36 +20,40 @@ Checks if a specific attribute exists in a GClass.
 **Prototype**
 
 ```C
-PUBLIC BOOL gclass_has_attr(
-    hgclass     gclass,
-    const char  *name
+BOOL gclass_has_attr(
+    hgclass gclass,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass to be checked.
+  - `hgclass`
+  - The gclass to check for the attribute.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the attribute to check.
-
+  - The name of the attribute to search for.
 :::
+
+---
 
 **Return Value**
 
-- `TRUE`: The attribute exists in the GClass.
-- `FALSE`: The attribute does not exist or the GClass is invalid.
+Returns `TRUE` if the attribute exists in the `gclass`, otherwise returns `FALSE`.
 
+**Notes**
+
+This function performs a case-sensitive search for the attribute name.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +178,4 @@ PUBLIC BOOL gclass_has_attr(
 ``````
 
 ```````
+

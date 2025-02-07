@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kwid_match_id)=
 # `kwid_match_id()`
 <!-- ============================================================== -->
 
-
-Check if a JSON object matches a specific `kwid`. Works with [`json_t *`](json_t).
-        
+Checks if the given `id` exists within the JSON structure `ids`, which can be a string, list, or dictionary. The function returns `TRUE` if the `id` is found, otherwise `FALSE`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,48 @@ Check if a JSON object matches a specific `kwid`. Works with [`json_t *`](json_t
 **Prototype**
 
 ```C
-
-PUBLIC BOOL kwid_match_id(
-    json_t      *record,
-    const char  *kwid
+BOOL kwid_match_id(
+    hgobj   gobj,
+    json_t *ids,
+    const char *id
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `record`
-  - [`json_t *`](json_t)
-  - The JSON object to check.
+* - `gobj`
+  - `hgobj`
+  - A handle to the GObj instance, used for logging errors.
 
-* - `kwid`
+* - `ids`
+  - `json_t *`
+  - A JSON object, array, or string containing the possible matches for `id`.
+
+* - `id`
   - `const char *`
-  - The `kwid` to match against the record.
+  - The identifier to search for within `ids`.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if `id` is found in `ids`, otherwise returns `FALSE`.
 
-Returns `TRUE` if the `kwid` matches the `kwid` in the JSON object, otherwise returns `FALSE`.
-        
+**Notes**
 
+The function supports different JSON structures:
+- If `ids` is a string, it is directly compared to `id`.
+- If `ids` is an array, it checks for `id` in string elements or in objects with an `id` field.
+- If `ids` is a dictionary, it checks if `id` exists as a key.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +186,4 @@ Returns `TRUE` if the `kwid` matches the `kwid` in the JSON object, otherwise re
 ``````
 
 ```````
+

@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_maximum_block)=
 # `gobj_get_maximum_block()`
 <!-- ============================================================== -->
 
-Returns the maximum block size for memory allocation.
+Returns the maximum memory block size that can be allocated by the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,24 +20,33 @@ Returns the maximum block size for memory allocation.
 **Prototype**
 
 ```C
-
-PUBLIC size_t gobj_get_maximum_block(void);
-        
-
+size_t gobj_get_maximum_block(void);
 ```
 
 **Parameters**
 
-None.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+The maximum allocatable memory block size in bytes.
 
-- Returns the maximum memory block size in bytes.
-        
+**Notes**
 
+This function provides the upper limit for memory allocation requests.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -164,3 +171,4 @@ None.
 ``````
 
 ```````
+

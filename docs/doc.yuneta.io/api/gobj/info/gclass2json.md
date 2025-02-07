@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gclass2json)=
 # `gclass2json()`
 <!-- ============================================================== -->
 
-
-Converts a GClass to its JSON representation. This representation includes metadata, such as methods, attributes, and trace levels.
-        
+The `gclass2json` function returns a JSON object containing a structured description of a given `gclass`, including its attributes, commands, methods, and trace levels.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,35 @@ Converts a GClass to its JSON representation. This representation includes metad
 **Prototype**
 
 ```C
-
-json_t *gclass2json(hgclass gclass, int verbose);
-        
-
+json_t *gclass2json(
+    hgclass gclass
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass to be converted to JSON.
-
-* - `verbose`
-  - `int`
-  - Verbosity level for the JSON output:
-    - **`0`**: Basic metadata.
-    - **`1`**: Includes additional details.
-
+  - `hgclass`
+  - A handle to the `gclass` whose details are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the structured description of the `gclass`. If `gclass` is NULL, an empty JSON object is returned.
 
-- Returns a JSON object ([`json_t`](json_t)) representing the specified GClass.
-        
+**Notes**
 
+['The returned JSON object includes fields such as `id`, `gcflag`, `priv_size`, `attrs`, `commands`, `gclass_methods`, `internal_methods`, `FSM`, `Authzs global`, `Authzs gclass`, `info_gclass_trace`, `gclass_trace_level`, `gclass_trace_no_level`, and `instances`.', 'The caller is responsible for managing the memory of the returned JSON object.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +173,4 @@ json_t *gclass2json(hgclass gclass, int verbose);
 ``````
 
 ```````
+

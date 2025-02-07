@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (stdout_write)=
 # `stdout_write()`
 <!-- ============================================================== -->
 
-
-Write a log message directly to the stdout handler.
-        
+`stdout_write()` writes a log message to the standard output with a priority label.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,49 +20,50 @@ Write a log message directly to the stdout handler.
 **Prototype**
 
 ```C
-
-int stdout_write(void *v, int priority, const char *bf, size_t len);
-        
-
+int stdout_write(
+    void   *v,
+    int     priority,
+    const char *bf,
+    size_t  len
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `v`
   - `void *`
-  - Context or additional data (typically unused).
+  - Unused parameter, included for compatibility with log handler function signatures.
 
 * - `priority`
   - `int`
-  - Log priority level.
+  - Log priority level, determining the severity of the message.
 
 * - `bf`
   - `const char *`
-  - Log message buffer.
+  - Pointer to the log message string.
 
 * - `len`
   - `size_t`
-  - Length of the log message.
+  - Length of the log message string.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the input parameters are invalid.
 
-- Returns `0` on success.
-- Returns `-1` on failure.
-        
+**Notes**
 
+The function applies ANSI color codes to differentiate log levels visually.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -191,3 +188,4 @@ int stdout_write(void *v, int priority, const char *bf, size_t len);
 ``````
 
 ```````
+

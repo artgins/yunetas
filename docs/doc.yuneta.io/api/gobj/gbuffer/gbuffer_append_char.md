@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_append_char)=
 # `gbuffer_append_char()`
 <!-- ============================================================== -->
 
-
-Append a single character to the gbuffer.
-        
+Appends a single character to the [`gbuffer_t`](#gbuffer_t) buffer, expanding it if necessary.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Append a single character to the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_append_char(
-    gbuffer_t   *gbuffer,
-    char        c
+size_t gbuffer_append_char(
+    gbuffer_t *gbuf,
+    char       c
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to which the character will be appended.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the [`gbuffer_t`](#gbuffer_t) buffer where the character will be appended.
 
 * - `c`
   - `char`
-  - The character to append to the gbuffer.
+  - The character to append to the buffer.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of bytes written, which is always 1 unless an error occurs.
 
-Returns `0` on success, or a negative value if the operation fails.
-        
+**Notes**
 
+If the buffer does not have enough space, it will attempt to expand before appending the character.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns `0` on success, or a negative value if the operation fails.
 ``````
 
 ```````
+

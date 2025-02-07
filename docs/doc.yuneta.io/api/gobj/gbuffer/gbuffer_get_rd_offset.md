@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_get_rd_offset)=
 # `gbuffer_get_rd_offset()`
 <!-- ============================================================== -->
 
-
-Get the current read offset of the gbuffer.
-        
+Returns the current read offset of the given `gbuffer_t` instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the current read offset of the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC size_t gbuffer_get_rd_offset(
-    gbuffer_t   *gbuffer
-);
-        
-
+size_t gbuffer_get_rd_offset(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose current read offset will be retrieved.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose read offset is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+The current read offset as a `size_t` value.
 
-Returns the current read offset of the gbuffer.
-        
+**Notes**
 
+The function does not perform any validation on the `gbuf` pointer before accessing its read offset.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns the current read offset of the gbuffer.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_change_parent)=
 # `gobj_change_parent()`
 <!-- ============================================================== -->
 
-
-Changes the parent of a GObj, reassigning it to a new hierarchy under the specified parent.
-        
+Changes the parent of the given [`hgobj`](#hgobj) instance to a new parent [`hgobj`](#hgobj). The function updates the internal hierarchy of the object tree.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Changes the parent of a GObj, reassigning it to a new hierarchy under the specif
 **Prototype**
 
 ```C
-
-int gobj_change_parent(hgobj gobj, hgobj new_parent);
-        
-
+int gobj_change_parent(
+    hgobj gobj,
+    hgobj gobj_new_parent
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose parent is being changed.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose parent is to be changed.
 
-* - `new_parent`
-  - [`hgobj`](hgobj)
-  - Handle to the new parent GObj.
-
+* - `gobj_new_parent`
+  - `hgobj`
+  - The new parent [`hgobj`](#hgobj) instance.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if an error occurs (e.g., if `gobj` or `gobj_new_parent` is `NULL`).
 
-- `0`: The GObj's parent was successfully changed.  
-- `-1`: An error occurred during the parent change process.
-        
+**Notes**
 
+This function ensures that the object hierarchy remains consistent when changing parents. It is useful for dynamically restructuring the object tree.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ int gobj_change_parent(hgobj gobj, hgobj new_parent);
 ``````
 
 ```````
+

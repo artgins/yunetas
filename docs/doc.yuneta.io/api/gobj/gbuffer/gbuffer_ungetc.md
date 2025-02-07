@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_ungetc)=
 # `gbuffer_ungetc()`
 <!-- ============================================================== -->
 
-
-Move the read pointer of the gbuffer backward by one character.
-        
+Pushes a single character back onto the read buffer of the given `gbuffer_t` instance, effectively undoing the last read operation.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Move the read pointer of the gbuffer backward by one character.
 **Prototype**
 
 ```C
-
 PUBLIC int gbuffer_ungetc(
-    gbuffer_t   *gbuffer
+    gbuffer_t *gbuf,
+    char       c
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose read pointer will be moved backward.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance where the character will be pushed back.
+
+* - `c`
+  - `char`
+  - The character to be pushed back onto the read buffer.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success.
 
-Returns `0` on success, or a negative value if the operation fails (e.g., already at the beginning).
-        
+**Notes**
 
+If the read pointer is already at the beginning of the buffer, the function does nothing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns `0` on success, or a negative value if the operation fails (e.g., alread
 ``````
 
 ```````
+

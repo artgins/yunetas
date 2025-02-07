@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (trace_machine)=
 # `trace_machine()`
 <!-- ============================================================== -->
 
-
-Log trace information for a state machine.
-        
+The `trace_machine()` function logs formatted trace messages for debugging purposes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,53 +20,37 @@ Log trace information for a state machine.
 **Prototype**
 
 ```C
-
-PUBLIC void trace_machine(
-    const char  *machine_name,
-    const char  *event_name,
-    const char  *state_name,
-    const char  *next_state_name
-);
-        
-
+void trace_machine(const char *fmt, ...);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `machine_name`
+* - `fmt`
   - `const char *`
-  - The name of the state machine being traced.
+  - The format string, similar to `printf()`, specifying the message format.
 
-* - `event_name`
-  - `const char *`
-  - The name of the event triggering the trace.
-
-* - `state_name`
-  - `const char *`
-  - The current state of the state machine.
-
-* - `next_state_name`
-  - `const char *`
-  - The next state of the state machine after the event.
+* - `...`
+  - `variadic arguments`
+  - Additional arguments corresponding to the format specifiers in `fmt`.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function logs trace information.
-        
+**Notes**
 
+This function is used for debugging and tracing execution flow. It formats and logs messages based on the provided format string and arguments.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -195,3 +175,4 @@ No return value. This function logs trace information.
 ``````
 
 ```````
+

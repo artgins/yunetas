@@ -3,7 +3,7 @@
 # `gobj_create()`
 <!-- ============================================================== -->
 
-The `gobj_create` function creates a new generic GObj without any specialized flags. This is the most flexible creation method, allowing the developer to define a GObj without marking it as a service, Yuno, or any other specialized role.
+Creates a new `gobj` (generic object) instance of the specified `gclass` and assigns it to a parent `gobj` if provided.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,49 +20,50 @@ The `gobj_create` function creates a new generic GObj without any specialized fl
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create(
-    const char      *gobj_name,
-    gclass_name_t   gclass_name,
-    json_t          *kw, // owned
-    hgobj           parent
+hgobj gobj_create(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `name`
+* - `gobj_name`
   - `const char *`
-  - The name of the GObj to be created.
+  - The name of the `gobj` to be created. It is case-insensitive and converted to lowercase.
 
-* - `gclass`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass from which the GObj will be instantiated.
+* - `gclass_name`
+  - `gclass_name_t`
+  - The name of the `gclass` to which the `gobj` belongs.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing the attributes for initializing the GObj. This parameter is owned by the function.
+  - `json_t *`
+  - A JSON object containing configuration parameters for the `gobj`. The ownership of this object is transferred to the function.
 
 * - `parent`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj. If `NULL`, the GObj is created without a parent.
-
+  - `hgobj`
+  - The parent `gobj` to which the new `gobj` will be attached. If `NULL`, the `gobj` is created without a parent.
 :::
+
+---
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the created GObj.  
-- Returns `NULL` if the creation fails.
+Returns a handle to the newly created `gobj` (`hgobj`). Returns `NULL` if the creation fails due to invalid parameters or memory allocation failure.
 
 **Notes**
-- **Lifecycle Management:**
-  - Internally calls `gobj_create2` with no additional flags.
+
+['The function internally calls [`gobj_create2()`](#gobj_create2) with default flags.', 'If `gobj_name` is longer than 15 characters on ESP32, the function will abort execution.', 'If `gclass_name` is empty or not found, an error is logged and `NULL` is returned.', "The function ensures that `gobj_name` does not contain invalid characters such as '`' or '^'.", 'If `parent` is `NULL`, an error is logged unless the `gobj` is a Yuno instance.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -187,3 +188,4 @@ PUBLIC hgobj gobj_create(
 ``````
 
 ```````
+

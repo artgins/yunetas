@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_start)=
 # `gobj_start()`
 <!-- ============================================================== -->
 
-
-Starts a GObj, transitioning it to the "running" state. The GObj may execute initialization logic during this process.
-        
+The `gobj_start()` function starts the specified [`hgobj`](#hgobj) instance, transitioning it to a running state if it is not already running. It verifies required attributes before starting and invokes the `mt_start` method of the associated gclass if defined.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,38 @@ Starts a GObj, transitioning it to the "running" state. The GObj may execute ini
 **Prototype**
 
 ```C
-
-int gobj_start(hgobj gobj);
-        
-
+int gobj_start(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be started.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to be started.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the gobj is already running, disabled, or missing required attributes.
 
-- `0`: The GObj was successfully started.  
-- `-1`: An error occurred during the start process.
-        
+**Notes**
 
+If the gobj is already running, an error is logged and the function returns -1.
+If the gobj is disabled, it cannot be started.
+Before starting, the function checks for required attributes and logs an error if any are missing.
+If the gclass has an `mt_start` method, it is invoked to perform additional start operations.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +176,4 @@ int gobj_start(hgobj gobj);
 ``````
 
 ```````
+

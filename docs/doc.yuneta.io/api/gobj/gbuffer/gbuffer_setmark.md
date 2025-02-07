@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_setmark)=
 # `gbuffer_setmark()`
 <!-- ============================================================== -->
 
-
-Set a mark at the current read position of the gbuffer.
-        
+Sets a marker value in the given `gbuffer_t` instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Set a mark at the current read position of the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC void gbuffer_setmark(
-    gbuffer_t   *gbuffer
+void gbuffer_setmark(
+    gbuffer_t *gbuf,
+    size_t     mark
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer where the mark will be set at the current read position.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance where the marker will be set.
+
+* - `mark`
+  - `size_t`
+  - The marker value to set in the `gbuffer_t` instance.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function sets a mark in the gbuffer.
-        
+**Notes**
 
+The marker value can be used for custom tracking or reference purposes within the `gbuffer_t` instance.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ No return value. This function sets a mark in the gbuffer.
 ``````
 
 ```````
+

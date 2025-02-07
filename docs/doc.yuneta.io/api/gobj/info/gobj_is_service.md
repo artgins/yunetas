@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_is_service)=
 # `gobj_is_service()`
 <!-- ============================================================== -->
 
-
-Checks if the specified GObj is marked as a service.
-        
+Checks if the given [`hgobj`](#hgobj) is marked as a service. A service object is an interface available for external access.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Checks if the specified GObj is marked as a service.
 **Prototype**
 
 ```C
-
 BOOL gobj_is_service(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj being checked.
-
+  - `hgobj`
+  - The object to check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the object is a service, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj is a service.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+A service object is identified by the `gobj_flag_service` flag.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ BOOL gobj_is_service(hgobj gobj);
 ``````
 
 ```````
+

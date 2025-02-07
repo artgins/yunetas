@@ -3,7 +3,7 @@
 # `gclass_unregister()`
 <!-- ============================================================== -->
 
-Unregisters a previously registered GClass, removing it from the system.
+Unregisters a `gclass`, freeing its allocated resources if no instances exist.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,29 +20,33 @@ Unregisters a previously registered GClass, removing it from the system.
 **Prototype**
 
 ```C
-PUBLIC void gclass_unregister(
-    hgclass gclass
-);
+void gclass_unregister(hgclass hgclass);
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gclass`
-  - [`hgclass`](hgclass)
-  - The handle to the GClass to be unregistered.
-
+* - `hgclass`
+  - `hgclass`
+  - Handle to the `gclass` to be unregistered.
 :::
+
+---
 
 **Return Value**
 
-    This function does not return a value.
+None.
+
+**Notes**
+
+If instances of the `gclass` still exist, an error is logged and the `gclass` is not unregistered.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -167,3 +171,4 @@ PUBLIC void gclass_unregister(
 ``````
 
 ```````
+

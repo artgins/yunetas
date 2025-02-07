@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_global_trace_level)=
 # `gobj_get_global_trace_level()`
 <!-- ============================================================== -->
 
-
-Get the value of a specific global trace level.
-        
+Retrieves the current global trace levels as a JSON array of strings.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the value of a specific global trace level.
 **Prototype**
 
 ```C
-
-PUBLIC BOOL gobj_get_global_trace_level(
-    const char  *level
-);
-        
-
+json_t *gobj_get_global_trace_level(void);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `level`
-  - `const char *`
-  - The name of the global trace level to retrieve.
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the names of the currently enabled global trace levels.
 
-Returns `TRUE` if the specified trace level is enabled, otherwise returns `FALSE`.
-        
+**Notes**
 
+The returned JSON object must be managed properly to avoid memory leaks. Use `json_decref()` when done.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns `TRUE` if the specified trace level is enabled, otherwise returns `FALSE
 ``````
 
 ```````
+

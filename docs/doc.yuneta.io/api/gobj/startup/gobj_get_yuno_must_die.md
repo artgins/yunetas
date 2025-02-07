@@ -3,7 +3,7 @@
 # `gobj_get_yuno_must_die()`
 <!-- ============================================================== -->
 
-Checks whether the Yuno has been signaled to terminate.
+Returns the current state of the `__yuno_must_die__` flag, indicating whether the Yuno process should terminate.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,20 +17,37 @@ Checks whether the Yuno has been signaled to terminate.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC BOOL gobj_get_yuno_must_die(void);
-````
+```C
+BOOL gobj_get_yuno_must_die(void);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+
+---
 
 **Return Value**
 
-- TRUE: The Yuno has been signaled to terminate.
-- FALSE: The Yuno is still running.
+Returns `TRUE` if the Yuno process must terminate, otherwise returns `FALSE`.
+
+**Notes**
+
+This function is used to check if the Yuno process has been marked for termination.
+The flag is typically set using [`gobj_set_yuno_must_die()`](#gobj_set_yuno_must_die).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -75,6 +92,7 @@ PUBLIC BOOL gobj_get_yuno_must_die(void);
 ````Python
 # Not applicable in Python
 ````
+
 <!--====================================================-->
 <!--                    End Tab Python                   -->
 <!--====================================================-->
@@ -154,3 +172,4 @@ PUBLIC BOOL gobj_get_yuno_must_die(void);
 ``````
 
 ```````
+

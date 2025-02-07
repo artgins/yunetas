@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_bottom_gobj)=
 # `gobj_set_bottom_gobj()`
 <!-- ============================================================== -->
 
-
-Sets the bottom GObj in the hierarchy for the specified GObj. This bottom GObj serves as a delegation point for certain operations or attributes.
-        
+Sets the bottom gobj of a given gobj, allowing attribute inheritance from the specified bottom gobj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,41 +20,40 @@ Sets the bottom GObj in the hierarchy for the specified GObj. This bottom GObj s
 **Prototype**
 
 ```C
-
-void gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj);
-        
-
+hgobj gobj_set_bottom_gobj(
+    hgobj gobj,         /* The gobj whose bottom gobj is being set */
+    hgobj bottom_gobj   /* The gobj to be set as the bottom gobj */
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose bottom GObj is being set.
+  - `hgobj`
+  - The gobj whose bottom gobj is being set.
 
 * - `bottom_gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be set as the bottom.
-
+  - `hgobj`
+  - The gobj to be set as the bottom gobj.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success. If the bottom gobj is already set, a warning is logged, but the function does not override the existing bottom gobj.
 
-- None.
-        
+**Notes**
 
+The bottom gobj is used for attribute inheritance. If a gobj already has a bottom gobj, setting a new one will not override the existing one.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -183,3 +178,4 @@ void gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj);
 ``````
 
 ```````
+

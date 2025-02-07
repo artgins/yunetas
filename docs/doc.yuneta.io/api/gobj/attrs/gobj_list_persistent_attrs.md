@@ -1,12 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_list_persistent_attrs)=
 # `gobj_list_persistent_attrs()`
 <!-- ============================================================== -->
 
-
-Lists the persistent attributes of a GObj.
+Retrieves a list of persistent attributes for a given [`hgobj`](#hgobj) or all services if `gobj` is `NULL`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,32 +20,40 @@ Lists the persistent attributes of a GObj.
 **Prototype**
 
 ```C
-PUBLIC json_t *gobj_list_persistent_attrs( // str, list or dict
-    hgobj       gobj,
-    json_t      *jn_attrs  // owned
+json_t *gobj_list_persistent_attrs(
+    hgobj gobj,
+    json_t *jn_attrs  // owned
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose persistent attributes are being listed.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose persistent attributes should be listed. If `NULL`, lists attributes for all services.
 
+* - `jn_attrs`
+  - `json_t *`
+  - A JSON object specifying which attributes to list. Can be a string, a list of keys, or a dictionary.
 :::
+
+---
 
 **Return Value**
 
-- Returns a JSON object ([`json_t`](json_t)) containing the persistent attributes of the GObj.
-- Returns `NULL` if the GObj is invalid or has no persistent attributes.
+A JSON object containing the persistent attributes. The caller owns the returned JSON object and must free it.
 
+**Notes**
+
+If [`__global_list_persistent_attrs_fn__`](#__global_list_persistent_attrs_fn__) is not set, an empty JSON object is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -173,3 +178,4 @@ PUBLIC json_t *gobj_list_persistent_attrs( // str, list or dict
 ``````
 
 ```````
+

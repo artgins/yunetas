@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_append_string)=
 # `gbuffer_append_string()`
 <!-- ============================================================== -->
 
-
-Append a null-terminated string to the gbuffer.
-        
+`gbuffer_append_string()` appends a null-terminated string to the given `gbuffer_t` buffer, increasing its size if necessary.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Append a null-terminated string to the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_append_string(
-    gbuffer_t   *gbuffer,
-    const char  *string
+size_t gbuffer_append_string(
+    gbuffer_t *gbuf,
+    const char *s
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to which the string will be appended.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` buffer where the string will be appended.
 
-* - `string`
+* - `s`
   - `const char *`
-  - The null-terminated string to append.
+  - Null-terminated string to append to the buffer.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of bytes successfully appended to the buffer.
 
-Returns `0` on success, or a negative value if the operation fails.
-        
+**Notes**
 
+If the buffer does not have enough space, it will be reallocated to accommodate the new data.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns `0` on success, or a negative value if the operation fails.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_treedb_topics)=
 # `gobj_treedb_topics()`
 <!-- ============================================================== -->
 
-
-Retrieve the list of topics for a specific treedb.
-        
+`gobj_treedb_topics()` retrieves a list of topics from a TreeDB instance, returning either a list of topic names or a list of topic descriptions based on the provided options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,54 +20,50 @@ Retrieve the list of topics for a specific treedb.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_treedb_topics(
+json_t *gobj_treedb_topics(
     hgobj gobj,
     const char *treedb_name,
     json_t *options,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj from which to query the treedb topics.
+  - `hgobj`
+  - The GObj instance managing the TreeDB.
 
 * - `treedb_name`
   - `const char *`
-  - The name of the treedb.
+  - The name of the TreeDB instance.
 
 * - `options`
-  - [`json_t`](json_t)
-  - Optional input parameters specifying how the list is formatted (owned).
+  - `json_t *`
+  - A JSON object specifying retrieval options, such as returning a list of topic names or full topic descriptions.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - The source GObj making the request.
+  - `hgobj`
+  - The source GObj requesting the topic list.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the list of topics. If `options` specifies 'dict', the array contains topic descriptions; otherwise, it contains topic names.
 
-Returns a JSON list of topics in the specified treedb.  
-If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
-        
+**Notes**
 
+['If `gobj` is NULL or destroyed, an error is logged, and NULL is returned.', 'If `gobj` does not implement `mt_treedb_topics`, an error is logged, and NULL is returned.', 'The returned JSON object must be freed by the caller.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -196,3 +188,4 @@ If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_match_simple)=
 # `kw_match_simple()`
 <!-- ============================================================== -->
 
-
-Check if a JSON object matches a simple key-value pair condition. Works with [`json_t *`](json_t).
-        
+The function `kw_match_simple()` compares a JSON dictionary against a JSON filter, matching only string, integer, real, and boolean values.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,40 @@ Check if a JSON object matches a simple key-value pair condition. Works with [`j
 **Prototype**
 
 ```C
-
-PUBLIC BOOL kw_match_simple(
-    json_t      *kw,
-    const char  *key,
-    const char  *value
+BOOL kw_match_simple(
+    json_t *kw,         // NOT owned
+    json_t *jn_filter   // owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to check.
+  - `json_t *`
+  - The JSON dictionary to be matched against the filter. This parameter is not owned by the function.
 
-* - `key`
-  - `const char *`
-  - The key to match in the JSON object.
-
-* - `value`
-  - `const char *`
-  - The value to match for the specified key.
+* - `jn_filter`
+  - `json_t *`
+  - The JSON filter used for comparison. This parameter is owned by the function and will be decremented.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if `kw` matches `jn_filter`, otherwise returns `FALSE`.
 
-Returns `TRUE` if the key-value pair matches in the JSON object, otherwise returns `FALSE`.
-        
+**Notes**
 
+This function only compares simple JSON elements such as strings, integers, reals, and booleans. If `jn_filter` is `NULL`, the function returns `TRUE` by default. If `jn_filter` is an empty object, it also evaluates as `TRUE`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +178,4 @@ Returns `TRUE` if the key-value pair matches in the JSON object, otherwise retur
 ``````
 
 ```````
+

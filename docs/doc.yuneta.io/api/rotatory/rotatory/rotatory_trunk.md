@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (rotatory_trunk)=
 # `rotatory_trunk()`
 <!-- ============================================================== -->
 
-
-Truncate a rotatory log file, clearing its contents.
-        
+`rotatory_trunk()` truncates the log file associated with the given `hrotatory_h` handle. If `hr` is `NULL`, it truncates all active log files.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Truncate a rotatory log file, clearing its contents.
 **Prototype**
 
 ```C
-
-PUBLIC int rotatory_trunk(
-    int handle
+void rotatory_trunk(
+    hrotatory_h hr
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
-  - `int`
-  - The handle of the rotatory log to truncate.
+* - `hr`
+  - `hrotatory_h`
+  - Handle to the rotatory log. If `NULL`, all log files are truncated.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+If `hr` is `NULL`, [`rotatory_trunk()`](#rotatory_trunk) iterates over all active log handles and truncates each log file.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

@@ -3,9 +3,7 @@
 # `gobj_destroy()`
 <!-- ============================================================== -->
 
-
-Destroys a specified GObj, releasing its resources and unlinking it from its parent and children.  
-This function ensures the proper cleanup of the GObj's memory and any associated resources.
+The `gobj_destroy()` function deallocates and removes a given [`hgobj`](#hgobj) instance, ensuring proper cleanup of its resources, subscriptions, and child objects.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,27 +20,35 @@ This function ensures the proper cleanup of the GObj's memory and any associated
 **Prototype**
 
 ```C
-PUBLIC void gobj_destroy(
+void gobj_destroy(
     hgobj gobj
 );
 ```
 
-:::{list-table}
+**Parameters**
+
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be destroyed.
-
+  - `hgobj`
+  - A handle to the [`hgobj`](#hgobj) instance to be destroyed.
 :::
+
+---
 
 **Return Value**
 
-    This function does not return a value.
+This function does not return a value.
+
+**Notes**
+
+['If the [`hgobj`](#hgobj) instance is currently playing, it will be paused before destruction.', 'If the [`hgobj`](#hgobj) instance is running, it will be stopped before destruction.', 'All child objects of the [`hgobj`](#hgobj) instance will be recursively destroyed.', 'All event subscriptions related to the [`hgobj`](#hgobj) instance will be removed.', 'If the [`hgobj`](#hgobj) instance is a registered service, it will be deregistered before destruction.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -167,3 +173,4 @@ PUBLIC void gobj_destroy(
 ``````
 
 ```````
+

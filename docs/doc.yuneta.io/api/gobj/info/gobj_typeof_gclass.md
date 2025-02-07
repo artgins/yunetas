@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_typeof_gclass)=
 # `gobj_typeof_gclass()`
 <!-- ============================================================== -->
 
-
-Retrieves the GClass of the specified GObj, allowing the identification of its type.
-        
+Checks if the given [`hgobj`](#hgobj) belongs to the specified gclass.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,40 @@ Retrieves the GClass of the specified GObj, allowing the identification of its t
 **Prototype**
 
 ```C
-
-hgclass gobj_typeof_gclass(hgobj gobj);
-        
-
+BOOL gobj_typeof_gclass(
+    hgobj gobj,
+    const char *gclass_name
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose GClass is being queried.
+  - `hgobj`
+  - The object whose gclass is to be checked.
 
+* - `gclass_name`
+  - `const char *`
+  - The name of the gclass to compare against.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the [`hgobj`](#hgobj) belongs to the specified gclass, otherwise returns `FALSE`.
 
-- Returns the handle ([`hgclass`](hgclass)) of the GClass associated with the GObj.
-        
+**Notes**
 
+This function performs a strict comparison against the object's gclass and does not check for inherited gclasses.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +178,4 @@ hgclass gobj_typeof_gclass(hgobj gobj);
 ``````
 
 ```````
+

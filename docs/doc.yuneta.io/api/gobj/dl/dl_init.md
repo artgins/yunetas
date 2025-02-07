@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_init)=
 # `dl_init()`
 <!-- ============================================================== -->
 
-
-Initialize a doubly-linked list.
-        
+Initializes a double-linked list structure by setting its head, tail, and item count to zero.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Initialize a doubly-linked list.
 **Prototype**
 
 ```C
-
-PUBLIC void dl_init(
-    dl_list_t   *list
+int dl_init(
+    dl_list_t *dl,
+    hgobj      gobj
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list`
-  - [`dl_list_t *`](dl_list_t)
-  - The doubly-linked list to initialize.
+* - `dl`
+  - `dl_list_t *`
+  - Pointer to the double-linked list structure to initialize.
+
+* - `gobj`
+  - `hgobj`
+  - Pointer to the associated gobj, used for tracking purposes.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on successful initialization.
 
-No return value. This function initializes the doubly-linked list.
-        
+**Notes**
 
+This function ensures that the list is empty before initialization. If the list is not empty, an error message is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ No return value. This function initializes the doubly-linked list.
 ``````
 
 ```````
+

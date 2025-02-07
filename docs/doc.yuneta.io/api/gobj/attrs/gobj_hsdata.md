@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_hsdata)=
 # `gobj_hsdata()`
 <!-- ============================================================== -->
 
-Retrieves the structured data (sdata) associated with a GObj.
+Returns the attribute storage (hsdata) of the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,31 +20,33 @@ Retrieves the structured data (sdata) associated with a GObj.
 **Prototype**
 
 ```C
-PUBLIC json_t *gobj_hsdata(
-    hgobj       gobj
-);
+json_t *gobj_hsdata(hgobj gobj);
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose sdata (structured data) is being retrieved.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose attribute storage is to be retrieved.
 :::
+
+---
 
 **Return Value**
 
-- Returns a pointer to the sdata of the GObj.
-- Returns `NULL` if the GObj is invalid or has no associated sdata.
+A pointer to the JSON object containing the attribute storage of the given [`hgobj`](#hgobj), or NULL if the object is invalid.
 
+**Notes**
+
+The returned JSON object is not owned by the caller and should not be modified or freed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -171,3 +171,4 @@ PUBLIC json_t *gobj_hsdata(
 ``````
 
 ```````
+

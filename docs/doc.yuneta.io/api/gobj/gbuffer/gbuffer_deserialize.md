@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_deserialize)=
 # `gbuffer_deserialize()`
 <!-- ============================================================== -->
 
-
-Deserialize a JSON object into a gbuffer.
-        
+`gbuffer_deserialize()` reconstructs a `gbuffer_t` object from a JSON representation, decoding its base64-encoded data.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Deserialize a JSON object into a gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC gbuffer_t *gbuffer_deserialize(
-    json_t      *json
+gbuffer_t *gbuffer_deserialize(
+    hgobj gobj,
+    const json_t *jn  // not owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `json`
-  - `json_t *`
-  - The JSON object to deserialize into a gbuffer.
+* - `gobj`
+  - `hgobj`
+  - A handle to the calling object, used for logging errors.
+
+* - `jn`
+  - `const json_t *`
+  - A JSON object containing the serialized `gbuffer_t` data, including label, mark, and base64-encoded content.
 :::
-        
 
 ---
 
 **Return Value**
 
+A newly allocated `gbuffer_t *` containing the deserialized data, or `NULL` if an error occurs.
 
-Returns a newly created [`gbuffer_t *`](gbuffer_t) from the JSON object, or `NULL` on failure.
-        
+**Notes**
 
+The function decodes the base64-encoded data from the JSON object and reconstructs the `gbuffer_t`. The caller is responsible for managing the returned buffer's memory.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a newly created [`gbuffer_t *`](gbuffer_t) from the JSON object, or `NUL
 ``````
 
 ```````
+

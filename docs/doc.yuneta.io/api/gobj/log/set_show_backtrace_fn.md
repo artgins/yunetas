@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (set_show_backtrace_fn)=
 # `set_show_backtrace_fn()`
 <!-- ============================================================== -->
 
-Set a function to display the backtrace during error handling.
+Sets the function pointer for handling backtrace display. The provided function will be used to print backtrace information when logging errors or critical messages.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,36 +20,35 @@ Set a function to display the backtrace during error handling.
 **Prototype**
 
 ```C
-
-PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
-        
-
+void set_show_backtrace_fn(
+    show_backtrace_fn_t show_backtrace_
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `show_backtrace_fn`
+* - `show_backtrace_`
   - `show_backtrace_fn_t`
-  - Function pointer to the backtrace display function.
+  - Function pointer to the backtrace display handler.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-- This function does not return a value.
-        
+**Notes**
 
+If `show_backtrace_` is set to `NULL`, backtrace logging will be disabled.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +173,4 @@ PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_fn);
 ``````
 
 ```````
+

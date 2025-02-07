@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_vprintf)=
 # `gbuffer_vprintf()`
 <!-- ============================================================== -->
 
-
-Write formatted data to the gbuffer using a printf-style format string and a `va_list`.
-        
+`gbuffer_vprintf()` appends a formatted string to a [`gbuffer_t *`](#gbuffer_t) using a `va_list` argument list.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,45 @@ Write formatted data to the gbuffer using a printf-style format string and a `va
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_vprintf(
-    gbuffer_t   *gbuffer,
-    const char  *format,
-    va_list     args
+int gbuffer_vprintf(
+    gbuffer_t *gbuf,
+    const char *format,
+    va_list ap
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer where the formatted data will be written.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the [`gbuffer_t *`](#gbuffer_t) where the formatted string will be appended.
 
 * - `format`
   - `const char *`
-  - The printf-style format string.
+  - Format string specifying how subsequent arguments are converted for output.
 
-* - `args`
+* - `ap`
   - `va_list`
-  - The list of arguments for the format string.
+  - Variable argument list containing the values to format and append.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of characters written, or a negative value if an error occurs.
 
-Returns the number of characters written on success, or a negative value if the operation fails.
-        
+**Notes**
 
+If the buffer is too small, [`gbuffer_vprintf()`](#gbuffer_vprintf) attempts to reallocate it before writing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +183,4 @@ Returns the number of characters written on success, or a negative value if the 
 ``````
 
 ```````
+

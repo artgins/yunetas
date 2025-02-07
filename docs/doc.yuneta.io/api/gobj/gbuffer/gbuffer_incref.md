@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_incref)=
 # `gbuffer_incref()`
 <!-- ============================================================== -->
 
-
-Increase the reference count of a gbuffer.
-        
+`gbuffer_incref()` increments the reference count of a `gbuffer_t` instance, ensuring it is not prematurely deallocated.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Increase the reference count of a gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC void gbuffer_incref(
-    gbuffer_t   *gbuffer
+gbuffer_t *gbuffer_incref(
+    gbuffer_t *gbuf
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose reference count will be increased.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose reference count is to be incremented.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the same `gbuffer_t *` instance with an incremented reference count, or `NULL` if the input is invalid.
 
-No return value. This function modifies the reference count.
-        
+**Notes**
 
+If `gbuf` is `NULL` or has an invalid reference count, an error is logged and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ No return value. This function modifies the reference count.
 ``````
 
 ```````
+

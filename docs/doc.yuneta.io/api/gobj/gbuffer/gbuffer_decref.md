@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_decref)=
 # `gbuffer_decref()`
 <!-- ============================================================== -->
 
-
-Decrease the reference count of a gbuffer and free it if the count reaches zero.
-        
+Decrements the reference count of a `gbuffer_t` instance and deallocates it if the count reaches zero.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Decrease the reference count of a gbuffer and free it if the count reaches zero.
 **Prototype**
 
 ```C
-
-PUBLIC void gbuffer_decref(
-    gbuffer_t   *gbuffer
-);
-        
-
+void gbuffer_decref(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose reference count will be decreased.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose reference count is to be decremented.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function modifies the reference count and may free the gbuffer.
-        
+**Notes**
 
+If the reference count reaches zero, the memory associated with the `gbuffer_t` instance is freed. Ensure that the `gbuffer_t` instance is valid before calling [`gbuffer_decref()`](#gbuffer_decref).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ No return value. This function modifies the reference count and may free the gbu
 ``````
 
 ```````
+

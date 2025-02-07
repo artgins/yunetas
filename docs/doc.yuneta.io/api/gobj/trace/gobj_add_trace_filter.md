@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_add_trace_filter)=
 # `gobj_add_trace_filter()`
 <!-- ============================================================== -->
 
-
-Add a specific trace filter for GObjs.
-        
+Adds a trace filter to a given gclass, allowing selective tracing based on attribute values.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Add a specific trace filter for GObjs.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_add_trace_filter(
-    const char  *gobj_name,
-    const char  *trace_level
+int gobj_add_trace_filter(
+    hgclass gclass_,
+    const char *attr,
+    const char *value
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj_name`
-  - `const char *`
-  - The name of the GObj to which the trace filter will be applied.
+* - `gclass_`
+  - `hgclass`
+  - The gclass to which the trace filter will be applied.
 
-* - `trace_level`
+* - `attr`
   - `const char *`
-  - The trace level to enable for the specified GObj.
+  - The attribute name to filter traces on.
+
+* - `value`
+  - `const char *`
+  - The attribute value that must match for tracing to be enabled.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the attribute is invalid or the gclass does not support the specified attribute.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+This function allows filtering trace messages based on specific attribute values. If the attribute does not exist in [`gclass_`](#gclass_), an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

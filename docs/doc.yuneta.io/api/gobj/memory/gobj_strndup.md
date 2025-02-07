@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_strndup)=
 # `gobj_strndup()`
 <!-- ============================================================== -->
 
-Duplicates a string with a maximum size.
+`gobj_strndup()` duplicates a substring of a given string up to a specified length, ensuring memory allocation for the new string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,40 +20,40 @@ Duplicates a string with a maximum size.
 **Prototype**
 
 ```C
-
-PUBLIC char *gobj_strndup(const char *str, size_t size);
-        
-
+char *gobj_strndup(
+    const char *str,
+    size_t      size
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `str`
   - `const char *`
-  - The string to duplicate.
+  - The input string to duplicate.
 
 * - `size`
   - `size_t`
-  - The maximum number of characters to copy.
+  - The maximum number of characters to duplicate from `str`.
 :::
-        
 
 ---
 
 **Return Value**
 
+A newly allocated string containing up to `size` characters from `str`, or `NULL` if memory allocation fails.
 
-- Returns a pointer to the duplicated string or `NULL` on failure.
-        
+**Notes**
 
+The returned string must be freed using `gobj_free_func()` to avoid memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ PUBLIC char *gobj_strndup(const char *str, size_t size);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_match_gobj)=
 # `gobj_match_gobj()`
 <!-- ============================================================== -->
 
-
-Checks if a GObj matches specified criteria provided in a filter. This is useful for validating or selecting GObjs based on attributes.
-        
+Checks if a given [`hgobj`](#hgobj) matches the specified filter criteria in `jn_filter`. The function evaluates attributes and system-defined keys to determine if the object meets the conditions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Checks if a GObj matches specified criteria provided in a filter. This is useful
 **Prototype**
 
 ```C
-
-BOOL gobj_match_gobj(hgobj gobj, json_t *filter);
-        
-
+BOOL gobj_match_gobj(
+    hgobj gobj,
+    json_t *jn_filter // owned
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to check.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to be checked against the filter.
 
-* - `filter`
-  - [`json_t *`](json_t)
-  - JSON object containing criteria to match.
-
+* - `jn_filter`
+  - `json_t *`
+  - A JSON object containing filter conditions. System-defined keys such as `__gclass_name__`, `__gobj_name__`, and `__state__` can be used for filtering.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the [`hgobj`](#hgobj) matches the filter criteria, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj matches the filter criteria.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+The function supports filtering based on system-defined keys like `__gclass_name__`, `__gobj_name__`, `__state__`, and `__disabled__`. It also compares attribute values using simple JSON comparison.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ BOOL gobj_match_gobj(hgobj gobj, json_t *filter);
 ``````
 
 ```````
+

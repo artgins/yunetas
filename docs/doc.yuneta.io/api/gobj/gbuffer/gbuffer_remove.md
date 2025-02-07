@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_remove)=
 # `gbuffer_remove()`
 <!-- ============================================================== -->
 
-
-Remove and free a gbuffer from memory.
-        
+The function `gbuffer_remove()` deallocates memory associated with a [`gbuffer_t *`](#gbuffer_t) instance, including its internal data buffer and label, ensuring proper cleanup.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Remove and free a gbuffer from memory.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_remove(
-    gbuffer_t   *gbuffer
-);
-        
-
+void gbuffer_remove(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to be removed and freed.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the [`gbuffer_t`](#gbuffer_t) instance to be deallocated.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+This function should not be called directly. Instead, use [`gbuffer_decref()`](#gbuffer_decref) to manage reference counting and ensure proper deallocation.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

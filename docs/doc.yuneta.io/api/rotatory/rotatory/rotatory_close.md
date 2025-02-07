@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (rotatory_close)=
 # `rotatory_close()`
 <!-- ============================================================== -->
 
-
-Close a rotatory log file.
-        
+Closes the given `hrotatory_h` instance, flushing and releasing all associated resources.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Close a rotatory log file.
 **Prototype**
 
 ```C
-
-PUBLIC void rotatory_close(
-    int handle
+void rotatory_close(
+    hrotatory_h hr
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
-  - `int`
-  - The handle of the rotatory log to close.
+* - `hr`
+  - `hrotatory_h`
+  - Handle to the rotatory log instance to be closed.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function closes the specified rotatory log file.
-        
+**Notes**
 
+If `hr` is `NULL` or the rotatory system is not initialized, the function does nothing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ No return value. This function closes the specified rotatory log file.
 ``````
 
 ```````
+

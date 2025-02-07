@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_bool_attr)=
 # `gobj_write_bool_attr()`
 <!-- ============================================================== -->
 
-Updates the value of a boolean attribute in a GObj.
-
-
+Sets the boolean attribute of a [`hgobj`](#hgobj) instance to the specified value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,40 +20,45 @@ Updates the value of a boolean attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_bool_attr(
-    hgobj       gobj,
-    const char  *name,
-    BOOL        value
+int gobj_write_bool_attr(
+    hgobj gobj, 
+    const char *name, 
+    BOOL value
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose boolean attribute is being written.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose attribute is being modified.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the boolean attribute to write.
+  - The name of the attribute to modify.
 
 * - `value`
   - `BOOL`
-  - The new value for the attribute (`TRUE` or `FALSE`).
-
+  - The boolean value to set for the attribute.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The boolean attribute was successfully updated.
-- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
+Returns 0 on success, or -1 if the attribute is not found.
+
+**Notes**
+
+If the attribute is found, it is updated with the new boolean value. If the [`hgobj`](#hgobj) has a `mt_writing` method, it is called after updating the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +183,4 @@ PUBLIC int gobj_write_bool_attr(
 ``````
 
 ```````
+

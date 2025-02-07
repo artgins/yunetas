@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_printf)=
 # `gbuffer_printf()`
 <!-- ============================================================== -->
 
-
-Write formatted data to the gbuffer using a printf-style format string.
-        
+The function `gbuffer_printf()` appends formatted text to a [`gbuffer_t *`](#gbuffer_t) buffer using a `printf`-style format string and arguments.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,44 +20,45 @@ Write formatted data to the gbuffer using a printf-style format string.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_printf(
-    gbuffer_t   *gbuffer,
-    const char  *format,
+int gbuffer_printf(
+    gbuffer_t *gbuf,
+    const char *format,
     ...
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer where the formatted data will be written.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the [`gbuffer_t *`](#gbuffer_t) buffer where the formatted text will be appended.
 
 * - `format`
   - `const char *`
-  - The printf-style format string.
+  - A `printf`-style format string specifying how subsequent arguments are formatted.
+
+* - `...`
+  - `variadic`
+  - Additional arguments corresponding to the format specifiers in `format`.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of bytes written to the buffer. If an error occurs, it returns `0`.
 
-Returns the number of characters written on success, or a negative value if the operation fails.
-        
+**Notes**
 
+If the buffer does not have enough space, it attempts to reallocate memory. If reallocation fails, the function logs an error and returns `0`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -186,3 +183,4 @@ Returns the number of characters written on success, or a negative value if the 
 ``````
 
 ```````
+

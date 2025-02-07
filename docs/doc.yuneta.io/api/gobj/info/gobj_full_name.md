@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_full_name)=
 # `gobj_full_name()`
 <!-- ============================================================== -->
 
-
-Retrieves the full hierarchical name of a GObj, including its position in the object tree.
-        
+Returns the full hierarchical name of the given [`hgobj`](#hgobj), constructed from its ancestors using the '`' separator.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,33 @@ Retrieves the full hierarchical name of a GObj, including its position in the ob
 **Prototype**
 
 ```C
-
 const char *gobj_full_name(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose full name is being queried.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose full name is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to a statically allocated string containing the full hierarchical name of the [`hgobj`](#hgobj). Returns '???' if the object is NULL or destroyed.
 
-- Returns a string (`const char *`) containing the full hierarchical name of the GObj.
-        
+**Notes**
 
+The returned string is managed internally and should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +171,4 @@ const char *gobj_full_name(hgobj gobj);
 ``````
 
 ```````
+

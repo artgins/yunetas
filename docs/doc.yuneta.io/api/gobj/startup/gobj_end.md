@@ -3,7 +3,7 @@
 # `gobj_end()`
 <!-- ============================================================== -->
 
-De-initialize the gobj's system, free resources.
+De-initializes the gobj system, freeing resources and shutting down the yuno if it exists.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,15 +17,36 @@ De-initialize the gobj's system, free resources.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC void gobj_end(void);
-````
+```C
+void gobj_end(void);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+
+---
+
+**Return Value**
+
+None.
+
+**Notes**
+
+If a yuno exists, it will be stopped and destroyed before freeing global resources.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -150,3 +171,4 @@ PUBLIC void gobj_end(void);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_str_attr)=
 # `gobj_write_str_attr()`
 <!-- ============================================================== -->
 
-
-Updates the value of a string attribute in a GObj.
-
+Sets the value of a string attribute in the given [`hgobj`](#hgobj) object. If the attribute does not exist, a warning is logged.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,40 +20,45 @@ Updates the value of a string attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_str_attr(
-    hgobj       gobj,
-    const char  *name,
-    const char  *value
+int gobj_write_str_attr(
+    hgobj gobj,   /* Object whose attribute is being modified */
+    const char *name,   /* Name of the attribute */
+    const char *value   /* New string value to set */
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose string attribute is being written.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) object whose attribute is being modified.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the string attribute to write.
+  - The name of the attribute to modify.
 
 * - `value`
   - `const char *`
-  - Pointer to the new string value for the attribute.
-
+  - The new string value to set. If `NULL`, the attribute is set to `json_null()`.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The string attribute was successfully updated.
-- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
+Returns `0` on success, or `-1` if the attribute does not exist.
+
+**Notes**
+
+If the attribute does not exist in the [`hgobj`](#hgobj), a warning is logged. If the [`hgobj`](#hgobj) has a `mt_writing` method, it is called after updating the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +183,4 @@ PUBLIC int gobj_write_str_attr(
 ``````
 
 ```````
+

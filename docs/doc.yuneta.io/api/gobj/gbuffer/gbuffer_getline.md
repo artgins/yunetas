@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_getline)=
 # `gbuffer_getline()`
 <!-- ============================================================== -->
 
-
-Read a line of text from the gbuffer, stopping at a newline character or end of buffer.
-        
+`gbuffer_getline()` retrieves a line from the given `gbuffer_t` up to the specified separator character, replacing it with a null terminator.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,40 @@ Read a line of text from the gbuffer, stopping at a newline character or end of 
 **Prototype**
 
 ```C
-
-PUBLIC char *gbuffer_getline(
-    gbuffer_t   *gbuffer,
-    char        *line,
-    size_t      line_size
+char *gbuffer_getline(
+    gbuffer_t *gbuf,
+    char       separator
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer from which the line will be read.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance from which the line is extracted.
 
-* - `line`
-  - `char *`
-  - The buffer where the line will be stored.
-
-* - `line_size`
-  - `size_t`
-  - The size of the buffer for the line.
+* - `separator`
+  - `char`
+  - Character that marks the end of the line.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the beginning of the extracted line within the buffer, or `NULL` if no more characters are available.
 
-Returns the line read from the gbuffer, or `NULL` if no line can be read.
-        
+**Notes**
 
+The function modifies the buffer by replacing the separator with a null terminator. It does not allocate new memory.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +178,4 @@ Returns the line read from the gbuffer, or `NULL` if no line can be read.
 ``````
 
 ```````
+

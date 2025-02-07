@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (print_track_mem)=
 # `print_track_mem()`
 <!-- ============================================================== -->
 
-Prints a list of tracked memory blocks for debugging.
+Prints a debug log of memory allocations that have not been freed, helping to track memory leaks.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,15 +20,23 @@ Prints a list of tracked memory blocks for debugging.
 **Prototype**
 
 ```C
-
-PUBLIC void print_track_mem(void);
-        
-
+void print_track_mem(void);
 ```
 
 **Parameters**
 
-None.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
@@ -38,6 +44,9 @@ None.
 
 None.
 
+**Notes**
+
+This function is only effective when CONFIG_TRACK_MEMORY is enabled. It logs memory blocks that have not been freed, aiding in debugging memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -162,3 +171,4 @@ None.
 ``````
 
 ```````
+

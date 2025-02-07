@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_enable)=
 # `gobj_enable()`
 <!-- ============================================================== -->
 
-
-Enables a GObj, making it active. An enabled GObj is ready to start or operate.
-        
+Enables the specified [`hgobj`](#hgobj) by setting its disabled flag to `FALSE` and starting its execution if necessary. If the object has a custom `mt_enable` method, it is invoked; otherwise, [`gobj_start_tree()`](#gobj_start_tree) is called.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Enables a GObj, making it active. An enabled GObj is ready to start or operate.
 **Prototype**
 
 ```C
-
 int gobj_enable(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be enabled.
-
+  - `hgobj`
+  - The object to be enabled.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if an error occurs.
 
-- `0`: The GObj was successfully enabled.  
-- `-1`: An error occurred during the enable process.
-        
+**Notes**
 
+If the object is already enabled, this function has no effect.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ int gobj_enable(hgobj gobj);
 ``````
 
 ```````
+

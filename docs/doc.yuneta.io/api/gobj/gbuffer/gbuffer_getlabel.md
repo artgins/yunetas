@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_getlabel)=
 # `gbuffer_getlabel()`
 <!-- ============================================================== -->
 
-
-Retrieve the label of the gbuffer.
-        
+Retrieves the label associated with the given `gbuffer_t` instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieve the label of the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC const char *gbuffer_getlabel(
-    gbuffer_t   *gbuffer
-);
-        
-
+char *gbuffer_getlabel(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose label will be retrieved.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose label is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the label string if it exists, otherwise returns `NULL`.
 
-Returns the label of the gbuffer as a null-terminated string, or `NULL` if no label is set.
-        
+**Notes**
 
+The returned label is owned by the `gbuffer_t` instance and should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns the label of the gbuffer as a null-terminated string, or `NULL` if no la
 ``````
 
 ```````
+

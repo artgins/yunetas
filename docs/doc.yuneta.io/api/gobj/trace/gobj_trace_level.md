@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_level)=
 # `gobj_trace_level()`
 <!-- ============================================================== -->
 
-
-Enable a specific trace level for a GObj.
-        
+Returns the trace level bitmask for the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,35 @@ Enable a specific trace level for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_trace_level(
-    hgobj       gobj,
-    const char  *level,
-    BOOL        set
+PUBLIC uint32_t gobj_trace_level(
+    hgobj gobj
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj for which the trace level is being modified.
-
-* - `level`
-  - `const char *`
-  - The name of the trace level to enable or disable.
-
-* - `set`
-  - `BOOL`
-  - If `TRUE`, the trace level will be enabled; if `FALSE`, it will be disabled.
+  - The [`hgobj`](#hgobj) instance whose trace level is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A 32-bit bitmask representing the trace levels enabled for the given [`hgobj`](#hgobj).
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+If [`gobj`](#hgobj) is `NULL`, the function returns the global trace level bitmask.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +173,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

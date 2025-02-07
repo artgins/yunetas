@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno)=
 # `gobj_yuno()`
 <!-- ============================================================== -->
 
-
-Retrieves the root GObj, also known as the `Yuno`, which serves as the top-level object in the hierarchy.
-        
+Returns the root `gobj` instance representing the Yuno, which is the top-level object in the hierarchy.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Retrieves the root GObj, also known as the `Yuno`, which serves as the top-level
 **Prototype**
 
 ```C
-
 hgobj gobj_yuno(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A handle to the Yuno `gobj` instance, or `NULL` if the Yuno has not been initialized or has been destroyed.
 
-- Returns the handle ([`hgobj`](hgobj)) of the root GObj (`Yuno`).
-        
+**Notes**
 
+The Yuno is the top-most `gobj` in the hierarchy and serves as the root of the object tree.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ hgobj gobj_yuno(void);
 ``````
 
 ```````
+

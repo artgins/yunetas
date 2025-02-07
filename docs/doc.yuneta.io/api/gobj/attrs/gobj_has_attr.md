@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_has_attr)=
 # `gobj_has_attr()`
 <!-- ============================================================== -->
 
-Checks if a specific attribute exists in a GObj instance.
+Checks if the given [`hgobj`](#hgobj) has an attribute with the specified name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,40 @@ Checks if a specific attribute exists in a GObj instance.
 **Prototype**
 
 ```C
-PUBLIC BOOL gobj_has_attr(
-    hgobj       hgobj,
-    const char  *name
+BOOL gobj_has_attr(
+    hgobj hgobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be checked.
+* - `hgobj`
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to check.
 
-* - `attr_name`
+* - `name`
   - `const char *`
   - The name of the attribute to check.
-
 :::
+
+---
 
 **Return Value**
 
-- `TRUE`: The attribute exists in the GObj.
-- `FALSE`: The attribute does not exist or the GObj is invalid.
+Returns `TRUE` if the attribute exists, otherwise returns `FALSE`.
+
+**Notes**
+
+This function performs a case-sensitive check for the attribute name.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +178,4 @@ PUBLIC BOOL gobj_has_attr(
 ``````
 
 ```````
+

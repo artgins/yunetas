@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_list_instances)=
 # `gobj_list_instances()`
 <!-- ============================================================== -->
 
-
-Retrieve a list of instances for a specific topic in a treedb.
-        
+Retrieves a list of instances for a given topic in a tree database. The function allows filtering and additional options to refine the query.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,8 +20,7 @@ Retrieve a list of instances for a specific topic in a treedb.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_list_instances(
+json_t *gobj_list_instances(
     hgobj gobj,
     const char *topic_name,
     const char *pkey2_field,
@@ -33,55 +28,52 @@ PUBLIC json_t *gobj_list_instances(
     json_t *jn_options,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj responsible for retrieving the instances.
+  - `hgobj`
+  - The GObj handler representing the tree database.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic containing the instances.
+  - The name of the topic whose instances are to be listed.
 
 * - `pkey2_field`
   - `const char *`
-  - The secondary key field for filtering instances.
+  - The secondary key field used for filtering instances.
 
 * - `jn_filter`
-  - [`json_t`](json_t)
-  - JSON filter to refine the results (owned).
+  - `json_t *`
+  - A JSON object containing filter criteria for selecting instances.
 
 * - `jn_options`
-  - [`json_t`](json_t)
-  - Additional options for the operation (owned).
+  - `json_t *`
+  - A JSON object specifying additional options such as foreign key and hook options.
 
 * - `src`
-  - [`hgobj`](hgobj)
+  - `hgobj`
   - The source GObj initiating the request.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object containing the list of instances matching the specified criteria. The caller must free the returned JSON object.
 
-Returns a JSON array of instances matching the specified criteria.  
-If no instances match, returns an empty JSON array.
-        
+**Notes**
 
+If the GObj is destroyed or the method is not implemented, the function logs an error and returns NULL.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -206,3 +198,4 @@ If no instances match, returns an empty JSON array.
 ``````
 
 ```````
+

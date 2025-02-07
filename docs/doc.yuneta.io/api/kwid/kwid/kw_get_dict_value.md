@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_get_dict_value)=
 # `kw_get_dict_value()`
 <!-- ============================================================== -->
 
-
-Get the value of a key from a sub-dictionary in a JSON object. Works with [`json_t *`](json_t).
-        
+Retrieves a JSON value from the dictionary `kw` using the specified `path`. If the key does not exist, it returns `default_value` based on the provided `flag` options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,55 @@ Get the value of a key from a sub-dictionary in a JSON object. Works with [`json
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_get_dict_value(
-    json_t      *kw,
-    const char  *key,
-    const char  *subkey
+json_t *kw_get_dict_value(
+    hgobj      gobj,
+    json_t     *kw,
+    const char *path,
+    json_t     *default_value,  // owned
+    kw_flag_t  flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - A handle to the calling object, used for logging and error reporting.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to query.
+  - `json_t *`
+  - A JSON dictionary from which the value is retrieved.
 
-* - `key`
+* - `path`
   - `const char *`
-  - The key whose value is a sub-dictionary.
+  - The key path used to locate the value within `kw`.
 
-* - `subkey`
-  - `const char *`
-  - The key to retrieve from the sub-dictionary.
+* - `default_value`
+  - `json_t *`
+  - The default value to return if the key is not found. This value is owned by the caller.
+
+* - `flag`
+  - `kw_flag_t`
+  - Flags that modify the behavior of the function, such as `KW_REQUIRED`, `KW_CREATE`, or `KW_EXTRACT`.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the JSON value found at `path`. If the key does not exist, it returns `default_value` based on the `flag` settings. If `KW_EXTRACT` is set, the value is removed from `kw`.
 
-Returns the value of `subkey` in the sub-dictionary, or `NULL` if the key or subkey does not exist.
-        
+**Notes**
 
+If `KW_REQUIRED` is set and the key is not found, an error is logged. If `KW_CREATE` is set, `default_value` is inserted into `kw` if the key does not exist.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +193,4 @@ Returns the value of `subkey` in the sub-dictionary, or `NULL` if the key or sub
 ``````
 
 ```````
+

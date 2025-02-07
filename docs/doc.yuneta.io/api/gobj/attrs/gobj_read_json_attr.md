@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_read_json_attr)=
 # `gobj_read_json_attr()`
 <!-- ============================================================== -->
 
-Reads the value of a JSON attribute in a GObj.
+`gobj_read_json_attr()` retrieves the JSON attribute of a given GObj, including inherited attributes from bottom GObjs.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,40 @@ Reads the value of a JSON attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC json_t *gobj_read_json_attr(
-    hgobj       gobj,
-    const char  *name
+json_t *gobj_read_json_attr(
+    hgobj gobj, 
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attribute is being read.
+  - `hgobj`
+  - The GObj from which the attribute is read.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the JSON attribute to read.
-
+  - The name of the attribute to retrieve.
 :::
+
+---
 
 **Return Value**
 
-- Returns a JSON object ([`json_t`](json_t)) containing the attribute value.
-- Returns `NULL` if the attribute does not exist or is unreadable.
+Returns a pointer to the JSON attribute value. The returned JSON object is not owned by the caller and must not be modified or freed.
+
+**Notes**
+
+If the attribute is not found in `gobj`, the function searches in its bottom GObjs. If the attribute does not exist, a warning is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +178,4 @@ PUBLIC json_t *gobj_read_json_attr(
 ``````
 
 ```````
+

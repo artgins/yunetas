@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (udpc_write)=
 # `udpc_write()`
 <!-- ============================================================== -->
 
-
-Send data through a UDP communication channel.
-        
+`udpc_write()` sends a log message over UDP, formatting it according to the specified output format.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,53 @@ Send data through a UDP communication channel.
 **Prototype**
 
 ```C
-
-PUBLIC int udpc_write(
-    int          handle,
-    const void  *data,
-    size_t       size
+int udpc_write(
+    udpc_t      udpc,
+    int         priority,
+    const char *bf,
+    size_t      len
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
+* - `udpc`
+  - `udpc_t`
+  - A handle to the UDP client instance.
+
+* - `priority`
   - `int`
-  - The handle of the UDP channel to write to.
+  - The priority level of the log message, ranging from `LOG_EMERG` to `LOG_MONITOR`.
 
-* - `data`
-  - `const void *`
-  - The data to send.
+* - `bf`
+  - `const char *`
+  - The log message to be sent, which must be a null-terminated string.
 
-* - `size`
+* - `len`
   - `size_t`
-  - The size of the data in bytes.
+  - The length of the log message in bytes.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if an error occurs.
 
-Returns the number of bytes successfully sent, or a negative value on failure.
-        
+**Notes**
 
+If the message length exceeds the buffer size, the function returns an error.
+The function ensures that the message is properly formatted based on the selected `output_format_t`.
+If the UDP socket is not open, [`udpc_write()`](#udpc_write) attempts to reopen it before sending the message.
+Messages are sent in chunks of `udp_frame_size` if they exceed the frame size.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +191,4 @@ Returns the number of bytes successfully sent, or a negative value on failure.
 ``````
 
 ```````
+

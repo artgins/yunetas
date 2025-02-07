@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_node_tree)=
 # `gobj_node_tree()`
 <!-- ============================================================== -->
 
-
-Retrieve a JSON representation of a node's subtree.
-        
+Returns the full hierarchical tree of a node in a given topic. The tree is duplicated and can include metadata if specified in `jn_options`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,59 +20,55 @@ Retrieve a JSON representation of a node's subtree.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_node_tree(
+json_t *gobj_node_tree(
     hgobj gobj,
     const char *topic_name,
     json_t *kw,
-    json_t *options,
+    json_t *jn_options,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj handle initiating the request.
+  - The GObj instance that manages the tree database.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic containing the node.
+  - The name of the topic whose node tree is to be retrieved.
 
 * - `kw`
   - `json_t *`
-  - JSON data identifying the node (owned).
+  - A JSON object containing the 'id' and primary key fields used to locate the root node. Owned by the function.
 
-* - `options`
+* - `jn_options`
   - `json_t *`
-  - Additional options for the subtree representation (owned).
+  - A JSON object specifying options such as 'with_metadata' to include metadata in the response. Owned by the function.
 
 * - `src`
   - `hgobj`
-  - The source GObj making the request.
+  - The source GObj requesting the node tree.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object representing the full hierarchical tree of the specified node. The caller must free the returned JSON object.
 
-Returns a JSON object representing the node's subtree.  
-If the operation fails, returns `NULL`.
-        
+**Notes**
 
+['If `gobj` is NULL or destroyed, an error is logged and NULL is returned.', 'If `gobj` does not implement `mt_node_tree`, an error is logged and NULL is returned.', 'The returned JSON object must be freed by the caller using `json_decref()`.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -201,3 +193,4 @@ If the operation fails, returns `NULL`.
 ``````
 
 ```````
+

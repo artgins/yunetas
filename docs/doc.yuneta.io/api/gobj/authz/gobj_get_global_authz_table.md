@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_global_authz_table)=
 # `gobj_get_global_authz_table()`
 <!-- ============================================================== -->
 
-
-Retrieves the global authorization table, which lists all available authorization rules across the system.
-        
+Retrieves the global authorization table, which defines the available authorization levels and their corresponding permissions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Retrieves the global authorization table, which lists all available authorizatio
 **Prototype**
 
 ```C
-
 const sdata_desc_t *gobj_get_global_authz_table(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A pointer to a `sdata_desc_t` structure representing the global authorization table.
 
-- Returns a pointer to the global authorization table ([`sdata_desc_t`](sdata_desc_t)) containing all defined authorization rules.
-        
+**Notes**
 
+The returned table contains predefined authorization levels such as `__read_attribute__`, `__write_attribute__`, and `__execute_command__`, among others.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const sdata_desc_t *gobj_get_global_authz_table(void);
 ``````
 
 ```````
+

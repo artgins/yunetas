@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_debug)=
 # `gobj_log_debug()`
 <!-- ============================================================== -->
 
-Logs a debug-level message with formatting options.
+Logs a debug message with a specified priority and options. `gobj_log_debug()` formats the message using variadic arguments and sends it to registered log handlers.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,35 @@ Logs a debug-level message with formatting options.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_log_debug(hgobj gobj, log_opt_t opt, ...);
-        
-
+void gobj_log_debug(
+    hgobj gobj,
+    log_opt_t opt,
+    ...
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj instance.
+  - `hgobj`
+  - The GObj instance associated with the log message.
 
 * - `opt`
   - `log_opt_t`
-  - Log options (e.g., stack trace or additional metadata).
+  - Logging options that control behavior such as stack tracing or exit conditions.
 
 * - `...`
   - `variadic`
-  - Additional arguments for formatting the message.
+  - Format string followed by arguments for message formatting.
 :::
-        
 
 ---
 
@@ -58,6 +56,9 @@ PUBLIC void gobj_log_debug(hgobj gobj, log_opt_t opt, ...);
 
 This function does not return a value.
 
+**Notes**
+
+The function internally calls `_log_jnbf()` to process and dispatch the log message. It increments the global debug log counter.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +183,4 @@ This function does not return a value.
 ``````
 
 ```````
+

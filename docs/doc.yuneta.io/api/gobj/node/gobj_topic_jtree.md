@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_topic_jtree)=
 # `gobj_topic_jtree()`
 <!-- ============================================================== -->
 
-
-Retrieve a JSON representation of a topic's hierarchical tree.
-        
+`gobj_topic_jtree()` returns a hierarchical tree representation of a topic's self-linked structure, optionally filtering and renaming hooks.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,74 +20,70 @@ Retrieve a JSON representation of a topic's hierarchical tree.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_topic_jtree(
+json_t *gobj_topic_jtree(
     hgobj gobj,
     const char *topic_name,
     const char *hook,
     const char *rename_hook,
     json_t *kw,
-    json_t *filter,
-    json_t *options,
+    json_t *jn_filter,
+    json_t *jn_options,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj handle initiating the request.
+  - The GObj instance managing the topic tree.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic.
+  - The name of the topic whose tree structure is to be retrieved.
 
 * - `hook`
   - `const char *`
-  - The relationship type between nodes.
+  - The hook defining the hierarchical relationship between nodes.
 
 * - `rename_hook`
   - `const char *`
-  - Optional parameter to rename the relationship type in the output.
+  - An optional new name for the hook in the returned tree.
 
 * - `kw`
   - `json_t *`
-  - JSON data for the base node (owned).
+  - A JSON object containing the 'id' and pkey2s fields used to find the root node.
 
-* - `filter`
+* - `jn_filter`
   - `json_t *`
-  - A filter to narrow down nodes in the tree (owned).
+  - A JSON object specifying filters to match records in the tree.
 
-* - `options`
+* - `jn_options`
   - `json_t *`
-  - Additional options for the tree representation (owned).
+  - A JSON object containing options such as fkey and hook configurations.
 
 * - `src`
   - `hgobj`
-  - The source GObj making the request.
+  - The source GObj requesting the topic tree.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object representing the hierarchical tree of the specified topic. The caller must free the returned JSON object.
 
-Returns a JSON object representing the topic's hierarchical tree.  
-If the operation fails, returns `NULL`.
-        
+**Notes**
 
+["If 'webix' is set in `jn_options`, the function returns the tree in Webix format (dict-list).", "The `__path__` field in all records follows the 'id`id`...' format.", 'If no root node is specified, the first node with no parent is used.', 'If `gobj` is NULL or destroyed, an error is logged and NULL is returned.', 'If `mt_topic_jtree` is not defined in the GClass, an error is logged and NULL is returned.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -216,3 +208,4 @@ If the operation fails, returns `NULL`.
 ``````
 
 ```````
+

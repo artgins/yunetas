@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_hsdata2)=
 # `gobj_hsdata2()`
 <!-- ============================================================== -->
 
-Retrieves extended structured data (sdata) associated with a GObj.
+Retrieves the structured data (hsdata) associated with a given [`hgobj`](#hgobj), including inherited attributes from bottom objects.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,33 +20,45 @@ Retrieves extended structured data (sdata) associated with a GObj.
 **Prototype**
 
 ```C
-PUBLIC json_t *gobj_hsdata2(
-    hgobj       gobj,
-    const char  *name,
-    BOOL        verbose
+json_t *gobj_hsdata2(
+    hgobj gobj, 
+    const char *name, 
+    BOOL verbose
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose extended structured data (sdata) is being retrieved.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose structured data is to be retrieved.
 
+* - `name`
+  - `const char *`
+  - The name of the attribute to retrieve from the structured data.
+
+* - `verbose`
+  - `BOOL`
+  - If `TRUE`, logs an error message when the attribute is not found.
 :::
+
+---
 
 **Return Value**
 
-- Returns a pointer to the extended sdata of the GObj.
-- Returns `NULL` if the GObj is invalid or has no extended sdata.
+A pointer to a [`json_t`](#json_t) object containing the structured data of the given [`hgobj`](#hgobj). Returns `NULL` if the attribute is not found.
 
+**Notes**
+
+This function traverses the bottom hierarchy of the [`hgobj`](#hgobj) to find the requested attribute. If `verbose` is `TRUE`, an error message is logged when the attribute is missing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -173,3 +183,4 @@ PUBLIC json_t *gobj_hsdata2(
 ``````
 
 ```````
+

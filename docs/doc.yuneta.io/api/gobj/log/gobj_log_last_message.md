@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_last_message)=
 # `gobj_log_last_message()`
 <!-- ============================================================== -->
 
-Retrieves the most recent log message.
+Retrieves the last logged message recorded by the logging system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,25 +20,33 @@ Retrieves the most recent log message.
 **Prototype**
 
 ```C
-
-PUBLIC const char *gobj_log_last_message(void);
-        
-
+const char *gobj_log_last_message(void);
 ```
 
 **Parameters**
 
-This function does not take any parameters.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A pointer to a string containing the last logged message. The returned string is managed internally and should not be modified or freed by the caller.
 
-- Returns the most recent log message as a string.
-- Returns `NULL` if no message is available.
-        
+**Notes**
 
+This function provides access to the most recent log message, which can be useful for debugging or monitoring purposes.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -165,3 +171,4 @@ This function does not take any parameters.
 ``````
 
 ```````
+

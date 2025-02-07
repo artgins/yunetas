@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_size)=
 # `dl_size()`
 <!-- ============================================================== -->
 
-
-Get the number of nodes in the doubly-linked list.
-        
+`dl_size()` returns the number of items in a given doubly linked list.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the number of nodes in the doubly-linked list.
 **Prototype**
 
 ```C
-
-PUBLIC size_t dl_size(
-    dl_list_t   *list
-);
-        
-
+size_t dl_size(dl_list_t *dl);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list`
-  - [`dl_list_t *`](dl_list_t)
-  - The doubly-linked list to query.
+* - `dl`
+  - `dl_list_t *`
+  - Pointer to the doubly linked list whose size is to be determined.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of items in the list. If `dl` is NULL, returns 0.
 
-Returns the number of nodes in the doubly-linked list.
-        
+**Notes**
 
+This function does not modify the list; it only retrieves the count of elements.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns the number of nodes in the doubly-linked list.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_prev)=
 # `dl_prev()`
 <!-- ============================================================== -->
 
-
-Get the previous element in the doubly-linked list relative to a given node.
-        
+Returns the previous item in a doubly linked list relative to the given item.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the previous element in the doubly-linked list relative to a given node.
 **Prototype**
 
 ```C
-
-PUBLIC dl_node_t *dl_prev(
-    dl_node_t   *node
-);
-        
-
+void *dl_prev(void *curr);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `node`
-  - [`dl_node_t *`](dl_node_t)
-  - The current node.
+* - `curr`
+  - `void *`
+  - Pointer to the current item in the doubly linked list.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the previous item in the list. If `curr` is `NULL`, or if `curr` is the first item in the list, returns `NULL`.
 
-Returns a pointer to the previous node, or `NULL` if there is no previous node.
-        
+**Notes**
 
+Ensure that `curr` is a valid pointer to an item in a properly initialized doubly linked list before calling [`dl_prev()`](#dl_prev).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns a pointer to the previous node, or `NULL` if there is no previous node.
 ``````
 
 ```````
+

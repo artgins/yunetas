@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_is_running)=
 # `gobj_is_running()`
 <!-- ============================================================== -->
 
-
-Checks if the specified GObj is currently in a "running" state.
-        
+Checks if the given [`hgobj`](#hgobj) instance is currently running.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Checks if the specified GObj is currently in a "running" state.
 **Prototype**
 
 ```C
-
 BOOL gobj_is_running(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj being checked.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the [`hgobj`](#hgobj) is running, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj is running.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+If the provided [`hgobj`](#hgobj) is `NULL` or has been destroyed, an error is logged and `FALSE` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ BOOL gobj_is_running(hgobj gobj);
 ``````
 
 ```````
+

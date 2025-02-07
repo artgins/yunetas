@@ -1,14 +1,9 @@
-
-
 <!-- ============================================================== -->
 (glog_init)=
 # `glog_init()`
 <!-- ============================================================== -->
 
-
-Initialize the global logging system. This function is typically called at the start of the application
-to ensure logging functionality is ready to use.
-        
+`glog_init()` initializes the global logging system, setting up default log handlers and registering built-in log handler types.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -25,26 +20,33 @@ to ensure logging functionality is ready to use.
 **Prototype**
 
 ```C
-
 void glog_init(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-No parameters.
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
-
 This function does not return a value.
-        
 
+**Notes**
+
+This function ensures that the logging system is initialized only once. It registers built-in log handlers such as `stdout`, `file`, and `udp`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -169,3 +171,4 @@ This function does not return a value.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_find_gclass_service)=
 # `gobj_find_gclass_service()`
 <!-- ============================================================== -->
 
-
-Finds a service GObj of a specific GClass. Similar to `gobj_find_service_by_gclass()`, but with more flexibility in service discovery.
-        
+Finds a service gobj by its gclass name. Returns a handle to the service gobj if found, otherwise returns NULL.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Finds a service GObj of a specific GClass. Similar to `gobj_find_service_by_gcla
 **Prototype**
 
 ```C
-
-hgobj gobj_find_gclass_service(gclass_name_t gclass_name);
-        
-
+hgobj gobj_find_gclass_service(
+    const char *gclass_name,
+    BOOL verbose
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The GClass name of the service GObj to find.
+  - `const char *`
+  - The name of the gclass to search for.
 
+* - `verbose`
+  - `BOOL`
+  - If TRUE, logs an error message when the service is not found.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a handle to the service gobj if found, otherwise returns NULL.
 
-- Returns the handle ([`hgobj`](hgobj)) of the service matching the specified GClass.  
-- Returns `NULL` if no matching service is found.
-        
+**Notes**
 
+This function searches for a service gobj that matches the given gclass name. If `verbose` is set to TRUE and the service is not found, an error message is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ hgobj gobj_find_gclass_service(gclass_name_t gclass_name);
 ``````
 
 ```````
+

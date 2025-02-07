@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_authenticate)=
 # `gobj_authenticate()`
 <!-- ============================================================== -->
 
-
-Authenticates a user or session based on the provided parameters. This function validates the user's identity and returns relevant authentication data.
-        
+The `gobj_authenticate()` function authenticates a user based on the provided JSON parameters. If no authentication parser is set, it defaults to the system user.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,46 +20,45 @@ Authenticates a user or session based on the provided parameters. This function 
 **Prototype**
 
 ```C
-
-json_t *gobj_authenticate(hgobj gobj, json_t *kw, hgobj src);
-        
-
+json_t *gobj_authenticate(
+    hgobj gobj,
+    json_t *kw,
+    hgobj src
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj performing the authentication.
+  - `hgobj`
+  - The GObj instance performing the authentication.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing authentication credentials or parameters. Ownership is transferred to the function.
+  - `json_t *`
+  - A JSON object containing authentication parameters. Ownership is transferred.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - Handle to the source GObj initiating the authentication.
-
+  - `hgobj`
+  - The source GObj requesting authentication.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object containing the authentication result. The object includes `result` (0 for success, -1 for failure), `comment` (a message), and `username` (the authenticated username).
 
-- Returns a JSON object ([`json_t`](json_t)) containing authentication results or metadata.  
-- Returns `NULL` if authentication fails.
-        
+**Notes**
 
+If a local authentication method (`mt_authenticate`) is defined, it takes precedence. Otherwise, a global authentication parser is used. If neither is available, the function defaults to the system user.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -188,3 +183,4 @@ json_t *gobj_authenticate(hgobj gobj, json_t *kw, hgobj src);
 ``````
 
 ```````
+

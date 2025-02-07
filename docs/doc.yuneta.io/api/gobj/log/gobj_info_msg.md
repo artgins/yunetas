@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_info_msg)=
 # `gobj_info_msg()`
 <!-- ============================================================== -->
 
-Logs an informational message with formatting options.
+`gobj_info_msg()` logs an informational message with a formatted string and optional arguments.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,39 +20,35 @@ Logs an informational message with formatting options.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_info_msg(
+void gobj_info_msg(
     hgobj gobj,
     const char *fmt,
     ...
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj instance.
+  - `hgobj`
+  - The object generating the log message.
 
 * - `fmt`
   - `const char *`
-  - Format string for the informational message.
+  - The format string for the log message.
 
 * - `...`
   - `variadic`
-  - Additional arguments for formatting.
+  - Additional arguments for the format string.
 :::
-        
 
 ---
 
@@ -62,6 +56,9 @@ PUBLIC void gobj_info_msg(
 
 This function does not return a value.
 
+**Notes**
+
+The log message is formatted using `vsnprintf()` and logged with priority `LOG_INFO`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -186,3 +183,4 @@ This function does not return a value.
 ``````
 
 ```````
+

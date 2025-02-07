@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_authzs)=
 # `gobj_authzs()`
 <!-- ============================================================== -->
 
-
-Retrieves the authorization rules for the specified GObj, providing a list of all available authorizations.
-        
+Returns a list of authorization levels available for the given [`hgobj`](#hgobj). If `gobj` is `NULL`, it returns the global authorization levels.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieves the authorization rules for the specified GObj, providing a list of al
 **Prototype**
 
 ```C
-
-json_t *gobj_authzs(hgobj gobj);
-        
-
+json_t *gobj_authzs(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose authorization rules are being queried.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose authorization levels are to be retrieved. If `NULL`, global authorization levels are returned.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the list of authorization levels available for the given [`hgobj`](#hgobj) or globally if `gobj` is `NULL`.
 
-- Returns a JSON array ([`json_t`](json_t)) containing all available authorization rules.  
-- Returns an empty array if no rules are defined.
-        
+**Notes**
 
+This function is useful for inspecting the authorization levels assigned to a specific [`hgobj`](#hgobj) or retrieving the global authorization levels.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ json_t *gobj_authzs(hgobj gobj);
 ``````
 
 ```````
+

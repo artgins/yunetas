@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_gobj_no_trace)=
 # `gobj_set_gobj_no_trace()`
 <!-- ============================================================== -->
 
-
-Disable specific trace levels for a GObj.
-        
+Sets or resets the no-trace level for a given `gobj`. This function modifies the trace level settings to exclude specific trace levels from being logged.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Disable specific trace levels for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_set_gobj_no_trace(
-    hgobj       gobj,
-    const char  *trace_levels
+int gobj_set_gobj_no_trace(
+    hgobj gobj,
+    const char *level,
+    BOOL set
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj for which the trace levels are being disabled.
+  - The `gobj` whose no-trace level is being modified.
 
-* - `trace_levels`
+* - `level`
   - `const char *`
-  - A comma-separated string of trace levels to disable for the GObj.
+  - The trace level to be set or reset. If empty, all trace levels are affected.
+
+* - `set`
+  - `BOOL`
+  - If `TRUE`, the specified trace level is added to the no-trace list; if `FALSE`, it is removed.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if an error occurs.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+This function prevents specific trace levels from being logged for the given `gobj`. If `level` is empty, all trace levels are affected.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

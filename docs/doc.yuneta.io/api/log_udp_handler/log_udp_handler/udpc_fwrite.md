@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (udpc_fwrite)=
 # `udpc_fwrite()`
 <!-- ============================================================== -->
 
-
-Send the contents of a file through a UDP communication channel.
-        
+`udpc_fwrite()` formats and sends a log message over UDP using a specified format string and arguments.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,50 @@ Send the contents of a file through a UDP communication channel.
 **Prototype**
 
 ```C
-
-PUBLIC int udpc_fwrite(
-    int          handle,
-    FILE        *file
+int udpc_fwrite(
+    udpc_t      udpc,
+    int         priority,
+    const char  *format,
+    ...
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
-  - `int`
-  - The handle of the UDP channel to write to.
+* - `udpc`
+  - `udpc_t`
+  - A handle to the UDP client instance.
 
-* - `file`
-  - `FILE *`
-  - The file to send through the UDP channel.
+* - `priority`
+  - `int`
+  - The priority level of the log message.
+
+* - `format`
+  - `const char *`
+  - A format string specifying how subsequent arguments are formatted.
+
+* - `...`
+  - `variadic`
+  - Additional arguments corresponding to the format string.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if an error occurs.
 
-Returns the number of bytes successfully sent, or a negative value on failure.
-        
+**Notes**
 
+Internally, `udpc_fwrite()` formats the message using `vsnprintf()` and then calls [`udpc_write()`](#udpc_write) to send the formatted log message.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +188,4 @@ Returns the number of bytes successfully sent, or a negative value on failure.
 ``````
 
 ```````
+

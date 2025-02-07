@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_prev_child)=
 # `gobj_prev_child()`
 <!-- ============================================================== -->
 
-
-Retrieves the previous sibling GObj of the specified GObj within the same parent hierarchy.
-        
+Returns the previous sibling of the given gobj in its parent's child list.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieves the previous sibling GObj of the specified GObj within the same parent
 **Prototype**
 
 ```C
-
-hgobj gobj_prev_child(hgobj gobj);
-        
-
+hgobj gobj_prev_child(
+    hgobj child
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose previous sibling is being retrieved.
-
+* - `child`
+  - `hgobj`
+  - The gobj whose previous sibling is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the previous sibling gobj if it exists, otherwise returns NULL.
 
-- Returns the handle ([`hgobj`](hgobj)) of the previous sibling GObj.  
-- Returns `NULL` if the GObj has no previous sibling.
-        
+**Notes**
 
+If the given `child` is the first child in the parent's list, the function returns NULL.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ hgobj gobj_prev_child(hgobj gobj);
 ``````
 
 ```````
+

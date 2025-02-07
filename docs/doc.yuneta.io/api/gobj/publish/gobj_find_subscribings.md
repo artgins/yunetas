@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_find_subscribings)=
 # `gobj_find_subscribings()`
 <!-- ============================================================== -->
 
-
-Finds all events that a GObj is currently subscribed to. This is useful for debugging or monitoring.
-        
+Returns a list of subscriptions where the given `subscriber` is subscribed to events from various publishers.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,50 @@ Finds all events that a GObj is currently subscribed to. This is useful for debu
 **Prototype**
 
 ```C
-
-json_t *gobj_find_subscribings(hgobj gobj);
-        
-
+json_t *gobj_find_subscribings(
+    hgobj subscriber,
+    gobj_event_t event,
+    json_t *kw,
+    hgobj publisher
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose subscriptions are being queried.
+* - `subscriber`
+  - `hgobj`
+  - The subscriber gobj whose subscriptions are being queried.
 
+* - `event`
+  - `gobj_event_t`
+  - The event name to filter subscriptions. If NULL, all events are considered.
+
+* - `kw`
+  - `json_t *`
+  - A JSON object containing additional filtering criteria, such as `__config__`, `__global__`, `__local__`, and `__filter__`. Owned by the function.
+
+* - `publisher`
+  - `hgobj`
+  - The publisher gobj to filter subscriptions. If NULL, all publishers are considered.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the matching subscriptions. The caller owns the returned JSON object and must free it using `json_decref()`.
 
-- Returns a JSON array ([`json_t`](json_t)) containing all events the GObj is subscribed to.  
-- Returns an empty array if the GObj is not subscribed to any events.
-        
+**Notes**
 
+This function searches for subscriptions where `subscriber` is subscribed to events from `publisher`. The filtering criteria in `kw` allow for fine-grained selection of subscriptions.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +188,4 @@ json_t *gobj_find_subscribings(hgobj gobj);
 ``````
 
 ```````
+

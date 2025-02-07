@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_current_state)=
 # `gobj_current_state()`
 <!-- ============================================================== -->
 
-
-Retrieves the current state of the specified GObj.
-        
+Retrieves the current state of the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieves the current state of the specified GObj.
 **Prototype**
 
 ```C
-
-gobj_state_t gobj_current_state(hgobj gobj);
-        
-
+gobj_state_t gobj_current_state(
+    hgobj hgobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose current state is being queried.
-
+* - `hgobj`
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose current state is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the current state of the [`hgobj`](#hgobj) as a `gobj_state_t` string.
 
-- Returns the current state ([`gobj_state_t`](gobj_state_t)) of the GObj.  
-- Returns `NULL` if the GObj has no state defined.
-        
+**Notes**
 
+If `hgobj` is `NULL`, an error is logged, and an empty string is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ gobj_state_t gobj_current_state(hgobj gobj);
 ``````
 
 ```````
+

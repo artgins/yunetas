@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_is_writable_attr)=
 # `gobj_is_writable_attr()`
 <!-- ============================================================== -->
 
-Checks if a specific attribute in a GObj is writable.
+Checks if a given attribute of a [`hgobj`](#hgobj) is writable based on its flags.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,36 +20,40 @@ Checks if a specific attribute in a GObj is writable.
 **Prototype**
 
 ```C
-PUBLIC BOOL gobj_is_writable_attr(
-    hgobj       gobj,
-    const char  *name
+BOOL gobj_is_writable_attr(
+    hgobj gobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attribute is being checked.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose attribute is being checked.
 
-* - `attr_name`
+* - `name`
   - `const char *`
   - The name of the attribute to check.
-
 :::
+
+---
 
 **Return Value**
 
-- `TRUE`: The attribute is writable.
-- `FALSE`: The attribute is not writable or does not exist.
+Returns `TRUE` if the attribute is writable, otherwise returns `FALSE`.
 
+**Notes**
+
+The function verifies if the attribute has the `SDF_WR` or `SDF_PERSIST` flag set.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +178,4 @@ PUBLIC BOOL gobj_is_writable_attr(
 ``````
 
 ```````
+

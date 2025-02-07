@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_last_bottom_gobj)=
 # `gobj_last_bottom_gobj()`
 <!-- ============================================================== -->
 
-
-Retrieves the last bottom GObj in the hierarchy of the specified GObj. This function traverses the bottom hierarchy to find the deepest delegation point.
-        
+Returns the last bottom `gobj` in the hierarchy of the given `gobj`. This function traverses the bottom `gobj` chain to find the deepest `gobj` in the hierarchy.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieves the last bottom GObj in the hierarchy of the specified GObj. This func
 **Prototype**
 
 ```C
-
-hgobj gobj_last_bottom_gobj(hgobj gobj);
-        
-
+hgobj gobj_last_bottom_gobj(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose last bottom GObj is being retrieved.
-
+  - `hgobj`
+  - The `gobj` whose last bottom `gobj` is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the last bottom `gobj` in the hierarchy if it exists, otherwise returns `NULL`.
 
-- Returns the handle ([`hgobj`](hgobj)) of the last bottom GObj in the hierarchy.  
-- Returns `NULL` if the GObj has no bottom GObjs.
-        
+**Notes**
 
+This function is useful when dealing with a stack of `gobj` instances that act as a unit, ensuring that operations are performed on the deepest `gobj` in the hierarchy.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ hgobj gobj_last_bottom_gobj(hgobj gobj);
 ``````
 
 ```````
+

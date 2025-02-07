@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_gobj_trace_no_level)=
 # `gobj_get_gobj_trace_no_level()`
 <!-- ============================================================== -->
 
-
-Check if a specific trace level is disabled for a GObj.
-        
+Retrieves the trace levels that are explicitly disabled for the given `gobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,35 @@ Check if a specific trace level is disabled for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC BOOL gobj_get_gobj_trace_no_level(
-    hgobj       gobj,
-    const char  *level
+json_t *gobj_get_gobj_trace_no_level(
+    hgobj gobj
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj whose trace level is being checked.
-
-* - `level`
-  - `const char *`
-  - The name of the trace level to check.
+  - The GObj instance whose disabled trace levels are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the names of the disabled trace levels for the given `gobj`. The caller does not own the returned JSON object.
 
-Returns `TRUE` if the specified trace level is disabled for the GObj, otherwise returns `FALSE`.
-        
+**Notes**
 
+This function returns a list of trace levels that have been explicitly disabled for the given `gobj`. The returned JSON object should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +173,4 @@ Returns `TRUE` if the specified trace level is disabled for the GObj, otherwise 
 ``````
 
 ```````
+

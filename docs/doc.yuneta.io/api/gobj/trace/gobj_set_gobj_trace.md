@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_gobj_trace)=
 # `gobj_set_gobj_trace()`
 <!-- ============================================================== -->
 
-
-Set the trace levels for a specific GObj.
-        
+Sets or resets the trace level for a given [`hgobj`](#hgobj). If `gobj` is `NULL`, it modifies the global trace level instead. Calls [`mt_trace_on()`](#mt_trace_on) or [`mt_trace_off()`](#mt_trace_off) if applicable.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,50 @@ Set the trace levels for a specific GObj.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_set_gobj_trace(
-    hgobj       gobj,
-    const char  *trace_levels
+int gobj_set_gobj_trace(
+    hgobj gobj,
+    const char *level,
+    BOOL set,
+    json_t *kw
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj for which the trace levels are being set.
+  - The [`hgobj`](#hgobj) whose trace level is being modified. If `NULL`, modifies the global trace level.
 
-* - `trace_levels`
+* - `level`
   - `const char *`
-  - A comma-separated string of trace levels to enable for the GObj.
+  - The trace level to set or reset. If `NULL`, all levels are affected. If an empty string, only user-defined levels are affected.
+
+* - `set`
+  - `BOOL`
+  - If `TRUE`, enables the specified trace level; if `FALSE`, disables it.
+
+* - `kw`
+  - `json_t *`
+  - Additional parameters (owned).
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if the specified trace level is invalid.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+If `gobj` is not `NULL`, this function invokes [`mt_trace_on()`](#mt_trace_on) or [`mt_trace_off()`](#mt_trace_off) if they are defined in the object's gclass.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +188,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

@@ -3,7 +3,7 @@
 # `gclass_create()`
 <!-- ============================================================== -->
 
-Creates and register a GClass, defining its core structure, behavior, and configuration.
+The `gclass_create` function initializes and registers a new GClass with the specified attributes, including event types, states, methods, and flags. It ensures that the GClass is unique and properly structured before adding it to the global registry.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,97 +17,88 @@ Creates and register a GClass, defining its core structure, behavior, and config
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC hgclass gclass_create(
-    gclass_name_t       gclass_name,
+```C
+hgclass gclass_create(
+    gclass_name_t        gclass_name,
     event_type_t        *event_types,
     states_t            *states,
     const GMETHODS      *gmt,
     const LMETHOD       *lmt,
     const sdata_desc_t  *tattr_desc,
-    size_t              priv_size,
+    size_t               priv_size,
     const sdata_desc_t  *authz_table,
     const sdata_desc_t  *command_table,
     const trace_level_t *s_user_trace_level,
-    gclass_flag_t       gclass_flag
+    gclass_flag_t        gclass_flag
 );
-````
-
-<!---------------------------------------------------->
-<!--                C Parameters                    -->
-<!---------------------------------------------------->
+```
 
 **Parameters**
 
-````{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The unique name of the GClass being created.
+  - `gclass_name_t`
+  - The unique name of the GClass.
 
 * - `event_types`
-  - [`event_type_t *`](event_type_t)
-  - Pointer to the table of events supported by the GClass, defining input and output events.
+  - `event_type_t *`
+  - A list of event types associated with the GClass.
 
 * - `states`
-  - [`states_t *`](states_t)
-  - Pointer to the finite state machine (FSM) definition for the GClass, specifying states and transitions.
+  - `states_t *`
+  - A list of states defining the finite state machine of the GClass.
 
 * - `gmt`
-  - [`const GMETHODS *`](GMETHODS)
-  - Pointer to the table of global methods for the GClass, implementing its core behavior.
+  - `const GMETHODS *`
+  - A pointer to the structure containing global methods for the GClass.
 
 * - `lmt`
-  - [`const LMETHOD *`](LMETHOD)
-  - Pointer to the table of internal methods for the GClass, invoked explicitly as needed (optional).
+  - `const LMETHOD *`
+  - A pointer to the structure containing local methods for the GClass.
 
 * - `tattr_desc`
-  - [`const sdata_desc_t *`](sdata_desc_t)
-  - Pointer to the table defining the GClass attributes (type, name, flags, default value, and description).
+  - `const sdata_desc_t *`
+  - A pointer to the structure describing the attributes of the GClass.
 
 * - `priv_size`
   - `size_t`
-  - The size of the private data buffer allocated for each GObj instance of the GClass.
+  - The size of the private data structure allocated for each instance of the GClass.
 
 * - `authz_table`
-  - [`const sdata_desc_t *`](sdata_desc_t)
-  - Pointer to the table defining authorization rules for the GClass (optional).
+  - `const sdata_desc_t *`
+  - A pointer to the structure defining authorization levels for the GClass.
 
 * - `command_table`
-  - [`const sdata_desc_t *`](sdata_desc_t)
-  - Pointer to the table defining commands available in the GClass (optional).
+  - `const sdata_desc_t *`
+  - A pointer to the structure defining available commands for the GClass.
 
 * - `s_user_trace_level`
-  - [`const trace_level_t *`](trace_level_t)
-  - Pointer to the table of trace levels for monitoring and debugging the GClass (optional).
+  - `const trace_level_t *`
+  - A pointer to the structure defining user trace levels for debugging.
 
 * - `gclass_flag`
-  - [`gclass_flag_t`](gclass_flag_t)
-  - Flags modifying the GClass behavior (e.g., `gcflag_manual_start`, `gcflag_singleton`).
-
-````
-
-<!---------------------------------------------------->
-<!--                C Return                        -->
-<!---------------------------------------------------->
+  - `gclass_flag_t`
+  - Flags defining special behaviors of the GClass.
+:::
 
 ---
 
 **Return Value**
 
-- Returns a handle to the created GClass [](hgclass).
+Returns a handle (`hgclass`) to the newly created GClass, or `NULL` if an error occurs.
 
+**Notes**
+
+['The function checks for duplicate GClass names and returns an error if the name is already registered.', 'It initializes the finite state machine (FSM) and event types for the GClass.', 'The function ensures that the GClass is properly structured before adding it to the global registry.', 'If the GClass has a `gcflag_singleton` flag, only one instance of it can exist.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -232,3 +223,4 @@ PUBLIC hgclass gclass_create(
 ``````
 
 ```````
+

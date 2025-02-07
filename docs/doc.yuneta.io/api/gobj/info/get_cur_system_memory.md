@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (get_cur_system_memory)=
 # `get_cur_system_memory()`
 <!-- ============================================================== -->
 
-
-Gets the current system memory usage.
-        
+Returns the current system memory usage in bytes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Gets the current system memory usage.
 **Prototype**
 
 ```C
-
 size_t get_cur_system_memory(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+The amount of system memory currently in use, in bytes.
 
-- Returns the current system memory usage (`size_t`).
-        
+**Notes**
 
+This function provides insight into the memory consumption of the system at runtime.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ size_t get_cur_system_memory(void);
 ``````
 
 ```````
+

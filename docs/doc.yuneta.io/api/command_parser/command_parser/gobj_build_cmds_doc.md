@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_build_cmds_doc)=
 # `gobj_build_cmds_doc()`
 <!-- ============================================================== -->
 
-
-Build documentation for all available commands in a GObj.
-        
+`gobj_build_cmds_doc()` generates a JSON-formatted documentation of available commands for a given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Build documentation for all available commands in a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_build_cmds_doc(
-    hgobj       gobj,
-    const char *topic
+json_t *gobj_build_cmds_doc(
+    hgobj   gobj,
+    json_t *kw
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj to retrieve command documentation from.
+  - The [`hgobj`](#hgobj) instance whose commands are to be documented.
 
-* - `topic`
-  - `const char *`
-  - The topic to filter commands by, or `NULL` for all commands.
+* - `kw`
+  - `json_t *`
+  - A JSON object containing optional parameters such as `level` (integer) to control the depth of command retrieval and `cmd` (string) to filter a specific command.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON string containing the formatted documentation of available commands. If a specific command is requested and found, its detailed documentation is returned. If the command is not found, an error message is returned.
 
-Returns a [`json_t *`](json_t) object containing the documentation for the commands, or `NULL` on failure.
-        
+**Notes**
 
+If `level` is set, [`gobj_build_cmds_doc()`](#gobj_build_cmds_doc) will also include commands from child objects of the given [`hgobj`](#hgobj).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns a [`json_t *`](json_t) object containing the documentation for the comma
 ``````
 
 ```````
+

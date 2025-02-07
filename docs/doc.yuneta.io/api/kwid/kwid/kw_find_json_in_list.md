@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_find_json_in_list)=
 # `kw_find_json_in_list()`
 <!-- ============================================================== -->
 
-
-Search for a JSON object in a JSON array. Works with [`json_t *`](json_t).
-        
+Search for a JSON item in a JSON list and return its index. If the item is not found, return -1. The comparison is performed using [`json_is_identical()`](#json_is_identical).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,50 @@ Search for a JSON object in a JSON array. Works with [`json_t *`](json_t).
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_find_json_in_list(
-    json_t      *kw,
-    const char  *key,
-    const char  *value
+int kw_find_json_in_list(
+    hgobj     gobj,
+    json_t   *kw_list,  // not owned
+    json_t   *item,     // not owned
+    kw_flag_t flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON array to search.
+* - `gobj`
+  - `hgobj`
+  - Pointer to the gobj context.
 
-* - `key`
-  - `const char *`
-  - The key to match in the objects within the array.
+* - `kw_list`
+  - `json_t *`
+  - JSON array to search within. Must not be NULL.
 
-* - `value`
-  - `const char *`
-  - The value to match for the specified key.
+* - `item`
+  - `json_t *`
+  - JSON item to search for in `kw_list`. Must not be NULL.
+
+* - `flag`
+  - `kw_flag_t`
+  - Flags to modify behavior. If `KW_VERBOSE` is set, errors will be logged.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the index of `item` in `kw_list` if found, otherwise returns -1.
 
-Returns a pointer to the first JSON object in the array that matches the key-value pair, or `NULL` if not found.
-        
+**Notes**
 
+If `kw_list` is not a JSON array or `item` is NULL, the function returns -1. If `KW_VERBOSE` is set in `flag`, an error message is logged when `item` is not found.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +188,4 @@ Returns a pointer to the first JSON object in the array that matches the key-val
 ``````
 
 ```````
+

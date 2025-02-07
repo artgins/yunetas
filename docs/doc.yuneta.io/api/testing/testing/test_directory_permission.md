@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (test_directory_permission)=
 # `test_directory_permission()`
 <!-- ============================================================== -->
 
-
-Test if a directory has the specified permissions.
-        
+`test_directory_permission()` checks if a directory has the specified permission mode.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Test if a directory has the specified permissions.
 **Prototype**
 
 ```C
-
-PUBLIC int test_directory_permission(
-    const char  *path,
-    int          mode
+int test_directory_permission(
+    const char *path,
+    mode_t      permission
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path to the directory.
+  - Path to the directory to be checked.
 
-* - `mode`
-  - `int`
-  - The permission mode to check (e.g., readable, writable).
+* - `permission`
+  - `mode_t`
+  - Expected permission mode to compare against.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` if the directory has the expected permission, otherwise returns `-1`.
 
-Returns `0` if the directory has the specified permissions, or a negative value otherwise.
-        
+**Notes**
 
+This function internally retrieves the directory's permission mode and compares it with the expected value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns `0` if the directory has the specified permissions, or a negative value 
 ``````
 
 ```````
+

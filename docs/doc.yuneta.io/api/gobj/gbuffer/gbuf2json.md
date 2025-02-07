@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuf2json)=
 # `gbuf2json()`
 <!-- ============================================================== -->
 
-
-Convert a gbuffer into a JSON object.
-        
+Converts a [`gbuffer_t *`](#gbuffer_t) containing JSON data into a [`json_t *`](#json_t) object. The function consumes the input buffer and returns a parsed JSON object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Convert a gbuffer into a JSON object.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gbuf2json(
-    gbuffer_t   *gbuffer,
-    BOOL        expand
+json_t *gbuf2json(
+    gbuffer_t *gbuf,  // WARNING gbuf own and data consumed
+    int verbose       // 1 log, 2 log+dump
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to convert into a JSON object.
+* - `gbuf`
+  - `gbuffer_t *`
+  - The input [`gbuffer_t *`](#gbuffer_t) containing JSON data. This buffer is consumed and should not be used after calling this function.
 
-* - `expand`
-  - `BOOL`
-  - If `TRUE`, the gbuffer will be expanded during conversion; otherwise, it will remain as is.
+* - `verbose`
+  - `int`
+  - Logging verbosity level: `1` logs errors, `2` logs errors and dumps the buffer content.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a [`json_t *`](#json_t) object if parsing is successful. Returns `NULL` if parsing fails.
 
-Returns a JSON object created from the gbuffer, or `NULL` on failure.
-        
+**Notes**
 
+The function uses `json_load_callback()` to parse the JSON data from the buffer. If parsing fails, an error is logged based on the `verbose` level.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns a JSON object created from the gbuffer, or `NULL` on failure.
 ``````
 
 ```````
+

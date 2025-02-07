@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_list_snaps)=
 # `gobj_list_snaps()`
 <!-- ============================================================== -->
 
-
-Retrieve a list of snapshots available in the GObj's TreeDB.
-        
+Retrieves a list of snapshots associated with the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,49 +20,45 @@ Retrieve a list of snapshots available in the GObj's TreeDB.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_list_snaps(
+json_t *gobj_list_snaps(
     hgobj gobj,
     json_t *filter,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj handle initiating the request.
+  - The [`hgobj`](#hgobj) instance from which to retrieve the snapshots.
 
 * - `filter`
   - `json_t *`
-  - JSON filter for narrowing down the list of snapshots (owned).
+  - A JSON object containing filter criteria for the snapshots. Owned by the caller.
 
 * - `src`
   - `hgobj`
-  - The source GObj making the request.
+  - The source [`hgobj`](#hgobj) requesting the snapshot list.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the list of snapshots. The caller must decrement the reference count when done.
 
-Returns a JSON array of available snapshots.  
-If no snapshots are available or the operation fails, returns an empty array.
-        
+**Notes**
 
+If `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -191,3 +183,4 @@ If no snapshots are available or the operation fails, returns an empty array.
 ``````
 
 ```````
+

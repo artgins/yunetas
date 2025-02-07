@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (udpc_end)=
 # `udpc_end()`
 <!-- ============================================================== -->
 
-
-Shut down the UDP communication system.
-        
+Closes all active UDP client handlers and releases associated resources.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,18 +20,15 @@ Shut down the UDP communication system.
 **Prototype**
 
 ```C
-
-PUBLIC void udpc_end(void);
-        
-
+void udpc_end(void);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
@@ -44,16 +37,16 @@ PUBLIC void udpc_end(void);
   - `-`
   - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function shuts down and cleans up resources used by the UDP communication system.
-        
+**Notes**
 
+This function iterates through all active UDP clients and calls [`udpc_close()`](#udpc_close) on each one to properly release resources.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -178,3 +171,4 @@ No return value. This function shuts down and cleans up resources used by the UD
 ``````
 
 ```````
+

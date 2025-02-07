@@ -3,8 +3,7 @@
 # `gobj_destroy_childs()`
 <!-- ============================================================== -->
 
-Destroys all child Gobjs of the specified parent GObj.  
-This function ensures that the parent GObj is cleared of all its descendants while properly releasing resources and maintaining hierarchy integrity.
+Destroys all child objects of the given [`hgobj`](#hgobj), ensuring proper cleanup and deallocation.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,29 +20,35 @@ This function ensures that the parent GObj is cleared of all its descendants whi
 **Prototype**
 
 ```C
-PUBLIC void gobj_destroy_childs(
+void gobj_destroy_childs(
     hgobj gobj
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj whose child Gobjs will be destroyed.
-
+  - `hgobj`
+  - The parent object whose child objects will be destroyed.
 :::
+
+---
 
 **Return Value**
 
-    This function does not return a value.
+This function does not return a value.
+
+**Notes**
+
+Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a child is already destroyed or in the process of being destroyed, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +173,4 @@ PUBLIC void gobj_destroy_childs(
 ``````
 
 ```````
+

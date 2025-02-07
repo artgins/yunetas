@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_find_child)=
 # `gobj_find_child()`
 <!-- ============================================================== -->
 
-
-Finds a child GObj under the specified parent GObj based on specific criteria. This function is useful for advanced child lookups.
-        
+Finds the first child of [`gobj`](#hgobj) that matches the given filter criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Finds a child GObj under the specified parent GObj based on specific criteria. T
 **Prototype**
 
 ```C
-
-hgobj gobj_find_child(hgobj gobj, json_t *filter);
-        
-
+hgobj gobj_find_child(
+    hgobj gobj,
+    json_t *jn_filter // owned
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj.
+  - `hgobj`
+  - The parent [`gobj`](#hgobj) whose children will be searched.
 
-* - `filter`
-  - [`json_t *`](json_t)
-  - JSON object containing criteria to find the child GObj.
-
+* - `jn_filter`
+  - `json_t *`
+  - A JSON object containing filter criteria. The first child that matches these criteria is returned.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the first child [`gobj`](#hgobj) that matches the filter criteria, or `NULL` if no match is found.
 
-- Returns the handle ([`hgobj`](hgobj)) of the child GObj matching the criteria.  
-- Returns `NULL` if no matching child is found.
-        
+**Notes**
 
+The function iterates over the direct children of [`gobj`](#hgobj) and applies the filter criteria to find a match.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ hgobj gobj_find_child(hgobj gobj, json_t *filter);
 ``````
 
 ```````
+

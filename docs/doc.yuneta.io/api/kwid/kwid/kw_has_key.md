@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_has_key)=
 # `kw_has_key()`
 <!-- ============================================================== -->
 
-
-Check if a JSON object contains a specific key with [`json_t *`](json_t).
-        
+Checks if the dictionary `kw` contains the specified key `key`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Check if a JSON object contains a specific key with [`json_t *`](json_t).
 **Prototype**
 
 ```C
-
-PUBLIC BOOL kw_has_key(
-    json_t      *kw,
-    const char  *key
+BOOL kw_has_key(
+    json_t *kw,
+    const char *key
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to query.
+  - `json_t *`
+  - The JSON dictionary to check.
 
 * - `key`
   - `const char *`
-  - The key to check for in the JSON object.
+  - The key to search for in the dictionary.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the key exists in the dictionary, otherwise returns `FALSE`.
 
-Returns `TRUE` if the key exists in the JSON object, otherwise returns `FALSE`.
-        
+**Notes**
 
+The function only works with JSON objects. If `kw` is not a dictionary, it returns `FALSE`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns `TRUE` if the key exists in the JSON object, otherwise returns `FALSE`.
 ``````
 
 ```````
+

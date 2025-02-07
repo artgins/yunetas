@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj2json)=
 # `gobj2json()`
 <!-- ============================================================== -->
 
-
-Converts a GObj to its JSON representation. The representation includes information such as attributes, state, and hierarchy.
-        
+Returns a JSON object containing a structured description of the given `gobj`, including attributes, state, and metadata.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Converts a GObj to its JSON representation. The representation includes informat
 **Prototype**
 
 ```C
-
-json_t *gobj2json(hgobj gobj, int verbose);
-        
-
+json_t *gobj2json(
+    hgobj gobj,
+    json_t *jn_filter // owned
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be converted to JSON.
+  - `hgobj`
+  - The GObj instance to be described.
 
-* - `verbose`
-  - `int`
-  - Verbosity level for the JSON output:
-    - **`0`**: Basic metadata.
-    - **`1`**: Includes additional details.
-
+* - `jn_filter`
+  - `json_t *`
+  - A JSON list specifying which attributes to include in the output.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the requested details of `gobj`. The caller owns the returned JSON object and must free it when done.
 
-- Returns a JSON object ([`json_t`](json_t)) representing the specified GObj.
-        
+**Notes**
 
+The `jn_filter` parameter allows selective inclusion of attributes such as `fullname`, `state`, `attrs`, and `gobj_flags`. If `jn_filter` is empty, all available attributes are included.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ json_t *gobj2json(hgobj gobj, int verbose);
 ``````
 
 ```````
+

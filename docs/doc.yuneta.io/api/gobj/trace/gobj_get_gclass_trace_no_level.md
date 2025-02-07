@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_gclass_trace_no_level)=
 # `gobj_get_gclass_trace_no_level()`
 <!-- ============================================================== -->
 
-
-Check if a specific trace level is disabled for a GClass.
-        
+Retrieves the trace levels that are explicitly disabled for a given gclass.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,35 @@ Check if a specific trace level is disabled for a GClass.
 **Prototype**
 
 ```C
-
-PUBLIC BOOL gobj_get_gclass_trace_no_level(
-    hgclass     gclass,
-    const char  *level
+PUBLIC json_t *gobj_get_gclass_trace_no_level(
+    hgclass gclass
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
   - `hgclass`
-  - The handle of the GClass whose trace level is being checked.
-
-* - `level`
-  - `const char *`
-  - The name of the trace level to check.
+  - The gclass whose disabled trace levels are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the names of the disabled trace levels for the specified gclass.
 
-Returns `TRUE` if the specified trace level is disabled for the GClass, otherwise returns `FALSE`.
-        
+**Notes**
 
+This function returns a list of trace levels that have been explicitly disabled for the given gclass. The returned JSON array must be freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +173,4 @@ Returns `TRUE` if the specified trace level is disabled for the GClass, otherwis
 ``````
 
 ```````
+

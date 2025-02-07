@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_leftbytes)=
 # `gbuffer_leftbytes()`
 <!-- ============================================================== -->
 
-
-Get the number of unread bytes remaining in the gbuffer.
-        
+`gbuffer_leftbytes()` returns the number of unread bytes remaining in the given `gbuffer_t` instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the number of unread bytes remaining in the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC size_t gbuffer_leftbytes(
-    gbuffer_t   *gbuffer
-);
-        
-
+size_t gbuffer_leftbytes(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to query for remaining unread bytes.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose unread byte count is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of unread bytes remaining in the buffer.
 
-Returns the number of unread bytes left in the gbuffer.
-        
+**Notes**
 
+If `gbuf` is `NULL`, an error is logged, and `0` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns the number of unread bytes left in the gbuffer.
 ``````
 
 ```````
+

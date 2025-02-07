@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (get_attrs_schema)=
 # `get_attrs_schema()`
 <!-- ============================================================== -->
 
-
-Retrieves the attribute schema of a specified GClass or GObj. This schema describes the attributes, their types, and characteristics.
-        
+Returns a JSON array describing the attributes of a given [`hgobj`](#hgobj). The attributes included are those marked with `SDF_RD`, `SDF_WR`, `SDF_STATS`, `SDF_PERSIST`, `SDF_VOLATIL`, `SDF_RSTATS`, or `SDF_PSTATS`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,33 @@ Retrieves the attribute schema of a specified GClass or GObj. This schema descri
 **Prototype**
 
 ```C
-
-json_t *get_attrs_schema(hgclass gclass);
-        
-
+json_t *get_attrs_schema(hgobj gobj);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass whose attribute schema is being queried.
-
+* - `gobj`
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose attributes are to be described.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array where each element is an object containing details about an attribute, including its name, type, flags, and description.
 
-- Returns a JSON object ([`json_t`](json_t)) containing the attribute schema of the specified GClass.
-        
+**Notes**
 
+The returned JSON array must be freed by the caller using `json_decref()`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +171,4 @@ json_t *get_attrs_schema(hgclass gclass);
 ``````
 
 ```````
+

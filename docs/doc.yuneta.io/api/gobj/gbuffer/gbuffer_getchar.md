@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_getchar)=
 # `gbuffer_getchar()`
 <!-- ============================================================== -->
 
-
-Read a single character from the gbuffer and advance the read pointer.
-        
+`gbuffer_getchar()` retrieves and removes a single byte from the given `gbuffer_t` instance, advancing the read pointer.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Read a single character from the gbuffer and advance the read pointer.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_getchar(
-    gbuffer_t   *gbuffer
+char gbuffer_getchar(
+    gbuffer_t *gbuf
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer from which a character will be read.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance from which a byte will be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the retrieved byte if available; otherwise, returns `0` if no data remains.
 
-Returns the character read from the gbuffer, or a negative value if the operation fails.
-        
+**Notes**
 
+Ensure that `gbuffer_leftbytes(gbuf)` is greater than zero before calling [`gbuffer_getchar()`](#gbuffer_getchar) to avoid retrieving an invalid byte.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns the character read from the gbuffer, or a negative value if the operatio
 ``````
 
 ```````
+

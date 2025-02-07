@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kwid_compare_lists)=
 # `kwid_compare_lists()`
 <!-- ============================================================== -->
 
-
-Compare two JSON arrays (lists) of objects based on their `kwid` fields. Works with [`json_t *`](json_t).
-        
+Compare two JSON lists of records, allowing for unordered comparison. The function checks if both lists contain the same elements, considering optional metadata and private key exclusions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,60 @@ Compare two JSON arrays (lists) of objects based on their `kwid` fields. Works w
 **Prototype**
 
 ```C
-
-PUBLIC int kwid_compare_lists(
-    json_t      *list1,
-    json_t      *list2
+BOOL kwid_compare_lists(
+    hgobj gobj,
+    json_t *list,          // NOT owned
+    json_t *expected,      // NOT owned
+    BOOL without_metadata,
+    BOOL without_private,
+    BOOL verbose
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list1`
-  - [`json_t *`](json_t)
-  - The first JSON array to compare.
+* - `gobj`
+  - `hgobj`
+  - Pointer to the GObj context for logging and error handling.
 
-* - `list2`
-  - [`json_t *`](json_t)
-  - The second JSON array to compare.
+* - `list`
+  - `json_t *`
+  - The first JSON list to compare. Not owned by the function.
+
+* - `expected`
+  - `json_t *`
+  - The second JSON list to compare against. Not owned by the function.
+
+* - `without_metadata`
+  - `BOOL`
+  - If TRUE, metadata keys (keys starting with '__') are ignored during comparison.
+
+* - `without_private`
+  - `BOOL`
+  - If TRUE, private keys (keys starting with '_') are ignored during comparison.
+
+* - `verbose`
+  - `BOOL`
+  - If TRUE, detailed error messages are logged when mismatches occur.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns TRUE if both lists contain the same elements, considering the specified exclusions. Returns FALSE if they differ.
 
-Returns `0` if the lists are equal, a positive value if `list1` is greater, or a negative value if `list2` is greater.
-        
+**Notes**
 
+This function performs a deep comparison of JSON lists, allowing for unordered elements. It internally calls [`kwid_compare_records()`](#kwid_compare_records) for record-level comparison.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +198,4 @@ Returns `0` if the lists are equal, a positive value if `list1` is greater, or a
 ``````
 
 ```````
+

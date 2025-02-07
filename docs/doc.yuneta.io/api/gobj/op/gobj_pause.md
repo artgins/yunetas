@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_pause)=
 # `gobj_pause()`
 <!-- ============================================================== -->
 
-
-Pauses a GObj, transitioning it to the "paused" state. This halts the GObj's activity without stopping it entirely.
-        
+The `gobj_pause()` function pauses the execution of a given [`hgobj`](#hgobj) instance if it is currently playing. If the object is not playing, a warning is logged.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Pauses a GObj, transitioning it to the "paused" state. This halts the GObj's act
 **Prototype**
 
 ```C
-
-int gobj_pause(hgobj gobj);
-        
-
+int gobj_pause(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be paused.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to be paused.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success. If the object is not playing, a warning is logged and -1 is returned.
 
-- `0`: The GObj was successfully paused.  
-- `-1`: An error occurred during the pause process.
-        
+**Notes**
 
+If the object is already paused, a warning is logged. If the object has a `mt_pause` method, it is called.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ int gobj_pause(hgobj gobj);
 ``````
 
 ```````
+

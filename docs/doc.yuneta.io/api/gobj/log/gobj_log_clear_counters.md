@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_clear_counters)=
 # `gobj_log_clear_counters()`
 <!-- ============================================================== -->
 
-Resets all counters associated with logging.
+Resets all internal log counters, including debug, info, warning, error, critical, and alert counts.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,15 +20,23 @@ Resets all counters associated with logging.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_log_clear_counters(void);
-        
-
+void gobj_log_clear_counters(void);
 ```
 
 **Parameters**
 
-This function does not take any parameters.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
@@ -38,6 +44,9 @@ This function does not take any parameters.
 
 This function does not return a value.
 
+**Notes**
+
+This function is useful for resetting log statistics before starting a new monitoring session.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -162,3 +171,4 @@ This function does not return a value.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_update_except)=
 # `kw_update_except()`
 <!-- ============================================================== -->
 
-
-Update a JSON object with the contents of another JSON object, excluding specified keys. Works with [`json_t *`](json_t).
-        
+Updates the dictionary `kw` with key-value pairs from `other`, excluding keys specified in `except_keys`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,50 @@ Update a JSON object with the contents of another JSON object, excluding specifi
 **Prototype**
 
 ```C
-
-PUBLIC int kw_update_except(
-    json_t      *destination,
-    json_t      *source,
-    const char  **keys_to_exclude
+void kw_update_except(
+    hgobj      gobj,
+    json_t    *kw,          // not owned
+    json_t    *other,       // owned
+    const char **except_keys
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `destination`
-  - [`json_t *`](json_t)
-  - The JSON object to update.
+* - `gobj`
+  - `hgobj`
+  - Handle to the gobj (generic object) system.
 
-* - `source`
-  - [`json_t *`](json_t)
-  - The JSON object whose contents will be merged into the destination.
+* - `kw`
+  - `json_t *`
+  - The target JSON dictionary to be updated. This parameter is not owned by the function.
 
-* - `keys_to_exclude`
+* - `other`
+  - `json_t *`
+  - The source JSON dictionary containing key-value pairs to update `kw`. This parameter is owned by the function.
+
+* - `except_keys`
   - `const char **`
-  - A null-terminated array of keys to exclude from the update.
+  - A NULL-terminated array of keys that should be excluded from the update.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+Only the first level of `kw` is updated. Keys in `except_keys` are ignored during the update.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +188,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

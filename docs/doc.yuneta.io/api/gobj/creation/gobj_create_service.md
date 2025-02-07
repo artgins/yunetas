@@ -3,7 +3,7 @@
 # `gobj_create_service()`
 <!-- ============================================================== -->
 
-The `gobj_create_service` function creates a new GObj marked as a service. Services are Gobjs that provide functionalities accessible to external systems or other Gobjs.
+The `gobj_create_service()` function creates a new service GObj instance with the specified name, gclass, and configuration, and assigns it to the given parent GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,11 +20,11 @@ The `gobj_create_service` function creates a new GObj marked as a service. Servi
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create_service(
-    const char      *gobj_name,
-    gclass_name_t   gclass_name,
-    json_t          *kw, // owned
-    hgobj           parent
+hgobj gobj_create_service(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw,  // owned
+    hgobj parent
 );
 ```
 
@@ -34,37 +34,36 @@ PUBLIC hgobj gobj_create_service(
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `gobj_name`
   - `const char *`
-  - The name of the service GObj. If `NULL`, defaults to an empty string.
+  - The name of the GObj instance to be created.
 
 * - `gclass_name`
   - `gclass_name_t`
-  - The name of the GClass defining the service's behavior.
+  - The name of the GClass to which the new GObj belongs.
 
 * - `kw`
   - `json_t *`
-  - JSON object containing configuration attributes for the service (owned).
+  - A JSON object containing the configuration parameters for the new GObj. This parameter is owned and will be consumed by the function.
 
 * - `parent`
   - `hgobj`
-  - The parent GObj. Must not be `NULL`.
+  - The parent GObj under which the new service GObj will be created.
 :::
+
+---
 
 **Return Value**
 
-- Returns a handle to the newly created service GObj (`hgobj`).
-- Returns `NULL` if an error occurs.
+Returns a handle to the newly created service GObj (`hgobj`). If the creation fails, it returns `NULL`.
 
 **Notes**
-- **Flags Behavior:**
-  - Automatically sets the `gobj_flag_service` flag.
-- **Lifecycle Management:**
-  - Internally calls `gobj_create2` with the `gobj_flag_service` flag.
+
+The created GObj is marked as a service using the `gobj_flag_service` flag. If the `gclass_name` is not found, an error is logged, and the function returns `NULL`. The function internally calls [`gobj_create2()`](#gobj_create2) with the appropriate flags.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -189,3 +188,4 @@ PUBLIC hgobj gobj_create_service(
 ``````
 
 ```````
+

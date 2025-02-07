@@ -3,8 +3,7 @@
 # `gobj_create_default_service()`
 <!-- ============================================================== -->
 
-Creates a new GObj instance configured as the default service.  
-Default services have auto-start enabled but require manual playback via the Yuno's play method.
+The function `gobj_create_default_service()` creates a default service gobj with autostart enabled but autoplay disabled. The service will be played by the yuno's play method.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,52 +20,50 @@ Default services have auto-start enabled but require manual playback via the Yun
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create_default_service(
-    const char      *gobj_name,
-    gclass_name_t   gclass_name,
-    json_t          *kw, // owned
-    hgobj           parent
+hgobj gobj_create_default_service(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw, // owned
+    hgobj parent
 );
-
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `name`
+* - `gobj_name`
   - `const char *`
-  - The name of the default service GObj to be created.
+  - The name of the gobj to be created.
 
-* - `gclass`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass from which the GObj will be instantiated.
+* - `gclass_name`
+  - `gclass_name_t`
+  - The name of the gclass to which the gobj belongs.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing attributes to initialize the GObj. This parameter is owned by the function.
+  - `json_t *`
+  - A JSON object containing the configuration parameters for the gobj. The ownership of this object is transferred to the function.
 
 * - `parent`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj. If `NULL`, the GObj is created without a parent.
-
+  - `hgobj`
+  - The parent gobj under which the new gobj will be created.
 :::
+
+---
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the created default service GObj.  
-- Returns `NULL` if the creation fails.
+Returns a handle to the newly created gobj, or NULL if the creation fails.
 
 **Notes**
-- **Flags Behavior:**
-  - Automatically sets the `gobj_flag_default_service` and `gobj_flag_autostart` flags.
-- **Lifecycle Management:**
-  - Internally calls `gobj_create2` with the above flags.
+
+The created gobj is marked as a default service and will be started automatically but not played until explicitly triggered by the yuno's play method.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -191,3 +188,4 @@ PUBLIC hgobj gobj_create_default_service(
 ``````
 
 ```````
+

@@ -3,7 +3,7 @@
 # `gclass_gclass_name()`
 <!-- ============================================================== -->
 
-Retrieves the name of a specified GClass.
+Returns the name of the given `hgclass` as a string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,30 +20,33 @@ Retrieves the name of a specified GClass.
 **Prototype**
 
 ```C
-PUBLIC gclass_name_t gclass_gclass_name(
-    hgclass gclass
-);
+gclass_name_t gclass_gclass_name(hgclass gclass);
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
-  - [`hgclass`](hgclass)
-  - The handle to the GClass whose name is being retrieved.
-
+  - `hgclass`
+  - Handle to the `gclass` whose name is to be retrieved.
 :::
+
+---
 
 **Return Value**
 
-- Returns the name of the GClass as [`gclass_name_t`](gclass_name_t).
+Returns a `gclass_name_t` (const char *) representing the name of the given `gclass`. If `gclass` is NULL, the behavior is undefined.
 
+**Notes**
+
+This function does not allocate memory; the returned string is managed internally.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ PUBLIC gclass_name_t gclass_gclass_name(
 ``````
 
 ```````
+

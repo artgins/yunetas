@@ -3,7 +3,7 @@
 # `gclass_add_state_with_action_list()`
 <!-- ============================================================== -->
 
-Adds a new state to the finite state machine (FSM) of a GClass, along with a list of event-action pairs for that state.
+Adds a new state to the given `gclass` and associates it with a list of event-action mappings.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,14 +17,10 @@ Adds a new state to the finite state machine (FSM) of a GClass, along with a lis
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC int gclass_add_state_with_action_list(
+int gclass_add_state_with_action_list(
     hgclass         gclass,
     gobj_state_t    state_name,
     ev_action_t     *ev_action_list
@@ -33,31 +29,36 @@ PUBLIC int gclass_add_state_with_action_list(
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass to which the state is being added.
+  - `hgclass`
+  - The `gclass` to which the state and event-action mappings will be added.
 
 * - `state_name`
-  - [`gobj_state_t`](gobj_state_t)
-  - The name of the state to add to the FSM.
+  - `gobj_state_t`
+  - The name of the new state to be added.
 
 * - `ev_action_list`
-  - [`ev_action_t *`](ev_action_t)
-  - A pointer to the list of event-action pairs to associate with the state. Each entry specifies an event, the corresponding action function, and an optional next state.
-
+  - `ev_action_t *`
+  - A pointer to an array of event-action mappings that define the behavior of the new state.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The state and its event-action list were successfully added.  
-- `-1`: The state could not be added (e.g., if it already exists or due to invalid input).
+Returns `0` on success, or `-1` if an error occurs (e.g., if the state could not be added).
+
+**Notes**
+
+This function first adds the state using [`gclass_add_state()`](#gclass_add_state). Then, it iterates through `ev_action_list` to associate each event with an action and a next state using [`gclass_add_ev_action()`](#gclass_add_ev_action).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +183,4 @@ PUBLIC int gclass_add_state_with_action_list(
 ``````
 
 ```````
+

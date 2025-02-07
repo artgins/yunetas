@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_parent)=
 # `gobj_parent()`
 <!-- ============================================================== -->
 
-
-Retrieves the parent GObj of the specified GObj, reflecting the hierarchical structure.
-        
+Returns the parent object of the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieves the parent GObj of the specified GObj, reflecting the hierarchical str
 **Prototype**
 
 ```C
-
 hgobj gobj_parent(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose parent is being queried.
-
+  - `hgobj`
+  - The object whose parent is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the parent [`hgobj`](#hgobj) of the given object, or NULL if the object has no parent.
 
-- Returns the handle ([`hgobj`](hgobj)) to the parent GObj.  
-- Returns `NULL` if the GObj has no parent (e.g., the root GObj).
-        
+**Notes**
 
+If the provided [`hgobj`](#hgobj) is NULL, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ hgobj gobj_parent(hgobj gobj);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_services)=
 # `gobj_services()`
 <!-- ============================================================== -->
 
-
-Lists all service GObjs in the current Yuno. Services are GObjs marked with the service flag, typically representing significant system components.
-        
+Returns a JSON array containing the names of all registered services in the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Lists all service GObjs in the current Yuno. Services are GObjs marked with the 
 **Prototype**
 
 ```C
-
 json_t *gobj_services(void);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - None
-  - -
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array of strings, where each string represents the name of a registered service. The caller is responsible for freeing the returned JSON object.
 
-- Returns a JSON array ([`json_t`](json_t)) of service GObjs, including their metadata.  
-- Returns an empty array if no services are registered.
-        
+**Notes**
 
+This function provides a list of services that have been registered using [`gobj_create_service()`](#gobj_create_service) or similar functions.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ json_t *gobj_services(void);
 ``````
 
 ```````
+

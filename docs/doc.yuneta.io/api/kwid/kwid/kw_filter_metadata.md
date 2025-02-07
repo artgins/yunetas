@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_filter_metadata)=
 # `kw_filter_metadata()`
 <!-- ============================================================== -->
 
-
-Create a new JSON object by filtering out metadata keys (keys starting with "__"). Works with [`json_t *`](json_t).
-        
+The function `kw_filter_metadata()` returns a duplicate of the given JSON object or array, removing all metadata keys that begin with '__'.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Create a new JSON object by filtering out metadata keys (keys starting with "__"
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_filter_metadata(
-    json_t      *kw
+json_t *kw_filter_metadata(
+    hgobj gobj,
+    json_t *kw  // owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - A handle to the GObj system, used for logging errors.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to filter.
+  - `json_t *`
+  - The JSON object or array to be filtered. This parameter is owned and will be decremented.
 :::
-        
 
 ---
 
 **Return Value**
 
+A new JSON object or array with all metadata keys removed. The caller owns the returned JSON object.
 
-Returns a new [`json_t *`](json_t) object without metadata keys, or `NULL` on failure.
-        
+**Notes**
 
+Metadata keys are identified as those beginning with '__'. If `kw` is not an object or array, an error is logged, and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a new [`json_t *`](json_t) object without metadata keys, or `NULL` on fa
 ``````
 
 ```````
+

@@ -3,7 +3,7 @@
 # `gclass_find_public_event()`
 <!-- ============================================================== -->
 
-Finds a public event by its name in a GClass.
+Searches for a public event by name across all registered GClasses and returns a pointer to the event if found.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,43 +17,43 @@ Finds a public event by its name in a GClass.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC gobj_event_t gclass_find_public_event(
-    const char      *event,
-    BOOL            verbose
+gobj_event_t gclass_find_public_event(
+    const char *event,
+    BOOL verbose
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `event`
   - `const char *`
-  - The name of the public event to search for.
+  - The name of the event to search for.
 
 * - `verbose`
   - `BOOL`
-  - If `TRUE`, logs details about the search process. If `FALSE`, remains silent during the search.
-
+  - If `TRUE`, logs an error message when the event is not found.
 :::
+
+---
 
 **Return Value**
 
-- Returns the event identifier ([`gobj_event_t`](gobj_event_t)) if the event is found.  
-- Returns `NULL` if the event does not exist.
+A pointer to the event if found, otherwise `NULL`.
 
+**Notes**
+
+This function iterates through all registered GClasses to find an event marked as `EVF_PUBLIC_EVENT`. If `verbose` is `TRUE`, an error is logged when the event is not found.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -178,3 +178,4 @@ PUBLIC gobj_event_t gclass_find_public_event(
 ``````
 
 ```````
+

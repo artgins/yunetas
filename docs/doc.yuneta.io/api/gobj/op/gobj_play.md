@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_play)=
 # `gobj_play()`
 <!-- ============================================================== -->
 
-
-Transitions a GObj to the "playing" state. This function ensures that the GObj is in an operational state where it can handle events and perform its intended tasks.
-        
+The `gobj_play()` function transitions a GObj into the playing state, invoking its `mt_play` method if defined. If the GObj is not already running, it will be started unless the `gcflag_required_start_to_play` flag is set.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Transitions a GObj to the "playing" state. This function ensures that the GObj i
 **Prototype**
 
 ```C
-
-int gobj_play(hgobj gobj);
-        
-
+int gobj_play(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be transitioned to the "playing" state.
-
+  - `hgobj`
+  - Handle to the GObj instance to be played.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or a negative value if an error occurs.
 
-- `0`: The GObj successfully transitioned to the "playing" state.  
-- `-1`: The transition failed, possibly because the GObj was not in a compatible state.
-        
+**Notes**
 
+['If the GObj is already playing, a warning is logged.', 'If the GObj is disabled, it cannot be played.', 'If the GObj is not running, it will be started unless `gcflag_required_start_to_play` is set.', "If the GObj's `mt_play` method is defined, it will be invoked."]
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ int gobj_play(hgobj gobj);
 ``````
 
 ```````
+

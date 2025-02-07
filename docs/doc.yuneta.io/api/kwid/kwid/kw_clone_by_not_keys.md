@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_clone_by_not_keys)=
 # `kw_clone_by_not_keys()`
 <!-- ============================================================== -->
 
-
-Create a clone of a JSON object by excluding specified keys. Works with [`json_t *`](json_t).
-        
+Return a new JSON object excluding the specified keys from the input [`json_t *`](#json_t). The keys can be provided as a string, dictionary, or list. If no keys are specified, an empty JSON object is returned.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,50 @@ Create a clone of a JSON object by excluding specified keys. Works with [`json_t
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_clone_by_not_keys(
-    json_t      *kw,
-    const char  **keys_to_exclude
+json_t *kw_clone_by_not_keys(
+    hgobj      gobj,
+    json_t     *kw,     // owned
+    json_t     *keys,   // owned
+    BOOL       verbose
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to clone.
+* - `gobj`
+  - `hgobj`
+  - Pointer to the GObj instance for logging and error handling.
 
-* - `keys_to_exclude`
-  - `const char **`
-  - A null-terminated array of keys to exclude from the clone.
+* - `kw`
+  - `json_t *`
+  - The input JSON object to be cloned, excluding the specified keys. This parameter is owned and will be decremented.
+
+* - `keys`
+  - `json_t *`
+  - A JSON object, list, or string specifying the keys to exclude from the cloned object. This parameter is owned and will be decremented.
+
+* - `verbose`
+  - `BOOL`
+  - If `TRUE`, logs an error when a specified key is not found in the input JSON object.
 :::
-        
 
 ---
 
 **Return Value**
 
+A new [`json_t *`](#json_t) object with the specified keys removed. If no keys are specified, an empty JSON object is returned.
 
-Returns a new [`json_t *`](json_t) object excluding the specified keys, or `NULL` on failure.
-        
+**Notes**
 
+The function performs a shallow copy of the input JSON object, removing the specified keys. The input `kw` and `keys` parameters are owned and will be decremented.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +188,4 @@ Returns a new [`json_t *`](json_t) object excluding the specified keys, or `NULL
 ``````
 
 ```````
+

@@ -3,9 +3,7 @@
 # `gobj_get_exit_code()`
 <!-- ============================================================== -->
 
-Returns the current exit code of the Yuno, which indicates the reason for termination. 
-
-This code is set using [](gobj_set_exit_code()).
+Retrieves the exit code set for the application shutdown process.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -19,23 +17,36 @@ This code is set using [](gobj_set_exit_code()).
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC int gobj_get_exit_code(void);
-````
+```C
+int gobj_get_exit_code(void);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+
+---
 
 **Return Value**
 
-An integer value representing the exit code:
+Returns the exit code as an integer.
 
-- `0`: Indicates successful termination.
-- `Non-zero values`: Indicate an error or specific termination condition.
+**Notes**
 
+The exit code is set using [`gobj_set_exit_code()`](#gobj_set_exit_code).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -80,6 +91,7 @@ An integer value representing the exit code:
 ````Python
 # Not applicable in Python
 ````
+
 <!--====================================================-->
 <!--                    End Tab Python                   -->
 <!--====================================================-->
@@ -159,3 +171,4 @@ An integer value representing the exit code:
 ``````
 
 ```````
+

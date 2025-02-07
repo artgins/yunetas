@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_base64_to_string)=
 # `gbuffer_base64_to_string()`
 <!-- ============================================================== -->
 
-
-Decode a Base64-encoded gbuffer into a string.
-        
+`gbuffer_base64_to_string()` decodes a Base64-encoded string into a newly allocated [`gbuffer_t *`](#gbuffer_t).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Decode a Base64-encoded gbuffer into a string.
 **Prototype**
 
 ```C
-
-PUBLIC char *gbuffer_base64_to_string(
-    gbuffer_t   *gbuffer
+gbuffer_t *gbuffer_base64_to_string(
+    const char *base64,
+    size_t      base64_len
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer containing the Base64-encoded data to decode.
+* - `base64`
+  - `const char *`
+  - Pointer to the Base64-encoded input string.
+
+* - `base64_len`
+  - `size_t`
+  - Length of the Base64-encoded input string.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a newly allocated [`gbuffer_t *`](#gbuffer_t) containing the decoded data, or `NULL` if decoding fails.
 
-Returns a null-terminated string containing the decoded data, or `NULL` on failure.
-        
+**Notes**
 
+The returned [`gbuffer_t *`](#gbuffer_t) must be freed using [`gbuffer_decref()`](#gbuffer_decref) to avoid memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a null-terminated string containing the decoded data, or `NULL` on failu
 ``````
 
 ```````
+

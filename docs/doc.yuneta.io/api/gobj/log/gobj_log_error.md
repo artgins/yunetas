@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_error)=
 # `gobj_log_error()`
 <!-- ============================================================== -->
 
-Logs an error-level message.
+The function `gobj_log_error()` logs an error message with a specified priority level and optional formatting arguments.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,44 +20,45 @@ Logs an error-level message.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_log_error(hgobj gobj, log_opt_t opt, ...);
-        
-
+void gobj_log_error(
+    hgobj gobj,
+    log_opt_t opt,
+    ...
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance initiating the log.
+  - The GObj instance associated with the log entry.
 
 * - `opt`
   - `log_opt_t`
-  - Options for log customization, such as stack tracing or exit behavior.
+  - Logging options that control behavior such as stack tracing or process termination.
 
 * - `...`
   - `variadic`
-  - The message and optional variables for formatting.
+  - A variadic list of arguments for formatted message output.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-- **None**
-        
+**Notes**
 
+The function increments the global error count and formats the log message before passing it to the logging system. It supports optional stack tracing and process termination based on the `opt` parameter.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ PUBLIC void gobj_log_error(hgobj gobj, log_opt_t opt, ...);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_autostart_services)=
 # `gobj_autostart_services()`
 <!-- ============================================================== -->
 
-
-Automatically starts all services marked for autostart within a Yuno. This is typically used during the initialization phase of a Yuno to ensure required services are running.
-        
+Starts all services marked with `gobj_flag_autostart`. If a service has a `mt_play` method, only the service gobj is started; otherwise, the entire tree is started using [`gobj_start_tree()`](#gobj_start_tree).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Automatically starts all services marked for autostart within a Yuno. This is ty
 **Prototype**
 
 ```C
-
 int gobj_autostart_services(void);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - None
-  - -
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success.
 
-- `0`: All autostart services were successfully started.  
-- `-1`: An error occurred while starting one or more services.
-        
+**Notes**
 
+['Services with `gobj_flag_autostart` are started automatically.', 'If a service has a `mt_play` method, it is responsible for starting its own tree.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ int gobj_autostart_services(void);
 ``````
 
 ```````
+

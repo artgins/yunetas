@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (is_level_tracing)=
 # `is_level_tracing()`
 <!-- ============================================================== -->
 
-
-Check if a specific trace level is enabled.
-        
+Checks if the given `gobj` has the specified trace `level` enabled, considering global and class-level trace settings.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Check if a specific trace level is enabled.
 **Prototype**
 
 ```C
-
 PUBLIC BOOL is_level_tracing(
-    hgobj       gobj,
-    const char  *level
+    hgobj gobj, 
+    uint32_t level
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj to check for the trace level.
+  - The GObj instance to check for the trace level.
 
 * - `level`
-  - `const char *`
-  - The name of the trace level to check.
+  - `uint32_t`
+  - The trace level bitmask to check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the trace level is enabled for the given `gobj`, otherwise returns `FALSE`.
 
-Returns `TRUE` if the specified trace level is enabled, otherwise returns `FALSE`.
-        
+**Notes**
 
+If `gobj` is `NULL`, the function checks the global trace level. The function considers deep tracing settings and class-level trace configurations.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns `TRUE` if the specified trace level is enabled, otherwise returns `FALSE
 ``````
 
 ```````
+

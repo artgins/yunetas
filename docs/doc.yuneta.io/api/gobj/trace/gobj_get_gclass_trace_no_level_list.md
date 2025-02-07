@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_gclass_trace_no_level_list)=
 # `gobj_get_gclass_trace_no_level_list()`
 <!-- ============================================================== -->
 
-
-Retrieve a list of all disabled trace levels for a GClass.
-        
+Retrieves a list of gclasses with their respective trace levels that are explicitly disabled.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieve a list of all disabled trace levels for a GClass.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_get_gclass_trace_no_level_list(
-    hgclass     gclass
-);
-        
-
+PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass_);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gclass`
+* - `gclass_`
   - `hgclass`
-  - The handle of the GClass whose disabled trace levels are being retrieved.
+  - The gclass to retrieve the disabled trace levels for. If NULL, retrieves the list for all gclasses.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing objects with gclass names and their respective disabled trace levels.
 
-Returns a JSON array containing all disabled trace levels for the GClass.
-        
+**Notes**
 
+If `gclass_` is NULL, the function iterates over all registered gclasses and returns their disabled trace levels.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns a JSON array containing all disabled trace levels for the GClass.
 ``````
 
 ```````
+

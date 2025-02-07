@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_insert)=
 # `dl_insert()`
 <!-- ============================================================== -->
 
-
-Insert a node into the doubly-linked list before a specified node.
-        
+Inserts an item at the head of a doubly linked list `dl`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,40 @@ Insert a node into the doubly-linked list before a specified node.
 **Prototype**
 
 ```C
-
-PUBLIC void dl_insert(
-    dl_list_t   *list,
-    dl_node_t   *node,
-    dl_node_t   *new_node
+int dl_insert(
+    dl_list_t *dl,
+    void      *item
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list`
-  - [`dl_list_t *`](dl_list_t)
-  - The doubly-linked list to modify.
+* - `dl`
+  - `dl_list_t *`
+  - Pointer to the doubly linked list where the item will be inserted.
 
-* - `node`
-  - [`dl_node_t *`](dl_node_t)
-  - The node before which the new node will be inserted.
-
-* - `new_node`
-  - [`dl_node_t *`](dl_node_t)
-  - The new node to insert.
+* - `item`
+  - `void *`
+  - Pointer to the item to be inserted at the head of the list.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the item already has links and cannot be inserted.
 
-No return value. This function modifies the doubly-linked list.
-        
+**Notes**
 
+The function checks if the item already has links before inserting it. If the list is empty, the item becomes both the head and tail.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +178,4 @@ No return value. This function modifies the doubly-linked list.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (rotatory_fwrite)=
 # `rotatory_fwrite()`
 <!-- ============================================================== -->
 
-
-Write the contents of a file to a rotatory log file.
-        
+`rotatory_fwrite()` writes a formatted log message to the rotatory log file associated with the given handle.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,50 @@ Write the contents of a file to a rotatory log file.
 **Prototype**
 
 ```C
-
-PUBLIC int rotatory_fwrite(
-    int          handle,
-    FILE        *file
+int rotatory_fwrite(
+    hrotatory_h  hr,        
+    int         priority,  
+    const char *format,    
+    ...
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
-  - `int`
-  - The handle of the rotatory log to write to.
+* - `hr`
+  - `hrotatory_h`
+  - Handle to the rotatory log instance.
 
-* - `file`
-  - `FILE *`
-  - The file to write to the rotatory log.
+* - `priority`
+  - `int`
+  - Logging priority level, determining the severity of the message.
+
+* - `format`
+  - `const char *`
+  - Format string specifying how subsequent arguments are formatted.
+
+* - `...`
+  - `variadic`
+  - Additional arguments corresponding to the format string.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of bytes written on success, or `-1` if an error occurs.
 
-Returns the number of bytes successfully written, or a negative value on failure.
-        
+**Notes**
 
+This function formats the log message using `vsnprintf()` and then writes it using [`rotatory_write()`](#rotatory_write).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +188,4 @@ Returns the number of bytes successfully written, or a negative value on failure
 ``````
 
 ```````
+

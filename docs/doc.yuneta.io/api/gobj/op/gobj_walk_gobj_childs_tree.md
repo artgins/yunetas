@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_walk_gobj_childs_tree)=
 # `gobj_walk_gobj_childs_tree()`
 <!-- ============================================================== -->
 
-
-Traverses the entire hierarchy of child GObjs under the specified parent GObj and applies a user-provided callback function to each.
-        
+Traverses the child objects of a given [`hgobj`](#hgobj) in a specified order and applies a callback function to each child.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,46 +20,55 @@ Traverses the entire hierarchy of child GObjs under the specified parent GObj an
 **Prototype**
 
 ```C
-
-int gobj_walk_gobj_childs_tree(hgobj gobj, int (*cb)(hgobj child, void *user_data), void *user_data);
-        
-
+int gobj_walk_gobj_childs_tree(
+    hgobj         gobj,
+    walk_type_t   walk_type,
+    cb_walking_t  cb_walking,
+    void         *user_data,
+    void         *user_data2
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the root GObj of the hierarchy.
+  - `hgobj`
+  - The parent [`hgobj`](#hgobj) whose child objects will be traversed.
 
-* - `cb`
-  - `int (*cb)(hgobj, void *)`
-  - Callback function to be applied to each GObj in the hierarchy.
+* - `walk_type`
+  - `walk_type_t`
+  - Specifies the traversal order, such as `WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP`, or `WALK_BYLEVEL`.
+
+* - `cb_walking`
+  - `cb_walking_t`
+  - A callback function that is applied to each child [`hgobj`](#hgobj).
 
 * - `user_data`
   - `void *`
-  - Pointer to user-defined data passed to the callback function.
+  - User-defined data passed to the callback function.
 
+* - `user_data2`
+  - `void *`
+  - Additional user-defined data passed to the callback function.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success or a negative value if an error occurs.
 
-- Returns `0` if the traversal completes successfully.  
-- Returns a negative value if the callback function halts the traversal.
-        
+**Notes**
 
+The callback function should return 0 to continue traversal, a negative value to stop traversal, or a positive value to skip the current branch when using `WALK_TOP2BOTTOM`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -188,3 +193,4 @@ int gobj_walk_gobj_childs_tree(hgobj gobj, int (*cb)(hgobj child, void *user_dat
 ``````
 
 ```````
+

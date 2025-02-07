@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_attr_type)=
 # `gobj_attr_type()`
 <!-- ============================================================== -->
 
-Retrieves the type of a specified attribute for a GObj.
+Returns the data type of a given attribute in the specified [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,36 +20,40 @@ Retrieves the type of a specified attribute for a GObj.
 **Prototype**
 
 ```C
-PUBLIC data_type_t gobj_attr_type(
-    hgobj       gobj,
-    const char  *name
+data_type_t gobj_attr_type(
+    hgobj gobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attribute type is being retrieved.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose attribute type is being queried.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the attribute.
-
+  - The name of the attribute whose type is to be retrieved.
 :::
+
+---
 
 **Return Value**
 
-- Returns the type of the attribute as an integer.
-- Returns `-1` if the attribute does not exist or the GObj is invalid.
+Returns the [`data_type_t`](#data_type_t) of the specified attribute, or `0` if the attribute does not exist.
 
+**Notes**
+
+If the attribute does not exist, the function returns `0` without logging an error.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +178,4 @@ PUBLIC data_type_t gobj_attr_type(
 ``````
 
 ```````
+

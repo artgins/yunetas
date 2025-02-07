@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_msg)=
 # `gobj_trace_msg()`
 <!-- ============================================================== -->
 
-Log a trace message with formatting.
+Logs a debug-level message with formatted text. The function formats the message using `printf`-style arguments and logs it with priority `LOG_DEBUG`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,48 +20,45 @@ Log a trace message with formatting.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_trace_msg(
+void gobj_trace_msg(
     hgobj gobj,
     const char *fmt,
     ...
-) JANSSON_ATTRS((format(printf, 2, 3)));
-        
-
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj instance generating the log.
+  - `hgobj`
+  - The GObj instance associated with the log message.
 
 * - `fmt`
   - `const char *`
-  - Format string for the message.
+  - The format string, similar to `printf`.
 
 * - `...`
   - `variadic`
-  - Additional arguments for formatting the message.
+  - Additional arguments for the format string.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-- This function does not return a value.
-        
+**Notes**
 
+Internally, [`trace_vjson()`](#trace_vjson) is used to format and log the message.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -188,3 +183,4 @@ PUBLIC void gobj_trace_msg(
 ``````
 
 ```````
+

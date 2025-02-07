@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_find_subscriptions)=
 # `gobj_find_subscriptions()`
 <!-- ============================================================== -->
 
-
-Finds all subscriptions for a specific event published by a GObj. This is useful for debugging or monitoring subscriptions.
-        
+Retrieves a list of event subscriptions for a given publisher, filtering by event, keyword parameters, and subscriber.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,50 @@ Finds all subscriptions for a specific event published by a GObj. This is useful
 **Prototype**
 
 ```C
-
-json_t *gobj_find_subscriptions(hgobj gobj, gobj_event_t event);
-        
-
+json_t *gobj_find_subscriptions(
+    hgobj       publisher,
+    gobj_event_t event,
+    json_t      *kw,
+    hgobj       subscriber
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj publishing the event.
+* - `publisher`
+  - `hgobj`
+  - The publisher object whose subscriptions are being queried.
 
 * - `event`
-  - [`gobj_event_t`](gobj_event_t)
-  - The event to find subscriptions for.
+  - `gobj_event_t`
+  - The event name to filter subscriptions. If NULL, all events are considered.
 
+* - `kw`
+  - `json_t *`
+  - A JSON object containing filtering parameters such as `__config__`, `__global__`, `__local__`, and `__filter__`. If NULL, no additional filtering is applied.
+
+* - `subscriber`
+  - `hgobj`
+  - The subscriber object to filter subscriptions. If NULL, all subscribers are considered.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the matching subscriptions. Each subscription is represented as a JSON object. The caller is responsible for freeing the returned JSON object.
 
-- Returns a JSON array ([`json_t`](json_t)) containing all subscriptions for the specified event.  
-- Returns an empty array if no subscriptions are found.
-        
+**Notes**
 
+This function is useful for inspecting active subscriptions and can be used in conjunction with [`gobj_unsubscribe_list()`](#gobj_unsubscribe_list) to remove subscriptions.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +188,4 @@ json_t *gobj_find_subscriptions(hgobj gobj, gobj_event_t event);
 ``````
 
 ```````
+

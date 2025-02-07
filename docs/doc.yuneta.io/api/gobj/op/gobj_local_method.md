@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_local_method)=
 # `gobj_local_method()`
 <!-- ============================================================== -->
 
-
-Executes an internal method on a GObj. Internal methods are specific to the GClass of the GObj and provide additional functionality.
-
+Executes a local method (`lmethod`) on the given [`hgobj`](#hgobj) instance, passing the provided keyword arguments (`kw`) and source object (`src`).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,50 +20,50 @@ Executes an internal method on a GObj. Internal methods are specific to the GCla
 **Prototype**
 
 ```C
-
-json_t *gobj_local_method(hgobj gobj, const char *method_name, json_t *kw, hgobj src);
-        
-
+json_t *gobj_local_method(
+    hgobj gobj,
+    const char *lmethod,
+    json_t *kw,
+    hgobj src
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj on which the method will be executed.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance on which the local method is executed.
 
-* - `method_name`
+* - `lmethod`
   - `const char *`
-  - Name of the internal method to execute.
+  - The name of the local method to execute.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing parameters for the method. Ownership is transferred to the function.
+  - `json_t *`
+  - A JSON object containing the keyword arguments for the method. The ownership of this parameter is transferred to the function.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - Handle to the source GObj initiating the method execution.
-
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) instance invoking the method.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object containing the result of the executed method, or `NULL` if the method is not found or an error occurs.
 
-- Returns a JSON object ([`json_t`](json_t)) containing the result of the method execution.  
-- Returns `NULL` if the method does not exist or an error occurs.
-        
+**Notes**
 
+If the specified `lmethod` is not found in the local method table (`lmt`), an error is logged, and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -192,3 +188,4 @@ json_t *gobj_local_method(hgobj gobj, const char *method_name, json_t *kw, hgobj
 ``````
 
 ```````
+

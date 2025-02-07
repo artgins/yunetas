@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_critical)=
 # `gobj_log_critical()`
 <!-- ============================================================== -->
 
-Logs a critical-level message.
+Logs a critical message with the specified format and arguments. The message is processed by registered log handlers.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,44 +20,45 @@ Logs a critical-level message.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_log_critical(hgobj gobj, log_opt_t opt, ...);
-        
-
+void gobj_log_critical(
+    hgobj gobj,
+    log_opt_t opt,
+    ...
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance initiating the log.
+  - The object generating the log message. Can be NULL.
 
 * - `opt`
   - `log_opt_t`
-  - Options for log customization, such as stack tracing or exit behavior.
+  - Logging options that control behavior such as stack tracing or process termination.
 
 * - `...`
   - `variadic`
-  - The message and optional variables for formatting.
+  - Format string followed by arguments, similar to printf.
 :::
-        
 
 ---
 
 **Return Value**
 
+None.
 
-- **None**
-        
+**Notes**
 
+Critical logs indicate severe conditions that require immediate attention. The function internally calls [`_log_jnbf()`](#_log_jnbf) to process the log message.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ PUBLIC void gobj_log_critical(hgobj gobj, log_opt_t opt, ...);
 ``````
 
 ```````
+

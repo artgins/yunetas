@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_has_word)=
 # `kw_has_word()`
 <!-- ============================================================== -->
 
-
-Check if a word exists in a space-separated string within a JSON object. Works with [`json_t *`](json_t).
-        
+Checks if a given `word` exists within the JSON object `kw`. The word can be found in a string, list, or dictionary. Supports recursive search and verbosity options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,50 @@ Check if a word exists in a space-separated string within a JSON object. Works w
 **Prototype**
 
 ```C
-
-PUBLIC BOOL kw_has_word(
-    json_t      *kw,
-    const char  *key,
-    const char  *word
+BOOL kw_has_word(
+    hgobj    gobj,
+    json_t  *kw,   // NOT owned
+    const char *word,
+    kw_flag_t kw_flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to query.
+* - `gobj`
+  - `hgobj`
+  - Handle to the calling object, used for logging errors.
 
-* - `key`
-  - `const char *`
-  - The key containing the space-separated string.
+* - `kw`
+  - `json_t *`
+  - JSON object to search within. Must be a dictionary, list, or string.
 
 * - `word`
   - `const char *`
-  - The word to search for in the string.
+  - The word to search for within `kw`.
+
+* - `kw_flag`
+  - `kw_flag_t`
+  - Flags controlling search behavior, such as `KW_VERBOSE` for logging and `KW_REQUIRED` for strict checking.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the `word` is found in `kw`, otherwise returns `FALSE`.
 
-Returns `TRUE` if the word exists in the string, otherwise returns `FALSE`.
-        
+**Notes**
 
+The function supports searching within JSON strings, lists, and dictionaries. If `kw_flag` includes `KW_VERBOSE`, errors will be logged when `kw` is not a valid type.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +188,4 @@ Returns `TRUE` if the word exists in the string, otherwise returns `FALSE`.
 ``````
 
 ```````
+

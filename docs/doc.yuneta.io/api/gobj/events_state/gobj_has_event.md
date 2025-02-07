@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_has_event)=
 # `gobj_has_event()`
 <!-- ============================================================== -->
 
-
-Checks whether the GObj supports the specified event. This is useful for validating event handling capabilities.
-        
+Checks if the given [`gobj`](#hgobj) supports the specified event, optionally filtering by event flags.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,45 @@ Checks whether the GObj supports the specified event. This is useful for validat
 **Prototype**
 
 ```C
-
-BOOL gobj_has_event(hgobj gobj, gobj_event_t event);
-        
-
+PUBLIC BOOL gobj_has_event(
+    hgobj gobj,
+    gobj_event_t event,
+    event_flag_t event_flag
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to check.
+  - `hgobj`
+  - The [`gobj`](#hgobj) instance to check.
 
 * - `event`
-  - [`gobj_event_t`](gobj_event_t)
-  - The event to check.
+  - `gobj_event_t`
+  - The event to check for.
 
+* - `event_flag`
+  - `event_flag_t`
+  - Optional flags to filter the event check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the event exists in the [`gobj`](#hgobj)'s event list and matches the given flags, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj supports the specified event.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+This function does not differentiate between input and output events. Use [`gobj_has_output_event()`](#gobj_has_output_event) to specifically check for output events.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ BOOL gobj_has_event(hgobj gobj, gobj_event_t event);
 ``````
 
 ```````
+

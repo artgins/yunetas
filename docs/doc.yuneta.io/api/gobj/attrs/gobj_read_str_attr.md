@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_read_str_attr)=
 # `gobj_read_str_attr()`
 <!-- ============================================================== -->
 
-Reads the value of a string attribute in a GObj.
+Retrieves the string value of a specified attribute from the given [`hgobj`](#hgobj), considering inherited attributes if applicable.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,36 +20,40 @@ Reads the value of a string attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC const char *gobj_read_str_attr(
-    hgobj       gobj,
-    const char  *name
+const char *gobj_read_str_attr(
+    hgobj gobj, 
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose string attribute is being read.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance from which the attribute value is retrieved.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the string attribute to read.
-
+  - The name of the attribute to retrieve.
 :::
+
+---
 
 **Return Value**
 
-- Returns a pointer to the string attribute value.
-- Returns `NULL` if the attribute does not exist or is unreadable.
+Returns a pointer to the string value of the specified attribute. If the attribute is not found, returns `NULL`.
 
+**Notes**
+
+If the attribute is inherited from a bottom [`hgobj`](#hgobj), the function retrieves the value from the lowest level in the hierarchy.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +178,4 @@ PUBLIC const char *gobj_read_str_attr(
 ``````
 
 ```````
+

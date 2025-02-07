@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_cur_wr_pointer)=
 # `gbuffer_cur_wr_pointer()`
 <!-- ============================================================== -->
 
-
-Get the current write pointer of the gbuffer.
-        
+Returns a pointer to the current write position in the given `gbuffer_t` structure.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Get the current write pointer of the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC void *gbuffer_cur_wr_pointer(
-    gbuffer_t   *gbuffer
+void *gbuffer_cur_wr_pointer(
+    gbuffer_t *gbuf
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose current write pointer will be retrieved.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` structure whose write position is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the current write position in the buffer.
 
-Returns a pointer to the current write position in the gbuffer.
-        
+**Notes**
 
+The returned pointer can be used to directly write data into the buffer. Ensure that the buffer has enough space before writing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a pointer to the current write position in the gbuffer.
 ``````
 
 ```````
+

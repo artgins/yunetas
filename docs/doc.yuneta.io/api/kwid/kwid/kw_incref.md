@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_incref)=
 # `kw_incref()`
 <!-- ============================================================== -->
 
-
-Increase the reference count of a JSON object with [`json_t *`](json_t).
-        
+Increments the reference count of the given JSON object `kw` and its associated binary fields if applicable.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Increase the reference count of a JSON object with [`json_t *`](json_t).
 **Prototype**
 
 ```C
-
-PUBLIC void kw_incref(
-    json_t      *kw
+json_t *kw_incref(
+    json_t *kw
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object whose reference count will be increased.
+  - `json_t *`
+  - A pointer to the JSON object whose reference count should be incremented.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the same JSON object `kw` with an incremented reference count, or `NULL` if `kw` is invalid.
 
-No return value. This function modifies the reference count of the JSON object.
-        
+**Notes**
 
+If `kw` contains binary fields registered with [`kw_add_binary_type()`](#kw_add_binary_type), their reference counts are also incremented.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ No return value. This function modifies the reference count of the JSON object.
 ``````
 
 ```````
+

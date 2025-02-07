@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_trace_filter)=
 # `gobj_get_trace_filter()`
 <!-- ============================================================== -->
 
-
-Retrieve the currently applied trace filters as a JSON object.
-        
+Retrieves the trace filter configuration for a given [`hgclass`](#hgclass).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieve the currently applied trace filters as a JSON object.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_get_trace_filter(
-    void
-);
-        
-
+PUBLIC json_t *gobj_get_trace_filter(hgclass gclass);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `void`
-  - `void`
-  - This function takes no arguments.
+* - `gclass`
+  - `hgclass`
+  - The [`hgclass`](#hgclass) whose trace filter configuration is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the trace filter configuration. The returned object is not owned by the caller.
 
-Returns a JSON object containing the currently applied trace filters.
-        
+**Notes**
 
+The function returns the trace filter settings applied to the specified [`hgclass`](#hgclass). The caller should not modify or free the returned JSON object.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns a JSON object containing the currently applied trace filters.
 ``````
 
 ```````
+

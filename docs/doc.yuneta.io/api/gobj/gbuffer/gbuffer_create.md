@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_create)=
 # `gbuffer_create()`
 <!-- ============================================================== -->
 
-
-Create a new gbuffer with the specified initial and maximum sizes.
-        
+`gbuffer_create()` allocates and initializes a new `gbuffer_t` structure with a specified data size and maximum memory size.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Create a new gbuffer with the specified initial and maximum sizes.
 **Prototype**
 
 ```C
-
-PUBLIC gbuffer_t *gbuffer_create(
-    size_t      initial_size,
-    size_t      max_size
+gbuffer_t *gbuffer_create(
+    size_t data_size,
+    size_t max_memory_size
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `initial_size`
+* - `data_size`
   - `size_t`
-  - The initial size of the gbuffer in bytes.
+  - Initial size of the buffer's allocated memory.
 
-* - `max_size`
+* - `max_memory_size`
   - `size_t`
-  - The maximum allowable size of the gbuffer in bytes.
+  - Maximum allowed memory size for the buffer.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the newly allocated `gbuffer_t` structure, or `NULL` if memory allocation fails.
 
-Returns a pointer to the newly created [`gbuffer_t *`](gbuffer_t), or `NULL` on failure.
-        
+**Notes**
 
+If memory allocation for the buffer fails, an error is logged, and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns a pointer to the newly created [`gbuffer_t *`](gbuffer_t), or `NULL` on 
 ``````
 
 ```````
+

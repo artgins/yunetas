@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_pop)=
 # `kw_pop()`
 <!-- ============================================================== -->
 
-
-Remove a key from a JSON object and return its value. Works with [`json_t *`](json_t).
-        
+Removes all keys in `kw2` from the dictionary `kw1`. The `kw2` parameter can be a string, dictionary, or list.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Remove a key from a JSON object and return its value. Works with [`json_t *`](js
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_pop(
-    json_t      *kw,
-    const char  *key
+int kw_pop(
+    json_t *kw1, // NOT owned
+    json_t *kw2  // NOT owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to modify.
+* - `kw1`
+  - `json_t *`
+  - The dictionary from which keys will be removed. This parameter is not owned by the function.
 
-* - `key`
-  - `const char *`
-  - The key to remove from the JSON object.
+* - `kw2`
+  - `json_t *`
+  - The keys to be removed from `kw1`. This can be a string, dictionary, or list. This parameter is not owned by the function.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 after removing the specified keys from `kw1`.
 
-Returns the value associated with the removed key, or `NULL` if the key does not exist.
-        
+**Notes**
 
+If `kw2` is a dictionary, all its keys are removed from `kw1`. If `kw2` is a list, all its elements are removed from `kw1`. If `kw2` is a string, the corresponding key is removed from `kw1`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns the value associated with the removed key, or `NULL` if the key does not
 ``````
 
 ```````
+

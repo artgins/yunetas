@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_cur_rd_pointer)=
 # `gbuffer_cur_rd_pointer()`
 <!-- ============================================================== -->
 
-
-Get the current read pointer of the gbuffer.
-        
+Returns a pointer to the current read position in the `gbuffer_t` structure.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Get the current read pointer of the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC const void *gbuffer_cur_rd_pointer(
-    gbuffer_t   *gbuffer
+void *gbuffer_cur_rd_pointer(
+    gbuffer_t *gbuf
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose current read pointer will be retrieved.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` structure.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the current read position in the buffer.
 
-Returns a pointer to the current read position in the gbuffer.
-        
+**Notes**
 
+Ensure that `gbuf` is not NULL before calling this function to avoid undefined behavior.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a pointer to the current read position in the gbuffer.
 ``````
 
 ```````
+

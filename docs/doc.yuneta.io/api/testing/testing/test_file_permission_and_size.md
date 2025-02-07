@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (test_file_permission_and_size)=
 # `test_file_permission_and_size()`
 <!-- ============================================================== -->
 
-
-Test if a file has the specified permissions and meets size requirements.
-        
+`test_file_permission_and_size()` verifies if a file has the specified permissions and size.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,53 +20,45 @@ Test if a file has the specified permissions and meets size requirements.
 **Prototype**
 
 ```C
-
-PUBLIC int test_file_permission_and_size(
-    const char  *path,
-    int          mode,
-    size_t       min_size,
-    size_t       max_size
+int test_file_permission_and_size(
+    const char *path,    
+    mode_t      permission,
+    off_t       size
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `path`
   - `const char *`
-  - The path to the file.
+  - Path to the file to be checked.
 
-* - `mode`
-  - `int`
-  - The permission mode to check (e.g., readable, writable).
+* - `permission`
+  - `mode_t`
+  - Expected file permission mode.
 
-* - `min_size`
-  - `size_t`
-  - The minimum allowed size of the file in bytes.
-
-* - `max_size`
-  - `size_t`
-  - The maximum allowed size of the file in bytes.
+* - `size`
+  - `off_t`
+  - Expected file size in bytes.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` if the file matches the expected permissions and size, otherwise returns `-1`.
 
-Returns `0` if the file meets the specified permissions and size requirements, or a negative value otherwise.
-        
+**Notes**
 
+This function internally calls `file_permission()` and `file_size()` to retrieve the file's attributes.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -195,3 +183,4 @@ Returns `0` if the file meets the specified permissions and size requirements, o
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_set_path_delimiter)=
 # `kw_set_path_delimiter()`
 <!-- ============================================================== -->
 
-
-Set the delimiter used for navigating JSON object paths.
-        
+Sets the path delimiter used for key navigation in JSON structures. The default delimiter is '`'.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Set the delimiter used for navigating JSON object paths.
 **Prototype**
 
 ```C
-
-PUBLIC void kw_set_path_delimiter(
+char kw_set_path_delimiter(
     char delimiter
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `delimiter`
   - `char`
-  - The character to use as the path delimiter.
+  - The new delimiter character to be used for path navigation.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the previous delimiter character before the change.
 
-No return value. This function sets the global path delimiter.
-        
+**Notes**
 
+This function modifies a global setting, affecting all subsequent key path operations.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ No return value. This function sets the global path delimiter.
 ``````
 
 ```````
+

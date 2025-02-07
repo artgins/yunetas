@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_command_desc)=
 # `gobj_command_desc()`
 <!-- ============================================================== -->
 
-
-Retrieves a description of the commands available in a specific GObj.
-        
+Retrieves the command description for a given gobj. If the command name is NULL, it returns the full command table.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,45 @@ Retrieves a description of the commands available in a specific GObj.
 **Prototype**
 
 ```C
-
-json_t *gobj_command_desc(hgobj gobj);
-        
-
+PUBLIC const sdata_desc_t *gobj_command_desc(
+    hgobj gobj,
+    const char *name,
+    BOOL verbose
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose commands are being described.
+  - `hgobj`
+  - The gobj instance whose command description is to be retrieved.
 
+* - `name`
+  - `const char *`
+  - The name of the command. If NULL, the full command table is returned.
+
+* - `verbose`
+  - `BOOL`
+  - If TRUE, logs an error message when the command is not found.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to the `sdata_desc_t` structure describing the command, or NULL if the command is not found.
 
-- Returns a JSON object ([`json_t`](json_t)) describing the commands available in the GObj.
-        
+**Notes**
 
+This function first checks if the `gobj` is valid. If the command name is NULL, it returns the full command table. Otherwise, it searches for the specific command in the gobj's gclass.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +183,4 @@ json_t *gobj_command_desc(hgobj gobj);
 ``````
 
 ```````
+

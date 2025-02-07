@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_next_child)=
 # `gobj_next_child()`
 <!-- ============================================================== -->
 
-
-Retrieves the next sibling GObj of the specified GObj within the same parent hierarchy.
-        
+Returns the next sibling of the given gobj in the parent's child list.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieves the next sibling GObj of the specified GObj within the same parent hie
 **Prototype**
 
 ```C
-
-hgobj gobj_next_child(hgobj gobj);
-        
-
+hgobj gobj_next_child(
+    hgobj child
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose next sibling is being retrieved.
-
+* - `child`
+  - `hgobj`
+  - The gobj whose next sibling is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the next sibling gobj if available, otherwise returns NULL.
 
-- Returns the handle ([`hgobj`](hgobj)) of the next sibling GObj.  
-- Returns `NULL` if the GObj has no next sibling.
-        
+**Notes**
 
+If `child` is NULL, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ hgobj gobj_next_child(hgobj gobj);
 ``````
 
 ```````
+

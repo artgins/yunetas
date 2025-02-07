@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_malloc_func)=
 # `gobj_malloc_func()`
 <!-- ============================================================== -->
 
-Returns the current malloc function.
+`gobj_malloc_func()` returns the current memory allocation function used by the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,24 +20,33 @@ Returns the current malloc function.
 **Prototype**
 
 ```C
-
 PUBLIC sys_malloc_fn_t gobj_malloc_func(void);
-        
-
 ```
 
 **Parameters**
 
-None.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+Returns a function pointer of type `sys_malloc_fn_t`, which represents the memory allocation function currently in use.
 
-- Returns the current malloc function.
-        
+**Notes**
 
+This function allows retrieval of the memory allocator function, which can be customized using [`gobj_set_allocators()`](#gobj_set_allocators).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -164,3 +171,4 @@ None.
 ``````
 
 ```````
+

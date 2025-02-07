@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_chunk)=
 # `gbuffer_chunk()`
 <!-- ============================================================== -->
 
-
-Retrieve a pointer to the current chunk of data in the gbuffer.
-        
+`gbuffer_chunk()` returns the number of bytes available for reading in the given `gbuffer_t` instance, ensuring that the returned value does not exceed the allocated buffer size.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieve a pointer to the current chunk of data in the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC const void *gbuffer_chunk(
-    gbuffer_t   *gbuffer
-);
-        
-
+PUBLIC size_t gbuffer_chunk(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose current data chunk will be retrieved.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose available read chunk size is to be determined.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of bytes available for reading, ensuring it does not exceed the allocated buffer size.
 
-Returns a pointer to the current data chunk in the gbuffer.
-        
+**Notes**
 
+This function calculates the available data chunk by taking the minimum of the remaining unread bytes and the allocated buffer size.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns a pointer to the current data chunk in the gbuffer.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_child_size2)=
 # `gobj_child_size2()`
 <!-- ============================================================== -->
 
-
-Returns the total number of child GObjs under the specified parent GObj, with additional filtering options. This allows for more specific queries within the hierarchy.
-        
+Returns the number of child objects of the given [`hgobj`](#hgobj) that match the specified filter criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Returns the total number of child GObjs under the specified parent GObj, with ad
 **Prototype**
 
 ```C
-
-int gobj_child_size2(hgobj gobj, json_t *filter);
-        
-
+size_t gobj_child_size2(
+    hgobj gobj_,
+    json_t *jn_filter // owned
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj.
+* - `gobj_`
+  - `hgobj`
+  - The parent [`hgobj`](#hgobj) whose children are to be counted.
 
-* - `filter`
-  - [`json_t *`](json_t)
-  - JSON object containing filter criteria for the child GObjs.
-
+* - `jn_filter`
+  - `json_t *`
+  - A JSON object containing filter criteria. Only children matching these criteria are counted.
 :::
-        
 
 ---
 
 **Return Value**
 
+The number of child objects that match the filter criteria.
 
-- Returns the total number of child GObjs under the specified parent GObj that match the filter criteria.  
-- Returns `0` if no matching child GObjs are found.
-        
+**Notes**
 
+The function iterates over the children of [`gobj_`](#gobj_child_size2) and applies the filter conditions specified in [`jn_filter`](#json_t).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ int gobj_child_size2(hgobj gobj, json_t *filter);
 ``````
 
 ```````
+

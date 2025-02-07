@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_first)=
 # `dl_first()`
 <!-- ============================================================== -->
 
-
-Get the first element in the doubly-linked list.
-        
+Returns the first item in the given double-linked list.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the first element in the doubly-linked list.
 **Prototype**
 
 ```C
-
-PUBLIC dl_node_t *dl_first(
-    dl_list_t   *list
-);
-        
-
+void *dl_first(dl_list_t *dl);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list`
-  - [`dl_list_t *`](dl_list_t)
-  - The doubly-linked list to query.
+* - `dl`
+  - `dl_list_t *`
+  - Pointer to the double-linked list.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the first item in the list, or NULL if the list is empty.
 
-Returns a pointer to the first node in the list, or `NULL` if the list is empty.
-        
+**Notes**
 
+Ensure that the list is properly initialized before calling [`dl_first()`](#dl_first).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns a pointer to the first node in the list, or `NULL` if the list is empty.
 ``````
 
 ```````
+

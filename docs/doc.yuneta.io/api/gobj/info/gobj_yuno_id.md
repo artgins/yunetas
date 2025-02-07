@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_id)=
 # `gobj_yuno_id()`
 <!-- ============================================================== -->
 
-
-Retrieves the unique identifier (ID) of the `Yuno`. This ID is often used to distinguish different instances of the same role or application.
-        
+Returns the unique identifier of the Yuno instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Retrieves the unique identifier (ID) of the `Yuno`. This ID is often used to dis
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_id(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A string representing the unique identifier of the Yuno instance.
 
-- Returns a string (`const char *`) containing the unique ID of the `Yuno`.
-        
+**Notes**
 
+If the Yuno instance is not initialized, an empty string is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_id(void);
 ``````
 
 ```````
+

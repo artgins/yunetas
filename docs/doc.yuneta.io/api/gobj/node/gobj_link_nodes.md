@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_link_nodes)=
 # `gobj_link_nodes()`
 <!-- ============================================================== -->
 
-
-Create a link between two nodes in a treedb.
-        
+The `gobj_link_nodes()` function establishes a relationship between two nodes in a hierarchical data structure by linking a child node to a parent node using a specified hook.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,69 +20,65 @@ Create a link between two nodes in a treedb.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_link_nodes(
+int gobj_link_nodes(
     hgobj gobj,
     const char *hook,
     const char *parent_topic_name,
-    json_t *parent,
+    json_t *parent_record,
     const char *child_topic_name,
-    json_t *child,
+    json_t *child_record,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj responsible for linking the nodes.
+  - `hgobj`
+  - The GObj instance managing the hierarchical data structure.
 
 * - `hook`
   - `const char *`
-  - The hook name that defines the relationship.
+  - The name of the hook defining the relationship between the parent and child nodes.
 
 * - `parent_topic_name`
   - `const char *`
   - The topic name of the parent node.
 
-* - `parent`
-  - [`json_t`](json_t)
-  - JSON data identifying the parent node (owned).
+* - `parent_record`
+  - `json_t *`
+  - A JSON object representing the parent node. This parameter is owned by the function.
 
 * - `child_topic_name`
   - `const char *`
   - The topic name of the child node.
 
-* - `child`
-  - [`json_t`](json_t)
-  - JSON data identifying the child node (owned).
+* - `child_record`
+  - `json_t *`
+  - A JSON object representing the child node. This parameter is owned by the function.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - The source GObj initiating the request.
+  - `hgobj`
+  - The source GObj initiating the link operation.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if an error occurs (e.g., if `gobj` is NULL, destroyed, or if the `mt_link_nodes` method is not defined).
 
-- Returns `0` if the link was successfully created.  
-- Returns `-1` if the operation failed.
-        
+**Notes**
 
+This function relies on the `mt_link_nodes` method of the GObj's class to perform the actual linking operation. If `mt_link_nodes` is not defined, an error is logged and the function returns -1.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -211,3 +203,4 @@ PUBLIC int gobj_link_nodes(
 ``````
 
 ```````
+

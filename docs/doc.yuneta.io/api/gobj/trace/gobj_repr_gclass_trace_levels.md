@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_repr_gclass_trace_levels)=
 # `gobj_repr_gclass_trace_levels()`
 <!-- ============================================================== -->
 
-
-Retrieve a string representation of the trace levels for a specific GClass.
-        
+Returns a JSON array containing trace level information for all registered GClasses or a specific GClass if a name is provided.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieve a string representation of the trace levels for a specific GClass.
 **Prototype**
 
 ```C
-
-PUBLIC const char *gobj_repr_gclass_trace_levels(
-    hgclass     gclass
+json_t *gobj_repr_gclass_trace_levels(
+    const char *gclass_name
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gclass`
-  - `hgclass`
-  - The handle of the GClass whose trace levels are being represented.
+* - `gclass_name`
+  - `const char *`
+  - The name of the GClass to retrieve trace levels for. If NULL, retrieves trace levels for all registered GClasses.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing objects with GClass names and their respective trace levels.
 
-Returns a string representation of the trace levels for the specified GClass.
-        
+**Notes**
 
+If `gclass_name` is NULL, the function iterates over all registered GClasses and includes their trace levels in the output.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a string representation of the trace levels for the specified GClass.
 ``````
 
 ```````
+

@@ -1,50 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_global_variables)=
 # `gobj_global_variables()`
 <!-- ============================================================== -->
 
-
-Retrieves a JSON object containing the global variables defined for the GObj system.
-
-The current global variables, that are used to feed [`Settings`](settings) are :
-
-```C
-PUBLIC json_t *gobj_global_variables(void)
-{
-    return json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
-        "__node_owner__", gobj_yuno_node_owner(),
-        "__realm_id__", gobj_yuno_realm_id(),
-        "__realm_owner__", gobj_yuno_realm_owner(),
-        "__realm_role__", gobj_yuno_realm_role(),
-        "__realm_name__", gobj_yuno_realm_name(),
-        "__realm_env__", gobj_yuno_realm_env(),
-        "__yuno_id__", gobj_yuno_id(),
-        "__yuno_role__", gobj_yuno_role(),
-        "__yuno_name__", gobj_yuno_name(),
-        "__yuno_tag__", gobj_yuno_tag(),
-        "__yuno_role_plus_name__", gobj_yuno_role_plus_name(),
-        "__hostname__", get_hostname(),
-#ifdef __linux__
-        "__sys_system_name__", sys.sysname,
-        "__sys_node_name__", sys.nodename,
-        "__sys_version__", sys.version,
-        "__sys_release__", sys.release,
-        "__sys_machine__", sys.machine
-#else
-        "__sys_system_name__", "",
-        "__sys_node_name__", "",
-        "__sys_version__", "",
-        "__sys_release__", "",
-        "__sys_machine__", ""
-#endif
-    );
-}
-
-```
-
-
+Returns a JSON object containing global variables related to the Yuno environment, including system, realm, and node attributes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -66,18 +25,28 @@ json_t *gobj_global_variables(void);
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A JSON object containing global variables such as `__node_owner__`, `__realm_id__`, `__yuno_id__`, and system-related attributes.
 
-- Returns a JSON object ([`json_t`](json_t)) containing all global variables.
-        
+**Notes**
 
+The returned JSON object must be managed properly to avoid memory leaks. It includes predefined global variables that provide contextual information about the Yuno instance.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -202,3 +171,4 @@ json_t *gobj_global_variables(void);
 ``````
 
 ```````
+

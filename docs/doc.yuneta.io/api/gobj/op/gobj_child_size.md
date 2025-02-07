@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_child_size)=
 # `gobj_child_size()`
 <!-- ============================================================== -->
 
-
-Returns the total number of child GObjs under the specified parent GObj. This is useful for assessing the scope of a GObj's hierarchy.
-        
+Returns the number of child objects directly associated with the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Returns the total number of child GObjs under the specified parent GObj. This is
 **Prototype**
 
 ```C
-
-int gobj_child_size(hgobj gobj);
-        
-
+size_t gobj_child_size(hgobj gobj_);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj.
-
+* - `gobj_`
+  - `hgobj`
+  - The parent object whose child count is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+The number of direct child objects of the given [`hgobj`](#hgobj).
 
-- Returns the total number of child GObjs under the specified parent GObj.  
-- Returns `0` if the GObj has no children.
-        
+**Notes**
 
+This function does not count nested children beyond the first level.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ int gobj_child_size(hgobj gobj);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_set_subdict_value)=
 # `kw_set_subdict_value()`
 <!-- ============================================================== -->
 
-
-Set a value in a JSON sub-dictionary at a specified path. Works with [`json_t *`](json_t).
-        
+The function `kw_set_subdict_value()` sets a key-value pair inside a subdictionary located at the specified path within a JSON object. If the subdictionary does not exist, it is created.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,55 @@ Set a value in a JSON sub-dictionary at a specified path. Works with [`json_t *`
 **Prototype**
 
 ```C
-
-PUBLIC int kw_set_subdict_value(
-    json_t      *kw,
-    const char  *path,
-    const char  *value
+int kw_set_subdict_value(
+    hgobj      gobj,
+    json_t     *kw,
+    const char *path,
+    const char *key,
+    json_t     *value // owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - A handle to the gobj (generic object) that may be used for logging or context.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to modify.
+  - `json_t *`
+  - A JSON object where the subdictionary is located.
 
 * - `path`
   - `const char *`
-  - The path where the value will be set.
+  - The path to the subdictionary within `kw`. The last segment of the path is the subdictionary name.
+
+* - `key`
+  - `const char *`
+  - The key to be set inside the subdictionary.
 
 * - `value`
-  - `const char *`
-  - The value to set in the sub-dictionary.
+  - `json_t *`
+  - The JSON value to be assigned to `key`. Ownership is transferred to the function.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if an error occurs (e.g., if `kw` is not a valid JSON object).
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+If the subdictionary at `path` does not exist, it is created as a new JSON object. The function uses [`kw_get_dict()`](#kw_get_dict) to retrieve or create the subdictionary.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +193,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

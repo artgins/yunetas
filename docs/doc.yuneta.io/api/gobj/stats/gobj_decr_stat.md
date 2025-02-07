@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_decr_stat)=
 # `gobj_decr_stat()`
 <!-- ============================================================== -->
 
-
-Decrement a specific statistical value for a GObj.
-        
+Decrements the specified statistic attribute of the given [`hgobj`](#hgobj) by a given value and returns the new value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,45 +20,45 @@ Decrement a specific statistical value for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value);
-        
-
+json_int_t gobj_decr_stat(
+    hgobj gobj,
+    const char *path,
+    json_int_t value
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose statistic attribute is to be decremented.
 
 * - `path`
   - `const char *`
-  - Path to the statistic to decrement.
+  - The name of the statistic attribute to decrement.
 
 * - `value`
   - `json_int_t`
-  - The value to subtract from the specified statistic.
-
+  - The amount by which to decrement the statistic.
 :::
-        
 
 ---
 
 **Return Value**
 
+The new value of the statistic after decrementing.
 
-- Returns the new value of the statistic as `json_int_t`.
-        
+**Notes**
 
+If the statistic attribute does not exist, it is initialized to zero before decrementing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -187,3 +183,4 @@ PUBLIC json_int_t gobj_decr_stat(hgobj gobj, const char *path, json_int_t value)
 ``````
 
 ```````
+

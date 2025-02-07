@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (trace_msg0)=
 # `trace_msg0()`
 <!-- ============================================================== -->
 
-The `trace_msg0` function is a debugging utility that formats and logs a message with `LOG_DEBUG` priority. It is designed for use in debug-level tracing and invokes a global callback (if defined) to inform external systems about the log event.
+The `trace_msg0()` function logs a debug message with a formatted string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,7 +20,7 @@ The `trace_msg0` function is a debugging utility that formats and logs a message
 **Prototype**
 
 ```C
-PUBLIC int trace_msg0(
+int trace_msg0(
     const char *fmt,
     ...
 );
@@ -34,36 +32,28 @@ PUBLIC int trace_msg0(
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `fmt`
   - `const char *`
-  - A format string, similar to `printf`, defining the message to log.
+  - The format string, similar to `printf()`.
 
 * - `...`
-  - Variadic arguments
-  - Arguments corresponding to the format specifiers in `fmt`.
+  - `variadic`
+  - Additional arguments corresponding to the format specifiers in `fmt`.
 :::
 
 ---
 
 **Return Value**
 
-- Always returns `0`.
+Returns 0 after logging the message.
 
 **Notes**
-- **Log Handling:**
-  - Uses `_log_bf` to handle the formatted log message. The message is logged with `LOG_DEBUG` priority.
-- **Callback Support:**
-  - If the global callback `__inform_cb__` is defined, it is called after the log entry is processed to notify external systems.
-- **Debug Counter:**
-  - Maintains a global debug counter `__debug_count__`, which is passed to the callback if invoked.
-- **Buffer Handling:**
-  - The formatted log message is stored in a temporary buffer (`temp`) with a maximum size of `BUFSIZ`.
-- **Thread Safety:**
-  - Ensure that the logging system and callback function are thread-safe if used in a multi-threaded environment.
+
+This function formats the message using `vsnprintf()` and logs it with a debug priority.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -188,3 +178,4 @@ PUBLIC int trace_msg0(
 ``````
 
 ```````
+

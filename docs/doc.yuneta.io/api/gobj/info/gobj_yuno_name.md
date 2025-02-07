@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_name)=
 # `gobj_yuno_name()`
 <!-- ============================================================== -->
 
-
-Gets the name of the `Yuno`. The `Yuno` name typically identifies the top-level GObj instance within the application.
-        
+Returns the name of the Yuno instance by retrieving the `name` attribute from [`gobj_yuno()`](#gobj_yuno).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Gets the name of the `Yuno`. The `Yuno` name typically identifies the top-level 
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_name(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A string representing the name of the Yuno instance. Returns an empty string if the Yuno instance is not available.
 
-- Returns a string (`const char *`) containing the name of the `Yuno`.
-        
+**Notes**
 
+['This function retrieves the `name` attribute from the Yuno instance returned by [`gobj_yuno()`](#gobj_yuno).', 'If [`gobj_yuno()`](#gobj_yuno) returns `NULL`, an empty string is returned.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_name(void);
 ``````
 
 ```````
+

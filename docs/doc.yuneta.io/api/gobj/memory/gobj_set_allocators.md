@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_allocators)=
 # `gobj_set_allocators()`
 <!-- ============================================================== -->
 
-Sets custom memory allocation functions.
+Sets custom memory allocation functions for the system, replacing the default allocators.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,53 +20,50 @@ Sets custom memory allocation functions.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_set_allocators(
-    sys_malloc_fn_t malloc_func,
+int gobj_set_allocators(
+    sys_malloc_fn_t  malloc_func,
     sys_realloc_fn_t realloc_func,
-    sys_calloc_fn_t calloc_func,
-    sys_free_fn_t free_func
+    sys_calloc_fn_t  calloc_func,
+    sys_free_fn_t    free_func
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `malloc_func`
   - `sys_malloc_fn_t`
-  - Pointer to the custom malloc function.
+  - Function pointer for memory allocation.
 
 * - `realloc_func`
   - `sys_realloc_fn_t`
-  - Pointer to the custom realloc function.
+  - Function pointer for memory reallocation.
 
 * - `calloc_func`
   - `sys_calloc_fn_t`
-  - Pointer to the custom calloc function.
+  - Function pointer for memory allocation with zero initialization.
 
 * - `free_func`
   - `sys_free_fn_t`
-  - Pointer to the custom free function.
+  - Function pointer for memory deallocation.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success.
 
-- `0`: Success.
-        
+**Notes**
 
+This function allows replacing the default memory management functions with custom implementations.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -193,3 +188,4 @@ PUBLIC int gobj_set_allocators(
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_serialize)=
 # `kw_serialize()`
 <!-- ============================================================== -->
 
-
-Serialize a JSON object into a gbuffer for transmission or storage with [`json_t *`](json_t) and [`gbuffer_t *`](gbuffer_t).
-        
+`kw_serialize()` serializes specific fields in a JSON object by replacing binary fields with their serialized JSON representations.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Serialize a JSON object into a gbuffer for transmission or storage with [`json_t
 **Prototype**
 
 ```C
-
-PUBLIC gbuffer_t *kw_serialize(
-    json_t      *kw
+json_t *kw_serialize(
+    hgobj     gobj,
+    json_t   *kw
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - A handle to the gobj instance, used for logging and context.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to serialize.
+  - `json_t *`
+  - A JSON object containing fields to be serialized.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the same JSON object with specified binary fields replaced by their serialized JSON representations.
 
-Returns a [`gbuffer_t *`](gbuffer_t) containing the serialized JSON data, or `NULL` on failure.
-        
+**Notes**
 
+This function iterates over predefined binary fields and applies their corresponding serialization functions. If a field is not found or serialization fails, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a [`gbuffer_t *`](gbuffer_t) containing the serialized JSON data, or `NU
 ``````
 
 ```````
+

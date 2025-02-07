@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_first_child)=
 # `gobj_first_child()`
 <!-- ============================================================== -->
 
-
-Retrieves the first child GObj of the specified parent GObj. This is useful for iterating through child GObjs.
-        
+Returns the first child of the given [`hgobj`](#hgobj) object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieves the first child GObj of the specified parent GObj. This is useful for 
 **Prototype**
 
 ```C
-
 hgobj gobj_first_child(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj whose first child is being retrieved.
-
+  - `hgobj`
+  - The parent [`hgobj`](#hgobj) whose first child is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the first child [`hgobj`](#hgobj) of the given parent. If the parent has no children, returns `NULL`.
 
-- Returns the handle ([`hgobj`](hgobj)) of the first child GObj.  
-- Returns `NULL` if the parent GObj has no children.
-        
+**Notes**
 
+This function does not modify the object hierarchy; it only retrieves the first child.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ hgobj gobj_first_child(hgobj gobj);
 ``````
 
 ```````
+

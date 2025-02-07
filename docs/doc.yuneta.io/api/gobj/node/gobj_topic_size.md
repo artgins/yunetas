@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_topic_size)=
 # `gobj_topic_size()`
 <!-- ============================================================== -->
 
-
-Get the size of a topic based on a specific key in a treedb.
-        
+`gobj_topic_size()` returns the size of a specified topic in a GObj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,29 +20,26 @@ Get the size of a topic based on a specific key in a treedb.
 **Prototype**
 
 ```C
-
-PUBLIC size_t gobj_topic_size(
+size_t gobj_topic_size(
     hgobj gobj,
     const char *topic_name,
     const char *key
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj containing the topic.
+  - `hgobj`
+  - The GObj instance.
 
 * - `topic_name`
   - `const char *`
@@ -54,19 +47,18 @@ PUBLIC size_t gobj_topic_size(
 
 * - `key`
   - `const char *`
-  - The key to evaluate for the topic size.
+  - The key within the topic to retrieve the size.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the size of the specified topic.
 
-Returns the size of the topic as `size_t`.  
-If the `gobj` is null or the key is not found, the size returned is `0`.
-        
+**Notes**
 
+['If `gobj` is `NULL` or destroyed, an error is logged and `0` is returned.', 'If `mt_topic_size` is not defined in the GClass, an error is logged and `0` is returned.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -191,3 +183,4 @@ If the `gobj` is null or the key is not found, the size returned is `0`.
 ``````
 
 ```````
+

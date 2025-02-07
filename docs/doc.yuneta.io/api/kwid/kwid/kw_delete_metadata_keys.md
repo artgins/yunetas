@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_delete_metadata_keys)=
 # `kw_delete_metadata_keys()`
 <!-- ============================================================== -->
 
-
-Remove all metadata keys (keys starting with "__") from a JSON object. Works with [`json_t *`](json_t).
-        
+Removes metadata keys from the given JSON object. Metadata keys are identified by the convention of starting with '__'.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,37 @@ Remove all metadata keys (keys starting with "__") from a JSON object. Works wit
 **Prototype**
 
 ```C
-
-PUBLIC int kw_delete_metadata_keys(
-    json_t      *kw
+int kw_delete_metadata_keys(
+    json_t *kw  // NOT owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object from which metadata keys will be removed.
+  - `json_t *`
+  - A JSON object from which metadata keys will be removed. The object is not owned by the function.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 upon successful removal of metadata keys.
 
-Returns the number of metadata keys removed, or `0` if none were found.
-        
+**Notes**
 
+Metadata keys are identified as keys that start with '__'.
+Only the first level of keys in the JSON object is checked and removed.
+This function does not modify nested objects or arrays.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +175,4 @@ Returns the number of metadata keys removed, or `0` if none were found.
 ``````
 
 ```````
+

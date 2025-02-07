@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_repr_global_trace_levels)=
 # `gobj_repr_global_trace_levels()`
 <!-- ============================================================== -->
 
-
-Retrieve a string representation of the global trace levels.
-        
+Returns a JSON array containing the global trace levels and their descriptions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,39 +20,33 @@ Retrieve a string representation of the global trace levels.
 **Prototype**
 
 ```C
-
-PUBLIC const char *gobj_repr_global_trace_levels(
-    void
-);
-        
-
+json_t *gobj_repr_global_trace_levels(void);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `void`
-  - `void`
-  - This function takes no arguments.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array where each element is an object containing the trace level name and its description.
 
-Returns a string representation of all global trace levels currently set.
-        
+**Notes**
 
+This function provides a list of predefined global trace levels used for debugging and logging.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -181,3 +171,4 @@ Returns a string representation of all global trace levels currently set.
 ``````
 
 ```````
+

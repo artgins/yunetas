@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_dump_gbuf)=
 # `gobj_trace_dump_gbuf()`
 <!-- ============================================================== -->
 
-
-Dump the contents of a gbuffer as trace information.
-        
+Logs a hexadecimal dump of the given [`gbuffer_t *`](#gbuffer_t), displaying a chunk of its data for debugging purposes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,50 @@ Dump the contents of a gbuffer as trace information.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_trace_dump_gbuf(
-    gbuffer_t   *gbuffer,
-    const char  *format,
+void gobj_trace_dump_gbuf(
+    hgobj gobj,
+    gbuffer_t *gbuf,
+    const char *fmt,
     ...
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose contents will be dumped.
+* - `gobj`
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance used for logging.
 
-* - `format`
+* - `gbuf`
+  - `gbuffer_t *`
+  - The [`gbuffer_t *`](#gbuffer_t) to be dumped.
+
+* - `fmt`
   - `const char *`
-  - A printf-style format string for the trace message.
+  - A format string for additional log message details.
 
 * - `...`
-  - `varargs`
+  - `variadic`
   - Additional arguments for the format string.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function logs the contents of the gbuffer as trace information.
-        
+**Notes**
 
+Only a chunk of the [`gbuffer_t *`](#gbuffer_t) data is printed. Use [`gobj_trace_dump_full_gbuf()`](#gobj_trace_dump_full_gbuf) to log the entire buffer.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +188,4 @@ No return value. This function logs the contents of the gbuffer as trace informa
 ``````
 
 ```````
+

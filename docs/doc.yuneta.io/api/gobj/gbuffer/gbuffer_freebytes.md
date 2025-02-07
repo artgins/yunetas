@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_freebytes)=
 # `gbuffer_freebytes()`
 <!-- ============================================================== -->
 
-
-Get the number of free bytes remaining in the gbuffer.
-        
+`gbuffer_freebytes()` returns the number of free bytes available in the buffer for writing.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the number of free bytes remaining in the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC size_t gbuffer_freebytes(
-    gbuffer_t   *gbuffer
-);
-        
-
+size_t gbuffer_freebytes(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to query for the number of free bytes.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` structure whose free space is to be determined.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of free bytes available in the buffer.
 
-Returns the number of free bytes remaining in the gbuffer.
-        
+**Notes**
 
+Ensure that `gbuf` is not NULL before calling [`gbuffer_freebytes()`](#gbuffer_freebytes) to avoid potential errors.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns the number of free bytes remaining in the gbuffer.
 ``````
 
 ```````
+

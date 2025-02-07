@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_stat)=
 # `gobj_get_stat()`
 <!-- ============================================================== -->
 
-
-Retrieve a specific statistical value for a GObj.
-        
+Retrieves the value of a statistical attribute from the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,41 +20,40 @@ Retrieve a specific statistical value for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
-        
-
+json_int_t gobj_get_stat(
+    hgobj gobj,
+    const char *path
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance from which the statistic is retrieved.
 
 * - `path`
   - `const char *`
-  - Path to the statistic to retrieve.
-
+  - The name of the statistical attribute to retrieve.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the value of the specified statistical attribute as a `json_int_t`. If the attribute does not exist, returns `0`.
 
-- Returns the value of the statistic as `json_int_t`.
-        
+**Notes**
 
+This function does not check if the attribute exists before retrieving its value. Ensure that the attribute is valid before calling [`gobj_get_stat()`](#gobj_get_stat).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -183,3 +178,4 @@ PUBLIC json_int_t gobj_get_stat(hgobj gobj, const char *path);
 ``````
 
 ```````
+

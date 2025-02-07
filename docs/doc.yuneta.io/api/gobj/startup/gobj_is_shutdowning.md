@@ -3,9 +3,7 @@
 # `gobj_is_shutdowning()`
 <!-- ============================================================== -->
 
-Check if the Yuno is currently in the process of shutting down.
-
-Determines whether the Yuno is in the process of shutting down. This function is typically used to check the system state during operations that might be interrupted by a shutdown process.
+Checks if the system is in the process of shutting down.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -19,20 +17,36 @@ Determines whether the Yuno is in the process of shutting down. This function is
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
-````C
-PUBLIC void gobj_is_shutdowning(void);
-````
+```C
+BOOL gobj_is_shutdowning(void);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
+
+---
 
 **Return Value**
 
-- TRUE: The Yuno is currently shutting down.
-- FALSE: The Yuno is not in the process of shutting down.
+Returns `TRUE` if the system is shutting down, otherwise returns `FALSE`.
+
+**Notes**
+
+This function is useful for determining whether the system is in the process of shutting down, allowing components to take appropriate actions.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -77,6 +91,7 @@ PUBLIC void gobj_is_shutdowning(void);
 ````Python
 # Not applicable in Python
 ````
+
 <!--====================================================-->
 <!--                    End Tab Python                   -->
 <!--====================================================-->
@@ -156,3 +171,4 @@ PUBLIC void gobj_is_shutdowning(void);
 ``````
 
 ```````
+

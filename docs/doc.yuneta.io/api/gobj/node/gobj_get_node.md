@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_node)=
 # `gobj_get_node()`
 <!-- ============================================================== -->
 
-
-Retrieve a node from a specific topic in a treedb.
-        
+Retrieves a node from a tree database in the given [`hgobj`](#hgobj) instance. The node is identified by its topic name and a set of key-value filters.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,59 +20,55 @@ Retrieve a node from a specific topic in a treedb.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_get_node(
+json_t *gobj_get_node(
     hgobj gobj,
     const char *topic_name,
     json_t *kw,
-    json_t *options,
+    json_t *jn_options,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj responsible for retrieving the node.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance representing the tree database.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic containing the node.
+  - The name of the topic in the tree database.
 
 * - `kw`
-  - [`json_t`](json_t)
-  - JSON data specifying the node to retrieve (owned).
+  - `json_t *`
+  - A JSON object containing key-value filters to identify the node. This parameter is owned and will be decremented.
 
-* - `options`
-  - [`json_t`](json_t)
-  - Additional options for retrieval (owned).
+* - `jn_options`
+  - `json_t *`
+  - A JSON object specifying additional options such as foreign key and hook options. This parameter is owned and will be decremented.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - The source GObj initiating the request.
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) instance requesting the node.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object representing the requested node. If the node is not found or an error occurs, `NULL` is returned.
 
-Returns a JSON object representing the node.  
-If the node is not found, returns `NULL`.
-        
+**Notes**
 
+This function requires the `mt_get_node` method to be implemented in the [`hgobj`](#hgobj)'s gclass. If the method is not defined, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -201,3 +193,4 @@ If the node is not found, returns `NULL`.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_duplicate)=
 # `kw_duplicate()`
 <!-- ============================================================== -->
 
-
-Create a deep copy of a JSON object. Works with [`json_t *`](json_t).
-        
+`kw_duplicate()` creates a deep copy of a JSON object or array, processing serialized fields to ensure proper duplication.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Create a deep copy of a JSON object. Works with [`json_t *`](json_t).
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_duplicate(
-    json_t      *kw
+json_t *kw_duplicate(
+    hgobj gobj,
+    json_t *kw  // NOT owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - Handle to the gobj (generic object) for logging and error handling.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to duplicate.
+  - `json_t *`
+  - The JSON object or array to duplicate. Must not be NULL.
 :::
-        
 
 ---
 
 **Return Value**
 
+A new JSON object or array that is a deep copy of `kw`, with serialized fields properly handled. Returns `NULL` if `kw` is not an object or array.
 
-Returns a new [`json_t *`](json_t) object that is a deep copy of the input, or `NULL` on failure.
-        
+**Notes**
 
+Unlike `json_deep_copy()`, [`kw_duplicate()`](#kw_duplicate) processes serialized fields to ensure correct duplication of binary data.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a new [`json_t *`](json_t) object that is a deep copy of the input, or `
 ``````
 
 ```````
+

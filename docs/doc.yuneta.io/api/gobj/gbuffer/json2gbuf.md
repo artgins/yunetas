@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (json2gbuf)=
 # `json2gbuf()`
 <!-- ============================================================== -->
 
-
-Convert a JSON object into a gbuffer.
-        
+The function `json2gbuf()` serializes a JSON object into a `gbuffer_t` structure, appending the JSON data to the buffer.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,45 @@ Convert a JSON object into a gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC gbuffer_t *json2gbuf(
-    json_t      *json
+gbuffer_t *json2gbuf(
+    gbuffer_t *gbuf,
+    json_t *jn,
+    size_t flags
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `json`
+* - `gbuf`
+  - `gbuffer_t *`
+  - A pointer to an existing `gbuffer_t` buffer. If NULL, a new buffer is created.
+
+* - `jn`
   - `json_t *`
-  - The JSON object to convert into a gbuffer.
+  - A JSON object to be serialized. The function takes ownership of this parameter.
+
+* - `flags`
+  - `size_t`
+  - Flags controlling the JSON serialization behavior.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to a `gbuffer_t` containing the serialized JSON data. If an error occurs, NULL is returned.
 
-Returns a newly created [`gbuffer_t *`](gbuffer_t) containing the serialized JSON data, or `NULL` on failure.
-        
+**Notes**
 
+The function uses `json_dump_callback()` to serialize the JSON object into the buffer. If `gbuf` is NULL, a new buffer is allocated with a default size.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +183,4 @@ Returns a newly created [`gbuffer_t *`](gbuffer_t) containing the serialized JSO
 ``````
 
 ```````
+

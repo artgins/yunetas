@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_head_pointer)=
 # `gbuffer_head_pointer()`
 <!-- ============================================================== -->
 
-
-Retrieve a pointer to the start of the gbuffer.
-        
+Returns a pointer to the first position of data in the given `gbuffer_t` instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieve a pointer to the start of the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC const void *gbuffer_head_pointer(
-    gbuffer_t   *gbuffer
+void *gbuffer_head_pointer(
+    gbuffer_t *gbuf
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose head pointer will be retrieved.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance whose data head is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the first byte of data in the buffer. If `gbuf` is NULL, an error is logged and NULL is returned.
 
-Returns a pointer to the start of the gbuffer.
-        
+**Notes**
 
+This function does not modify the buffer; it only provides access to the beginning of the stored data.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a pointer to the start of the gbuffer.
 ``````
 
 ```````
+

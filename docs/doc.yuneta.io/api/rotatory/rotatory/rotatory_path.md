@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (rotatory_path)=
 # `rotatory_path()`
 <!-- ============================================================== -->
 
-
-Get the path of the currently active file in a rotatory log.
-        
+The `rotatory_path()` function retrieves the file path associated with the given rotatory log handle.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Get the path of the currently active file in a rotatory log.
 **Prototype**
 
 ```C
-
-PUBLIC const char *rotatory_path(
-    int handle
+const char *rotatory_path(
+    hrotatory_h hr
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
-  - `int`
-  - The handle of the rotatory log to query.
+* - `hr`
+  - `hrotatory_h`
+  - Handle to the rotatory log instance.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the file path string associated with the given rotatory log handle.
 
-Returns a string containing the path of the active file, or `NULL` on failure.
-        
+**Notes**
 
+The returned pointer is managed internally and should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a string containing the path of the active file, or `NULL` on failure.
 ``````
 
 ```````
+

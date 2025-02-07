@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_save_persistent_attrs)=
 # `gobj_save_persistent_attrs()`
 <!-- ============================================================== -->
 
-Saves the persistent attributes of a GObj to the configured backend storage.
+The function `gobj_save_persistent_attrs()` saves the persistent attributes of a given [`hgobj`](#hgobj) object. It ensures that only named gobjs (services) can store persistent attributes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,37 +20,40 @@ Saves the persistent attributes of a GObj to the configured backend storage.
 **Prototype**
 
 ```C
-PUBLIC int gobj_save_persistent_attrs(  // str, list or dict
-    hgobj       gobj,
-    json_t      *jn_attrs  // owned
+int gobj_save_persistent_attrs(
+    hgobj gobj,
+    json_t *jn_attrs  // owned
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose persistent attributes are being saved.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) object whose persistent attributes are to be saved.
 
-* - `backend_name`
-  - `const char *`
-  - The name of the backend where the persistent attributes will be saved.
-    If `NULL`, the default backend is used.
-
+* - `jn_attrs`
+  - `json_t *`
+  - A JSON object containing the attributes to be saved. It can be a string, a list of keys, or a dictionary with the keys to be saved.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The persistent attributes were successfully saved.
-- `-1`: An error occurred during the save process.
+Returns 0 on success, or -1 if the operation fails.
 
+**Notes**
+
+This function requires that the [`hgobj`](#hgobj) is a named gobj (service). If the global save function is not set, the function will return -1.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -177,3 +178,4 @@ PUBLIC int gobj_save_persistent_attrs(  // str, list or dict
 ``````
 
 ```````
+

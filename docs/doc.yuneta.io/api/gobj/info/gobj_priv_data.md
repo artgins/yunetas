@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_priv_data)=
 # `gobj_priv_data()`
 <!-- ============================================================== -->
 
-
-Retrieves the private data of a GObj, which contains instance-specific data defined by the GClass.
-        
+Returns a pointer to the private data of the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,33 @@ Retrieves the private data of a GObj, which contains instance-specific data defi
 **Prototype**
 
 ```C
-
 void *gobj_priv_data(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose private data is being queried.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose private data is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to the private data associated with the given [`hgobj`](#hgobj).
 
-- Returns a pointer (`void *`) to the private data of the GObj.
-        
+**Notes**
 
+The returned pointer provides direct access to the private data structure of the [`hgobj`](#hgobj). Ensure that the [`hgobj`](#hgobj) is valid before accessing its private data.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +171,4 @@ void *gobj_priv_data(hgobj gobj);
 ``````
 
 ```````
+

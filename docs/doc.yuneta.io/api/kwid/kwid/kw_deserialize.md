@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_deserialize)=
 # `kw_deserialize()`
 <!-- ============================================================== -->
 
-
-Deserialize a gbuffer into a JSON object with [`json_t *`](json_t) and [`gbuffer_t *`](gbuffer_t).
-        
+The function `kw_deserialize()` deserializes specific fields in a JSON object, converting stored serialized data back into its original binary representation.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Deserialize a gbuffer into a JSON object with [`json_t *`](json_t) and [`gbuffer
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_deserialize(
-    gbuffer_t   *gbuffer
+json_t *kw_deserialize(
+    hgobj     gobj,
+    json_t   *kw
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer containing the serialized JSON data to deserialize.
+* - `gobj`
+  - `[`hgobj`](#hgobj)`
+  - A handle to the gobj (generic object) that may be used for logging or context.
+
+* - `kw`
+  - `[`json_t *`](#json_t)`
+  - A JSON object containing serialized fields that need to be deserialized.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the same JSON object [`kw`](#json_t) with its serialized fields converted back to their original binary representation.
 
-Returns a [`json_t *`](json_t) created from the gbuffer, or `NULL` on failure.
-        
+**Notes**
 
+The function iterates over predefined serialized fields and applies the corresponding deserialization function. If a field is found and successfully deserialized, the original serialized field is removed from the JSON object.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a [`json_t *`](json_t) created from the gbuffer, or `NULL` on failure.
 ``````
 
 ```````
+

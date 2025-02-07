@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_flush)=
 # `dl_flush()`
 <!-- ============================================================== -->
 
-
-Remove all nodes from the doubly-linked list.
-        
+Removes all items from the given double-linked list and optionally frees them using the provided function.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Remove all nodes from the doubly-linked list.
 **Prototype**
 
 ```C
-
-PUBLIC void dl_flush(
-    dl_list_t   *list
+void dl_flush(
+    dl_list_t *dl,
+    void (*fnfree)(void *)
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list`
-  - [`dl_list_t *`](dl_list_t)
-  - The doubly-linked list to flush.
+* - `dl`
+  - `dl_list_t *`
+  - Pointer to the double-linked list to be flushed.
+
+* - `fnfree`
+  - `void (*)(void *)`
+  - Function pointer to a deallocation function for freeing each item, or NULL if no deallocation is needed.
 :::
-        
 
 ---
 
 **Return Value**
 
+None.
 
-No return value. This function clears the doubly-linked list.
-        
+**Notes**
 
+Ensures that the list is completely emptied. If `fnfree` is provided, it is called for each item before removal.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ No return value. This function clears the doubly-linked list.
 ``````
 
 ```````
+

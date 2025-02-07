@@ -1,12 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_attrs)=
 # `gobj_write_attrs()`
 <!-- ============================================================== -->
 
-Updates multiple attributes in a GObj using key-value pairs.
-
+Writes multiple attributes of a [`hgobj`](#hgobj) object based on the provided JSON dictionary, applying the specified flag filter.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,37 +20,50 @@ Updates multiple attributes in a GObj using key-value pairs.
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_attrs(
-    hgobj       gobj,
-    json_t      *kw,  // owned
+int gobj_write_attrs(
+    hgobj gobj,
+    json_t *kw,  // owned
     sdata_flag_t flag,
-    hgobj       src
+    hgobj src
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attributes are being written.
+  - `hgobj`
+  - The target [`hgobj`](#hgobj) object whose attributes will be modified.
 
-* - `values`
-  - [`json_t *`](json_t)
-  - A JSON object containing key-value pairs for multiple attributes to update.
+* - `kw`
+  - `json_t *`
+  - A JSON dictionary containing attribute names and their new values. The ownership of this object is transferred to the function.
 
+* - `flag`
+  - `sdata_flag_t`
+  - A flag specifying which attributes should be updated. Only attributes matching this flag will be modified.
+
+* - `src`
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) object initiating the attribute modification.
 :::
+
+---
 
 **Return Value**
 
-- `0`: All attributes were successfully updated.
-- `-1`: An error occurred during the update.
+Returns 0 on success, or a negative value if an error occurs.
+
+**Notes**
+
+This function ensures that only attributes matching the specified flag are updated. The `kw` parameter is decremented after processing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -178,3 +188,4 @@ PUBLIC int gobj_write_attrs(
 ``````
 
 ```````
+

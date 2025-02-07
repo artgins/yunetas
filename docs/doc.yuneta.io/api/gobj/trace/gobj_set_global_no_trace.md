@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_global_no_trace)=
 # `gobj_set_global_no_trace()`
 <!-- ============================================================== -->
 
-
-Disable a global trace level across all GObjs.
-        
+Sets or resets the global no-trace level for debugging and logging control.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Disable a global trace level across all GObjs.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_set_global_no_trace(
-    const char  *level
+int gobj_set_global_no_trace(
+    const char *level,
+    BOOL set
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `level`
   - `const char *`
-  - The name of the global trace level to disable.
+  - The trace level to be set or reset. If empty, all global trace levels are affected.
+
+* - `set`
+  - `BOOL`
+  - If TRUE, the specified trace level is set; if FALSE, it is reset.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the specified trace level is not found.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+This function modifies the global trace level settings, affecting all objects in the system.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_realm_id)=
 # `gobj_yuno_realm_id()`
 <!-- ============================================================== -->
 
-
-Retrieves the realm ID of the `Yuno`. This represents a unique identifier for the realm in which the `Yuno` operates.
-        
+Returns the realm ID of the Yuno instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Retrieves the realm ID of the `Yuno`. This represents a unique identifier for th
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_realm_id(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A string representing the realm ID of the Yuno instance. Returns an empty string if the Yuno instance is not available.
 
-- Returns a string (`const char *`) containing the realm ID of the `Yuno`.
-        
+**Notes**
 
+The function retrieves the value from the `realm_id` attribute of the Yuno object, which is the root object in the GObj hierarchy.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_realm_id(void);
 ``````
 
 ```````
+

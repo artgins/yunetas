@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_unsubscribe_event)=
 # `gobj_unsubscribe_event()`
 <!-- ============================================================== -->
 
-
-Unsubscribes a GObj from a specific event. This stops the GObj from receiving the specified event.
-        
+Removes a subscription from a publisher to a subscriber for a specific event in the GObj system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,46 +20,53 @@ Unsubscribes a GObj from a specific event. This stops the GObj from receiving th
 **Prototype**
 
 ```C
-
-int gobj_unsubscribe_event(hgobj gobj, gobj_event_t event, hgobj subscriber);
-        
-
+int gobj_unsubscribe_event(
+    hgobj         publisher,
+    gobj_event_t  event,
+    json_t       *kw,
+    hgobj         subscriber
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj that was publishing the event.
+* - `publisher`
+  - `hgobj`
+  - The GObj acting as the publisher from which the subscription should be removed.
 
 * - `event`
-  - [`gobj_event_t`](gobj_event_t)
-  - The event to unsubscribe from.
+  - `gobj_event_t`
+  - The event name for which the subscription should be removed.
+
+* - `kw`
+  - `json_t *`
+  - A JSON object containing additional parameters for filtering the subscription removal. Owned by the function.
 
 * - `subscriber`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj that was receiving the event.
-
+  - `hgobj`
+  - The GObj acting as the subscriber that should be unsubscribed from the event.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the subscription was not found or an error occurred.
 
-- `0`: The subscription was successfully removed.  
-- `-1`: The unsubscription failed, possibly because the subscription did not exist.
-        
+**Notes**
 
+If the `event` is not found in the publisher's output event list, the function will return an error unless the publisher has the `gcflag_no_check_output_events` flag set.
+If multiple subscriptions match the given parameters, all of them will be removed.
+If no matching subscription is found, an error is logged.
+The function decrements the reference count of `kw` before returning.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -188,3 +191,4 @@ int gobj_unsubscribe_event(hgobj gobj, gobj_event_t event, hgobj subscriber);
 ``````
 
 ```````
+

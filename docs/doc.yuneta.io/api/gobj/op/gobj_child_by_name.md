@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_child_by_name)=
 # `gobj_child_by_name()`
 <!-- ============================================================== -->
 
-
-Finds a child GObj by its name under the specified parent GObj. This allows for direct access to a child GObj within the hierarchy.
-        
+Retrieves the first child of a given [`hgobj`](#hgobj) that matches the specified name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Finds a child GObj by its name under the specified parent GObj. This allows for 
 **Prototype**
 
 ```C
-
-hgobj gobj_child_by_name(hgobj gobj, const char *child_name);
-        
-
+hgobj gobj_child_by_name(
+    hgobj gobj,
+    const char *name
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj.
+  - `hgobj`
+  - The parent [`hgobj`](#hgobj) whose children will be searched.
 
-* - `child_name`
+* - `name`
   - `const char *`
-  - The name of the child GObj to find.
-
+  - The name of the child [`hgobj`](#hgobj) to find.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the first child [`hgobj`](#hgobj) that matches the given name, or `NULL` if no match is found.
 
-- Returns the handle ([`hgobj`](hgobj)) of the child GObj with the specified name.  
-- Returns `NULL` if no matching child GObj is found.
-        
+**Notes**
 
+This function performs a case-sensitive comparison of the child names.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ hgobj gobj_child_by_name(hgobj gobj, const char *child_name);
 ``````
 
 ```````
+

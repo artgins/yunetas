@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_shoot_snap)=
 # `gobj_shoot_snap()`
 <!-- ============================================================== -->
 
-
-Create a snapshot of the current state of the GObj's TreeDB.
-        
+The `gobj_shoot_snap()` function creates a snapshot of the current state of a GObj, identified by a given tag.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,54 +20,50 @@ Create a snapshot of the current state of the GObj's TreeDB.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_shoot_snap(
+int gobj_shoot_snap(
     hgobj gobj,
     const char *tag,
     json_t *kw,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj handle initiating the snapshot.
+  - The GObj whose state will be captured in the snapshot.
 
 * - `tag`
   - `const char *`
-  - The tag to associate with the snapshot.
+  - A string identifier for the snapshot.
 
 * - `kw`
   - `json_t *`
-  - JSON data containing snapshot metadata (owned).
+  - A JSON object containing additional options for the snapshot. The ownership is transferred.
 
 * - `src`
   - `hgobj`
-  - The source GObj making the request.
+  - The source GObj initiating the snapshot.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if an error occurs.
 
-- Returns `0` if the snapshot was successfully created.  
-- Returns `-1` if the operation failed.
-        
+**Notes**
 
+If the GObj does not support snapshots, an error is logged and the function returns -1.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -196,3 +188,4 @@ PUBLIC int gobj_shoot_snap(
 ``````
 
 ```````
+

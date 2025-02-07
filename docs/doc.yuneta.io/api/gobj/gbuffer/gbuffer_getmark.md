@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_getmark)=
 # `gbuffer_getmark()`
 <!-- ============================================================== -->
 
-
-Retrieve the mark previously set in the gbuffer.
-        
+Retrieves the mark value associated with the given `gbuffer_t` instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieve the mark previously set in the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC size_t gbuffer_getmark(
-    gbuffer_t   *gbuffer
-);
-        
-
+PUBLIC size_t gbuffer_getmark(gbuffer_t *gbuf);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer whose mark will be retrieved.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the `gbuffer_t` instance from which to retrieve the mark value.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the mark value stored in the `gbuffer_t` instance. If `gbuf` is NULL, returns 0.
 
-Returns the position of the mark in the gbuffer, or `0` if no mark is set.
-        
+**Notes**
 
+The mark value is a user-defined field that can be used to store arbitrary metadata associated with the buffer.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns the position of the mark in the gbuffer, or `0` if no mark is set.
 ``````
 
 ```````
+

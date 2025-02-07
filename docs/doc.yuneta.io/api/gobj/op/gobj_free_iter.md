@@ -1,15 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_free_iter)=
 # `gobj_free_iter()`
 <!-- ============================================================== -->
 
-
-The `gobj_free_iter` function frees an iterator (JSON array) of GObj handles created by functions such as [`gobj_match_childs()`](gobj_match_childs()) 
-or [`gobj_match_childs_tree()`](gobj_match_childs_tree()).
-
-        
+Decrements the reference count of each gobj in the given JSON array and frees the array.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -26,50 +20,35 @@ or [`gobj_match_childs_tree()`](gobj_match_childs_tree()).
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_free_iter(
-    json_t      *iter
+void gobj_free_iter(
+    json_t *iter
 );
-        
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `iter`
   - `json_t *`
-  - JSON array of GObj handles to be freed.
+  - A JSON array containing references to gobj instances.
 :::
-        
 
 ---
 
 **Return Value**
 
-
-- Returns `0` on success.
-        
-
----
+None.
 
 **Notes**
 
-
-- **Error Handling:**
-  - Logs an error if any GObj in the iterator has invalid references (`refs <= 0`).
-  - Safely decrements references of each GObj in the iterator.
-- **Memory Management:**
-  - The `iter` parameter is owned by the function and will be decremented internally.
-        
+Each gobj in the array has its reference count decremented before the array itself is freed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -194,3 +173,4 @@ PUBLIC int gobj_free_iter(
 ``````
 
 ```````
+

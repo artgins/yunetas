@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_encode_base64)=
 # `gbuffer_encode_base64()`
 <!-- ============================================================== -->
 
-The `gbuffer_encode_base64` function encodes the content of the input GBuffer (`gbuf_input`) into Base64 format and returns a new GBuffer containing the encoded result. The input GBuffer is decremented and released during the process.
+Encodes the content of the given [`gbuffer_t *`](#gbuffer_t) into a Base64-encoded [`gbuffer_t *`](#gbuffer_t). The input buffer is decremented in reference count after encoding.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,10 +20,9 @@ The `gbuffer_encode_base64` function encodes the content of the input GBuffer (`
 **Prototype**
 
 ```C
-PUBLIC gbuffer_t *gbuffer_encode_base64(
-    gbuffer_t   *gbuf_input  // decref
+gbuffer_t *gbuffer_encode_base64(
+    gbuffer_t *gbuf_input  // decref
 );
-
 ```
 
 **Parameters**
@@ -34,31 +31,24 @@ PUBLIC gbuffer_t *gbuffer_encode_base64(
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `gbuf_input`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The input GBuffer containing the data to encode. It is decremented and released by the function.
+  - `gbuffer_t *`
+  - The input [`gbuffer_t *`](#gbuffer_t) containing the data to be Base64-encoded. This buffer is decremented in reference count after encoding.
 :::
 
 ---
 
 **Return Value**
 
-- Returns a new GBuffer containing the Base64-encoded content.
-- Returns `NULL` if the input GBuffer is invalid or the encoding fails.
+A new [`gbuffer_t *`](#gbuffer_t) containing the Base64-encoded representation of the input buffer. Returns `NULL` on failure.
 
 **Notes**
 
-- **Memory Management:**
-  - The caller is responsible for freeing the returned GBuffer when no longer needed.
-  - The input GBuffer (`gbuf_input`) is decremented and cannot be used after calling this function.
-- **Base64 Encoding:**
-  - Internally, the function uses `gbuffer_string_to_base64` to perform the encoding.
-- **Use Case:**
-  - This function is useful for encoding binary data into Base64 for transmission or storage in text-based systems.
+The caller is responsible for managing the reference count of the returned [`gbuffer_t *`](#gbuffer_t).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -183,3 +173,4 @@ PUBLIC gbuffer_t *gbuffer_encode_base64(
 ``````
 
 ```````
+

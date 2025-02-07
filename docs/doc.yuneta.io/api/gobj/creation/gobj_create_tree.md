@@ -3,8 +3,7 @@
 # `gobj_create_tree()`
 <!-- ============================================================== -->
 
-Parses a hierarchical tree configuration and creates a GObj tree.  
-This function builds a parent-child hierarchy of Gobjs based on the provided configuration.
+Creates a hierarchical tree of `gobj` instances from a JSON configuration string. The function parses the configuration, applies global settings, and instantiates the objects accordingly.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,40 +20,45 @@ This function builds a parent-child hierarchy of Gobjs based on the provided con
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create_tree(
-    hgobj        parent,
-    const char   *tree_config,
-    const char   *json_config_variables
+hgobj gobj_create_tree(
+    hgobj parent,
+    const char *tree_config,
+    const char *json_config_variables
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `parent`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj under which the tree is created. If `NULL`, the tree is created at the root level.
+  - `hgobj`
+  - The parent `gobj` under which the tree will be created.
 
 * - `tree_config`
   - `const char *`
-  - A JSON string or configuration file that defines the structure and attributes of the GObj tree.
+  - A JSON string defining the structure and attributes of the `gobj` tree.
 
 * - `json_config_variables`
   - `const char *`
-  - A JSON string specifying additional variables or overrides for the `tree_config`.
-
+  - A JSON string containing configuration variables to be applied to the tree.
 :::
+
+---
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the root of the created GObj tree.  
-- Returns `NULL` if the creation fails.
+Returns the root `gobj` of the created tree, or `NULL` if an error occurs.
+
+**Notes**
+
+This function internally calls [`gobj_create_tree0()`](#gobj_create_tree0) after parsing and applying configuration variables.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +183,4 @@ PUBLIC hgobj gobj_create_tree(
 ``````
 
 ```````
+

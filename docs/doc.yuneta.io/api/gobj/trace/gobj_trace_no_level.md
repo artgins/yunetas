@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_no_level)=
 # `gobj_trace_no_level()`
 <!-- ============================================================== -->
 
-
-Disable a specific trace level for a GObj.
-        
+Retrieves the trace level mask that is explicitly disabled for the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,35 @@ Disable a specific trace level for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_trace_no_level(
-    hgobj       gobj,
-    const char  *level,
-    BOOL        unset
+PUBLIC uint32_t gobj_trace_no_level(
+    hgobj gobj
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj for which the trace level is being modified.
-
-* - `level`
-  - `const char *`
-  - The name of the trace level to disable or enable.
-
-* - `unset`
-  - `BOOL`
-  - If `TRUE`, the trace level will be disabled; if `FALSE`, it will be enabled.
+  - The [`hgobj`](#hgobj) instance whose disabled trace levels are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a 32-bit mask representing the disabled trace levels for the given [`hgobj`](#hgobj).
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+The function combines the global disabled trace levels with those specific to the [`hgobj`](#hgobj) and its [`gclass`](#gclass).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +173,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

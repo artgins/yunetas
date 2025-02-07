@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (print_backtrace)=
 # `print_backtrace()`
 <!-- ============================================================== -->
 
-Logs a backtrace to the configured logging output.
+The `print_backtrace()` function prints a backtrace of the current execution stack using the configured backtrace function.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,17 +20,23 @@ Logs a backtrace to the configured logging output.
 **Prototype**
 
 ```C
-
-PUBLIC void print_backtrace(void);
-    
-
+void print_backtrace(void);
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-No parameters.
-    
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
@@ -40,6 +44,9 @@ No parameters.
 
 This function does not return a value.
 
+**Notes**
+
+The function relies on the `show_backtrace_fn` callback function to perform the actual backtrace printing. If `show_backtrace_fn` is not set, no backtrace will be printed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -164,3 +171,4 @@ This function does not return a value.
 ``````
 
 ```````
+

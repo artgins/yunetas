@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kwid_match_nid)=
 # `kwid_match_nid()`
 <!-- ============================================================== -->
 
-
-Check if a JSON object matches a specific `nid` (Node ID). Works with [`json_t *`](json_t).
-        
+Checks if the given `id` with a limited size exists in the JSON list, dictionary, or string `ids`. The comparison is performed up to `max_id_size` characters.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,50 @@ Check if a JSON object matches a specific `nid` (Node ID). Works with [`json_t *
 **Prototype**
 
 ```C
-
-PUBLIC BOOL kwid_match_nid(
-    json_t      *record,
-    const char  *nid
+BOOL kwid_match_nid(
+    hgobj    gobj,
+    json_t  *ids,
+    const char *id,
+    int      max_id_size
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `record`
-  - [`json_t *`](json_t)
-  - The JSON object to check.
+* - `gobj`
+  - `hgobj`
+  - A handle to the GObj instance, used for logging errors.
 
-* - `nid`
+* - `ids`
+  - `json_t *`
+  - A JSON object, array, or string containing the IDs to check against.
+
+* - `id`
   - `const char *`
-  - The `nid` to match against the record.
+  - The ID to search for within `ids`.
+
+* - `max_id_size`
+  - `int`
+  - The maximum number of characters to compare in the `id`.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the `id` (up to `max_id_size` characters) is found in `ids`, otherwise returns `FALSE`.
 
-Returns `TRUE` if the `nid` matches the `nid` in the JSON object, otherwise returns `FALSE`.
-        
+**Notes**
 
+If `ids` is an empty object or array, the function returns `TRUE`. The function supports searching in JSON objects, arrays, and strings.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +188,4 @@ Returns `TRUE` if the `nid` matches the `nid` in the JSON object, otherwise retu
 ``````
 
 ```````
+

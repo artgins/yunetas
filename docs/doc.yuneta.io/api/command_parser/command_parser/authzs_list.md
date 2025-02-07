@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (authzs_list)=
 # `authzs_list()`
 <!-- ============================================================== -->
 
-
-Retrieve the list of authorization levels.
-        
+`authzs_list()` retrieves a list of authorization descriptors for a given `hgobj`. If an `authz` name is provided, it returns the specific authorization descriptor matching that name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,36 +20,40 @@ Retrieve the list of authorization levels.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *authzs_list(void);
-        
-
+json_t *authzs_list(
+    hgobj       gobj,
+    const char *authz
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - (none)
-  - (none)
-  - This function does not take any parameters.
+* - `gobj`
+  - `hgobj`
+  - The object whose authorization descriptors are to be retrieved. Can be `NULL` to retrieve global authorizations.
+
+* - `authz`
+  - `const char *`
+  - The name of a specific authorization descriptor to retrieve. If empty, all available authorizations are returned.
 :::
-        
 
 ---
 
 **Return Value**
 
+A `json_t *` object containing the list of authorization descriptors. If `authz` is provided, returns the specific descriptor or `NULL` if not found.
 
-Returns a [`json_t *`](json_t) array containing the list of authorization levels.
-        
+**Notes**
 
+If `gobj` is `NULL`, the function retrieves global authorization descriptors. If `authz` is not found, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -178,3 +178,4 @@ Returns a [`json_t *`](json_t) array containing the list of authorization levels
 ``````
 
 ```````
+

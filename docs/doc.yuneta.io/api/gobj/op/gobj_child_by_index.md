@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_child_by_index)=
 # `gobj_child_by_index()`
 <!-- ============================================================== -->
 
-
-The `gobj_child_by_index` function retrieves the child GObj of a given parent GObj at the specified index (relative to 1). The function iterates over the list of child Gobjs to find the one at the requested position.
-
+`gobj_child_by_index()` returns the child of a given [`hgobj`](#hgobj) at the specified index, where the index is relative to 1.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,9 +20,9 @@ The `gobj_child_by_index` function retrieves the child GObj of a given parent GO
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_child_by_index(
-    hgobj       gobj,
-    size_t      idx // relative to 1
+hgobj gobj_child_by_index(
+    hgobj gobj,
+    size_t idx
 );
 ```
 
@@ -36,38 +32,28 @@ PUBLIC hgobj gobj_child_by_index(
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
 * - `gobj`
   - `hgobj`
-  - The parent GObj whose child is being retrieved.
+  - The parent [`hgobj`](#hgobj) whose child is to be retrieved.
 
 * - `idx`
   - `size_t`
-  - The index of the child GObj to retrieve (1-based index).
+  - The index of the child to retrieve, starting from 1.
 :::
-
 
 ---
 
 **Return Value**
 
-- Returns the handle (`hgobj`) to the child GObj at the specified index.
-- Returns `NULL` if:
-  - The `gobj` parameter is `NULL`.
-  - The index does not exist in the list of child Gobjs.
-
+Returns the child [`hgobj`](#hgobj) at the specified index, or `NULL` if the index is out of bounds.
 
 **Notes**
 
-- **Indexing:**
-  - The index is relative to 1, meaning the first child corresponds to `idx = 1`.
-- **Error Handling:**
-  - Logs an error if the `gobj` parameter is `NULL` and returns `NULL`.
-- **Iteration:**
-  - The function uses `dl_first` and `dl_next` to iterate through the list of child Gobjs.
+If `idx` is greater than the number of children, the function returns `NULL`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -192,3 +178,4 @@ PUBLIC hgobj gobj_child_by_index(
 ``````
 
 ```````
+

@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_read_pointer_attr)=
 # `gobj_read_pointer_attr()`
 <!-- ============================================================== -->
 
-Reads the value of a pointer attribute in a GObj.
+Retrieves the value of a pointer-type attribute from the given [`hgobj`](#hgobj). The function searches for the attribute in the object's hierarchy, following inherited attributes if necessary.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,35 +20,40 @@ Reads the value of a pointer attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC void *gobj_read_pointer_attr(
-    hgobj       gobj,
-    const char  *name
+void *gobj_read_pointer_attr(
+    hgobj gobj,
+    const char *name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose pointer attribute is being read.
+  - `hgobj`
+  - The object from which the attribute is read.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the pointer attribute to read.
-
+  - The name of the attribute to retrieve.
 :::
+
+---
 
 **Return Value**
 
-- Returns a pointer to the attribute value.
-- Returns `NULL` if the attribute does not exist or is unreadable.
+Returns the pointer value of the specified attribute. If the attribute is not found, logs a warning and returns `NULL`.
+
+**Notes**
+
+If the attribute is inherited from a bottom object, [`gobj_read_pointer_attr()`](#gobj_read_pointer_attr) will traverse the hierarchy to find it.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -175,3 +178,4 @@ PUBLIC void *gobj_read_pointer_attr(
 ``````
 
 ```````
+

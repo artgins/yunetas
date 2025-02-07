@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_gobj_trace_level_tree)=
 # `gobj_get_gobj_trace_level_tree()`
 <!-- ============================================================== -->
 
-
-Retrieve a hierarchical tree of all enabled trace levels for a GObj and its children.
-        
+Retrieves the trace levels set for a given gobj and its entire child tree.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieve a hierarchical tree of all enabled trace levels for a GObj and its chil
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_get_gobj_trace_level_tree(
-    hgobj       gobj
+json_t *gobj_get_gobj_trace_level_tree(
+    hgobj gobj
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj whose enabled trace levels tree is being retrieved.
+  - The gobj whose trace levels and child tree trace levels are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing the trace levels of the specified gobj and all its child gobjs.
 
-Returns a JSON object representing the hierarchical tree of enabled trace levels for the GObj and its children.
-        
+**Notes**
 
+This function iterates over the entire child tree of the given gobj and collects their trace levels.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a JSON object representing the hierarchical tree of enabled trace levels
 ``````
 
 ```````
+

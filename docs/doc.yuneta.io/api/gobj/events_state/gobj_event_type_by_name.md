@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_event_type_by_name)=
 # `gobj_event_type_by_name()`
 <!-- ============================================================== -->
 
-
-Retrieves the type of the event by its name. This is useful for querying metadata about events when their name is known.
-        
+Retrieves the event type information for a given event name in the specified gobj.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Retrieves the type of the event by its name. This is useful for querying metadat
 **Prototype**
 
 ```C
-
-int gobj_event_type_by_name(hgobj gobj, const char *event_name);
-        
-
+PUBLIC event_type_t *gobj_event_type_by_name(
+    hgobj gobj,
+    const char *event_name
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj associated with the event.
+  - `hgobj`
+  - The gobj instance in which to search for the event.
 
 * - `event_name`
   - `const char *`
-  - The name of the event whose type is being queried.
-
+  - The name of the event to look up.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to the `event_type_t` structure if the event is found, otherwise `NULL`.
 
-- Returns an integer representing the event type.  
-- Returns `-1` if the event type could not be determined.
-        
+**Notes**
 
+This function searches for the event in the gobj's event list and the global event list. If the event is not found, it returns `NULL`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ int gobj_event_type_by_name(hgobj gobj, const char *event_name);
 ``````
 
 ```````
+

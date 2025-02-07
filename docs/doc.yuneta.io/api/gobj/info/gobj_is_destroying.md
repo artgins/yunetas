@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_is_destroying)=
 # `gobj_is_destroying()`
 <!-- ============================================================== -->
 
-
-Checks if the specified GObj is in the process of being destroyed.
-        
+Checks if the given [`hgobj`](#hgobj) is in the process of being destroyed or has already been destroyed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Checks if the specified GObj is in the process of being destroyed.
 **Prototype**
 
 ```C
-
 BOOL gobj_is_destroying(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj being checked.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the [`hgobj`](#hgobj) is being destroyed or has already been destroyed, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj is being destroyed.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+This function is useful for preventing operations on objects that are no longer valid.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ BOOL gobj_is_destroying(hgobj gobj);
 ``````
 
 ```````
+

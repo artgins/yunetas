@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_attr)=
 # `gobj_write_attr()`
 <!-- ============================================================== -->
 
-The `gobj_write_str_attr` function writes a string value to a named attribute of a GObj. If the value is `NULL`, the attribute is set to a JSON `null` value. If the GClass of the GObj implements the `mt_writing` method, it is invoked to handle any post-write actions.
+The `gobj_write_attr` function writes a new value to a specified attribute of a given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,40 +20,50 @@ The `gobj_write_str_attr` function writes a string value to a named attribute of
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_attr(
-    hgobj       gobj,
-    const char  *name,
-    json_t      *value
+int gobj_write_attr(
+    hgobj gobj,
+    const char *path,
+    json_t *value,
+    hgobj src
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose attribute is being written.
+  - `hgobj`
+  - The target [`hgobj`](#hgobj) whose attribute will be modified.
 
-* - `attr_name`
+* - `path`
   - `const char *`
-  - The name of the attribute to write.
+  - The attribute path to be modified. If it contains '`' characters, segments represent [`hgobj`](#hgobj) instances, and the leaf is the attribute.
 
 * - `value`
-  - `const void *`
-  - Pointer to the new value of the attribute.
+  - `json_t *`
+  - The new value to be assigned to the attribute. This parameter is owned and will be decremented.
 
+* - `src`
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) initiating the attribute modification.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The attribute was successfully updated.
-- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
+Returns 0 on success, or -1 if the attribute is not found or an error occurs.
+
+**Notes**
+
+If the attribute does not exist, an error is logged. The function ensures that the provided value is decremented after use.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +188,4 @@ PUBLIC int gobj_write_attr(
 ``````
 
 ```````
+

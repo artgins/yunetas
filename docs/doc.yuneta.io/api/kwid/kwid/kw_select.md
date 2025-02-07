@@ -1,12 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_select)=
 # `kw_select()`
 <!-- ============================================================== -->
 
-The `kw_select` function filters rows from a JSON object or array of dictionaries (`kw`) based on the criteria specified in `jn_filter`. It returns a new JSON array containing **duplicated** objects that match the filter. If `match_fn` is not provided, the default `kw_match_simple` function is used to evaluate matches.
-
+`kw_select()` returns a new JSON list containing **duplicated** objects from `kw` that match the given `jn_filter`. If `match_fn` is `NULL`, [`kw_match_simple()`](#kw_match_simple) is used as the default matching function.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -23,12 +20,12 @@ The `kw_select` function filters rows from a JSON object or array of dictionarie
 **Prototype**
 
 ```C
-PUBLIC json_t *kw_select(
-    json_t      *kw,         // not owned
-    const char  **keys,
-    json_t      *jn_filter,  // owned
-    BOOL (*match_fn)(
-        json_t *kw,         // not owned
+json_t *kw_select(
+    hgobj gobj,
+    json_t *kw,         // NOT owned
+    json_t *jn_filter,  // owned
+    BOOL (*match_fn) (
+        json_t *kw,         // NOT owned
         json_t *jn_filter   // owned
     )
 );
@@ -40,44 +37,38 @@ PUBLIC json_t *kw_select(
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - A handle to the gobj (generic object) context.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - The input JSON object or array to filter (not owned).
-
-* - `keys`
-  - `const char **`
-  - A list of keys to include in the returned objects. If `NULL`, all keys are included.
+  - `json_t *`
+  - A JSON object or array to be filtered. It is **not owned** by the function.
 
 * - `jn_filter`
-  - [`json_t *`](json_t)
-  - JSON object specifying the filter criteria (owned).
+  - `json_t *`
+  - A JSON object containing the filter criteria. It is **owned** by the function.
 
 * - `match_fn`
   - `BOOL (*)(json_t *, json_t *)`
-  - Custom function to evaluate if a row matches the filter criteria. If `NULL`, the default `kw_match_simple` function is used.
+  - A function pointer used to match elements in `kw` against `jn_filter`. If `NULL`, [`kw_match_simple()`](#kw_match_simple) is used.
 :::
 
 ---
 
 **Return Value**
 
-- Returns a new JSON array (`json_t *`) containing duplicated objects that match the filter criteria.
-- Returns an empty JSON array if no matches are found or if an error occurs.
+A new JSON array containing **duplicated** objects that match the filter criteria. The caller is responsible for freeing the returned JSON object.
 
 **Notes**
 
-- **Ownership:**
-  - The input parameter `kw` is not owned and remains unchanged.
-  - The `jn_filter` parameter is owned by the function and will be decremented internally.
-  - The returned JSON array is owned by the caller and must be freed when no longer needed.
-- **Error Handling:**
-  - Logs an error if `kw` is not a JSON array or object.
-- **Duplication:**
-  - Objects in the result array are duplicated with only the specified keys using `kw_duplicate_with_only_keys`.
+If `kw` is an array, each element is checked against `jn_filter`, and matching elements are duplicated into the returned list.
+If `kw` is an object, it is checked against `jn_filter`, and if it matches, it is duplicated into the returned list.
+The returned JSON array contains **duplicated** objects, meaning they have new references and must be freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -202,3 +193,4 @@ PUBLIC json_t *kw_select(
 ``````
 
 ```````
+

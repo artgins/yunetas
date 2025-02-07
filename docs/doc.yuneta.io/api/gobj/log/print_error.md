@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (print_error)=
 # `print_error()`
 <!-- ============================================================== -->
 
-Logs an error message and optionally exits or aborts the program.
+The `print_error()` function prints an error message to stdout and syslog, and optionally exits or aborts the program based on the specified flag.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,37 +20,35 @@ Logs an error message and optionally exits or aborts the program.
 **Prototype**
 
 ```C
-
-PUBLIC void print_error(
-    pe_flag_t   quit,
-    const char  *fmt,
+void print_error(
+    pe_flag_t quit,
+    const char *fmt,
     ...
 );
-
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-        :::{list-table}
-        :widths: 20 20 60
-        :header-rows: 1
-        * - Key
-          - Type
-          - Description
+* - Key
+  - Type
+  - Description
 
-        * - `quit`
-          - [`pe_flag_t`](pe_flag_t)
-          - Indicates the action to take after logging the error (e.g., continue, exit, or abort).
-        * - `fmt`
-          - `const char *`
-          - Format string for the error message.
-        * - `...`
-          - `variadic`
-          - Additional arguments for formatting the message.
-        :::
-        
+* - `quit`
+  - `pe_flag_t`
+  - Determines the behavior after printing the error message. Possible values: `PEF_CONTINUE` (continue execution), `PEF_EXIT` (exit with -1), `PEF_ABORT` (abort execution), or `PEF_SYSLOG` (log to syslog).
+
+* - `fmt`
+  - `const char *`
+  - The format string for the error message, similar to `printf()`.
+
+* - `...`
+  - `variadic arguments`
+  - Additional arguments corresponding to the format specifiers in `fmt`.
+:::
 
 ---
 
@@ -60,6 +56,9 @@ PUBLIC void print_error(
 
 This function does not return a value.
 
+**Notes**
+
+If `quit` is set to `PEF_ABORT`, the function will call `abort()`. If `quit` is set to `PEF_EXIT`, the function will call `exit(-1)`. The function also logs the error message to syslog on Linux systems.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ This function does not return a value.
 ``````
 
 ```````
+

@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_log_priority_name)=
 # `gobj_get_log_priority_name()`
 <!-- ============================================================== -->
 
-Retrieves the name of a log priority level.
+Retrieves the string representation of a log priority level based on its integer value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,37 +20,33 @@ Retrieves the name of a log priority level.
 **Prototype**
 
 ```C
-
-PUBLIC const char *gobj_get_log_priority_name(int priority);
-        
-
+const char *gobj_get_log_priority_name(int priority);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `priority`
   - `int`
-  - Numeric value representing the log priority level.
+  - The log priority level, expected to be within predefined system log levels.
 :::
-        
 
 ---
 
 **Return Value**
 
+A string representing the name of the log priority level. If the priority is out of range, an empty string is returned.
 
-- Returns the name of the log priority as a string.
-- Returns `NULL` if the priority level is invalid.
-        
+**Notes**
 
+The function maps integer priority levels to predefined log level names such as `LOG_ERR`, `LOG_WARNING`, and `LOG_DEBUG`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -177,3 +171,4 @@ PUBLIC const char *gobj_get_log_priority_name(int priority);
 ``````
 
 ```````
+

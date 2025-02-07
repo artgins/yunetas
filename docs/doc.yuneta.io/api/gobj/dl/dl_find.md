@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_find)=
 # `dl_find()`
 <!-- ============================================================== -->
 
-
-Find a node in the doubly-linked list that matches a given condition.
-        
+`dl_find()` searches for an item in a doubly linked list and returns a pointer to the item if found.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,40 @@ Find a node in the doubly-linked list that matches a given condition.
 **Prototype**
 
 ```C
-
-PUBLIC dl_node_t *dl_find(
-    dl_list_t   *list,
-    dl_node_t   *(*match_fn)(dl_node_t *, void *),
-    void        *arg
+void *dl_find(
+    dl_list_t *dl,
+    void *item
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list`
-  - [`dl_list_t *`](dl_list_t)
-  - The doubly-linked list to search.
+* - `dl`
+  - `dl_list_t *`
+  - Pointer to the doubly linked list.
 
-* - `match_fn`
-  - `dl_node_t *(*)(dl_node_t *, void *)`
-  - A function pointer to the matching function.
-
-* - `arg`
+* - `item`
   - `void *`
-  - Additional argument passed to the matching function.
+  - Pointer to the item to search for in the list.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the item if found, otherwise returns `NULL`.
 
-Returns a pointer to the first node that matches the condition, or `NULL` if no match is found.
-        
+**Notes**
 
+This function performs a linear search through the list and returns the first matching item.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +178,4 @@ Returns a pointer to the first node that matches the condition, or `NULL` if no 
 ``````
 
 ```````
+

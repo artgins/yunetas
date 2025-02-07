@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_gobj_trace_no_level_tree)=
 # `gobj_get_gobj_trace_no_level_tree()`
 <!-- ============================================================== -->
 
-
-Retrieve a hierarchical tree of all disabled trace levels for a GObj and its children.
-        
+Retrieves a hierarchical list of trace levels that are explicitly disabled for a given gobj and its child tree.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieve a hierarchical tree of all disabled trace levels for a GObj and its chi
 **Prototype**
 
 ```C
-
 PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(
-    hgobj       gobj
+    hgobj gobj
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj whose disabled trace levels tree is being retrieved.
+  - The gobj whose trace levels are to be retrieved, including its child tree.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON array containing objects with the gobj name and its disabled trace levels.
 
-Returns a JSON object representing the hierarchical tree of disabled trace levels for the GObj and its children.
-        
+**Notes**
 
+This function traverses the entire gobj tree and collects trace levels that have been explicitly disabled.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a JSON object representing the hierarchical tree of disabled trace level
 ``````
 
 ```````
+

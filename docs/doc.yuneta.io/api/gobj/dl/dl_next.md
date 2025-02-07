@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_next)=
 # `dl_next()`
 <!-- ============================================================== -->
 
-
-Get the next element in the doubly-linked list relative to a given node.
-        
+Returns the next item in a doubly linked list relative to the given item.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Get the next element in the doubly-linked list relative to a given node.
 **Prototype**
 
 ```C
-
-PUBLIC dl_node_t *dl_next(
-    dl_node_t   *node
-);
-        
-
+void *dl_next(void *curr);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `node`
-  - [`dl_node_t *`](dl_node_t)
-  - The current node.
+* - `curr`
+  - `void *`
+  - Pointer to the current item in the doubly linked list.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to the next item in the list, or NULL if there is no next item.
 
-Returns a pointer to the next node, or `NULL` if there is no next node.
-        
+**Notes**
 
+The function assumes that `curr` is a valid pointer to an item in a doubly linked list.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ Returns a pointer to the next node, or `NULL` if there is no next node.
 ``````
 
 ```````
+

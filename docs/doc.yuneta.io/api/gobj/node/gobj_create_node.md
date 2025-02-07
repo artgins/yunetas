@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_create_node)=
 # `gobj_create_node()`
 <!-- ============================================================== -->
 
-
-Create a new node in a specific topic of a treedb.
-        
+Creates a new node in the specified topic. The function [`gobj_create_node()`](#gobj_create_node) allows inserting a new record into a hierarchical data structure managed by the gobj system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,59 +20,55 @@ Create a new node in a specific topic of a treedb.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_create_node(
+json_t *gobj_create_node(
     hgobj gobj,
     const char *topic_name,
     json_t *kw,
     json_t *jn_options,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj responsible for creating the node.
+  - `hgobj`
+  - The gobj instance managing the hierarchical data structure.
 
 * - `topic_name`
   - `const char *`
   - The name of the topic where the node will be created.
 
 * - `kw`
-  - [`json_t`](json_t)
-  - JSON data representing the node attributes (owned).
+  - `json_t *`
+  - A JSON object containing the attributes of the new node. This parameter is owned by the function.
 
 * - `jn_options`
-  - [`json_t`](json_t)
-  - Additional options for node creation (owned).
+  - `json_t *`
+  - A JSON object specifying options such as foreign key and hook configurations. This parameter is owned by the function.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - The source GObj initiating the request.
+  - `hgobj`
+  - The source gobj that initiated the node creation request.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object representing the newly created node. If the operation fails, returns NULL.
 
-Returns a JSON object representing the created node.  
-If the creation fails, returns `NULL`.
-        
+**Notes**
 
+The function [`gobj_create_node()`](#gobj_create_node) requires that the gobj instance supports the `mt_create_node` method. If the method is not defined, an error is logged, and the function returns NULL.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -201,3 +193,4 @@ If the creation fails, returns `NULL`.
 ``````
 
 ```````
+

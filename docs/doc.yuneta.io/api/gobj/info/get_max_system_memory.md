@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (get_max_system_memory)=
 # `get_max_system_memory()`
 <!-- ============================================================== -->
 
-
-Retrieves the maximum system memory available for use.
-        
+Returns the maximum system memory limit set for the application.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Retrieves the maximum system memory available for use.
 **Prototype**
 
 ```C
-
 size_t get_max_system_memory(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+The maximum system memory in bytes.
 
-- Returns the maximum system memory (`size_t`) available.
-        
+**Notes**
 
+This function provides the upper limit of memory that the system is allowed to allocate.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ size_t get_max_system_memory(void);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_trace_level_list)=
 # `gobj_trace_level_list()`
 <!-- ============================================================== -->
 
-
-Retrieve a list of all trace levels.
-        
+Returns a JSON object containing the trace levels available for a given [`hgclass`](#hgclass).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,39 +20,35 @@ Retrieve a list of all trace levels.
 **Prototype**
 
 ```C
-
 PUBLIC json_t *gobj_trace_level_list(
-    void
+    hgclass gclass
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `void`
-  - `void`
-  - This function takes no arguments.
-
+* - `gclass`
+  - `hgclass`
+  - The [`hgclass`](#hgclass) whose trace levels are to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the trace levels available for the specified [`hgclass`](#hgclass).
 
-Returns a JSON array of all trace levels available in the system.
-        
+**Notes**
 
+The returned JSON object must be decremented when no longer needed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -181,3 +173,4 @@ Returns a JSON array of all trace levels available in the system.
 ``````
 
 ```````
+

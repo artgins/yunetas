@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_real_attr)=
 # `gobj_write_real_attr()`
 <!-- ============================================================== -->
 
-
-Updates the value of a real (floating-point) attribute in a GObj.
-
+The function `gobj_write_real_attr()` sets the value of a real (floating-point) attribute in the given [`hgobj`](#hgobj) object. The attribute must exist and be of type `DTP_REAL`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,40 +20,45 @@ Updates the value of a real (floating-point) attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_real_attr(
-    hgobj       gobj,
-    const char  *name,
-    double      value
+int gobj_write_real_attr(
+    hgobj gobj,
+    const char *name,
+    double value
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose real (floating-point) attribute is being written.
+  - `hgobj`
+  - A handle to the [`hgobj`](#hgobj) object whose attribute is being modified.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the real attribute to write.
+  - The name of the attribute to modify. It must be of type `DTP_REAL`.
 
 * - `value`
   - `double`
-  - The new value for the attribute.
-
+  - The new floating-point value to assign to the attribute.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The real attribute was successfully updated.
-- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
+Returns `0` on success, or `-1` if the attribute does not exist or is not of type `DTP_REAL`.
+
+**Notes**
+
+If the attribute exists and is writable, its value is updated. If the [`hgobj`](#hgobj) has a `mt_writing` method, it is called after updating the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +183,4 @@ PUBLIC int gobj_write_real_attr(
 ``````
 
 ```````
+

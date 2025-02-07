@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (is_level_not_tracing)=
 # `is_level_not_tracing()`
 <!-- ============================================================== -->
 
-
-Check if a specific trace level is disabled.
-        
+Determines whether a given trace level is explicitly disabled for a specified `hgobj` instance or globally.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Check if a specific trace level is disabled.
 **Prototype**
 
 ```C
-
 PUBLIC BOOL is_level_not_tracing(
-    hgobj       gobj,
-    const char  *level
+    hgobj gobj_,
+    uint32_t level
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
+* - `gobj_`
   - `hgobj`
-  - The GObj to check for the trace level.
+  - The object whose trace level is being checked. If NULL, the global trace level is considered.
 
 * - `level`
-  - `const char *`
-  - The name of the trace level to check.
+  - `uint32_t`
+  - The trace level to check.
 :::
-        
 
 ---
 
 **Return Value**
 
-
 Returns `TRUE` if the specified trace level is disabled, otherwise returns `FALSE`.
-        
 
+**Notes**
+
+If `__deep_trace__` is greater than 1, tracing is always enabled, overriding any disabled levels.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ Returns `TRUE` if the specified trace level is disabled, otherwise returns `FALS
 ``````
 
 ```````
+

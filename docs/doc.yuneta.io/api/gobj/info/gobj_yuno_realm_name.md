@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_realm_name)=
 # `gobj_yuno_realm_name()`
 <!-- ============================================================== -->
 
-
-Gets the name of the `Yuno` realm. The name typically provides a human-readable identifier for the realm.
-        
+Returns the realm name of the Yuno instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Gets the name of the `Yuno` realm. The name typically provides a human-readable 
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_realm_name(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A string representing the realm name of the Yuno instance. Returns an empty string if the Yuno instance is not available.
 
-- Returns a string (`const char *`) containing the name of the `Yuno` realm.
-        
+**Notes**
 
+The function retrieves the value of the `realm_name` attribute from the Yuno instance.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_realm_name(void);
 ``````
 
 ```````
+

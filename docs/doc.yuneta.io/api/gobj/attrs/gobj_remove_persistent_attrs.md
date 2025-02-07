@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_remove_persistent_attrs)=
 # `gobj_remove_persistent_attrs()`
 <!-- ============================================================== -->
 
-Removes the persistent attributes of a GObj.
+Removes persistent and writable attributes from a [`hgobj`](#hgobj). If `jn_attrs` is empty, all attributes are removed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,32 +20,40 @@ Removes the persistent attributes of a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_remove_persistent_attrs( // str, list or dict
-    hgobj       gobj,
-    json_t      *jn_attrs  // owned
+int gobj_remove_persistent_attrs(
+    hgobj gobj, 
+    json_t *jn_attrs  // owned
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose persistent attributes are being removed.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance from which persistent attributes should be removed.
 
+* - `jn_attrs`
+  - `json_t *`
+  - A JSON object specifying the attributes to remove. If empty, all attributes are removed.
 :::
+
+---
 
 **Return Value**
 
-- `0`: Persistent attributes were successfully removed.
-- `-1`: An error occurred during the removal process.
+Returns `0` on success, or `-1` if the operation fails.
 
+**Notes**
+
+This function requires a global persistent attribute removal function to be set. If none is available, the function returns `-1`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -172,3 +178,4 @@ PUBLIC int gobj_remove_persistent_attrs( // str, list or dict
 ``````
 
 ```````
+

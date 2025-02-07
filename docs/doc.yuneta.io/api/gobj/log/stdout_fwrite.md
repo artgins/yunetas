@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (stdout_fwrite)=
 # `stdout_fwrite()`
 <!-- ============================================================== -->
 
-
-Write a formatted log message to the stdout handler.
-        
+`stdout_fwrite()` writes a formatted message to the standard output stream using a specified priority level.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,49 +20,50 @@ Write a formatted log message to the stdout handler.
 **Prototype**
 
 ```C
-
-int stdout_fwrite(void *v, int priority, const char *format, ...);
-        
-
+int stdout_fwrite(
+    void *v,
+    int priority,
+    const char *fmt,
+    ...
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `v`
   - `void *`
-  - Context or additional data (typically unused).
+  - Unused parameter, included for compatibility with log handler function signatures.
 
 * - `priority`
   - `int`
-  - Log priority level.
+  - The priority level of the log message, determining its severity.
 
-* - `format`
+* - `fmt`
   - `const char *`
-  - Log message format string (printf style).
+  - The format string specifying how subsequent arguments are formatted.
 
 * - `...`
-  - ``
-  - Additional arguments matching the format string.
+  - `variadic`
+  - Additional arguments corresponding to the format specifiers in `fmt`.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success.
 
-- Returns `0` on success.
-- Returns `-1` on failure.
-        
+**Notes**
 
+This function formats the message using `vsnprintf()` and writes it to `stdout`. It applies ANSI color codes based on the priority level.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -191,3 +188,4 @@ int stdout_fwrite(void *v, int priority, const char *format, ...);
 ``````
 
 ```````
+

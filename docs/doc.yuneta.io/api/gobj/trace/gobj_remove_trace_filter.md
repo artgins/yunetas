@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_remove_trace_filter)=
 # `gobj_remove_trace_filter()`
 <!-- ============================================================== -->
 
-
-Remove a specific trace filter from a GObj.
-        
+Removes a trace filter from the specified [`hgclass`](#hgclass). If `attr` is empty, all filters are removed. If `value` is empty, all values for the given attribute are removed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Remove a specific trace filter from a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_remove_trace_filter(
-    const char  *gobj_name,
-    const char  *trace_level
+int gobj_remove_trace_filter(
+    hgclass gclass, 
+    const char *attr, 
+    const char *value
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj_name`
-  - `const char *`
-  - The name of the GObj from which the trace filter will be removed.
+* - `gclass`
+  - `hgclass`
+  - The [`hgclass`](#hgclass) from which the trace filter should be removed.
 
-* - `trace_level`
+* - `attr`
   - `const char *`
-  - The trace level to remove from the specified GObj.
+  - The attribute name whose filter should be removed. If empty, all filters are removed.
+
+* - `value`
+  - `const char *`
+  - The specific value to remove from the filter. If empty, all values for the given attribute are removed.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if the attribute or value is not found.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+If the last value of an attribute is removed, the attribute itself is also removed from the trace filter.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

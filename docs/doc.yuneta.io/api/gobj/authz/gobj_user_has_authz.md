@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_user_has_authz)=
 # `gobj_user_has_authz()`
 <!-- ============================================================== -->
 
-
-Checks if a user associated with the specified GObj has the given authorization. This function validates user permissions.
-        
+Checks if a user has the specified authorization level in the context of the given [`hgobj`](#hgobj). If no authorization checker is defined, the function defaults to granting authorization.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,50 @@ Checks if a user associated with the specified GObj has the given authorization.
 **Prototype**
 
 ```C
-
-BOOL gobj_user_has_authz(hgobj gobj, const char *authz);
-        
-
+BOOL gobj_user_has_authz(
+    hgobj gobj,
+    const char *authz,
+    json_t *kw,
+    hgobj src
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj associated with the user.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance in which the authorization check is performed.
 
 * - `authz`
   - `const char *`
-  - The name of the authorization rule to check.
+  - The name of the authorization level to check.
 
+* - `kw`
+  - `json_t *`
+  - A JSON object containing additional parameters for the authorization check.
+
+* - `src`
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) requesting the authorization check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the user has the required authorization, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the user has the specified authorization.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+If the [`hgobj`](#hgobj) has a local authorization checker (`mt_authz_checker`), it is used first. If not, the global authorization checker is used. If neither is defined, the function defaults to returning `TRUE`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +188,4 @@ BOOL gobj_user_has_authz(hgobj gobj, const char *authz);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_exist_handler)=
 # `gobj_log_exist_handler()`
 <!-- ============================================================== -->
 
-
-Check if a specific log handler exists.
-        
+Checks if a log handler with the specified name exists in the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,36 @@ Check if a specific log handler exists.
 **Prototype**
 
 ```C
-
-BOOL gobj_log_exist_handler(const char *handler_name);
-        
-
+PUBLIC BOOL gobj_log_exist_handler(
+    const char *handler_name
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `handler_name`
   - `const char *`
-  - The name of the log handler to check for existence.
+  - The name of the log handler to check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the log handler exists, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the handler exists.
-- Returns `FALSE` if the handler does not exist.
-        
+**Notes**
 
+If `handler_name` is empty or `NULL`, the function returns `FALSE`.
+This function ensures that the logging system is initialized before performing the check.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +174,4 @@ BOOL gobj_log_exist_handler(const char *handler_name);
 ``````
 
 ```````
+

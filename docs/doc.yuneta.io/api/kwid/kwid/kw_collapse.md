@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_collapse)=
 # `kw_collapse()`
 <!-- ============================================================== -->
 
-
-Collapse a JSON object, converting child objects and arrays into string representations. Works with [`json_t *`](json_t).
-        
+`kw_collapse()` returns a new JSON object where arrays or dictionaries exceeding specified size limits are collapsed into a placeholder structure indicating their path and size.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,50 @@ Collapse a JSON object, converting child objects and arrays into string represen
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_collapse(
-    json_t      *kw
+json_t *kw_collapse(
+    hgobj gobj,
+    json_t *kw,         // not owned
+    int collapse_lists_limit,
+    int collapse_dicts_limit
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - A handle to the calling object, used for logging and error reporting.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to collapse.
+  - `json_t *`
+  - The JSON object to be processed. Must be a dictionary.
+
+* - `collapse_lists_limit`
+  - `int`
+  - The maximum allowed size for lists before they are collapsed.
+
+* - `collapse_dicts_limit`
+  - `int`
+  - The maximum allowed size for dictionaries before they are collapsed.
 :::
-        
 
 ---
 
 **Return Value**
 
+A new JSON object with large lists and dictionaries collapsed. Returns `NULL` if `kw` is not a dictionary.
 
-Returns a new [`json_t *`](json_t) object with collapsed child objects and arrays, or `NULL` on failure.
-        
+**Notes**
 
+Collapsed elements are replaced with a structure containing `__collapsed__` metadata, including their path and size.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +188,4 @@ Returns a new [`json_t *`](json_t) object with collapsed child objects and array
 ``````
 
 ```````
+

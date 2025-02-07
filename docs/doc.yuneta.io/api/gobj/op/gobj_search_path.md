@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_search_path)=
 # `gobj_search_path()`
 <!-- ============================================================== -->
 
-
-Searches for a GObj along a specified hierarchical path. This is useful for locating GObjs in complex structures.
-        
+Searches for a `hgobj` instance by traversing the object tree using a path with '`' as a separator.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Searches for a GObj along a specified hierarchical path. This is useful for loca
 **Prototype**
 
 ```C
-
-hgobj gobj_search_path(hgobj gobj, const char *path);
-        
-
+hgobj gobj_search_path(
+    hgobj gobj_,
+    const char *path_
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj serving as the search root.
+* - `gobj_`
+  - `hgobj`
+  - The root object from which the search begins.
 
-* - `path`
+* - `path_`
   - `const char *`
-  - The hierarchical path to search for the GObj.
-
+  - The path to the target object, using '`' as a separator between hierarchy levels.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the `hgobj` instance found at the specified path, or `NULL` if no matching object is found.
 
-- Returns the handle ([`hgobj`](hgobj)) of the GObj located at the specified path.  
-- Returns `NULL` if no matching GObj is found.
-        
+**Notes**
 
+The function supports searching by both gclass and gobj names. If a segment contains a '^', it is treated as 'gclass^gobj_name'.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ hgobj gobj_search_path(hgobj gobj, const char *path);
 ``````
 
 ```````
+

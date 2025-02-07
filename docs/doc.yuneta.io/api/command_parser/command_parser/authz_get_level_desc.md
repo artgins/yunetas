@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (authz_get_level_desc)=
 # `authz_get_level_desc()`
 <!-- ============================================================== -->
 
-
-Retrieve the description of a specific authorization level.
-        
+The `authz_get_level_desc()` function searches for an authorization level descriptor in the given `authz_table` based on the provided `auth` name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Retrieve the description of a specific authorization level.
 **Prototype**
 
 ```C
-
-PUBLIC const char *authz_get_level_desc(
-    const char  *level
+const sdata_desc_t *authz_get_level_desc(
+    const sdata_desc_t *authz_table,
+    const char *auth
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `level`
+* - `authz_table`
+  - `const sdata_desc_t *`
+  - Pointer to the authorization table containing authorization descriptors.
+
+* - `auth`
   - `const char *`
-  - The authorization level to retrieve the description for.
+  - The name of the authorization level to search for.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the matching `sdata_desc_t` descriptor if found, otherwise returns `NULL`.
 
-Returns a string containing the description of the authorization level, or `NULL` if the level is not found.
-        
+**Notes**
 
+The function first checks for an alias match if no direct match is found. If an alias exists and matches `auth`, the corresponding descriptor is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a string containing the description of the authorization level, or `NULL
 ``````
 
 ```````
+

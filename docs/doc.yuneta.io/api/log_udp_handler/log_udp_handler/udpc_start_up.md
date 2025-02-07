@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (udpc_start_up)=
 # `udpc_start_up()`
 <!-- ============================================================== -->
 
-
-Initialize the UDP communication system.
-        
+`udpc_start_up()` initializes the UDP client system by setting process-related metadata and preparing internal structures.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,36 +20,45 @@ Initialize the UDP communication system.
 **Prototype**
 
 ```C
-
-PUBLIC int udpc_start_up(void);
-        
-
+int udpc_start_up(
+    const char *process_name,
+    const char *hostname,
+    int         pid
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `-`
-  - `-`
-  - This function does not take any parameters.
+* - `process_name`
+  - `const char *`
+  - The name of the process using the UDP client.
+
+* - `hostname`
+  - `const char *`
+  - The hostname of the system running the UDP client.
+
+* - `pid`
+  - `int`
+  - The process ID of the calling process.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if the system is already initialized.
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+This function must be called before using [`udpc_open()`](#udpc_open) or other UDP client functions.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -178,3 +183,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

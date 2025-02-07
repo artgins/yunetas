@@ -1,16 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_resource)=
 # `gobj_get_resource()`
 <!-- ============================================================== -->
 
-
-The `gobj_get_resource` function retrieves a specific resource associated with a GObj that matches the given filter. Additional options for retrieving the resource can be provided via `jn_options`. This function delegates its operation to the `mt_get_resource` method of the GObj's GClass.
-
-If the `mt_get_resource` method is not implemented in the GClass, the function logs an error and returns `NULL`.
-
-        
+Retrieves a resource from the specified [`hgobj`](#hgobj) object, using the given resource name and filter criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,31 +20,27 @@ If the `mt_get_resource` method is not implemented in the GClass, the function l
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_get_resource(
-    hgobj       gobj_,
-    const char  *resource,
-    json_t      *jn_filter,  // owned
-    json_t      *jn_options // owned
+json_t *gobj_get_resource(
+    hgobj gobj,
+    const char *resource,
+    json_t *jn_filter,
+    json_t *jn_options
 );
-        
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
-* - `gobj_`
+* - `gobj`
   - `hgobj`
-  - The GObj instance associated with the resource.
+  - The [`hgobj`](#hgobj) instance from which the resource is retrieved.
 
 * - `resource`
   - `const char *`
@@ -59,35 +48,22 @@ PUBLIC json_t *gobj_get_resource(
 
 * - `jn_filter`
   - `json_t *`
-  - JSON object defining the filter criteria for identifying the resource (owned).
+  - A JSON object containing filter criteria for selecting the resource. Owned by the caller.
 
 * - `jn_options`
   - `json_t *`
-  - Additional options for retrieving the resource (owned).
+  - A JSON object containing additional options for retrieving the resource. Owned by the caller.
 :::
-        
 
 ---
 
 **Return Value**
 
-
-- Returns a JSON object representing the resource (not owned by the caller).
-- Returns `NULL` if the GObj is invalid or the `mt_get_resource` method is not implemented.
-        
-
+A JSON object representing the requested resource. The returned object is not owned by the caller and should not be modified or freed.
 
 **Notes**
 
-
-- **Ownership:**
-  - The `jn_filter` and `jn_options` parameters are owned by the function and will be decremented internally.
-  - The returned JSON object is not owned by the caller and must not be decremented.
-- **Error Handling:**
-  - If the GObj is `NULL` or destroyed, the function logs an error and returns `NULL`.
-  - If the `mt_get_resource` method is missing, the function logs an error and returns `NULL`.
-        
-
+If the `gobj` is `NULL` or destroyed, an error is logged and `NULL` is returned. If the `mt_get_resource` method is not defined in the [`hgobj`](#hgobj)'s gclass, an error is logged and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -212,3 +188,4 @@ PUBLIC json_t *gobj_get_resource(
 ``````
 
 ```````
+

@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_info)=
 # `gobj_log_info()`
 <!-- ============================================================== -->
 
-Logs an info-level message.
+Logs an informational message with optional formatting and arguments. The message is processed and sent to registered log handlers.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,44 +20,45 @@ Logs an info-level message.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_log_info(hgobj gobj, log_opt_t opt, ...);
-        
-
+void gobj_log_info(
+    hgobj gobj,
+    log_opt_t opt,
+    ...
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance initiating the log.
+  - The GObj instance associated with the log message.
 
 * - `opt`
   - `log_opt_t`
-  - Options for log customization, such as stack tracing or exit behavior.
+  - Logging options that control additional behavior such as stack tracing or exit conditions.
 
 * - `...`
   - `variadic`
-  - The message and optional variables for formatting.
+  - Format string followed by optional arguments, similar to printf.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-- **None**
-        
+**Notes**
 
+The function formats the message and sends it to all registered log handlers that accept informational messages. It uses `_log_jnbf()` internally to process the log entry.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ PUBLIC void gobj_log_info(hgobj gobj, log_opt_t opt, ...);
 ``````
 
 ```````
+

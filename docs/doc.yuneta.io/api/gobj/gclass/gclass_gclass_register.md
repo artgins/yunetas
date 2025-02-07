@@ -3,7 +3,7 @@
 # `gclass_gclass_register()`
 <!-- ============================================================== -->
 
-Retrieves a list of all registered GClasses in the system.
+Returns a JSON array containing the registered GClasses with their instance counts.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,14 +20,15 @@ Retrieves a list of all registered GClasses in the system.
 **Prototype**
 
 ```C
-PUBLIC json_t *gclass_gclass_register(void);
+json_t *gclass_gclass_register(void);
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
@@ -35,15 +36,17 @@ PUBLIC json_t *gclass_gclass_register(void);
 * - `-`
   - `-`
   - This function does not take any parameters.
-
 :::
+
+---
 
 **Return Value**
 
-- Returns a JSON object ([`json_t`](json_t)) containing the list of registered GClasses.  
-  Each entry in the list includes:
-  - `gclass_name`: The name of the GClass.
-  - Additional metadata, if available.
+A JSON array where each element is an object containing the GClass name and the number of instances.
+
+**Notes**
+
+This function is useful for debugging and monitoring the registered GClasses in the system.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ PUBLIC json_t *gclass_gclass_register(void);
 ``````
 
 ```````
+

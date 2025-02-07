@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_clone_by_path)=
 # `kw_clone_by_path()`
 <!-- ============================================================== -->
 
-
-Create a clone of a JSON object by including only values from a specified path. Works with [`json_t *`](json_t).
-        
+Return a new JSON object containing only the keys specified in `paths`. If `paths` is empty, the original JSON object is returned. This function does not perform a deep copy.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Create a clone of a JSON object by including only values from a specified path. 
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_clone_by_path(
-    json_t      *kw,
-    const char  *path
+json_t *kw_clone_by_path(
+    hgobj gobj,
+    json_t *kw,     // owned
+    const char **paths
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to clone.
+* - `gobj`
+  - `hgobj`
+  - A handle to the GObj context.
 
-* - `path`
-  - `const char *`
-  - The path specifying which parts of the object to include in the clone.
+* - `kw`
+  - `json_t *`
+  - The JSON object to be cloned. This parameter is owned and will be decremented.
+
+* - `paths`
+  - `const char **`
+  - An array of key paths specifying which keys to include in the cloned JSON object.
 :::
-        
 
 ---
 
 **Return Value**
 
+A new JSON object containing only the specified keys. If `paths` is empty, the original JSON object is returned.
 
-Returns a new [`json_t *`](json_t) object containing only the values from the specified path, or `NULL` on failure.
-        
+**Notes**
 
+This function does not perform a deep copy. The returned JSON object contains references to the original values.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns a new [`json_t *`](json_t) object containing only the values from the sp
 ``````
 
 ```````
+

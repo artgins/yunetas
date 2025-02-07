@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_list_handlers)=
 # `gobj_log_list_handlers()`
 <!-- ============================================================== -->
 
-
-List all registered log handlers and their properties.
-        
+Retrieves a list of registered log handlers, returning a JSON array with details about each handler.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,27 +20,33 @@ List all registered log handlers and their properties.
 **Prototype**
 
 ```C
-
 json_t *gobj_log_list_handlers(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-No parameters.
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A JSON array containing dictionaries with details about each registered log handler. Each dictionary includes 'handler_name', 'handler_type', and 'handler_options'.
 
-- Returns a JSON object with details about registered handlers.
-- Returns `NULL` if no handlers are registered or in case of an error.
-        
+**Notes**
 
+The returned JSON array must be managed by the caller to avoid memory leaks.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -169,3 +171,4 @@ No parameters.
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_append)=
 # `gbuffer_append()`
 <!-- ============================================================== -->
 
-
-Append raw data to the gbuffer.
-        
+Appends a specified number of bytes from a given buffer to the [`gbuffer_t`](#gbuffer_t) structure, expanding its capacity if necessary.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,45 @@ Append raw data to the gbuffer.
 **Prototype**
 
 ```C
-
-PUBLIC int gbuffer_append(
-    gbuffer_t   *gbuffer,
-    const void  *data,
-    size_t      size
+size_t gbuffer_append(
+    gbuffer_t *gbuf,
+    void      *bf,
+    size_t     len
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to which data will be appended.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the [`gbuffer_t`](#gbuffer_t) structure where data will be appended.
 
-* - `data`
-  - `const void *`
-  - The raw data to append to the gbuffer.
+* - `bf`
+  - `void *`
+  - Pointer to the buffer containing the data to append.
 
-* - `size`
+* - `len`
   - `size_t`
-  - The size of the data to append, in bytes.
+  - Number of bytes to append from `bf`.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the number of bytes successfully appended to the [`gbuffer_t`](#gbuffer_t).
 
-Returns `0` on success, or a negative value if the operation fails.
-        
+**Notes**
 
+If the [`gbuffer_t`](#gbuffer_t) does not have enough space, it will attempt to reallocate memory. If reallocation fails, fewer bytes may be appended than requested.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +183,4 @@ Returns `0` on success, or a negative value if the operation fails.
 ``````
 
 ```````
+

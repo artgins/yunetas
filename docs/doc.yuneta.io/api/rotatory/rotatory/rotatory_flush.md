@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (rotatory_flush)=
 # `rotatory_flush()`
 <!-- ============================================================== -->
 
-
-Flush the data of a rotatory log file to disk.
-        
+`rotatory_flush()` flushes the buffered log data to the corresponding log file. If `hr` is `NULL`, it flushes all active log files.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Flush the data of a rotatory log file to disk.
 **Prototype**
 
 ```C
-
-PUBLIC int rotatory_flush(
-    int handle
+void rotatory_flush(
+    hrotatory_h hr
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
-  - `int`
-  - The handle of the rotatory log to flush.
+* - `hr`
+  - `hrotatory_h`
+  - Handle to the rotatory log instance. If `NULL`, all log files are flushed.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+Flushing ensures that all buffered log data is written to disk, reducing the risk of data loss in case of a crash.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

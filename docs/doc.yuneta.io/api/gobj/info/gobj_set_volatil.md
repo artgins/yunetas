@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_volatil)=
 # `gobj_set_volatil()`
 <!-- ============================================================== -->
 
-
-Marks the specified GObj as "volatile", making it transient and intended for temporary use.
-        
+Sets or clears the `gobj_flag_volatil` flag for the given [`hgobj`](#hgobj) instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,40 @@ Marks the specified GObj as "volatile", making it transient and intended for tem
 **Prototype**
 
 ```C
-
-void gobj_set_volatil(hgobj gobj);
-        
-
+int gobj_set_volatil(
+    hgobj gobj, 
+    BOOL set
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be marked as volatile.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose volatility flag is to be modified.
 
+* - `set`
+  - `BOOL`
+  - If `TRUE`, the `gobj_flag_volatil` flag is set; if `FALSE`, the flag is cleared.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success.
 
-- Returns `void`.
-        
+**Notes**
 
+A volatile [`hgobj`](#hgobj) is typically used for temporary objects that should not persist beyond a certain scope.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +178,4 @@ void gobj_set_volatil(hgobj gobj);
 ``````
 
 ```````
+

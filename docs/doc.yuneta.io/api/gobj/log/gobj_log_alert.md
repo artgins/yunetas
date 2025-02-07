@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_alert)=
 # `gobj_log_alert()`
 <!-- ============================================================== -->
 
-Logs an alert-level message.
+Logs an alert message with priority `LOG_ALERT`. The message is formatted using a variable argument list and processed by the logging system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,44 +20,45 @@ Logs an alert-level message.
 **Prototype**
 
 ```C
-
-PUBLIC void gobj_log_alert(hgobj gobj, log_opt_t opt, ...);
-        
-
+void gobj_log_alert(
+    hgobj gobj,
+    log_opt_t opt,
+    ...
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The gobj instance initiating the log.
+  - The object generating the log message.
 
 * - `opt`
   - `log_opt_t`
-  - Options for log customization, such as stack tracing or exit behavior.
+  - Logging options that control behavior such as stack tracing or process termination.
 
 * - `...`
   - `variadic`
-  - The message and optional variables for formatting.
+  - Format string followed by arguments for message formatting.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-- **None**
-        
+**Notes**
 
+The function increments the global alert log counter and processes the message through registered log handlers. If `LOG_OPT_TRACE_STACK` is set, a stack trace is included in the log output.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ PUBLIC void gobj_log_alert(hgobj gobj, log_opt_t opt, ...);
 ``````
 
 ```````
+

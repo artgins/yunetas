@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_gclass_name)=
 # `gobj_gclass_name()`
 <!-- ============================================================== -->
 
-
-Gets the GClass name of a specified GObj. The GClass name represents the type of the GObj.
-        
+Retrieves the gclass name associated with the given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,33 @@ Gets the GClass name of a specified GObj. The GClass name represents the type of
 **Prototype**
 
 ```C
-
 gclass_name_t gobj_gclass_name(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose GClass name is being queried.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose gclass name is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the gclass name of the given [`hgobj`](#hgobj). If `gobj` is `NULL`, returns `???`.
 
-- Returns the GClass name ([`gclass_name_t`](gclass_name_t)) of the specified GObj.
-        
+**Notes**
 
+This function does not perform any validation beyond checking for `NULL`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +171,4 @@ gclass_name_t gobj_gclass_name(hgobj gobj);
 ``````
 
 ```````
+

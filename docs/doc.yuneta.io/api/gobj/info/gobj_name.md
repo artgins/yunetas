@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_name)=
 # `gobj_name()`
 <!-- ============================================================== -->
 
-
-Retrieves the name of a specified GObj.
-        
+Returns the name of the given [`hgobj`](#hgobj) instance as a string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,33 @@ Retrieves the name of a specified GObj.
 **Prototype**
 
 ```C
-
 const char *gobj_name(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose name is being queried.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose name is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to a string containing the name of the [`hgobj`](#hgobj) instance. If `gobj` is `NULL`, returns "???".
 
-- Returns a string (`const char *`) containing the name of the GObj.
-        
+**Notes**
 
+The returned string is managed internally and should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +171,4 @@ const char *gobj_name(hgobj gobj);
 ``````
 
 ```````
+

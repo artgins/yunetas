@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_is_volatil)=
 # `gobj_is_volatil()`
 <!-- ============================================================== -->
 
-
-Checks if the specified GObj is marked as "volatile". Volatile GObjs are transient and typically destroyed after completing their purpose.
-        
+Checks if the given [`hgobj`](#hgobj) is marked as volatile, meaning it is temporary and can be automatically destroyed.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Checks if the specified GObj is marked as "volatile". Volatile GObjs are transie
 **Prototype**
 
 ```C
-
 BOOL gobj_is_volatil(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj being checked.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the [`hgobj`](#hgobj) is volatile, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj is volatile.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+A volatile [`hgobj`](#hgobj) is typically used for temporary objects that do not persist beyond their immediate use.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ BOOL gobj_is_volatil(hgobj gobj);
 ``````
 
 ```````
+

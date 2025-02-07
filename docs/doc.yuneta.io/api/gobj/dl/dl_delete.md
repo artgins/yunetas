@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (dl_delete)=
 # `dl_delete()`
 <!-- ============================================================== -->
 
-
-Delete a node from the doubly-linked list.
-        
+Removes a specified item from a doubly linked list and optionally frees its memory.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Delete a node from the doubly-linked list.
 **Prototype**
 
 ```C
-
-PUBLIC void dl_delete(
-    dl_list_t   *list,
-    dl_node_t   *node
+int dl_delete(
+    dl_list_t *dl,
+    void *curr_,
+    void (*fnfree)(void *)
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `list`
-  - [`dl_list_t *`](dl_list_t)
-  - The doubly-linked list to modify.
+* - `dl`
+  - `dl_list_t *`
+  - Pointer to the doubly linked list from which the item will be removed.
 
-* - `node`
-  - [`dl_node_t *`](dl_node_t)
-  - The node to delete.
+* - `curr_`
+  - `void *`
+  - Pointer to the item to be removed from the list.
+
+* - `fnfree`
+  - `void (*)(void *)`
+  - Optional function pointer to free the memory of the removed item.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if an error occurs (e.g., null item, empty list, or item not found).
 
-No return value. This function modifies the doubly-linked list.
-        
+**Notes**
 
+The function ensures that the list remains consistent after deletion. If `fnfree` is provided, it is called to free the memory of the removed item.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ No return value. This function modifies the doubly-linked list.
 ``````
 
 ```````
+

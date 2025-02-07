@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_find_str_in_list)=
 # `kw_find_str_in_list()`
 <!-- ============================================================== -->
 
-
-Check if a specified string exists in a JSON array. Works with [`json_t *`](json_t).
-        
+`kw_find_str_in_list()` searches for a string in a JSON list and returns its index if found, otherwise returns -1.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Check if a specified string exists in a JSON array. Works with [`json_t *`](json
 **Prototype**
 
 ```C
-
-PUBLIC BOOL kw_find_str_in_list(
-    json_t      *kw,
-    const char  *string
+int kw_find_str_in_list(
+    hgobj      gobj,
+    json_t *   kw_list,
+    const char *str
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON array to search.
+* - `gobj`
+  - `hgobj`
+  - A handle to the gobj instance, used for logging errors.
 
-* - `string`
+* - `kw_list`
+  - `json_t *`
+  - A JSON array to search within.
+
+* - `str`
   - `const char *`
-  - The string to search for in the array.
+  - The string to search for in the JSON list.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the index of the string in the list if found, otherwise returns -1.
 
-Returns `TRUE` if the string exists in the array, otherwise returns `FALSE`.
-        
+**Notes**
 
+The function only searches for exact string matches within the JSON array.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns `TRUE` if the string exists in the array, otherwise returns `FALSE`.
 ``````
 
 ```````
+

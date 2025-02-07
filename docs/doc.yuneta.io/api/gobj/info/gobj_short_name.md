@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_short_name)=
 # `gobj_short_name()`
 <!-- ============================================================== -->
 
-
-Retrieves the short name of a GObj, which is typically its local identifier without hierarchical context.
-        
+Returns the short name of the given `hgobj`, formatted as `gclass^name`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,33 @@ Retrieves the short name of a GObj, which is typically its local identifier with
 **Prototype**
 
 ```C
-
-const char *gobj_short_name(hgobj gobj);
-        
-
+const char *gobj_short_name(hgobj gobj_);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose short name is being queried.
-
+* - `gobj_`
+  - `hgobj`
+  - The object whose short name is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to a string containing the short name of the object. If the object is `NULL` or destroyed, returns `???`.
 
-- Returns a string (`const char *`) containing the short name of the GObj.
-        
+**Notes**
 
+The short name is generated dynamically and cached for future calls.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +171,4 @@ const char *gobj_short_name(hgobj gobj);
 ``````
 
 ```````
+

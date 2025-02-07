@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_filter_private)=
 # `kw_filter_private()`
 <!-- ============================================================== -->
 
-
-Create a new JSON object by filtering out private keys (keys starting with "_"). Works with [`json_t *`](json_t).
-        
+The function `kw_filter_private()` returns a duplicate of the given JSON object or array, removing all private keys that begin with a single underscore (`_`).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Create a new JSON object by filtering out private keys (keys starting with "_").
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_filter_private(
-    json_t      *kw
+json_t *kw_filter_private(
+    hgobj gobj,
+    json_t *kw  // owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - A handle to the GObj instance, used for logging errors.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to filter.
+  - `json_t *`
+  - The JSON object or array to be filtered. This parameter is owned and will be decremented.
 :::
-        
 
 ---
 
 **Return Value**
 
+A new JSON object or array with private keys removed. The caller owns the returned JSON object.
 
-Returns a new [`json_t *`](json_t) object without private keys, or `NULL` on failure.
-        
+**Notes**
 
+Private keys are identified as those that begin with a single underscore (`_`). The function uses [`_duplicate_object()`](#_duplicate_object) and [`_duplicate_array()`](#_duplicate_array) to create a filtered copy of the input JSON.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a new [`json_t *`](json_t) object without private keys, or `NULL` on fai
 ``````
 
 ```````
+

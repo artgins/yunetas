@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (stats_parser)=
 # `stats_parser()`
 <!-- ============================================================== -->
 
-
-Parse statistical data from a GObj.
-        
+`stats_parser()` generates a JSON-formatted statistical report by extracting relevant attributes from the given [`hgobj`](#hgobj) instance and formatting them into a structured response.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,51 @@ Parse statistical data from a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *stats_parser(
+json_t *stats_parser(
     hgobj       gobj,
-    const char *stats_name,
-    const char *options
+    const char *stats,
+    json_t    *kw,
+    hgobj       src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj to retrieve statistical data from.
+  - The [`hgobj`](#hgobj) instance from which statistics are extracted.
 
-* - `stats_name`
+* - `stats`
   - `const char *`
-  - The name of the specific statistics to parse, or `NULL` for all statistics.
+  - A string specifying which statistics to retrieve. If `NULL`, all available statistics are included.
 
-* - `options`
-  - `const char *`
-  - Options to customize the parsing process (e.g., filters or format specifications).
+* - `kw`
+  - `json_t *`
+  - A JSON object containing additional parameters. Ownership is transferred to [`stats_parser()`](#stats_parser).
+
+* - `src`
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) that initiated the request.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the formatted statistical report. The caller assumes ownership of the returned object.
 
-Returns a [`json_t *`](json_t) object containing the parsed statistical data, or `NULL` on failure.
-        
+**Notes**
 
+Internally, [`stats_parser()`](#stats_parser) calls [`build_stats()`](#build_stats) to generate the statistical data.
+The function wraps the generated statistics in a standard command response format before returning.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +189,4 @@ Returns a [`json_t *`](json_t) object containing the parsed statistical data, or
 ``````
 
 ```````
+

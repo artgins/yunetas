@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_get_bool)=
 # `kw_get_bool()`
 <!-- ============================================================== -->
 
-
-Get the value of a key as a boolean from a JSON object. Works with [`json_t *`](json_t).
-        
+Retrieves a boolean value from a JSON dictionary at the specified `path`. If the key does not exist, the `default_value` is returned. Supports type conversion from integers, strings, and null values.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,55 @@ Get the value of a key as a boolean from a JSON object. Works with [`json_t *`](
 **Prototype**
 
 ```C
-
-PUBLIC BOOL kw_get_bool(
-    json_t      *kw,
-    const char  *key,
-    BOOL        default_value
+BOOL kw_get_bool(
+    hgobj      gobj,
+    json_t     *kw,
+    const char *path,
+    BOOL       default_value,
+    kw_flag_t  flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to query.
+* - `gobj`
+  - `hgobj`
+  - Pointer to the GObj instance for logging and error handling.
 
-* - `key`
+* - `kw`
+  - `json_t *`
+  - JSON dictionary to search for the boolean value.
+
+* - `path`
   - `const char *`
-  - The key whose value will be retrieved as a boolean.
+  - Path to the boolean value within the JSON dictionary.
 
 * - `default_value`
   - `BOOL`
-  - The default value to return if the key does not exist or is not a boolean.
+  - Default boolean value to return if the key is not found.
+
+* - `flag`
+  - `kw_flag_t`
+  - Flags controlling behavior, such as `KW_REQUIRED` for logging errors if the key is missing.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the boolean value found at `path`. If the key does not exist, the `default_value` is returned. If `KW_EXTRACT` is set, the value is removed from `kw`.
 
-Returns the boolean value of the key, or `default_value` if the key does not exist or is not a boolean.
-        
+**Notes**
 
+Supports type conversion: integers and real numbers are treated as `TRUE` if nonzero, `FALSE` otherwise. Strings are compared case-insensitively against 'true' and 'false'.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +193,4 @@ Returns the boolean value of the key, or `default_value` if the key does not exi
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_default_service)=
 # `gobj_default_service()`
 <!-- ============================================================== -->
 
-
-Retrieves the default service GObj for the current Yuno. The default service is typically the primary operational component of the Yuno.
-        
+Returns the default service gobj, which is the primary service object in the system.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieves the default service GObj for the current Yuno. The default service is 
 **Prototype**
 
 ```C
-
 hgobj gobj_default_service(void);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - None
-  - -
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+A handle to the default service gobj, or NULL if no default service is set.
 
-- Returns the handle ([`hgobj`](hgobj)) of the default service GObj.  
-- Returns `NULL` if no default service is defined.
-        
+**Notes**
 
+The default service is typically set using [`gobj_create_default_service()`](#gobj_create_default_service).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ hgobj gobj_default_service(void);
 ``````
 
 ```````
+

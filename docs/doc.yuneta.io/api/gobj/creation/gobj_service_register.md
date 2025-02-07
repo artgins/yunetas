@@ -3,7 +3,7 @@
 # `gobj_service_register()`
 <!-- ============================================================== -->
 
-Retrieves a list of all registered services in the system.
+Retrieves a list of registered services, returning an array of JSON objects containing the gclass and service name.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,14 +20,15 @@ Retrieves a list of all registered services in the system.
 **Prototype**
 
 ```C
-PUBLIC json_t *gobj_service_register(void);
+json_t *gobj_service_register(void);
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
@@ -35,16 +36,17 @@ PUBLIC json_t *gobj_service_register(void);
 * - `-`
   - `-`
   - This function does not take any parameters.
-
 :::
+
+---
 
 **Return Value**
 
-- Returns a JSON array ([`json_t`](json_t)) containing details of registered services.  
-  Each entry in the array includes:
-  - `gclass`: The name of the GClass the service belongs to.
-  - `service`: The name of the service.
+A JSON array where each element is an object with 'gclass' and 'service' fields representing registered services.
 
+**Notes**
+
+The returned JSON object must be freed by the caller using `json_decref()`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -169,3 +171,4 @@ PUBLIC json_t *gobj_service_register(void);
 ``````
 
 ```````
+

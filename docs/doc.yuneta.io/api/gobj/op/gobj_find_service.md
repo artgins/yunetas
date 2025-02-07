@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_find_service)=
 # `gobj_find_service()`
 <!-- ============================================================== -->
 
-
-Finds a service GObj by its name. This allows direct access to a specific service for interaction or management.
-        
+Searches for a service gobj by its name, performing a case-insensitive comparison.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Finds a service GObj by its name. This allows direct access to a specific servic
 **Prototype**
 
 ```C
-
-hgobj gobj_find_service(const char *service_name);
-        
-
+hgobj gobj_find_service(
+    const char *service,
+    BOOL verbose
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `service_name`
+* - `service`
   - `const char *`
-  - The name of the service GObj to find.
+  - The name of the service to search for. The comparison is case-insensitive.
 
+* - `verbose`
+  - `BOOL`
+  - If set to `TRUE`, logs an error message when the service is not found.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a handle to the found service gobj, or `NULL` if the service is not found.
 
-- Returns the handle ([`hgobj`](hgobj)) of the service GObj with the specified name.  
-- Returns `NULL` if no matching service is found.
-        
+**Notes**
 
+If `service` is `__default_service__`, the function returns the default service gobj. If `service` is `__yuno__` or `__root__`, it returns the Yuno gobj.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ hgobj gobj_find_service(const char *service_name);
 ``````
 
 ```````
+

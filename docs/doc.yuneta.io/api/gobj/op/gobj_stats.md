@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_stats)=
 # `gobj_stats()`
 <!-- ============================================================== -->
 
-
-Retrieves statistics from the specified GObj. Statistics provide insight into the GObj's operational metrics and performance.
-
+Retrieves statistics for the given [`hgobj`](#hgobj). If the gclass has a `mt_stats` method, it is used; otherwise, the global statistics parser is invoked.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,47 +20,50 @@ Retrieves statistics from the specified GObj. Statistics provide insight into th
 **Prototype**
 
 ```C
-json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
+json_t *gobj_stats(
+    hgobj gobj,
+    const char *stats,
+    json_t *kw,
+    hgobj src
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose statistics are being retrieved.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose statistics are to be retrieved.
 
 * - `stats`
   - `const char *`
-  - A string specifying which statistics to retrieve. Can be `NULL` to retrieve all statistics.
+  - The name of the statistics to retrieve. If NULL, all available statistics are returned.
 
 * - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing additional options or filters for the statistics request. Ownership is transferred to the function.
+  - `json_t *`
+  - Additional parameters for filtering or modifying the statistics retrieval. Owned by the function.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - Handle to the source GObj initiating the request.
-
+  - `hgobj`
+  - The source [`hgobj`](#hgobj) requesting the statistics.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the requested statistics. The caller is responsible for managing the returned JSON object.
 
-- Returns a JSON object ([`json_t`](json_t)) containing the requested statistics.  
-- Returns `NULL` if the statistics could not be retrieved.
-        
+**Notes**
 
+If the gclass has a `mt_stats` method, it is used to retrieve the statistics. Otherwise, the global statistics parser is invoked. If neither is available, an error response is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -189,3 +188,4 @@ json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
 ``````
 
 ```````
+

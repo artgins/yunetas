@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_get_dict)=
 # `kw_get_dict()`
 <!-- ============================================================== -->
 
-
-Get the value of a key from a JSON object as a dictionary. Works with [`json_t *`](json_t).
-        
+Retrieves the dictionary value from the `kw` JSON object at the specified `path`. If the key does not exist, it returns `default_value` or creates a new entry if `KW_CREATE` is set.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,55 @@ Get the value of a key from a JSON object as a dictionary. Works with [`json_t *
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kw_get_dict(
-    json_t      *kw,
-    const char  *key,
-    BOOL        create
+json_t *kw_get_dict(
+    hgobj      gobj,
+    json_t     *kw,
+    const char *path,
+    json_t     *default_value,
+    kw_flag_t  flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gobj`
+  - `hgobj`
+  - Handle to the calling object, used for logging errors.
+
 * - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to query.
+  - `json_t *`
+  - JSON object to search within.
 
-* - `key`
+* - `path`
   - `const char *`
-  - The key whose value will be retrieved as a dictionary.
+  - Path to the dictionary key, using the configured delimiter.
 
-* - `create`
-  - `BOOL`
-  - If `TRUE`, creates an empty dictionary for the key if it does not exist.
+* - `default_value`
+  - `json_t *`
+  - Default value to return if the key is not found.
+
+* - `flag`
+  - `kw_flag_t`
+  - Flags controlling behavior, such as `KW_CREATE` to create the key if missing.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the dictionary value at `path` if found. If `KW_CREATE` is set, it creates and returns a new dictionary. If the key is missing and `KW_REQUIRED` is set, an error is logged and `default_value` is returned.
 
-Returns a pointer to the dictionary, or `NULL` if the key does not exist and `create` is `FALSE`.
-        
+**Notes**
 
+If `KW_EXTRACT` is set, the retrieved value is removed from `kw`. The function logs an error if `path` does not exist and `KW_REQUIRED` is set.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +193,4 @@ Returns a pointer to the dictionary, or `NULL` if the key does not exist and `cr
 ``````
 
 ```````
+

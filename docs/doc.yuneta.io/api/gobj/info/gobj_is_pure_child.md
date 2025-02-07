@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_is_pure_child)=
 # `gobj_is_pure_child()`
 <!-- ============================================================== -->
 
-
-Checks if the specified GObj is a "pure child". Pure child GObjs have limited independence and depend on their parent GObj.
-        
+Checks if the given [`hgobj`](#hgobj) is marked as a pure child, meaning it sends events directly to its parent instead of publishing them.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Checks if the specified GObj is a "pure child". Pure child GObjs have limited in
 **Prototype**
 
 ```C
-
 BOOL gobj_is_pure_child(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj being checked.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the [`hgobj`](#hgobj) is a pure child, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj is a pure child.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+A pure child is a [`hgobj`](#hgobj) that bypasses event publication and directly sends events to its parent.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ BOOL gobj_is_pure_child(hgobj gobj);
 ``````
 
 ```````
+

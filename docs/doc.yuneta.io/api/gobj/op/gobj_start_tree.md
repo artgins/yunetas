@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_start_tree)=
 # `gobj_start_tree()`
 <!-- ============================================================== -->
 
-
-Recursively starts a GObj and all its descendants, transitioning the entire hierarchy to the "running" state.
-        
+Starts the given `gobj` and all its child objects recursively, unless they have the `gcflag_manual_start` flag set.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Recursively starts a GObj and all its descendants, transitioning the entire hier
 **Prototype**
 
 ```C
-
-int gobj_start_tree(hgobj gobj);
-        
-
+int gobj_start_tree(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the root GObj of the tree to be started.
-
+  - `hgobj`
+  - The root object whose tree of child objects will be started.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or a negative value if an error occurs.
 
-- `0`: The GObj tree was successfully started.  
-- `-1`: An error occurred during the start process for one or more GObjs in the tree.
-        
+**Notes**
 
+If a child object has the `gcflag_manual_start` flag set, it will not be started automatically.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ int gobj_start_tree(hgobj gobj);
 ``````
 
 ```````
+

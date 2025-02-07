@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_incr_stat)=
 # `gobj_incr_stat()`
 <!-- ============================================================== -->
 
-
-Increment a specific statistical value for a GObj.
-        
+Increments the specified statistic attribute of the given [`hgobj`](#hgobj) by a given value and returns the new value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,45 +20,45 @@ Increment a specific statistical value for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value);
-        
-
+json_int_t gobj_incr_stat(
+    hgobj gobj,
+    const char *path,
+    json_int_t value
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose statistic attribute is to be incremented.
 
 * - `path`
   - `const char *`
-  - Path to the statistic to increment.
+  - The path to the statistic attribute to be incremented.
 
 * - `value`
   - `json_int_t`
-  - The value to add to the specified statistic.
-
+  - The amount by which to increment the statistic attribute.
 :::
-        
 
 ---
 
 **Return Value**
 
+The new value of the statistic attribute after incrementing.
 
-- Returns the new value of the statistic as `json_int_t`.
-        
+**Notes**
 
+If the statistic attribute does not exist, it is initialized to zero before incrementing.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -187,3 +183,4 @@ PUBLIC json_int_t gobj_incr_stat(hgobj gobj, const char *path, json_int_t value)
 ``````
 
 ```````
+

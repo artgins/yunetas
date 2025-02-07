@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_stop)=
 # `gobj_stop()`
 <!-- ============================================================== -->
 
-
-Stops a GObj, transitioning it to the "stopped" state. Any active processes or resources associated with the GObj may be released.
-        
+Stops the execution of the given [`gobj`](#hgobj) instance, ensuring it is no longer running. If the [`gobj`](#hgobj) is playing, it will be paused before stopping.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Stops a GObj, transitioning it to the "stopped" state. Any active processes or r
 **Prototype**
 
 ```C
-
-int gobj_stop(hgobj gobj);
-        
-
+int gobj_stop(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to be stopped.
-
+  - `hgobj`
+  - The [`gobj`](#hgobj) instance to be stopped.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the [`gobj`](#hgobj) is already stopped, destroying, or invalid.
 
-- `0`: The GObj was successfully stopped.  
-- `-1`: An error occurred during the stop process.
-        
+**Notes**
 
+If the [`gobj`](#hgobj) is playing, it will be paused before stopping. If the [`gobj`](#hgobj) is already stopped, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ int gobj_stop(hgobj gobj);
 ``````
 
 ```````
+

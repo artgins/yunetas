@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gclass_command_desc)=
 # `gclass_command_desc()`
 <!-- ============================================================== -->
 
-
-Retrieves a description of the available commands in a GClass.
-        
+Retrieves the data description of a command in a given `gclass`. If `name` is NULL, it returns the full command table.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,37 +20,45 @@ Retrieves a description of the available commands in a GClass.
 **Prototype**
 
 ```C
-
-json_t *gclass_command_desc(hgclass gclass);
-        
-
+PUBLIC const sdata_desc_t *gclass_command_desc(
+    hgclass gclass, 
+    const char *name, 
+    BOOL verbose
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
-  - [`hgclass`](hgclass)
-  - Handle to the GClass whose commands are being described.
+  - `hgclass`
+  - The `gclass` from which to retrieve the command description.
 
+* - `name`
+  - `const char *`
+  - The name of the command to retrieve. If NULL, returns the full command table.
+
+* - `verbose`
+  - `BOOL`
+  - If TRUE, logs an error message when the command is not found.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to the `sdata_desc_t` structure describing the command, or NULL if the command is not found.
 
-- Returns a JSON object ([`json_t`](json_t)) describing the commands available in the GClass.
-        
+**Notes**
 
+If `verbose` is TRUE and the command is not found, an error message is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -179,3 +183,4 @@ json_t *gclass_command_desc(hgclass gclass);
 ``````
 
 ```````
+

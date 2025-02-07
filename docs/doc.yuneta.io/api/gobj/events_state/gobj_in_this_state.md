@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_in_this_state)=
 # `gobj_in_this_state()`
 <!-- ============================================================== -->
 
-
-Checks whether the GObj is currently in the specified state.
-        
+Checks if the given [`hgobj`](#hgobj) is currently in the specified state.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Checks whether the GObj is currently in the specified state.
 **Prototype**
 
 ```C
-
-BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state);
-        
-
+BOOL gobj_in_this_state(
+    hgobj gobj,
+    gobj_state_t state
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to check.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance to check.
 
 * - `state`
-  - [`gobj_state_t`](gobj_state_t)
-  - The state to check against the GObj's current state.
-
+  - `gobj_state_t`
+  - The state to compare against the current state of [`gobj`](#hgobj).
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if [`gobj`](#hgobj) is in the specified `state`, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj is in the specified state.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+This function is useful for verifying the current state of a [`hgobj`](#hgobj) before performing state-dependent operations.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state);
 ``````
 
 ```````
+

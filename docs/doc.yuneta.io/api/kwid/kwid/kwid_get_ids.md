@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kwid_get_ids)=
 # `kwid_get_ids()`
 <!-- ============================================================== -->
 
-
-Retrieve the list of IDs from a JSON object containing `kwid` keys. Works with [`json_t *`](json_t).
-        
+Extracts and returns a new JSON list containing all unique IDs from the given JSON object, list, or string representation of IDs.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieve the list of IDs from a JSON object containing `kwid` keys. Works with [
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kwid_get_ids(
-    json_t      *kw
+json_t *kwid_get_ids(
+    json_t *ids // not owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object containing `kwid` keys.
+* - `ids`
+  - `json_t *`
+  - A JSON object, list, or string containing IDs to be extracted.
 :::
-        
 
 ---
 
 **Return Value**
 
+A new JSON list containing all extracted IDs as strings. Returns an empty list if no valid IDs are found.
 
-Returns a [`json_t *`](json_t) array containing the IDs, or `NULL` on failure.
-        
+**Notes**
 
+The function supports extracting IDs from various JSON structures, including objects with ID keys, lists of ID strings, and mixed lists containing both strings and objects with 'id' fields.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ Returns a [`json_t *`](json_t) array containing the IDs, or `NULL` on failure.
 ``````
 
 ```````
+

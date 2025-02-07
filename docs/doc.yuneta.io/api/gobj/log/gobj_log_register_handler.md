@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_log_register_handler)=
 # `gobj_log_register_handler()`
 <!-- ============================================================== -->
 
-
-Register a new log handler with the logging system.
-        
+Registers a new log handler by specifying its type and associated functions for logging and formatting messages.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,54 +20,50 @@ Register a new log handler with the logging system.
 **Prototype**
 
 ```C
-
 int gobj_log_register_handler(
     const char *handler_type,
     loghandler_close_fn_t close_fn,
     loghandler_write_fn_t write_fn,
     loghandler_fwrite_fn_t fwrite_fn
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `handler_type`
   - `const char *`
-  - The type of handler being registered (e.g., "stdout").
+  - The name of the log handler type to be registered.
 
 * - `close_fn`
   - `loghandler_close_fn_t`
-  - Function to close the handler.
+  - Function pointer for closing the log handler, or NULL if not applicable.
 
 * - `write_fn`
   - `loghandler_write_fn_t`
-  - Function to handle standard log writes.
+  - Function pointer for writing log messages.
 
 * - `fwrite_fn`
   - `loghandler_fwrite_fn_t`
-  - Function to handle formatted log writes for backtrace and similar features.
+  - Function pointer for formatted writing of log messages.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if the maximum number of log handler types has been reached.
 
-- Returns `0` if the handler was registered successfully.
-- Returns `-1` on error (e.g., invalid parameters or internal issues).
-        
+**Notes**
 
+This function allows the registration of custom log handlers, which can be later used with [`gobj_log_add_handler()`](#gobj_log_add_handler).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -196,3 +188,4 @@ int gobj_log_register_handler(
 ``````
 
 ```````
+

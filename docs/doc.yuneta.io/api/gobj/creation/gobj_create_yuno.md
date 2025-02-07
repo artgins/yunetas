@@ -3,7 +3,7 @@
 # `gobj_create_yuno()`
 <!-- ============================================================== -->
 
-The `gobj_create_yuno` function creates a new GObj marked as a Yuno. This is a specialized type of GObj that acts as the root of a Yuno. Only one Yuno can exist at a time in the system.
+Creates a new Yuno object with the specified name and gclass. The Yuno object serves as the root object in the hierarchical structure of gobjs.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,46 +20,45 @@ The `gobj_create_yuno` function creates a new GObj marked as a Yuno. This is a s
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create_yuno(
-    const char      *gobj_name,
-    gclass_name_t   gclass_name,
-    json_t          *kw // owned
+hgobj gobj_create_yuno(
+    const char *gobj_name,
+    gclass_name_t gclass_name,
+    json_t *kw // owned
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
-* - **Parameter**
-  - **Type**
-  - **Description**
+
+* - Key
+  - Type
+  - Description
 
 * - `gobj_name`
   - `const char *`
-  - The name of the Yuno GObj. If `NULL`, defaults to an empty string.
+  - The name of the Yuno object.
 
 * - `gclass_name`
   - `gclass_name_t`
-  - The name of the GClass defining the Yuno's behavior.
+  - The name of the gclass to associate with the Yuno object.
 
 * - `kw`
   - `json_t *`
-  - JSON object containing configuration attributes for the Yuno (owned).
-
+  - A JSON object containing configuration parameters for the Yuno object. The ownership of this parameter is transferred to the function.
 :::
+
+---
 
 **Return Value**
 
-- Returns a handle to the newly created Yuno (`hgobj`).
-- Returns `NULL` if an error occurs, such as if a Yuno already exists.
+Returns a handle to the newly created Yuno object, or NULL if creation fails.
 
 **Notes**
-- **Flags Behavior:**
-  - Automatically sets the `gobj_flag_yuno` flag, marking the GObj as a Yuno.
-- **Lifecycle Management:**
-  - Internally calls `gobj_create2` with the `gobj_flag_yuno` flag.
+
+The Yuno object is the top-level object in the gobj hierarchy and must be unique within the system.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ PUBLIC hgobj gobj_create_yuno(
 ``````
 
 ```````
+

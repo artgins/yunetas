@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (command_parser)=
 # `command_parser()`
 <!-- ============================================================== -->
 
-
-Parse a command and its arguments based on a predefined command structure.
-        
+`command_parser()` processes a command string, expands its parameters, checks authorization, and executes the corresponding function or event.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,53 +20,53 @@ Parse a command and its arguments based on a predefined command structure.
 **Prototype**
 
 ```C
-
-PUBLIC int command_parser(
-    const char  *command_line,
-    const char  *commands[],
-    int         (*callback)(const char *command, const char *args, void *user_data),
-    void        *user_data
+json_t *command_parser(
+    hgobj       gobj,
+    const char  *command,
+    json_t      *kw,
+    hgobj       src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `command_line`
+* - `gobj`
+  - `hgobj`
+  - The GObj handling the command execution.
+
+* - `command`
   - `const char *`
-  - The full command line input to parse.
+  - The command string to be parsed and executed.
 
-* - `commands`
-  - `const char *[]`
-  - An array of valid command strings.
+* - `kw`
+  - `json_t *`
+  - A JSON object containing additional parameters for the command.
 
-* - `callback`
-  - `int (*)(const char *, const char *, void *)`
-  - A function pointer to process each parsed command and its arguments.
-
-* - `user_data`
-  - `void *`
-  - User-defined data passed to the callback function.
+* - `src`
+  - `hgobj`
+  - The source GObj that issued the command.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the command execution result, or `NULL` if the response is asynchronous.
 
-Returns `0` on success, or a negative value on failure.
-        
+**Notes**
 
+If the command is not found, an error response is returned.
+If the command requires authorization, it is checked before execution.
+If the command has a function handler, it is executed directly.
+If the command does not have a function handler, it is redirected as an event.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -195,3 +191,4 @@ Returns `0` on success, or a negative value on failure.
 ``````
 
 ```````
+

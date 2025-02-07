@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_pause_autoplay_services)=
 # `gobj_pause_autoplay_services()`
 <!-- ============================================================== -->
 
-
-Pauses all services that were marked for autoplay within a Yuno. This halts their operation without stopping them entirely.
-        
+Pauses all services that have the `gobj_flag_autoplay` flag set. This function iterates over all registered services and pauses those that are currently playing.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Pauses all services that were marked for autoplay within a Yuno. This halts thei
 **Prototype**
 
 ```C
-
 int gobj_pause_autoplay_services(void);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - None
-  - -
-  - This function does not accept any parameters.
-
+* - `-`
+  - `-`
+  - This function does not take any parameters.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 after attempting to pause all autoplay services.
 
-- `0`: All autoplay services were successfully paused.  
-- `-1`: An error occurred while pausing one or more services.
-        
+**Notes**
 
+This function is typically used during shutdown or when temporarily suspending services. It ensures that services marked for autoplay do not continue running.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ int gobj_pause_autoplay_services(void);
 ``````
 
 ```````
+

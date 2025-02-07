@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_last_child)=
 # `gobj_last_child()`
 <!-- ============================================================== -->
 
-
-Retrieves the last child GObj of the specified parent GObj. This is useful for reverse iteration through child GObjs.
-        
+Returns the last child of the given [`hgobj`](#hgobj) object.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,33 @@ Retrieves the last child GObj of the specified parent GObj. This is useful for r
 **Prototype**
 
 ```C
-
 hgobj gobj_last_child(hgobj gobj);
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj whose last child is being retrieved.
-
+  - `hgobj`
+  - The parent [`hgobj`](#hgobj) whose last child is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the last child [`hgobj`](#hgobj) of the given parent. If the parent has no children, returns `NULL`.
 
-- Returns the handle ([`hgobj`](hgobj)) of the last child GObj.  
-- Returns `NULL` if the parent GObj has no children.
-        
+**Notes**
 
+This function is useful for iterating over child objects in reverse order.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +171,4 @@ hgobj gobj_last_child(hgobj gobj);
 ``````
 
 ```````
+

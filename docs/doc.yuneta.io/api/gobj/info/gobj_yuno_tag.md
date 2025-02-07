@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_tag)=
 # `gobj_yuno_tag()`
 <!-- ============================================================== -->
 
-
-Gets the tag associated with the `Yuno`. Tags are optional labels used to group or categorize instances.
-        
+Returns the tag of the current `yuno` instance as a string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Gets the tag associated with the `Yuno`. Tags are optional labels used to group 
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_tag(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A pointer to a string containing the `yuno` tag. If the `yuno` instance is not available, an empty string is returned.
 
-- Returns a string (`const char *`) containing the tag of the `Yuno`, or `NULL` if no tag is set.
-        
+**Notes**
 
+The returned string is managed internally and should not be modified or freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_tag(void);
 ``````
 
 ```````
+

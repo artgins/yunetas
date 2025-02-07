@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_role)=
 # `gobj_yuno_role()`
 <!-- ============================================================== -->
 
-
-Retrieves the role of the `Yuno`. The `Yuno` role typically describes the function or responsibility of the application.
-        
+Returns the role of the current Yuno instance as a string.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Retrieves the role of the `Yuno`. The `Yuno` role typically describes the functi
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_role(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A string representing the role of the Yuno instance. If the Yuno instance is not available, an empty string is returned.
 
-- Returns a string (`const char *`) containing the role of the `Yuno`.
-        
+**Notes**
 
+The function retrieves the value of the `yuno_role` attribute from the Yuno instance using [`gobj_read_str_attr()`](#gobj_read_str_attr).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_role(void);
 ``````
 
 ```````
+

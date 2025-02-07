@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (trace_vjson)=
 # `trace_vjson()`
 <!-- ============================================================== -->
 
-Log a message with a JSON object and additional formatting.
+Logs a JSON-formatted message with optional structured data, using a specified priority level.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,63 +20,60 @@ Log a message with a JSON object and additional formatting.
 **Prototype**
 
 ```C
-
-PUBLIC void trace_vjson(
+void trace_vjson(
     hgobj gobj,
     int priority,
-    json_t *jn_data, // not owned
+    json_t *jn_data,
     const char *msgset,
     const char *fmt,
     va_list ap
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj instance generating the log.
+  - `hgobj`
+  - The GObj instance associated with the log message.
 
 * - `priority`
   - `int`
-  - Priority level of the log message.
+  - The priority level of the log message, typically using syslog priority values.
 
 * - `jn_data`
   - `json_t *`
-  - JSON object to include in the log message.
+  - Optional JSON data to include in the log message. Not owned by the function.
 
 * - `msgset`
   - `const char *`
-  - The message set category.
+  - A string identifier categorizing the log message.
 
 * - `fmt`
   - `const char *`
-  - Format string for the message.
+  - A format string for the log message, similar to printf.
 
 * - `ap`
   - `va_list`
-  - Variadic arguments for formatting.
+  - A variable argument list containing values to format into the log message.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-- This function does not return a value.
-        
+**Notes**
 
+The function formats the log message as JSON, including metadata such as timestamps and system information. It is used internally by logging functions like [`gobj_trace_json()`](#gobj_trace_json) and [`gobj_trace_msg()`](#gobj_trace_msg).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -203,3 +198,4 @@ PUBLIC void trace_vjson(
 ``````
 
 ```````
+

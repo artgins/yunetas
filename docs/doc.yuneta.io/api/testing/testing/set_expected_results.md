@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (set_expected_results)=
 # `set_expected_results()`
 <!-- ============================================================== -->
 
-
-Set the expected results for a test case.
-        
+`set_expected_results()` initializes the expected test results, including expected errors, expected JSON output, ignored keys, and verbosity settings.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,57 @@ Set the expected results for a test case.
 **Prototype**
 
 ```C
-
-PUBLIC void set_expected_results(
-    const char  *test_name,
-    const char  *expected_result
+void set_expected_results(
+    const char  *name,
+    json_t      *errors_list,
+    json_t      *expected,
+    const char  **ignore_keys,
+    BOOL        verbose
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `test_name`
+* - `name`
   - `const char *`
   - The name of the test case.
 
-* - `expected_result`
-  - `const char *`
-  - The expected result for the test case.
+* - `errors_list`
+  - `json_t *`
+  - A JSON array containing expected error messages.
+
+* - `expected`
+  - `json_t *`
+  - A JSON object representing the expected test output.
+
+* - `ignore_keys`
+  - `const char **`
+  - An array of keys to be ignored during JSON comparison.
+
+* - `verbose`
+  - `BOOL`
+  - Flag indicating whether verbose output should be enabled.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function sets the expected results for the specified test case.
-        
+**Notes**
 
+The function resets previously stored expected results before setting new ones.
+If `verbose` is enabled, the function prints the test name to the console.
+The function initializes `expected_log_messages`, `unexpected_log_messages`, and `expected` as JSON arrays if they are not provided.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +195,4 @@ No return value. This function sets the expected results for the specified test 
 ``````
 
 ```````
+

@@ -1,16 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_delete_resource)=
 # `gobj_delete_resource()`
 <!-- ============================================================== -->
 
-
-The `gobj_delete_resource` function deletes a specific resource associated with a GObj. The resource to be deleted is identified using the `record` parameter, and additional options can be provided via `jn_options`. This function delegates its operation to the `mt_delete_resource` method of the GObj's GClass.
-
-If the `mt_delete_resource` method is not implemented in the GClass, the function logs an error and returns `-1`.
-
-        
+`gobj_delete_resource()` deletes a resource associated with a given [`hgobj`](#hgobj).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -27,67 +20,53 @@ If the `mt_delete_resource` method is not implemented in the GClass, the functio
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_delete_resource(
-    hgobj       gobj_,
-    const char  *resource,
-    json_t      *record,  // owned
-    json_t      *jn_options // owned
+int gobj_delete_resource(
+    hgobj gobj,
+    const char *resource,
+    json_t *record,
+    json_t *jn_options
 );
-        
-
 ```
 
 **Parameters**
-
 
 ::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
 
-* - **Parameter**
-  - **Type**
-  - **Description**
+* - Key
+  - Type
+  - Description
 
-* - `gobj_`
+* - `gobj`
   - `hgobj`
-  - The GObj instance associated with the resource.
+  - The [`hgobj`](#hgobj) instance managing the resource.
 
 * - `resource`
   - `const char *`
-  - The name of the resource to delete.
+  - The name of the resource to be deleted.
 
 * - `record`
   - `json_t *`
-  - JSON object representing the resource to delete (owned).
+  - A JSON object containing the record to be deleted. This parameter is owned and must be freed by the function.
 
 * - `jn_options`
   - `json_t *`
-  - Additional options for deleting the resource (owned).
+  - A JSON object containing additional options for deletion. This parameter is owned and must be freed by the function.
 :::
-
-        
 
 ---
 
 **Return Value**
 
-
-- Returns `0` on success.
-- Returns `-1` if the GObj is invalid, the `record` parameter is `NULL`, or the `mt_delete_resource` method is not implemented.
-        
-
+Returns `0` on success, or `-1` if an error occurs.
 
 **Notes**
 
-
-- **Ownership:**
-  - The `record` and `jn_options` parameters are owned by the function and will be decremented internally.
-- **Error Handling:**
-  - If the GObj is `NULL` or destroyed, the function logs an error and returns `-1`.
-  - If the `mt_delete_resource` method is missing, the function logs an error and returns `-1`.
-        
-
+If `gobj` is `NULL` or destroyed, an error is logged and `-1` is returned.
+If `record` is `NULL`, an error is logged and `-1` is returned.
+If the `gobj`'s class does not implement `mt_delete_resource`, an error is logged and `-1` is returned.
+The function ensures that `record` and `jn_options` are properly freed before returning.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -212,3 +191,4 @@ PUBLIC int gobj_delete_resource(
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (build_command_response)=
 # `build_command_response()`
 <!-- ============================================================== -->
 
-
-Constructs a response for a command executed on a GObj. This function is typically used to standardize the format of command responses.
-        
+Constructs a JSON response object containing the result, comment, schema, and data fields.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,50 +20,55 @@ Constructs a response for a command executed on a GObj. This function is typical
 **Prototype**
 
 ```C
-
-json_t *build_command_response(hgobj gobj, int result, const char *message, json_t *kw);
-        
-
+json_t *build_command_response(
+    hgobj gobj,
+    json_int_t result,
+    json_t *jn_comment, // owned, if null then not set
+    json_t *jn_schema,  // owned, if null then not set
+    json_t *jn_data     // owned, if null then not set
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj generating the command response.
+  - `hgobj`
+  - The GObj instance associated with the response.
 
 * - `result`
-  - `int`
-  - The result code of the command execution (e.g., `0` for success, negative values for errors).
+  - `json_int_t`
+  - The result code of the command execution.
 
-* - `message`
-  - `const char *`
-  - A descriptive message associated with the command's result.
+* - `jn_comment`
+  - `json_t *`
+  - A JSON string containing a comment or message. If null, it is not set.
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - JSON object containing additional data for the response. Ownership is transferred to the function.
+* - `jn_schema`
+  - `json_t *`
+  - A JSON object representing the schema of the response. If null, it is not set.
 
+* - `jn_data`
+  - `json_t *`
+  - A JSON object containing the response data. If null, it is not set.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the response structure with 'result', 'comment', 'schema', and 'data' fields.
 
-- Returns a JSON object ([`json_t`](json_t)) containing the command response.  
-- The response includes keys like `result`, `message`, and additional data.
-        
+**Notes**
 
+The caller is responsible for managing the memory of the returned JSON object. If any of the optional parameters (jn_comment, jn_schema, jn_data) are null, they are replaced with default values.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -192,3 +193,4 @@ json_t *build_command_response(hgobj gobj, int result, const char *message, json
 ``````
 
 ```````
+

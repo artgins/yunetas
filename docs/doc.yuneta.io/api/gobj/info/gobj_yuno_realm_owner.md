@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_yuno_realm_owner)=
 # `gobj_yuno_realm_owner()`
 <!-- ============================================================== -->
 
-
-Gets the owner of the `Yuno` realm. The owner represents the entity responsible for the realm.
-        
+Returns the realm owner of the current Yuno instance.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,26 +20,33 @@ Gets the owner of the `Yuno` realm. The owner represents the entity responsible 
 **Prototype**
 
 ```C
-
 const char *gobj_yuno_realm_owner(void);
-        
-
 ```
 
 **Parameters**
 
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-(No parameters for this function)
-        
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A string representing the realm owner of the Yuno instance. If the Yuno instance is not available, an empty string is returned.
 
-- Returns a string (`const char *`) containing the owner of the `Yuno` realm.
-        
+**Notes**
 
+The function retrieves the value from the `realm_owner` attribute of the Yuno instance.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -168,3 +171,4 @@ const char *gobj_yuno_realm_owner(void);
 ``````
 
 ```````
+

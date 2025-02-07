@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_change_state)=
 # `gobj_change_state()`
 <!-- ============================================================== -->
 
-
-Changes the current state of a GObj to the specified new state. This transition is a critical part of the GObj's state machine behavior.
-        
+Changes the current state of the given [`hgobj`](#hgobj) to the specified `state_name`. If the new state is different from the current state, it updates the state and publishes the [`EV_STATE_CHANGED`](#EV_STATE_CHANGED) event.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,40 @@ Changes the current state of a GObj to the specified new state. This transition 
 **Prototype**
 
 ```C
-
-int gobj_change_state(hgobj gobj, gobj_state_t new_state);
-        
-
+BOOL gobj_change_state(
+    hgobj gobj,
+    gobj_state_t state_name
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose state is being changed.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose state is to be changed.
 
-* - `new_state`
-  - [`gobj_state_t`](gobj_state_t)
-  - The name of the new state to transition to.
-
+* - `state_name`
+  - `gobj_state_t`
+  - The new state to transition to.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the state was changed successfully, otherwise returns `FALSE`.
 
-- `0`: The state was successfully changed.  
-- `-1`: The state transition failed.
-        
+**Notes**
 
+If the new state is the same as the current state, no change occurs. If the [`hgobj`](#hgobj) has a `mt_state_changed` method, it will be called instead of publishing [`EV_STATE_CHANGED`](#EV_STATE_CHANGED).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +178,4 @@ int gobj_change_state(hgobj gobj, gobj_state_t new_state);
 ``````
 
 ```````
+

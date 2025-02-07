@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_reset_volatil_attrs)=
 # `gobj_reset_volatil_attrs()`
 <!-- ============================================================== -->
 
-Resets the volatile attributes of a GObj.
+Resets all attributes of the given [`hgobj`](#hgobj) that are marked as `SDF_VOLATIL` to their default values.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,30 +20,35 @@ Resets the volatile attributes of a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_reset_volatil_attrs(
-    hgobj       gobj
+int gobj_reset_volatil_attrs(
+    hgobj gobj
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose volatile attributes are being reset.
-
+  - `hgobj`
+  - The [`hgobj`](#hgobj) whose volatile attributes will be reset.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The volatile attributes were successfully reset.
-- `-1`: An error occurred during the reset process.
+Returns 0 on success.
+
+**Notes**
+
+This function resets only attributes marked with `SDF_VOLATIL`, leaving other attributes unchanged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -170,3 +173,4 @@ PUBLIC int gobj_reset_volatil_attrs(
 ``````
 
 ```````
+

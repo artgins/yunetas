@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_load_trace_filter)=
 # `gobj_load_trace_filter()`
 <!-- ============================================================== -->
 
-
-Load trace filters from a JSON object and apply them to the GObjs.
-        
+Loads a trace filter into the specified [`hgclass`](#hgclass), replacing any existing filter.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Load trace filters from a JSON object and apply them to the GObjs.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_load_trace_filter(
-    json_t      *jn_trace_filter
+int gobj_load_trace_filter(
+    hgclass gclass, 
+    json_t *jn_trace_filter // owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
+* - `gclass`
+  - `hgclass`
+  - The [`hgclass`](#hgclass) instance where the trace filter will be applied.
+
 * - `jn_trace_filter`
   - `json_t *`
-  - JSON object containing the trace filters to apply.
+  - A JSON object containing the trace filter rules. This parameter is owned and will be managed internally.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+This function replaces any existing trace filter in the specified [`hgclass`](#hgclass).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

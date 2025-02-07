@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (udpc_close)=
 # `udpc_close()`
 <!-- ============================================================== -->
 
-
-Close a UDP communication channel.
-        
+Closes the UDP client instance referenced by `udpc`, releasing all associated resources.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,38 @@ Close a UDP communication channel.
 **Prototype**
 
 ```C
-
-PUBLIC void udpc_close(
-    int handle
+void udpc_close(
+    udpc_t udpc
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `handle`
-  - `int`
-  - The handle of the UDP channel to close.
+* - `udpc`
+  - `udpc_t`
+  - A handle to the UDP client instance to be closed.
 :::
-        
 
 ---
 
 **Return Value**
 
+This function does not return a value.
 
-No return value. This function closes the specified UDP channel.
-        
+**Notes**
 
+If `udpc` is `NULL`, the function returns immediately without performing any action.
+The function removes the UDP client from the internal list and deallocates its memory.
+If the client has an open socket, it is closed before deallocation.
+On ESP32 platforms, the associated event loop is deleted before freeing resources.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +176,4 @@ No return value. This function closes the specified UDP channel.
 ``````
 
 ```````
+

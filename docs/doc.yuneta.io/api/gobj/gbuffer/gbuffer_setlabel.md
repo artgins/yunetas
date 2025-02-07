@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_setlabel)=
 # `gbuffer_setlabel()`
 <!-- ============================================================== -->
 
-
-Set a label for the gbuffer for identification or debugging purposes.
-        
+Sets the label of the given [`gbuffer_t *`](#gbuffer_t). If a label already exists, it is freed before assigning the new one.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,40 @@ Set a label for the gbuffer for identification or debugging purposes.
 **Prototype**
 
 ```C
-
-PUBLIC void gbuffer_setlabel(
-    gbuffer_t   *gbuffer,
-    const char  *label
+int gbuffer_setlabel(
+    gbuffer_t *gbuf,
+    const char *label
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to label.
+* - `gbuf`
+  - `gbuffer_t *`
+  - Pointer to the [`gbuffer_t *`](#gbuffer_t) whose label is to be set.
 
 * - `label`
   - `const char *`
-  - The label to assign to the gbuffer.
+  - New label string to assign. If `NULL`, the existing label is removed.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success. If `gbuf` is `NULL`, an error is logged and `-1` is returned.
 
-No return value. This function sets the label for the gbuffer.
-        
+**Notes**
 
+If a label is already set, it is freed before assigning the new one. The function duplicates the input string to ensure memory safety.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +178,4 @@ No return value. This function sets the label for the gbuffer.
 ``````
 
 ```````
+

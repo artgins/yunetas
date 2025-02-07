@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_activate_snap)=
 # `gobj_activate_snap()`
 <!-- ============================================================== -->
 
-
-Activate a specific snapshot in the GObj's TreeDB.
-        
+Activates a previously saved snapshot identified by `tag` in the given [`hgobj`](#hgobj) instance. This operation typically involves stopping and restarting the associated [`hgobj`](#hgobj) to restore the saved state.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,54 +20,50 @@ Activate a specific snapshot in the GObj's TreeDB.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_activate_snap(
+int gobj_activate_snap(
     hgobj gobj,
     const char *tag,
     json_t *kw,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
   - `hgobj`
-  - The GObj handle initiating the activation.
+  - The [`hgobj`](#hgobj) instance where the snapshot will be activated.
 
 * - `tag`
   - `const char *`
-  - The tag of the snapshot to activate.
+  - The identifier of the snapshot to activate.
 
 * - `kw`
   - `json_t *`
-  - JSON data with activation parameters (owned).
+  - Additional options for activation, passed as a JSON object. Owned by the function.
 
 * - `src`
   - `hgobj`
-  - The source GObj making the request.
+  - The source [`hgobj`](#hgobj) initiating the activation request.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if an error occurs (e.g., if `gobj` is NULL, destroyed, or if `mt_activate_snap` is not defined).
 
-- Returns `0` if the snapshot was successfully activated.  
-- Returns `-1` if the operation failed.
-        
+**Notes**
 
+['If `gobj` is NULL or destroyed, an error is logged and the function returns -1.', "If `mt_activate_snap` is not defined in the [`hgobj`](#hgobj)'s gclass, an error is logged and the function returns -1.", "The function ensures that the snapshot activation is properly handled by the [`hgobj`](#hgobj)'s gclass."]
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -196,3 +188,4 @@ PUBLIC int gobj_activate_snap(
 ``````
 
 ```````
+

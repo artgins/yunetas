@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_topic_hooks)=
 # `gobj_topic_hooks()`
 <!-- ============================================================== -->
 
-
-Retrieve the hooks associated with a specific topic in a treedb.
-        
+Retrieves the hooks of a topic in a TreeDB. The function `gobj_topic_hooks()` queries the specified topic within a TreeDB and returns its associated hooks.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,59 +20,55 @@ Retrieve the hooks associated with a specific topic in a treedb.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_topic_hooks(
+json_t *gobj_topic_hooks(
     hgobj gobj,
     const char *treedb_name,
     const char *topic_name,
     json_t *kw,
     hgobj src
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - The GObj from which to query the topic hooks.
+  - `hgobj`
+  - The GObj instance that manages the TreeDB.
 
 * - `treedb_name`
   - `const char *`
-  - The name of the treedb.
+  - The name of the TreeDB containing the topic.
 
 * - `topic_name`
   - `const char *`
-  - The name of the topic.
+  - The name of the topic whose hooks are to be retrieved.
 
 * - `kw`
-  - [`json_t`](json_t)
-  - Optional parameters for additional filtering (owned).
+  - `json_t *`
+  - A JSON object containing query parameters. Owned by the caller.
 
 * - `src`
-  - [`hgobj`](hgobj)
-  - The source GObj making the request.
+  - `hgobj`
+  - The source GObj requesting the hooks.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a JSON object containing the hooks of the specified topic. If the function fails, it returns NULL.
 
-Returns a JSON object containing the hooks of the topic.  
-If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
-        
+**Notes**
 
+['If `gobj` is NULL or destroyed, an error is logged and NULL is returned.', 'If `gobj` does not implement `mt_topic_hooks`, an error is logged and NULL is returned.', 'The returned JSON object must be decremented by the caller when no longer needed.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -201,3 +193,4 @@ If `gobj` is null, destroyed, or the method is undefined, returns `NULL`.
 ``````
 
 ```````
+

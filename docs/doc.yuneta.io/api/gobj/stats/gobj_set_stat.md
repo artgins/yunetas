@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_stat)=
 # `gobj_set_stat()`
 <!-- ============================================================== -->
 
-
-Set a specific statistical value for a GObj.
-        
+Sets the value of a statistical attribute for the given [`hgobj`](#hgobj) and returns the previous value.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,45 +20,45 @@ Set a specific statistical value for a GObj.
 **Prototype**
 
 ```C
-
-PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value);
-        
-
+json_int_t gobj_set_stat(
+    hgobj gobj, 
+    const char *path, 
+    json_int_t value
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance whose statistical attribute is being modified.
 
 * - `path`
   - `const char *`
-  - Path to the statistic to set.
+  - The name of the statistical attribute to modify.
 
 * - `value`
   - `json_int_t`
-  - The value to set for the specified statistic.
-
+  - The new value to set for the statistical attribute.
 :::
-        
 
 ---
 
 **Return Value**
 
+The previous value of the statistical attribute before modification.
 
-- Returns the old value of the statistic as `json_int_t`.
-        
+**Notes**
 
+If the attribute does not exist, it is created with the specified value.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -187,3 +183,4 @@ PUBLIC json_int_t gobj_set_stat(hgobj gobj, const char *path, json_int_t value);
 ``````
 
 ```````
+

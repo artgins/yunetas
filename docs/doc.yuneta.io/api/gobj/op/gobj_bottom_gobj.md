@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_bottom_gobj)=
 # `gobj_bottom_gobj()`
 <!-- ============================================================== -->
 
-
-Retrieves the bottom GObj directly associated with the specified GObj. This function does not traverse the entire hierarchy.
-        
+Returns the next bottom `gobj` of the given `gobj`. This function is useful for navigating hierarchical `gobj` structures where attributes may be inherited from a lower-level `gobj`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,35 @@ Retrieves the bottom GObj directly associated with the specified GObj. This func
 **Prototype**
 
 ```C
-
-hgobj gobj_bottom_gobj(hgobj gobj);
-        
-
+hgobj gobj_bottom_gobj(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose bottom GObj is being retrieved.
-
+  - `hgobj`
+  - The `gobj` whose bottom `gobj` is to be retrieved.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the next bottom `gobj` of the given `gobj`. If no bottom `gobj` exists, returns `NULL`.
 
-- Returns the handle ([`hgobj`](hgobj)) of the bottom GObj directly associated with the specified GObj.  
-- Returns `NULL` if the GObj does not have a bottom GObj.
-        
+**Notes**
 
+This function is typically used in hierarchical `gobj` structures where attributes and behaviors can be inherited from a lower-level `gobj`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +173,4 @@ hgobj gobj_bottom_gobj(hgobj gobj);
 ``````
 
 ```````
+

@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_has_output_event)=
 # `gobj_has_output_event()`
 <!-- ============================================================== -->
 
-
-Checks whether the GObj has the specified event marked as an output event. This is useful for verifying publishable events.
-        
+Checks if the given `gobj` has the specified `event` in its output event list, optionally filtered by `event_flag`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,45 @@ Checks whether the GObj has the specified event marked as an output event. This 
 **Prototype**
 
 ```C
-
-BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event);
-        
-
+PUBLIC BOOL gobj_has_output_event(
+    hgobj gobj,
+    gobj_event_t event,
+    event_flag_t event_flag
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj to check.
+  - `hgobj`
+  - The GObj instance to check.
 
 * - `event`
-  - [`gobj_event_t`](gobj_event_t)
-  - The event to check.
+  - `gobj_event_t`
+  - The event to check for in the output event list.
 
+* - `event_flag`
+  - `event_flag_t`
+  - Optional flag to filter the event check.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `TRUE` if the event exists in the output event list and matches the given `event_flag`, otherwise returns `FALSE`.
 
-- Returns `TRUE` if the GObj has the event as an output event.  
-- Returns `FALSE` otherwise.
-        
+**Notes**
 
+This function is useful for verifying if a GObj can publish a specific event before attempting to do so.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event);
 ``````
 
 ```````
+

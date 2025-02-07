@@ -1,11 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_get_log_data)=
 # `gobj_get_log_data()`
 <!-- ============================================================== -->
 
-Retrieves internal log data as a JSON object.
+Retrieves a JSON object containing log statistics, including counts of different log levels such as debug, info, warning, error, critical, and alert.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,25 +20,33 @@ Retrieves internal log data as a JSON object.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gobj_get_log_data(void);
-        
-
+json_t *gobj_get_log_data(void);
 ```
 
 **Parameters**
 
-This function does not take any parameters.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `-`
+  - `-`
+  - This function does not take any parameters.
+:::
 
 ---
 
 **Return Value**
 
+A JSON object containing log statistics with keys: 'debug', 'info', 'warning', 'error', 'critical', and 'alert', each holding the respective count.
 
-- Returns a JSON object containing the internal log data.
-- Returns `NULL` on error.
-        
+**Notes**
 
+The returned JSON object must be managed by the caller, ensuring proper memory deallocation when no longer needed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -165,3 +171,4 @@ This function does not take any parameters.
 ``````
 
 ```````
+

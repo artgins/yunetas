@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_stop_tree)=
 # `gobj_stop_tree()`
 <!-- ============================================================== -->
 
-
-Stops the specified GObj and its entire hierarchy of child GObjs. This function ensures that all dependent GObjs are gracefully stopped in a bottom-up manner.
-        
+Stops the given `gobj` and all its child objects recursively. If the `gobj` is already being destroyed, it logs an error and returns immediately.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,37 @@ Stops the specified GObj and its entire hierarchy of child GObjs. This function 
 **Prototype**
 
 ```C
-
-int gobj_stop_tree(hgobj gobj);
-        
-
+int gobj_stop_tree(
+    hgobj gobj
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the root GObj of the hierarchy to be stopped.
-
+  - `hgobj`
+  - The root object whose tree of child objects will be stopped.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns 0 on success, or -1 if an error occurs (e.g., `gobj` is NULL or being destroyed).
 
-- `0`: The GObj and its child hierarchy were successfully stopped.  
-- `-1`: An error occurred while stopping one or more GObjs in the hierarchy.
-        
+**Notes**
 
+If the `gobj` is already being destroyed, an error is logged and the function returns -1.
+This function first stops the given `gobj` and then recursively stops all its child objects.
+Uses [`gobj_walk_gobj_childs_tree()`](#gobj_walk_gobj_childs_tree) to traverse the child objects.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +175,4 @@ int gobj_stop_tree(hgobj gobj);
 ``````
 
 ```````
+

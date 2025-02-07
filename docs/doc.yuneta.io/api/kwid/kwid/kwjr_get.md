@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kwjr_get)=
 # `kwjr_get()`
 <!-- ============================================================== -->
 
-
-Retrieve a JSON value from a JSON object or array based on a JSON path. Works with [`json_t *`](json_t).
-        
+Retrieve the first record from a JSON list or dictionary that matches the given `id`. If the record is not found and `KW_CREATE` is set, a new record is created using `json_desc`. The function supports extracting the record from the list or dictionary if `KW_EXTRACT` is set.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,65 @@ Retrieve a JSON value from a JSON object or array based on a JSON path. Works wi
 **Prototype**
 
 ```C
-
-PUBLIC json_t *kwjr_get(
-    json_t      *kw,
-    const char  *path
+json_t *kwjr_get(
+    hgobj gobj,
+    json_t *kw,          // NOT owned
+    const char *id,
+    json_t *new_record,  // owned
+    const json_desc_t *json_desc,
+    size_t *idx,        // If not null, set the index in case of an array
+    kw_flag_t flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object or array to query.
+* - `gobj`
+  - `hgobj`
+  - Pointer to the GObj context.
 
-* - `path`
+* - `kw`
+  - `json_t *`
+  - JSON object or array containing the records. Not owned by the caller.
+
+* - `id`
   - `const char *`
-  - The JSON path used to retrieve the value.
+  - The identifier of the record to retrieve.
+
+* - `new_record`
+  - `json_t *`
+  - A new record to insert if `KW_CREATE` is set. Owned by the caller.
+
+* - `json_desc`
+  - `const json_desc_t *`
+  - JSON descriptor defining the structure of the records.
+
+* - `idx`
+  - `size_t *`
+  - Pointer to store the index of the found record in case of an array. Can be NULL.
+
+* - `flag`
+  - `kw_flag_t`
+  - Flags controlling the behavior of the function, such as `KW_CREATE`, `KW_EXTRACT`, and `KW_BACKWARD`.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns a pointer to the found or newly created JSON record. If `KW_EXTRACT` is set, the record is removed from `kw`. Returns NULL if the record is not found and `KW_CREATE` is not set.
 
-Returns a pointer to the value at the specified path, or `NULL` if the path does not exist.
-        
+**Notes**
 
+If `kw` is a dictionary, the function searches for a key matching `id`. If `kw` is a list, it searches for a record where the `id` field matches. If `KW_CREATE` is set, a new record is created using `json_desc` and `new_record`. If `KW_EXTRACT` is set, the record is removed from `kw` and returned with an increased reference count.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +203,4 @@ Returns a pointer to the value at the specified path, or `NULL` if the path does
 ``````
 
 ```````
+

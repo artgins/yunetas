@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (kw_get_real)=
 # `kw_get_real()`
 <!-- ============================================================== -->
 
-
-Get the value of a key as a real (floating-point) number from a JSON object. Works with [`json_t *`](json_t).
-        
+Retrieves the real (floating-point) value associated with the given `path` in the JSON dictionary `kw`. If the key does not exist, the `default_value` is returned. Supports automatic type conversion for integers, booleans, and strings when `KW_WILD_NUMBER` is set.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,48 +20,55 @@ Get the value of a key as a real (floating-point) number from a JSON object. Wor
 **Prototype**
 
 ```C
-
-PUBLIC double kw_get_real(
-    json_t      *kw,
-    const char  *key,
-    double      default_value
+double kw_get_real(
+    hgobj      gobj,
+    json_t     *kw,
+    const char *path,
+    double     default_value,
+    kw_flag_t  flag
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `kw`
-  - [`json_t *`](json_t)
-  - The JSON object to query.
+* - `gobj`
+  - `hgobj`
+  - Handle to the GObj instance, used for logging errors.
 
-* - `key`
+* - `kw`
+  - `json_t *`
+  - JSON dictionary to search for the specified `path`.
+
+* - `path`
   - `const char *`
-  - The key whose value will be retrieved as a real number.
+  - Path to the desired real value within the JSON dictionary.
 
 * - `default_value`
   - `double`
-  - The default value to return if the key does not exist or is not a real number.
+  - Value to return if the key does not exist or is of an incompatible type.
+
+* - `flag`
+  - `kw_flag_t`
+  - Flags controlling behavior, such as `KW_REQUIRED`, `KW_CREATE`, and `KW_WILD_NUMBER`.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns the real (floating-point) value found at `path`. If the key does not exist or is incompatible, `default_value` is returned.
 
-Returns the real value of the key, or `default_value` if the key does not exist or is not a real number.
-        
+**Notes**
 
+If `KW_WILD_NUMBER` is set, the function attempts to convert integers, booleans, and numeric strings to a real value. If `KW_REQUIRED` is set and the key is missing, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -190,3 +193,4 @@ Returns the real value of the key, or `default_value` if the key does not exist 
 ``````
 
 ```````
+

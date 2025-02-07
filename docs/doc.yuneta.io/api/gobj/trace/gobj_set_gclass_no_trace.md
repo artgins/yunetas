@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_set_gclass_no_trace)=
 # `gobj_set_gclass_no_trace()`
 <!-- ============================================================== -->
 
-
-Disable specific trace levels for a GClass.
-        
+Sets or resets the no-trace level for a given [`hgclass`](#hgclass).
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,43 +20,45 @@ Disable specific trace levels for a GClass.
 **Prototype**
 
 ```C
-
-PUBLIC int gobj_set_gclass_no_trace(
-    hgclass     gclass,
-    const char  *trace_levels
+int gobj_set_gclass_no_trace(
+    hgclass gclass, 
+    const char *level, 
+    BOOL set
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass`
   - `hgclass`
-  - The GClass for which the trace levels are being disabled.
+  - The [`hgclass`](#hgclass) whose no-trace level is being modified.
 
-* - `trace_levels`
+* - `level`
   - `const char *`
-  - A comma-separated string of trace levels to disable for the GClass.
+  - The trace level to set or reset. If empty, all levels are affected.
+
+* - `set`
+  - `BOOL`
+  - If `TRUE`, the level is set; if `FALSE`, the level is reset.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` on success, or `-1` if the specified trace level is not found.
 
-Returns `0` on success, or a negative value on error.
-        
+**Notes**
 
+If `level` is empty, all trace levels are affected. If `gclass` is `NULL`, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -185,3 +183,4 @@ Returns `0` on success, or a negative value on error.
 ``````
 
 ```````
+

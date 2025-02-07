@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_event_type)=
 # `gobj_event_type()`
 <!-- ============================================================== -->
 
-
-Retrieves the type of the specified event. This provides metadata about the event's characteristics.
-        
+Retrieves the event type information for a given event in the specified gobj. If the event is not found in the gobj's event list, it checks the global event list if `include_system_events` is set to true.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,42 +20,45 @@ Retrieves the type of the specified event. This provides metadata about the even
 **Prototype**
 
 ```C
-
-int gobj_event_type(hgobj gobj, gobj_event_t event);
-        
-
+PUBLIC event_type_t *gobj_event_type(
+    hgobj gobj_,
+    gobj_event_t event,
+    BOOL include_system_events
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj associated with the event.
+* - `gobj_`
+  - `hgobj`
+  - The gobj in which to search for the event.
 
 * - `event`
-  - [`gobj_event_t`](gobj_event_t)
-  - The event whose type is being queried.
+  - `gobj_event_t`
+  - The event whose type information is to be retrieved.
 
+* - `include_system_events`
+  - `BOOL`
+  - If true, the function also checks the global event list for the event.
 :::
-        
 
 ---
 
 **Return Value**
 
+A pointer to the `event_type_t` structure describing the event if found, or NULL if the event is not found.
 
-- Returns an integer representing the event type.  
-- Returns `-1` if the event type could not be determined.
-        
+**Notes**
 
+If `include_system_events` is set to true, the function will also check the global event list for system events.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -184,3 +183,4 @@ int gobj_event_type(hgobj gobj, gobj_event_t event);
 ``````
 
 ```````
+

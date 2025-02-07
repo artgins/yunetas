@@ -3,7 +3,7 @@
 # `gclass_find_by_name()`
 <!-- ============================================================== -->
 
-Finds a GClass by its unique name.
+Searches for a `gclass` by its name and returns a handle to it if found.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -17,37 +17,38 @@ Finds a GClass by its unique name.
 <!--                    Tab C                           -->
 <!--====================================================-->
 
-<!---------------------------------------------------->
-<!--                C Prototype                     -->
-<!---------------------------------------------------->
-
 **Prototype**
 
 ```C
-PUBLIC hgclass gclass_find_by_name(
-    gclass_name_t    gclass_name
+hgclass gclass_find_by_name(
+    gclass_name_t gclass_name
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gclass_name`
-  - [`gclass_name_t`](gclass_name_t)
-  - The name of the GClass to search for.
-
+  - `gclass_name_t`
+  - The name of the `gclass` to search for.
 :::
+
+---
 
 **Return Value**
 
--  Returns a handle to the GClass ([`hgclass`](hgclass)) if the GClass is found.
-- Returns `NULL` if the GClass with the specified name does not exist.
+A handle to the `gclass` if found, otherwise `NULL`.
+
+**Notes**
+
+If the `gclass` is not found, the function returns `NULL` without logging an error.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -172,3 +173,4 @@ PUBLIC hgclass gclass_find_by_name(
 ``````
 
 ```````
+

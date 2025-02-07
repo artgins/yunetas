@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gbuffer_serialize)=
 # `gbuffer_serialize()`
 <!-- ============================================================== -->
 
-
-Serialize a gbuffer into a JSON-compatible format.
-        
+`gbuffer_serialize()` converts a [`gbuffer_t *`](#gbuffer_t) into a JSON object, encoding its data in Base64 format.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,38 +20,40 @@ Serialize a gbuffer into a JSON-compatible format.
 **Prototype**
 
 ```C
-
-PUBLIC json_t *gbuffer_serialize(
-    gbuffer_t   *gbuffer
+json_t *gbuffer_serialize(
+    hgobj gobj,
+    gbuffer_t *gbuf  // not owned
 );
-        
-
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gbuffer`
-  - [`gbuffer_t *`](gbuffer_t)
-  - The gbuffer to be serialized.
+* - `gobj`
+  - `hgobj`
+  - The [`hgobj`](#hgobj) context for logging and error handling.
+
+* - `gbuf`
+  - `gbuffer_t *`
+  - The [`gbuffer_t *`](#gbuffer_t) to be serialized. The buffer is not modified or owned by the function.
 :::
-        
 
 ---
 
 **Return Value**
 
+A JSON object containing the serialized [`gbuffer_t *`](#gbuffer_t), including its label, mark, and Base64-encoded data.
 
-Returns a JSON object representing the serialized gbuffer, or `NULL` on failure.
-        
+**Notes**
 
+The function encodes the buffer's data in Base64 format to ensure safe storage and transmission. The returned JSON object must be freed by the caller.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -180,3 +178,4 @@ Returns a JSON object representing the serialized gbuffer, or `NULL` on failure.
 ``````
 
 ```````
+

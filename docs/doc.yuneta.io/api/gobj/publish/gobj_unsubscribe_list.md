@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_unsubscribe_list)=
 # `gobj_unsubscribe_list()`
 <!-- ============================================================== -->
 
-
-Unsubscribes a GObj from a list of events. This allows batch unsubscription from multiple events at once.
-        
+Removes a list of event subscriptions from their respective publishers, optionally forcing the removal of hard subscriptions.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,46 +20,40 @@ Unsubscribes a GObj from a list of events. This allows batch unsubscription from
 **Prototype**
 
 ```C
-
-int gobj_unsubscribe_list(hgobj gobj, json_t *event_list, hgobj subscriber);
-        
-
+int gobj_unsubscribe_list(
+    json_t *dl_subs,  // owned
+    BOOL force  // delete hard_subscription subs too
+);
 ```
 
 **Parameters**
 
-
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
-* - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj that was publishing the events.
+* - `dl_subs`
+  - `json_t *`
+  - A JSON array containing the subscriptions to be removed. Each element represents a subscription.
 
-* - `event_list`
-  - [`json_t *`](json_t)
-  - JSON array containing the list of events to unsubscribe from.
-
-* - `subscriber`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj that was receiving the events.
-
+* - `force`
+  - `BOOL`
+  - If set to `TRUE`, hard subscriptions will also be removed.
 :::
-        
 
 ---
 
 **Return Value**
 
+Returns `0` upon successful removal of the subscriptions.
 
-- `0`: The subscriptions were successfully removed.  
-- `-1`: The unsubscriptions failed, possibly because one or more subscriptions did not exist.
-        
+**Notes**
 
+Each subscription in `dl_subs` is checked and removed from both the publisher's and subscriber's subscription lists.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -188,3 +178,4 @@ int gobj_unsubscribe_list(hgobj gobj, json_t *event_list, hgobj subscriber);
 ``````
 
 ```````
+

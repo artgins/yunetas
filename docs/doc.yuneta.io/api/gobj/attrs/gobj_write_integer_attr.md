@@ -1,13 +1,9 @@
-
-
 <!-- ============================================================== -->
 (gobj_write_integer_attr)=
 # `gobj_write_integer_attr()`
 <!-- ============================================================== -->
 
-Updates the value of an integer attribute in a GObj.
-
-
+The function `gobj_write_integer_attr()` sets the value of an integer attribute in the given [`hgobj`](#hgobj) object. It updates the attribute if it exists and triggers the `mt_writing` method if defined.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -24,40 +20,45 @@ Updates the value of an integer attribute in a GObj.
 **Prototype**
 
 ```C
-PUBLIC int gobj_write_integer_attr(
-    hgobj       gobj,
-    const char  *name,
-    json_int_t  value
+int gobj_write_integer_attr(
+    hgobj gobj,   
+    const char *name,   
+    json_int_t value
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `gobj`
-  - [`hgobj`](hgobj)
-  - Handle to the GObj whose integer attribute is being written.
+  - `hgobj`
+  - The [`hgobj`](#hgobj) object whose attribute is being modified.
 
-* - `attr_name`
+* - `name`
   - `const char *`
-  - The name of the integer attribute to write.
+  - The name of the attribute to be updated.
 
 * - `value`
-  - `int`
-  - The new value for the attribute.
-
+  - `json_int_t`
+  - The new integer value to be assigned to the attribute.
 :::
+
+---
 
 **Return Value**
 
-- `0`: The integer attribute was successfully updated.
-- `-1`: An error occurred (e.g., the attribute is read-only or does not exist).
+Returns 0 on success, or -1 if the attribute is not found.
+
+**Notes**
+
+If the `mt_writing` method is defined in the object's gclass, it is called after updating the attribute.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -182,3 +183,4 @@ PUBLIC int gobj_write_integer_attr(
 ``````
 
 ```````
+

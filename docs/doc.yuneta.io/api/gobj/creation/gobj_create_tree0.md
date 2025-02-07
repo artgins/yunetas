@@ -3,9 +3,7 @@
 # `gobj_create_tree0()`
 <!-- ============================================================== -->
 
-Creates a GObj tree using a hierarchical JSON structure.  
-This function directly uses the provided JSON object to build a parent-child hierarchy of Gobjs.
-
+Creates a hierarchical tree of `gobj` instances, initializing attributes and linking child objects to their parent.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -22,36 +20,40 @@ This function directly uses the provided JSON object to build a parent-child hie
 **Prototype**
 
 ```C
-PUBLIC hgobj gobj_create_tree0(
-    hgobj    parent,
-    json_t   *jn_tree
+hgobj gobj_create_tree0(
+    hgobj parent,
+    json_t *jn_tree
 );
 ```
 
 **Parameters**
 
-:::{list-table}
+::: {list-table}
 :widths: 20 20 60
 :header-rows: 1
+
 * - Key
   - Type
   - Description
 
 * - `parent`
-  - [`hgobj`](hgobj)
-  - Handle to the parent GObj under which the tree is created. If `NULL`, the tree is created at the root level.
+  - `hgobj`
+  - The parent `gobj` to which the new tree will be attached.
 
 * - `jn_tree`
-  - [`json_t *`](json_t)
-  - JSON object that defines the GObj tree structure.  
-    This includes attributes for each GObj, its children, and configuration flags such as `autostart`, `service`, or `pure_child`.
-
+  - `json_t *`
+  - A JSON object defining the structure of the `gobj` tree, including attributes and child objects.
 :::
+
+---
 
 **Return Value**
 
-- Returns the handle ([`hgobj`](hgobj)) to the root of the created GObj tree.  
-- Returns `NULL` if the creation fails.
+Returns the root `gobj` of the created tree, or `NULL` if creation fails.
+
+**Notes**
+
+['The `jn_tree` parameter must contain a valid JSON structure with `gclass`, `name`, and optionally `kw` for attributes.', 'If `jn_tree` contains a `zchilds` array, child `gobj` instances will be recursively created and linked to the parent.', 'If only one child is present in `zchilds`, it is set as the bottom `gobj` of the parent.', 'This function is used internally by [`gobj_create_tree()`](#gobj_create_tree) to parse JSON configurations.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
@@ -176,3 +178,4 @@ PUBLIC hgobj gobj_create_tree0(
 ``````
 
 ```````
+
