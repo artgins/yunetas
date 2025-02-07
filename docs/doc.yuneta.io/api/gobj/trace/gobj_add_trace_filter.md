@@ -37,7 +37,7 @@ int gobj_add_trace_filter(
   - Type
   - Description
 
-* - `gclass_`
+* - `gclass`
   - `hgclass`
   - The gclass to which the trace filter will be applied.
 
@@ -58,7 +58,7 @@ Returns 0 on success, or -1 if the attribute is invalid or the gclass does not s
 
 **Notes**
 
-This function allows filtering trace messages based on specific attribute values. If the attribute does not exist in [`gclass_`](#gclass_), an error is logged.
+This function allows filtering trace messages based on specific attribute values. If the attribute does not exist in [`hgclass`](#hgclass), an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
