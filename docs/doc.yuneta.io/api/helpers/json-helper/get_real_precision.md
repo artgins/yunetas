@@ -46,7 +46,7 @@ Returns the current precision value used for encoding real numbers in JSON.
 
 **Notes**
 
-This function is useful for checking the precision setting before modifying it with [`set_real_precision`](#set_real_precision).
+This function is useful for checking the precision setting before modifying it with [`set_real_precision()`](#set_real_precision).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

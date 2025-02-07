@@ -178,3 +178,4 @@ The function encodes the buffer's data in Base64 format to ensure safe storage a
 ``````
 
 ```````
+

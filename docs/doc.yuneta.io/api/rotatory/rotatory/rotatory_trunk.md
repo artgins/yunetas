@@ -48,7 +48,7 @@ This function does not return a value.
 
 **Notes**
 
-If `hr` is `NULL`, [`rotatory_trunk`](#rotatory_trunk) iterates over all active log handles and truncates each log file.
+If `hr` is `NULL`, [`rotatory_trunk()`](#rotatory_trunk) iterates over all active log handles and truncates each log file.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

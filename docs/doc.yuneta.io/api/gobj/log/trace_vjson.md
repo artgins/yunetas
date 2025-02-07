@@ -73,7 +73,7 @@ This function does not return a value.
 
 **Notes**
 
-The function formats the log message as JSON, including metadata such as timestamps and system information. It is used internally by logging functions like [`gobj_trace_json`](#gobj_trace_json) and [`gobj_trace_msg()`](#gobj_trace_msg).
+The function formats the log message as JSON, including metadata such as timestamps and system information. It is used internally by logging functions like [`gobj_trace_json()`](#gobj_trace_json) and [`gobj_trace_msg()`](#gobj_trace_msg).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

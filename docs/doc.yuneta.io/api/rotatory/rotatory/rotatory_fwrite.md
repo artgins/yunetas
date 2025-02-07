@@ -63,7 +63,7 @@ Returns the number of bytes written on success, or `-1` if an error occurs.
 
 **Notes**
 
-This function formats the log message using `vsnprintf()` and then writes it using [`rotatory_write`](#rotatory_write).
+This function formats the log message using `vsnprintf()` and then writes it using [`rotatory_write()`](#rotatory_write).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

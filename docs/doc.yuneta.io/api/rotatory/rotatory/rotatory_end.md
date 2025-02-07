@@ -46,8 +46,8 @@ This function does not return a value.
 
 **Notes**
 
-This function iterates through all active rotatory log instances and closes them using [`rotatory_close`](#rotatory_close).
-After execution, the internal initialization flag is reset, preventing further operations until [`rotatory_start_up`](#rotatory_start_up) is called again.
+This function iterates through all active rotatory log instances and closes them using [`rotatory_close()`](#rotatory_close).
+After execution, the internal initialization flag is reset, preventing further operations until [`rotatory_start_up()`](#rotatory_start_up) is called again.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

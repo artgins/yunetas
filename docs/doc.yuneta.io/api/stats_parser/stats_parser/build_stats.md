@@ -63,7 +63,7 @@ A JSON object containing the collected statistics, structured by the short names
 
 **Notes**
 
-Internally, [`_build_stats`](#_build_stats) is used to extract statistics from the [`hgobj`](#hgobj) instance and its bottom-level objects.
+Internally, [`_build_stats()`](#_build_stats) is used to extract statistics from the [`hgobj`](#hgobj) instance and its bottom-level objects.
 The function iterates through the hierarchy of [`hgobj`](#hgobj) instances, aggregating statistics from each level.
 
 <!--====================================================-->

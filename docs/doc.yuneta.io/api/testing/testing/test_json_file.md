@@ -48,8 +48,8 @@ Returns `0` if the JSON content matches the expected structure and logs are as e
 
 **Notes**
 
-Uses [`match_record`](#match_record) to compare the JSON structures.
-Calls [`check_log_result`](#check_log_result) to validate log messages.
+Uses [`match_record()`](#match_record) to compare the JSON structures.
+Calls [`check_log_result()`](#check_log_result) to validate log messages.
 If `verbose` mode is enabled, additional debug information is printed.
 
 <!--====================================================-->

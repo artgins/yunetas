@@ -3,7 +3,7 @@
 # `gobj_autoplay_services()`
 <!-- ============================================================== -->
 
-Starts all services marked with `gobj_flag_autoplay` by calling [`gobj_play`](#gobj_play) on them.
+Starts all services marked with `gobj_flag_autoplay` by calling [`gobj_play()`](#gobj_play) on them.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->

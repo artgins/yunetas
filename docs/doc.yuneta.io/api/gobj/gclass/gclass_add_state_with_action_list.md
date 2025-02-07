@@ -58,7 +58,7 @@ Returns `0` on success, or `-1` if an error occurs (e.g., if the state could not
 
 **Notes**
 
-This function first adds the state using [`gclass_add_state`](#gclass_add_state). Then, it iterates through `ev_action_list` to associate each event with an action and a next state using [`gclass_add_ev_action()`](#gclass_add_ev_action).
+This function first adds the state using [`gclass_add_state()`](#gclass_add_state). Then, it iterates through `ev_action_list` to associate each event with an action and a next state using [`gclass_add_ev_action()`](#gclass_add_ev_action).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
