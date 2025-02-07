@@ -10,12 +10,12 @@ Source code in:
 :caption: Log UDP handler functions
 :maxdepth: 2
 
-udpc_start_up.md
-udpc_end.md
-udpc_open.md
-udpc_close.md
-udpc_write.md
-udpc_fwrite
+log_udp_handler/udpc_close.md
+log_udp_handler/udpc_end.md
+log_udp_handler/udpc_fwrite.md
+log_udp_handler/udpc_open.md
+log_udp_handler/udpc_start_up.md
+log_udp_handler/udpc_write.md
 
 
 ```

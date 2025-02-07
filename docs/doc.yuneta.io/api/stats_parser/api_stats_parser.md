@@ -10,8 +10,8 @@ Source code in:
 :caption: Statistic Parser functions
 :maxdepth: 2
 
-stats_parser.md
-build_stats.md
+stats_parser/build_stats.md
+stats_parser/stats_parser.md
 
 
 ```
