@@ -8,8 +8,7 @@ The key functionalities include:
 - **Event-driven Architecture**: Manages multiple sources of events in a single loop.
 - **Asynchronous I/O Handling**: Supports file descriptors and sockets for non-blocking operations.
 - **Timers and Scheduling**: Allows precise timing control for executing delayed or periodic tasks.
-- **Signal Handling**: Manages OS-level signals in a controlled manner.
-- **Efficiency**: Uses an optimized polling mechanism (e.g., `epoll` on Linux, `kqueue` on BSD/macOS) to minimize CPU usage while handling multiple events.
+- **Efficiency**: Uses `ui_uring`.
 
 `yev_loop` acts as the core event dispatcher for GObj-based applications, ensuring responsiveness and high performance in Yunetas-based systems.
 
