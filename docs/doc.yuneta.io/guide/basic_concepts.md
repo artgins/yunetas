@@ -1,6 +1,6 @@
 # **Basic Concepts**
 
-# **What is Yuneta?**
+## **What is Yuneta?**
 
 Yuneta is a **function-based development framework** that implements an independent **class system**, abstracted from the programming language. Using functions, classes are created with a core and interface composed of three primary elements: `attributes`, `commands`, and `messages`.
 
@@ -72,7 +72,7 @@ Yuneta is suited for:
 
 ---
 
-# `gclass`
+## `gclass`
 A `gclass` (Generic Class) is the **template or blueprint** for creating gobjs. It defines the structure, behavior, and lifecycle of gobjs. Unlike traditional classes in languages like C, Python, or JavaScript, a gclass is implemented manually using the [](#gclass_create()) function, as Yuneta is a function-based development framework.
 
 A `gclass` provides a complete definition of the structure, behavior, and lifecycle of [`gobjs`](gobj). By combining attributes, commands, events, states, and lifecycle methods, it establishes a powerful and flexible framework for developing event-driven, modular systems.
@@ -116,7 +116,7 @@ target: ../_static/gclass_diagram.svg
     - `gclass_flag`: A modifier for the gclass. Its behavior is defined by the [](#gclass_flag_t) type.
       May specify flags that alter class-level behavior, such as enabling or disabling specific features.
 
-# `gobj`
+## `gobj`
 A `gobj` (Generic Object) is an **instance** of a  [](#gclass) (Generic Class) within the Yuneta framework. It is a modular, reusable, and event-driven component that encapsulates data, behavior, and state.
 
 ## **Key Features of a gobj**:
@@ -134,7 +134,7 @@ A `gobj` (Generic Object) is an **instance** of a  [](#gclass) (Generic Class) w
     - Gobjs are independent units designed for reusability and scalability.
 
 (yuno)=
-# `yuno`
+## `yuno`
 
 **What is a Yuno?**
 

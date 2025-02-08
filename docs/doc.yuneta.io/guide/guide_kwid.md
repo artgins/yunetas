@@ -85,7 +85,7 @@ This multi-language approach ensures the library remains idiomatic in each envir
 
 
 
-# JSON Reference Count Macros: `JSON_DECREF` and `JSON_INCREF`
+## JSON Reference Count Macros: `JSON_DECREF` and `JSON_INCREF`
 
 ## 📌 Overview
 

@@ -6,7 +6,7 @@ Source code in:
 - [gobj.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.c)
 - [gobj.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
 
-# Authentication and Authorization in Yuneta
+## Authentication and Authorization in Yuneta
 
 Authentication and authorization in Yuneta ensure secure identification of users and
 validation of their permissions to access resources or perform actions. 
