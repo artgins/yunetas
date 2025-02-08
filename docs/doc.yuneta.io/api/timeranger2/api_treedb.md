@@ -7,7 +7,7 @@ Source code in:
 
 ```{toctree}
 :caption: Treedb Functions
-:maxdepth: 2
+:maxdepth: 1
 
 tr_treedb/treedb_open_db
 tr_treedb/treedb_close_db

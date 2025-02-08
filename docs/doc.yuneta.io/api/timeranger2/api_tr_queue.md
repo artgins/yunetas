@@ -7,7 +7,7 @@ Source code in:
 
 ```{toctree}
 :caption: Queue Functions
-:maxdepth: 2
+:maxdepth: 1
 
 tr_queue/trq_open
 tr_queue/trq_close

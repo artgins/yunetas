@@ -7,7 +7,7 @@ Source code in:
 
 ```{toctree}
 :caption: Event Loop Functions
-:maxdepth: 2
+:maxdepth: 1
 
 yev_loop/yev_loop_create
 yev_loop/yev_loop_destroy

@@ -7,7 +7,7 @@ Source code in:
 
 ```{toctree}
 :caption: Message2db Functions
-:maxdepth: 2
+:maxdepth: 1
 
 tr_msg2db/msg2db_open_db
 tr_msg2db/msg2db_close_db

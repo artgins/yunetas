@@ -7,7 +7,7 @@ Source code in:
 
 ```{toctree}
 :caption: File System Watcher Functions
-:maxdepth: 2
+:maxdepth: 1
 
 fs_watcher/fs_create_watcher_event
 fs_watcher/fs_start_watcher_event

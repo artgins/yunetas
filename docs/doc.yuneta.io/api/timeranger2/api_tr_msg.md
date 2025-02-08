@@ -7,7 +7,7 @@ Source code in:
 
 ```{toctree}
 :caption: Message Functions
-:maxdepth: 2
+:maxdepth: 1
 
 tr_msg/trmsg_open_topics
 tr_msg/trmsg_close_topics

@@ -7,7 +7,7 @@ Source code in:
 
 ```{toctree}
 :caption: Timeranger2 Functions
-:maxdepth: 2
+:maxdepth: 1
 
 timeranger2/tranger2_startup
 timeranger2/tranger2_stop

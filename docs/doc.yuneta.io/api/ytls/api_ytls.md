@@ -14,7 +14,7 @@ Source code in:
 
 ```{toctree}
 :caption: TLS Functions
-:maxdepth: 2
+:maxdepth: 1
 
 ytls/ytls_init
 ytls/ytls_cleanup
