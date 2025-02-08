@@ -1,23 +1,195 @@
+<!-- ============================================================== -->
+(yev_loop_create())=
 # `yev_loop_create()`
+<!-- ============================================================== -->
 
-## Description
-Creates a new event loop instance.
+`yev_loop_create()` initializes a new event loop associated with a given [`hgobj`](#hgobj) instance, allocating resources for event management.
 
-## Prototype
-```c
-PUBLIC int yev_loop_create(
-    hgobj yuno,
-    unsigned entries,
-    int keep_alive,
-    yev_callback_t callback // if return -1 the loop in yev_loop_run will break;
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+int yev_loop_create(
+    hgobj          yuno,
+    unsigned       entries,
+    int           keep_alive,
+    yev_callback_t callback,
+    yev_loop_h    *yev_loop
 );
 ```
 
-## Parameters
-- `yuno` (`hgobj`): The Yuno instance managing the loop.
-- `entries` (`unsigned`): Number of event entries.
-- `keep_alive` (`int`): Whether to keep the event loop alive.
-- `callback` (`yev_callback_t`): Callback function triggered by events.
+**Parameters**
 
-## Return Value
-- Returns 0 on success, or an error code on failure.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `yuno`
+  - `hgobj`
+  - The [`hgobj`](#hgobj) instance associated with the event loop.
+
+* - `entries`
+  - `unsigned`
+  - The maximum number of event entries the loop can handle.
+
+* - `keep_alive`
+  - `int`
+  - Specifies whether the loop should persist after processing events.
+
+* - `callback`
+  - `yev_callback_t`
+  - A callback function invoked for each event; returning `-1` will break [`yev_loop_run()`](#yev_loop_run()).
+
+* - `yev_loop`
+  - `yev_loop_h *`
+  - Pointer to store the created event loop handle.
+:::
+
+---
+
+**Return Value**
+
+Returns `0` on success, or a negative value on failure.
+
+**Notes**
+
+If `callback` is `NULL`, a default callback will be used when processing events in [`yev_loop_run()`](#yev_loop_run()).
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

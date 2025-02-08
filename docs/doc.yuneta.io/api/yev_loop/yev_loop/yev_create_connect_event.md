@@ -1,12 +1,185 @@
+<!-- ============================================================== -->
+(yev_create_connect_event())=
 # `yev_create_connect_event()`
+<!-- ============================================================== -->
 
-**Description:**
-Creates a new event for handling outgoing connections on a socket.
+`yev_create_connect_event()` creates a new connect event associated with the specified event loop and callback function.
 
-**Parameters:**
-- `int fd` - The socket file descriptor for initiating a connection.
-- `void (*callback)(void *)` - Function pointer for handling the connection event.
-- `void *user_data` - Optional user-defined data.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-**Return Value:**
-- Returns a pointer to the created event on success, or `NULL` on failure.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+yev_event_h yev_create_connect_event(
+    yev_loop_h      yev_loop,
+    yev_callback_t  callback,
+    hgobj           gobj
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `yev_loop`
+  - `yev_loop_h`
+  - The event loop handle in which the connect event will be created.
+
+* - `callback`
+  - `yev_callback_t`
+  - The callback function to be invoked when the event is triggered. If it returns -1, the loop in [`yev_loop_run()`](#yev_loop_run()) will break.
+
+* - `gobj`
+  - `hgobj`
+  - The associated GObj instance for event handling.
+:::
+
+---
+
+**Return Value**
+
+Returns a `yev_event_h` handle to the newly created connect event, or `NULL` on failure.
+
+**Notes**
+
+Before starting the connect event, it must be configured using [`yev_setup_connect_event()`](#yev_setup_connect_event()).
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````
