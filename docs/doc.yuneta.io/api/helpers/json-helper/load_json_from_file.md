@@ -63,7 +63,7 @@ Returns a `json_t *` object containing the parsed JSON data if successful, or NU
 
 **Notes**
 
-The function uses `json_loadfd()` to parse the JSON file. If the file does not exist, it returns NULL without logging an error. If an error occurs while opening or parsing the file, it logs an error message using [`gobj_log_critical()`](#gobj_log_critical).
+The function uses `json_loadfd()` to parse the JSON file. If the file does not exist, it returns NULL without logging an error. If an error occurs while opening or parsing the file, it logs an error message using [`gobj_log_critical()`](#gobj_log_critical()).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

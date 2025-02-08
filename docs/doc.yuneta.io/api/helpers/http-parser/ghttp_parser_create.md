@@ -62,7 +62,7 @@ GHTTP_PARSER *ghttp_parser_create(
 
 * - `send_event`
   - `BOOL`
-  - If `TRUE`, events are sent using [`gobj_send_event()`](#gobj_send_event); otherwise, they are published using [`gobj_publish_event()`](#gobj_publish_event).
+  - If `TRUE`, events are sent using [`gobj_send_event()`](#gobj_send_event()); otherwise, they are published using [`gobj_publish_event()`](#gobj_publish_event()).
 :::
 
 ---
@@ -73,7 +73,7 @@ A pointer to the newly created `GHTTP_PARSER` instance, or `NULL` if memory allo
 
 **Notes**
 
-The returned `GHTTP_PARSER` instance must be destroyed using [`ghttp_parser_destroy()`](#ghttp_parser_destroy) when no longer needed.
+The returned `GHTTP_PARSER` instance must be destroyed using [`ghttp_parser_destroy()`](#ghttp_parser_destroy()) when no longer needed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

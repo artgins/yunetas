@@ -54,7 +54,7 @@ int gobj_publish_event(
 
 **Return Value**
 
-Returns the sum of the return values from [`gobj_send_event()`](#gobj_send_event) calls to all subscribers. A return value of -1 indicates that an event was owned and should not be further published.
+Returns the sum of the return values from [`gobj_send_event()`](#gobj_send_event()) calls to all subscribers. A return value of -1 indicates that an event was owned and should not be further published.
 
 **Notes**
 

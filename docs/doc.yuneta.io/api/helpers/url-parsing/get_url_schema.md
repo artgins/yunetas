@@ -62,7 +62,7 @@ Returns 0 on success if the schema is extracted successfully, or -1 if no schema
 
 **Notes**
 
-Uses `http_parser_parse_url()` to parse the URL. If no schema is found, an error is logged using [`gobj_log_error()`](#gobj_log_error).
+Uses `http_parser_parse_url()` to parse the URL. If no schema is found, an error is logged using [`gobj_log_error()`](#gobj_log_error()).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

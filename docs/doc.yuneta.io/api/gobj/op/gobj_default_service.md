@@ -46,7 +46,7 @@ A handle to the default service gobj, or NULL if no default service is set.
 
 **Notes**
 
-The default service is typically set using [`gobj_create_default_service()`](#gobj_create_default_service).
+The default service is typically set using [`gobj_create_default_service()`](#gobj_create_default_service()).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

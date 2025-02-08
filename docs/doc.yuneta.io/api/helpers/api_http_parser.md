@@ -5,7 +5,7 @@ Source code in:
 - [helpers.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.h)
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
-(GHTTP_PARSER())=
+(GHTTP_PARSER)=
 ## GHTTP_PARSER
 
 ```C
@@ -32,7 +32,7 @@ Source code in:
     } GHTTP_PARSER;
 ```
 
-(date_mode())=
+(date_mode)=
 ## date_mode
 
 ```C

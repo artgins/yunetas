@@ -4,7 +4,7 @@
 
 The statistics parser in Yuneta handles requests for retrieving and managing statistics from a GObj. It operates by collecting attributes marked with specific statistical flags (`SDF_STATS`, `SDF_RSTATS`, and `SDF_PSTATS`) and providing a structured way to query, reset, or persist these attributes.
 
-The statistics parser integrates with the [`gobj_stats`](gobj_stats) API, dynamically selecting between a global parser or a GClass-specific `mt_stats` method if defined.
+The statistics parser integrates with the [`gobj_stats`](gobj_stats()) API, dynamically selecting between a global parser or a GClass-specific `mt_stats` method if defined.
 
 ```C
 json_t *gobj_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);

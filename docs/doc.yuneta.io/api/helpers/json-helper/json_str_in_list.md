@@ -63,7 +63,7 @@ Returns TRUE if the string is found in the JSON array, otherwise returns FALSE.
 
 **Notes**
 
-If `jn_list` is not a JSON array, an error is logged using [`gobj_log_error()`](#gobj_log_error).
+If `jn_list` is not a JSON array, an error is logged using [`gobj_log_error()`](#gobj_log_error()).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

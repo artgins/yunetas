@@ -46,7 +46,7 @@ Returns `TRUE` if the [`hgobj`](#hgobj) is disabled, otherwise returns `FALSE`.
 
 **Notes**
 
-A disabled [`hgobj`](#hgobj) cannot be started or played until it is explicitly enabled using [`gobj_enable()`](#gobj_enable).
+A disabled [`hgobj`](#hgobj) cannot be started or played until it is explicitly enabled using [`gobj_enable()`](#gobj_enable()).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

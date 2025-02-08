@@ -46,7 +46,7 @@ A string representing the role of the Yuno instance. If the Yuno instance is not
 
 **Notes**
 
-The function retrieves the value of the `yuno_role` attribute from the Yuno instance using [`gobj_read_str_attr()`](#gobj_read_str_attr).
+The function retrieves the value of the `yuno_role` attribute from the Yuno instance using [`gobj_read_str_attr()`](#gobj_read_str_attr()).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
