@@ -9,6 +9,7 @@ Source code in:
 :caption: Message2db Functions
 :maxdepth: 1
 
+tr_msg2db/build_msg2db_index_path.md
 tr_msg2db/msg2db_append_message.md
 tr_msg2db/msg2db_close_db.md
 tr_msg2db/msg2db_get_message.md
