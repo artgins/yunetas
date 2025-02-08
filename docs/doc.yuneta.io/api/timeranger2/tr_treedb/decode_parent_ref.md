@@ -1,10 +1,202 @@
+<!-- ============================================================== -->
+(decode_parent_ref())=
 # `decode_parent_ref()`
+<!-- ============================================================== -->
 
-**Description:**
-Decodes a parent reference from a given string.
+Parses a parent reference string into its components: topic name, ID, and hook name. The reference format is 'parent_topic_name^parent_id^hook_name'.
 
-**Parameters:**
-- `pref`: The parent reference string.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-**Return Value:**
-A boolean indicating success or failure.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+BOOL decode_parent_ref(
+    const char *pref,
+    char *topic_name,    int topic_name_size,
+    char *id,           int id_size,
+    char *hook_name,    int hook_name_size
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `pref`
+  - `const char *`
+  - The parent reference string in the format 'parent_topic_name^parent_id^hook_name'.
+
+* - `topic_name`
+  - `char *`
+  - Buffer to store the extracted topic name.
+
+* - `topic_name_size`
+  - `int`
+  - Size of the `topic_name` buffer.
+
+* - `id`
+  - `char *`
+  - Buffer to store the extracted parent ID.
+
+* - `id_size`
+  - `int`
+  - Size of the `id` buffer.
+
+* - `hook_name`
+  - `char *`
+  - Buffer to store the extracted hook name.
+
+* - `hook_name_size`
+  - `int`
+  - Size of the `hook_name` buffer.
+:::
+
+---
+
+**Return Value**
+
+Returns `TRUE` if the reference was successfully parsed, otherwise returns `FALSE`.
+
+**Notes**
+
+This function is used to extract structured information from a parent reference string, which is used in hierarchical relationships within the tree database.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

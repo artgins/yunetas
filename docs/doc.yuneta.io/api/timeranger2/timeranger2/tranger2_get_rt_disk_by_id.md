@@ -1,11 +1,190 @@
-# `tranger2_get_rt_disk_by_id`
+<!-- ============================================================== -->
+(tranger2_get_rt_disk_by_id())=
+# `tranger2_get_rt_disk_by_id()`
+<!-- ============================================================== -->
 
-## Description
-Retrieves the runtime disk segment associated with a given identifier.
+Retrieve a real-time disk instance by its identifier. If the specified real-time disk exists, it returns the corresponding JSON object; otherwise, it returns NULL.
 
-## Parameters
-- `tranger` (*void*): The Time Ranger instance.
-- `rt_disk_id` (*const char \**): The unique identifier of the runtime disk segment.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-## Return Value
-(*void \**) The runtime disk segment object.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+json_t *tranger2_get_rt_disk_by_id(
+    json_t      *tranger,
+    const char  *topic_name,
+    const char  *rt_id,
+    const char  *creator
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the TimeRanger database instance.
+
+* - `topic_name`
+  - `const char *`
+  - Name of the topic associated with the real-time disk.
+
+* - `rt_id`
+  - `const char *`
+  - Identifier of the real-time disk to retrieve.
+
+* - `creator`
+  - `const char *`
+  - Creator identifier used to filter the real-time disk instances.
+:::
+
+---
+
+**Return Value**
+
+Returns a JSON object representing the real-time disk instance if found; otherwise, returns NULL.
+
+**Notes**
+
+This function does not produce any error messages if the real-time disk is not found.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

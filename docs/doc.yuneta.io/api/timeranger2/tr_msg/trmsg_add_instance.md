@@ -1,21 +1,190 @@
+<!-- ============================================================== -->
+(trmsg_add_instance())=
 # `trmsg_add_instance()`
+<!-- ============================================================== -->
 
-**Prototype:**
-```c
-PUBLIC int trmsg_add_instance(json_t *tranger,
-    const char *topic_name,
-    json_t *jn_msg,  // owned
-    md2_record_ex_t *md_record);
+`trmsg_add_instance()` adds a new message instance to the specified topic in the TimeRanger database.
+
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+int trmsg_add_instance(
+    json_t            *tranger,
+    const char        *topic_name,
+    json_t            *jn_msg,      // owned
+    md2_record_ex_t   *md_record
+);
 ```
 
-**Description:**
-Adds an instance message to a specific topic in the TRanger.
+**Parameters**
 
-**Parameters:**
-- `tranger` (`json_t *`): The TRanger instance.
-- `topic_name` (`const char *`): The name of the topic to add the instance to.
-- `jn_msg` (`json_t *`): The message to be added (owned by the function).
-- `md_record` (`md2_record_ex_t *`): Metadata record associated with the message.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-**Returns:**
-- `int`: Status code of the operation.
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the TimeRanger database instance.
+
+* - `topic_name`
+  - `const char *`
+  - Name of the topic where the instance will be added.
+
+* - `jn_msg`
+  - `json_t *`
+  - JSON object containing the message instance data. Ownership is transferred to [`trmsg_add_instance()`](#trmsg_add_instance()).
+
+* - `md_record`
+  - `md2_record_ex_t *`
+  - Pointer to the metadata record associated with the message instance.
+:::
+
+---
+
+**Return Value**
+
+Returns `0` on success, or a negative value on failure.
+
+**Notes**
+
+The `jn_msg` parameter is owned by [`trmsg_add_instance()`](#trmsg_add_instance()), meaning it will be managed and freed internally.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

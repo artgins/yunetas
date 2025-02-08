@@ -1,10 +1,200 @@
+<!-- ============================================================== -->
+(treedb_get_instance())=
 # `treedb_get_instance()`
+<!-- ============================================================== -->
 
-**Description:**
-Retrieves an instance of a node from the TreeDB.
+`treedb_get_instance()` retrieves a specific node instance from a TreeDB topic using both primary and secondary keys.
 
-**Parameters:**
-- `tranger`: A JSON object representing the database.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-**Return Value:**
-A JSON object representing the node instance (not owned by the caller).
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+json_t *treedb_get_instance(
+    json_t       *tranger,
+    const char   *treedb_name,
+    const char   *topic_name,
+    const char   *pkey2_name, // required
+    const char   *id,         // primary key
+    const char   *key2        // secondary key
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the tranger database instance.
+
+* - `treedb_name`
+  - `const char *`
+  - Name of the TreeDB database.
+
+* - `topic_name`
+  - `const char *`
+  - Name of the topic within the TreeDB.
+
+* - `pkey2_name`
+  - `const char *`
+  - Name of the secondary key field (required).
+
+* - `id`
+  - `const char *`
+  - Primary key of the node instance.
+
+* - `key2`
+  - `const char *`
+  - Secondary key of the node instance.
+:::
+
+---
+
+**Return Value**
+
+Returns a pointer to a `json_t` object representing the requested node instance. The returned object is NOT owned by the caller and must not be modified or freed.
+
+**Notes**
+
+If the specified instance does not exist, `NULL` is returned. Use [`treedb_get_node()`](#treedb_get_node()) if only the primary key is needed.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

@@ -44,7 +44,7 @@ extern "C"{
 **rst**/
 
 /**rst**
-    Open a message2 db (Remember previously open tranger_startup())
+    Open a message2 db (Remember previously open tranger2_startup())
 
     List of pkey/pkey2 of nodes of data.
     Node's data contains attributes, in json (record, node, message, ... what you want)

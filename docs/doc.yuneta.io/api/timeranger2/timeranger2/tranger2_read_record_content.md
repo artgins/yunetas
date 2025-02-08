@@ -1,12 +1,190 @@
-# `tranger2_read_record_content`
+<!-- ============================================================== -->
+(tranger2_read_record_content())=
+# `tranger2_read_record_content()`
+<!-- ============================================================== -->
 
-## Description
-Reads the content of a specified record from a topic.
+Reads the content of a record from a given topic in the TimeRanger database. The function retrieves the record's data based on its metadata.
 
-## Parameters
-- `tranger` (*void*): The Time Ranger instance.
-- `topic_name` (*const char \**): The name of the topic.
-- `record_id` (*const char \**): The unique identifier of the record.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-## Return Value
-(*json_t \**) The content of the specified record.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+json_t *tranger2_read_record_content(
+    json_t            *tranger,
+    json_t            *topic,
+    const char        *key,
+    md2_record_ex_t   *md_record_ex
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the TimeRanger database instance.
+
+* - `topic`
+  - `json_t *`
+  - Pointer to the topic from which the record will be read.
+
+* - `key`
+  - `const char *`
+  - The key identifying the record to be read.
+
+* - `md_record_ex`
+  - `md2_record_ex_t *`
+  - Pointer to the metadata structure of the record to be retrieved.
+:::
+
+---
+
+**Return Value**
+
+Returns a [`json_t *`](#json_t) object containing the record's content. The caller owns the returned JSON object and must free it when no longer needed.
+
+**Notes**
+
+This function is useful when only metadata has been loaded and the full record content needs to be retrieved.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

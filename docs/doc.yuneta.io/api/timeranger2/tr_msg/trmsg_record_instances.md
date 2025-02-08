@@ -1,19 +1,185 @@
+<!-- ============================================================== -->
+(trmsg_record_instances())=
 # `trmsg_record_instances()`
+<!-- ============================================================== -->
 
-**Prototype:**
-```c
-PUBLIC int trmsg_record_instances(json_t *tranger,
-    const char *topic_name,
-    json_t *jn_instances);
+`trmsg_record_instances()` retrieves a list of cloned instances associated with a specific message key from the given list.
+
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+json_t *trmsg_record_instances(
+    json_t      *list,
+    const char  *key,
+    json_t      *jn_filter  // owned
+);
 ```
 
-**Description:**
-Records instances into a specific topic in the TRanger.
+**Parameters**
 
-**Parameters:**
-- `tranger` (`json_t *`): The TRanger instance.
-- `topic_name` (`const char *`): The topic where instances should be recorded.
-- `jn_instances` (`json_t *`): JSON object containing instances to be recorded.
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
 
-**Returns:**
-- `int`: Status code of the operation.
+* - Key
+  - Type
+  - Description
+
+* - `list`
+  - `json_t *`
+  - The list containing the messages.
+
+* - `key`
+  - `const char *`
+  - The key identifying the message whose instances are to be retrieved.
+
+* - `jn_filter`
+  - `json_t *`
+  - A JSON object specifying filtering criteria for the instances. The caller owns this object.
+:::
+
+---
+
+**Return Value**
+
+A JSON list of cloned instances matching the specified key and filter. The caller is responsible for decrementing the reference count of the returned object.
+
+**Notes**
+
+The returned list is a deep copy of the instances, ensuring that modifications do not affect the original data. The caller must manage the memory of the returned object by calling `json_decref()` when it is no longer needed.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

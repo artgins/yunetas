@@ -1,11 +1,190 @@
-# `tranger2_get_rt_mem_by_id`
+<!-- ============================================================== -->
+(tranger2_get_rt_mem_by_id())=
+# `tranger2_get_rt_mem_by_id()`
+<!-- ============================================================== -->
 
-## Description
-Retrieves the runtime memory segment associated with a given identifier.
+Retrieve a real-time memory instance by its identifier. If the specified real-time memory instance exists, it is returned; otherwise, NULL is returned.
 
-## Parameters
-- `tranger` (*void*): The Time Ranger instance.
-- `rt_mem_id` (*const char \**): The unique identifier of the runtime memory segment.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-## Return Value
-(*void \**) The runtime memory segment object.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+json_t *tranger2_get_rt_mem_by_id(
+    json_t      *tranger,
+    const char  *topic_name,
+    const char  *rt_id,
+    const char  *creator
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the TimeRanger database instance.
+
+* - `topic_name`
+  - `const char *`
+  - Name of the topic associated with the real-time memory instance.
+
+* - `rt_id`
+  - `const char *`
+  - Identifier of the real-time memory instance to retrieve.
+
+* - `creator`
+  - `const char *`
+  - Creator identifier used to filter the real-time memory instance.
+:::
+
+---
+
+**Return Value**
+
+Returns a pointer to the real-time memory instance as a `json_t *` if found, otherwise returns NULL.
+
+**Notes**
+
+This function does not produce any internal logging or error messages if the requested real-time memory instance is not found.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

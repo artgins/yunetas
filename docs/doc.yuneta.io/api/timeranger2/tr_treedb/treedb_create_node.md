@@ -1,10 +1,190 @@
+<!-- ============================================================== -->
+(treedb_create_node())=
 # `treedb_create_node()`
+<!-- ============================================================== -->
 
-**Description:**
-Creates a new node in the TreeDB.
+Creates a new node in the TreeDB. The node is stored in [`tranger`](#treedb_create_node()) under the specified [`treedb_name`](#treedb_create_node()) and [`topic_name`](#treedb_create_node()).
 
-**Parameters:**
-- `tranger`: A JSON object representing the database.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-**Return Value:**
-A JSON object representing the created node (not owned by the caller).
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+json_t *treedb_create_node(
+    json_t       *tranger,
+    const char   *treedb_name,
+    const char   *topic_name,
+    json_t       *kw // owned
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the [`tranger`](#treedb_create_node()) database instance.
+
+* - `treedb_name`
+  - `const char *`
+  - Name of the TreeDB where the node will be created.
+
+* - `topic_name`
+  - `const char *`
+  - Name of the topic under which the node will be stored.
+
+* - `kw`
+  - `json_t *`
+  - JSON object containing the attributes of the new node. This parameter is owned by the function.
+:::
+
+---
+
+**Return Value**
+
+Returns a JSON object representing the newly created node. WARNING: The returned object is NOT owned by the caller and must not be modified or freed.
+
+**Notes**
+
+This function creates a 'pure node' without loading hook links. The primary key (`pkey`) of all topics must be 'id', and it must be a string.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

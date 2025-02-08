@@ -1,13 +1,192 @@
+<!-- ============================================================== -->
+(treedb_autolink())=
 # `treedb_autolink()`
+<!-- ============================================================== -->
 
-**Description:**
-Automatically links nodes based on foreign key fields.
+`treedb_autolink()` automatically links a node using foreign key fields from the provided JSON object.
 
-**Parameters:**
-- `tranger`: A JSON object representing the database.
-- `node`: The node to be linked.
-- `kw`: Additional options for linking.
-- `save`: A boolean indicating whether to save the changes.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-**Return Value:**
-An integer indicating success or failure.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+int treedb_autolink(
+    json_t  *tranger,
+    json_t  *node,   // NOT owned, pure node
+    json_t  *kw,     // owned
+    BOOL    save
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the tranger database instance.
+
+* - `node`
+  - `json_t *`
+  - Pointer to the node to be linked. This node is not owned by the function.
+
+* - `kw`
+  - `json_t *`
+  - JSON object containing foreign key fields used for auto-linking. This object is owned by the function.
+
+* - `save`
+  - `BOOL`
+  - Flag indicating whether to save the changes to the database.
+:::
+
+---
+
+**Return Value**
+
+Returns `0` on success, or a negative error code on failure.
+
+**Notes**
+
+The function uses the foreign key fields in `kw` to establish links between nodes.
+If `save` is `TRUE`, the changes are persisted in the database.
+The `node` parameter must be a valid pure node object.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

@@ -135,7 +135,7 @@ static topic_desc_t db_tranger_desc[] = {
  *              Prototypes
  ***************************************************************/
 /**rst**
-    Open topics for messages (Remember previously open tranger_startup())
+    Open topics for messages (Remember previously open tranger2_startup())
 **rst**/
 PUBLIC int trmsg_open_topics(
     json_t *tranger,

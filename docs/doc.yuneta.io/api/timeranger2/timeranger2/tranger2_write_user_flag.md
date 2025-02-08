@@ -1,13 +1,190 @@
-# `tranger2_write_user_flag`
+<!-- ============================================================== -->
+(tranger2_write_user_flag())=
+# `tranger2_write_user_flag()`
+<!-- ============================================================== -->
 
-## Description
-Writes a user-defined flag to a specified topic record.
+The `tranger2_write_user_flag()` function updates the user flag of a specific record identified by `rowid` in the given `topic_name` within the TimeRanger database.
 
-## Parameters
-- `tranger` (*void*): The Time Ranger instance.
-- `topic_name` (*const char \**): The name of the topic.
-- `record_id` (*const char \**): The identifier of the record.
-- `flag` (*int*): The flag value to be set.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-## Return Value
-None.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+int tranger2_write_user_flag(
+    json_t      *tranger,
+    const char  *topic_name,
+    uint64_t     rowid,
+    uint32_t     user_flag
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - A pointer to the TimeRanger database instance.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic containing the record.
+
+* - `rowid`
+  - `uint64_t`
+  - The unique row identifier of the record to update.
+
+* - `user_flag`
+  - `uint32_t`
+  - The new user flag value to be assigned to the record.
+:::
+
+---
+
+**Return Value**
+
+Returns `0` on success, or a negative value on failure.
+
+**Notes**
+
+This function modifies the user flag of an existing record but does not alter other record attributes. Use [`tranger2_set_user_flag()`](#tranger2_set_user_flag()) if you need to update the flag using a mask.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

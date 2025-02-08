@@ -35,7 +35,7 @@ typedef void *q_msg;
  ***************************************************************/
 
 /**rst**
-    Open queue (Remember previously open tranger_startup())
+    Open queue (Remember previously open tranger2_startup())
 **rst**/
 PUBLIC tr_queue trq_open(
     json_t *tranger,
@@ -47,7 +47,7 @@ PUBLIC tr_queue trq_open(
 );
 
 /**rst**
-    Close queue (After close the queue, remember do tranger_shutdown())
+    Close queue (After close the queue, remember do tranger2_shutdown())
 **rst**/
 PUBLIC void trq_close(tr_queue trq);
 

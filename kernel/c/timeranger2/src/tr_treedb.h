@@ -41,7 +41,7 @@ GOBJ_DECLARE_EVENT(EV_TREEDB_NODE_DELETED);
 **rst**/
 
 /**rst**
-    Open tree db (Remember previously open tranger_startup())
+    Open tree db (Remember previously open tranger2_startup())
 
     Tree of nodes of data. Node's data contains attributes, in json.
 

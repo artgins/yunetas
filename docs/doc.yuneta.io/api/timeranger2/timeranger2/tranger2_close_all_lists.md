@@ -1,11 +1,190 @@
-# `tranger2_close_all_lists`
+<!-- ============================================================== -->
+(tranger2_close_all_lists())=
+# `tranger2_close_all_lists()`
+<!-- ============================================================== -->
 
-## Description
-Closes all lists associated with a given topic in the Time Ranger 2 system.
+Closes all iterators, disk lists, or memory lists associated with a given `creator` in the specified `topic_name`. If `rt_id` is provided, only lists matching the `rt_id` are closed.
 
-## Parameters
-- `tranger` (*void*): The Time Ranger instance.
-- `topic_name` (*const char \**): The name of the topic whose lists should be closed.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-## Return Value
-None.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+int tranger2_close_all_lists(
+    json_t *tranger,
+    const char *topic_name,
+    const char *rt_id,      // if empty, remove all lists of creator
+    const char *creator     // if empty, remove all
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the TimeRanger database instance.
+
+* - `topic_name`
+  - `const char *`
+  - Name of the topic whose lists should be closed.
+
+* - `rt_id`
+  - `const char *`
+  - Realtime list identifier. If empty, all lists of the `creator` are removed.
+
+* - `creator`
+  - `const char *`
+  - Creator identifier. If empty, all lists are removed.
+:::
+
+---
+
+**Return Value**
+
+Returns `0` on success, or a negative value on failure.
+
+**Notes**
+
+This function ensures that all iterators and lists associated with a specific `creator` are properly closed, preventing resource leaks. If both `rt_id` and `creator` are empty, all lists in the `topic_name` are closed.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

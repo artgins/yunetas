@@ -110,7 +110,7 @@ PUBLIC tr_queue trq_open(
 }
 
 /***************************************************************************
-    Close queue (After close the queue remember tranger_shutdown())
+    Close queue (After close the queue remember tranger2_shutdown())
  ***************************************************************************/
 PUBLIC void trq_close(tr_queue trq)
 {

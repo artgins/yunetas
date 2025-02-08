@@ -1,11 +1,185 @@
+<!-- ============================================================== -->
+(treedb_topics())=
 # `treedb_topics()`
+<!-- ============================================================== -->
 
-**Description:**
-Lists all topics in a specified TreeDB.
+`treedb_topics()` retrieves a list of topic names from the specified TreeDB, optionally returning detailed information in dictionary format.
 
-**Parameters:**
-- `tranger`: A JSON object representing the database.
-- `treedb_name`: The name of the TreeDB.
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
 
-**Return Value:**
-A JSON object listing all topics in the specified TreeDB.
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+json_t *treedb_topics(
+    json_t       *tranger,
+    const char   *treedb_name,
+    json_t       *jn_options  // "dict" return list of dicts, otherwise return list of strings
+);
+```
+
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - A reference to the `tranger` database instance.
+
+* - `treedb_name`
+  - `const char *`
+  - The name of the TreeDB from which to retrieve topic names.
+
+* - `jn_options`
+  - `json_t *`
+  - Options for the output format. If set to `"dict"`, returns a list of dictionaries; otherwise, returns a list of strings.
+:::
+
+---
+
+**Return Value**
+
+A JSON array containing the topic names or a list of dictionaries if `jn_options` is set to `"dict"`. The returned value is not owned by the caller.
+
+**Notes**
+
+The returned JSON object should not be modified or freed by the caller. Use [`treedb_list_treedb()`](#treedb_list_treedb()) to retrieve available TreeDB names.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

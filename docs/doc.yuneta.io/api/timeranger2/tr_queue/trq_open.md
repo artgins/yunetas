@@ -1,24 +1,200 @@
+<!-- ============================================================== -->
+(trq_open())=
 # `trq_open()`
+<!-- ============================================================== -->
 
-**Description:**
-Opens a queue using a specified topic name and parameters. Creates the topic if it does not exist.
+`trq_open()` initializes and opens a persistent queue using the specified `tranger` instance and topic configuration.
 
-**Prototype:**
-```c
-PUBLIC tr_queue trq_open(
-    json_t *tranger,
-    const char *topic_name,
-    const char *pkey,
-    const char *tkey,
-    system_flag2_t system_flag,
-    size_t backup_queue_size
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+tr_queue trq_open(
+    json_t           *tranger,
+    const char       *topic_name,
+    const char       *pkey,
+    const char       *tkey,
+    system_flag2_t    system_flag,
+    size_t           backup_queue_size
 );
 ```
 
-**Parameters:**
-- `tranger` (`json_t *`): The TimeRanger instance.
-- `topic_name` (`const char *`): Name of the topic.
-- `pkey` (`const char *`): Primary key for the topic.
-- `tkey` (`const char *`): Secondary key for the topic.
-- `system_flag` (`system_flag2_t`): System flags for topic configuration.
-- `backup_queue_size` (`size_t`): The backup queue size.
+**Parameters**
+
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `tranger`
+  - `json_t *`
+  - Pointer to the `tranger` instance managing the queue.
+
+* - `topic_name`
+  - `const char *`
+  - Name of the topic associated with the queue.
+
+* - `pkey`
+  - `const char *`
+  - Primary key used for indexing messages in the queue.
+
+* - `tkey`
+  - `const char *`
+  - Time key used for ordering messages in the queue.
+
+* - `system_flag`
+  - `system_flag2_t`
+  - System flags controlling queue behavior.
+
+* - `backup_queue_size`
+  - `size_t`
+  - Maximum number of messages to retain in the backup queue.
+:::
+
+---
+
+**Return Value**
+
+Returns a `tr_queue` handle representing the opened queue, or `NULL` on failure.
+
+**Notes**
+
+Ensure that [`tranger2_startup()`](#tranger2_startup()) is called before invoking [`trq_open()`](#trq_open()).
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````

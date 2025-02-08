@@ -971,7 +971,7 @@ int do_test(void)
      *      Shutdown timeranger
      *-------------------------------*/
     set_expected_results( // Check that no logs happen
-        "tranger_shutdown", // test name
+        "tranger2_shutdown", // test name
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
