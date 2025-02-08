@@ -1,21 +1,185 @@
+<!-- ============================================================== -->
+(ytls_init())=
 # `ytls_init()`
+<!-- ============================================================== -->
 
-## Description
-Initializes a new TLS context.
+`ytls_init()` initializes a TLS context using the specified configuration and mode (server or client).
 
-## Prototype
-```c
-PUBLIC hytls ytls_init(
-    hgobj gobj,
-    json_t *jn_config,  // not owned
-    BOOL server
+<!------------------------------------------------------------>
+<!--                    Prototypes                          -->
+<!------------------------------------------------------------>
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+**Prototype**
+
+```C
+hytls ytls_init(
+    hgobj     gobj,
+    json_t   *jn_config,  // not owned
+    BOOL      server
 );
 ```
 
-## Parameters
-- `gobj` (`hgobj`): The GObj that manages the TLS instance.
-- `jn_config` (`json_t *`): JSON configuration for the TLS context. Not owned.
-- `server` (`BOOL`): Indicates if the context is for a server (`TRUE`) or a client (`FALSE`).
+**Parameters**
 
-## Return Value
-- Returns a handle to the TLS context (`hytls`).
+::: {list-table}
+:widths: 20 20 60
+:header-rows: 1
+
+* - Key
+  - Type
+  - Description
+
+* - `gobj`
+  - `hgobj`
+  - The GObj context in which the TLS instance will operate.
+
+* - `jn_config`
+  - `json_t *`
+  - A JSON object containing TLS configuration parameters. This object is not owned by the function.
+
+* - `server`
+  - `BOOL`
+  - A boolean flag indicating whether the TLS context should be initialized in server mode (`TRUE`) or client mode (`FALSE`).
+:::
+
+---
+
+**Return Value**
+
+Returns a handle to the newly created TLS context (`hytls`) on success, or `NULL` on failure.
+
+**Notes**
+
+The `jn_config` parameter should include necessary TLS settings such as certificates, ciphers, and buffer sizes. See the structure documentation for valid configuration fields.
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS Prototype                    -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````JS
+// Not applicable in JS
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python Prototype                -->
+<!---------------------------------------------------->
+
+**Prototype**
+
+````Python
+# Not applicable in Python
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                   -->
+<!--====================================================-->
+
+`````
+
+``````
+
+<!------------------------------------------------------------>
+<!--                    Examples                            -->
+<!------------------------------------------------------------>
+
+```````{dropdown} Examples
+
+``````{tab-set}
+
+`````{tab-item} C
+
+<!--====================================================-->
+<!--                    Tab C                           -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                C examples                      -->
+<!---------------------------------------------------->
+
+````C
+// TODO C examples
+````
+
+<!--====================================================-->
+<!--                    End Tab C                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} JS
+
+<!--====================================================-->
+<!--                    Tab JS                          -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                JS examples                     -->
+<!---------------------------------------------------->
+
+````JS
+// TODO JS examples
+````
+
+<!--====================================================-->
+<!--                    EndTab JS                       -->
+<!--====================================================-->
+
+`````
+
+`````{tab-item} Python
+
+<!--====================================================-->
+<!--                    Tab Python                      -->
+<!--====================================================-->
+
+<!---------------------------------------------------->
+<!--                Python examples                 -->
+<!---------------------------------------------------->
+
+````python
+# TODO Python examples
+````
+
+<!--====================================================-->
+<!--                    End Tab Python                  -->
+<!--====================================================-->
+
+`````
+
+``````
+
+```````
