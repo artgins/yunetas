@@ -16,17 +16,17 @@ Source code in:
 :caption: TLS Functions
 :maxdepth: 1
 
-ytls/ytls_init
-ytls/ytls_cleanup
-ytls/ytls_version
-ytls/ytls_new_secure_filter
-ytls/ytls_shutdown
-ytls/ytls_free_secure_filter
-ytls/ytls_do_handshake
-ytls/ytls_encrypt_data
-ytls/ytls_decrypt_data
-ytls/ytls_get_last_error
-ytls/ytls_set_trace
-ytls/ytls_flush
+ytls/ytls_cleanup.md
+ytls/ytls_decrypt_data.md
+ytls/ytls_do_handshake.md
+ytls/ytls_encrypt_data.md
+ytls/ytls_flush.md
+ytls/ytls_free_secure_filter.md
+ytls/ytls_get_last_error.md
+ytls/ytls_init.md
+ytls/ytls_new_secure_filter.md
+ytls/ytls_set_trace.md
+ytls/ytls_shutdown.md
+ytls/ytls_version.md
 
 ```

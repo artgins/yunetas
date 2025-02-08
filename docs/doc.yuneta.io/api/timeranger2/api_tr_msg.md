@@ -9,22 +9,22 @@ Source code in:
 :caption: Message Functions
 :maxdepth: 1
 
-tr_msg/trmsg_open_topics
-tr_msg/trmsg_close_topics
-tr_msg/trmsg_add_instance
-tr_msg/trmsg_open_list
-tr_msg/trmsg_close_list
-tr_msg/trmsg_get_messages
-tr_msg/trmsg_get_message
-tr_msg/trmsg_get_active_message
-tr_msg/trmsg_get_active_md
-tr_msg/trmsg_get_instances
-tr_msg/trmsg_data_tree
-tr_msg/trmsg_active_records
-tr_msg/trmsg_record_instances
-tr_msg/trmsg_foreach_active_messages
-tr_msg/trmsg_foreach_instances_messages
-tr_msg/trmsg_foreach_messages
+tr_msg/trmsg_active_records.md
+tr_msg/trmsg_add_instance.md
+tr_msg/trmsg_close_list.md
+tr_msg/trmsg_close_topics.md
+tr_msg/trmsg_data_tree.md
+tr_msg/trmsg_foreach_active_messages.md
+tr_msg/trmsg_foreach_instances_messages.md
+tr_msg/trmsg_foreach_messages.md
+tr_msg/trmsg_get_active_md.md
+tr_msg/trmsg_get_active_message.md
+tr_msg/trmsg_get_instances.md
+tr_msg/trmsg_get_message.md
+tr_msg/trmsg_get_messages.md
+tr_msg/trmsg_open_list.md
+tr_msg/trmsg_open_topics.md
+tr_msg/trmsg_record_instances.md
 
 
 ```
