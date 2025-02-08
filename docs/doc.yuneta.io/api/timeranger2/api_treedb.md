@@ -2,8 +2,8 @@
 
 Source code in:
 
-- [tr_treedb.c]
-- [tr_treedb.h]
+- [tr_treedb.c](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.c)
+- [tr_treedb.h](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.h)
 
 ```{toctree}
 :caption: Treedb Functions
