@@ -1,4 +1,5 @@
-(authz())=
+(authz)=
+
 # **Authz**
 
 Source code in:
@@ -17,7 +18,8 @@ built-in parsers and checkers.
 
 ## Core Concepts
 
-(authentication_parser())=
+(authentication_parser)=
+
 ### 1. **Authentication**
 Authentication verifies the identity of a user by validating credentials such as tokens or other identifiers.
 
@@ -33,7 +35,8 @@ The authentication parser:
 - Processes the credentials provided in `kw`.
 - Returns a JSON response indicating success or failure.
 
-(authorization_checker())=
+(authorization_checker)=
+
 ### 2. **Authorization**
 Authorization ensures that an authenticated user has the necessary permissions to perform an action or access a resource.
 

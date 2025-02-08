@@ -1,4 +1,5 @@
-(gobj())=
+(gobj)=
+
 # **GObj**
 
 Gobjs are modular components that form the building blocks of Yuneta applications. The creation and configuration of gobjs are flexible, allowing developers to instantiate individual gobjs or entire hierarchies using structured APIs and configurations.
@@ -29,7 +30,8 @@ Entire hierarchies of gobjs can be created using structured configurations:
 
 ---
 
-(gobj_flag_t())=
+(gobj_flag_t)=
+
 ## GObj Flags (`gobj_flag_t`)
 
 Flags control the behavior and characteristics of gobjs during their creation. They can be combined to define multiple properties.

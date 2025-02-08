@@ -1,4 +1,5 @@
-(stats_parser_guide())=
+(stats_parser_guide)=
+
 # **Statistics Parser**
 
 The statistics parser in Yuneta handles requests for retrieving and managing statistics from a GObj. It operates by collecting attributes marked with specific statistical flags (`SDF_STATS`, `SDF_RSTATS`, and `SDF_PSTATS`) and providing a structured way to query, reset, or persist these attributes.

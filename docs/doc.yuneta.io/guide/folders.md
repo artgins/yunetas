@@ -1,4 +1,5 @@
-(folders())=
+(folders)=
+
 # **Yuneta Directories**
 
 The Yuneta SDK is structured into the following top folders:
@@ -14,7 +15,8 @@ The Yuneta SDK is structured into the following top folders:
 
 ---
 
-(docs())=
+(docs)=
+
 ## `docs`
 
 - `doc.yuneta.io`: Yuneta’s Documentation built with:
@@ -24,7 +26,8 @@ The Yuneta SDK is structured into the following top folders:
 
 ---
 
-(kernel())=
+(kernel)=
+
 ## `kernel`
 
 The core framework of Yuneta, implemented in multiple languages.
@@ -70,7 +73,8 @@ The core framework of Yuneta, implemented in multiple languages.
 
 ---
 
-(modules())=
+(modules)=
+
 ## `modules`
 
 Contains additional protocol and functionality modules.

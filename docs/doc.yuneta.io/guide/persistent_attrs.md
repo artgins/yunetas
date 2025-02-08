@@ -1,4 +1,4 @@
-(persistent_attrs_t())=
+(persistent_attrs_t)=
 # **Persistent Attributes**
 
 Persistent attributes are attributes defined in a GClass that retain their values across restarts or state transitions. They are automatically loaded during Yuno startup and can be explicitly saved as needed. Persistent attributes ensure that critical configuration data and operational settings are preserved, enabling seamless continuity in operations.
