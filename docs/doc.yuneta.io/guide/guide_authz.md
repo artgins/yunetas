@@ -10,8 +10,8 @@ Source code in:
 
 Authentication and authorization in Yuneta ensure secure identification of users and
 validation of their permissions to access resources or perform actions. 
-These processes are managed via APIs such as [`gobj_authenticate`](gobj_authenticate)
-and [`gobj_user_has_authz`](gobj_user_has_authz), with the ability to use custom or
+These processes are managed via APIs such as [`gobj_authenticate`](#gobj_authenticate)
+and [`gobj_user_has_authz`](#gobj_user_has_authz), with the ability to use custom or
 built-in parsers and checkers.
 
 ---
@@ -29,7 +29,7 @@ json_t *gobj_authenticate(hgobj gobj, json_t *kw, hgobj src)
 ```
 
 - **Parser:** Defined in the `global_authentication_parser` argument of 
-  [`gobj_start_up()`](gobj_start_up). If null, a default parser is used.
+  [`gobj_start_up()`](#gobj_start_up). If null, a default parser is used.
 
 The authentication parser:
 - Processes the credentials provided in `kw`.
@@ -47,10 +47,10 @@ BOOL gobj_user_has_authz(hgobj gobj_to_check, const char *authz, json_t *kw, hgo
 ```
 
 - **Checker:** Defined in the `global_authorization_checker` argument of
-  [`gobj_start_up()`](gobj_start_up). If null, a default checker is used.
+  [`gobj_start_up()`](#gobj_start_up). If null, a default checker is used.
 
 The authorization checker:
-- Uses the [`mt_authz_checker`](mt_authz_checker) method if defined in the GClass.
+- Uses the [`mt_authz_checker`](#mt_authz_checker) method if defined in the GClass.
 - Verifies if the user has the required permission (`authz`) based on roles and parameters.
 - Returns `TRUE` if the user is authorized; otherwise, `FALSE`.
 
