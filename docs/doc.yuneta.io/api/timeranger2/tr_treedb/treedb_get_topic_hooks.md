@@ -8,5 +8,3 @@ Retrieves hooks associated with a given topic in the TreeDB.
 
 **Return Value:**
 A JSON object containing the topic hooks.
-
----

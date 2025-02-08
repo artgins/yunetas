@@ -8,5 +8,3 @@ Retrieves the local (bound) address of a given socket.
 
 **Return Value:**
 - Returns a `struct sockaddr_storage` containing the local address information.
-
----

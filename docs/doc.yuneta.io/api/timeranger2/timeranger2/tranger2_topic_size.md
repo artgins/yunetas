@@ -9,5 +9,3 @@ Retrieves the size of a given topic in the Time Ranger 2 system.
 
 ## Return Value
 (*size_t*) The size of the topic in bytes.
-
----

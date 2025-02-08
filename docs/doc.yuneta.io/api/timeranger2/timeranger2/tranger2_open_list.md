@@ -11,5 +11,3 @@ Opens a list for retrieving records from a specified topic.
 
 ## Return Value
 (*void \**) The list object.
-
----

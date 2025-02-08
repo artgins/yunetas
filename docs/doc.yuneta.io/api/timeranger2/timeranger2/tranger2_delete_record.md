@@ -10,5 +10,3 @@ Deletes a specific record from a topic in the Time Ranger 2 system.
 
 ## Return Value
 None.
-
----

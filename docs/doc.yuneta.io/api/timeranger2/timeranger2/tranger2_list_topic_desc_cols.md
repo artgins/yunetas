@@ -9,5 +9,3 @@ Retrieves a list of column descriptions for a given topic.
 
 ## Return Value
 (*json_t \**) A JSON array containing column descriptions.
-
----

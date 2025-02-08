@@ -8,5 +8,3 @@ Retrieves the file descriptor associated with an event.
 
 **Return Value:**
 - Returns the file descriptor.
-
----

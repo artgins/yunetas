@@ -8,5 +8,3 @@ Retrieves the flags associated with an event.
 
 **Return Value:**
 - Returns the event flags bitmask.
-
----

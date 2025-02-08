@@ -11,5 +11,3 @@ Appends a record to the specified topic in the Time Ranger 2 system.
 
 ## Return Value
 None.
-
----

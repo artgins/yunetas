@@ -10,5 +10,3 @@ Checks if a given topic belongs to a TreeDB.
 
 **Return Value:**
 A boolean indicating whether the topic belongs to the TreeDB.
-
----

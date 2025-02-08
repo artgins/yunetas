@@ -15,5 +15,3 @@ PUBLIC void ytls_set_trace(hytls ytls, hsskt sskt, BOOL set);
 
 ## Return Value
 - None.
-
----

@@ -9,5 +9,3 @@ Retrieves the description of a given topic.
 
 ## Return Value
 (*json_t \**) A JSON object containing the topic description.
-
----

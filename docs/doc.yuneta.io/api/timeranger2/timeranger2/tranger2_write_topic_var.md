@@ -10,5 +10,3 @@ Writes variable-length data to a specified topic.
 
 ## Return Value
 None.
-
----

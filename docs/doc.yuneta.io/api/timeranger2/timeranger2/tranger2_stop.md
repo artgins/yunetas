@@ -8,5 +8,3 @@ Stops the Time Ranger 2 system and releases resources.
 
 ## Return Value
 None.
-
----

@@ -10,5 +10,3 @@ Closes a specific list associated with a topic in the Time Ranger 2 system.
 
 ## Return Value
 None.
-
----

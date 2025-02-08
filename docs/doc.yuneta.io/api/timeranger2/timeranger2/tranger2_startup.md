@@ -8,5 +8,3 @@ Initializes and starts up the Time Ranger 2 system.
 
 ## Return Value
 None.
-
----

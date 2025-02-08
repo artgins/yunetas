@@ -9,5 +9,3 @@ Retrieves a page of records from an iterator in the Time Ranger 2 system.
 
 ## Return Value
 (*json_t \**) A JSON array containing the retrieved records.
-
----

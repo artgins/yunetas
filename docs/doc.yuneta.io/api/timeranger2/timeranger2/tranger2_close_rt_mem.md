@@ -9,5 +9,3 @@ Closes the runtime memory segment associated with a Time Ranger 2 instance.
 
 ## Return Value
 None.
-
----

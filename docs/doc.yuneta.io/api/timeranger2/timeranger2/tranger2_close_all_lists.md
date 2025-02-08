@@ -9,5 +9,3 @@ Closes all lists associated with a given topic in the Time Ranger 2 system.
 
 ## Return Value
 None.
-
----

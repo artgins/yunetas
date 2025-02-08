@@ -18,5 +18,3 @@ Returns `0` on success, `-1` if the event is `NULL`.
 
 ## Notes
 - Internally calls `yev_start_event()` to begin event processing.
-
----

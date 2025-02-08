@@ -8,5 +8,3 @@ Retrieves the event loop associated with an event.
 
 **Return Value:**
 - Returns a pointer to the event loop.
-
----

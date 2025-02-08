@@ -8,5 +8,3 @@ Retrieves the peer (remote) address of a given socket.
 
 **Return Value:**
 - Returns a `struct sockaddr_storage` containing the peer address information.
-
----

@@ -8,5 +8,3 @@ Retrieves the type of an event.
 
 **Return Value:**
 - Returns the event type identifier.
-
----

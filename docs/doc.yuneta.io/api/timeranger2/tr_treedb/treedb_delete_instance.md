@@ -8,5 +8,3 @@ Deletes a specific instance of a node.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

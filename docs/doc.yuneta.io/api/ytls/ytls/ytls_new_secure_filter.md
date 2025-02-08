@@ -29,5 +29,3 @@ PUBLIC hsskt ytls_new_secure_filter(
 
 ## Return Value
 - Returns a handle to the secure socket (`hsskt`).
-
----

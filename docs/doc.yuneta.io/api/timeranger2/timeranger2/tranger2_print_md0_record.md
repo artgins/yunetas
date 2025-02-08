@@ -8,5 +8,3 @@ Prints a metadata level 0 record from a specified topic in the Time Ranger 2 sys
 
 ## Return Value
 None.
-
----

@@ -10,5 +10,3 @@ Writes column data to a specified topic.
 
 ## Return Value
 None.
-
----

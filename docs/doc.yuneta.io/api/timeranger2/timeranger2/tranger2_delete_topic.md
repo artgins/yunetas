@@ -9,5 +9,3 @@ Deletes an entire topic from the Time Ranger 2 system.
 
 ## Return Value
 None.
-
----

@@ -9,5 +9,3 @@ Retrieves the size of the primary key for a given topic.
 
 ## Return Value
 (*size_t*) The key size in bytes.
-
----

@@ -32,5 +32,3 @@ Returns a pointer to the newly created `fs_event_t` on success, or `NULL` on fai
 - Uses `inotify` to set up the watcher.
 - If the provided path is not a directory, an error is logged.
 - Recursively tracks paths if `FS_FLAG_RECURSIVE_PATHS` is set.
-
----

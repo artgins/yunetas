@@ -10,5 +10,3 @@ Opens an iterator for traversing records in a specified topic.
 
 ## Return Value
 (*void \**) The iterator object.
-
----

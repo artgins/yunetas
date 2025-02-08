@@ -13,5 +13,3 @@ PUBLIC void ytls_cleanup(hytls ytls);
 
 ## Return Value
 - None.
-
----

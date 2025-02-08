@@ -8,5 +8,3 @@ Reads the user flag associated with a specific record.
 
 ## Return Value
 (*int*) The user flag value.
-
----

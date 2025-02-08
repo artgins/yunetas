@@ -9,5 +9,3 @@ Opens a runtime disk segment in the Time Ranger 2 system.
 
 ## Return Value
 (*void \**) The runtime disk segment object.
-
----

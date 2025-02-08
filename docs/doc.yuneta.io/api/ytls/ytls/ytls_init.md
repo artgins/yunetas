@@ -19,5 +19,3 @@ PUBLIC hytls ytls_init(
 
 ## Return Value
 - Returns a handle to the TLS context (`hytls`).
-
----

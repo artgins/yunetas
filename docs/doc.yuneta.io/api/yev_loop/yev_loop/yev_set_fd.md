@@ -9,5 +9,3 @@ Sets the file descriptor associated with an event.
 
 **Return Value:**
 - None.
-
----

@@ -14,5 +14,3 @@ PUBLIC void ytls_shutdown(hytls ytls, hsskt sskt);
 
 ## Return Value
 - None.
-
----

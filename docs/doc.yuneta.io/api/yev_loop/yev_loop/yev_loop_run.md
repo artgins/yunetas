@@ -14,5 +14,3 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop, int timeout_in_seconds);
 
 ## Return Value
 - Returns 0 on success, or an error code on failure.
-
----

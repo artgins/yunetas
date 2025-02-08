@@ -9,5 +9,3 @@ Sets flags for an event.
 
 **Return Value:**
 - None.
-
----

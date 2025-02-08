@@ -13,5 +13,3 @@ PUBLIC hgobj yev_get_gobj(yev_event_h yev_event);
 
 ## Return Value
 - Returns the `hgobj` instance associated with the event.
-
----

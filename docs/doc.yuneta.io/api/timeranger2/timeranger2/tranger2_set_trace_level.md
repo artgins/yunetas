@@ -8,5 +8,3 @@ Sets the trace level for debugging and logging in the Time Ranger 2 system.
 
 ## Return Value
 None.
-
----

@@ -8,5 +8,3 @@ Prints the filename associated with a specific record in a topic.
 
 ## Return Value
 None.
-
----

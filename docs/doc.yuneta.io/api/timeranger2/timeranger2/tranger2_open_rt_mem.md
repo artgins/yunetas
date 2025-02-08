@@ -9,5 +9,3 @@ Opens a runtime memory segment in the Time Ranger 2 system.
 
 ## Return Value
 (*void \**) The runtime memory segment object.
-
----

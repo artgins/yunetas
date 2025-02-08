@@ -10,5 +10,3 @@ Reads the content of a specified record from a topic.
 
 ## Return Value
 (*json_t \**) The content of the specified record.
-
----

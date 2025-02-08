@@ -8,5 +8,3 @@ Converts a string representation of a system flag to its corresponding integer v
 
 ## Return Value
 (*int*) The corresponding system flag value.
-
----

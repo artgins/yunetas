@@ -19,5 +19,3 @@ PUBLIC int ytls_decrypt_data(
 
 ## Return Value
 - Returns 0 on success, or an error code on failure.
-
----

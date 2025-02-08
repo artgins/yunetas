@@ -10,5 +10,3 @@ Creates a new topic in the Time Ranger 2 system.
 
 ## Return Value
 None.
-
----

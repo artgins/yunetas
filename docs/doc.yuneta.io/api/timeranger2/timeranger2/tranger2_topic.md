@@ -9,5 +9,3 @@ Retrieves a topic object from the Time Ranger 2 system.
 
 ## Return Value
 (*void \**) The topic object.
-
----

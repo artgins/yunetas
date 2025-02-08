@@ -9,5 +9,3 @@ Closes an iterator associated with a runtime segment in the Time Ranger 2 system
 
 ## Return Value
 None.
-
----

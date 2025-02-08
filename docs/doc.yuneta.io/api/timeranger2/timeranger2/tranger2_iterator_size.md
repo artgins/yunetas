@@ -8,5 +8,3 @@ Returns the total number of records available in an iterator.
 
 ## Return Value
 (*size_t*) The number of records in the iterator.
-
----

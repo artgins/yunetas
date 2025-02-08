@@ -8,5 +8,3 @@ Retrieves the name of a topic from its object.
 
 ## Return Value
 (*const char \**): The name of the topic.
-
----

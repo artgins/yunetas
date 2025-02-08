@@ -9,5 +9,3 @@ Retrieves an iterator for a topic by its unique identifier.
 
 ## Return Value
 (*void \**) The iterator object.
-
----

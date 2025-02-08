@@ -9,5 +9,3 @@ Retrieves the runtime disk segment associated with a given identifier.
 
 ## Return Value
 (*void \**) The runtime disk segment object.
-
----

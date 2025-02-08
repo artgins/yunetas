@@ -14,5 +14,3 @@ PUBLIC const char *ytls_get_last_error(hytls ytls, hsskt sskt);
 
 ## Return Value
 - Returns a string describing the last TLS error.
-
----

@@ -8,5 +8,3 @@ Lists all topics available in the Time Ranger 2 system.
 
 ## Return Value
 (*json_t \**) A JSON array containing the list of topics.
-
----

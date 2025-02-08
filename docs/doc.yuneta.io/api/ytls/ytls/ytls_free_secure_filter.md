@@ -14,5 +14,3 @@ PUBLIC void ytls_free_secure_filter(hytls ytls, hsskt sskt);
 
 ## Return Value
 - None.
-
----

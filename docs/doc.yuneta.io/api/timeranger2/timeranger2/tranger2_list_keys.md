@@ -9,5 +9,3 @@ Lists all keys available in a specified topic.
 
 ## Return Value
 (*json_t \**) A JSON array containing the list of keys.
-
----

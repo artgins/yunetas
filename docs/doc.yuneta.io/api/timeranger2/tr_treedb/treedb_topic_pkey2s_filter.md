@@ -8,5 +8,3 @@ Filters the secondary keys of a topic based on a given filter.
 
 **Return Value:**
 A JSON object containing the filtered secondary keys.
-
----

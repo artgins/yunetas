@@ -13,5 +13,3 @@ PUBLIC hgobj yev_get_yuno(yev_loop_h yev_loop);
 
 ## Return Value
 - Returns the `hgobj` instance managing the event loop.
-
----

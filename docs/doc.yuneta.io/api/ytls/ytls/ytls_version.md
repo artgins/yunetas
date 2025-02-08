@@ -13,5 +13,3 @@ PUBLIC const char * ytls_version(hytls ytls);
 
 ## Return Value
 - Returns a string representing the TLS version.
-
----

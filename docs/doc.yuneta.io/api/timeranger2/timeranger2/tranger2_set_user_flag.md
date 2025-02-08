@@ -9,5 +9,3 @@ Sets the user flag for a specific record.
 
 ## Return Value
 None.
-
----

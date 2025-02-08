@@ -14,5 +14,3 @@ PUBLIC int ytls_do_handshake(hytls ytls, hsskt sskt);
 
 ## Return Value
 - Returns 0 on success, or an error code on failure.
-
----
