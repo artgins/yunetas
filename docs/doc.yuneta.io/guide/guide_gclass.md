@@ -1055,6 +1055,6 @@ Values of `gclass_flag_t` Flags
 
 
 (__global_list_persistent_attrs_fn__)=
-# __global_list_persistent_attrs_fn__
+## __global_list_persistent_attrs_fn__
 
     TODO
