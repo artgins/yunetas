@@ -21,5 +21,3 @@ PUBLIC json_t *msg2db_open_db(
 
 **Return Value:**
 - Returns a `json_t *` representing the opened database.
-
----

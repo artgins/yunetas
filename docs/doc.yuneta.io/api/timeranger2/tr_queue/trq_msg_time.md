@@ -13,5 +13,3 @@ PUBLIC time_t trq_msg_time(q_msg *msg);
 
 **Returns:**
 - `time_t`: The timestamp of the message.
-
----

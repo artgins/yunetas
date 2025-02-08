@@ -8,5 +8,3 @@ Creates a snapshot of the current state of the TreeDB.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

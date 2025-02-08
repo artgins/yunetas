@@ -15,5 +15,3 @@ Opens a message list for a given topic in the TRanger instance.
 
 **Returns:**
 - `json_t *`: JSON list object.
-
----

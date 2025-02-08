@@ -16,5 +16,3 @@ Creates a new topic in the TreeDB.
 
 **Return Value:**
 A JSON object representing the created topic (not owned by the caller).
-
----

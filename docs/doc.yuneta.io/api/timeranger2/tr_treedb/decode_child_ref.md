@@ -8,5 +8,3 @@ Decodes a child reference from a given string.
 
 **Return Value:**
 A boolean indicating success or failure.
-
----

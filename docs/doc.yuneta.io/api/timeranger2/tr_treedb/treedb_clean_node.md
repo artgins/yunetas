@@ -8,5 +8,3 @@ Cleans up a node, removing unnecessary data.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

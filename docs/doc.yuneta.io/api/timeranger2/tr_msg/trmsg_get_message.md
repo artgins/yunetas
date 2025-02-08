@@ -17,5 +17,3 @@ Retrieves a specific message from a topic using its unique ID.
 
 **Returns:**
 - `json_t *`: JSON object of the retrieved message.
-
----

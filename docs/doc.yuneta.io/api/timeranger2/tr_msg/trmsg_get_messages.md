@@ -17,5 +17,3 @@ Retrieves messages from a topic in the TRanger instance based on a filter.
 
 **Returns:**
 - `json_t *`: JSON array of messages.
-
----

@@ -8,5 +8,3 @@ Sets volatile values for a node.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

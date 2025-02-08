@@ -9,5 +9,3 @@ Deletes a topic from the TreeDB.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

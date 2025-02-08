@@ -14,5 +14,3 @@ PUBLIC bool trq_check_pending_rowid(tr_queue trq_, uint64_t rowid);
 
 **Returns:**
 - `bool`: `true` if a pending message exists, otherwise `false`.
-
----

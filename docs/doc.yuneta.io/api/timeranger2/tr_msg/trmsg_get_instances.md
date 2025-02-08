@@ -15,5 +15,3 @@ Retrieves all instance messages from a specific topic in the TRanger.
 
 **Returns:**
 - `json_t *`: JSON array of instance messages.
-
----

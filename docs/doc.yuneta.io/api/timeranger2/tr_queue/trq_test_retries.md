@@ -14,5 +14,3 @@ PUBLIC bool trq_test_retries(tr_queue trq_, uint64_t rowid);
 
 **Returns:**
 - `bool`: `true` if retries have exceeded the limit, otherwise `false`.
-
----

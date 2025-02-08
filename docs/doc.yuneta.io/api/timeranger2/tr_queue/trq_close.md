@@ -10,5 +10,3 @@ PUBLIC void trq_close(tr_queue trq);
 
 **Parameters:**
 - `trq` (`tr_queue`): The queue instance to be closed.
-
----

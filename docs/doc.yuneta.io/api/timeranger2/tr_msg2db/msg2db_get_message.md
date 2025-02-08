@@ -23,5 +23,3 @@ PUBLIC json_t *msg2db_get_message(
 
 **Return Value:**
 - Returns a `json_t *` representing the retrieved message (not owned).
-
----

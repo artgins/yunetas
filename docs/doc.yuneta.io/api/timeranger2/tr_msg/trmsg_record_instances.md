@@ -17,5 +17,3 @@ Records instances into a specific topic in the TRanger.
 
 **Returns:**
 - `int`: Status code of the operation.
-
----

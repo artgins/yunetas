@@ -8,5 +8,3 @@ Retrieves a node from the TreeDB.
 
 **Return Value:**
 A JSON object representing the node (not owned by the caller).
-
----

@@ -13,5 +13,3 @@ PUBLIC md2_record_ex_t *trq_msg_md_record(q_msg *msg);
 
 **Returns:**
 - `md2_record_ex_t *`: The metadata record of the message.
-
----

@@ -14,5 +14,3 @@ PUBLIC json_t * trq_get_by_rowid(tr_queue trq_, uint64_t rowid);
 
 **Returns:**
 - `json_t *`: The message corresponding to the given row ID.
-
----

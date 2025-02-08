@@ -17,5 +17,3 @@ Iterates over all messages in a list, optionally duplicating messages, and appli
 
 **Returns:**
 - `int`: Status code of the operation.
-
----

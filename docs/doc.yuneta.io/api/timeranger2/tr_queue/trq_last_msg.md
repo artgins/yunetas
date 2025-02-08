@@ -13,5 +13,3 @@ PUBLIC json_t * trq_last_msg(tr_queue trq_);
 
 **Returns:**
 - `json_t *`: The last message in the queue.
-
----

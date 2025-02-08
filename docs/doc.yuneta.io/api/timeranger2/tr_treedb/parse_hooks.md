@@ -8,5 +8,3 @@ Parses hooks from a schema JSON object.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

@@ -9,5 +9,3 @@ Saves a TreeDB node.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

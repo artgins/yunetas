@@ -11,5 +11,3 @@ Automatically links nodes based on foreign key fields.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

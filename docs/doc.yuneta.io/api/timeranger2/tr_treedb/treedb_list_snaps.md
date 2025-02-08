@@ -8,5 +8,3 @@ Lists all available snapshots of the TreeDB.
 
 **Return Value:**
 A JSON array containing the available snapshots (caller must decrement reference).
-
----

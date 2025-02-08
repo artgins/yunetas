@@ -14,5 +14,3 @@ PUBLIC int trq_clear_retries(tr_queue trq_, uint64_t rowid);
 
 **Returns:**
 - `int`: `0` on success, `-1` on error.
-
----

@@ -10,5 +10,3 @@ Closes a topic in the TreeDB.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

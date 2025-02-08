@@ -8,5 +8,3 @@ Lists all parent nodes of a given node.
 
 **Return Value:**
 A JSON array containing all parent nodes (caller must decrement reference).
-
----

@@ -14,5 +14,3 @@ PUBLIC uint32_t trq_get_soft_mark(tr_queue trq_, uint64_t rowid);
 
 **Returns:**
 - `uint32_t`: The soft mark of the message.
-
----

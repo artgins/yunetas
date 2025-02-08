@@ -9,5 +9,3 @@ Lists all topics in a specified TreeDB.
 
 **Return Value:**
 A JSON object listing all topics in the specified TreeDB.
-
----

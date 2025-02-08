@@ -15,5 +15,3 @@ PUBLIC int trq_set_hard_flag(tr_queue trq_, uint64_t rowid, uint32_t flag);
 
 **Returns:**
 - `int`: `0` on success, `-1` on error.
-
----

@@ -15,5 +15,3 @@ PUBLIC int trq_set_maximum_retries(tr_queue trq_, uint64_t rowid, int max_retrie
 
 **Returns:**
 - `int`: `0` on success, `-1` on error.
-
----

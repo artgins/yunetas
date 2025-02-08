@@ -8,5 +8,3 @@ Lists all available TreeDBs.
 
 **Return Value:**
 A JSON object listing all available TreeDBs.
-
----

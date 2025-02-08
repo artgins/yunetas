@@ -15,5 +15,3 @@ PUBLIC int trq_set_soft_mark(tr_queue trq_, uint64_t rowid, uint32_t mark);
 
 **Returns:**
 - `int`: `0` on success, `-1` on error.
-
----

@@ -19,5 +19,3 @@ Retrieves a structured data tree from a specified topic in the TRanger instance 
 
 **Returns:**
 - `json_t *`: JSON representation of the retrieved data tree.
-
----

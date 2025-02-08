@@ -8,5 +8,3 @@ Lists all instances of a node in the TreeDB.
 
 **Return Value:**
 A JSON array containing all node instances (caller must decrement reference).
-
----

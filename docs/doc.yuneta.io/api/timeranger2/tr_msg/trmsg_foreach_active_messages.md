@@ -15,5 +15,3 @@ Iterates over all active messages in a list and applies a callback function.
 
 **Returns:**
 - `int`: Status code of the operation.
-
----

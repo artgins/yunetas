@@ -9,5 +9,3 @@ Retrieves a list of secondary keys for a topic in the TreeDB.
 
 **Return Value:**
 A JSON array containing the secondary keys of the topic.
-
----

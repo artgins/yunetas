@@ -8,5 +8,3 @@ Lists all nodes in the TreeDB.
 
 **Return Value:**
 A JSON array containing all nodes (caller must decrement reference).
-
----

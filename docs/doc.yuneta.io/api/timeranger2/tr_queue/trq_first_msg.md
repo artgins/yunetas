@@ -13,5 +13,3 @@ PUBLIC json_t * trq_first_msg(tr_queue trq_);
 
 **Returns:**
 - `json_t *`: The first message in the queue.
-
----

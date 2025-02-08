@@ -22,5 +22,3 @@ PUBLIC tr_queue trq_open(
 - `tkey` (`const char *`): Secondary key for the topic.
 - `system_flag` (`system_flag2_t`): System flags for topic configuration.
 - `backup_queue_size` (`size_t`): The backup queue size.
-
----

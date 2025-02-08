@@ -13,5 +13,3 @@ PUBLIC uint64_t trq_msg_rowid(q_msg *msg);
 
 **Returns:**
 - `uint64_t`: The row ID of the message.
-
----

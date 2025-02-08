@@ -13,5 +13,3 @@ PUBLIC json_t * trq_topic(tr_queue trq);
 
 **Returns:**
 - `json_t *`: The topic object.
-
----

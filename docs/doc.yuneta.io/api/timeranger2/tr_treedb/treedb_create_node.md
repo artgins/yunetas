@@ -8,5 +8,3 @@ Creates a new node in the TreeDB.
 
 **Return Value:**
 A JSON object representing the created node (not owned by the caller).
-
----

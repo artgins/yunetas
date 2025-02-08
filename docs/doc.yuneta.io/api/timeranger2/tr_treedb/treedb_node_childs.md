@@ -8,5 +8,3 @@ Retrieves child nodes of a given node.
 
 **Return Value:**
 A JSON array containing child nodes.
-
----

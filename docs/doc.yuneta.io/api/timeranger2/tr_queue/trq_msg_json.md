@@ -13,5 +13,3 @@ PUBLIC json_t *trq_msg_json(q_msg *msg);
 
 **Returns:**
 - `json_t *`: The JSON content of the message.
-
----

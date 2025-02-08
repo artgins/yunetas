@@ -15,5 +15,3 @@ Retrieves the currently active message from a given topic.
 
 **Returns:**
 - `json_t *`: JSON object of the active message.
-
----

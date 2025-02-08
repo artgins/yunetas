@@ -8,5 +8,3 @@ Parses a schema from a JSON object.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

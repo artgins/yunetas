@@ -8,5 +8,3 @@ Enables or disables tracing for TreeDB operations.
 
 **Return Value:**
 An integer representing the previous trace state.
-
----

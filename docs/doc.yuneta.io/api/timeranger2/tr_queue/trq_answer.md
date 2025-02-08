@@ -15,5 +15,3 @@ PUBLIC int trq_answer(tr_queue trq_, q_msg *msg, json_t *response);
 
 **Returns:**
 - `int`: `0` on success, `-1` on failure.
-
----

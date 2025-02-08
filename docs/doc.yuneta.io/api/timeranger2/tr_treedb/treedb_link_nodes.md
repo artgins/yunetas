@@ -11,5 +11,3 @@ Links two nodes in the TreeDB.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

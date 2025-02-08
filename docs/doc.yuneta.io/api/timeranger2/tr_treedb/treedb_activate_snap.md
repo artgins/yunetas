@@ -8,5 +8,3 @@ Activates a previously created snapshot of the TreeDB.
 
 **Return Value:**
 An integer representing the activated snapshot tag.
-
----

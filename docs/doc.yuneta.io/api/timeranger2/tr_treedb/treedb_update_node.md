@@ -8,5 +8,3 @@ Updates a TreeDB node.
 
 **Return Value:**
 A JSON object representing the updated node (not owned by the caller).
-
----

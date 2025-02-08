@@ -17,5 +17,3 @@ PUBLIC q_msg trq_append(
 
 **Returns:**
 - `q_msg`: The appended message structure.
-
----

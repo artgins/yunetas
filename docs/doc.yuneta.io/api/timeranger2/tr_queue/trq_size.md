@@ -13,5 +13,3 @@ PUBLIC size_t trq_size(tr_queue trq);
 
 **Returns:**
 - `size_t`: The number of messages in the queue.
-
----

@@ -8,5 +8,3 @@ Closes a TreeDB database.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

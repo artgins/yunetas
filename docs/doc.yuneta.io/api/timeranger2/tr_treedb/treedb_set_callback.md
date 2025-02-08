@@ -8,5 +8,3 @@ Sets a callback function for TreeDB events.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

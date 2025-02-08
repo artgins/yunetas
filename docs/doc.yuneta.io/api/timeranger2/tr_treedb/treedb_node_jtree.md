@@ -8,5 +8,3 @@ Retrieves a JSON tree representation of a node.
 
 **Return Value:**
 A JSON object representing the node in tree format.
-
----

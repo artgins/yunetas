@@ -17,5 +17,3 @@ PUBLIC int msg2db_close_db(
 
 **Return Value:**
 - Returns `0` on success, a negative value on error.
-
----

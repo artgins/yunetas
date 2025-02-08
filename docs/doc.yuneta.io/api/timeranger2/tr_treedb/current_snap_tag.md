@@ -9,5 +9,3 @@ Retrieves the current snapshot tag for a TreeDB.
 
 **Return Value:**
 An integer representing the current snapshot tag.
-
----

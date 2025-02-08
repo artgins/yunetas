@@ -14,5 +14,3 @@ PUBLIC size_t trq_size_by_key(tr_queue trq_, const char *key);
 
 **Returns:**
 - `size_t`: The number of messages associated with the key.
-
----

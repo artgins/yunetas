@@ -13,5 +13,3 @@ PUBLIC int trq_load(tr_queue trq_);
 
 **Returns:**
 - `int`: `0` on success, `-1` on error.
-
----

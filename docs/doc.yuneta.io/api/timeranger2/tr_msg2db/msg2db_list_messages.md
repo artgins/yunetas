@@ -28,5 +28,3 @@ PUBLIC json_t *msg2db_list_messages(
 
 **Return Value:**
 - Returns a `json_t *` with the list of messages (must be decref).
-
----

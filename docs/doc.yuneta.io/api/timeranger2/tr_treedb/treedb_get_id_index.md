@@ -10,5 +10,3 @@ Retrieves the ID index of a topic in the TreeDB.
 
 **Return Value:**
 A JSON object representing the ID index (not owned by the caller).
-
----

@@ -8,5 +8,3 @@ Opens a TreeDB database.
 
 **Return Value:**
 A JSON object representing the opened database (not owned by the caller).
-
----

@@ -16,5 +16,3 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
 
 **Returns:**
 - `int`: `0` on success, `-1` on error.
-
----

@@ -8,5 +8,3 @@ Adds a JSON tree path to a parent node.
 
 **Return Value:**
 An integer indicating success or failure.
-
----

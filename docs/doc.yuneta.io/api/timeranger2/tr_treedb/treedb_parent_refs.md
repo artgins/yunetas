@@ -8,5 +8,3 @@ Retrieves parent references for a node.
 
 **Return Value:**
 A JSON object containing parent references (caller must decrement reference).
-
----

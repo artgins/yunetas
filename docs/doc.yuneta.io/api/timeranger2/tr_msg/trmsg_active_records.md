@@ -15,5 +15,3 @@ Opens topics in the TRanger instance based on the provided descriptions.
 
 **Returns:**
 - `int`: Status code of the operation.
-
----

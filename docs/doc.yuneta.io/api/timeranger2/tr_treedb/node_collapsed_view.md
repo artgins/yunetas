@@ -8,5 +8,3 @@ Generates a collapsed view of a node.
 
 **Return Value:**
 A JSON object representing the collapsed view (caller must decrement reference).
-
----

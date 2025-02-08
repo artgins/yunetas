@@ -13,5 +13,3 @@ PUBLIC json_t *trq_get_metadata(tr_queue trq_);
 
 **Returns:**
 - `json_t *`: The metadata of the queue.
-
----

@@ -14,5 +14,3 @@ PUBLIC json_t * trq_get_by_key(tr_queue trq_, const char *key);
 
 **Returns:**
 - `json_t *`: The message corresponding to the given key.
-
----

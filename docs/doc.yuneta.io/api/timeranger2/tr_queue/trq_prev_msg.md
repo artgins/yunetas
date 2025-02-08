@@ -14,5 +14,3 @@ PUBLIC q_msg *trq_prev_msg(tr_queue trq_, q_msg *msg);
 
 **Returns:**
 - `q_msg *`: The previous message in the queue.
-
----

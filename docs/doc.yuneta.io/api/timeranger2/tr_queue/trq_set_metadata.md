@@ -14,5 +14,3 @@ PUBLIC int trq_set_metadata(tr_queue trq_, json_t *metadata);
 
 **Returns:**
 - `int`: `0` on success, `-1` on failure.
-
----

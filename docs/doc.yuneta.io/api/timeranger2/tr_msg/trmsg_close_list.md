@@ -15,5 +15,3 @@ Closes a message list in the TRanger instance.
 
 **Returns:**
 - `int`: Status code of the operation.
-
----

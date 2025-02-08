@@ -10,5 +10,3 @@ Returns the size of a specified topic.
 
 **Return Value:**
 A `size_t` value representing the topic's size.
-
----

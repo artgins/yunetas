@@ -14,5 +14,3 @@ PUBLIC bool trq_test_ack_timer(tr_queue trq_, uint64_t rowid);
 
 **Returns:**
 - `bool`: `true` if the timer has expired, otherwise `false`.
-
----
