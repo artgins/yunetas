@@ -16,7 +16,17 @@ Source code in:
 :caption: TLS functions
 :maxdepth: 2
 
-ytls/capture_log_write
-
+ytls/ytls_init
+ytls/ytls_cleanup
+ytls/ytls_version
+ytls/ytls_new_secure_filter
+ytls/ytls_shutdown
+ytls/ytls_free_secure_filter
+ytls/ytls_do_handshake
+ytls/ytls_encrypt_data
+ytls/ytls_decrypt_data
+ytls/ytls_get_last_error
+ytls/ytls_set_trace
+ytls/ytls_flush
 
 ```
