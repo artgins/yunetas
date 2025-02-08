@@ -1,4 +1,4 @@
-(sdata)=
+(sdata())=
 # **SData**
 
 
@@ -75,7 +75,7 @@ The `sdata_flag_t` enumeration defines the properties and characteristics of eac
 
 ---
 
-(sdata_desc_t)=
+(sdata_desc_t())=
 ## Descriptor Fields (`sdata_desc_t`)
 
 The `sdata_desc_t` structure defines a field or schema. Each descriptor specifies the following:

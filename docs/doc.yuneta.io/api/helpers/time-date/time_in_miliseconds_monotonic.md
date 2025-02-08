@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(time_in_miliseconds_monotonic)=
+(time_in_miliseconds_monotonic())=
 # `time_in_miliseconds_monotonic()`
 <!-- ============================================================== -->
 

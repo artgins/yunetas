@@ -133,7 +133,7 @@ A `gobj` (Generic Object) is an **instance** of a  [](gclass) (Generic Class) wi
 4. **Modularity and Autonomy**:
     - Gobjs are independent units designed for reusability and scalability.
 
-(yuno)=
+(yuno())=
 # `yuno`
 
 **What is a Yuno?**

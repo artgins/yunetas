@@ -1,4 +1,4 @@
-(gbuffer)=
+(gbuffer())=
 # **GBuffer**
 
 
@@ -14,7 +14,7 @@ Source code in:
 
 ## Structure Overview
 
-(gbuffer_t)=
+(gbuffer_t())=
 The `gbuffer_t` structure includes the following key fields:
 
 | **Field**              | **Description**                                                                 |

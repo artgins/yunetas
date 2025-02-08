@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(show_backtrace_with_backtrace)=
+(show_backtrace_with_backtrace())=
 # `show_backtrace_with_backtrace()`
 <!-- ============================================================== -->
 

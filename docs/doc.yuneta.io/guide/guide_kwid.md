@@ -1,4 +1,4 @@
-(kwid)=
+(kwid())=
 # **Kwid**
 
 ## Overview of `kwid`
@@ -92,7 +92,7 @@ The macros `JSON_DECREF` and `JSON_INCREF` manage the reference count of `json_t
 
 ---
 
-(JSON_DECREF)=
+(JSON_DECREF())=
 ## 🔻 `JSON_DECREF(json)`
 
 ### **Description**
@@ -109,7 +109,7 @@ Use this macro to safely free JSON objects when they are no longer needed.
 
 ---
 
-(JSON_INCREF)=
+(JSON_INCREF())=
 ## 🔺 `JSON_INCREF(json)`
 
 ### **Description**
