@@ -9,7 +9,8 @@ Source code in:
 :caption: File System Watcher functions
 :maxdepth: 2
 
-fs_watcher/capture_log_write
-
+fs_watcher/fs_create_watcher_event
+fs_watcher/fs_start_watcher_event
+fs_watcher/fs_stop_watcher_event
 
 ```

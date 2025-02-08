@@ -9,7 +9,12 @@ Source code in:
 :caption: Timeranger Message2db functions
 :maxdepth: 2
 
-tr_msg2db/capture_log_write
+tr_msg2db/msg2db_open_db
+tr_msg2db/msg2db_close_db
+tr_msg2db/msg2db_append_message
+tr_msg2db/msg2db_list_messages
+tr_msg2db/msg2db_get_message
+tr_msg2db/build_msg2db_index_path
 
 
 ```

@@ -2,14 +2,60 @@
 
 Source code in:
 
-- [tr_treedb.c](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.c)
-- [tr_treedb.h](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_treedb.c)
+- [tr_treedb.c]
+- [tr_treedb.h]
 
 ```{toctree}
 :caption: Timeranger2 Treedb functions
 :maxdepth: 2
 
-tr_treedb/capture_log_write
+tr_treedb/treedb_open_db
+tr_treedb/treedb_close_db
+tr_treedb/treedb_set_callback
+tr_treedb/treedb_create_topic
+tr_treedb/treedb_close_topic
+tr_treedb/treedb_delete_topic
+tr_treedb/treedb_list_treedb
+tr_treedb/treedb_topics
+tr_treedb/treedb_topic_size
+tr_treedb/_treedb_create_topic_cols_desc
+tr_treedb/parse_schema
+tr_treedb/parse_schema_cols
+tr_treedb/parse_hooks
+tr_treedb/current_snap_tag
+tr_treedb/treedb_is_treedbs_topic
+tr_treedb/treedb_get_id_index
+tr_treedb/treedb_topic_pkey2s
+tr_treedb/treedb_topic_pkey2s_filter
+tr_treedb/treedb_set_trace
+tr_treedb/decode_parent_ref
+tr_treedb/decode_child_ref
+tr_treedb/treedb_create_node
+tr_treedb/treedb_save_node
+tr_treedb/treedb_update_node
+tr_treedb/set_volatil_values
+tr_treedb/treedb_delete_node
+tr_treedb/treedb_delete_instance
+tr_treedb/treedb_clean_node
+tr_treedb/treedb_autolink
+tr_treedb/treedb_link_nodes
+tr_treedb/treedb_unlink_nodes
+tr_treedb/treedb_get_node
+tr_treedb/treedb_get_instance
+tr_treedb/node_collapsed_view
+tr_treedb/treedb_list_nodes
+tr_treedb/treedb_list_instances
+tr_treedb/treedb_parent_refs
+tr_treedb/treedb_list_parents
+tr_treedb/treedb_node_childs
+tr_treedb/add_jtree_path
+tr_treedb/treedb_node_jtree
+tr_treedb/treedb_get_topic_links
+tr_treedb/treedb_get_topic_hooks
+tr_treedb/treedb_shoot_snap
+tr_treedb/treedb_activate_snap
+tr_treedb/treedb_list_snaps
+tr_treedb/create_template_record
 
 
 ```

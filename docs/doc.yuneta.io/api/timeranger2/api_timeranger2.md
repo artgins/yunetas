@@ -9,7 +9,51 @@ Source code in:
 :caption: Timeranger2 functions
 :maxdepth: 2
 
-timeranger2/capture_log_write
+timeranger2/tranger2_startup
+timeranger2/tranger2_stop
+timeranger2/tranger2_shutdown
+timeranger2/tranger2_str2system_flag
+timeranger2/tranger2_create_topic
+timeranger2/tranger2_open_topic
+timeranger2/tranger2_topic
+timeranger2/tranger2_list_topics
+timeranger2/tranger2_list_keys
+timeranger2/tranger2_topic_size
+timeranger2/tranger2_topic_key_size
+timeranger2/tranger2_topic_name
+timeranger2/tranger2_close_topic
+timeranger2/tranger2_delete_topic
+timeranger2/tranger2_backup_topic
+timeranger2/tranger2_write_topic_var
+timeranger2/tranger2_write_topic_cols
+timeranger2/tranger2_topic_desc
+timeranger2/tranger2_list_topic_desc_cols
+timeranger2/tranger2_dict_topic_desc_cols
+timeranger2/tranger2_append_record
+timeranger2/tranger2_delete_record
+timeranger2/tranger2_write_user_flag
+timeranger2/tranger2_set_user_flag
+timeranger2/tranger2_read_user_flag
+timeranger2/tranger2_open_iterator
+timeranger2/tranger2_close_iterator
+timeranger2/tranger2_get_iterator_by_id
+timeranger2/tranger2_iterator_size
+timeranger2/tranger2_iterator_get_page
+timeranger2/tranger2_open_rt_mem
+timeranger2/tranger2_close_rt_mem
+timeranger2/tranger2_get_rt_mem_by_id
+timeranger2/tranger2_open_rt_disk
+timeranger2/tranger2_close_rt_disk
+timeranger2/tranger2_get_rt_disk_by_id
+timeranger2/tranger2_open_list
+timeranger2/tranger2_close_list
+timeranger2/tranger2_close_all_lists
+timeranger2/tranger2_read_record_content
+timeranger2/tranger2_print_md0_record
+timeranger2/tranger2_print_md1_record
+timeranger2/tranger2_print_md2_record
+timeranger2/tranger2_print_record_filename
+timeranger2/tranger2_set_trace_level
 
 
 ```
