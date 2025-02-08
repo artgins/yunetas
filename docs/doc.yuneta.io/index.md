@@ -80,6 +80,9 @@ guide/parser_command.md
 guide/parser_stats.md
 guide/settings.md
 guide/guide_authz.md
+guide/guide_timeranger2.md
+guide/guide_yev_loop.md
+guide/guide_ytls.md
 
 :::
 
@@ -125,7 +128,6 @@ api/helpers/api_backtrace.md
 api/helpers/api_http_parser.md
 api/helpers/api_istream.md
 
-
 :::
 
 :::{toctree}
@@ -138,6 +140,35 @@ api/stats_parser/api_stats_parser.md
 api/log_udp_handler/api_log_udp_handler.md
 api/rotatory/api_rotatory.md
 api/testing/api_testing.md
+
+:::
+
+:::{toctree}
+:caption: Timeranger2 API
+:maxdepth: 1
+
+api/timeranger2/api_timeranger2
+api/timeranger2/api_fs_watcher
+api/timeranger2/api_tr_msg
+api/timeranger2/api_tr_msg2db
+api/timeranger2/api_tr_queue
+api/timeranger2/api_treedb
+
+:::
+
+:::{toctree}
+:caption: Yev Loop API
+:maxdepth: 1
+
+api/yev_loop/api_yev_loop
+
+:::
+
+:::{toctree}
+:caption: YTLS API
+:maxdepth: 1
+
+api/ytls/api_ytls
 
 :::
 
