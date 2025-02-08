@@ -1,4 +1,4 @@
-## `yev_get_user_data()`
+# `yev_get_user_data()`
 
 **Description:**
 Retrieves the user-defined data associated with an event.
