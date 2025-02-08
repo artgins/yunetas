@@ -12,12 +12,12 @@ Source code in:
 tr_queue/trq_open
 tr_queue/trq_close
 tr_queue/trq_size
-tr_queue/ trq_tranger
-tr_queue/ trq_topic
+tr_queue/trq_tranger
+tr_queue/trq_topic
 tr_queue/trq_set_first_rowid
 tr_queue/trq_load
 tr_queue/trq_load_all
-tr_queue/trq_append(
+tr_queue/trq_append
 tr_queue/trq_get_by_rowid
 tr_queue/trq_get_by_key
 tr_queue/trq_size_by_key
@@ -41,9 +41,9 @@ tr_queue/trq_msg_md_record
 tr_queue/trq_msg_rowid
 tr_queue/trq_msg_json
 tr_queue/trq_msg_time
-tr_queue/trq_set_metadata(
+tr_queue/trq_set_metadata
 tr_queue/trq_get_metadata
-tr_queue/trq_answer(
+tr_queue/trq_answer
 tr_queue/trq_check_backup
 
 
