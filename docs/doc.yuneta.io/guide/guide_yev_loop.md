@@ -42,5 +42,5 @@ The design of `yev_loop` aligns with Yunetas' core principles:
     - In Yunetas, objects are hierarchically structured. `yev_loop` adheres to this by managing event-driven dependencies in a structured manner.
     - Self-healing capabilities (e.g., re-launch mechanisms) align with Yunetas' philosophy of resilience.
 
-# **Conclusion**
+## **Conclusion**
 `yev_loop` is the heartbeat of Yunetas' event-driven system, ensuring that events are processed efficiently while maintaining scalability, reliability, and responsiveness. It embodies the Yunetas philosophy that "without events, nothing happens" and seamlessly integrates with the GObj architecture to facilitate asynchronous operations in a structured and efficient manner.

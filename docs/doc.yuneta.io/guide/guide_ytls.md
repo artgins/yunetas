@@ -21,7 +21,7 @@ The **ytls.c** implementation file contains the actual logic for managing TLS co
 
 This module ensures that Yuneta applications can securely transmit data over the network using industry-standard encryption protocols.
 
-# Philosophy of ytls
+## Philosophy of ytls
 The **ytls** module is built with the core philosophy of Yuneta in mind:
 
 - **Security as a Priority:** Ensuring that all data transmitted over the network is encrypted and protected from eavesdropping or tampering.
