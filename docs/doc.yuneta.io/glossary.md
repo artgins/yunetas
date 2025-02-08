@@ -76,21 +76,6 @@ match_record
 _duplicate_object
     Internal function
 
-gobj_state_t
-    Unique pointer that exposes state names, defined as:
-
-    In C:
-    ```C
-    typedef const char *gobj_state_t;
-    ```
-
-gobj_event_t
-    Unique pointer that exposes event names, defined as:
-
-    In C:
-    ```C
-    typedef const char *gobj_event_t;
-    ```
 
 gobj_lmethod_t
     Unique pointer that exposes local methods names, defined as:

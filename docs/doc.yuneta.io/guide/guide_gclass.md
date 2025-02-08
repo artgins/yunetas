@@ -169,27 +169,35 @@ Attributes can represent metadata about the GClass or its environment, including
 - **Documentation:** Descriptions provide built-in documentation for each attribute.
 
 
-
-
-
-
-
-
-## GObj State Machine: `gobj_state_t` and `gobj_event_t`
-
-### 🎯 Philosophy
+## Finite State Machine
 
 In Yuneta, `gobj_state_t` and `gobj_event_t` define the behavior of `GObj` finite state machines (FSM). This event-driven architecture allows for structured and predictable execution.
 
 (gobj_state_t)=
-- **`gobj_state_t`** represents states a `GObj` can be in.
+### gobj_state_t
+
+GObj `states` represent different stages in an object's lifecycle, defining how it behaves and responds to events. Each state is identified by a unique name and is used to manage transitions between different operational conditions.
+
+Unique pointer that exposes state names, defined as:
+
+In C:
+```C
+typedef const char *gobj_state_t;
+```
 
 (gobj_event_t)=
-- **`gobj_event_t`** represents events that trigger state transitions.
+### gobj_event_t
+
+GObj `events` represent actions or signals that trigger transitions between states, facilitating communication between objects. Each event has a specific meaning within the system and determines how a GObj responds to changes or external inputs.
+
+Unique pointer that exposes event names, defined as:
+
+In C:
+```C
+typedef const char *gobj_event_t;
+```
 
 The FSM ensures clear behavior and modular event handling.
-
----
 
 ### 🛠️ How It Works
 
@@ -208,58 +216,9 @@ When an event occurs, the FSM:
 3. Executes the associated action.
 4. Moves to the `next_state` if defined.
 
-If an event is not handled in the current state, a wildcard `"*"` state can define a fallback handler.
-
----
-
-### 🔁 Predefined Events (`gobj_event_t`)
-
-Yuneta provides core events used across `GObjs`:
-
-- **EV_ENTER** → Triggered when entering a new state.
-- **EV_EXIT** → Triggered when leaving a state.
-- **EV_START** → Requests the `GObj` to start.
-- **EV_STOP** → Requests the `GObj` to stop.
-- **EV_PAUSE** → Pauses the `GObj`'s operation.
-- **EV_RESUME** → Resumes a paused `GObj`.
-- **EV_TIMEOUT** → Used for time-based transitions.
-- **EV_INPUT** → General event for external input.
-- **EV_OUTPUT** → Event for output operations.
-- **EV_ERROR** → Indicates an error condition.
-
----
-
-### 📌 Predefined States (`gobj_state_t`)
-
-Commonly used states include:
-
-- **ST_IDLE** → The initial or waiting state.
-- **ST_RUNNING** → The `GObj` is active and processing events.
-- **ST_STOPPED** → The `GObj` has stopped operation.
-- **ST_PAUSED** → The `GObj` is temporarily paused.
-
----
-
-### ✅ Conclusion
-
-The `gobj_state_t` and `gobj_event_t` system in Yuneta ensures a modular and structured event-driven approach to `GObj` development. It provides a clear separation of concerns, allowing `GObjs` to handle dynamic behavior efficiently while maintaining state integrity. 🚀
-
-
-
-
-
-
-
-
-
-
-
-
 ## Predefined States and Events in the System
 
 Predefined States (`gobj_state_t`)
-
-### GObj states represent different stages in an object's lifecycle, defining how it behaves and responds to events. Each state is identified by a unique name and is used to manage transitions between different operational conditions.
 
 The following states are defined in the system using `GOBJ_DEFINE_STATE()`:
 
@@ -282,11 +241,7 @@ The following states are defined in the system using `GOBJ_DEFINE_STATE()`:
 - `ST_WAITING_FRAME_HEADER`
 - `ST_WAITING_PAYLOAD_DATA`
 
-These states represent different stages of a GObj's lifecycle, such as connection states, waiting for responses, and idle conditions. Transitions between these states occur when specific events are triggered, guiding the GObj through its operational workflow.
-
 ### Predefined Events (`gobj_event_t`)
-
-### GObj events represent actions or signals that trigger transitions between states, facilitating communication between objects. Each event has a specific meaning within the system and determines how a GObj responds to changes or external inputs.
 
 The following events are defined in the system using `GOBJ_DEFINE_EVENT()`:
 
@@ -322,16 +277,7 @@ These predefined states and events form the core of Yuneta's GObj framework, ena
 (EV_STATE_CHANGED)=
 - `EV_STATE_CHANGED`
 
-Is a system event. TODO
-
-
-
-
-
-
-
-
-
+Is a system event. Publish when a FSM change his state.
 
 
 (private_vars)=
