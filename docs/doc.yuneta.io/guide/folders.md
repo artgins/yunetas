@@ -16,7 +16,6 @@ The Yuneta SDK is structured into the following top folders:
 ---
 
 (docs)=
-
 ## `docs`
 
 - `doc.yuneta.io`: Yuneta’s Documentation built with:
@@ -27,7 +26,6 @@ The Yuneta SDK is structured into the following top folders:
 ---
 
 (kernel)=
-
 ## `kernel`
 
 The core framework of Yuneta, implemented in multiple languages.
@@ -85,7 +83,7 @@ Contains additional protocol and functionality modules.
 
 ---
 
-(performance())=
+(performance)=
 ## `performance`
 
 Performance testing utilities for key Yuneta components.
@@ -102,7 +100,7 @@ Performance testing utilities for key Yuneta components.
 
 ---
 
-(tests())=
+(tests)=
 ## `tests`
 
 Tests for Yuneta components.
@@ -119,7 +117,7 @@ Tests for Yuneta components.
 
 ---
 
-(tools())=
+(tools)=
 ## `tools`
 
 Auxiliary tools for building and compiling Yuneta projects.
@@ -129,7 +127,7 @@ Auxiliary tools for building and compiling Yuneta projects.
 
 ---
 
-(utils())=
+(utils)=
 ## `utils`
 
 Utility scripts and CLI tools for Yuneta.
@@ -143,7 +141,7 @@ Utility scripts and CLI tools for Yuneta.
 
 ---
 
-(yunos())=
+(yunos)=
 ## `yunos`
 
 Pre-supplied full applications or utilities built with Yuneta.

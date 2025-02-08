@@ -111,7 +111,7 @@ Use this macro to safely free JSON objects when they are no longer needed.
 
 ---
 
-(JSON_INCREF())=
+(JSON_INCREF)=
 ## 🔺 `JSON_INCREF(json)`
 
 ### **Description**

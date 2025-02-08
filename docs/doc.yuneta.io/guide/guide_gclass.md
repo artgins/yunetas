@@ -1,4 +1,4 @@
-(gclass())=
+(gclass)=
 # **GClass**
 
 ## What is a GClass?
@@ -63,12 +63,12 @@ A `GClass` consists of several key components that define its operation:
 4. **Extensibility**:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
-(gclass_name_t())=
+(gclass_name_t)=
 ## GClass Name
 
 Each `GClass` has a unique name (e.g., `C_CHANNEL`) to identify it.
 
-(tattr_desc())=
+(tattr_desc)=
 ## Attributes
 
 Attributes in a GClass define its properties or state. They are represented as structured data in the `tattr_desc` table, where each entry describes an attribute's type, access flags, default value, and purpose. Attributes are the foundation of a GClass, providing a schema for configuration, runtime state, and operational behavior.
@@ -181,10 +181,10 @@ Attributes can represent metadata about the GClass or its environment, including
 
 In Yuneta, `gobj_state_t` and `gobj_event_t` define the behavior of `GObj` finite state machines (FSM). This event-driven architecture allows for structured and predictable execution.
 
-(gobj_state_t())=
+(gobj_state_t)=
 - **`gobj_state_t`** represents states a `GObj` can be in.
 
-(gobj_event_t())=
+(gobj_event_t)=
 - **`gobj_event_t`** represents events that trigger state transitions.
 
 The FSM ensures clear behavior and modular event handling.
@@ -319,7 +319,7 @@ These events represent system signals for timeouts, state transitions, messaging
 
 These predefined states and events form the core of Yuneta's GObj framework, enabling structured event-driven programming and state management. States define the behavior of an object at any given time, while events act as triggers that drive transitions between these states. Together, they create a dynamic and responsive system that efficiently handles various operational scenarios.
 
-(EV_STATE_CHANGED())=
+(EV_STATE_CHANGED)=
 - `EV_STATE_CHANGED`
 
 Is a system event. TODO
@@ -334,11 +334,11 @@ Is a system event. TODO
 
 
 
-(private_vars())=
+(private_vars)=
 ## Private Attributes
 - Private attributes, they are implemented accord the language    
 
-(GMETHODS())=
+(GMETHODS)=
 ## GMETHODS
 
 The `GMETHODS` structure in Yuneta defines the global methods that a `GClass` can implement. These methods encapsulate key behaviors and operations associated with the lifecycle, state management, and functionality of GObjects.
@@ -354,222 +354,222 @@ Some methods are not currently utilized in the gobj API.
 Refer to the [](mapping_gmethods) section for details.
 ```
 
-(mt_create())=
+(mt_create)=
 - `mt_create`:
    - Purpose: Initializes the GObject. Called when a GObject is instantiated.
    - Example: Allocating memory or setting default attribute values.
 
-(mt_create2())=
+(mt_create2)=
 - `mt_create2`:
    - Purpose: Provides extended initialization capabilities with additional parameters.
    - Example: Custom initialization logic based on specific input.
 
-(mt_destroy())=
+(mt_destroy)=
 - `mt_destroy`:
    - Purpose: Cleans up and destroys the GObject. Called when the GObject is deleted.
    - Example: Freeing resources or stopping child GObjects.
 
-(mt_start())=
+(mt_start)=
 - `mt_start`:
    - Purpose: Starts the operation of the GObject.
    - Example: Transitioning to a running state or starting timers.
 
-(mt_stop())=
+(mt_stop)=
 - `mt_stop`:
    - Purpose: Stops the operation of the GObject.
    - Example: Halting operations, stopping timers, or freeing temporary resources.
 
-(mt_play())=
+(mt_play)=
 - `mt_play`:
    - Purpose: Resumes the GObject's operation after being paused.
    - Example: Resuming services or processes.
 
-(mt_pause())=
+(mt_pause)=
 - `mt_pause`:
    - Purpose: Pauses the GObject's operation.
    - Example: Temporarily halting services without stopping them.
 
-(mt_writing())=
+(mt_writing)=
 - `mt_writing`:
    - Purpose: Handles attribute write operations dynamically.
    - Example: Validating or processing the value being written.
 
-(mt_reading())=
+(mt_reading)=
 - `mt_reading`:
    - Purpose: Handles attribute read operations dynamically.
    - Example: Adjusting or filtering the value before returning it.
 
-(mt_subscription_added())=
+(mt_subscription_added)=
 - `mt_subscription_added`:
    - Purpose: Called when a subscription to an event is added.
    - Example: Managing event listeners or counting subscriptions.
 
-(mt_subscription_deleted())=
+(mt_subscription_deleted)=
 - `mt_subscription_deleted`:
    - Purpose: Called when a subscription to an event is removed.
    - Example: Cleaning up resources or notifying other components.
 
-(mt_child_added())=
+(mt_child_added)=
 - `mt_child_added`:
    - Purpose: Called after a child GObject is created and added.
    - Example: Managing hierarchical relationships.
 
-(mt_child_removed())=
+(mt_child_removed)=
 - `mt_child_removed`:
    - Purpose: Called before a child GObject is removed.
    - Example: Cleaning up references or handling dependencies.
 
-(mt_stats())=
+(mt_stats)=
 - `mt_stats`:
    - Purpose: Returns statistics related to the GObject in a JSON format.
    - Example: Providing performance or usage metrics.
 
-(mt_command_parser())=
+(mt_command_parser)=
 - `mt_command_parser`:
    - Purpose: Parses and executes user commands specific to the GClass.
    - Example: Implementing custom command handling logic.
 
-(mt_inject_event())=
+(mt_inject_event)=
 - `mt_inject_event`:
    - Purpose: Handles events manually, bypassing the built-in state machine.
    - Example: Custom event-processing logic.
 
-(mt_create_resource())=
+(mt_create_resource)=
 - `mt_create_resource`:
    - Purpose: Creates a new resource managed by the GObject.
    - Example: Initializing data structures or external dependencies.
 
-(mt_list_resource())=
+(mt_list_resource)=
 - `mt_list_resource`:
    - Purpose: Lists resources managed by the GObject.
    - Example: Returning an iterator or JSON representation.
 
-(mt_save_resource())=
+(mt_save_resource)=
 - `mt_save_resource`:
    - Purpose: Saves or updates a resource.
    - Example: Persisting data to storage.
 
-(mt_delete_resource())=
+(mt_delete_resource)=
 - `mt_delete_resource`:
    - Purpose: Deletes a resource.
    - Example: Removing an entry from a database.
 
-(mt_state_changed())=
+(mt_state_changed)=
 - `mt_state_changed`:
    - Purpose: Handles transitions between states.
    - Example: Logging state changes or triggering side effects.
 
-(mt_authenticate())=
+(mt_authenticate)=
 - `mt_authenticate`:
    - Purpose: Authenticates users or services.
    - Example: Verifying credentials or tokens.
 
-(mt_list_childs())=
+(mt_list_childs)=
 - `mt_list_childs`:
    - Purpose: Lists the child GObjects of the current GObject.
    - Example: Returning hierarchical information.
 
-(mt_stats_updated())=
+(mt_stats_updated)=
 - `mt_stats_updated`:
    - Purpose: Notifies that statistics have been updated.
    - Example: Refreshing metrics in real time.
 
-(mt_disable())=
+(mt_disable)=
 - `mt_disable`:
    - Purpose: Disables the GObject.
    - Example: Preventing further operations until re-enabled.
 
-(mt_enable())=
+(mt_enable)=
 - `mt_enable`:
    - Purpose: Enables the GObject.
    - Example: Allowing operations after being disabled.
 
-(mt_trace_on())=
+(mt_trace_on)=
 - `mt_trace_on`:
    - Purpose: Enables tracing for the GObject.
    - Example: Activating debug or log output.
 
-(mt_trace_off())=
+(mt_trace_off)=
 - `mt_trace_off`:
    - Purpose: Disables tracing for the GObject.
    - Example: Deactivating debug or log output.
 
-(mt_gobj_created())=
+(mt_gobj_created)=
 - `mt_gobj_created`:
    - Purpose: Special method invoked when a GObject is created. Typically for the root object (`__yuno__`).
    - Example: Custom initialization for the Yuno.
 
-(mt_publish_event())=
+(mt_publish_event)=
 - `mt_publish_event`:
    - Purpose: Manages the publication of events.
    - Example: Filtering or modifying events before they are emitted.
 
-(mt_authz_checker())=
+(mt_authz_checker)=
 - `mt_authz_checker`:
    - Purpose: Checks authorization for specific actions or events.
    - Example: Enforcing access control policies.
 
-(mt_create_node())=
+(mt_create_node)=
 - `mt_create_node`
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
-(mt_update_node())=
+(mt_update_node)=
 - `mt_update_node`
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
-(mt_delete_node())=
+(mt_delete_node)=
 - `mt_delete_node`
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
-(mt_link_nodes())=
+(mt_link_nodes)=
 - `mt_link_nodes`
   - Purpose: Methods for managing nodes in TreeDB.
   - Example: Adding, updating, deleting, or linking nodes.
 
-(mt_unlink_nodes())=
+(mt_unlink_nodes)=
 - `mt_unlink_nodes`:
    - Purpose: Methods for managing nodes in TreeDB.
    - Example: Adding, updating, deleting, or linking nodes.
 
-(mt_topic_desc())=
+(mt_topic_desc)=
 - `mt_topic_desc`:
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
-(mt_topic_links())=
+(mt_topic_links)=
 - `mt_topic_links`:
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
-(mt_topic_hooks())=
+(mt_topic_hooks)=
 - `mt_topic_hooks`:
   - Purpose: Methods for inspecting TreeDB topics.
   - Example: Describing topics or retrieving metadata.
 
-(mt_topic_size())=
+(mt_topic_size)=
 - `mt_topic_size`:
    - Purpose: Methods for inspecting TreeDB topics.
    - Example: Describing topics or retrieving metadata.
 
-(mt_shoot_snap())=
+(mt_shoot_snap)=
 - `mt_shoot_snap`:
   - Purpose: Manage snapshots in the TreeDB.
   - Example: Creating or restoring data snapshots.
 
-(mt_activate_snap())=
+(mt_activate_snap)=
 - `mt_activate_snap`:
   - Purpose: Manage snapshots in the TreeDB.
   - Example: Creating or restoring data snapshots.
 
-(mt_list_snaps())=
+(mt_list_snaps)=
 - `mt_list_snaps`:
    - Purpose: Manage snapshots in the TreeDB.
    - Example: Creating or restoring data snapshots.
 
-(mapping_gmethods())=
+(mapping_gmethods)=
 ### Mapping
 
 This section maps GObject API functions to the `GMETHODS` they invoke. It provides a detailed overview of how `GMETHODS` are utilized within the GObject lifecycle.
@@ -735,7 +735,7 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 
 
 
-(LMETHOD())=
+(LMETHOD)=
 ## LMETHOD
 
 The `LMETHOD` structure in the Yuneta framework defines the local methods 
@@ -746,7 +746,7 @@ the [`gobj_local_method()`](gobj_local_method) API,
 unlike the global methods (`GMETHODS`).
 
 
-(event_type_t())=
+(event_type_t)=
 ## Event Table
 
 - A list of public and private events that the `GClass` can handle or emit.
@@ -761,7 +761,7 @@ typedef struct event_type_s {
 ```
 
 
-(states_t())=
+(states_t)=
 ## States Table
 
 Defines the behavior of the `GClass` in terms of states, events, and transitions:
@@ -778,7 +778,7 @@ typedef struct states_s {
 ```
 
 
-(authz_table())=
+(authz_table)=
 ## Authorizations
 
 The `authz_table` in a GClass defines the permissions required to access specific operations or resources. Each entry in the `authz_table` describes a distinct authorization, including its parameters, description, and validation schema. The `authz_table` is implemented using `sdata_desc_t` structures.
@@ -854,7 +854,7 @@ The `authz_table` works with APIs like `gobj_user_has_authz` to validate permiss
 - For example, a `read` permission might require a `treedb_name` and `id` to validate access to a specific node.
 
 
-(command_table())=
+(command_table)=
 ## Command Table
 
 The `command_table` in a GClass defines the available commands and their corresponding behaviors. Each command is represented as an entry in the table, described with parameters, aliases, execution logic, and a human-readable description. This structured approach ensures consistency, flexibility, and clarity in how commands are defined and executed.
@@ -923,7 +923,7 @@ The `command_table` serves as a central registry for all commands available in a
 - **Integration:** Commands are seamlessly integrated with authorization and other components of the GClass.
 
 
-(trace_level_t())=
+(trace_level_t)=
 ## Trace Levels
 
 Trace levels allow precise control over debugging and diagnostic logging in a GClass. By defining a table of trace levels (`s_user_trace_level`), GClasses can manage which aspects of their behavior are logged, ensuring detailed, yet efficient, monitoring and debugging.
@@ -1030,7 +1030,7 @@ Trace levels allow selective analysis of specific features or operations, improv
 
 
 
-(gclass_flag_t())=
+(gclass_flag_t)=
 ## gclass_flag_t
 
 The `gclass_flag_t` enumeration defines flags that can be applied to a `GClass` to modify its behavior. These flags are used to control specific operational aspects of the `GClass`.
@@ -1054,7 +1054,7 @@ Values of `gclass_flag_t` Flags
     - **Use Case**: For `GClasses` that must maintain a single-instance constraint (e.g., a singleton pattern).
 
 
-(__global_list_persistent_attrs_fn__())=
+(__global_list_persistent_attrs_fn__)=
 # __global_list_persistent_attrs_fn__
 
     TODO
