@@ -15,5 +15,3 @@ PUBLIC int yev_start_event(
 
 ## Return Value
 - Returns 0 on success, or an error code on failure.
-
----

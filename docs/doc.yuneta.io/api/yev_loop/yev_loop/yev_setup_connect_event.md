@@ -8,5 +8,3 @@ Configures a connect event for handling outgoing connections.
 
 **Return Value:**
 - None.
-
----

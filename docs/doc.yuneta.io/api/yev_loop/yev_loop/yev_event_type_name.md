@@ -8,5 +8,3 @@ Retrieves the string name corresponding to a given event type.
 
 **Return Value:**
 - Returns a string representing the event type.
-
----

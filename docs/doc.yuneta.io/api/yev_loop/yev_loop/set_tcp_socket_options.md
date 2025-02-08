@@ -9,5 +9,3 @@ Sets various TCP options for a given socket, such as `keep_alive`.
 
 **Return Value:**
 - Returns `0` on success, or a negative value on failure.
-
----

@@ -9,5 +9,3 @@ Associates a `gbuffer` with an event.
 
 **Return Value:**
 - None.
-
----

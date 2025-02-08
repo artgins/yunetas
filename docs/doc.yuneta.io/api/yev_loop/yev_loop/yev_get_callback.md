@@ -8,5 +8,3 @@ Retrieves the callback function associated with an event.
 
 **Return Value:**
 - Returns the callback function pointer.
-
----

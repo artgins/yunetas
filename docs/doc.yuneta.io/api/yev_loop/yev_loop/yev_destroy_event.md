@@ -13,5 +13,3 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event);
 
 ## Return Value
 - None.
-
----

@@ -8,5 +8,3 @@ Checks whether a given socket is a TCP socket.
 
 **Return Value:**
 - Returns `true` if the socket is a TCP socket, otherwise `false`.
-
----

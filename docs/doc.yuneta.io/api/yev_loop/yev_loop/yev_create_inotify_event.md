@@ -10,5 +10,3 @@ Creates a new event for monitoring file system changes using `inotify`.
 
 **Return Value:**
 - Returns a pointer to the created event on success, or `NULL` on failure.
-
----

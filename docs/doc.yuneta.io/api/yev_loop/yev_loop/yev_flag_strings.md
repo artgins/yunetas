@@ -8,5 +8,3 @@ Returns a list of string representations of event flags.
 
 **Return Value:**
 - Returns a list of strings describing the flags.
-
----

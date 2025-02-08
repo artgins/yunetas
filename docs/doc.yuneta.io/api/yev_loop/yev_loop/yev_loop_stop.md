@@ -13,5 +13,3 @@ PUBLIC int yev_loop_stop(yev_loop_h yev_loop);
 
 ## Return Value
 - Returns 0 on success, or an error code on failure.
-
----

@@ -9,5 +9,3 @@ Sets user-defined data for an event.
 
 **Return Value:**
 - None.
-
----

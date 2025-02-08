@@ -13,5 +13,3 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop);
 
 ## Return Value
 - None.
-
----

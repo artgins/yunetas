@@ -8,5 +8,3 @@ Sets the function that fills protocol-specific hints for an event.
 
 **Return Value:**
 - None.
-
----

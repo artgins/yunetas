@@ -10,5 +10,3 @@ Creates a new event for handling write operations on a socket.
 
 **Return Value:**
 - Returns a pointer to the created event on success, or `NULL` on failure.
-
----

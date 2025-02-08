@@ -8,5 +8,3 @@ Retrieves the current state of an event.
 
 **Return Value:**
 - Returns the state of the event.
-
----

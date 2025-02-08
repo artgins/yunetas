@@ -8,5 +8,3 @@ Configures an accept event for handling incoming connections.
 
 **Return Value:**
 - None.
-
----

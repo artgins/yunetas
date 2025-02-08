@@ -13,5 +13,3 @@ PUBLIC BOOL yev_event_is_running(yev_event_h yev_event);
 
 ## Return Value
 - Returns `TRUE` if the event is running, `FALSE` otherwise.
-
----

@@ -13,5 +13,3 @@ PUBLIC int yev_stop_event(yev_event_h yev_event);
 
 ## Return Value
 - Returns 0 on success, or an error code on failure.
-
----

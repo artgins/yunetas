@@ -13,5 +13,3 @@ PUBLIC int yev_get_result(yev_event_h yev_event);
 
 ## Return Value
 - Returns an integer result value.
-
----

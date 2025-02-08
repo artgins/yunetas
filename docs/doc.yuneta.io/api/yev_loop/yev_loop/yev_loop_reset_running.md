@@ -13,5 +13,3 @@ PUBLIC void yev_loop_reset_running(yev_loop_h yev_loop);
 
 ## Return Value
 - None.
-
----

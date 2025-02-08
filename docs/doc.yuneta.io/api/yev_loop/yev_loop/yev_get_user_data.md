@@ -8,5 +8,3 @@ Retrieves the user-defined data associated with an event.
 
 **Return Value:**
 - Returns a pointer to the user-defined data.
-
----
