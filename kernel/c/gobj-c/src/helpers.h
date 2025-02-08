@@ -978,7 +978,7 @@ PUBLIC void istream_destroy(
     if(istream) {                   \
         istream_destroy(istream);   \
     }                               \
-    (ptr) = 0;
+    (istream) = 0;
 
 
 PUBLIC int istream_read_until_num_bytes(
