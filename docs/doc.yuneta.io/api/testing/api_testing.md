@@ -1,4 +1,4 @@
-# Testing
+# Testing Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [testing.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/testing.h)
 
 ```{toctree}
-:caption: Testing functions
+:caption: Testing Functions
 :maxdepth: 2
 
 testing/capture_log_write

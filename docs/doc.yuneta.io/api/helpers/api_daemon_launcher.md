@@ -1,4 +1,4 @@
-# Daemon functions
+# Daemon Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
 :::{toctree}
-:caption: Daemon functions
+:caption: Daemon Functions
 :maxdepth: 1
 
 daemon-launcher/launch_daemon

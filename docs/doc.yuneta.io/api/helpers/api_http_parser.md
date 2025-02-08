@@ -1,4 +1,4 @@
-# HTTP Parser functions
+# HTTP Parser Functions
 
 Source code in:
 
@@ -56,7 +56,7 @@ Source code in:
 
 
 :::{toctree}
-:caption: HTTP Parser functions
+:caption: HTTP Parser Functions
 :maxdepth: 1
 
 http-parser/ghttp_parser_create

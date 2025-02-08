@@ -1,4 +1,4 @@
-# Yuneta Event Loop
+# Event Loop Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [yev_loop.h](https://github.com/artgins/yunetas/blob/main/kernel/c/yev_loop/src/yev_loop.h)
 
 ```{toctree}
-:caption: Yuneta Event Loop
+:caption: Event Loop Functions
 :maxdepth: 2
 
 yev_loop/yev_loop_create

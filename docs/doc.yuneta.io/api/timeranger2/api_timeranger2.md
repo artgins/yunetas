@@ -1,4 +1,4 @@
-# Timeranger2
+# Timeranger2 Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [timeranger2.h](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/timeranger2.h)
 
 ```{toctree}
-:caption: Timeranger2 functions
+:caption: Timeranger2 Functions
 :maxdepth: 2
 
 timeranger2/tranger2_startup

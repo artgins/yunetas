@@ -1,4 +1,4 @@
-# Statistic Parser
+# Statistic Parser Functions
 
 Source code in:
 
@@ -7,7 +7,7 @@ Source code in:
 
 
 ```{toctree}
-:caption: Statistic Parser functions
+:caption: Statistic Parser Functions
 :maxdepth: 2
 
 stats_parser/build_stats

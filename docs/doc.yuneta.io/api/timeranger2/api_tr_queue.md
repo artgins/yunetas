@@ -1,4 +1,4 @@
-# Timeranger2 Queue
+# Queue Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [tr_queue.h](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_queue.h)
 
 ```{toctree}
-:caption: Timeranger2 Queue functions
+:caption: Queue Functions
 :maxdepth: 2
 
 tr_queue/trq_open

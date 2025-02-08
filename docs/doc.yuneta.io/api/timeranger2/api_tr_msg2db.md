@@ -1,4 +1,4 @@
-# Timeranger Message2db
+# Message2db Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [tr_msg2db.h](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/tr_msg2db.h)
 
 ```{toctree}
-:caption: Timeranger Message2db functions
+:caption: Message2db Functions
 :maxdepth: 2
 
 tr_msg2db/msg2db_open_db

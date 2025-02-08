@@ -1,4 +1,4 @@
-# Yuneta TLS
+# TLS Functions
 
 Source code in:
 
@@ -13,7 +13,7 @@ Source code in:
 
 
 ```{toctree}
-:caption: TLS functions
+:caption: TLS Functions
 :maxdepth: 2
 
 ytls/ytls_init

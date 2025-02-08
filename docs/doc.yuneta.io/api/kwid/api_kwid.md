@@ -1,4 +1,4 @@
-# Kwid
+# Kwid Functions
 
 Source code in:
 - [kwid.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/kwid.c)
@@ -6,7 +6,7 @@ Source code in:
 
 
 ```{toctree}
-:caption: kwid functions
+:caption: Kwid Functions
 :maxdepth: 2
 
 kwid/kw_add_binary_type

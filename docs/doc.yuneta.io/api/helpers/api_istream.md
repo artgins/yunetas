@@ -1,4 +1,4 @@
-# IStream functions
+# IStream Functions
 
 Source code in:
 
@@ -7,7 +7,7 @@ Source code in:
 
 
 :::{toctree}
-:caption: IStream functions
+:caption: IStream Functions
 :maxdepth: 1
 
 istream/ISTREAM_CREATE

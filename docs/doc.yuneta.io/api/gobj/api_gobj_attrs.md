@@ -1,4 +1,4 @@
-# Attributes functions
+# Attributes Functions
 
 Source code in:
 - [gobj.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.c)
@@ -6,7 +6,7 @@ Source code in:
 
 
 ```{toctree}
-:caption: Attribute functions
+:caption: Attribute Functions
 :maxdepth: 1
 
 attrs/gclass_attr_desc

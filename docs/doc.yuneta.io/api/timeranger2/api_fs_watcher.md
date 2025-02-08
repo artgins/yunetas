@@ -1,4 +1,4 @@
-# File System Watcher
+# File System Watcher Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [fs_watcher.h](https://github.com/artgins/yunetas/blob/main/kernel/c/timeranger2/src/fs_watcher.h)
 
 ```{toctree}
-:caption: File System Watcher functions
+:caption: File System Watcher Functions
 :maxdepth: 2
 
 fs_watcher/fs_create_watcher_event

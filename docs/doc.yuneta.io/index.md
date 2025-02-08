@@ -157,7 +157,7 @@ api/timeranger2/api_treedb
 :::
 
 :::{toctree}
-:caption: Yev Loop API
+:caption: Event Loop API
 :maxdepth: 1
 
 api/yev_loop/api_yev_loop
@@ -165,7 +165,7 @@ api/yev_loop/api_yev_loop
 :::
 
 :::{toctree}
-:caption: YTLS API
+:caption: TLS API
 :maxdepth: 1
 
 api/ytls/api_ytls

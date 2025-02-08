@@ -1,4 +1,4 @@
-# Publish/Subscription functions
+# Publish/Subscription Functions
 
 
 Source code in:
@@ -6,7 +6,7 @@ Source code in:
 - [gobj.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
 
 ```{toctree}
-:caption: Publish/Subscription functions
+:caption: Publish/Subscription Functions
 :maxdepth: 1
 
 publish/gobj_find_subscribings

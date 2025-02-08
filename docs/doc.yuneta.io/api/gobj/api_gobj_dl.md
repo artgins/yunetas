@@ -1,5 +1,5 @@
 (dl())=
-# Double Linked List functions
+# Double Linked List Functions
 
 Source code in:
 - [gobj.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.c)
@@ -13,7 +13,7 @@ Source code in:
 
 
 ```{toctree}
-:caption: Double List functions
+:caption: Double List Functions
 :maxdepth: 1
 
 dl/dl_add

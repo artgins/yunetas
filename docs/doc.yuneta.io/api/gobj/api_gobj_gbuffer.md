@@ -1,4 +1,4 @@
-# GBuffer functions
+# GBuffer Functions
 
 Source code in:
 
@@ -7,7 +7,7 @@ Source code in:
 
 
 ```{toctree}
-:caption: GBuffer functions
+:caption: GBuffer Functions
 :maxdepth: 1
 
 gbuffer/gbuf2json

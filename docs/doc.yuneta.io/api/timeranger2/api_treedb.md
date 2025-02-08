@@ -1,4 +1,4 @@
-# Timeranger2 Treedb
+# Treedb Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [tr_treedb.h]
 
 ```{toctree}
-:caption: Timeranger2 Treedb functions
+:caption: Treedb Functions
 :maxdepth: 2
 
 tr_treedb/treedb_open_db

@@ -1,4 +1,4 @@
-# Command Parser
+# Command Parser Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [command_parser.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/command_parser.h)
 
 ```{toctree}
-:caption: Command Parser functions
+:caption: Command Parser Functions
 :maxdepth: 2
 
 command_parser/command_parser

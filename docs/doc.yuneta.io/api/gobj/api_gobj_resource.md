@@ -1,4 +1,4 @@
-# Resource functions
+# Resource Functions
 
 The following APIs provide a standardized way for Gobjs to manage resources such as records or data objects. These functions delegate their operations to corresponding global methods (`mt_create_resource`, `mt_save_resource`, etc.), which must be implemented by the GClass of the target GObj.
 
@@ -29,7 +29,7 @@ Source code in:
 
 
 ```{toctree}
-:caption: Resource functions
+:caption: Resource Functions
 :maxdepth: 1
 
 resource/gobj_create_resource

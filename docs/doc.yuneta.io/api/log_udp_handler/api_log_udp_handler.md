@@ -1,4 +1,4 @@
-# Log UDP handler
+# Log UDP handler Functions
 
 Source code in:
 
@@ -7,7 +7,7 @@ Source code in:
 
 
 ```{toctree}
-:caption: Log UDP handler functions
+:caption: Log UDP handler Functions
 :maxdepth: 2
 
 log_udp_handler/udpc_close

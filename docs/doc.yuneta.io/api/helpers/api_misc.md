@@ -1,4 +1,4 @@
-# Misc Utility functions
+# Misc Utility Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [helpers.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/helpers.c)
 
 :::{toctree}
-:caption: Misc Utility functions
+:caption: Misc Utility Functions
 :maxdepth: 1
 
 misc/create_uuid

@@ -1,11 +1,11 @@
-# Events/State functions
+# Events/State Functions
 
 Source code in:
 - [gobj.c](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.c)
 - [gobj.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/gobj.h)
 
 ```{toctree}
-:caption: Events/State functions
+:caption: Events/State Functions
 :maxdepth: 1
 
 events_state/gobj_change_state

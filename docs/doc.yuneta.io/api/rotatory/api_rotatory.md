@@ -1,4 +1,4 @@
-# Rotatory
+# Rotatory Functions
 
 Source code in:
 
@@ -6,7 +6,7 @@ Source code in:
 - [rotatory.h](https://github.com/artgins/yunetas/blob/main/kernel/c/gobj-c/src/rotatory.h)
 
 ```{toctree}
-:caption: Rotatory functions
+:caption: Rotatory Functions
 :maxdepth: 2
 
 rotatory/rotatory_close
