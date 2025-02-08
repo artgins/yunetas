@@ -525,7 +525,7 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
 
 #### Creation and Destruction
 - **Creation Operations**:
-    - `_create_gobj()`:
+    - `gobj_create2()`:
         - `mt_create2`: Initializes the GObject with additional parameters.
         - `mt_create`: Performs basic GObject initialization.
         - `mt_child_added`: Invoked when a child GObject is added.
