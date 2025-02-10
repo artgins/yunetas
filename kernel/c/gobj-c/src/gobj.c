@@ -71,8 +71,8 @@ typedef struct gclass_s {
     DL_ITEM_FIELDS
 
     gclass_name_t gclass_name;
-    dl_list_t dl_states;            // FSM
-    dl_list_t dl_events;            // FSM
+    dl_list_t dl_states;            // FSM list states and their ev/action/next
+    dl_list_t dl_events;            // FSM list of events (gobj_event_t, event_flag_t)
     const GMETHODS *gmt;            // Global methods
     const LMETHOD *lmt;
 
@@ -93,6 +93,7 @@ typedef struct gclass_s {
     uint32_t trace_level;
     uint32_t no_trace_level;
     json_t *jn_trace_filter;
+    BOOL fsm_checked;
 } gclass_t;
 
 typedef struct gobj_s {
@@ -864,7 +865,10 @@ PUBLIC hgclass gclass_create(
     /*----------------------------------------*
      *          Check FSM
      *----------------------------------------*/
-    // TODO check fsm
+    if(!gclass->fsm_checked) {
+        gclass_check_fsm(gclass);
+        gclass->fsm_checked = TRUE;
+    }
 
     return gclass;
 }
@@ -1194,6 +1198,134 @@ PRIVATE int add_event_type(
     event->event_type.event_flag = event_type_->event_flag;
 
     return dl_add(dl, event);
+}
+
+/***************************************************************************
+ *  Check smachine
+ ***************************************************************************/
+PUBLIC int gclass_check_fsm(hgclass gclass_)
+{
+    gclass_t *gclass = gclass_;
+    hgobj gobj = 0;
+    int ret = 0;
+
+    /*
+     *  check states
+     */
+    if(!dl_size(&gclass->dl_states)) {
+        gobj_log_error(gobj,0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass without states",
+            "gclass",       "%s", gclass->gclass_name,
+            NULL
+        );
+        ret += -1;
+    }
+
+    /*
+     *  check events
+     */
+    if(!dl_size(&gclass->dl_events)) {
+        gobj_log_error(gobj,0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass without events",
+            "gclass",       "%s", gclass->gclass_name,
+            NULL
+        );
+        ret += -1;
+    }
+
+    /*
+     *  check state's event in input_list
+     */
+    state_t *state = dl_first(&gclass->dl_states);
+    while(state) {
+        // gobj_state_t state_name;
+        // dl_list_t dl_actions;
+
+        event_action_t *event_action = dl_first(&state->dl_actions);
+        while(event_action) {
+            // gobj_event_t event;
+            // gobj_action_fn action;
+            // gobj_state_t next_state;
+            event_type_t *event_type = gobj_event_type(gobj, event_action->event, FALSE);
+            if(!event_type) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "SMachine: state's event NOT in input_events",
+                    "gclass",       "%s", gclass->gclass_name,
+                    "state",        "%s", state->state_name,
+                    "event",        "%s", event_action->event,
+                    NULL
+                );
+            }
+
+            if(event_action->next_state) {
+                state_t *next_state = find_state(gclass, event_action->next_state);
+                if(!next_state) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "SMachine: next state NOT in state names",
+                        "gclass",       "%s", gclass->gclass_name,
+                        "state",        "%s", state->state_name,
+                        "next_state",   "%s", event_action->next_state,
+                        NULL
+                    );
+                }
+            }
+
+            /*
+             *  Next: event/action/state
+             */
+            event_action = dl_next(event_action);
+        }
+
+        /*
+         *  Next: state
+         */
+        state = dl_next(state);
+    }
+
+    /*
+     *  check input_list's event in state
+     */
+    event_t *event_ = dl_first(&gclass->dl_events);
+    while(event_) {
+        // gobj_event_t event_type.event;
+        // event_flag_t event_type.event_flag;
+
+        BOOL found = FALSE;
+        state = dl_first(&gclass->dl_states);
+        while(state) {
+            event_action_t *ev_ac = find_event_action(state, event_->event_type.event);
+            if(ev_ac) {
+                found = TRUE;
+            }
+            state = dl_next(state);
+        }
+
+        if(!found) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "SMachine: input_list's event NOT in state",
+                "gclass",       "%s", gclass->gclass_name,
+                "event",        "%s", event_->event_type.event,
+                NULL
+            );
+        }
+
+        /*
+         *  Next: event
+         */
+        event_ = dl_next(event_);
+    }
+
+    return 0;
 }
 
 
@@ -6640,6 +6772,20 @@ PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_fl
         return FALSE;
     }
     return TRUE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL gobj_has_state(hgobj gobj_, gobj_state_t gobj_state)
+{
+    gobj_t *gobj = (gobj_t *)gobj_;
+
+    state_t *state = find_state(gobj->gclass, gobj_state);
+    if(state) {
+        return TRUE;
+    }
+    return FALSE;
 }
 
 /***************************************************************************

@@ -1216,6 +1216,7 @@ PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
 
 PUBLIC json_t *gclass_gclass_register(void); /* Get registered gclasses: Return [gclass:s}] */
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
+PUBLIC int gclass_check_fsm(hgclass gclass);
 
 
 /*---------------------------------*
@@ -1712,6 +1713,7 @@ PUBLIC BOOL gobj_change_state(
 );
 PUBLIC gobj_state_t gobj_current_state(hgobj gobj);
 PUBLIC BOOL gobj_in_this_state(hgobj gobj, gobj_state_t state);
+PUBLIC BOOL gobj_has_state(hgobj gobj, gobj_state_t state);
 
 PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag); // old gobj_event_in_input_event_list
 PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag); // old gobj_event_in_output_event_list
