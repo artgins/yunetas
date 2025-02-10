@@ -1201,19 +1201,33 @@ PRIVATE int add_event_type(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE event_t *find_event_in_event_list(gclass_t *gclass, gobj_event_t event)
+{
+    event_t *event_ = dl_first(&gclass->dl_events);
+    while(event_) {
+        if(event_->event_type.event && event_->event_type.event == event) {
+            return event_;
+        }
+        event_ = dl_next(event_);
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Check smachine
  ***************************************************************************/
 PUBLIC int gclass_check_fsm(hgclass gclass_)
 {
     gclass_t *gclass = gclass_;
-    hgobj gobj = 0;
     int ret = 0;
 
     /*
      *  check states
      */
     if(!dl_size(&gclass->dl_states)) {
-        gobj_log_error(gobj,0,
+        gobj_log_error(0,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "GClass without states",
@@ -1227,7 +1241,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
      *  check events
      */
     if(!dl_size(&gclass->dl_events)) {
-        gobj_log_error(gobj,0,
+        gobj_log_error(0,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "GClass without events",
@@ -1250,9 +1264,9 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             // gobj_event_t event;
             // gobj_action_fn action;
             // gobj_state_t next_state;
-            event_type_t *event_type = gobj_event_type(gobj, event_action->event, FALSE);
-            if(!event_type) {
-                gobj_log_error(gobj, 0,
+            event_t *event_ = find_event_in_event_list(gclass, event_action->event);
+            if(!event_) {
+                gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "SMachine: state's event NOT in input_events",
@@ -1266,7 +1280,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             if(event_action->next_state) {
                 state_t *next_state = find_state(gclass, event_action->next_state);
                 if(!next_state) {
-                    gobj_log_error(gobj, 0,
+                    gobj_log_error(0, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                         "msg",          "%s", "SMachine: next state NOT in state names",
@@ -1309,7 +1323,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
         }
 
         if(!found) {
-            gobj_log_error(gobj, 0,
+            gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "SMachine: input_list's event NOT in state",
@@ -6840,12 +6854,9 @@ PUBLIC event_type_t *gobj_event_type( // silent function
         return NULL;
     }
 
-    event_t *event_ = dl_first(&gobj->gclass->dl_events);
-    while(event_) {
-        if(event_->event_type.event && event_->event_type.event == event) {
-            return &event_->event_type;
-        }
-        event_ = dl_next(event_);
+    event_t *event_ = find_event_in_event_list(gobj->gclass, event);
+    if(event_) {
+        return &event_->event_type;
     }
 
     if(include_system_events) {
