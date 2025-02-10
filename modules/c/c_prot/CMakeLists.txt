@@ -24,7 +24,6 @@ set (SRCS
     src/register_prot.c
     src/c_prot_modbus_m.c
     src/c_ota.c
-    src/c_prot_mqtt.c
 )
 
 
@@ -33,7 +32,6 @@ set (HDRS
     src/register_prot.h
     src/c_prot_modbus_m.h
     src/c_ota.h
-    src/c_prot_mqtt.h
 )
 
 

@@ -36,6 +36,7 @@ set (SRCS
     src/c_ievent_cli.c
     src/c_prot_http_cl.c
     src/c_prot_http_sr.c
+    src/c_prot_mqtt.c
     src/c_prot_tcp4h.c
     src/c_websocket.c
     src/c_authz.c
@@ -69,6 +70,7 @@ set (HDRS
     src/c_ievent_cli.h
     src/c_prot_http_cl.h
     src/c_prot_http_sr.h
+    src/c_prot_mqtt.h
     src/c_prot_tcp4h.h
     src/c_websocket.h
     src/c_authz.h
