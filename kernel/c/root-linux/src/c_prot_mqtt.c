@@ -25,6 +25,12 @@
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 
+#include <kwid.h>
+
+#include "command_parser.h"
+#include "msg_ievent.h"
+#include "c_timer.h"
+#include "c_tcp.h"
 #include "c_prot_mqtt.h"
 
 /***************************************************************************
