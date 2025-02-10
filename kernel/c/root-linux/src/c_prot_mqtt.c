@@ -1482,7 +1482,7 @@ PRIVATE const char *protocol_version_name(mosquitto_protocol_t mosquitto_protoco
  ***************************************************************************/
 PRIVATE void do_disconnect(hgobj gobj, int reason)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 }
 
 /***************************************************************************
@@ -1833,7 +1833,7 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
     if(!gobj_is_running(gobj)) {
         return;
     }
-    gobj_change_state(gobj, "ST_WAITING_FRAME_HEADER");
+    gobj_change_state(gobj, ST_WAITING_FRAME_HEADER);
     if(priv->pingT>0) {
         set_timeout(priv->timer, priv->pingT);
     }
@@ -3523,7 +3523,7 @@ PRIVATE int send_packet(hgobj gobj, gbuffer_t *gbuf)
     json_t *kw = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
-    return gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw, gobj);
+    return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);
 }
 
 /***************************************************************************
@@ -4799,7 +4799,7 @@ PRIVATE int XXX_sub__messages_queue(
             "topic", topic_name,
             "gbuffer", (json_int_t)(size_t)gbuf_message
         );
-        gobj_publish_event(gobj, "EV_ON_MESSAGE", kw);
+        gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
     }
 
     return MOSQ_ERR_SUCCESS;
@@ -5348,7 +5348,7 @@ PRIVATE int connect_on_authorised(
     if(isConnected) {
         hgobj gobj_bottom = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj_bottom", 0, KW_REQUIRED);
         if(gobj_bottom) {
-            gobj_send_event(gobj_bottom, "EV_DROP", 0, gobj);
+            gobj_send_event(gobj_bottom, EV_DROP, 0, gobj);
         }
     }
 
@@ -5467,7 +5467,7 @@ PRIVATE int connect_on_authorised(
         json_t *kw = json_pack("{s:s}",
             "client_id", priv->client_id
         );
-        gobj_publish_event(gobj, "EV_ON_OPEN", kw);
+        gobj_publish_event(gobj, EV_ON_OPEN, kw);
 
         // db__message_write_queued_out(context); TODO
         //db__message_write_inflight_out_all(context); TODO
@@ -7429,7 +7429,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
         "mqtt_action", "subscribing",
         "list", jn_list
     );
-    gobj_publish_event(gobj, "EV_ON_MESSAGE", kw);
+    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
 
 //     if(priv->current_out_packet == NULL) {
 //         db__message_write_queued_out(gobj);
@@ -7579,7 +7579,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         "mqtt_action", "unsubscribing",
         "list", jn_list
     );
-    gobj_publish_event(gobj, "EV_ON_MESSAGE", kw);
+    gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
 
     return rc;
 }
@@ -7751,7 +7751,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         json_t *kw = json_pack("s:s",
             "client_id", priv->client_id
         );
-        gobj_publish_event(gobj, "EV_ON_CLOSE", kw);
+        gobj_publish_event(gobj, EV_ON_CLOSE, kw);
     }
     if(priv->timer) {
         clear_timeout(priv->timer);
@@ -7793,7 +7793,7 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_
         NULL
     );
 
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     KW_DECREF(kw)
     return 0;
 }
@@ -7888,8 +7888,8 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 }
                 istream_read_until_num_bytes(priv->istream_payload, frame_length, 0);
 
-                gobj_change_state(gobj, "ST_WAITING_PAYLOAD_DATA");
-                return gobj_send_event(gobj, "EV_RX_DATA", kw, gobj);
+                gobj_change_state(gobj, ST_WAITING_PAYLOAD_DATA);
+                return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
 
             } else {
                 if(frame_completed(gobj)<0) {
@@ -7964,7 +7964,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
         }
     }
     if(gbuffer_leftbytes(gbuf)) {
-        return gobj_send_event(gobj, "EV_RX_DATA", kw, gobj);
+        return gobj_send_event(gobj, EV_RX_DATA, kw, gobj);
     }
 
     KW_DECREF(kw)
@@ -8117,7 +8117,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 //        if(isConnected) {
 //            hgobj gobj_client = (hgobj)(size_t)kw_get_int(gobj, client, "_gobj", 0, KW_REQUIRED);
 //            if(gobj_client) {
-//                gobj_send_event(gobj_client, "EV_SEND_MESSAGE", 0, gobj);
+//                gobj_send_event(gobj_client, EV_SEND_MESSAGE, 0, gobj);
 //            }
 //        } else {
 //            // TODO save the message if qos > 0 ?
@@ -8134,7 +8134,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw)
     return 0;
@@ -8188,7 +8188,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,        ac_connected,                       ST_WAITING_HANDSHAKE},
+        {EV_CONNECTED,        ac_connected,                       ST_WAITING_FRAME_HEADER},
         {EV_DISCONNECTED,     ac_disconnected,                    0},
         {EV_TIMEOUT,          ac_timeout_waiting_disconnected,    0},
         {EV_STOPPED,          ac_stopped,                         0},
