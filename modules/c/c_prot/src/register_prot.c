@@ -9,7 +9,6 @@
  ****************************************************************************/
 #include "c_prot_modbus_m.h"
 #include "c_ota.h"
-#include "c_prot_mqtt.h"
 #include "register_prot.h"
 
 /***************************************************************************
@@ -24,8 +23,6 @@ PUBLIC int register_prot(void)
 
     register_c_ota();
     register_c_prot_modbus_m();
-    register_c_prot_mqtt();
-
 
     initialized = TRUE;
 
