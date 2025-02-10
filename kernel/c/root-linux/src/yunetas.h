@@ -2,6 +2,7 @@
  *              yunetas.h
  *              Includes
  *              Copyright (c) 2024- Niyamaka.
+ *              Copyright (c) 2025, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
 #pragma once
@@ -40,6 +41,8 @@ extern "C"{
 #include <c_node.h>
 #include <c_prot_http_cl.h>
 #include <c_prot_http_sr.h>
+#include <c_prot_mqtt.h>
+#include <c_prot_tcp4h.h>
 #include <c_task.h>
 #include <c_task_authz.h>
 #include <c_tranger.h>
@@ -65,59 +68,6 @@ extern "C"{
 #include <tr_msg2db.h>
 #include <tr_queue.h>
 #include <tr_treedb.h>
-
-#include <c_ota.h>
-#include <c_prot_modbus_m.h>
-#include <c_prot_tcp4h.h>
-
-/*
- *  Services
- */
-//#include "c_treedb.h"
-//#include "c_tranger.h"
-//#include "c_node.h"
-//#include "c_resource.h"
-//#include "c_resource2.h"
-//#include "c_ievent_srv.h"
-//#include "c_ievent_cli.h"
-
-/*
- *  Gadgets
- */
-//#include "c_mqiogate.h"
-//#include "c_qiogate.h"
-//#include "c_iogate.h"
-//#include "c_channel.h"
-//#include "c_counter.h"
-//#include "c_task.h"
-//#include "c_dynrule.h"
-//#include "c_timetransition.h"
-//#include "c_rstats.h"
-
-/*
- *  Protocols
- */
-//#include "c_connex.h"
-//#include "c_websocket.h"
-//#include "c_prot_header4.h"
-//#include "c_prot_raw.h"
-//#include "c_prot_http.h"
-//#include "c_prot_http_srv.h"
-//#include "c_prot_http_cli.h"
-//#include "c_serial.h"
-
-/*
- *  Mixin io_uring-gobj
- */
-
-//#include "c_tcp0.h"
-//#include "c_tcp_s0.h"
-//#include "c_udp_s0.h"
-//#include "c_udp0.h"
-//#include "c_timer.h"
-//#include "c_fs.h"
-
-
 
 #ifdef __cplusplus
 }

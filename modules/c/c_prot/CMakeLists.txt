@@ -29,6 +29,7 @@ set (SRCS
 
 set (HDRS
     # Protocols
+    src/yunetas_c_prot.h
     src/register_prot.h
     src/c_prot_modbus_m.h
     src/c_ota.h
