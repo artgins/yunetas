@@ -6780,6 +6780,20 @@ PUBLIC BOOL gobj_in_this_state(hgobj hgobj, gobj_state_t state)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC BOOL gobj_has_state(hgobj gobj_, gobj_state_t gobj_state)
+{
+    gobj_t *gobj = (gobj_t *)gobj_;
+
+    state_t *state = find_state(gobj->gclass, gobj_state);
+    if(state) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)
 {
     event_type_t *event_type = gobj_event_type(gobj, event, FALSE);
@@ -6791,20 +6805,6 @@ PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_fl
         return FALSE;
     }
     return TRUE;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC BOOL gobj_has_state(hgobj gobj_, gobj_state_t gobj_state)
-{
-    gobj_t *gobj = (gobj_t *)gobj_;
-
-    state_t *state = find_state(gobj->gclass, gobj_state);
-    if(state) {
-        return TRUE;
-    }
-    return FALSE;
 }
 
 /***************************************************************************
