@@ -1220,6 +1220,10 @@ PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
 PUBLIC event_type_t *gclass_find_event_in_event_list(hgclass gclass, gobj_event_t event);
 
 PUBLIC int gclass_check_fsm(hgclass gclass);
+PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.
+//  Return the data description of the command `command`
+//  If `command` is null returns full command's table
+PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass, const char *name, BOOL verbose);
 
 
 /*---------------------------------*
@@ -1662,15 +1666,12 @@ PUBLIC size_t get_cur_system_memory(void);
 
 //  Return the data description of the command `command`
 //  If `command` is null returns full command's table
-PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass, const char *name, BOOL verbose);
 PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj, const char *name, BOOL verbose);
 
 PUBLIC const char **get_sdata_flag_table(void); // Table of sdata (attr) flag names
 PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag);
 
 PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema) of gobj's attributes.
-
-PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.
 
 /*
  *  jn_filter of gobj2json and gobj_view_tree: list of strings
