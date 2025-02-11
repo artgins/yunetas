@@ -1331,26 +1331,28 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
         // gobj_event_t event_type.event;
         // event_flag_t event_type.event_flag;
 
-        BOOL found = FALSE;
-        state = dl_first(&gclass->dl_states);
-        while(state) {
-            event_action_t *ev_ac = find_event_action(state, event_->event_type.event);
-            if(ev_ac) {
-                found = TRUE;
+        if(!(event_->event_type.event_flag & EVF_OUTPUT_EVENT)) {
+            BOOL found = FALSE;
+            state = dl_first(&gclass->dl_states);
+            while(state) {
+                event_action_t *ev_ac = find_event_action(state, event_->event_type.event);
+                if(ev_ac) {
+                    found = TRUE;
+                }
+                state = dl_next(state);
             }
-            state = dl_next(state);
-        }
 
-        if(!found) {
-            gobj_log_error(0, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "SMachine: input_list's event NOT in state",
-                "gclass",       "%s", gclass->gclass_name,
-                "event",        "%s", event_->event_type.event,
-                NULL
-            );
-            ret += -1;
+            if(!found) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "SMachine: input_list's event NOT in state",
+                    "gclass",       "%s", gclass->gclass_name,
+                    "event",        "%s", event_->event_type.event,
+                    NULL
+                );
+                ret += -1;
+            }
         }
 
         /*

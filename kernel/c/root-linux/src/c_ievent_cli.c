@@ -1372,6 +1372,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_ON_CLOSE,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
+
+        {EV_ON_MESSAGE,             0},
+        {EV_TIMEOUT,                0},
+        {EV_DROP,                   0},
+        {EV_STOPPED,                0},
+
         {0, 0}
     };
 
