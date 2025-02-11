@@ -1210,12 +1210,15 @@ PUBLIC int gclass_add_state_with_action_list(
     gobj_state_t state_name,
     ev_action_t *ev_action_list
 );
-PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose);
+PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); // Find a public event in any gclass
 PUBLIC void gclass_unregister(hgclass hgclass);
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
+PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
 
 PUBLIC json_t *gclass_gclass_register(void); /* Get registered gclasses: Return [gclass:s}] */
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
+PUBLIC event_type_t *gclass_find_event_in_event_list(hgclass gclass, gobj_event_t event);
+
 PUBLIC int gclass_check_fsm(hgclass gclass);
 
 
@@ -1391,7 +1394,6 @@ PUBLIC json_t *gobj_hsdata(hgobj gobj); // Return is NOT YOURS
 
 PUBLIC const sdata_desc_t *gclass_authz_desc(hgclass gclass);
 
-PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
 PUBLIC BOOL gobj_has_attr(hgobj hgobj, const char *name);
 PUBLIC BOOL gobj_is_readable_attr(hgobj gobj, const char *name); // True is attr is SDF_RD (public readable)
 PUBLIC BOOL gobj_is_writable_attr(hgobj gobj, const char *name);

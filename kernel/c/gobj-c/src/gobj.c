@@ -1054,7 +1054,7 @@ PUBLIC int gclass_add_state_with_action_list(
 }
 
 /***************************************************************************
- *
+ *  Find a public event in any gclass
  ***************************************************************************/
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
 {
@@ -1136,6 +1136,20 @@ PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass_)
 /***************************************************************************
  *
  ***************************************************************************/
+BOOL gclass_has_attr(hgclass gclass, const char* name)
+{
+    if(!gclass) { // WARNING must be a silence function!
+        return FALSE;
+    }
+    if(empty_string(name)) {
+        return FALSE;
+    }
+    return gclass_attr_desc(gclass, name, FALSE)?TRUE:FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC json_t * gclass_gclass_register(void)
 {
     json_t *jn_register = json_array();
@@ -1205,12 +1219,13 @@ PRIVATE int add_event_type(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE event_t *find_event_in_event_list(gclass_t *gclass, gobj_event_t event)
+PUBLIC event_type_t *gclass_find_event_in_event_list(hgclass gclass_, gobj_event_t event)
 {
+    gclass_t *gclass = gclass_;
     event_t *event_ = dl_first(&gclass->dl_events);
     while(event_) {
         if(event_->event_type.event && event_->event_type.event == event) {
-            return event_;
+            return &event_->event_type;
         }
         event_ = dl_next(event_);
     }
@@ -1266,8 +1281,8 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             // gobj_event_t event;
             // gobj_action_fn action;
             // gobj_state_t next_state;
-            event_t *event_ = find_event_in_event_list(gclass, event_action->event);
-            if(!event_) {
+            event_type_t *event_type = gclass_find_event_in_event_list(gclass, event_action->event);
+            if(!event_type) {
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -3093,20 +3108,6 @@ PUBLIC data_type_t gobj_attr_type(hgobj gobj, const char *name)
     } else {
         return 0;
     }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-BOOL gclass_has_attr(hgclass gclass, const char* name)
-{
-    if(!gclass) { // WARNING must be a silence function!
-        return FALSE;
-    }
-    if(empty_string(name)) {
-        return FALSE;
-    }
-    return gclass_attr_desc(gclass, name, FALSE)?TRUE:FALSE;
 }
 
 /***************************************************************************
@@ -6859,16 +6860,16 @@ PUBLIC event_type_t *gobj_event_type( // silent function
         return NULL;
     }
 
-    event_t *event_ = find_event_in_event_list(gobj->gclass, event);
-    if(event_) {
-        return &event_->event_type;
+    event_type_t *event_type = gclass_find_event_in_event_list(gobj->gclass, event);
+    if(event_type) {
+        return event_type;
     }
 
     if(include_system_events) {
         /*
          *  Check global (gobj) output events
          */
-        event_ = dl_first(&dl_global_event_types);
+        event_t *event_ = dl_first(&dl_global_event_types);
         while(event_) {
             if(event_->event_type.event && event_->event_type.event == event) {
                 return &event_->event_type;
