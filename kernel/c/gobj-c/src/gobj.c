@@ -193,6 +193,7 @@ GOBJ_DEFINE_STATE(ST_WAITING_PAYLOAD_DATA);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE state_t *find_state(gclass_t *gclass, gobj_state_t state_name);
 PRIVATE void *_mem_malloc(size_t size);
 PRIVATE void _mem_free(void *p);
 PRIVATE void *_mem_realloc(void *p, size_t new_size);
@@ -850,7 +851,11 @@ PUBLIC hgclass gclass_create( // create and register gclass
      *----------------------------------------*/
     struct states_s *state = states;
     while(state->state_name) {
-        gclass_add_state_with_action_list(gclass, state->state_name, state->state);
+        if(gclass_add_state_with_action_list(gclass, state->state_name, state->state)<0) {
+            // Error already logged
+            gclass_unregister(gclass);
+            return NULL;
+        }
         state++;
     }
 
@@ -858,6 +863,19 @@ PUBLIC hgclass gclass_create( // create and register gclass
      *          Build Events
      *----------------------------------------*/
     while(event_types && event_types->event) {
+        if(gclass_find_event_in_event_list(gclass, event_types->event)) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "SMachine: event repeated in input_events",
+                "gclass",       "%s", gclass->gclass_name,
+                "event",        "%s", event_types->event,
+                NULL
+            );
+            gclass_unregister(gclass);
+            return NULL;
+        }
+
         add_event_type(&gclass->dl_events, event_types);
         event_types++;
     }
@@ -894,6 +912,18 @@ PUBLIC int gclass_add_state(
     }
 
     gclass_t *gclass = (gclass_t *)hgclass;
+
+    if(find_state(gclass, state_name)) {
+        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "state already exists",
+            "state",        "%s", state_name,
+            NULL
+        );
+        return -1;
+    }
+
 
     state_t *state = sys_malloc_fn(sizeof(*state));
     if(state == NULL) {

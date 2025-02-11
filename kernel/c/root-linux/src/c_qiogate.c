@@ -1320,7 +1320,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         0},
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
-        {EV_SEND_MESSAGE,       0}, // TODO repeated
         // bottom input
         {EV_TIMEOUT_PERIODIC,   0},
         {EV_STOPPED,            0},
