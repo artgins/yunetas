@@ -1121,8 +1121,7 @@ PUBLIC void gclass_unregister(hgclass hgclass)
         sys_free_fn(event_type);
     }
 
-    //sys_free_fn(gclass->gclass_name);
-    sys_free_fn(gclass);
+    dl_delete(&dl_gclass, gclass, sys_free_fn);
 }
 
 /***************************************************************************
