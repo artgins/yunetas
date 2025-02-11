@@ -1255,20 +1255,6 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
     }
 
     /*
-     *  check events
-     */
-    if(!dl_size(&gclass->dl_events)) {
-        gobj_log_error(0,0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "GClass without events",
-            "gclass",       "%s", gclass->gclass_name,
-            NULL
-        );
-        ret += -1;
-    }
-
-    /*
      *  check state's event in input_list
      */
     state_t *state = dl_first(&gclass->dl_states);

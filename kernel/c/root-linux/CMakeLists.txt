@@ -41,7 +41,7 @@ set (SRCS
     src/c_websocket.c
     src/c_authz.c
     src/c_task.c
-    src/c_task_authz.c
+    src/c_task_authenticate.c
     src/c_tranger.c
     src/c_node.c
     src/c_treedb.c
@@ -75,7 +75,7 @@ set (HDRS
     src/c_websocket.h
     src/c_authz.h
     src/c_task.h
-    src/c_task_authz.h
+    src/c_task_authenticate.h
     src/c_tranger.h
     src/c_node.h
     src/c_treedb.h

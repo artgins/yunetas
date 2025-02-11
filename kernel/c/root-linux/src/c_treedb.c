@@ -1396,7 +1396,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_OPEN_TREEDB,            ac_open_treedb,         0},
         {EV_CLOSE_TREEDB,           ac_close_treedb,        0},
-        {EV_STOPPED,                0,                      0},
         {0,0,0}
     };
     states_t states[] = {

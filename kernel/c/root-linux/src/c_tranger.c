@@ -1463,6 +1463,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_TRANGER_RECORD_ADDED,       EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_TRANGER_ADD_RECORD,         0},
         {0, 0}
     };
 

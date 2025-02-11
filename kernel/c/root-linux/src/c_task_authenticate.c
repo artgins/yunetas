@@ -131,7 +131,7 @@ Example of refresh_token
 #include "msg_ievent.h"
 #include "c_prot_http_cl.h"
 #include "c_task.h"
-#include "c_task_authz.h"
+#include "c_task_authenticate.h"
 
 /***************************************************************************
  *              Constants
@@ -844,8 +844,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_END_TASK,       0},
         {EV_ON_TOKEN,       EVF_OUTPUT_EVENT},
+        {EV_END_TASK,       0},
+        {EV_STOPPED,        0},
         {0, 0}
     };
 

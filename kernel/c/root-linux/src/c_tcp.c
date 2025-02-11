@@ -1470,13 +1470,16 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_RX_DATA,        EVF_OUTPUT_EVENT},
-        {EV_TX_DATA,        0},
-        {EV_TX_READY,       EVF_OUTPUT_EVENT},
-        {EV_DROP,           0},
-        {EV_CONNECTED,      EVF_OUTPUT_EVENT},
-        {EV_DISCONNECTED,   EVF_OUTPUT_EVENT},
-        {EV_STOPPED,        EVF_OUTPUT_EVENT},
+        {EV_RX_DATA,            EVF_OUTPUT_EVENT},
+        {EV_TX_READY,           EVF_OUTPUT_EVENT},
+        {EV_CONNECTED,          EVF_OUTPUT_EVENT},
+        {EV_DISCONNECTED,       EVF_OUTPUT_EVENT},
+        {EV_STOPPED,            EVF_OUTPUT_EVENT},
+        {EV_CONNECT,            0},
+        {EV_TIMEOUT,            0},
+        {EV_SEND_ENCRYPTED_DATA,0},
+        {EV_TX_DATA,            0},
+        {EV_DROP,               0},
         {0, 0}
     };
 

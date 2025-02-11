@@ -1,5 +1,5 @@
 /****************************************************************************
- *          C_TASK_AUTHENTICATE.H
+ *          c_task_authenticate.h
  *          Task_authenticate GClass.
  *
  *          Task to authenticate with OAuth2
