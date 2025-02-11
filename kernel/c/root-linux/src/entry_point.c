@@ -754,6 +754,10 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *  Register gclasses
      *------------------------------------------------*/
     result += yunetas_register_c_core();
+    if(result < 0) {
+        // Core gclass must be perfect
+        exit(-1);
+    }
 
     if(register_yuno_and_more) {
         result += register_yuno_and_more();
