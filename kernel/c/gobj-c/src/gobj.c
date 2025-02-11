@@ -5128,10 +5128,11 @@ PUBLIC size_t gobj_child_size2(
  *  Match child.
  ***************************************************************************/
 PUBLIC BOOL gobj_match_gobj(
-    hgobj gobj,
+    hgobj gobj_,
     json_t *jn_filter_ // owned
 )
 {
+    gobj_t *gobj = gobj_;
     const char *__inherited_gclass_name__ = kw_get_str(gobj, jn_filter_, "__inherited_gclass_name__", 0, 0);
     const char *__gclass_name__ = kw_get_str(gobj, jn_filter_, "__gclass_name__", 0, 0);
     const char *__gobj_name__ = kw_get_str(gobj, jn_filter_, "__gobj_name__", 0, 0);
@@ -5268,17 +5269,17 @@ PUBLIC hgobj gobj_find_child(
  *  Callback building an iter
  ***************************************************************************/
 PRIVATE int cb_match_childs(
-    hgobj child,
+    hgobj child_,
     void *user_data,
     void *user_data2
 )
 {
+    gobj_t *child = child_;
     json_t *dl_list = user_data;
     json_t *jn_filter = user_data2;
 
-    ((gobj_t *)child)->__refs__++;
-
-    if(gobj_match_gobj(child, jn_filter)) {
+    if(gobj_match_gobj(child, json_incref(jn_filter))) {
+        child->__refs__++;
         json_array_append_new(dl_list, json_integer((json_int_t)(size_t)child));
     }
     return 0;
