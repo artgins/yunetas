@@ -730,7 +730,10 @@ PUBLIC void gobj_end(void)
         __yuno__ = 0;
     }
 
-    dl_flush(&dl_gclass, gclass_unregister);
+    gclass_t *gclass;
+    while((gclass = dl_first(&dl_gclass))) {
+        gclass_unregister(gclass);
+    }
 
     event_type_t *event_type;
     while((event_type = dl_first(&dl_global_event_types))) {

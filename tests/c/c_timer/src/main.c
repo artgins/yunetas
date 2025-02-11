@@ -105,7 +105,6 @@ static int register_yuno_and_more(void)
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-
     // gobj_set_gclass_trace(gclass_find_by_name(C_TEST_TIMER), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);

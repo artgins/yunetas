@@ -385,13 +385,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     states_t states[] = {
         {ST_IDLE,                   st_idle},
-        {ST_IDLE,                   st_idle},
         {0, 0}
     };
 
     event_type_t event_types[] = {
         {EV_TIMEOUT_PERIODIC,       0},
-        {EV_SEND_MESSAGE,           0},
+        {EV_STOPPED,                0},
         {0, 0}
     };
 
