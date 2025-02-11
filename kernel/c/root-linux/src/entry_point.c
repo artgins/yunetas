@@ -368,7 +368,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     const char *APP_DATETIME,
     const char *fixed_config,
     const char *variable_config,
-    void (*register_yuno_and_more)(void), // HACK This function is executed on yunetas environment (mem, log, paths) BEFORE creating the yuno
+    int (*register_yuno_and_more)(void), // HACK This function is executed on yunetas environment (mem, log, paths) BEFORE creating the yuno
     void (*cleaning_fn)(void) // HACK This function is executed after free all yuneta resources
 ) {
     snprintf(__argp_program_version__, sizeof(__argp_program_version__),
@@ -522,7 +522,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         .remove = __remove_persistent_attrs_fn__,
         .list = __list_persistent_attrs_fn__,
     };
-    gobj_start_up(
+    int result = gobj_start_up(
         argc,
         argv,
         jn_global,  // Not owned, it's duplicated
@@ -753,10 +753,10 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *  Register gclasses
      *------------------------------------------------*/
-    yunetas_register_c_core();
+    result += yunetas_register_c_core();
 
     if(register_yuno_and_more) {
-        register_yuno_and_more();
+        result += register_yuno_and_more();
     }
 
     /*------------------------------------------------*
@@ -771,6 +771,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             daemon_catch_signals,
             cleaning_fn
         );
+        return gobj_get_exit_code();
+
     } else {
         daemon_catch_signals();
         if(__auto_kill_time__) {
@@ -778,9 +780,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             alarm(__auto_kill_time__);
         }
         process(get_process_name(), work_dir, domain_dir, cleaning_fn);
+        return result;
     }
-
-    return gobj_get_exit_code();
 }
 
 /***************************************************************************

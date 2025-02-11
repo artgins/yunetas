@@ -1173,7 +1173,7 @@ PUBLIC void gobj_shutdown(void); /* Shutdown the yuno, pausing and stopping the 
 PUBLIC BOOL gobj_is_shutdowning(void);  /* Check if yuno is shutdowning */
 PUBLIC void gobj_set_yuno_must_die(void);
 PUBLIC BOOL gobj_get_yuno_must_die(void);
-PUBLIC void gobj_set_exit_code(int exit_code);
+PUBLIC void gobj_set_exit_code(int exit_code); // set return code to exit when running as daemon
 PUBLIC int gobj_get_exit_code(void);
 PUBLIC void gobj_end(void);     /* De-initialize the gobj's system, free resources */
 

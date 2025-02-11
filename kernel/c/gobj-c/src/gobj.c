@@ -692,7 +692,7 @@ PUBLIC BOOL gobj_get_yuno_must_die(void)
 }
 
 /***************************************************************************
- *
+ *  set return code to exit when running as daemon
  ***************************************************************************/
 PUBLIC void gobj_set_exit_code(int exit_code)
 {
