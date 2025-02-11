@@ -47,35 +47,36 @@ PUBLIC int yunetas_register_c_core(void)
     if(initialized) {
         return -1;
     }
+    int result = 0;
 
     // TODO include with menuconfig
-    register_c_authz();
-    register_c_ievent_cli();
-    register_c_ievent_srv();
-    register_c_tcp();
-    register_c_tcp_s();
-    register_c_uart();
-    register_c_yuno();
-    register_c_node();
-    register_c_prot_http_cl();
-    register_c_prot_http_sr();
-    register_c_prot_mqtt();
-    register_c_prot_tcp4h();
-    register_c_task();
-    register_c_task_authenticate();
-    register_c_timer0();
-    register_c_timer();
-    register_c_tranger();
-    register_c_treedb();
+    result += register_c_authz();
+    result += register_c_ievent_cli();
+    result += register_c_ievent_srv();
+    result += register_c_tcp();
+    result += register_c_tcp_s();
+    result += register_c_uart();
+    result += register_c_yuno();
+    result += register_c_node();
+    result += register_c_prot_http_cl();
+    result += register_c_prot_http_sr();
+    result += register_c_prot_mqtt();
+    result += register_c_prot_tcp4h();
+    result += register_c_task();
+    result += register_c_task_authenticate();
+    result += register_c_timer0();
+    result += register_c_timer();
+    result += register_c_tranger();
+    result += register_c_treedb();
 
-    register_c_iogate();
-    register_c_qiogate();
-    register_c_mqiogate();
-    register_c_channel();
-    register_c_resource2();
-    register_c_websocket();
+    result += register_c_iogate();
+    result += register_c_qiogate();
+    result += register_c_mqiogate();
+    result += register_c_channel();
+    result += register_c_resource2();
+    result += register_c_websocket();
 
     initialized = TRUE;
 
-    return 0;
+    return result;
 }
