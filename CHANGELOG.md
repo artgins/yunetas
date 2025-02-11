@@ -12,9 +12,6 @@ New comment in .h
     PUBLIC void gobj_set_exit_code(int exit_code); // set return code to exit when running as daemon
     PUBLIC hgclass gclass_create( // create and register gclass
 
-Changing api:
-
-    PUBLIC int gclass_unregister(hgclass hgclass);
 
 <!-- ([full changelog](https://github.com/executablebooks/sphinx-book-theme/compare/v1.1.1...3da24da74f6042599fe6c9e2d612f5cbdef42280)) -->
 

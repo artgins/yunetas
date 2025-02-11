@@ -1086,7 +1086,7 @@ PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int gclass_unregister(hgclass hgclass)
+PUBLIC void gclass_unregister(hgclass hgclass)
 {
     gclass_t *gclass = (gclass_t *)hgclass;
 
@@ -1099,7 +1099,7 @@ PUBLIC int gclass_unregister(hgclass hgclass)
             "instances",    "%d", gclass->instances,
             NULL
         );
-        return -1;
+        return;
     }
 
     state_t *state;
@@ -1123,8 +1123,6 @@ PUBLIC int gclass_unregister(hgclass hgclass)
 
     //sys_free_fn(gclass->gclass_name);
     sys_free_fn(gclass);
-
-    return 0;
 }
 
 /***************************************************************************
