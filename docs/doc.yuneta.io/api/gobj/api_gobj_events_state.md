@@ -14,6 +14,7 @@ events_state/gobj_event_type_by_name
 events_state/gobj_event_type
 events_state/gobj_has_event
 events_state/gobj_has_output_event
+events_state/gobj_has_state
 events_state/gobj_in_this_state
 events_state/gobj_send_event
 

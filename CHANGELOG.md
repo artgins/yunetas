@@ -11,14 +11,11 @@ New apis:
 New comment in .h
 
     PUBLIC void gobj_set_exit_code(int exit_code); // set return code to exit when running as daemon
-    
+
     PUBLIC hgclass gclass_create( // create and register gclass
-    
+
     PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); // Find a public event in any gclass
 
-Move to group of gclass:
-
-    PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
 
 
 <!-- ([full changelog](https://github.com/executablebooks/sphinx-book-theme/compare/v1.1.1...3da24da74f6042599fe6c9e2d612f5cbdef42280)) -->

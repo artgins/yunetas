@@ -9,9 +9,6 @@ Source code in:
 :caption: Attribute Functions
 :maxdepth: 1
 
-attrs/gclass_attr_desc
-attrs/gclass_authz_desc
-attrs/gclass_has_attr
 attrs/gobj_attr_desc
 attrs/gobj_attr_type
 attrs/gobj_has_attr

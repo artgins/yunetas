@@ -8,8 +8,6 @@ Source code in:
 :caption: Info Functions
 :maxdepth: 1
 
-info/gclass2json
-info/gclass_command_desc
 info/get_attrs_schema
 info/get_cur_system_memory
 info/get_max_system_memory

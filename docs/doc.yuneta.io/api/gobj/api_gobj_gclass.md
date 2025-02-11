@@ -8,14 +8,22 @@ Source code in:
 :caption: GClass Functions
 :maxdepth: 1
 
-gclass/gclass_add_ev_action
-gclass/gclass_add_state
-gclass/gclass_add_state_with_action_list
-gclass/gclass_create
-gclass/gclass_find_by_name
-gclass/gclass_find_public_event
-gclass/gclass_gclass_name
-gclass/gclass_gclass_register
-gclass/gclass_unregister
+gclass/gclass2json.md
+gclass/gclass_add_ev_action.md
+gclass/gclass_add_state.md
+gclass/gclass_add_state_with_action_list.md
+gclass/gclass_attr_desc.md
+gclass/gclass_authz_desc.md
+gclass/gclass_check_fsm.md
+gclass/gclass_command_desc.md
+gclass/gclass_create.md
+gclass/gclass_find_by_name.md
+gclass/gclass_find_event_in_event_list.md
+gclass/gclass_find_public_event.md
+gclass/gclass_gclass_name.md
+gclass/gclass_gclass_register.md
+gclass/gclass_has_attr.md
+gclass/gclass_unregister.md
+
 
 ```
