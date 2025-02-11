@@ -1345,7 +1345,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
         event_ = dl_next(event_);
     }
 
-    return 0;
+    return ret;
 }
 
 
