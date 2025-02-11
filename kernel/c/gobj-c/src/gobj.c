@@ -758,7 +758,7 @@ PUBLIC void gobj_end(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC hgclass gclass_create(
+PUBLIC hgclass gclass_create( // create and register gclass
     gclass_name_t gclass_name,
     event_type_t *event_types,
     states_t *states,
@@ -866,7 +866,10 @@ PUBLIC hgclass gclass_create(
      *          Check FSM
      *----------------------------------------*/
     if(!gclass->fsm_checked) {
-        gclass_check_fsm(gclass);
+        if(gclass_check_fsm(gclass)<0) {
+            gclass_unregister(gclass);
+            return NULL;
+        }
         gclass->fsm_checked = TRUE;
     }
 
@@ -1083,7 +1086,7 @@ PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void gclass_unregister(hgclass hgclass)
+PUBLIC int gclass_unregister(hgclass hgclass)
 {
     gclass_t *gclass = (gclass_t *)hgclass;
 
@@ -1096,7 +1099,7 @@ PUBLIC void gclass_unregister(hgclass hgclass)
             "instances",    "%d", gclass->instances,
             NULL
         );
-        return;
+        return -1;
     }
 
     state_t *state;
@@ -1120,6 +1123,8 @@ PUBLIC void gclass_unregister(hgclass hgclass)
 
     //sys_free_fn(gclass->gclass_name);
     sys_free_fn(gclass);
+
+    return 0;
 }
 
 /***************************************************************************
@@ -1275,6 +1280,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
                     "event",        "%s", event_action->event,
                     NULL
                 );
+                ret += -1;
             }
 
             if(event_action->next_state) {
@@ -1289,6 +1295,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
                         "next_state",   "%s", event_action->next_state,
                         NULL
                     );
+                    ret += -1;
                 }
             }
 
@@ -1331,6 +1338,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
                 "event",        "%s", event_->event_type.event,
                 NULL
             );
+            ret += -1;
         }
 
         /*

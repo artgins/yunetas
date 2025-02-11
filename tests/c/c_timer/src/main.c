@@ -84,12 +84,14 @@ time_measure_t time_measure;
  ***************************************************************************/
 int result = 0;
 
-static void register_yuno_and_more(void)
+static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register service
      *--------------------*/
-    register_c_test_timer();
+    result += register_c_test_timer();
 
     /*------------------------------------------------*
      *          Traces
@@ -139,6 +141,8 @@ static void register_yuno_and_more(void)
     );
 
     MT_START_TIME(time_measure)
+
+    return result;
 }
 
 /***************************************************************************

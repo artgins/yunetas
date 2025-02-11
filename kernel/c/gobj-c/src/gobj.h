@@ -1180,7 +1180,7 @@ PUBLIC void gobj_end(void);     /* De-initialize the gobj's system, free resourc
 /*---------------------------------*
  *      GClass functions
  *---------------------------------*/
-PUBLIC hgclass gclass_create(
+PUBLIC hgclass gclass_create( // create and register gclass
     gclass_name_t gclass_name,
     event_type_t *event_types,
     states_t *states,
@@ -1211,7 +1211,7 @@ PUBLIC int gclass_add_state_with_action_list(
     ev_action_t *ev_action_list
 );
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose);
-PUBLIC void gclass_unregister(hgclass hgclass);
+PUBLIC int gclass_unregister(hgclass hgclass);
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
 
 PUBLIC json_t *gclass_gclass_register(void); /* Get registered gclasses: Return [gclass:s}] */

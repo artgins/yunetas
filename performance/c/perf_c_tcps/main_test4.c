@@ -180,13 +180,15 @@ PRIVATE char variable_config[]= "\
  ***************************************************************************/
 int result = 0;
 
-static void register_yuno_and_more(void)
+static int register_yuno_and_more(void)
 {
+    int result = 0;
+
     /*--------------------*
      *  Register service
      *--------------------*/
-    register_c_pepon();
-    register_c_test4();
+    result += register_c_pepon();
+    result += register_c_test4();
 
     /*------------------------------------------------*
      *          Traces
@@ -219,6 +221,8 @@ static void register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
+
+    return result;
 }
 
 /***************************************************************************
