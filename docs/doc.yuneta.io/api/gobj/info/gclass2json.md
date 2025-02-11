@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gclass_command_desc())=
-# `gclass_command_desc()`
+(gclass2json)=
+# `gclass2json()`
 <!-- ============================================================== -->
 
-Retrieves the data description of a command in a given `gclass`. If `name` is NULL, it returns the full command table.
+The `gclass2json` function returns a JSON object containing a structured description of a given `gclass`, including its attributes, commands, methods, and trace levels.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,10 +20,8 @@ Retrieves the data description of a command in a given `gclass`. If `name` is NU
 **Prototype**
 
 ```C
-const sdata_desc_t *gclass_command_desc(
-    hgclass gclass,
-    const char *name,
-    BOOL verbose
+json_t *gclass2json(
+    hgclass gclass
 );
 ```
 
@@ -39,26 +37,18 @@ const sdata_desc_t *gclass_command_desc(
 
 * - `gclass`
   - `hgclass`
-  - The `gclass` whose command description is to be retrieved.
-
-* - `name`
-  - `const char *`
-  - The name of the command to retrieve. If NULL, returns the full command table.
-
-* - `verbose`
-  - `BOOL`
-  - If TRUE, logs an error message when the command is not found.
+  - A handle to the `gclass` whose details are to be retrieved.
 :::
 
 ---
 
 **Return Value**
 
-A pointer to the `sdata_desc_t` structure describing the command, or NULL if the command is not found.
+A JSON object containing the structured description of the `gclass`. If `gclass` is NULL, an empty JSON object is returned.
 
 **Notes**
 
-If `verbose` is TRUE and the command is not found, an error message is logged.
+['The returned JSON object includes fields such as `id`, `gcflag`, `priv_size`, `attrs`, `commands`, `gclass_methods`, `internal_methods`, `FSM`, `Authzs global`, `Authzs gclass`, `info_gclass_trace`, `gclass_trace_level`, `gclass_trace_no_level`, and `instances`.', 'The caller is responsible for managing the memory of the returned JSON object.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

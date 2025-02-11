@@ -3,7 +3,7 @@
 # `gobj_set_exit_code()`
 <!-- ============================================================== -->
 
-Sets the global exit code for the application, which can be retrieved using [`gobj_get_exit_code()`](#gobj_get_exit_code).
+Sets the exit code for the process, which will be returned when the program terminates.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -35,7 +35,7 @@ void gobj_set_exit_code(int exit_code);
 
 * - `exit_code`
   - `int`
-  - The exit code to be set.
+  - The exit code to be set for the process.
 :::
 
 ---
@@ -46,7 +46,7 @@ This function does not return a value.
 
 **Notes**
 
-The exit code set by this function can be used to determine the application's termination status.
+The exit code set by this function can be retrieved using [`gobj_get_exit_code()`](#gobj_get_exit_code).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

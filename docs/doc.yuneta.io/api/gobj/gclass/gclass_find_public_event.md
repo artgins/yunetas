@@ -3,7 +3,7 @@
 # `gclass_find_public_event()`
 <!-- ============================================================== -->
 
-Searches for a public event by name across all registered GClasses and returns a pointer to the event if found.
+Finds a public event by name in any registered `gclass`. Returns a pointer to the event if found, otherwise returns `NULL`.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -53,7 +53,7 @@ A pointer to the event if found, otherwise `NULL`.
 
 **Notes**
 
-This function iterates through all registered GClasses to find an event marked as `EVF_PUBLIC_EVENT`. If `verbose` is `TRUE`, an error is logged when the event is not found.
+This function iterates over all registered `gclass` instances to locate a public event. If `verbose` is `TRUE`, an error message is logged when the event is not found.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

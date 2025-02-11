@@ -1,5 +1,5 @@
 <!-- ============================================================== -->
-(gclass_command_desc())=
+(gclass_command_desc)=
 # `gclass_command_desc()`
 <!-- ============================================================== -->
 
@@ -20,9 +20,9 @@ Retrieves the data description of a command in a given `gclass`. If `name` is NU
 **Prototype**
 
 ```C
-const sdata_desc_t *gclass_command_desc(
-    hgclass gclass,
-    const char *name,
+PUBLIC const sdata_desc_t *gclass_command_desc(
+    hgclass gclass, 
+    const char *name, 
     BOOL verbose
 );
 ```
@@ -39,7 +39,7 @@ const sdata_desc_t *gclass_command_desc(
 
 * - `gclass`
   - `hgclass`
-  - The `gclass` whose command description is to be retrieved.
+  - The `gclass` from which to retrieve the command description.
 
 * - `name`
   - `const char *`

@@ -3,7 +3,7 @@
 # `gclass2json()`
 <!-- ============================================================== -->
 
-The `gclass2json` function returns a JSON object containing a structured description of a given `gclass`, including its attributes, commands, methods, and trace levels.
+Converts a given `hgclass` object into a JSON representation, including its attributes, commands, methods, and trace levels.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,7 +21,7 @@ The `gclass2json` function returns a JSON object containing a structured descrip
 
 ```C
 json_t *gclass2json(
-    hgclass gclass
+    hgclass gclass_
 );
 ```
 
@@ -35,20 +35,20 @@ json_t *gclass2json(
   - Type
   - Description
 
-* - `gclass`
+* - `gclass_`
   - `hgclass`
-  - A handle to the `gclass` whose details are to be retrieved.
+  - The `hgclass` object to be converted into JSON.
 :::
 
 ---
 
 **Return Value**
 
-A JSON object containing the structured description of the `gclass`. If `gclass` is NULL, an empty JSON object is returned.
+A `json_t *` object containing the JSON representation of the `hgclass`. The caller is responsible for managing the returned JSON object.
 
 **Notes**
 
-['The returned JSON object includes fields such as `id`, `gcflag`, `priv_size`, `attrs`, `commands`, `gclass_methods`, `internal_methods`, `FSM`, `Authzs global`, `Authzs gclass`, `info_gclass_trace`, `gclass_trace_level`, `gclass_trace_no_level`, and `instances`.', 'The caller is responsible for managing the memory of the returned JSON object.']
+This function provides a structured JSON output of a `hgclass`, including its attributes, commands, methods, and trace levels. It is useful for debugging and introspection.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

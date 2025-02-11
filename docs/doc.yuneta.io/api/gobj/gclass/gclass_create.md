@@ -3,7 +3,7 @@
 # `gclass_create()`
 <!-- ============================================================== -->
 
-The `gclass_create` function initializes and registers a new GClass with the specified attributes, including event types, states, methods, and flags. It ensures that the GClass is unique and properly structured before adding it to the global registry.
+Creates and registers a new `gclass`, defining its event types, states, methods, and attributes.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -21,9 +21,9 @@ The `gclass_create` function initializes and registers a new GClass with the spe
 
 ```C
 hgclass gclass_create(
-    gclass_name_t        gclass_name,
-    event_type_t        *event_types,
-    states_t            *states,
+    gclass_name_t         gclass_name,
+    event_type_t         *event_types,
+    states_t             *states,
     const GMETHODS      *gmt,
     const LMETHOD       *lmt,
     const sdata_desc_t  *tattr_desc,
@@ -47,58 +47,61 @@ hgclass gclass_create(
 
 * - `gclass_name`
   - `gclass_name_t`
-  - The unique name of the GClass.
+  - The name of the `gclass` to be created.
 
 * - `event_types`
   - `event_type_t *`
-  - A list of event types associated with the GClass.
+  - A list of event types associated with the `gclass`.
 
 * - `states`
   - `states_t *`
-  - A list of states defining the finite state machine of the GClass.
+  - A list of states defining the finite state machine of the `gclass`.
 
 * - `gmt`
   - `const GMETHODS *`
-  - A pointer to the structure containing global methods for the GClass.
+  - A pointer to the global methods table defining the behavior of the `gclass`.
 
 * - `lmt`
   - `const LMETHOD *`
-  - A pointer to the structure containing local methods for the GClass.
+  - A pointer to the local methods table for internal method handling.
 
 * - `tattr_desc`
   - `const sdata_desc_t *`
-  - A pointer to the structure describing the attributes of the GClass.
+  - A pointer to the attribute description table defining the attributes of the `gclass`.
 
 * - `priv_size`
   - `size_t`
-  - The size of the private data structure allocated for each instance of the GClass.
+  - The size of the private data structure allocated for each instance of the `gclass`.
 
 * - `authz_table`
   - `const sdata_desc_t *`
-  - A pointer to the structure defining authorization levels for the GClass.
+  - A pointer to the authorization table defining access control rules.
 
 * - `command_table`
   - `const sdata_desc_t *`
-  - A pointer to the structure defining available commands for the GClass.
+  - A pointer to the command table defining available commands for the `gclass`.
 
 * - `s_user_trace_level`
   - `const trace_level_t *`
-  - A pointer to the structure defining user trace levels for debugging.
+  - A pointer to the trace level table defining user-defined trace levels.
 
 * - `gclass_flag`
   - `gclass_flag_t`
-  - Flags defining special behaviors of the GClass.
+  - Flags defining special properties of the `gclass`.
 :::
 
 ---
 
 **Return Value**
 
-Returns a handle (`hgclass`) to the newly created GClass, or `NULL` if an error occurs.
+Returns a handle to the newly created `gclass`, or `NULL` if an error occurs.
 
 **Notes**
 
-['The function checks for duplicate GClass names and returns an error if the name is already registered.', 'It initializes the finite state machine (FSM) and event types for the GClass.', 'The function ensures that the GClass is properly structured before adding it to the global registry.', 'If the GClass has a `gcflag_singleton` flag, only one instance of it can exist.']
+The `gclass_name` must be unique and cannot contain the characters `.` or `^`.
+If the `gclass` already exists, an error is logged and `NULL` is returned.
+The function initializes the finite state machine (FSM) and event list for the `gclass`.
+If the FSM is invalid, the `gclass` is unregistered and `NULL` is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->
