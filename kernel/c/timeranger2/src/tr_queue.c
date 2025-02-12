@@ -676,7 +676,7 @@ PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT 
         // Load the message
         msg->jn_record = tranger2_read_record_content( // return is yours
             msg->trq->tranger,
-            msg->trq->topic_name,
+            msg->trq->topic,
             msg->key,
             &msg->md_record
         );
