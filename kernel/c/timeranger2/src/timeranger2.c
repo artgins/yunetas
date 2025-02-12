@@ -2620,7 +2620,7 @@ PRIVATE int get_md_record_for_wr(
     BOOL verbose
 )
 {
-// TODO
+ TODO
 //    memset(md_record, 0, sizeof(md2_record_t));
 //
 //    if(rowid == 0) {
@@ -2728,6 +2728,7 @@ PRIVATE int rewrite_md_record_to_file(
     md2_record_t *md_record
 )
 {
+    TODO
 //    int fd = get_idx_fd(tranger, topic);
 //    if(fd < 0) {
 //        // Error already logged
