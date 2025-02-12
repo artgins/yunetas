@@ -35,7 +35,7 @@ typedef struct {
     int retries;
     json_t *jn_record;
     json_int_t rowid;
-    const char *key;
+    char key[RECORD_KEY_VALUE_MAX];
 } q_msg_t;
 
 /***************************************************************
@@ -183,6 +183,7 @@ PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
  ***************************************************************************/
 PRIVATE q_msg_t *new_msg(
     tr_queue_t *trq,
+    const char *key,
     json_int_t rowid,
     const md2_record_ex_t *md_record,
     json_t *jn_record // owned
@@ -217,6 +218,8 @@ PRIVATE q_msg_t *new_msg(
     JSON_DECREF(jn_record);
     msg->trq = trq;
     msg->rowid = rowid;
+    snprintf(msg->key, sizeof(msg->key), "%s", key);
+
     dl_add(&trq->dl_q_msg, msg);
 
     return msg;
@@ -255,7 +258,7 @@ PRIVATE int load_record_callback(
         first_rowid = rowid;
     }
 
-    new_msg(trq, rowid, md_record, jn_record);
+    new_msg(trq, key, rowid, md_record, jn_record);
 
     return 0;
 }
@@ -421,6 +424,13 @@ PUBLIC q_msg trq_append(
         return 0;
     }
 
+    /*
+     *  Get the pkey, must be a string key.
+     */
+    json_t *topic = tranger2_topic(trq->tranger, trq->topic_name);
+    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
+    const char *key = json_string_value(json_object_get(jn_msg, pkey));
+
     JSON_INCREF(jn_msg);
     md2_record_ex_t md_record;
     tranger2_append_record(
@@ -433,6 +443,7 @@ PUBLIC q_msg trq_append(
     );
     q_msg_t *msg = new_msg(
         trq,
+        key,
         (json_int_t)md_record.rowid,
         &md_record,
         jn_msg  // owned

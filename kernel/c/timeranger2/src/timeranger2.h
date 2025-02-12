@@ -135,9 +135,9 @@ typedef struct {
  *              Prototypes
  ***************************************************************/
 
-/**rst**
+/*
    Startup TimeRanger database
-**rst**/
+*/
 static const json_desc_t tranger2_json_desc[] = {
 // Name                 Type    Default     Fillspace
 {"path",                "str",  "",         ""}, // If database exists then only needs (path,[database]) params
@@ -185,25 +185,25 @@ PUBLIC json_t *tranger2_startup(
     yev_loop_h yev_loop
 );
 
-/**rst**
+/*
    Close TimeRanger database
    Close topics and file's fd
-**rst**/
+*/
 PUBLIC int tranger2_stop(json_t *tranger);
 
-/**rst**
+/*
    Shutdown TimeRanger database
    Free memory
-**rst**/
+*/
 PUBLIC int tranger2_shutdown(json_t *tranger);
 
-/**rst**
+/*
    Convert string "s|s|s" or "s s s" or "s,s,s"
    or any combinations of them to system_flag_t integer
-**rst**/
+*/
 PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
 
-/**rst**
+/*
    Create topic if not exist. Alias create table.
 
        HACK IDEMPOTENT function
@@ -214,7 +214,7 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag);
         else
             sf_int_key;
 
-**rst**/
+*/
 PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,    // If the topic exists then only needs (tranger, topic_name) parameters
     const char *topic_name,
@@ -226,85 +226,85 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     json_t *jn_var      // owned
 );
 
-/**rst**
+/*
    Open topic
    HACK IDEMPOTENT function, always return the same json_t topic
-**rst**/
+*/
 PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
     const char *topic_name,
     BOOL verbose
 );
 
-/**rst**
+/*
    Get topic by his topic_name.
    Topic is opened if it's not opened.
    HACK topic can exists in disk, but it's not opened until tranger_open_topic()
-**rst**/
+*/
 PUBLIC json_t *tranger2_topic( // WARNING returned json IS NOT YOURS
     json_t *tranger,
     const char *topic_name
 );
 
-/**rst**
+/*
    Return a list of topic names
-**rst**/
+*/
 PUBLIC json_t *tranger2_list_topics( // return is yours
     json_t *tranger
 );
 
-/**rst**
+/*
    Return list of keys of the topic
         rkey    regular expression of key
 
-**rst**/
+*/
 PUBLIC json_t *tranger2_list_keys( // return is yours
     json_t *tranger,
     const char *topic_name,
     const char *rkey
 );
 
-/**rst**
+/*
    Get topic size (number of records of all keys)
-**rst**/
+*/
 PUBLIC uint64_t tranger2_topic_size(
     json_t *tranger,
     const char *topic_name
 );
 
-/**rst**
+/*
    Get key size (number of records of key)
-**rst**/
+*/
 PUBLIC uint64_t tranger2_topic_key_size(
     json_t *tranger,
     const char *topic_name,
     const char *key
 );
 
-/**rst**
+/*
    Return topic name of topic.
-**rst**/
+*/
 PUBLIC const char *tranger2_topic_name(
     json_t *topic
 );
 
-/**rst**
+/*
    Close record topic.
-**rst**/
+*/
 PUBLIC int tranger2_close_topic(
     json_t *tranger,
     const char *topic_name
 );
 
-/**rst**
+/*
    Delete topic. Alias delete table.
-**rst**/
+*/
 PUBLIC int tranger2_delete_topic(
     json_t *tranger,
     const char *topic_name
 );
 
-/**rst**
+/*
    Backup topic and re-create it.
    If ``backup_path`` is empty then it will be used the topic path
    If ``backup_name`` is empty then it will be used ``topic_name``.bak
@@ -312,7 +312,7 @@ PUBLIC int tranger2_delete_topic(
         but before tranger_backup_deleting_callback() will be called
             and if it returns TRUE then the existing backup will be not removed.
    Return the new topic
-**rst**/
+*/
 
 typedef BOOL (*tranger_backup_deleting_callback_t)( // Return TRUE if you control the backup
     json_t *tranger,
@@ -328,18 +328,18 @@ PUBLIC json_t *tranger2_backup_topic(
     tranger_backup_deleting_callback_t tranger_backup_deleting_callback
 );
 
-/**rst**
+/*
    Write topic var
-**rst**/
+*/
 PUBLIC int tranger2_write_topic_var(
     json_t *tranger,
     const char *topic_name,
     json_t *jn_topic_var  // owned
 );
 
-/**rst**
+/*
    Write topic cols
-**rst**/
+*/
 PUBLIC int tranger2_write_topic_cols(
     json_t *tranger,
     const char *topic_name,
@@ -361,10 +361,11 @@ PUBLIC json_t *tranger2_dict_topic_desc_cols( // Return MUST be decref,old trang
     const char *topic_name
 );
 
-/**rst**
+/*
     Append a new item to record.
+    The 'pkey' and 'tkey' are getting according to the topic schema.
     Return the new record's metadata.
-**rst**/
+*/
 PUBLIC int tranger2_append_record(
     json_t *tranger,
     const char *topic_name,
@@ -374,18 +375,18 @@ PUBLIC int tranger2_append_record(
     json_t *jn_record       // owned
 );
 
-/**rst**
+/*
     Delete record.
-**rst**/
+*/
 PUBLIC int tranger2_delete_record(
     json_t *tranger,
     const char *topic_name,
     const char *key
 );
 
-/**rst**
+/*
     Write record user flag
-**rst**/
+*/
 PUBLIC int tranger2_write_user_flag(
     json_t *tranger,
     const char *topic_name,
@@ -393,9 +394,9 @@ PUBLIC int tranger2_write_user_flag(
     uint32_t user_flag
 );
 
-/**rst**
+/*
     Write record user flag using mask
-**rst**/
+*/
 PUBLIC int tranger2_set_user_flag(
     json_t *tranger,
     const char *topic_name,
@@ -404,9 +405,9 @@ PUBLIC int tranger2_set_user_flag(
     BOOL set
 );
 
-/**rst**
+/*
     Read record user flag (for writing mode)
-**rst**/
+*/
 PUBLIC uint16_t tranger2_read_user_flag(
     json_t *tranger,
     const char *topic_name,
@@ -439,7 +440,7 @@ typedef int (*tranger2_load_record_callback_t)(
     json_t *jn_record  // must be owned
 );
 
-/**rst**
+/*
     Iterator match_cond:
 
         backward
@@ -457,7 +458,7 @@ typedef int (*tranger2_load_record_callback_t)(
         user_flag_mask_set
         user_flag_mask_notset
 
-**rst**/
+*/
 /*
  *  LOADING: load data from disk, APPENDING: add real time data
  *      rt_by_disk  if TRUE  => rt by disk
@@ -475,17 +476,17 @@ PUBLIC json_t *tranger2_open_iterator(
     json_t *extra       // owned, user data, this json will be added to the return iterator
 );
 
-/**rst**
+/*
     Close iterator
-**rst**/
+*/
 PUBLIC int tranger2_close_iterator(
     json_t *tranger,
     json_t *iterator
 );
 
-/**rst**
+/*
     Get iterator by his id
-**rst**/
+*/
 PUBLIC json_t *tranger2_get_iterator_by_id( // Silence inside. Check out.
     json_t *tranger,
     const char *topic_name,
@@ -493,20 +494,20 @@ PUBLIC json_t *tranger2_get_iterator_by_id( // Silence inside. Check out.
     const char *creator
 );
 
-/**rst**
+/*
     Get Iterator size (nº of rows)
-**rst**/
+*/
 PUBLIC size_t tranger2_iterator_size(
     json_t *iterator
 );
 
-/**rst**
+/*
     Get a page of records from iterator
     Return
         total_rows:     iterator size (nº of rows)
         pages:          number of pages with the required limit
         data:           list of required records found
-**rst**/
+*/
 PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     json_t *tranger,
     json_t *iterator,
@@ -516,10 +517,10 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
 );
 
 
-/**rst**
+/*
     Open realtime by mem, valid when the yuno is the master writing,
     realtime messages from append_message()
-**rst**/
+*/
 PUBLIC json_t *tranger2_open_rt_mem(
     json_t *tranger,
     const char *topic_name,
@@ -531,17 +532,17 @@ PUBLIC json_t *tranger2_open_rt_mem(
     json_t *extra           // owned, user data, this json will be added to the return iterator
 );
 
-/**rst**
+/*
     Close realtime mem
-**rst**/
+*/
 PUBLIC int tranger2_close_rt_mem(
     json_t *tranger,
     json_t *mem
 );
 
-/**rst**
+/*
     Get mem by his id
-**rst**/
+*/
 PUBLIC json_t *tranger2_get_rt_mem_by_id( // Silence inside. Check out.
     json_t *tranger,
     const char *topic_name,
@@ -549,10 +550,10 @@ PUBLIC json_t *tranger2_get_rt_mem_by_id( // Silence inside. Check out.
     const char *creator
 );
 
-/**rst**
+/*
     Open realtime by disk, valid when the yuno is the master writing or not-master reading,
     realtime messages from events of disk
-**rst**/
+*/
 PUBLIC json_t *tranger2_open_rt_disk(
     json_t *tranger,
     const char *topic_name,
@@ -564,17 +565,17 @@ PUBLIC json_t *tranger2_open_rt_disk(
     json_t *extra           // owned, user data, this json will be added to the return iterator
 );
 
-/**rst**
+/*
     Close realtime disk
-**rst**/
+*/
 PUBLIC int tranger2_close_rt_disk(
     json_t *tranger,
     json_t *disk
 );
 
-/**rst**
+/*
     Get disk by his id
-**rst**/
+*/
 PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     json_t *tranger,
     const char *topic_name,
@@ -582,7 +583,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
     const char *creator
 );
 
-/**rst**
+/*
     Open list, load records in memory
 
     match_cond of second level:
@@ -603,7 +604,7 @@ PUBLIC json_t *tranger2_get_rt_disk_by_id( // Silence inside. Check out.
 
     Return realtime (rt_mem or rt_disk)  or no_rt
 
-**rst**/
+*/
 PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay in starting applications
     json_t *tranger,
     const char *topic_name,
@@ -614,17 +615,17 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
     const char *creator
 );
 
-/**rst**
+/*
     Close list (rt_mem or rt_disk or no_rt)
-**rst**/
+*/
 PUBLIC int tranger2_close_list(
     json_t *tranger,
     json_t *list
 );
 
-/**rst**
+/*
     Close all, iterators, disk or mem lists belongs to creator
-**rst**/
+*/
 PUBLIC int tranger2_close_all_lists(
     json_t *tranger,
     const char *topic_name,

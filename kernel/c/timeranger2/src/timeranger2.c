@@ -2209,8 +2209,9 @@ PRIVATE json_t *md2json(
 }
 
 /***************************************************************************
- *  Append a new record.
- *  Return the new record's metadata.
+    Append a new item to record.
+    The 'pkey' and 'tkey' are getting according to the topic schema.
+    Return the new record's metadata.
  ***************************************************************************/
 PUBLIC int tranger2_append_record(
     json_t *tranger,
