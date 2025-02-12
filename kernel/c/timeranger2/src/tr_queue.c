@@ -165,7 +165,11 @@ PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
 
     if(kw_get_bool(gobj, trq->tranger, "master", 0, KW_REQUIRED)) {
         json_t *jn_topic_var = json_object();
-        json_object_set_new(jn_topic_var, "first_rowid", json_integer(first_rowid));
+        json_object_set_new(
+            jn_topic_var,
+            "first_rowid",
+            json_integer((json_int_t)first_rowid)
+        );
         tranger2_write_topic_var(
             trq->tranger,
             tranger2_topic_name(trq->topic),
