@@ -183,6 +183,7 @@ PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
  ***************************************************************************/
 PRIVATE q_msg_t *new_msg(
     tr_queue_t *trq,
+    json_int_t rowid,
     const md2_record_ex_t *md_record,
     json_t *jn_record // owned
 )
@@ -215,6 +216,7 @@ PRIVATE q_msg_t *new_msg(
     msg->jn_record = 0; // Cárgalo solo cuando se use, jn_record;
     JSON_DECREF(jn_record);
     msg->trq = trq;
+    msg->rowid = rowid;
     dl_add(&trq->dl_q_msg, msg);
 
     return msg;
@@ -253,7 +255,7 @@ PRIVATE int load_record_callback(
         first_rowid = rowid;
     }
 
-    new_msg(trq, md_record, jn_record);
+    new_msg(trq, rowid, md_record, jn_record);
 
     return 0;
 }
@@ -286,7 +288,16 @@ PUBLIC int trq_load(tr_queue trq_)
         }
     }
 
-    json_object_set_new(match_cond, "load_record_callback", json_integer((json_int_t)(size_t)load_record_callback));
+    /*
+     *  We manage the callback, user not implied.
+     *  Mantains a list of message's metadata.
+     *  Load the message when need it.
+     */
+    json_object_set_new(
+        match_cond,
+        "load_record_callback",
+        json_integer((json_int_t)(size_t)load_record_callback)
+    );
 
     first_rowid = 0;
 
@@ -422,6 +433,7 @@ PUBLIC q_msg trq_append(
     );
     q_msg_t *msg = new_msg(
         trq,
+        (json_int_t)md_record.rowid,
         &md_record,
         jn_msg  // owned
     );
@@ -656,9 +668,30 @@ PUBLIC uint64_t trq_msg_rowid(q_msg msg_)
     }
     return msg->rowid;
 }
-PUBLIC json_t *trq_msg_json(q_msg msg_) // Return json is NOT YOURS!!
+PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT YOURS!!
 {
     register q_msg_t *msg = msg_;
+
+    if(!msg->jn_record) {
+        // Load the message
+        msg->jn_record = tranger2_read_record_content( // return is yours
+            msg->trq->tranger,
+            msg->trq->topic_name,
+            msg->key,
+            &msg->md_record
+        );
+        if(!msg->jn_record) {
+            hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "jn_msg NULL",
+                "topic",        "%s", msg->trq->topic_name,
+                "key",          "%s", msg->key,
+                NULL
+            );
+        }
+    }
     return msg->jn_record;
 }
 PUBLIC uint64_t trq_msg_time(q_msg msg_)

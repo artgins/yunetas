@@ -634,6 +634,7 @@ PUBLIC int tranger2_close_all_lists(
 
 /*
  *  Read content, useful when you load only md and want recover the content
+ *  Load the (JSON) message pointed by metadata (md_record_ex)
  */
 PUBLIC json_t *tranger2_read_record_content( // return is yours
     json_t *tranger,
