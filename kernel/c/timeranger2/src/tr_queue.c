@@ -653,9 +653,10 @@ PUBLIC json_t *trq_msg_json(q_msg msg_) // Return json is NOT YOURS!!
     register q_msg_t *msg = msg_;
     return msg->jn_record;
 }
-PUBLIC uint64_t trq_msg_time(q_msg msg)
+PUBLIC uint64_t trq_msg_time(q_msg msg_)
 {
-    return ((q_msg_t *)msg)->md_record.__t__;
+    register q_msg_t *msg = msg_;
+    return msg->md_record.__t__;
 }
 //PUBLIC BOOL trq_msg_is_t_ms(q_msg msg)
 //{
