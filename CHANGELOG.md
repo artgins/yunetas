@@ -11,6 +11,10 @@ Change API
     trq_check_pending_rowid
     trq_msg_md_record -> trq_msg_md
 
+Delete API
+
+    trq_get_by_key
+
 <!-- ([full changelog](https://github.com/executablebooks/sphinx-book-theme/compare/v1.1.1...3da24da74f6042599fe6c9e2d612f5cbdef42280)) -->
 
 ### Enhancements made

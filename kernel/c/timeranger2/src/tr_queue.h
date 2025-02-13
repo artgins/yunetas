@@ -95,11 +95,6 @@ PUBLIC q_msg trq_append(
 PUBLIC q_msg trq_get_by_rowid(tr_queue trq, uint64_t rowid);
 
 /*
-    Get a message from iter by his key
-*/
-PUBLIC q_msg trq_get_by_key(tr_queue trq, const char *key);
-
-/*
     Get number of messages from iter by his key
 */
 PUBLIC int trq_size_by_key(tr_queue trq, const char *key);

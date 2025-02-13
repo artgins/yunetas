@@ -448,22 +448,6 @@ PUBLIC q_msg trq_get_by_rowid(tr_queue trq, uint64_t rowid)
 }
 
 /***************************************************************************
-    Get a message from iter by his key
- ***************************************************************************/
-PUBLIC q_msg trq_get_by_key(tr_queue trq, const char *key)
-{
-    register q_msg_t *msg;
-
-    qmsg_foreach_forward(trq, msg) {
-        if(strcmp(msg->key, key)==0) {
-            return msg;
-        }
-    }
-
-    return 0;
-}
-
-/***************************************************************************
     Get number of messages from iter by his key
  ***************************************************************************/
 PUBLIC int trq_size_by_key(tr_queue trq, const char *key)
@@ -486,7 +470,7 @@ PUBLIC int trq_check_pending_rowid(
     tr_queue trq_,
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
-    uint64_t rowid
+    uint64_t rowid      // must be file rowid, not global topic rowid
 )
 {
     register tr_queue_t *trq = trq_;
@@ -531,7 +515,7 @@ PUBLIC int trq_set_hard_flag(q_msg msg_, uint32_t hard_mark, BOOL set)
         tranger2_topic_name(msg->trq->topic),
         msg->key,
         msg->md_record.__t__,
-        msg->rowid,
+        msg->md_record.rowid,
         hard_mark,
         set
     );

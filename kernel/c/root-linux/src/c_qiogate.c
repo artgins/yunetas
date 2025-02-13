@@ -759,10 +759,14 @@ PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg msg)
     uint64_t rowid = trq_msg_rowid(msg);
     uint64_t __t__ = trq_msg_time(msg);
     const char *key = trq_msg_key(msg);
+    md2_record_ex_t *md_record_ex = trq_msg_md(msg);
 
     json_t *kw_clone = kw_duplicate(gobj, jn_msg);
     trq_set_metadata(kw_clone, "__msg_key__", json_string(key));
     trq_set_metadata(kw_clone, "__msg_rowid__", json_integer((json_int_t)rowid));
+    trq_set_metadata(
+        kw_clone, "__msg_md_rowid__", json_integer((json_int_t)md_record_ex->rowid)
+    );
     trq_set_metadata(kw_clone, "__msg_t__", json_integer((json_int_t)__t__));
 
     if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_QUEUE_PROT)) {
@@ -993,6 +997,7 @@ PRIVATE int dequeue_msg(
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
     uint64_t rowid,
+    uint64_t md_rowid,
     int result
 )
 {
@@ -1043,7 +1048,7 @@ PRIVATE int dequeue_msg(
             priv->trq_msgs,
             key,        // In tranger2 ('key', '__t__', 'rowid') is required
             __t__,
-            rowid
+            md_rowid
         )!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1085,6 +1090,13 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
         0,
         KW_REQUIRED
     );
+    uint64_t md_rowid = kw_get_int(
+        gobj,
+        trq_md,
+        "__msg_md_rowid__",
+        0,
+        KW_REQUIRED
+    );
     uint64_t __t__ = kw_get_int(
         gobj,
         trq_md,
@@ -1108,7 +1120,7 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    dequeue_msg(gobj, key, __t__, rowid, result);
+    dequeue_msg(gobj, key, __t__, rowid, md_rowid, result);
 
     JSON_DECREF(jn_ack_message)
     KW_DECREF(kw)
