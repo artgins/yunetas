@@ -18,7 +18,6 @@ tr_queue/trq_clear_ack_timer.md
 tr_queue/trq_clear_retries.md
 tr_queue/trq_close.md
 tr_queue/trq_first_msg.md
-tr_queue/trq_get_by_key.md
 tr_queue/trq_get_by_rowid.md
 tr_queue/trq_get_metadata.md
 tr_queue/trq_get_soft_mark.md
