@@ -2794,7 +2794,9 @@ PRIVATE int rewrite_md_to_file(
     /*
      *  Update cache
      */
-    update_new_record_from_mem(gobj, tranger, topic, key, md_record);
+    // NO! update_new_record_from_mem(gobj, tranger, topic, key, md_record);
+    // If there is no iterators then no cache and this call will create one
+    // This function is to low-level management of records as queues
 
     return 0;
 }
