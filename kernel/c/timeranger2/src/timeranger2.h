@@ -386,32 +386,41 @@ PUBLIC int tranger2_delete_record(
 
 /*
     Write record user flag
+    This function works directly in disk, segments in memory not used or updated
 */
 PUBLIC int tranger2_write_user_flag(
     json_t *tranger,
-    const char *topic_name,
-    md2_record_ex_t *md_record_ex,
+    const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
+    uint64_t rowid,
     uint32_t user_flag
 );
 
 /*
     Write record user flag using mask
+    This function works directly in disk, segments in memory not used or updated
 */
 PUBLIC int tranger2_set_user_flag(
     json_t *tranger,
-    const char *topic_name,
-    md2_record_ex_t *md_record_ex,
+    const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
+    uint64_t rowid,
     uint32_t mask,
     BOOL set
 );
 
 /*
-    Read record user flag (for writing mode)
+    Read record user flag
+    This function works directly in disk, segments in memory not used or updated
 */
 PUBLIC uint16_t tranger2_read_user_flag(
     json_t *tranger,
-    const char *topic_name,
-    md2_record_ex_t *md_record_ex
+    const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
+    uint64_t rowid
 );
 
 

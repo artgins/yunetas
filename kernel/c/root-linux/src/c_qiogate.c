@@ -1059,8 +1059,20 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
     json_t *jn_ack_message = gbuf2json(gbuf, 2);
 
-    uint64_t rowid = kw_get_int(gobj, trq_get_metadata(jn_ack_message), "__msg_key__", 0, KW_REQUIRED);
-    int result = kw_get_int(gobj, trq_get_metadata(jn_ack_message), "result", 0, KW_REQUIRED);
+    uint64_t rowid = kw_get_int(
+        gobj,
+        trq_get_metadata(jn_ack_message),
+        "__msg_key__",
+        0,
+        KW_REQUIRED
+    );
+    int result = (int)kw_get_int(
+        gobj,
+        trq_get_metadata(jn_ack_message),
+        "result",
+        0,
+        KW_REQUIRED
+    );
 
     if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_QUEUE_PROT)) {
         gobj_trace_msg(gobj, "QIOGATE ack %s <== %s, %"PRIu64,

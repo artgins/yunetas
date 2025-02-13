@@ -127,39 +127,6 @@ typedef gbuffer_t * (*filter_callback_t) (   // Remember to free returned gbuffe
     gbuffer_t * gbuf  // must be owned
 );
 
-PRIVATE int get_topic_rd_fd(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    const char *file_id,
-    BOOL for_data
-);
-PRIVATE int get_topic_wr_fd( // optimized
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    const char *key,
-    BOOL for_data,
-    uint64_t __t__
-);
-PRIVATE char *get_t_filename(
-    char *bf,
-    int bfsize,
-    json_t *tranger,
-    json_t *topic,
-    BOOL for_data,  // TRUE for data, FALSE for md2
-    uint64_t __t__ // WARNING must be in seconds!
-);
-PRIVATE int get_md_record_for_wr(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    uint64_t rowid,
-    md2_record_t *md_record,
-    BOOL verbose
-);
-
 PRIVATE int close_fd_opened_files(
     hgobj gobj,
     json_t *topic,
@@ -2609,166 +2576,6 @@ PUBLIC int tranger2_append_record(
 }
 
 /***************************************************************************
-    Get md record by rowid (by fd, for write)
- ***************************************************************************/
-PRIVATE int get_md_record_for_wr(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    uint64_t rowid,
-    md2_record_t *md_record,
-    BOOL verbose
-)
-{
-    memset(md_record, 0, sizeof(md2_record_t));
-
-    if(rowid == 0) {
-        if(verbose) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "rowid 0",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "rowid",        "%lu", (unsigned long)rowid,
-                NULL
-            );
-        }
-        return -1;
-    }
-
-    json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);   es last_rowid
-    json_int_t __last_rowid__ = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
-    if(__last_rowid__ <= 0) {
-        return -1;
-    }
-
-    if(rowid > __last_rowid__) {
-        if(verbose) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "rowid greater than last_rowid",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "rowid",        "%lu", (unsigned long)rowid,
-                "last_rowid",   "%lu", (unsigned long)__last_rowid__,
-                NULL
-            );
-        }
-        return -1;
-    }
-
-    int fd = get_idx_fd(tranger, topic);
-    if(fd < 0) {
-        // Error already logged
-        return -1;
-    }
-
-    off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
-    off_t offset_ = lseek(fd, offset, SEEK_SET);
-    if(offset != offset_) {
-        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "topic_idx.md corrupted",
-            "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-            "offset",       "%lu", (unsigned long)offset,
-            "offset_",      "%lu", (unsigned long)offset_,
-            NULL
-        );
-        return -1;
-    }
-
-    size_t ln = read(
-        fd,
-        md_record,
-        sizeof(md2_record_t)
-    );
-    if(ln != sizeof(md2_record_t)) {
-        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot read record metadata, read FAILED",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "errno",        "%s", strerror(errno),
-            NULL
-        );
-        return -1;
-    }
-
-   if(rowid != rowid) {
-        log_error(0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "md_record corrupted, item rowid not match",
-            "topic",        "%s", tranger2_topic_name(topic),
-            "rowid",        "%lu", (unsigned long)rowid,
-            "__rowid__",    "%lu", (unsigned long)rowid,
-            NULL
-        );
-        return -1;
-    }
-
-    return 0;
-}
-
-/***************************************************************************
-   Re-Write new record metadata to file
- ***************************************************************************/
-PRIVATE int rewrite_md_record_to_file(
-    hgobj gobj,
-    json_t *tranger,
-    json_t *topic,
-    md2_record_t *md_record
-)
-{
-    TODO
-//    int fd = get_idx_fd(tranger, topic);
-//    if(fd < 0) {
-//        // Error already logged
-//        return -1;
-//    }
-////    off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
-////    off_t offset_ = lseek(fd, offset, SEEK_SET);
-////    if(offset != offset_) {
-////        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-////            "function",     "%s", __FUNCTION__,
-////            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-////            "msg",          "%s", "topic_idx.md corrupted",
-////            "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-////            "offset",       "%lu", (unsigned long)offset,
-////            "offset_",      "%lu", (unsigned long)offset_,
-////            NULL
-////        );
-////        return -1;
-////    }
-//
-//    size_t ln = write( // write new (record content)
-//        fd,
-//        md_record,
-//        sizeof(md2_record_t)
-//    );
-//    if(ln != sizeof(md2_record_t)) {
-//        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//            "msg",          "%s", "Cannot save record metadata, write FAILED",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "errno",        "%s", strerror(errno),
-//            NULL
-//        );
-//        return -1;
-//    }
-
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "NOT IMPLEMENTED",
-        NULL
-    );
-    return 0;
-}
-
-/***************************************************************************
     Delete record
  ***************************************************************************/
 PUBLIC int tranger2_delete_record(
@@ -2840,11 +2647,137 @@ PUBLIC int tranger2_delete_record(
 }
 
 /***************************************************************************
+    Get md record from disk to re-rewrite or re-read
+ ***************************************************************************/
+PRIVATE int get_md_record_for_wr(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,      // In old tranger with 'rowid' was enough to get a record md
+    const char *key,    // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
+    uint64_t rowid,
+    md2_record_t *md_record,
+    BOOL verbose
+)
+{
+    memset(md_record, 0, sizeof(md2_record_t));
+
+    if(rowid == 0) {
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "rowid 0",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "rowid",        "%lu", (unsigned long)rowid,
+                NULL
+            );
+        }
+        return -1;
+    }
+
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, __t__);
+    if(md2_fd < 0) {
+        // Error already logged
+        return -1;
+    }
+
+    off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
+    off_t offset_ = lseek(md2_fd, offset, SEEK_SET);
+    if(offset != offset_) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "topic_idx.md corrupted",
+            "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "offset",       "%lu", (unsigned long)offset,
+            "offset_",      "%lu", (unsigned long)offset_,
+            NULL
+        );
+        return -1;
+    }
+
+    size_t ln = read( // read md
+        md2_fd,
+        md_record,
+        sizeof(md2_record_t)
+    );
+    if(ln != sizeof(md2_record_t)) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot read record metadata, read FAILED",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+    Re-Write new record metadata to file
+    This function works directly in disk, segments in memory not used or updated
+ ***************************************************************************/
+PRIVATE int rewrite_md_record_to_file(
+    hgobj gobj,
+    json_t *tranger,
+    json_t *topic,
+    const char *key,
+    md2_record_t *md_record
+)
+{
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, md_record->__t__);
+    if(md2_fd < 0) {
+        // Error already logged
+        return -1;
+    }
+
+    off_t offset = lseek(md2_fd, (off_t)md_record->__offset__, SEEK_SET);
+    if(offset != md_record->__offset__) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "topic_idx.md corrupted",
+            "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "offset",       "%lu", (unsigned long)offset,
+            "offset_",      "%lu", (unsigned long)md_record->__offset__,
+            NULL
+        );
+        return -1;
+    }
+
+    size_t ln = write( // write new (record content)
+        md2_fd,
+        md_record,
+        sizeof(md2_record_t)
+    );
+    if(ln != sizeof(md2_record_t)) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot save record metadata, write FAILED",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
     Write record user flag
+    This function works directly in disk, segments in memory not used or updated
  ***************************************************************************/
 PUBLIC int tranger2_write_user_flag(
     json_t *tranger,
-    const char *topic_name,
+    const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
     uint64_t rowid,
     uint32_t user_flag
 )
@@ -2868,6 +2801,8 @@ PUBLIC int tranger2_write_user_flag(
         gobj,
         tranger,
         topic,
+        key,
+        __t__,
         rowid,
         &md_record,
         TRUE
@@ -2877,18 +2812,29 @@ PUBLIC int tranger2_write_user_flag(
 
     set_user_flag(&md_record, user_flag);
 
-    if(rewrite_md_record_to_file(gobj, tranger, topic, &md_record)<0) {
+    if(rewrite_md_record_to_file(
+        gobj,
+        tranger,
+        topic,
+        key,
+        &md_record
+    )<0) {
+        // Error already logged
         return -1;
     }
+
     return 0;
 }
 
 /***************************************************************************
     Write record user flag using mask
+    This function works directly in disk, segments in memory not used or updated
  ***************************************************************************/
 PUBLIC int tranger2_set_user_flag(
     json_t *tranger,
-    const char *topic_name,
+    const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
     uint64_t rowid,
     uint32_t mask,
     BOOL set
@@ -2913,6 +2859,8 @@ PUBLIC int tranger2_set_user_flag(
         gobj,
         tranger,
         topic,
+        key,
+        __t__,
         rowid,
         &md_record,
         TRUE
@@ -2935,7 +2883,14 @@ PUBLIC int tranger2_set_user_flag(
     }
     set_user_flag(&md_record, user_flag);
 
-    if(rewrite_md_record_to_file(gobj, tranger, topic, &md_record)<0) {
+    if(rewrite_md_record_to_file(
+        gobj,
+        tranger,
+        topic,
+        key,
+        &md_record
+    )<0) {
+        // Error already logged
         return -1;
     }
 
@@ -2943,11 +2898,14 @@ PUBLIC int tranger2_set_user_flag(
 }
 
 /***************************************************************************
-    Read record user flag (for writing mode)
+    Read record user flag
+    This function works directly in disk, segments in memory not used or updated
  ***************************************************************************/
 PUBLIC uint16_t tranger2_read_user_flag(
     json_t *tranger,
-    const char *topic_name,
+    const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
     uint64_t rowid
 )
 {
@@ -2970,6 +2928,8 @@ PUBLIC uint16_t tranger2_read_user_flag(
         gobj,
         tranger,
         topic,
+        key,
+        __t__,
         rowid,
         &md_record,
         TRUE
@@ -4712,7 +4672,11 @@ PRIVATE uint64_t load_first_and_last_record_md(
     /*---------------------------*
      *      Read first record
      *---------------------------*/
-    ssize_t ln = read(fd, md_first_record, sizeof(md2_record_t));
+    ssize_t ln = read( // read md
+        fd,
+        md_first_record,
+        sizeof(md2_record_t)
+    );
     if(ln == sizeof(md2_record_t)) {
         md_first_record->__t__ = (ntohll(md_first_record->__t__)) & TIME_FLAG_MASK;
         md_first_record->__tm__ = (ntohll(md_first_record->__tm__)) & TIME_FLAG_MASK;
@@ -4774,7 +4738,11 @@ PRIVATE uint64_t load_first_and_last_record_md(
             );
         }
 
-        ln = read(fd, md_last_record, sizeof(md2_record_t));
+        ln = read( // read md
+            fd,
+            md_last_record,
+            sizeof(md2_record_t)
+        );
         if(ln == sizeof(md2_record_t)) {
             md_last_record->__t__ = (ntohll(md_last_record->__t__)) & TIME_FLAG_MASK;
             md_last_record->__tm__ = (ntohll(md_last_record->__tm__)) & TIME_FLAG_MASK;
@@ -7154,6 +7122,7 @@ PRIVATE int read_md(
         return -1;
     }
 
+    // TODO no debería ser rowid-1 ???
     off_t offset = (off_t) (rowid * sizeof(md2_record_t));
     off_t offset_ = lseek(fd, offset, SEEK_SET);
     if(offset != offset_) {
@@ -7170,7 +7139,7 @@ PRIVATE int read_md(
         return -1;
     }
 
-    size_t ln = read(
+    size_t ln = read( // read md
         fd,
         &md_record,
         sizeof(md2_record_t)
@@ -7340,7 +7309,7 @@ PRIVATE json_t *read_record_content(
         return NULL;
     }
     char *p = gbuffer_cur_rd_pointer(gbuf);
-    size_t ln = read(
+    size_t ln = read( // read content
         fd,
         p,
         md_record_ex->__size__
