@@ -985,6 +985,8 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
  ***************************************************************************/
 PRIVATE int dequeue_msg(
     hgobj gobj,
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
     uint64_t rowid,
     int result
 )
@@ -1031,9 +1033,13 @@ PRIVATE int dequeue_msg(
         trq_clear_ack_timer(msg);
         trq_unload_msg(msg, result);
 
-
     } else {
-        if(trq_check_pending_rowid(priv->trq_msgs, rowid)!=0) {
+        if(trq_check_pending_rowid(
+            priv->trq_msgs,
+            key,        // In tranger2 ('key', '__t__', 'rowid') is required
+            __t__,
+            rowid
+        )!=0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1059,16 +1065,31 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
     json_t *jn_ack_message = gbuf2json(gbuf, 2);
 
+    json_t *trq_md = trq_get_metadata(jn_ack_message);
+    const char *key = kw_get_str(
+        gobj,
+        trq_md,
+        "__msg_key__",
+        0,
+        KW_REQUIRED
+    );
     uint64_t rowid = kw_get_int(
         gobj,
-        trq_get_metadata(jn_ack_message),
-        "__msg_key__",
+        trq_md,
+        "__msg_rowid__", // OLD "__msg_key__",
+        0,
+        KW_REQUIRED
+    );
+    uint64_t __t__ = kw_get_int(
+        gobj,
+        trq_md,
+        "__msg_t__",
         0,
         KW_REQUIRED
     );
     int result = (int)kw_get_int(
         gobj,
-        trq_get_metadata(jn_ack_message),
+        trq_md,
         "result",
         0,
         KW_REQUIRED
@@ -1082,7 +1103,7 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    dequeue_msg(gobj, rowid, result);
+    dequeue_msg(gobj, key, __t__, rowid, result);
 
     JSON_DECREF(jn_ack_message)
     KW_DECREF(kw)
