@@ -19,6 +19,7 @@
 #include "c_timer.h"
 #include "c_qiogate.h"
 #include "c_tranger.h"
+#include "../../timeranger2/src/tr_queue.h"
 
 /***************************************************************************
  *              Constants
@@ -754,11 +755,15 @@ PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg msg)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint64_t rowid = trq_msg_rowid(msg);
     json_t *jn_msg = trq_msg_json(msg);
+    uint64_t rowid = trq_msg_rowid(msg);
+    uint64_t __t__ = trq_msg_time(msg);
+    const char *key = trq_msg_key(msg);
 
     json_t *kw_clone = kw_duplicate(gobj, jn_msg);
-    trq_set_metadata(kw_clone, "__msg_key__", json_integer(rowid));
+    trq_set_metadata(kw_clone, "__msg_key__", json_string(key));
+    trq_set_metadata(kw_clone, "__msg_rowid__", json_integer((json_int_t)rowid));
+    trq_set_metadata(kw_clone, "__msg_t__", json_integer((json_int_t)__t__));
 
     if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_QUEUE_PROT)) {
         gobj_trace_msg(gobj, "QIOGATE send %s ==> %s, %"PRIu64,

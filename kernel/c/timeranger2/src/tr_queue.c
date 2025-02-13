@@ -662,14 +662,6 @@ PUBLIC md2_record_ex_t trq_msg_md_record(q_msg msg_)
     register q_msg_t *msg = msg_;
     return msg->md_record;
 }
-PUBLIC uint64_t trq_msg_rowid(q_msg msg_)
-{
-    register q_msg_t *msg = msg_;
-    if(!msg) {
-        return 0;
-    }
-    return msg->rowid;
-}
 PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT YOURS!!
 {
     register q_msg_t *msg = msg_;
@@ -696,11 +688,26 @@ PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT 
     }
     return msg->jn_record;
 }
+
+PUBLIC uint64_t trq_msg_rowid(q_msg msg_)
+{
+    register q_msg_t *msg = msg_;
+    if(!msg) {
+        return 0;
+    }
+    return msg->rowid;
+}
 PUBLIC uint64_t trq_msg_time(q_msg msg_)
 {
     register q_msg_t *msg = msg_;
     return msg->md_record.__t__;
 }
+PUBLIC const char *trq_msg_key(q_msg msg_)
+{
+    register q_msg_t *msg = msg_;
+    return msg->key;
+}
+
 //PUBLIC BOOL trq_msg_is_t_ms(q_msg msg)
 //{
 //    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?TRUE:FALSE;
