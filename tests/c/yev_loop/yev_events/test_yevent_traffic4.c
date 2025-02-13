@@ -37,7 +37,7 @@ const char *server_url = "tcp://localhost:3333";
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC void yuno_catch_signals(void);
+PRIVATE void yuno_catch_signals(void);
 
 /***************************************************************
  *              Data

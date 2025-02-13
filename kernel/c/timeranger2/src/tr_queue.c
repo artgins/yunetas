@@ -657,10 +657,10 @@ PUBLIC q_msg trq_prev_msg(q_msg msg)
 /***************************************************************************
     Get info of message
  ***************************************************************************/
-PUBLIC md2_record_ex_t trq_msg_md_record(q_msg msg_)
+PUBLIC md2_record_ex_t *trq_msg_md(q_msg msg_)
 {
     register q_msg_t *msg = msg_;
-    return msg->md_record;
+    return &msg->md_record;
 }
 PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT YOURS!!
 {

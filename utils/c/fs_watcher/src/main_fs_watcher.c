@@ -17,7 +17,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC void yuno_catch_signals(void);
+PRIVATE void yuno_catch_signals(void);
 PRIVATE int fs_event_callback(fs_event_t *fs_event);
 
 /***************************************************************

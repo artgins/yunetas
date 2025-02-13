@@ -12,6 +12,7 @@ add_subdirectory(inotify)
 add_subdirectory(tr2list)
 add_subdirectory(tr2keys)
 add_subdirectory(tr2migrate)
+add_subdirectory(list_queue_msgs2)
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #

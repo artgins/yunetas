@@ -38,7 +38,7 @@ int who_drop = 0; // 0 client, 1 srv_cli, 2 server
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC void yuno_catch_signals(void);
+PRIVATE void yuno_catch_signals(void);
 PRIVATE int yev_server_callback(yev_event_h event);
 PRIVATE int yev_client_callback(yev_event_h event);
 

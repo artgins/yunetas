@@ -257,7 +257,7 @@ struct arguments arguments;
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PUBLIC void yuno_catch_signals(void);
+PRIVATE void yuno_catch_signals(void);
 PRIVATE int list_topics(const char *path);
 
 /***************************************************************************
@@ -896,7 +896,6 @@ int main(int argc, char *argv[])
         FALSE,
         0,
         0
-
     );
 
     yuno_catch_signals();

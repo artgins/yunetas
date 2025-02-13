@@ -31,7 +31,7 @@ PRIVATE int pinta_records = 0;
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC void yuno_catch_signals(void);
+PRIVATE void yuno_catch_signals(void);
 
 /***************************************************************
  *              Data
