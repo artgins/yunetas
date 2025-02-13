@@ -310,7 +310,6 @@ PUBLIC int trq_load(tr_queue trq_)
         "trq", (json_int_t)(size_t)trq
     );
 
-    //    tranger2_close_list(trq->tranger, tr_list);
     json_t *tr_list = tranger2_open_list(
         trq->tranger,
         trq->topic_name,
