@@ -213,8 +213,6 @@ PUBLIC uint64_t trq_msg_rowid(q_msg msg);
 PUBLIC json_t *trq_msg_json(q_msg msg); // Load the message, Return json is NOT YOURS!!
 PUBLIC uint64_t trq_msg_time(q_msg msg);
 PUBLIC const char *trq_msg_key(q_msg msg);
-//PUBLIC BOOL trq_msg_is_t_ms(q_msg msg);  // record time in miliseconds?
-//PUBLIC BOOL trq_msg_is_tm_ms(q_msg msg); // message time in miliseconds?
 
 /*
     Metadata
