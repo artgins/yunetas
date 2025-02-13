@@ -49,6 +49,7 @@ struct arguments
     int all;                    /* all message*/
     char *timeranger;
     char *topic;
+    int print_local_time;
 };
 
 /***************************************************************************
@@ -74,11 +75,13 @@ static char args_doc[] = "";
  */
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
-{"verbose",         'l',    0,          0,      "Verbose mode.",    0},
+{"verbose",         'l',    "LEVEL",    0,      "Verbose level (empty=total, 1=metadata, 2=metadata+record)", 0},
 {"all",             'a',    0,          0,      "List all messages, not only pending.", 0},
-{0,                 0,      0,          0,      "Database keys",    4},
-{"timeranger",      'd',    "STRING",   0,      "Timeranger.",       4},
-{"topic",           'p',    "STRING",   0,      "Topic.",           4},
+{"print-local-time",'t',    0,          0,      "Print in local time", 0},
+
+{0,                 0,      0,          0,      "Database keys",    2},
+{"timeranger",      'd',    "STRING",   0,      "Timeranger.",       2},
+{"topic",           'p',    "STRING",   0,      "Topic.",           2},
 {0}
 };
 
@@ -106,7 +109,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
     switch (key) {
     case 'l':
-        arguments->verbose = 1;
+        arguments->verbose = atoi(arg);
         break;
 
     case 'a':
@@ -118,6 +121,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
     case 'p':
         arguments->topic = arg;
+        break;
+    case 't':
+        arguments->print_local_time = 1;
         break;
 
     case ARGP_KEY_ARG:
@@ -144,29 +150,25 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int list_queue_msgs(
-    const char *timeranger,
-    const char *topic_name,
-    int all,
-    int verbose)
+PRIVATE int list_queue_msgs(struct arguments *arguments)
 {
     /*-------------------------------*
      *      Startup TimeRanger
      *-------------------------------*/
     json_t *jn_tranger = json_pack("{s:s, s:s}",
-        "path", timeranger,
+        "path", arguments->timeranger,
         "database", ""
     );
 
     json_t * tranger = tranger2_startup(0, jn_tranger, 0);
     if(!tranger) {
-        fprintf(stderr, "Can't startup tranger %s\n\n", timeranger);
+        fprintf(stderr, "Can't startup tranger %s\n\n", arguments->timeranger);
         exit(-1);
     }
 
     tr_queue trq_output = trq_open(
         tranger,
-        topic_name,
+        arguments->topic,
         "id",
         "tm",
         sf_string_key,
@@ -176,7 +178,7 @@ PRIVATE int list_queue_msgs(
         exit(-1);
     }
 
-    if(all) {
+    if(arguments->all) {
         trq_load_all(trq_output, 0, 0, 0);
     } else {
         trq_load(trq_output);
@@ -186,20 +188,32 @@ PRIVATE int list_queue_msgs(
     q_msg msg;
     qmsg_foreach_forward(trq_output, msg) {
         counter++;
-        if(verbose) {
+        if(arguments->verbose == 1) {
+            md2_record_ex_t *md_record = trq_msg_md(msg);
+            char temp[1024];
+            tranger2_print_md1_record(
+                temp,
+                sizeof(temp),
+                trq_msg_key(msg),
+                md_record,
+                arguments->print_local_time
+            );
+            printf("%s\n", temp);
+
+        } else if(arguments->verbose > 1) {
             md2_record_ex_t *md_record = trq_msg_md(msg);
             const json_t *jn_gate_msg = trq_msg_json(msg); // Return json is NOT YOURS!!
-            const char *key = trq_msg_key(msg);
-            uint32_t mark_ = md_record->user_flag;
-            time_t t = (time_t)trq_msg_time(msg);
 
-            char fecha[80];
-            tm2timestamp(fecha, sizeof(fecha), gmtime(&t));
-            char title[256];
-            snprintf(title, sizeof(title), "t: %s, mark: 0x%"PRIX32", key: %s  ",
-                fecha, mark_, key
+            char temp[1024];
+            tranger2_print_md1_record(
+                temp,
+                sizeof(temp),
+                trq_msg_key(msg),
+                md_record,
+                arguments->print_local_time
             );
-            print_json2(title, (json_t *)jn_gate_msg);
+
+            print_json2(temp, (json_t *)jn_gate_msg);
         }
     }
 
@@ -298,10 +312,5 @@ int main(int argc, char *argv[])
     /*
      *  Do your work
      */
-    return list_queue_msgs(
-        arguments.timeranger,
-        arguments.topic,
-        arguments.all,
-        arguments.verbose
-    );
+    return list_queue_msgs(&arguments);
 }
