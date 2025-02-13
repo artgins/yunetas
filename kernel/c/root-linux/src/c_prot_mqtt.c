@@ -4683,6 +4683,7 @@ PRIVATE uint16_t mosquitto__mid_generate(hgobj gobj, const char *client_id)
     json_t *client = gobj_get_resource(priv->gobj_mqtt_clients, client_id, 0, 0);
     uint16_t last_mid = (uint16_t)kw_get_int(gobj, client, "last_mid", 0, KW_REQUIRED);
 
+    // TODO it seems that does nothing saving in resource
     last_mid++;
     if(last_mid == 0) {
         last_mid++;
@@ -5235,12 +5236,11 @@ PRIVATE int save_client(hgobj gobj)
 PRIVATE int set_client_disconnected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(priv->client) {
+    if(!empty_json(priv->client)) {
         kw_set_dict_value(gobj, priv->client, "isConnected", json_false());
         kw_set_dict_value(gobj, priv->client, "_gobj", json_integer(0));
         kw_set_dict_value(gobj, priv->client, "_gobj_bottom", json_integer(0));
         save_client(gobj);
-        priv->client = 0;
     }
     return 0;
 }
