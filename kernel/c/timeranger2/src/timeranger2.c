@@ -2727,8 +2727,8 @@ PRIVATE int get_md_record_for_wr(
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "__t__ not match, topic_idx.md corrupted",
             "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-            "offset",       "%lu", (unsigned long)offset,
-            "offset_",      "%lu", (unsigned long)offset_,
+            "t1",           "%lu", (unsigned long)get_time_t(md_record),
+            "t2",           "%lu", (unsigned long)__t__,
             NULL
         );
         return -1;

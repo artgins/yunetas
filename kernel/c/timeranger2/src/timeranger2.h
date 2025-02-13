@@ -393,7 +393,7 @@ PUBLIC int tranger2_write_user_flag(
     const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
-    uint64_t rowid,
+    uint64_t rowid,         // Must be real rowid in the file, not in topic global
     uint32_t user_flag
 );
 
@@ -406,7 +406,7 @@ PUBLIC int tranger2_set_user_flag(
     const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
-    uint64_t rowid,
+    uint64_t rowid,         // Must be real rowid in the file, not in topic global
     uint32_t mask,
     BOOL set
 );
@@ -420,7 +420,7 @@ PUBLIC uint16_t tranger2_read_user_flag(
     const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
-    uint64_t rowid
+    uint64_t rowid          // Must be real rowid in the file, not in topic global
 );
 
 
