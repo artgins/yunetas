@@ -277,6 +277,7 @@ PUBLIC int trq_load(tr_queue trq_)
         );
         return -1;
     }
+
     json_t *match_cond = json_object();
     json_object_set_new(
         match_cond,
@@ -293,7 +294,7 @@ PUBLIC int trq_load(tr_queue trq_)
 
     /*
      *  We manage the callback, user not implied.
-     *  Mantains a list of message's metadata.
+     *  Maintains a list of message's metadata.
      *  Load the message when need it.
      */
     json_object_set_new(
@@ -304,13 +305,6 @@ PUBLIC int trq_load(tr_queue trq_)
 
     first_rowid = 0;
 
-// TODO must add some of this fields to match_cond? review another tranger2_open_list
-//    json_t *match_cond = json_pack("{s:s, s:b, s:s, s:b, s:I}",
-//        "id", path,
-//        "backward", 1,
-//        "rkey", "",
-//        "load_record_callback", (json_int_t)(size_t)load_id_callback
-//    );
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
         "trq", (json_int_t)(size_t)trq
@@ -336,19 +330,6 @@ PUBLIC int trq_load(tr_queue trq_)
         );
     }
     tranger2_close_list(trq->tranger, tr_list);
-
-// original
-//    json_t *jn_list = json_pack("{s:s, s:o, s:I, s:I}",
-//        "topic_name", trq->topic_name,
-//        "match_cond", match_cond,
-//        "load_record_callback", (json_int_t)(size_t)load_record_callback,
-//        "trq", (json_int_t)(size_t)trq
-//    );
-//    json_t *tr_list = tranger2_open_list(
-//        trq->tranger,
-//        jn_list
-//    );
-//    tranger2_close_list(trq->tranger, tr_list);
 
     if(first_rowid==0) {
         // No hay ningún msg pending, pon la última rowid

@@ -2218,7 +2218,7 @@ PUBLIC int tranger2_append_record(
     const char *topic_name,
     uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
     uint16_t user_flag,
-    md2_record_ex_t *md_record_ex, // required
+    md2_record_ex_t *md_record_ex, // required, to return the metadata
     json_t *jn_record       // owned
 )
 {
@@ -2620,101 +2620,94 @@ PRIVATE int get_md_record_for_wr(
     BOOL verbose
 )
 {
- TODO
-//    memset(md_record, 0, sizeof(md2_record_t));
-//
-//    if(rowid == 0) {
-//        if(verbose) {
-//            gobj_log_error(gobj, 0,
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                "msg",          "%s", "rowid 0",
-//                "topic",        "%s", tranger2_topic_name(topic),
-//                "rowid",        "%lu", (unsigned long)rowid,
-//                NULL
-//            );
-//        }
-//        return -1;
-//    }
-//
-//    json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);   es last_rowid
-//    json_int_t __last_rowid__ = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
-//    if(__last_rowid__ <= 0) {
-//        return -1;
-//    }
-//
-//    if(rowid > __last_rowid__) {
-//        if(verbose) {
-//            gobj_log_error(gobj, 0,
-//                "function",     "%s", __FUNCTION__,
-//                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                "msg",          "%s", "rowid greater than last_rowid",
-//                "topic",        "%s", tranger2_topic_name(topic),
-//                "rowid",        "%lu", (unsigned long)rowid,
-//                "last_rowid",   "%lu", (unsigned long)__last_rowid__,
-//                NULL
-//            );
-//        }
-//        return -1;
-//    }
-//
-//    int fd = get_idx_fd(tranger, topic);
-//    if(fd < 0) {
-//        // Error already logged
-//        return -1;
-//    }
-//
-//    off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
-//    off_t offset_ = lseek(fd, offset, SEEK_SET);
-//    if(offset != offset_) {
-//        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//            "msg",          "%s", "topic_idx.md corrupted",
-//            "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
-//            "offset",       "%lu", (unsigned long)offset,
-//            "offset_",      "%lu", (unsigned long)offset_,
-//            NULL
-//        );
-//        return -1;
-//    }
-//
-//    size_t ln = read(
-//        fd,
-//        md_record,
-//        sizeof(md2_record_t)
-//    );
-//    if(ln != sizeof(md2_record_t)) {
-//        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//            "msg",          "%s", "Cannot read record metadata, read FAILED",
-//            "topic",        "%s", tranger2_topic_name(topic),
-//            "errno",        "%s", strerror(errno),
-//            NULL
-//        );
-//        return -1;
-//    }
-//
-////   if(rowid != rowid) {
-////        log_error(0,
-////            "function",     "%s", __FUNCTION__,
-////            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-////            "msg",          "%s", "md_record corrupted, item rowid not match",
-////            "topic",        "%s", tranger2_topic_name(topic),
-////            "rowid",        "%lu", (unsigned long)rowid,
-////            "__rowid__",    "%lu", (unsigned long)rowid,
-////            NULL
-////        );
-////        return -1;
-////    }
+    memset(md_record, 0, sizeof(md2_record_t));
 
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-        "msg",          "%s", "NOT IMPLEMENTED",
-        NULL
+    if(rowid == 0) {
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "rowid 0",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "rowid",        "%lu", (unsigned long)rowid,
+                NULL
+            );
+        }
+        return -1;
+    }
+
+    json_int_t __last_rowid__ = get_topic_key_rows(gobj, topic, key);   es last_rowid
+    json_int_t __last_rowid__ = kw_get_int(gobj, topic, "__last_rowid__", 0, KW_REQUIRED);
+    if(__last_rowid__ <= 0) {
+        return -1;
+    }
+
+    if(rowid > __last_rowid__) {
+        if(verbose) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "rowid greater than last_rowid",
+                "topic",        "%s", tranger2_topic_name(topic),
+                "rowid",        "%lu", (unsigned long)rowid,
+                "last_rowid",   "%lu", (unsigned long)__last_rowid__,
+                NULL
+            );
+        }
+        return -1;
+    }
+
+    int fd = get_idx_fd(tranger, topic);
+    if(fd < 0) {
+        // Error already logged
+        return -1;
+    }
+
+    off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
+    off_t offset_ = lseek(fd, offset, SEEK_SET);
+    if(offset != offset_) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "topic_idx.md corrupted",
+            "topic",        "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "offset",       "%lu", (unsigned long)offset,
+            "offset_",      "%lu", (unsigned long)offset_,
+            NULL
+        );
+        return -1;
+    }
+
+    size_t ln = read(
+        fd,
+        md_record,
+        sizeof(md2_record_t)
     );
+    if(ln != sizeof(md2_record_t)) {
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot read record metadata, read FAILED",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "errno",        "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+   if(rowid != rowid) {
+        log_error(0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "md_record corrupted, item rowid not match",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "rowid",        "%lu", (unsigned long)rowid,
+            "__rowid__",    "%lu", (unsigned long)rowid,
+            NULL
+        );
+        return -1;
+    }
+
     return 0;
 }
 
