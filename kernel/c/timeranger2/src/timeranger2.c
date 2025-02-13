@@ -2685,7 +2685,7 @@ PRIVATE int get_md_record_for_wr(
     off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
     off_t offset_ = lseek(md2_fd, offset, SEEK_SET);
     if(offset != offset_) {
-        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "lseek() failed, topic_idx.md corrupted",
@@ -2705,7 +2705,7 @@ PRIVATE int get_md_record_for_wr(
         sizeof(md2_record_t)
     );
     if(ln != sizeof(md2_record_t)) {
-        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot read record metadata, read FAILED",
@@ -2717,7 +2717,7 @@ PRIVATE int get_md_record_for_wr(
     }
 
     if(md_record->__t__ != __t__) {
-        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "__t__ not match, topic_idx.md corrupted",
@@ -2747,7 +2747,7 @@ PRIVATE int rewrite_md_record_to_file(
 {
     off_t offset = lseek(md2_fd, offset_, SEEK_SET);
     if(offset != offset_) {
-        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "lseek() failed, topic_idx.md corrupted",
@@ -2765,7 +2765,7 @@ PRIVATE int rewrite_md_record_to_file(
         sizeof(md2_record_t)
     );
     if(ln != sizeof(md2_record_t)) {
-        gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot save record metadata, write FAILED",
