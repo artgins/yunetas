@@ -5960,6 +5960,48 @@ PRIVATE BOOL tranger2_match_metadata(
         }
     }
 
+    /*--------------------------*
+     *  user_flag
+     *  not_user_flag
+     *  user_flag_mask_set
+     *  user_flag_mask_notset
+     *--------------------------*/
+    uint16_t user_flag = (uint16_t)json_integer_value(
+        json_object_get(match_cond, "user_flag")
+    );
+    if(user_flag) {
+        if((md_record_ex->user_flag != user_flag)) {
+            return FALSE;
+        }
+    }
+
+    uint16_t not_user_flag = (uint16_t)json_integer_value(
+        json_object_get(match_cond, "not_user_flag")
+    );
+    if(not_user_flag) {
+        if((md_record_ex->user_flag == not_user_flag)) {
+            return FALSE;
+        }
+    }
+
+    uint16_t user_flag_mask_set = (uint16_t)json_integer_value(
+        json_object_get(match_cond, "user_flag_mask_set")
+    );
+    if(user_flag_mask_set) {
+        if((md_record_ex->user_flag & user_flag_mask_set) != user_flag_mask_set) {
+            return FALSE;
+        }
+    }
+
+    uint16_t user_flag_mask_notset = (uint16_t)json_integer_value(
+        json_object_get(match_cond, "user_flag_mask_notset")
+    );
+    if(user_flag_mask_notset) {
+        if((md_record_ex->user_flag | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
+            return FALSE;
+        }
+    }
+
     return TRUE;
 }
 
