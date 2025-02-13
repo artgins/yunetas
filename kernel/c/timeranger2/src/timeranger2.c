@@ -2494,7 +2494,7 @@ PUBLIC int tranger2_append_record(
         big_endian.__offset__ = htonll(md_record.__offset__);
         big_endian.__size__ = htonll(md_record.__size__);
 
-        size_t ln = write(
+        size_t ln = write( // write md
             md2_fd,
             &big_endian,
             sizeof(md2_record_t)
@@ -2741,10 +2741,11 @@ PRIVATE int get_md_record_for_wr(
     Re-Write new record metadata to file
     This function works directly in disk, segments in memory not used or updated
  ***************************************************************************/
-PRIVATE int rewrite_md_record_to_file(
+PRIVATE int rewrite_md_to_file(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
+    const char *key,
     int md2_fd,
     off_t offset_,
     md2_record_t *md_record
@@ -2764,22 +2765,36 @@ PRIVATE int rewrite_md_record_to_file(
         return -1;
     }
 
-    size_t ln = write( // write new (record content)
+    /*--------------------------------------------*
+     *  re-write md2 in big endian
+     *--------------------------------------------*/
+    md2_record_t big_endian;
+    big_endian.__t__ = htonll(md_record->__t__);
+    big_endian.__tm__ = htonll(md_record->__tm__);
+    big_endian.__offset__ = htonll(md_record->__offset__);
+    big_endian.__size__ = htonll(md_record->__size__);
+
+    size_t ln = write( // write md
         md2_fd,
-        md_record,
+        &big_endian,
         sizeof(md2_record_t)
     );
     if(ln != sizeof(md2_record_t)) {
-        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
+        gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "Cannot save record metadata, write FAILED",
+            "msg",          "%s", "Cannot re-write record metadata, write FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
             "errno",        "%s", strerror(errno),
             NULL
         );
         return -1;
     }
+
+    /*
+     *  Update cache
+     */
+    update_new_record_from_mem(gobj, tranger, topic, key, md_record);
 
     return 0;
 }
@@ -2830,10 +2845,11 @@ PUBLIC int tranger2_write_user_flag(
 
     set_user_flag(&md_record, user_flag);
 
-    if(rewrite_md_record_to_file(
+    if(rewrite_md_to_file(
         gobj,
         tranger,
         topic,
+        key,
         md_fd,
         offset,
         &md_record
@@ -2905,10 +2921,11 @@ PUBLIC int tranger2_set_user_flag(
     }
     set_user_flag(&md_record, user_flag);
 
-    if(rewrite_md_record_to_file(
+    if(rewrite_md_to_file(
         gobj,
         tranger,
         topic,
+        key,
         md_fd,
         offset,
         &md_record
