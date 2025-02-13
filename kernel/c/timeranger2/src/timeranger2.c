@@ -2657,11 +2657,11 @@ PRIVATE int get_md_record_for_wr(
     const char *key,    // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
     uint64_t rowid,
-    md2_record_t *md_record,
+    md2_record_ex_t *md_record_ex,
     off_t *p_offset
 )
 {
-    memset(md_record, 0, sizeof(md2_record_t));
+    memset(md_record_ex, 0, sizeof(md2_record_ex_t));
     *p_offset = 0;
 
     if(rowid == 0) {
@@ -2699,9 +2699,10 @@ PRIVATE int get_md_record_for_wr(
 
     *p_offset = offset;
 
+    md2_record_t md_record;
     size_t ln = read( // read direct md
         md2_fd,
-        md_record,
+        &md_record,
         sizeof(md2_record_t)
     );
     if(ln != sizeof(md2_record_t)) {
@@ -2716,7 +2717,20 @@ PRIVATE int get_md_record_for_wr(
         return -1;
     }
 
-    if(md_record->__t__ != __t__) {
+    md_record.__t__ = ntohll(md_record.__t__);
+    md_record.__tm__ = ntohll(md_record.__tm__);
+    md_record.__offset__ = ntohll(md_record.__offset__);
+    md_record.__size__ = ntohll(md_record.__size__);
+
+    md_record_ex->__t__ = get_time_t(&md_record);
+    md_record_ex->__tm__ = get_time_tm(&md_record);
+    md_record_ex->__offset__ = md_record.__offset__;
+    md_record_ex->__size__ = md_record.__size__;
+    md_record_ex->system_flag = get_system_flag(&md_record);
+    md_record_ex->user_flag = get_user_flag(&md_record);
+    md_record_ex->rowid = rowid;
+
+    if(md_record_ex->__t__ != __t__) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
