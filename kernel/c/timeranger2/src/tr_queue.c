@@ -483,15 +483,23 @@ PUBLIC int trq_size_by_key(tr_queue trq, const char *key)
 /***************************************************************************
     Check pending status of a rowid (low level)
  ***************************************************************************/
-PUBLIC int trq_check_pending_rowid(tr_queue trq_, uint64_t rowid)
+PUBLIC int trq_check_pending_rowid(
+    tr_queue trq_,
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
+    uint64_t rowid
+)
 {
     register tr_queue_t *trq = trq_;
 
     uint32_t __user_flag__ = tranger2_read_user_flag(
         trq->tranger,
         trq->topic_name,
+        key,
+        __t__,
         rowid
     );
+
     if(__user_flag__ & TRQ_MSG_PENDING) {
         return 1;
     } else {
@@ -522,6 +530,8 @@ PUBLIC int trq_set_hard_flag(q_msg msg_, uint32_t hard_mark, BOOL set)
     return tranger2_set_user_flag(
         msg->trq->tranger,
         tranger2_topic_name(msg->trq->topic),
+        msg->key,
+        msg->md_record.__t__,
         msg->rowid,
         hard_mark,
         set

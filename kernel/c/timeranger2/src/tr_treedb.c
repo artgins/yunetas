@@ -8499,7 +8499,7 @@ PRIVATE json_t * treedb_get_activated_snap_tag(
 }
 
 /***************************************************************************
- *
+ *  TODO check tranger2_write_user_flag
  ***************************************************************************/
 PUBLIC int treedb_shoot_snap( // tag the current tree db
     json_t *tranger,
@@ -8617,14 +8617,14 @@ PUBLIC int treedb_shoot_snap( // tag the current tree db
         const char *node_id; json_t *node;
         json_object_foreach(indexx, node_id, node) {
             treedb_save_node(tranger, node);
-            uint64_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
-
-            ret += tranger2_write_user_flag(
-                tranger,
-                topic_name,
-                __rowid__,
-                user_flag
-            );
+            // TODO uint64_t __rowid__ = kw_get_int(gobj, node, "__md_treedb__`rowid", 0, KW_REQUIRED);
+            //
+            // ret += tranger2_write_user_flag(
+            //     tranger,
+            //     topic_name,
+            //     __rowid__,
+            //     user_flag
+            // );
             if(ret < 0) {
                 gobj_log_critical(gobj, 0,
                     "function",     "%s", __FUNCTION__,

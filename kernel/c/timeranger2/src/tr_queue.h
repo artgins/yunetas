@@ -108,7 +108,12 @@ PUBLIC int trq_size_by_key(tr_queue trq, const char *key);
     Check pending status of a rowid (low level)
     Return -1 if rowid not exists, 1 if pending, 0 if not pending
 */
-PUBLIC int trq_check_pending_rowid(tr_queue trq, uint64_t rowid);
+PUBLIC int trq_check_pending_rowid(
+    tr_queue trq_,
+    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
+    uint64_t __t__,
+    uint64_t rowid
+);
 
 /*
     Unload a message from iter
