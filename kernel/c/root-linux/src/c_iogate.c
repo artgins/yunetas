@@ -247,7 +247,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     json_object_set_new(
         jn_stats,
-        "opened",
+        "channels_opened",
         json_integer(opened)
     );
     json_object_set_new(
@@ -1002,6 +1002,15 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_integer((json_int_t)(size_t)src)
     );
 
+    int opened = channels_opened(gobj);
+    kw_set_subdict_value(
+        gobj,
+        kw,
+        "__temp__",
+        "channels_opened",
+        json_integer(opened)
+    );
+
     /*
      *  SERVICE subscription model
      */
@@ -1043,6 +1052,15 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "__temp__",
         "channel_gobj",
         json_integer((json_int_t)(size_t)src)
+    );
+
+    int opened = channels_opened(gobj);
+    kw_set_subdict_value(
+        gobj,
+        kw,
+        "__temp__",
+        "channels_opened",
+        json_integer(opened)
     );
 
     /*
