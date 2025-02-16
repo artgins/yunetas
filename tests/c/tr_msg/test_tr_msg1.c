@@ -75,7 +75,7 @@ static int print_key_iter(json_t * list, const char *key, uint64_t *expected, in
             printf("%sERROR%s --> count >= max, count %d, max %d\n", On_Red BWhite, Color_Off, count, max);
             result += -1;
         }
-        json_int_t rowid = kw_get_int(0, instance, "__md_tranger__`rowid", 0, KW_REQUIRED);
+        json_int_t rowid = kw_get_int(0, instance, "__md_tranger__`g_rowid", 0, KW_REQUIRED);
 
         if(0) {
             json_int_t tm = kw_get_int(0, instance, "__md_tranger__`tm", 0, KW_REQUIRED);

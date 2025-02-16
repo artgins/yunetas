@@ -4277,7 +4277,12 @@ PRIVATE int publish_new_rt_disk_records(
     json_t *disks = json_object_get(topic, "disks");
 
     json_int_t from_rowid = json_integer_value(json_object_get(old_cache_cell, "rows"));
+    if(from_rowid == 0 && !old_cache_cell) {
+        from_rowid = 1;
+    }
     json_int_t to_rowid = json_integer_value(json_object_get(new_cache_cell, "rows"));
+    to_rowid++;
+
     const char *file_id = json_string_value(json_object_get(new_cache_cell, "id"));
 
     for(json_int_t rowid=from_rowid; rowid<to_rowid; rowid++) {

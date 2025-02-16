@@ -4524,7 +4524,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     json_int_t rowid = json_integer_value(
         json_object_get(
             json_object_get(record, "__md_tranger__"),
-            "rowid"
+            "g_rowid"
         )
     );
     json_t *jn_record_md = md2json(

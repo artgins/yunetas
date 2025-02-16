@@ -460,7 +460,7 @@ PUBLIC json_t *trmsg_data_tree(
             json_t *instances = kw_get_dict_value(gobj, message, "instances", 0, KW_REQUIRED);
             json_int_t active_rowid = kw_get_int(
                 gobj,
-                jn_active, "__md_tranger__`rowid", 0, KW_REQUIRED
+                jn_active, "__md_tranger__`g_rowid", 0, KW_REQUIRED
             );
             BOOL active_found = FALSE;
             int idx; json_t *instance;
@@ -468,7 +468,7 @@ PUBLIC json_t *trmsg_data_tree(
                 if(!active_found) {
                     json_int_t instance_rowid = kw_get_int(
                         gobj,
-                        instance, "__md_tranger__`rowid", 0, KW_REQUIRED
+                        instance, "__md_tranger__`g_rowid", 0, KW_REQUIRED
                     );
                     if(instance_rowid == active_rowid) {
                         // Active record is already added and it's the root (with 'data' hook)

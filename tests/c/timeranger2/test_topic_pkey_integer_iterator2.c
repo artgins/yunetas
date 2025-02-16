@@ -98,7 +98,7 @@ PRIVATE int test_records(const char *test_name, json_t *data, json_int_t solu[][
             printf("%sERROR%s --> %s, no record %d\n", On_Red BWhite, Color_Off, test_name, i);
             return -1;
         }
-        json_int_t rowid = kw_get_int(0, r, "__md_tranger__`rowid", -1, KW_REQUIRED);
+        json_int_t rowid = kw_get_int(0, r, "__md_tranger__`g_rowid", -1, KW_REQUIRED);
         json_int_t tm = kw_get_int(0, r, "tm", -1, KW_REQUIRED);
         json_int_t t = kw_get_int(0, r, "__md_tranger__`t", -1, KW_REQUIRED);
         if(rowid != solu[i][0]) {
