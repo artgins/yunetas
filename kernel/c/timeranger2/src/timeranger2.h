@@ -663,6 +663,7 @@ PUBLIC void tranger2_print_md0_record(
     char *bf,
     int bfsize,
     const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
     BOOL print_local_time
 );
@@ -670,6 +671,7 @@ PUBLIC void tranger2_print_md1_record(
     char *bf,
     int bfsize,
     const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
     BOOL print_local_time
 );
@@ -679,6 +681,7 @@ PUBLIC void tranger2_print_md2_record(
     json_t *tranger,
     json_t *topic,
     const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
     BOOL print_local_time
 );

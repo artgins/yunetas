@@ -672,7 +672,7 @@ PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT 
     return msg->jn_record;
 }
 
-PUBLIC uint64_t trq_msg_rowid(q_msg msg_)
+PUBLIC json_int_t trq_msg_rowid(q_msg msg_)
 {
     register q_msg_t *msg = msg_;
     if(!msg) {

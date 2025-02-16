@@ -11,6 +11,12 @@ Change API
     trq_check_pending_rowid
     trq_msg_md_record -> trq_msg_md
 
+    tranger2_print_md0_record
+    tranger2_print_md1_record
+    tranger2_print_md2_record
+
+    trq_msg_rowid
+
 Delete API
 
 

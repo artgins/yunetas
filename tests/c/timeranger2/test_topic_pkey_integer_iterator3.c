@@ -61,6 +61,7 @@ PRIVATE int load_rango_callback(
             temp,
             sizeof(temp),
             key,
+            rowid,
             md_record,
             FALSE
         );

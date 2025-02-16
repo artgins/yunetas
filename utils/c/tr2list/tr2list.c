@@ -369,7 +369,7 @@ PRIVATE int load_record_callback(
     int verbose = arguments.verbose;
     char title[1024];
 
-    tranger2_print_md1_record(title, sizeof(title), key, md_record, arguments.print_local_time);
+    tranger2_print_md1_record(title, sizeof(title), key, rowid, md_record, arguments.print_local_time);
 
     BOOL table_mode = FALSE;
     if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
@@ -385,7 +385,7 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 0) {
-        tranger2_print_md0_record(title, sizeof(title), key, md_record, arguments.print_local_time);
+        tranger2_print_md0_record(title, sizeof(title), key, rowid, md_record, arguments.print_local_time);
         printf("%s\n", title);
         JSON_DECREF(jn_record)
         return 0;
@@ -396,7 +396,7 @@ PRIVATE int load_record_callback(
         return 0;
     }
     if(verbose == 2) {
-        tranger2_print_md2_record(title, sizeof(title), tranger, topic, key, md_record, arguments.print_local_time);
+        tranger2_print_md2_record(title, sizeof(title), tranger, topic, key, rowid, md_record, arguments.print_local_time);
         printf("%s\n", title);
         JSON_DECREF(jn_record)
         return 0;
@@ -427,7 +427,14 @@ PRIVATE int load_record_callback(
 
     if(table_mode) {
         if(!empty_string(arguments.fields)) {
-            tranger2_print_md0_record(title, sizeof(title), key, md_record, arguments.print_local_time);
+            tranger2_print_md0_record(
+                title,
+                sizeof(title),
+                key,
+                rowid,
+                md_record,
+                arguments.print_local_time
+            );
             const char ** keys = 0;
             keys = split2(arguments.fields, ", ", 0);
             json_t *jn_record_with_fields = kw_clone_by_path(

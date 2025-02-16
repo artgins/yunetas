@@ -205,6 +205,7 @@ PRIVATE int rt_disk_record_callback(
             temp,
             sizeof(temp),
             key,
+            rowid,
             md_record,
             FALSE
         );

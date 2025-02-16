@@ -210,6 +210,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
                 temp,
                 sizeof(temp),
                 trq_msg_key(msg),
+                trq_msg_rowid(msg),
                 md_record,
                 arguments->print_local_time
             );
@@ -224,6 +225,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
                 temp,
                 sizeof(temp),
                 trq_msg_key(msg),
+                trq_msg_rowid(msg),
                 md_record,
                 arguments->print_local_time
             );

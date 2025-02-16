@@ -204,7 +204,7 @@ PUBLIC q_msg trq_prev_msg(q_msg msg);
     Get info of message
 */
 PUBLIC md2_record_ex_t *trq_msg_md(q_msg msg);
-PUBLIC uint64_t trq_msg_rowid(q_msg msg);
+PUBLIC json_int_t trq_msg_rowid(q_msg msg);
 PUBLIC json_t *trq_msg_json(q_msg msg); // Load the message, Return json is NOT YOURS!!
 PUBLIC uint64_t trq_msg_time(q_msg msg);
 PUBLIC const char *trq_msg_key(q_msg msg);

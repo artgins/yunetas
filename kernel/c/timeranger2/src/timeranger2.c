@@ -7828,6 +7828,7 @@ PUBLIC void tranger2_print_md0_record(
     char *bf,
     int bfsize,
     const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
     BOOL print_local_time
 )
@@ -7861,10 +7862,12 @@ PUBLIC void tranger2_print_md0_record(
 
     if(key_type & (sf_int_key|sf_string_key)) {
         snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
+            "g-rowid:%"JSON_INTEGER_FORMAT", "
+            "i-rowid:%"PRIu64", "
             "t:%"PRIu64" %s, "
             "tm:%"PRIu64" %s, "
             "key: %s",
+            rowid,
             (uint64_t)md_record_ex->rowid,
             (uint64_t)md_record_ex->__t__,
             fecha,
@@ -7889,6 +7892,7 @@ PUBLIC void tranger2_print_md1_record(
     char *bf,
     int bfsize,
     const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
     BOOL print_local_time
 )
@@ -7923,11 +7927,13 @@ PUBLIC void tranger2_print_md1_record(
 
     if(key_type & (sf_int_key|sf_string_key)) {
         snprintf(bf, bfsize,
-            "rowid:%"PRIu64", "
+            "g-rowid:%"JSON_INTEGER_FORMAT", "
+            "i-rowid:%"PRIu64", "
             "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
             "t:%"PRIu64" %s, "
             "tm:%"PRIu64" %s, "
             "key: %s",
+            rowid,
             (uint64_t)md_record_ex->rowid,
             user_flag,
             system_flag,
@@ -7956,6 +7962,7 @@ PUBLIC void tranger2_print_md2_record(
     json_t *tranger,
     json_t *topic,
     const char *key,
+    json_int_t rowid,
     const md2_record_ex_t *md_record_ex,
     BOOL print_local_time
 )
@@ -7982,9 +7989,12 @@ PUBLIC void tranger2_print_md2_record(
     snprintf(path, sizeof(path), "%s/keys/%s/%s", topic_dir, key, filename);
 
     snprintf(bf, bfsize,
-        "rowid:%7"PRIu64", ofs:%7"PRIu64", sz:%7"PRIu64", "
+        "g-rowid:%"JSON_INTEGER_FORMAT", "
+        "i-rowid:%"PRIu64", "
+        "ofs:%7"PRIu64", sz:%7"PRIu64", "
         "t:%"PRIu64", "
         "f:%s",
+        rowid,
         (uint64_t)md_record_ex->rowid,
         offset,
         size,
