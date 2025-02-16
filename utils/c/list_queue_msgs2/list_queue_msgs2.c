@@ -14,11 +14,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <sys/resource.h>
 
 #include <gobj.h>
 #include <testing.h>
 #include <helpers.h>
-#include <kwid.h>
 #include <timeranger2.h>
 #include <tr_queue.h>
 #include <cpu.h>
@@ -40,15 +40,16 @@
 /*
  *  Used by main to communicate with parse_opt.
  */
-#define MIN_ARGS 0
-#define MAX_ARGS 0
+#define MIN_ARGS 1
+#define MAX_ARGS 1
 struct arguments
 {
     char *args[MAX_ARGS+1];     /* positional args */
+
+    char *path;
+
     int verbose;                /* verbose */
     int all;                    /* all message*/
-    char *timeranger;
-    char *topic;
     int print_local_time;
 };
 
@@ -67,7 +68,7 @@ const char *argp_program_bug_address = SUPPORT;
 static char doc[] = DOC;
 
 /* A description of the arguments we accept. */
-static char args_doc[] = "";
+static char args_doc[] = "PATH";
 
 /*
  *  The options we understand.
@@ -78,10 +79,6 @@ static struct argp_option options[] = {
 {"verbose",         'l',    "LEVEL",    0,      "Verbose level (empty=total, 1=metadata, 2=metadata+record)", 0},
 {"all",             'a',    0,          0,      "List all messages, not only pending.", 0},
 {"print-local-time",'t',    0,          0,      "Print in local time", 0},
-
-{0,                 0,      0,          0,      "Database keys",    2},
-{"timeranger",      'd',    "STRING",   0,      "Timeranger.",       2},
-{"topic",           'p',    "STRING",   0,      "Topic.",           2},
 {0}
 };
 
@@ -116,12 +113,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         arguments->all = 1;
         break;
 
-    case 'd':
-        arguments->timeranger = arg;
-        break;
-    case 'p':
-        arguments->topic = arg;
-        break;
     case 't':
         arguments->print_local_time = 1;
         break;
@@ -152,23 +143,47 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
  ***************************************************************************/
 PRIVATE int list_queue_msgs(struct arguments *arguments)
 {
+    char path_tranger[PATH_MAX];
+
+    build_path(path_tranger, sizeof(path_tranger),
+        arguments->path,
+        NULL
+    );
+
+    char *path = NULL;
+    char *database = NULL;
+    char *topic = NULL;
+
+    if(file_exists(path_tranger, "topic_desc.json")) {
+        topic = pop_last_segment(path_tranger);
+        if(!file_exists(path_tranger, "__timeranger2__.json")) {
+            fprintf(stderr, "Cannot find a timeranger2 in  %s\n\n", path_tranger);
+            exit(-1);
+        }
+        database = pop_last_segment(path_tranger);
+        path = path_tranger;
+    } else {
+        fprintf(stderr, "Cannot find any topic in  %s\n\n", arguments->path);
+        exit(-1);
+    }
+
     /*-------------------------------*
      *      Startup TimeRanger
      *-------------------------------*/
     json_t *jn_tranger = json_pack("{s:s, s:s}",
-        "path", arguments->timeranger,
-        "database", ""
+        "path", path,
+        "database", database
     );
 
     json_t * tranger = tranger2_startup(0, jn_tranger, 0);
     if(!tranger) {
-        fprintf(stderr, "Can't startup tranger %s\n\n", arguments->timeranger);
+        fprintf(stderr, "Can't startup tranger %s\n\n", arguments->path);
         exit(-1);
     }
 
     tr_queue trq_output = trq_open(
         tranger,
-        arguments->topic,
+        topic,
         "id",
         "tm",
         sf_string_key,
@@ -241,20 +256,21 @@ int main(int argc, char *argv[])
     memset(&arguments, 0, sizeof(arguments));
     arguments.verbose = 0;
     arguments.all = 0;
-    arguments.timeranger = 0;
+    arguments.path = 0;
 
     /*
      *  Parse arguments
      */
     argp_parse(&argp, argc, argv, 0, 0, &arguments);
-    if(empty_string(arguments.timeranger)) {
-        fprintf(stderr, "What timeranger?\n");
-        exit(-1);
-    }
-    if(empty_string(arguments.topic)) {
-        fprintf(stderr, "What topic?\n");
-        exit(-1);
-    }
+    arguments.path = arguments.args[0];
+    // if(empty_string(arguments.timeranger)) {
+    //     fprintf(stderr, "What timeranger?\n");
+    //     exit(-1);
+    // }
+    // if(empty_string(arguments.topic)) {
+    //     fprintf(stderr, "What topic?\n");
+    //     exit(-1);
+    // }
 
     /*----------------------------------*
      *      Startup gobj system
@@ -308,9 +324,25 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
 
-
     /*
      *  Do your work
      */
+    if(empty_string(arguments.path)) {
+        fprintf(stderr, "What TimeRanger path?\n");
+        fprintf(stderr, "You must supply --path option\n\n");
+        exit(-1);
+    }
+
+    struct rlimit rl;
+    // Get current limit
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        if(rl.rlim_cur < 200000) {
+            // Set new limit
+            rl.rlim_cur = 200000;  // Set soft limit
+            rl.rlim_max = 200000;  // Set hard limit
+            setrlimit(RLIMIT_NOFILE, &rl);
+        }
+    }
+
     return list_queue_msgs(&arguments);
 }
