@@ -2466,7 +2466,8 @@ PUBLIC int tranger2_append_record(
     set_user_flag(&md_record, user_flag);
     set_system_flag(&md_record, system_flag & ~NOT_INHERITED_MASK);
 
-    json_int_t relative_rowid = 0;
+    json_int_t g_rowid = 0;
+    json_int_t i_rowid = 0;
     int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);
     if(md2_fd >= 0) {
         off_t offset = lseek(md2_fd, 0, SEEK_END);
@@ -2484,7 +2485,7 @@ PUBLIC int tranger2_append_record(
             return -1;
         }
 
-        relative_rowid = (json_int_t)(offset/sizeof(md2_record_t)) + 1;
+        i_rowid = (json_int_t)(offset/sizeof(md2_record_t)) + 1;
 
         /*--------------------------------------------*
          *  write md2 in big endian
@@ -2533,9 +2534,9 @@ PUBLIC int tranger2_append_record(
     md_record_ex->__size__ = md_record.__size__;
     md_record_ex->system_flag = get_system_flag(&md_record);
     md_record_ex->user_flag = get_user_flag(&md_record);
-    md_record_ex->rowid = relative_rowid;
+    md_record_ex->rowid = i_rowid;
 
-    json_t *__md_tranger__ = md2json(md_record_ex, relative_rowid);
+    json_t *__md_tranger__ = md2json(md_record_ex, g_rowid);
     json_object_set_new(
         jn_record,
         "__md_tranger__",
@@ -2564,7 +2565,7 @@ PUBLIC int tranger2_append_record(
                     topic,
                     key_value,
                     list,
-                    relative_rowid,
+                    g_rowid,
                     md_record_ex,
                     json_incref(jn_record)
                 );
@@ -2740,7 +2741,8 @@ PRIVATE int get_md_record_for_wr(
 
 /***************************************************************************
     Re-Write new record metadata to file
-    This function works directly in disk, segments in memory not used or updated
+    This function works directly in disk,
+        WARNING cache segments in memory are not used or updated
  ***************************************************************************/
 PRIVATE int rewrite_md_to_file(
     hgobj gobj,
@@ -2795,9 +2797,7 @@ PRIVATE int rewrite_md_to_file(
     /*
      *  Update cache
      */
-    // NO! update_new_record_from_mem(gobj, tranger, topic, key, md_record);
-    // If there is no iterators then no cache and this call will create one
-    // This function is to low-level management of records as queues
+    // NO! This function is to low-level management of records as queues
 
     return 0;
 }
@@ -4583,7 +4583,7 @@ PRIVATE json_t *update_cache_cell(
     json_t *file_cache,
     const char *file_id,
     md2_record_t *md_record,
-    int operation,  // -1 to subtract, 0 to set, +1 to add
+    int operation,  // -1 to subtract (NOT USED), 0 to set, +1 to add
     uint64_t rows_
 )
 {
@@ -4610,6 +4610,7 @@ PRIVATE json_t *update_cache_cell(
         rows = rows_;
 
     } else { // < 0
+        // NOT USED
         rows -= rows_;
     }
 
@@ -4851,7 +4852,7 @@ PRIVATE int update_new_record_from_mem(
 
     /*
      *  See if the file cache exists
-     *  WARNING only search in the last item of cell's array
+     *  WARNING only searching in the last item of cell's array
      *  Create the key cache if not exist
      */
     json_t *cur_cache_cell = get_last_cache_cell(
