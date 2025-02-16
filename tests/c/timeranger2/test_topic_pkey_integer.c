@@ -36,12 +36,26 @@ PRIVATE void yuno_catch_signals(void);
 /***************************************************************
  *              Data
  ***************************************************************/
-yev_loop_h yev_loop;
-yev_event_h yev_event_once;
-yev_event_h yev_event_periodic;
-int wait_time = 1;
-int times_once = 0;
-int times_periodic = 0;
+PRIVATE yev_loop_h yev_loop;
+PRIVATE int global_result = 0;
+
+PRIVATE json_int_t key1_g_rowid_1[2]        = {0, 1};       // i_rowid must be 1
+PRIVATE json_int_t key1_g_rowid_2[2]        = {0, 2};       // i_rowid must be 2
+PRIVATE json_int_t key1_g_rowid_86399[2]    = {0, 86399};   // i_rowid must be 86399
+PRIVATE json_int_t key1_g_rowid_86400[2]    = {0, 86400};   // i_rowid must be 86400
+PRIVATE json_int_t key1_g_rowid_86401[2]    = {0, 1};       // i_rowid must be 1
+PRIVATE json_int_t key1_g_rowid_86402[2]    = {0, 2};       // i_rowid must be 2
+PRIVATE json_int_t key1_g_rowid_89999[2]    = {0, 3599};    // i_rowid must be 3599
+PRIVATE json_int_t key1_g_rowid_90000[2]    = {0, 3600};    // i_rowid must be 3600
+
+PRIVATE json_int_t key2_g_rowid_1[2]        = {0, 1};       // i_rowid must be 1
+PRIVATE json_int_t key2_g_rowid_2[2]        = {0, 2};       // i_rowid must be 2
+PRIVATE json_int_t key2_g_rowid_86399[2]    = {0, 86399};   // i_rowid must be 86399
+PRIVATE json_int_t key2_g_rowid_86400[2]    = {0, 86400};   // i_rowid must be 86400
+PRIVATE json_int_t key2_g_rowid_86401[2]    = {0, 1};       // i_rowid must be 1
+PRIVATE json_int_t key2_g_rowid_86402[2]    = {0, 2};       // i_rowid must be 2
+PRIVATE json_int_t key2_g_rowid_89999[2]    = {0, 3599};    // i_rowid must be 3599
+PRIVATE json_int_t key2_g_rowid_90000[2]    = {0, 3600};    // i_rowid must be 3600
 
 /***************************************************************************
  *
@@ -58,6 +72,54 @@ int all_load_record_callback(
 )
 {
     all_leidos++;
+
+    global_result += -1;
+    if(all_leidos > 180000) {
+        printf("%sERROR%s --> all_leidos(%d) > 180000\n", On_Red BWhite, Color_Off,
+            (int)all_leidos
+        );
+    }
+
+    json_int_t g_rowid = rowid;
+    json_int_t i_rowid = (json_int_t)md2_record->rowid;
+
+    SWITCHS(key) {
+        CASES("0000000000000000002")
+            switch(g_rowid) {
+                case 1:
+                    key2_g_rowid_1[0] = i_rowid;
+                    break;
+                case 2:
+                    key2_g_rowid_2[0] = i_rowid;
+                    break;
+                case 86399:
+                    key2_g_rowid_86399[0] = i_rowid;
+                    break;
+                case 86400:
+                    key2_g_rowid_86400[0] = i_rowid;
+                    break;
+                case 86401:
+                    key2_g_rowid_86401[0] = i_rowid;
+                    break;
+                case 86402:
+                    key2_g_rowid_86402[0] = i_rowid;
+                    break;
+                case 89999:
+                    key2_g_rowid_89999[0] = i_rowid;
+                    break;
+                case 90000:
+                    key2_g_rowid_90000[0] = i_rowid;
+                    break;
+
+                default:
+                    break;
+            }
+            break;
+
+        DEFAULTS
+            break;
+    } SWITCHS_END
+
     JSON_DECREF(record)
     return 0;
 }
@@ -68,14 +130,168 @@ int one_load_record_callback(
     json_t *topic,
     const char *key,
     json_t *list, // iterator or rt_list/rt_disk id, don't own
-    json_int_t rowid,
+    json_int_t rowid,   // g_rowid
     md2_record_ex_t *md2_record,
     json_t *record      // must be owned
 )
 {
     one_leidos++;
+
+    if(one_leidos > 90000) {
+        global_result += -1;
+        printf("%sERROR%s --> one_leidos(%d) > 90000\n", On_Red BWhite, Color_Off,
+            (int)all_leidos
+        );
+    }
+
+    json_int_t g_rowid = rowid;
+    json_int_t i_rowid = (json_int_t)md2_record->rowid;
+
+    SWITCHS(key) {
+        CASES("0000000000000000001")
+            switch(g_rowid) {
+                case 1:
+                    key1_g_rowid_1[0] = i_rowid;
+                    break;
+                case 2:
+                    key1_g_rowid_2[0] = i_rowid;
+                    break;
+                case 86399:
+                    key1_g_rowid_86399[0] = i_rowid;
+                    break;
+                case 86400:
+                    key1_g_rowid_86400[0] = i_rowid;
+                    break;
+                case 86401:
+                    key1_g_rowid_86401[0] = i_rowid;
+                    break;
+                case 86402:
+                    key1_g_rowid_86402[0] = i_rowid;
+                    break;
+                case 89999:
+                    key1_g_rowid_89999[0] = i_rowid;
+                    break;
+                case 90000:
+                    key1_g_rowid_90000[0] = i_rowid;
+                    break;
+
+                default:
+                    break;
+            }
+            break;
+
+        DEFAULTS
+            break;
+    } SWITCHS_END
+
     JSON_DECREF(record)
     return 0;
+}
+
+int check_rowids(void)
+{
+    int result = 0;
+
+    if(key1_g_rowid_1[0]      != key1_g_rowid_1[1]) {
+        result += -1;
+        printf("%sERROR%s --> key1 g_rowid 1 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key1_g_rowid_2[0]      != key1_g_rowid_2[1]) {
+        result += -1;
+        printf("%sERROR%s --> key1 g_rowid 2 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key1_g_rowid_86399[0]  != key1_g_rowid_86399[1]) {
+        result += -1;
+        printf("%sERROR%s --> key1 g_rowid 86399 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key1_g_rowid_86400[0]  != key1_g_rowid_86400[1]) {
+        result += -1;
+        printf("%sERROR%s --> key1 g_rowid 86400 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key1_g_rowid_86401[0]  != key1_g_rowid_86401[1]) {
+        result += -1;
+        printf("%sERROR%s --> key1 g_rowid 86401 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key1_g_rowid_86402[0]  != key1_g_rowid_86402[1]) {
+        result += -1;
+        printf("%sERROR%s --> key1 g_rowid 86402 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key1_g_rowid_89999[0]  != key1_g_rowid_89999[1]) {
+        result += -1;
+        printf("%sERROR%s --> key1 g_rowid 89999 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key1_g_rowid_90000[0]  != key1_g_rowid_90000[1]) {
+        result += -1;
+        printf("%sERROR%s --> key1 g_rowid 90000 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+
+    if(key2_g_rowid_1[0]      != key2_g_rowid_1[1]) {
+        result += -1;
+        printf("%sERROR%s --> key2 g_rowid 1 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key2_g_rowid_2[0]      != key2_g_rowid_2[1]) {
+        result += -1;
+        printf("%sERROR%s --> key2 g_rowid 2 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key2_g_rowid_86399[0]  != key2_g_rowid_86399[1]) {
+        result += -1;
+        printf("%sERROR%s --> key2 g_rowid 86399 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key2_g_rowid_86400[0]  != key2_g_rowid_86400[1]) {
+        result += -1;
+        printf("%sERROR%s --> key2 g_rowid 86400 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key2_g_rowid_86401[0]  != key2_g_rowid_86401[1]) {
+        result += -1;
+        printf("%sERROR%s --> key2 g_rowid 86401 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key2_g_rowid_86402[0]  != key2_g_rowid_86402[1]) {
+        result += -1;
+        printf("%sERROR%s --> key2 g_rowid 86402 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key2_g_rowid_89999[0]  != key2_g_rowid_89999[1]) {
+        result += -1;
+        printf("%sERROR%s --> key2 g_rowid 89999 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+    if(key2_g_rowid_90000[0]  != key2_g_rowid_90000[1]) {
+        result += -1;
+        printf("%sERROR%s --> key2 g_rowid 90000 not match(%d, %d)\n", On_Red BWhite, Color_Off,
+            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+        );
+    }
+
+
+    return result;
 }
 
 /***************************************************************************
@@ -1419,6 +1635,8 @@ int main(int argc, char *argv[])
      *--------------------------------*/
     int result = do_test();
     result += do_test2();
+    result += check_rowids();
+    result += global_result;
 
     /*--------------------------------*
      *  Stop the event loop
