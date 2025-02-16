@@ -2164,7 +2164,8 @@ PRIVATE json_t *md2json(
 )
 {
     json_t *jn_md = json_object();
-    json_object_set_new(jn_md, "rowid", json_integer(rowid));
+    json_object_set_new(jn_md, "g_rowid", json_integer(rowid));
+    json_object_set_new(jn_md, "i_rowid", json_integer((json_int_t)md_record_ex->rowid));
     json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record_ex->__t__));
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record_ex->__tm__));
     json_object_set_new(jn_md, "offset", json_integer((json_int_t)md_record_ex->__offset__));
@@ -7188,7 +7189,7 @@ PRIVATE int read_md(
      *  Check parameters
      */
     if(rowid <= 0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "rowid must be relative to 1",
