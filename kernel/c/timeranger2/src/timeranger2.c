@@ -4810,7 +4810,8 @@ PRIVATE uint64_t load_first_and_last_record_md(
 }
 
 /***************************************************************************
- *  Update or create the files cache of a key
+ *  Update or create the files cache of a key,
+ *  call from tranger2_append_record()
  ***************************************************************************/
 PRIVATE int update_new_record_from_mem(
     hgobj gobj,
