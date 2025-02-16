@@ -201,92 +201,92 @@ int check_rowids(void)
     if(key1_g_rowid_2[0]      != key1_g_rowid_2[1]) {
         result += -1;
         printf("%sERROR%s --> key1 g_rowid 2 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key1_g_rowid_2[0], (int)key1_g_rowid_2[1]
         );
     }
     if(key1_g_rowid_86399[0]  != key1_g_rowid_86399[1]) {
         result += -1;
         printf("%sERROR%s --> key1 g_rowid 86399 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key1_g_rowid_86399[0], (int)key1_g_rowid_86399[1]
         );
     }
     if(key1_g_rowid_86400[0]  != key1_g_rowid_86400[1]) {
         result += -1;
         printf("%sERROR%s --> key1 g_rowid 86400 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key1_g_rowid_86400[0], (int)key1_g_rowid_86400[1]
         );
     }
-    if(key1_g_rowid_86401[0]  != key1_g_rowid_86401[1]) {
+    if(key1_g_rowid_86400[0]  != key1_g_rowid_86401[1]) {
         result += -1;
         printf("%sERROR%s --> key1 g_rowid 86401 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key1_g_rowid_86400[0], (int)key1_g_rowid_86400[1]
         );
     }
-    if(key1_g_rowid_86402[0]  != key1_g_rowid_86402[1]) {
+    if(key1_g_rowid_86400[0]  != key1_g_rowid_86402[1]) {
         result += -1;
         printf("%sERROR%s --> key1 g_rowid 86402 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key1_g_rowid_86400[0], (int)key1_g_rowid_86400[1]
         );
     }
-    if(key1_g_rowid_89999[0]  != key1_g_rowid_89999[1]) {
+    if(key1_g_rowid_86400[0]  != key1_g_rowid_89999[1]) {
         result += -1;
         printf("%sERROR%s --> key1 g_rowid 89999 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key1_g_rowid_86400[0], (int)key1_g_rowid_86400[1]
         );
     }
-    if(key1_g_rowid_90000[0]  != key1_g_rowid_90000[1]) {
+    if(key1_g_rowid_86400[0]  != key1_g_rowid_90000[1]) {
         result += -1;
         printf("%sERROR%s --> key1 g_rowid 90000 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key1_g_rowid_86400[0], (int)key1_g_rowid_86400[1]
         );
     }
 
     if(key2_g_rowid_1[0]      != key2_g_rowid_1[1]) {
         result += -1;
         printf("%sERROR%s --> key2 g_rowid 1 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key2_g_rowid_1[0], (int)key2_g_rowid_1[1]
         );
     }
     if(key2_g_rowid_2[0]      != key2_g_rowid_2[1]) {
         result += -1;
         printf("%sERROR%s --> key2 g_rowid 2 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key2_g_rowid_2[0], (int)key2_g_rowid_2[1]
         );
     }
     if(key2_g_rowid_86399[0]  != key2_g_rowid_86399[1]) {
         result += -1;
         printf("%sERROR%s --> key2 g_rowid 86399 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key2_g_rowid_86399[0], (int)key2_g_rowid_86399[1]
         );
     }
     if(key2_g_rowid_86400[0]  != key2_g_rowid_86400[1]) {
         result += -1;
         printf("%sERROR%s --> key2 g_rowid 86400 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key2_g_rowid_86400[0], (int)key2_g_rowid_86400[1]
         );
     }
     if(key2_g_rowid_86401[0]  != key2_g_rowid_86401[1]) {
         result += -1;
         printf("%sERROR%s --> key2 g_rowid 86401 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key2_g_rowid_86401[0], (int)key2_g_rowid_86401[1]
         );
     }
     if(key2_g_rowid_86402[0]  != key2_g_rowid_86402[1]) {
         result += -1;
         printf("%sERROR%s --> key2 g_rowid 86402 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key2_g_rowid_86402[0], (int)key2_g_rowid_86402[1]
         );
     }
     if(key2_g_rowid_89999[0]  != key2_g_rowid_89999[1]) {
         result += -1;
         printf("%sERROR%s --> key2 g_rowid 89999 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key2_g_rowid_89999[0], (int)key2_g_rowid_89999[1]
         );
     }
     if(key2_g_rowid_90000[0]  != key2_g_rowid_90000[1]) {
         result += -1;
         printf("%sERROR%s --> key2 g_rowid 90000 not match(%d, %d)\n", On_Red BWhite, Color_Off,
-            (int)key1_g_rowid_1[0], (int)key1_g_rowid_1[1]
+            (int)key2_g_rowid_90000[0], (int)key2_g_rowid_90000[1]
         );
     }
 
