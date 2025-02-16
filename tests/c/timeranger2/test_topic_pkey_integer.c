@@ -60,6 +60,7 @@ PRIVATE json_int_t key2_g_rowid_90000[2]    = {0, 3600};    // i_rowid must be 3
 /***************************************************************************
  *
  ***************************************************************************/
+int pinta_md = 1;
 size_t all_leidos = 0;
 int all_load_record_callback(
     json_t *tranger,
@@ -72,6 +73,19 @@ int all_load_record_callback(
 )
 {
     all_leidos++;
+
+    if(pinta_md) {
+        char temp[1024];
+        tranger2_print_md1_record(
+            temp,
+            sizeof(temp),
+            key,
+            rowid,
+            md2_record,
+            FALSE
+        );
+        printf("%s\n", temp);
+    }
 
     global_result += -1;
     if(all_leidos > 180000) {

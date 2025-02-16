@@ -7868,8 +7868,7 @@ PUBLIC void tranger2_print_md0_record(
 
     if(key_type & (sf_int_key|sf_string_key)) {
         snprintf(bf, bfsize,
-            "g_rowid:%"JSON_INTEGER_FORMAT", "
-            "i_rowid:%"PRIu64", "
+            "rowid(g,i):%"JSON_INTEGER_FORMAT", %"PRIu64", "
             "t:%"PRIu64" %s, "
             "tm:%"PRIu64" %s, "
             "key: %s",
@@ -7933,8 +7932,7 @@ PUBLIC void tranger2_print_md1_record(
 
     if(key_type & (sf_int_key|sf_string_key)) {
         snprintf(bf, bfsize,
-            "g_rowid:%"JSON_INTEGER_FORMAT", "
-            "i_rowid:%"PRIu64", "
+            "rowid(g,i):%"JSON_INTEGER_FORMAT", %"PRIu64", "
             "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "
             "t:%"PRIu64" %s, "
             "tm:%"PRIu64" %s, "
@@ -7995,8 +7993,7 @@ PUBLIC void tranger2_print_md2_record(
     snprintf(path, sizeof(path), "%s/keys/%s/%s", topic_dir, key, filename);
 
     snprintf(bf, bfsize,
-        "g_rowid:%"JSON_INTEGER_FORMAT", "
-        "i_rowid:%"PRIu64", "
+        "rowid(g,i):%"JSON_INTEGER_FORMAT", %"PRIu64", "
         "ofs:%7"PRIu64", sz:%7"PRIu64", "
         "t:%"PRIu64", "
         "f:%s",
