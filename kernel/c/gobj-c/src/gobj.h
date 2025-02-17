@@ -1519,17 +1519,6 @@ PUBLIC json_t * gobj_stats( // Call mt_stats() or build_stats()
     hgobj src
 );
 
-/*
- *  To commands and stats
- */
-PUBLIC json_t *build_command_response( // OLD build_webix()
-    hgobj gobj,
-    json_int_t result,
-    json_t *jn_comment, // owned, if null then not set
-    json_t *jn_schema,  // owned, if null then not set
-    json_t *jn_data     // owned, if null then not set
-);
-
 PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj); // inherit attributes
 PUBLIC hgobj gobj_last_bottom_gobj(hgobj gobj); // inherit attributes
 PUBLIC hgobj gobj_bottom_gobj(hgobj gobj);

@@ -46,7 +46,7 @@ PUBLIC json_t *stats_parser(hgobj gobj,
         src
     );
 
-    return build_command_response(
+    return build_stats_response(
         gobj,
         0,          // result
         0,          // jn_comment
@@ -208,4 +208,38 @@ PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     KW_DECREF(kw)
     return jn_data;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *build_stats_response(
+    hgobj gobj,
+    json_int_t result,
+    json_t *jn_comment, // owned, if null then not set
+    json_t *jn_schema,  // owned, if null then not set
+    json_t *jn_data     // owned, if null then not set
+) {
+    if(!jn_comment) {
+        jn_comment = json_string("");
+    }
+    if(!jn_schema) {
+        jn_schema = json_null();
+    }
+    if(!jn_data) {
+        jn_data = json_null();
+    }
+
+    json_t *response = json_object();
+    json_object_set_new(response, "result", json_integer(result));
+    if(jn_comment) {
+        json_object_set_new(response, "comment", jn_comment);
+    }
+    if(jn_schema) {
+        json_object_set_new(response, "schema", jn_schema);
+    }
+    if(jn_data) {
+        json_object_set_new(response, "data", jn_data);
+    }
+    return response;
 }

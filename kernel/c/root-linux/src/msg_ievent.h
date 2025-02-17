@@ -84,6 +84,7 @@
 
 #include <gobj.h>
 #include <kwid.h>
+#include <command_parser.h>
 
 #ifdef __cplusplus
 extern "C"{

@@ -30,6 +30,17 @@ PUBLIC json_t *gobj_build_cmds_doc(
     json_t *kw
 );
 
+/*
+ *  To commands and stats
+ */
+PUBLIC json_t *build_command_response( // OLD build_webix()
+    hgobj gobj,
+    json_int_t result,
+    json_t *jn_comment, // owned, if null then not set
+    json_t *jn_schema,  // owned, if null then not set
+    json_t *jn_data     // owned, if null then not set
+);
+
 PUBLIC json_t *authzs_list(
     hgobj gobj,
     const char *authz

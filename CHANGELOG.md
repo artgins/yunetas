@@ -17,6 +17,12 @@ Change API
 
     trq_msg_rowid
 
+    build_command_response moved from gobj.c/h to command_parser.c/h
+
+New API
+
+    build_stats_response
+
 Delete API
 
 
