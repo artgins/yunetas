@@ -3136,7 +3136,8 @@ PRIVATE json_t *md2json(
         "topic_name",
         json_string(topic_name)
     );
-    json_object_set_new(jn_md, "rowid", json_integer(g_rowid));
+    json_object_set_new(jn_md, "g_rowid", json_integer(g_rowid));
+    json_object_set_new(jn_md, "i_rowid", json_integer(md_record->rowid));
     json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
     json_object_set_new(jn_md, "tag", json_integer((json_int_t)md_record->user_flag));

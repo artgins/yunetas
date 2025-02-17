@@ -76,12 +76,17 @@
  *  The non-master is the agent creating the /disks/{rt_id} that the master is monitoring
  *
  *  HACK tranger is only append. No update, no insert.
- *  The record can be deleted (it's unrecoverable).
+ *  A record can be deleted (it's unrecoverable).
  *  Only the master can write or delete, non-master only can read.
  *  The metadata `md2_record_t` can be updated only in two cases:
  *    - any bit in `user_flag`
  *    - `sf_deleted_record` bit in `system_flag` field when the record is deleted
  *
+ *  Tranger is based in __t__ of the record (time when was saved)
+ *  The __t__ time gets the filename where to save the record,
+ *      according to the defined mask in the topic or in the tranger.
+ *  Each record's file (.json) has his own metadata (.md) file
+ *  In memory a cache is loaded with the first and last record metadata of each file .md file.
  ****************************************************************************/
 
 #pragma once
