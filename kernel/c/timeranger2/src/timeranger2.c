@@ -185,14 +185,14 @@ PRIVATE uint64_t load_first_and_last_record_md(
     md2_record_t *md_last_record
 );
 
-PRIVATE int update_new_record_from_mem(
+PRIVATE json_int_t update_new_record_from_mem(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
     const char *key_value,
     md2_record_t *md_record
 );
-PRIVATE int update_totals_of_key_cache(
+PRIVATE json_int_t update_totals_of_key_cache(
     hgobj gobj,
     json_t *topic,
     const char *key
@@ -280,7 +280,7 @@ PRIVATE int master_to_update_client_load_record_callback(
     md2_record_ex_t *md_record_ex,
     json_t *record      // must be owned
 );
-PRIVATE int update_new_records_from_disk(
+PRIVATE json_int_t update_new_records_from_disk(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -2517,7 +2517,7 @@ PUBLIC int tranger2_append_record(
         /*
          *  Update cache
          */
-        update_new_record_from_mem(gobj, tranger, topic, key_value, &md_record);
+        g_rowid = update_new_record_from_mem(gobj, tranger, topic, key_value, &md_record);
     }
 
     // TEST performance with sf_save_md_in_record 98000
@@ -4216,8 +4216,9 @@ PRIVATE int update_key_by_hard_link(
             IT'S necessary to load and publish only the new records!
             !!! How are you going to repeats records to the client? You fool? !!!
 
+ *  Return -1 if error and if successful return total rows ( > 0)
  ***************************************************************************/
-PRIVATE int update_new_records_from_disk(
+PRIVATE json_int_t update_new_records_from_disk(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -4256,9 +4257,8 @@ PRIVATE int update_new_records_from_disk(
     } else {
         json_object_update_new(cur_cache_cell, new_cache_cell);
     }
-    update_totals_of_key_cache(gobj, topic, key);
 
-    return 0;
+    return update_totals_of_key_cache(gobj, topic, key);
 }
 
 /***************************************************************************
@@ -4578,6 +4578,12 @@ PRIVATE json_t *load_key_cache_from_disk(hgobj gobj, const char *directory, cons
 
 /***************************************************************************
  *  Update a cache cell with a new record metadata
+ *  HACK tranger is only append. No update, no insert.
+ *  The record can be deleted (it's unrecoverable).
+ *  Only the master can write or delete, non-master only can read.
+ *  The metadata `md2_record_t` can be updated only in two cases:
+ *    - any bit in `user_flag`
+ *    - `sf_deleted_record` bit in `system_flag` field when the record is deleted
  ***************************************************************************/
 PRIVATE json_t *update_cache_cell(
     json_t *file_cache,
@@ -4812,8 +4818,10 @@ PRIVATE uint64_t load_first_and_last_record_md(
 /***************************************************************************
  *  Update or create the files cache of a key,
  *  call from tranger2_append_record()
+ *
+ *  Return -1 if error and if successful return total rows ( > 0)
  ***************************************************************************/
-PRIVATE int update_new_record_from_mem(
+PRIVATE json_int_t update_new_record_from_mem(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -4876,15 +4884,18 @@ PRIVATE int update_new_record_from_mem(
     } else {
         update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
     }
-    update_totals_of_key_cache(gobj, topic, key);
 
-    return 0;
+    return update_totals_of_key_cache(gobj, topic, key);
 }
 
 /***************************************************************************
- *  Update totals of a key  //TODO review, optimize the  calls of this fn
+ *  Update totals of a key
+ *  // TODO review:
+ *      optimize the calls of this fn, is necessaray the loop json_array_foreach?
+ *
+ *  Return -1 if error and if successful return total rows ( > 0)
  ***************************************************************************/
-PRIVATE int update_totals_of_key_cache(hgobj gobj, json_t *topic, const char *key)
+PRIVATE json_int_t update_totals_of_key_cache(hgobj gobj, json_t *topic, const char *key)
 {
     // "cache`%s`files", key
     json_t *cache_files = json_object_get(
@@ -4909,7 +4920,7 @@ PRIVATE int update_totals_of_key_cache(hgobj gobj, json_t *topic, const char *ke
         return -1;
     }
 
-    uint64_t total_rows = 0;
+    json_int_t total_rows = 0;
     uint64_t global_from_t = (uint64_t)(-1);
     uint64_t global_to_t = 0;
     uint64_t global_from_tm = (uint64_t)(-1);
@@ -4969,7 +4980,7 @@ PRIVATE int update_totals_of_key_cache(hgobj gobj, json_t *topic, const char *ke
     json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
     json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
 
-    return 0;
+    return total_rows;
 }
 
 /***************************************************************************

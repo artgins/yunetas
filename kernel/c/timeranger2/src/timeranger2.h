@@ -75,6 +75,13 @@
  *
  *  The non-master is the agent creating the /disks/{rt_id} that the master is monitoring
  *
+ *  HACK tranger is only append. No update, no insert.
+ *  The record can be deleted (it's unrecoverable).
+ *  Only the master can write or delete, non-master only can read.
+ *  The metadata `md2_record_t` can be updated only in two cases:
+ *    - any bit in `user_flag`
+ *    - `sf_deleted_record` bit in `system_flag` field when the record is deleted
+ *
  ****************************************************************************/
 
 #pragma once
