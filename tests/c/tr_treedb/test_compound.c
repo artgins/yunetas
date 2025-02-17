@@ -43,7 +43,7 @@ PUBLIC int test_compound(
             "disabled", 0
         );
         json_t *expected = json_pack(
-            "{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:[], s:[], s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:b}}",
+            "{s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:[], s:[], s:[], s:[], s:{s:s, s:s, s:i, s:i, s:i, s:i, s:i, s:b}}",
             "id", "xxxxxxxxxxxxxxxxxxx",
             "username", "mainop@email.com",
             "firstName", "Bequer",
@@ -59,7 +59,8 @@ PUBLIC int test_compound(
             "__md_treedb__",
                 "treedb_name", "treedb_test",
                 "topic_name", "users",
-                "rowid", 1,
+                "g_rowid", 1,
+                "i_rowid", 1,
                 "t", 99999,
                 "tm", 0,
                 "tag", 0,
