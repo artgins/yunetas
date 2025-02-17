@@ -27,7 +27,8 @@
  ***************************************************************/
 
 /***************************************************************************
- *
+ *  The default stats parser if mt_stats() is not implemented.
+ *  Return with build_command_response()
  ***************************************************************************/
 PUBLIC json_t *stats_parser(hgobj gobj,
     const char *stats,
@@ -187,7 +188,10 @@ PRIVATE json_t *_build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj sr
 }
 
 /****************************************************************************
- *  Build stats from gobj's attributes with SFD_STATS... flag.
+ *  Use by stats_parser(),
+ *  Build stats from gobj's attributes with SDF_STATS|SDF_RSTATS|SDF_PSTATS flag.
+ *  If `stats` == '__reset__' reset all SDF_RSTATS stats.
+ *  It includes all gobj_bottom
  ****************************************************************************/
 PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
