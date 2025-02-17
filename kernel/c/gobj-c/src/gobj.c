@@ -27,6 +27,8 @@
 
 #include <linux/limits.h>
 
+#include "stats_parser.h"
+
 extern void jsonp_free(void *ptr);
 
 /***************************************************************
@@ -4692,7 +4694,7 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
     if(__global_stats_parser_fn__) {
         return __global_stats_parser_fn__(gobj, stats, kw, src);
     } else {
-        json_t *kw_response = build_command_response(
+        json_t *kw_response = build_stats_response(
             gobj,
             -1,     // result
             json_sprintf("%s, stats parser not available",
