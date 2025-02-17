@@ -1266,6 +1266,9 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  Local stats
+     */
     uint64_t ms = time_in_miliseconds_monotonic();
     if(!priv->last_ms) {
         priv->last_ms = ms;
@@ -1280,8 +1283,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         txMsgsec /= t;
         rxMsgsec /= t;
 
-        uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
-        uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
+        json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+        json_int_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
         if(txMsgsec > maxtxMsgsec) {
             gobj_write_integer_attr(gobj, "maxtxMsgsec", txMsgsec);
         }
