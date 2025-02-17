@@ -121,7 +121,7 @@ PRIVATE int search_page(
         }
 
         uint64_t rowid_ = json_integer_value(
-            json_object_get(json_object_get(row, "__md_tranger__"), "rowid")
+            json_object_get(json_object_get(row, "__md_tranger__"), "g_rowid")
         );
         if(rowid != rowid_) {
             result += -1;
