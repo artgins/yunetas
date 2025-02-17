@@ -192,19 +192,12 @@ PRIVATE json_t *_build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj sr
 PUBLIC json_t *build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     json_t *jn_data = json_object();
-    json_object_set_new(
-        jn_data,
-        gobj_short_name(gobj),
-        _build_stats(gobj, stats, json_incref(kw), src)
-    );
+
+    json_object_update_missing_new(jn_data, _build_stats(gobj, stats, json_incref(kw), src));
 
     hgobj gobj_bottom = gobj_bottom_gobj(gobj);
     while(gobj_bottom) {
-        json_object_set_new(
-            jn_data,
-            gobj_short_name(gobj_bottom),
-            _build_stats(gobj_bottom, stats, json_incref(kw), src)
-        );
+        json_object_update_missing_new(jn_data, _build_stats(gobj_bottom, stats, json_incref(kw), src));
 
         gobj_bottom = gobj_bottom_gobj(gobj_bottom);
     }
