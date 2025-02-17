@@ -221,9 +221,15 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     }
 
     gobj_free_iter(dl_childs);
-
     KW_DECREF(kw)
-    return jn_stats;
+
+    return build_command_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_stats     // jn_data, owned
+    );
 }
 
 
