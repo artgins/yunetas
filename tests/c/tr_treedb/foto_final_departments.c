@@ -36,7 +36,8 @@ char foto_final_departments[]= "\
                                     '__md_treedb__': { \n\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
-                                        'rowid': 1, \n\
+                                        'g_rowid': 1, \n\
+                                        'i_rowid': 1, \n\
                                         't': 99999, \n\
                                         'tm': 0, \n\
                                         'pure_node': true, \n\
@@ -53,7 +54,8 @@ char foto_final_departments[]= "\
                                     '__md_treedb__': { \n\
                                         'treedb_name': 'treedb_test', \n\
                                         'topic_name': 'departments', \n\
-                                        'rowid': 1, \n\
+                                        'g_rowid': 1, \n\
+                                        'i_rowid': 1, \n\
                                         't': 99999, \n\
                                         'tm': 0, \n\
                                         'pure_node': true, \n\
@@ -66,7 +68,8 @@ char foto_final_departments[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                'rowid': 1, \n\
+                                'g_rowid': 1, \n\
+                                'i_rowid': 1, \n\
                                 't': 99999, \n\
                                 'tm': 0, \n\
                                 'pure_node': true, \n\
@@ -79,7 +82,8 @@ char foto_final_departments[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        'rowid': 1, \n\
+                        'g_rowid': 1, \n\
+                        'i_rowid': 1, \n\
                         't': 99999, \n\
                         'tm': 0, \n\
                         'pure_node': true, \n\
@@ -101,7 +105,8 @@ char foto_final_departments[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                'rowid': 1, \n\
+                                'g_rowid': 1, \n\
+                                'i_rowid': 1, \n\
                                 't': 99999, \n\
                                 'tm': 0, \n\
                                 'pure_node': true, \n\
@@ -118,7 +123,8 @@ char foto_final_departments[]= "\
                             '__md_treedb__': { \n\
                                 'treedb_name': 'treedb_test', \n\
                                 'topic_name': 'departments', \n\
-                                'rowid': 1, \n\
+                                'g_rowid': 1, \n\
+                                'i_rowid': 1, \n\
                                 't': 99999, \n\
                                 'tm': 0, \n\
                                 'pure_node': true, \n\
@@ -131,7 +137,8 @@ char foto_final_departments[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        'rowid': 1, \n\
+                        'g_rowid': 1, \n\
+                        'i_rowid': 1, \n\
                         't': 99999, \n\
                         'tm': 0, \n\
                         'pure_node': true, \n\
@@ -148,7 +155,8 @@ char foto_final_departments[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        'rowid': 1, \n\
+                        'g_rowid': 1, \n\
+                        'i_rowid': 1, \n\
                         't': 99999, \n\
                         'tm': 0, \n\
                         'pure_node': true, \n\
@@ -165,7 +173,8 @@ char foto_final_departments[]= "\
                     '__md_treedb__': { \n\
                         'treedb_name': 'treedb_test', \n\
                         'topic_name': 'departments', \n\
-                        'rowid': 1, \n\
+                        'g_rowid': 1, \n\
+                        'i_rowid': 1, \n\
                         't': 99999, \n\
                         'tm': 0, \n\
                         'pure_node': true, \n\
