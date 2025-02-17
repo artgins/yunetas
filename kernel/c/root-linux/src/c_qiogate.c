@@ -5,6 +5,7 @@
  *          IOGate with persistent queue
  *
  *          Copyright (c) 2019 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -45,7 +46,6 @@ PRIVATE int close_queue(hgobj gobj);
 PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_reset_maxtxrx(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
@@ -67,7 +67,6 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-----------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,         pm_help,        cmd_help,       "Command's help"),
 
-SDATACM (DTP_SCHEMA,    "reset_maxtxrx",        0,          0,              cmd_reset_maxtxrx, "Reset max tx rx stats"),
 SDATACM (DTP_SCHEMA,    "queue_mark_pending",   0,          pm_queue,       cmd_queue_mark_pending, "Mark selected messages as pending (Will be resend)."),
 SDATACM (DTP_SCHEMA,    "queue_mark_notpending", 0,         pm_queue,       cmd_queue_mark_notpending,"Mark selected messages as notpending (Will NOT be send or resend)."),
 SDATA_END()
@@ -79,14 +78,6 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
-
-SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
-SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
-
 SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             "1000",     "Timeout polling, in miliseconds"),
 SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   0,          "Messages in queue"),
 SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   0,          "Messages pending of ack"),
@@ -151,10 +142,6 @@ typedef struct _PRIVATE_DATA {
     uint32_t pending_acks;
     uint32_t max_pending_acks;
 
-    json_int_t txMsgs;
-    json_int_t rxMsgs;
-    json_int_t txMsgsec;
-    json_int_t rxMsgsec;
     BOOL drop_on_timeout_ack;
 } PRIVATE_DATA;
 
@@ -306,24 +293,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         0,
         jn_resp,
-        0,
-        0,
-        "",
-        kw  // owned
-    );
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *cmd_reset_maxtxrx(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
-{
-    gobj_write_integer_attr(gobj, "maxtxMsgsec", 0);
-    gobj_write_integer_attr(gobj, "maxrxMsgsec", 0);
-    return msg_iev_build_response(
-        gobj,
-        0,
-        json_sprintf("Max tx rx reset done."),
         0,
         0,
         "",
@@ -832,10 +801,6 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
             }
             int ret = send_message_to_bottom_side(gobj, msg);
             if(ret == 0) {
-                priv->txMsgs++;
-                priv->txMsgsec++;
-                // gobj_incr_qs(QS_TXMSGS, 1);
-
                 priv->pending_acks++;
                 trq_set_soft_mark(msg, MARK_PENDING_ACK, TRUE);
                 trq_set_ack_timer(msg, priv->timeout_ack);
@@ -956,10 +921,6 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
                 int ret = send_message_to_bottom_side(gobj, msg);
                 if(ret == 0) {
                     sent++;
-                    priv->txMsgs++;
-                    priv->txMsgsec++;
-                    // gobj_incr_qs(QS_TXMSGS, 1);
-
                     priv->pending_acks++;
                     trq_set_soft_mark(msg, MARK_PENDING_ACK, TRUE);
                     trq_set_ack_timer(msg, priv->timeout_ack);
@@ -1201,9 +1162,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->gobj_bottom_side) {
-        priv->rxMsgs++;
-        priv->rxMsgsec++;
-        // gobj_incr_qs(QS_RXMSGS, 1);
         return process_ack(gobj, event, kw, src);
     }
 
@@ -1247,21 +1205,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
-    json_int_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
-    if(priv->txMsgsec > maxtxMsgsec) {
-        gobj_write_integer_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
-    }
-    if(priv->rxMsgsec > maxrxMsgsec) {
-        gobj_write_integer_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
-    }
-
-    gobj_write_integer_attr(gobj, "txMsgsec", priv->txMsgsec);
-    gobj_write_integer_attr(gobj, "rxMsgsec", priv->rxMsgsec);
-
-    priv->rxMsgsec = 0;
-    priv->txMsgsec = 0;
 
     if(priv->bottom_side_opened) {
         int ret = send_batch_messages(gobj, 0, TRUE); // Resend by periodic timeout

@@ -84,7 +84,6 @@ SDATA (DTP_INTEGER,     "send_type",        SDF_RD,             0,          "Sen
 SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
 SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
-
 SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
 SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
 SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
@@ -120,8 +119,8 @@ typedef struct _PRIVATE_DATA {
     send_type_t send_type;
     json_int_t txMsgs;
     json_int_t rxMsgs;
-    uint64_t last_txMsgs;
-    uint64_t last_rxMsgs;
+    json_int_t last_txMsgs;
+    json_int_t last_rxMsgs;
     uint64_t last_ms;
 } PRIVATE_DATA;
 
@@ -201,95 +200,21 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 /***************************************************************************
- *      Framework Method stats
+ *      Framework Method reading
  ***************************************************************************/
-PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(stats && strcmp(stats, "__reset__")==0) {
-        priv->txMsgs = 0;
-        priv->rxMsgs = 0;
-        gobj_write_integer_attr(gobj, "txMsgsec", 0);
-        gobj_write_integer_attr(gobj, "rxMsgsec", 0);
-        gobj_write_integer_attr(gobj, "maxtxMsgsec", 0);
-        gobj_write_integer_attr(gobj, "maxrxMsgsec", 0);
-
-        /*
-         *  Reset stats of channels too
-         */
-        json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", C_CHANNEL
-        );
-        hgobj child = gobj_first_child(gobj);
-        while(child) {
-            if(gobj_match_gobj(child, json_incref(jn_filter))) {
-                KW_INCREF(kw)
-                json_t *jn_child_stats = gobj_stats(child, stats, kw, gobj);
-                JSON_DECREF(jn_child_stats)
-            }
-            child = gobj_next_child(child);
-        }
-        JSON_DECREF(jn_filter)
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "txMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgs;
+    } else if(strcmp(name, "rxMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->rxMsgs;
     }
-
-    json_t *jn_stats = json_object();
-
-    /*
-     *  Get stats of channels too like __reset__ TODO ???
-     */
-
-    json_int_t txMsgsec = gobj_read_integer_attr(gobj, "txMsgsec");
-    json_int_t rxMsgsec = gobj_read_integer_attr(gobj, "rxMsgsec");
-    json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
-    json_int_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
-    int opened = channels_opened(gobj);
-
-    json_object_set_new(
-        jn_stats,
-        "channels_opened",
-        json_integer(opened)
-    );
-    json_object_set_new(
-        jn_stats,
-        "txMsgs",
-        json_integer(priv->txMsgs)
-    );
-    json_object_set_new(
-        jn_stats,
-        "rxMsgs",
-        json_integer(priv->rxMsgs)
-    );
-    json_object_set_new(
-        jn_stats,
-        "txMsgsec",
-        json_integer(txMsgsec)
-    );
-    json_object_set_new(
-        jn_stats,
-        "rxMsgsec",
-        json_integer(rxMsgsec)
-    );
-    json_object_set_new(
-        jn_stats,
-        "maxtxMsgsec",
-        json_integer(maxtxMsgsec)
-    );
-    json_object_set_new(
-        jn_stats,
-        "maxrxMsgsec",
-        json_integer(maxrxMsgsec)
-    );
-
-    return msg_iev_build_response(
-        gobj,
-        0,
-        0,
-        0,
-        jn_stats, // owned
-        "",  // msg_type
-        kw  // owned
-    );
+    return v;
 }
 
 
@@ -1345,10 +1270,10 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!priv->last_ms) {
         priv->last_ms = ms;
     }
-    uint64_t t = (ms - priv->last_ms);
+    json_int_t t = (json_int_t)(ms - priv->last_ms);
     if(t>0) {
-        uint64_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
-        uint64_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
+        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
+        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
 
         txMsgsec *= 1000;
         rxMsgsec *= 1000;
@@ -1387,7 +1312,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_writing = mt_writing,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
-    .mt_stats = mt_stats,
+    .mt_reading = mt_reading,
 };
 
 /*------------------------*

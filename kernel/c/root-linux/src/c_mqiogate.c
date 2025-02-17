@@ -4,7 +4,7 @@
  *
  *          Multiple Persistent Queue IOGate
  *
- *   WARNING no puede tener hijos distintos a clase QIOGate
+ *   WARNING no puede tener hijos distintos a clase C_QIOGATE
  *
  *          Copyright (c) 2019 Niyamaka.
  *          All Rights Reserved.
@@ -12,6 +12,7 @@
 #include <string.h>
 
 #include <command_parser.h>
+#include <stats_parser.h>
 #include "msg_ievent.h"
 #include "c_iogate.h"
 #include "c_qiogate.h"
@@ -116,7 +117,7 @@ PRIVATE hgclass __gclass__ = 0;
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // WARNING no puede tener hijos distintos a clase QIOGate
+    // WARNING no puede tener hijos distintos a clase C_QIOGATE
 
     /*
      *  SERVICE subscription model
@@ -157,7 +158,7 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *jn_filter = json_pack("{s:s}",
-        "__gclass_name__", "QIOGate"
+        "__gclass_name__", C_QIOGATE
     );
     json_t *dl_childs = gobj_match_childs(gobj, jn_filter);
     priv->n_childs = json_array_size(dl_childs);
@@ -167,7 +168,7 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
-            "msg",          "%s", "NO CHILDS of QIOGate gclass",
+            "msg",          "%s", "NO CHILDS of C_QIOGATE gclass",
             NULL
         );
     }
@@ -210,7 +211,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_array_foreach(dl_childs, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         KW_INCREF(kw)
-        json_t *jn_stats_child = gobj_stats(
+        json_t *jn_stats_child = build_stats(
             child,
             stats,
             kw,     // owned
@@ -323,7 +324,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "QIOGate WITHOUT destine",
+            "msg",          "%s", "C_QIOGATE WITHOUT destine",
             NULL
         );
         KW_DECREF(kw)
@@ -369,7 +370,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "QIOGate destine NOT FOUND",
+            "msg",          "%s", "C_QIOGATE destine NOT FOUND",
             NULL
         );
         KW_DECREF(kw)

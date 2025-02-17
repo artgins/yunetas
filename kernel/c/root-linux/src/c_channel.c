@@ -35,20 +35,19 @@
  *---------------------------------------------*/
 
 PRIVATE sdata_desc_t tattr_desc[] = {
-/*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             0,              "Channel opened (opened is higher level than connected"),
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",         "Timeout"),
-SDATA (DTP_INTEGER,     "txMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages received"),
-
-SDATA (DTP_INTEGER,     "txMsgsec",     SDF_RD|SDF_RSTATS,      0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "rxMsgsec",     SDF_RD|SDF_RSTATS,      0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "maxtxMsgsec",  SDF_WR|SDF_RSTATS,      0,          "Max Tx Messages by second"),
-SDATA (DTP_INTEGER,     "maxrxMsgsec",  SDF_WR|SDF_RSTATS,      0,          "Max Rx Messages by second"),
-SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username"),
-SDATA (DTP_POINTER,     "user_data",        0,                  0,              "user data"),
-SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "more user data"),
-SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "subscriber of output-events. Not a child gobj."),
+/*-ATTR-type------------name----------------flag----------------default-----description---------- */
+SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             0,          "Channel opened (opened is higher level than connected"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
 SDATA_END()
 };
 
