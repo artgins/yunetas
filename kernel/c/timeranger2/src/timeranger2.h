@@ -86,7 +86,7 @@
  *  The __t__ time gets the filename where to save the record,
  *      according to the defined mask in the topic or in the tranger.
  *  Each record's file (.json) has his own metadata (.md) file
- *  In memory a cache is loaded with the first and last record metadata of each file .md file.
+ *  In memory, a cache is loaded with the first and last record metadata of each file .md file.
  ****************************************************************************/
 
 #pragma once
