@@ -41,7 +41,7 @@ PRIVATE int load_id_callback(
     json_t *topic,
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    json_int_t rowid,   // global rowid of key
     md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 );
@@ -50,16 +50,9 @@ PRIVATE int load_pkey2_callback(
     json_t *topic,
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    json_int_t rowid,   // global rowid of key
     md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
-);
-
-PRIVATE json_t *md2json(
-    const char *treedb_name,
-    const char *topic_name,
-    md2_record_ex_t *md_record,
-    json_int_t rowid
 );
 
 PRIVATE int load_all_links(
@@ -3129,7 +3122,7 @@ PRIVATE json_t *md2json(
     const char *treedb_name,
     const char *topic_name,
     md2_record_ex_t *md_record,
-    json_int_t rowid
+    json_int_t g_rowid
 )
 {
     json_t *jn_md = json_object();
@@ -3143,7 +3136,7 @@ PRIVATE json_t *md2json(
         "topic_name",
         json_string(topic_name)
     );
-    json_object_set_new(jn_md, "rowid", json_integer(rowid));
+    json_object_set_new(jn_md, "rowid", json_integer(g_rowid));
     json_object_set_new(jn_md, "t", json_integer((json_int_t)md_record->__t__));
     json_object_set_new(jn_md, "tm", json_integer((json_int_t)md_record->__tm__));
     json_object_set_new(jn_md, "tag", json_integer((json_int_t)md_record->user_flag));
@@ -3161,7 +3154,7 @@ PRIVATE int load_id_callback(
     json_t *topic,
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    json_int_t rowid,   // global rowid of key
     md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 )
@@ -3282,7 +3275,7 @@ PRIVATE int load_pkey2_callback(
     json_t *topic,
     const char *key,
     json_t *list,       // iterator or rt_mem/rt_disk, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    json_int_t rowid,   // global rowid of key
     md2_record_ex_t *md_record,
     json_t *jn_record  // must be owned
 )

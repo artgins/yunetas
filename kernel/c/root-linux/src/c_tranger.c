@@ -54,7 +54,7 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
 //    json_t *topic,
 //    const char *key,
 //    json_t *list, // iterator or rt_list/rt_disk id, don't own
-//    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+//    json_int_t rowid,   // global rowid of key
 //    md2_record_t *md_record,
 //    json_t *jn_record  // must be owned
 //);
@@ -1242,7 +1242,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 //    json_t *topic,
 //    const char *key,
 //    json_t *list, // iterator or rt_list/rt_disk id, don't own
-//    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+//    json_int_t rowid,   // global rowid of key
 //    md2_record_t *md_record,
 //    json_t *jn_record  // must be owned
 //)

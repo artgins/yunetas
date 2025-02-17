@@ -47,7 +47,7 @@ PRIVATE int load_record_callback(
     json_t *topic,
     const char *key,
     json_t *list, // iterator or rt_list/rt_disk id, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    json_int_t rowid,   // global rowid of key
     md2_record_ex_t *md_record,
     json_t *jn_record // must be owned, can be null if only_md
 );
@@ -885,7 +885,7 @@ PRIVATE int load_record_callback(
     json_t *topic,
     const char *key,
     json_t *list, // iterator or rt_list/rt_disk id, don't own
-    json_int_t rowid,   // in a rt_mem will be the relative rowid, in rt_disk the absolute rowid
+    json_int_t rowid,   // global rowid of key
     md2_record_ex_t *md_record,
     json_t *jn_record // must be owned, can be null if only_md
 )
