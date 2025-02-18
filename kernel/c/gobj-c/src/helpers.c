@@ -239,23 +239,23 @@ static char _node_uuid[64] = {0}; // uuid of the node
  *  The use of this functions implies the use of 00_security.h's permission system:
  *  umask will be set to 0 and we control all permission mode.
  ***************************************************************************/
-PUBLIC int newdir(const char *path, int permission)
+PUBLIC int newdir(const char *path, int xpermission)
 {
     if(!umask_cleared) {
         umask(0);
         umask_cleared = TRUE;
     }
-    return mkdir(path, permission);
+    return mkdir(path, xpermission);
 }
 
 /***************************************************************************
- *  Create a new file (only to write)
+ *  Create a new file
  *  The use of this functions implies the use of 00_security.h's permission system:
  *  umask will be set to 0 and we control all permission mode.
  ***************************************************************************/
-PUBLIC int newfile(const char *path, int permission, BOOL overwrite)
+PUBLIC int newfile(const char *path, int rpermission, BOOL overwrite)
 {
-    int flags = O_CREAT|O_WRONLY|O_LARGEFILE;
+    int flags = O_CREAT|O_RDWR|O_LARGEFILE;
 
     if(!umask_cleared) {
         umask(0);
@@ -267,19 +267,19 @@ PUBLIC int newfile(const char *path, int permission, BOOL overwrite)
     else
         flags |= O_EXCL;
 
-    return open(path, flags, permission);
+    return open(path, flags, rpermission);
 }
 
 /***************************************************************************
  *  Open a file as exclusive
  ***************************************************************************/
-PUBLIC int open_exclusive(const char *path, int flags, int permission)
+PUBLIC int open_exclusive(const char *path, int flags, int rpermission)
 {
     if(!flags) {
         flags = O_RDWR|O_LARGEFILE|O_NOFOLLOW;
     }
 
-    int fp = open(path, flags, permission);
+    int fp = open(path, flags, rpermission);
     if(flock(fp, LOCK_EX|LOCK_NB)<0) {
         close(fp);
         return -1;
@@ -449,7 +449,7 @@ PUBLIC int file_remove(const char *directory, const char *filename)
 /***************************************************************************
  *  Function to create directories recursively like "mkdir -p path"
  ***************************************************************************/
-PUBLIC int mkrdir(const char *path, int permission)
+PUBLIC int mkrdir(const char *path, int xpermission)
 {
     struct stat st;
     char tmp[PATH_MAX];
@@ -471,7 +471,7 @@ PUBLIC int mkrdir(const char *path, int permission)
             // Check if the directory exists
             if(access(tmp, F_OK) != 0) {
                 // If the directory doesn't exist, create it
-                if(newdir(tmp, permission)<0) {
+                if(newdir(tmp, xpermission)<0) {
                     if(errno != EEXIST) {
                         gobj_log_error(0, 0,
                            "function",     "%s", __FUNCTION__,
@@ -502,7 +502,7 @@ PUBLIC int mkrdir(const char *path, int permission)
 
     // Create the final directory component
     if(access(tmp, F_OK) != 0) {
-        if(newdir(tmp, permission)<0) {
+        if(newdir(tmp, xpermission)<0) {
             if(errno != EEXIST) {
                 gobj_log_error(0, 0,
                    "function",     "%s", __FUNCTION__,

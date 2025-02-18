@@ -11,6 +11,7 @@
 
 #include <sys/stat.h>
 #include "00_http_parser.h" /* don't remove */
+#include "00_security.h"    /* don't remove */
 #include "gobj.h"
 
 
@@ -40,9 +41,9 @@ extern "C"{
 /*------------------------------------*
  *  ### File System
  *------------------------------------*/
-PUBLIC int newdir(const char *path, int permission);
-PUBLIC int newfile(const char *path, int permission, BOOL overwrite);
-PUBLIC int open_exclusive(const char *path, int flags, int permission);  // open exclusive
+PUBLIC int newdir(const char *path, int xpermission);
+PUBLIC int newfile(const char *path, int rpermission, BOOL overwrite);
+PUBLIC int open_exclusive(const char *path, int flags, int rpermission);  // open exclusive
 
 PUBLIC off_t filesize(const char *path);
 PUBLIC off_t filesize2(int fd);
@@ -58,7 +59,7 @@ PUBLIC BOOL file_exists(const char *directory, const char *filename);
 PUBLIC BOOL subdir_exists(const char *directory, const char *subdir);
 PUBLIC int file_remove(const char *directory, const char *filename);
 
-PUBLIC int mkrdir(const char *path, int permission);
+PUBLIC int mkrdir(const char *path, int xpermission);
 PUBLIC int rmrdir(const char *root_dir);
 PUBLIC int rmrcontentdir(const char *root_dir);
 

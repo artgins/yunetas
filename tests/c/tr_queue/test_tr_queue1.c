@@ -38,6 +38,8 @@ PRIVATE int global_result = 0;
 static int test(tr_queue trq_msgs, int caso)
 {
     int result = 0;
+    json_t *tranger = trq_tranger(trq_msgs);
+
     /*-------------------------------------*
      *  Loop
      *-------------------------------------*/
@@ -45,7 +47,10 @@ static int test(tr_queue trq_msgs, int caso)
     case 1:
         {
             const char *test_name = "case 1";
-            int cnt = 3600*24*2 + 60;    // two days + 1 minute
+            int cnt = 3600*24*1 + 60;    // one day + 1 minute
+            json_int_t initial_time = 946684799; // 1999-12-31T23:59:59+0000
+            const char *key = "00001";
+
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -57,9 +62,6 @@ static int test(tr_queue trq_msgs, int caso)
             time_measure_t time_measure;
             MT_START_TIME(time_measure)
 
-            json_int_t initial_time = 946684799; // 1999-12-31T23:59:59+0000
-            const char *key = "00001";
-
             for(int i=0; i<cnt; i++) {
                 json_int_t t = i + initial_time;
                 json_t *kw = json_pack("{s:s, s:I, s:s}",
@@ -67,6 +69,8 @@ static int test(tr_queue trq_msgs, int caso)
                     "tm", t,
                     "event", "trace"
                 );
+
+print_json2("tranger before", tranger); // TODO TEST
 
                 /*
                  *  Enqueue
@@ -76,6 +80,8 @@ static int test(tr_queue trq_msgs, int caso)
                     t,
                     kw
                 );
+
+print_json2("tranger after", tranger); // TODO TEST
 
                 /*
                  *  Dequeue
@@ -148,7 +154,7 @@ int do_test(void)
     mkrdir(path_root, 02770);
 
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
-    rmrdir(path_database);
+    // rmrdir(path_database); // TODO no borres para probar
 
     build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
 

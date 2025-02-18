@@ -26,6 +26,11 @@ Change API
     gobj_read_str_attr:
         implicit char attrs: __state__
 
+    newfile (only to write) -> (wr/rd)
+    newdir          - parameter name changed
+    open_exclusive  - parameter name changed
+    mkrdir          - parameter name changed
+
 New API
 
     build_stats_response
