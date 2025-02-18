@@ -19,6 +19,13 @@ Change API
 
     build_command_response moved from gobj.c/h to command_parser.c/h
 
+    gobj_read_bool_attr:
+        implicit BOOL attrs: __disabled__,__running__,__playing__,__service__
+    gobj_read_int_attr:
+        implicit int attrs: __trace_level__
+    gobj_read_str_attr:
+        implicit char attrs: __state__
+
 New API
 
     build_stats_response

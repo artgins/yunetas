@@ -3427,6 +3427,10 @@ PUBLIC const char *gobj_read_str_attr(hgobj gobj_, const char *name)
 {
     gobj_t *gobj = gobj_;
 
+    if(name && strcasecmp(name, "__state__")==0) {
+        return gobj_current_state(gobj);
+    }
+
     json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
@@ -3459,6 +3463,18 @@ PUBLIC BOOL gobj_read_bool_attr(hgobj gobj_, const char *name)
 {
     gobj_t *gobj = gobj_;
 
+    if(name) {
+        if(strcasecmp(name, "__disabled__")==0) {
+            return gobj_is_disabled(gobj);
+        } else if(strcasecmp(name, "__running__")==0) {
+            return gobj_is_running(gobj);
+        } else if(strcasecmp(name, "__playing__")==0) {
+            return gobj_is_playing(gobj);
+        } else if(strcasecmp(name, "__service__")==0) {
+            return gobj_is_service(gobj);
+        }
+    }
+
     json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
@@ -3490,6 +3506,10 @@ PUBLIC BOOL gobj_read_bool_attr(hgobj gobj_, const char *name)
 PUBLIC json_int_t gobj_read_integer_attr(hgobj gobj_, const char *name)
 {
     gobj_t *gobj = gobj_;
+
+    if(name && strcasecmp(name, "__trace_level__")==0) {
+        return gobj_trace_level(gobj);
+    }
 
     json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
