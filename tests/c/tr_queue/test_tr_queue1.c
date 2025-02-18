@@ -71,8 +71,9 @@ static int test(tr_queue trq_msgs, int caso)
                 /*
                  *  Enqueue
                  */
-                q_msg msg = trq_append(
+                q_msg msg = trq_append2(
                     trq_msgs,
+                    t,
                     kw
                 );
 
