@@ -89,8 +89,8 @@ PRIVATE void mt_create(hgobj gobj)
     priv->parsing_request = ghttp_parser_create(
         gobj,
         HTTP_REQUEST,
-        "",
-        "",
+        NULL,                   // on_header_event
+        NULL,                   // on_body_event
         EV_ON_MESSAGE,
         gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
     );

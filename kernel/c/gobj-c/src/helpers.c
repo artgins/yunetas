@@ -5886,9 +5886,9 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
     }
     parser->gobj = gobj;
     parser->type = type;
-    parser->on_header_event = on_header_event;
-    parser->on_body_event = on_body_event;
-    parser->on_message_event = on_message_event;
+    parser->on_header_event = empty_string(on_header_event)?NULL:on_header_event;
+    parser->on_body_event = empty_string(on_body_event)?NULL:on_body_event;
+    parser->on_message_event = empty_string(on_message_event)?NULL:on_message_event;
     parser->send_event = send_event;
 
     http_parser_init(&parser->http_parser, type);
@@ -6000,7 +6000,7 @@ PRIVATE int on_headers_complete(http_parser* http_parser)
             "headers",              parser->jn_headers
         );
         if(parser->send_event) {
-            gobj_send_event(gobj_parent(gobj), parser->on_header_event, kw_http, gobj);
+            gobj_send_event(gobj, parser->on_header_event, kw_http, gobj);
         } else {
             gobj_publish_event(gobj, parser->on_header_event, kw_http);
         }
@@ -6025,7 +6025,7 @@ PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
             "__pbf_size__", (json_int_t)length
         );
         if(parser->send_event) {
-            gobj_send_event(gobj_parent(gobj), parser->on_body_event, kw_http, gobj);
+            gobj_send_event(gobj, parser->on_body_event, kw_http, gobj);
         } else {
             gobj_publish_event(gobj, parser->on_body_event, kw_http);
         }
@@ -6101,7 +6101,7 @@ PRIVATE int on_message_complete(http_parser* http_parser)
             "response_status_code", (int)parser->http_parser.status_code
         );
         if(parser->send_event) {
-            gobj_send_event(gobj_parent(gobj), parser->on_body_event, kw_http, gobj);
+            gobj_send_event(gobj, parser->on_body_event, kw_http, gobj);
         } else {
             gobj_publish_event(gobj, parser->on_body_event, kw_http);
         }
@@ -6144,7 +6144,7 @@ PRIVATE int on_message_complete(http_parser* http_parser)
         }
         ghttp_parser_reset(parser);
         if(parser->send_event) {
-            gobj_send_event(gobj_parent(gobj), parser->on_message_event, kw_http, gobj);
+            gobj_send_event(gobj, parser->on_message_event, kw_http, gobj);
         } else {
             gobj_publish_event(gobj, parser->on_message_event, kw_http);
         }
