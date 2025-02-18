@@ -436,7 +436,7 @@ PUBLIC q_msg trq_append(
  ***************************************************************************/
 PUBLIC q_msg trq_append2(
     tr_queue trq_,
-    json_int_t t,
+    json_int_t t,   // __t__
     json_t *jn_msg  // owned
 )
 {
