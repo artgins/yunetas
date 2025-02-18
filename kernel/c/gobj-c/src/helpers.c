@@ -249,7 +249,7 @@ PUBLIC int newdir(const char *path, int xpermission)
 }
 
 /***************************************************************************
- *  Create a new file
+ *  Create a new file for wr/rd (WARNING before was only to wr)
  *  The use of this functions implies the use of 00_security.h's permission system:
  *  umask will be set to 0 and we control all permission mode.
  ***************************************************************************/
