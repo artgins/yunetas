@@ -2658,7 +2658,7 @@ PRIVATE int get_md_record_for_wr(
     json_t *topic,      // In old tranger with 'rowid' was enough to get a record md
     const char *key,    // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
-    uint64_t rowid,
+    uint64_t i_rowid,
     md2_record_t *md_record,
     off_t *p_offset
 )
@@ -2666,13 +2666,13 @@ PRIVATE int get_md_record_for_wr(
     memset(md_record, 0, sizeof(md2_record_t));
     *p_offset = 0;
 
-    if(rowid == 0) {
+    if(i_rowid == 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "rowid 0",
             "topic",        "%s", tranger2_topic_name(topic),
-            "rowid",        "%lu", (unsigned long)rowid,
+            "i_rowid",      "%lu", (unsigned long)i_rowid,
             NULL
         );
         return -1;
@@ -2684,7 +2684,7 @@ PRIVATE int get_md_record_for_wr(
         return -1;
     }
 
-    off_t offset = (off_t) ((rowid-1) * sizeof(md2_record_t));
+    off_t offset = (off_t) ((i_rowid-1) * sizeof(md2_record_t));
     off_t offset_ = lseek(md2_fd, offset, SEEK_SET);
     if(offset != offset_) {
         gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED) | LOG_OPT_TRACE_STACK,
@@ -2713,6 +2713,9 @@ PRIVATE int get_md_record_for_wr(
             "msg",          "%s", "Cannot read record metadata, read FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
             "errno",        "%s", strerror(errno),
+            "offset",       "%lu", (unsigned long)offset,
+            "md2_fd",       "%d", (int)md2_fd,
+            "ln",           "%d", (int)ln,
             NULL
         );
         return -1;
@@ -2873,7 +2876,7 @@ PUBLIC int tranger2_set_user_flag(
     const char *topic_name, // In old tranger with 'rowid' was enough to get a record md
     const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
-    uint64_t rowid,         // Must be real rowid in the file, not in topic global rowid
+    uint64_t i_rowid,         // Must be real rowid in the file, not in topic global rowid
     uint32_t mask,
     BOOL set
 )
@@ -2900,7 +2903,7 @@ PUBLIC int tranger2_set_user_flag(
         topic,
         key,
         __t__,
-        rowid,
+        i_rowid,
         &md_record,
         &offset
     );
