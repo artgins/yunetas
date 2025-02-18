@@ -193,6 +193,18 @@ int do_test(void)
      *------------------------------*/
     trq_close(trq_msgs);
 
+    /*------------------------------*
+     *  Check the topic size
+     *------------------------------*/
+    uint64_t qsize = tranger2_topic_size(
+        tranger,
+        "gate_events"
+    );
+    if(qsize != 72860) {
+        printf("%sERROR --> %s%s\n", On_Red BWhite, "topic_size not 72860", Color_Off);
+        result += -1;
+    }
+
     /*-------------------------------*
      *      Shutdown timeranger
      *-------------------------------*/
