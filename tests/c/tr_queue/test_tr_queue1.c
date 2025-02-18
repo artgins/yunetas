@@ -21,8 +21,6 @@
 #define DATABASE    "tr_queue"
 #define TOPIC_NAME  "topic_queue1"
 
-int repeat = 10000; // Mínimo 10
-
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
@@ -81,7 +79,7 @@ static int print_key_iter(json_t * list, const char *key, uint64_t *expected, in
 /***************************************************************************
  *
  ***************************************************************************/
-static int test(json_t *tranger, int caso, int cnt)
+static int test(tr_queue trq_msgs, int caso)
 {
     int result = 0;
     /*-------------------------------------*
@@ -91,6 +89,7 @@ static int test(json_t *tranger, int caso, int cnt)
     case 1:
         {
             const char *test_name = "case 1";
+            int cnt = 3600*24*2 + 60;    // two days + 1 minute
             set_expected_results( // Check that no logs happen
                 test_name, // test name
                 NULL,   // error's list, It must not be any log error
@@ -102,744 +101,59 @@ static int test(json_t *tranger, int caso, int cnt)
             time_measure_t time_measure;
             MT_START_TIME(time_measure)
 
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Abuelo",
-                    "birthday", "2000-10-30T11:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                    "level", 0
-                ),
-                0
-            );
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Abuelo",
-                    "birthday", "2000-10-30T10:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                    "level", 0
-                ),
-                0
-            );
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Abuela",
-                    "birthday", "2000-10-29T09:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            json_int_t initial_time = 0;
+            const char *key = "00001";
 
-                    "level", 0
-                ),
-                0
-            );
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Padre",
-                    "birthday", "2020-10-29T09:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-
-                    "level", 0
-                ),
-                0
-            );
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Madre",
-                    "birthday", "2020-10-28T08:47:39.0+0000",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-
-                    "level", 0
-                ),
-                0
-            );
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Hijo",
-                    "birthday", "2030-10-01T09:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-
-                    "level", 0
-                ),
-                0
-            );
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Hija",
-                    "birthday", "2031-10-01T09:47:39.0+0100",                                        "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-
-                    "level", 0
-                ),
-                0
-            );
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Nieto",
-                    "birthday", "2041-10-01T09:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-
-                    "level", 0
-                ),
-                0
-            );
-            trmsg_add_instance(
-                tranger,
-                "FAMILY",   // topic
-                json_pack("{s:s, s:s, s:s, s:i}",
-                    "name", "Nieta",
-                    "birthday", "2040-10-01T09:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-
-                    "level", 0
-                ),
-                0
-            );
-
-            for (int i = 0; i < cnt/2; i++) {
-                trmsg_add_instance(
-                    tranger,
-                    "FAMILY",   // topic
-                    json_pack("{s:s, s:s, s:s, s:i}",
-                        "name", "Nieto",
-                        "birthday", "2045-10-01T09:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-
-                        "level", i+1
-                    ),
-                    0
+            for(int i=0; i<cnt; i++) {
+                json_int_t t = i + initial_time;
+                json_t *kw = json_pack("{s:s, s:I, s:s}",
+                    "id", key,
+                    "tm", t,
+                    "event", "trace"
                 );
-                trmsg_add_instance(
-                    tranger,
-                    "FAMILY",   // topic
-                    json_pack("{s:s, s:s, s:s, s:i}",
-                        "name", "Nieta",
-                        "birthday", "2046-10-01T09:47:39.0+0100",
-                    "address", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 
-                        "level", i+1
-                    ),
-                    0
+                /*
+                 *  Enqueue
+                 */
+                q_msg msg = trq_append(
+                    trq_msgs,
+                    kw
                 );
+
+                /*
+                 *  Dequeue
+                 */
+                uint64_t rowid = trq_msg_rowid(msg);
+                uint64_t __t__ = trq_msg_time(msg);
+                md2_record_ex_t *md_record_ex = trq_msg_md(msg);
+                uint64_t md_rowid = md_record_ex->rowid;
+
+                q_msg msg2 = trq_get_by_rowid(trq_msgs, rowid);
+                trq_clear_ack_timer(msg2);
+                trq_unload_msg(msg2, 0);
+
+                if(trq_check_pending_rowid(
+                    trq_msgs,
+                    key,        // In tranger2 ('key', '__t__', 'rowid') is required
+                    __t__,
+                    md_rowid
+                )!=0) {
+                    gobj_log_error(0, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "Message not found in the queue",
+                        "rowid",        "%ld", (unsigned long)rowid,
+                        "md_rowid",     "%ld", (unsigned long)md_rowid,
+                        NULL
+                    );
+                }
+
             }
 
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 2:
-        {
-            const char *test_name = "case 2";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                json_pack("[{s:s},{s:s},{s:s}]", // error's list
-                    "msg", "what id?",
-                    "msg", "Cannot open rt",
-                    "msg", "tranger2_open_list() failed"
-                ),
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY",   // topic
-                NULL,       // match_cond
-                NULL,       // extra
-                NULL,       // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-            if(list) {
-                trmsg_close_list(tranger, list);
+            if(trq_size(trq_msgs)==0) {
+                // Check and do backup only when no message
+                trq_check_backup(trq_msgs);
             }
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 10:
-        {
-            const char *test_name = "case 10";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-
-            uint64_t edades[] = {9,1,3,2,5,4,6,6,8,8,0};
-            for(int i=0; edades[i]!=0; i++) {
-                trmsg_add_instance(
-                    tranger,
-                    "FAMILY2",   // topic
-                    json_pack("{s:s, s:i, s:s, s:i}",
-                        "name", "Bisnieto",
-                        "birthday", (int)edades[i],
-                        "address", "a",
-                        "level", i
-                    ),
-                    0
-                );
-            }
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY2",           // topic
-                json_pack("{s:s, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "backward", 0,
-                    "order_by_tm", 1
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {2,4,3,6,5,7,8,9,10,1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-    case 11:
-        {
-            const char *test_name = "case 11";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-
-            uint64_t edades[] = {9,1,3,2,5,4,6,6,8,8,0};
-            for(int i=0; edades[i]!=0; i++) {
-                trmsg_add_instance(
-                    tranger,
-                    "FAMILY3",   // topic
-                    json_pack("{s:s, s:i, s:s, s:i}",
-                        "name", "Bisnieto",
-                        "birthday", (int)edades[i],
-                        "address", "a",
-                        "level", i
-                    ),
-                    0
-                );
-            }
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY3",           // topic
-                json_pack("{s:s, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "backward", 1,
-                    "order_by_tm", 1
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {2,4,3,6,5,8,7,10,9,1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 12:
-        {
-            const char *test_name = "case 12";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            uint64_t edades[] = {9,1,3,2,5,4,6,6,8,8,0};
-            for(int i=0; edades[i]!=0; i++) {
-                trmsg_add_instance(
-                    tranger,
-                    "FAMILY4",   // topic
-                    json_pack("{s:s, s:i, s:s, s:i}",
-                        "name", "Bisnieto",
-                        "birthday", (int)edades[i],
-                        "address", "a",
-                        "level", i
-                    ),
-                    0
-                );
-            }
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY4",           // topic
-                json_pack("{s:s, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "backward", 0,
-                    "order_by_tm", 0
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {1,2,3,4,5,6,7,8,9,10};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-    case 13:
-        {
-            const char *test_name = "case 13";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            uint64_t edades[] = {9,1,3,2,5,4,6,6,8,8,0};
-            for(int i=0; edades[i]!=0; i++) {
-                trmsg_add_instance(
-                    tranger,
-                    "FAMILY5",   // topic
-                    json_pack("{s:s, s:i, s:s, s:i}",
-                        "name", "Bisnieto",
-                        "birthday", (int)edades[i],
-                        "address", "a",
-                        "level", i
-                    ),
-                    0
-                );
-            }
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY5",           // topic
-                json_pack("{s:s, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "backward", 1,
-                    "order_by_tm", 0
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {10,9,8,7,6,5,4,3,2,1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 20:
-        {
-            const char *test_name = "case 20";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY2",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "max_key_instances", 2,
-                    "backward", 0,
-                    "order_by_tm", 1
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {10,1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-    case 21:
-        {
-            const char *test_name = "case 21";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY3",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "max_key_instances", 2,
-                    "backward", 1,
-                    "order_by_tm", 1
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {9,1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 22:
-        {
-            const char *test_name = "case 22";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY4",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "max_key_instances", 2,
-                    "backward", 0,
-                    "order_by_tm", 0
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {9,10};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-    case 23:
-        {
-            const char *test_name = "case 23";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY5",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "max_key_instances", 2,
-                    "backward", 1,
-                    "order_by_tm", 0
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {2,1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 30:
-        {
-            const char *test_name = "case 30";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY2",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "max_key_instances", 1,
-                    "backward", 0,
-                    "order_by_tm", 1
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {10}; // WARNING debería ser el 1. No uses tm con inst 1!!
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-    case 31:
-        {
-            const char *test_name = "case 31";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY3",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "max_key_instances", 1,
-                    "backward", 1,
-                    "order_by_tm", 1
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-
-    case 32:
-        {
-            const char *test_name = "case 32";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY4",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "max_key_instances", 1,
-                    "backward", 0,
-                    "order_by_tm", 0
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {10};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
-
-            MT_INCREMENT_COUNT(time_measure, cnt)
-            MT_PRINT_TIME(time_measure, test_name)
-
-            result += test_json(NULL);  // NULL: we want to check only the logs
-        }
-        break;
-    case 33:
-        {
-            const char *test_name = "case 33";
-            set_expected_results( // Check that no logs happen
-                test_name, // test name
-                NULL,   // error's list, It must not be any log error
-                NULL,   // expected, NULL: we want to check only the logs
-                NULL,   // ignore_keys
-                TRUE    // verbose
-            );
-
-            time_measure_t time_measure;
-            MT_START_TIME(time_measure)
-
-            json_t *list  = trmsg_open_list(
-                tranger,
-                "FAMILY5",           // topic
-                json_pack("{s:s, s:i, s:b, s:b}",  // match_cond
-                    "key", "Bisnieto",
-                    "max_key_instances", 1,
-                    "backward", 1,
-                    "order_by_tm", 0
-                ),
-                NULL,       // extra
-                "rt_id",    // rt_id
-                TRUE,       // rt_by_disk
-                NULL        // creator
-            );
-
-            uint64_t expected[] = {1};
-            int max = sizeof(expected)/sizeof(expected[0]);
-
-            print_key_iter(list, "Bisnieto", expected, max);
-
-            trmsg_close_list(tranger, list);
 
             MT_INCREMENT_COUNT(time_measure, cnt)
             MT_PRINT_TIME(time_measure, test_name)
@@ -884,66 +198,35 @@ int do_test(void)
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
-    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
+    json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
         "database", DATABASE,
         "master", 1,
-        "on_critical_error", 0,
-        "filename_mask", "%Y",
-        "xpermission" , 02770,
-        "rpermission", 0600,
-        "trace_level", 1
+        "on_critical_error", 0
     );
     json_t *tranger = tranger2_startup(0, jn_tranger, 0);
 
     /*------------------------------*
-     *  Crea la bbdd
+     *  Open the queue
      *------------------------------*/
-    static const json_desc_t family_json_desc[] = {
-        // Name             Type        Default
-        {"name",            "str",      "",             0},
-        {"birthday",        "int",      "1",            0},
-        {"address",         "str",      "Calle pepe",   0},
-        {"level",           "int",      "2",            0},
-        {"sample1",         "dict",     "{}",           0},
-        {"sample2",         "list",     "[]",           0},
-        {0}
-    };
-
-    static topic_desc_t db_test_desc[] = {
-        // Topic Name,  Pkey        Key Type        Tkey            Cols                Topic ext
-        {"FAMILY",      "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
-        {"FAMILY2",     "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
-        {"FAMILY3",     "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
-        {"FAMILY4",     "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
-        {"FAMILY5",     "name",     sf_string_key,  "birthday",     family_json_desc,   NULL},
-        {0}
-    };
-
-    result += trmsg_open_topics(tranger, db_test_desc);
+    tr_queue trq_msgs = trq_open(
+        tranger,
+        "gate_events",
+        "id",
+        "tm",
+        sf_string_key,
+        1000
+    );
 
     /*------------------------------*
      *  Ejecuta los tests
      *------------------------------*/
-    // Ejecuta todos los casos
-    result += test(tranger, 1, repeat);
-    result += test(tranger, 2, repeat);
-    result += test(tranger, 10, 10);
-    result += test(tranger, 11, 10);
-    result += test(tranger, 12, 10);
-    result += test(tranger, 13, 10);
+    result += test(trq_msgs, 1);
 
-    result += test(tranger, 20, 10);
-    result += test(tranger, 21, 10);
-    result += test(tranger, 22, 10);
-    result += test(tranger, 23, 10);
-
-    result += test(tranger, 30, 1);
-    result += test(tranger, 31, 1);
-    result += test(tranger, 32, 1);
-    result += test(tranger, 33, 1);
-
-    // TODO hacen falta tests con rt_by_disk adding messages after open_list
+    /*------------------------------*
+     *  Close the queue
+     *------------------------------*/
+    trq_close(trq_msgs);
 
     /*-------------------------------*
      *      Shutdown timeranger

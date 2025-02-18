@@ -1016,6 +1016,7 @@ PRIVATE int dequeue_msg(
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "Message not found in the queue",
                 "rowid",        "%ld", (unsigned long)rowid,
+                "md_rowid",     "%ld", (unsigned long)md_rowid,
                 NULL
             );
         }
