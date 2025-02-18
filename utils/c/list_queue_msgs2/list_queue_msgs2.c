@@ -246,6 +246,29 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void delete_right_slash(char *s)
+{
+    int l;
+    char c;
+
+    /*---------------------------------*
+     *  Elimina blancos a la derecha
+     *---------------------------------*/
+    l = (int)strlen(s);
+    if(l==0)
+        return;
+    while(--l>=0) {
+        c= *(s+l);
+        if(c==' ' || c=='\t' || c=='\n' || c=='\r' || c=='/')
+            *(s+l)='\0';
+        else
+            break;
+    }
+}
+
+/***************************************************************************
  *                      Main
  ***************************************************************************/
 int main(int argc, char *argv[])
@@ -334,6 +357,15 @@ int main(int argc, char *argv[])
         fprintf(stderr, "You must supply --path option\n\n");
         exit(-1);
     }
+
+    char path[PATH_MAX];
+    delete_right_slash(arguments.path);
+    if(arguments.path[0] != '/' && arguments.path[0] != '.') {
+        snprintf(path, sizeof(path), "./%s", arguments.path);
+    } else {
+        snprintf(path, sizeof(path), "%s", arguments.path);
+    }
+    arguments.path = path;
 
     struct rlimit rl;
     // Get current limit

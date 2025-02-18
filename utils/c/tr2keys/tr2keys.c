@@ -811,6 +811,15 @@ int main(int argc, char *argv[])
 //        JSON_DECREF(match_cond)
 //    }
 
+    char path[PATH_MAX];
+    delete_right_slash(arguments.path);
+    if(arguments.path[0] != '/' && arguments.path[0] != '.') {
+        snprintf(path, sizeof(path), "./%s", arguments.path);
+    } else {
+        snprintf(path, sizeof(path), "%s", arguments.path);
+    }
+    arguments.path = path;
+
     /*
      *  Do your work
      */
@@ -845,7 +854,6 @@ int main(int argc, char *argv[])
         &yev_loop
     );
 
-    delete_right_slash(arguments.path);
     if(arguments.list_databases) {
         list_databases(arguments.path);
     } else if(arguments.recursive) {
