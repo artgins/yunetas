@@ -16,7 +16,7 @@
 
 #include <yunetas.h>
 
-#define APP "test_rt_msg2"
+#define APP "test_tr_msg2"
 
 /***************************************************************************
  *      Constants

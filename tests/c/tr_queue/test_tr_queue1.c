@@ -1,27 +1,5 @@
 /****************************************************************************
- *          test.c
-
-rowid   tm
-1       972902859     'Abuelo'      forward [2,3,4,5,6,7, cnt+8, cnt+9]
-2       972899259     'Abuelo'      backward [9,8,7,6,5,4,3,1]
-3       972809259     'Abuela'
-4       1603961259    'Padre'
-5       1603874859    'Madre'
-6       1917074859    'Hijo'
-7       1948610859    'Hija'
-8       2264230059    'Nieto'
-9       2232694059    'Nieta'
-10      2390460459    'Nieto'
-11      2421996459    'Nieta'
-12      2390460459    'Nieto'
-13      2421996459    'Nieta'
-14      2390460459    'Nieto'
-15      2421996459    'Nieta'
-16      2390460459    'Nieto'
-17      2421996459    'Nieta'
-18      2390460459    'Nieto'
-19      2421996459    'Nieta'
-
+ *          test_tr_queue1.c
  *          Copyright (c) 2018 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -35,13 +13,13 @@ rowid   tm
 #include <time.h>
 #include <yunetas.h>
 
-#define APP "test_tr_msg1"
+#define APP "test_tr_queue1"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define DATABASE    "tr_msg"
-#define TOPIC_NAME  "topic_msg1"
+#define DATABASE    "tr_queue"
+#define TOPIC_NAME  "topic_queue1"
 
 int repeat = 10000; // Mínimo 10
 
