@@ -775,7 +775,7 @@ PUBLIC int trq_check_backup(tr_queue trq_)
     uint64_t backup_queue_size = kw_get_int(gobj, trq->topic, "backup_queue_size", 0, 0);
 
     if(backup_queue_size) {
-        if(tranger2_topic_size(trq->tranger, trq->topic_name) > backup_queue_size) {
+        if(tranger2_topic_size(trq->tranger, trq->topic_name) >= backup_queue_size) {
             char *topic_name = GBMEM_STRDUP(trq->topic_name);
             if(topic_name) {
                 trq_set_first_rowid(trq, tranger2_topic_size(trq->tranger, trq->topic_name)); // WARNING danger change?!

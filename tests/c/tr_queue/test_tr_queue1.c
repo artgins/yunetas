@@ -38,7 +38,6 @@ PRIVATE int global_result = 0;
 static int test(tr_queue trq_msgs, int caso)
 {
     int result = 0;
-    json_t *tranger = trq_tranger(trq_msgs);
 
     /*-------------------------------------*
      *  Loop
@@ -47,13 +46,21 @@ static int test(tr_queue trq_msgs, int caso)
     case 1:
         {
             const char *test_name = "case 1";
-            int cnt = 3600*24*1 + 60;    // one day + 1 minute
+            int cnt = 3600*24*2 + 60;    // 172860 = two day + 1 minute
             json_int_t initial_time = 946684799; // 1999-12-31T23:59:59+0000
             const char *key = "00001";
 
+            json_t *error_list = json_pack("[{s:s},{s:s},{s:s},{s:s},{s:s}]", // error's list
+                "msg", "Backup timeranger topic, moving",
+                "msg", "Creating topic",
+                "msg", "Creating topic_desc.json",
+                "msg", "Creating topic_cols.json",
+                "msg", "Creating topic_var.json"
+            );
+
             set_expected_results( // Check that no logs happen
                 test_name, // test name
-                NULL,   // error's list, It must not be any log error
+                error_list,   // error's list, It must not be any log error
                 NULL,   // expected, NULL: we want to check only the logs
                 NULL,   // ignore_keys
                 TRUE    // verbose
@@ -70,8 +77,6 @@ static int test(tr_queue trq_msgs, int caso)
                     "event", "trace"
                 );
 
-print_json2("tranger before", tranger); // TODO TEST
-
                 /*
                  *  Enqueue
                  */
@@ -80,8 +85,6 @@ print_json2("tranger before", tranger); // TODO TEST
                     t,
                     kw
                 );
-
-print_json2("tranger after", tranger); // TODO TEST
 
                 /*
                  *  Dequeue
@@ -111,11 +114,10 @@ print_json2("tranger after", tranger); // TODO TEST
                     );
                 }
 
-            }
-
-            if(trq_size(trq_msgs)==0) {
-                // Check and do backup only when no message
-                trq_check_backup(trq_msgs);
+                if(trq_size(trq_msgs)==0) {
+                    // Check and do backup only when no message
+                    trq_check_backup(trq_msgs);
+                }
             }
 
             MT_INCREMENT_COUNT(time_measure, cnt)
@@ -154,7 +156,7 @@ int do_test(void)
     mkrdir(path_root, 02770);
 
     build_path(path_database, sizeof(path_database), path_root, DATABASE, NULL);
-    // rmrdir(path_database); // TODO no borres para probar
+    rmrdir(path_database);
 
     build_path(path_topic, sizeof(path_topic), path_database, TOPIC_NAME, NULL);
 
@@ -178,7 +180,7 @@ int do_test(void)
         "id",
         "tm",
         sf_string_key,
-        1000
+        100000
     );
 
     /*------------------------------*
