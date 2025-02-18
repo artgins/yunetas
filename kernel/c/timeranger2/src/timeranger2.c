@@ -2137,7 +2137,7 @@ PRIVATE int close_fd_rd_files(
     const char *key
 )
 {
-    json_t *fd_files = kw_get_dict(gobj, topic, "wr_fd_files", 0, KW_REQUIRED);
+    json_t *fd_files = kw_get_dict(gobj, topic, "rd_fd_files", 0, KW_REQUIRED);
     return close_fd_files(gobj, fd_files, key);
 }
 
