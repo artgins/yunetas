@@ -432,6 +432,56 @@ PUBLIC q_msg trq_append(
 }
 
 /***************************************************************************
+    Append a new message to queue simulating t
+ ***************************************************************************/
+PUBLIC q_msg trq_append2(
+    tr_queue trq_,
+    json_int_t t,
+    json_t *jn_msg  // owned
+)
+{
+    register tr_queue_t *trq = trq_;
+    hgobj gobj = 0;
+
+    if(!jn_msg || jn_msg->refcount <= 0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "jn_msg NULL",
+            "topic",        "%s", trq->topic_name,
+            NULL
+        );
+        return 0;
+    }
+
+    /*
+     *  Get the pkey, must be a string key.
+     */
+    json_t *topic = tranger2_topic(trq->tranger, trq->topic_name);
+    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
+    const char *key = json_string_value(json_object_get(jn_msg, pkey));
+
+    JSON_INCREF(jn_msg);
+    md2_record_ex_t md_record;
+    tranger2_append_record(
+        trq->tranger,
+        trq->topic_name,
+        t,      // __t__
+        TRQ_MSG_PENDING,    // __flag__
+        &md_record,
+        jn_msg // owned
+    );
+    q_msg_t *msg = new_msg(
+        trq,
+        key,
+        (json_int_t)md_record.rowid,
+        &md_record,
+        jn_msg  // owned
+    );
+    return msg;
+}
+
+/***************************************************************************
     Get a message from iter by his rowid
  ***************************************************************************/
 PUBLIC q_msg trq_get_by_rowid(tr_queue trq, uint64_t rowid)

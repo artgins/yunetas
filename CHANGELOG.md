@@ -29,6 +29,7 @@ Change API
 New API
 
     build_stats_response
+    trq_append2
 
 Delete API
 

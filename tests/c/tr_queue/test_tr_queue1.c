@@ -35,50 +35,6 @@ PRIVATE int global_result = 0;
 /***************************************************************************
  *
  ***************************************************************************/
-static int print_key_iter(json_t * list, const char *key, uint64_t *expected, int max)
-{
-    int count = 0;
-    int result = 0;
-
-//print_json(list);
-    json_t *message = kw_get_subdict_value(0, list, "messages", key, 0, KW_REQUIRED);
-    json_t *instances = kw_get_list(0, message, "instances", 0, KW_REQUIRED);
-
-    json_t *instance;
-    int idx;
-    json_array_foreach(instances, idx, instance) {
-        if(count >= max) {
-            printf("%sERROR%s --> count >= max, count %d, max %d\n", On_Red BWhite, Color_Off, count, max);
-            result += -1;
-        }
-        json_int_t rowid = kw_get_int(0, instance, "__md_tranger__`g_rowid", 0, KW_REQUIRED);
-
-        if(0) {
-            json_int_t tm = kw_get_int(0, instance, "__md_tranger__`tm", 0, KW_REQUIRED);
-            printf("===> tm %lu, rowid %lu\n", (unsigned long)tm, (unsigned long)rowid);
-        }
-
-        if(expected[count] != rowid) {
-            printf("%sERROR%s --> count rowid not match, count %d, wait rowid %d, found rowid %d\n", On_Red BWhite, Color_Off,
-                count,
-                (int)(expected[count]),
-                (int)(rowid)
-            );
-            result += -1;
-        }
-        count++;
-    }
-
-    if(count != max) {
-        printf("%sERROR%s --> count != max, count %d, max %d\n", On_Red BWhite, Color_Off, count, max);
-        result += -1;
-    }
-    return result;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 static int test(tr_queue trq_msgs, int caso)
 {
     int result = 0;
@@ -101,7 +57,7 @@ static int test(tr_queue trq_msgs, int caso)
             time_measure_t time_measure;
             MT_START_TIME(time_measure)
 
-            json_int_t initial_time = 0;
+            json_int_t initial_time = 946684799; // 1999-12-31T23:59:59+0000
             const char *key = "00001";
 
             for(int i=0; i<cnt; i++) {
