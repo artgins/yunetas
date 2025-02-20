@@ -11,6 +11,10 @@ When writing this readme the LTS version was:
     node --version
         v22.14.0
 
+Install dependencies:
+
+    npm install
+
 To start Vite dev server:
 
     vite
