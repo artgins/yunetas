@@ -11,6 +11,6 @@ When writing this readme the LTS version was:
     node --version
         v22.14.0
 
-Install vite globally:
+This project was created using:
 
-    npm install -g vite
+    npm create vite@latest gobj-js7 -- --template vanilla
