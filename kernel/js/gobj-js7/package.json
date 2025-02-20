@@ -4,15 +4,13 @@
     "type": "module",
     "main": "dist/yunetas.umd.js",
     "module": "dist/yunetas.es.js",
-
     "scripts": {
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview"
     },
     "devDependencies": {
+        "@rollup/plugin-terser": "^0.4.4",
         "vite": "^6.1.1"
-    },
-    "dependencies": {
     }
 }
