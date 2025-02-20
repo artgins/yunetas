@@ -19,7 +19,7 @@ To start Vite dev server:
 
     vite
 
-To build for production:
+To build:
 
     vite build
 
