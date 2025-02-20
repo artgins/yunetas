@@ -200,6 +200,3 @@ function sprintf_parse(fmt) {
     }
     return sprintf_cache[fmt] = parse_tree;
 }
-
-export function sprintf;
-export function vsprintf;
