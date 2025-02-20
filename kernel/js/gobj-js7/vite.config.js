@@ -1,46 +1,52 @@
 import { defineConfig } from "vite";
-import terser from '@rollup/plugin-terser';
+import terser from "@rollup/plugin-terser";
 
 export default defineConfig({
     build: {
         lib: {
             entry: "src/index.js",
-            name: "yunetas",
-            formats: ["es", "umd"]
+            name: "yunetas"
         },
         rollupOptions: {
             output: [
-                // Non-minified versions
+                // Non-minified ES Module
                 {
                     format: "es",
                     dir: "dist",
                     entryFileNames: "yunetas.es.js",
-                    sourcemap: false
+                    preserveModulesRoot: "src",  // ✅ Maintain original file paths
+                    generatedCode: "es2015", // ✅ Preserve ES6+ syntax
+                    compact: false // ✅ Keep original formatting
                 },
+                // Non-minified UMD Module
                 {
                     name: "yunetas",
                     format: "umd",
                     dir: "dist",
                     entryFileNames: "yunetas.umd.js",
-                    sourcemap: false
+                    preserveModulesRoot: "src",
+                    generatedCode: "es2015",
+                    compact: false
                 },
-                // Minified versions
+                // Minified ES Module
                 {
                     format: "es",
                     dir: "dist",
                     entryFileNames: "yunetas.es.min.js",
-                    sourcemap: true,
-                    plugins: [terser()] // ✅ Properly using terser
+                    plugins: [terser()] // ✅ Minified version
                 },
+                // Minified UMD Module
                 {
                     name: "yunetas",
                     format: "umd",
                     dir: "dist",
                     entryFileNames: "yunetas.umd.min.js",
-                    sourcemap: true,
-                    plugins: [terser()] // ✅ Properly using terser
+                    plugins: [terser()]
                 }
             ]
-        }
+        },
+        sourcemap: true,
+        minify: false, // ✅ Disable Vite’s default minification
+        target: "esnext" // ✅ Prevent unnecessary transpilation
     }
 });
