@@ -26,3 +26,7 @@ To build:
 To preview the production build:
 
     vite preview
+
+To publish a new version of gobj-js:
+
+    npm publish --access public
