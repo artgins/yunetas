@@ -28,6 +28,17 @@ export default defineConfig({
                     generatedCode: "es2015",
                     compact: false
                 },
+                // Non-minified CJS Module
+                {
+                    name: "yunetas",
+                    format: "cjs",
+                    dir: "dist",
+                    entryFileNames: "yunetas.cjs.js",
+                    preserveModulesRoot: "src",
+                    generatedCode: "es2015",
+                    compact: false
+                },
+
                 // Minified ES Module
                 {
                     format: "es",
@@ -41,6 +52,14 @@ export default defineConfig({
                     format: "umd",
                     dir: "dist",
                     entryFileNames: "yunetas.umd.min.js",
+                    plugins: [terser()]
+                },
+                // Minified CJS Module
+                {
+                    name: "yunetas",
+                    format: "cjs",
+                    dir: "dist",
+                    entryFileNames: "yunetas.cjs.min.js",
                     plugins: [terser()]
                 }
             ]

@@ -1796,7 +1796,6 @@ let __inside_event_loop__ = 0;
     //      Expose the class via the global object
     //=======================================================================
     exports.GObj = GObj;
-    exports.get_current_datetime = get_current_datetime;
     exports.gcflag_manual_start = gcflag_manual_start;
     exports.gcflag_no_check_output_events = gcflag_no_check_output_events;
 })(this);
