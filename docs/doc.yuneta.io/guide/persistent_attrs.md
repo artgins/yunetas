@@ -95,19 +95,6 @@ The behavior for saving and loading persistent attributes can be customized by p
 
 ---
 
-## Use Cases
-
-### 1. **Configuration Settings**
-Attributes such as `timeout`, `hostname`, or `bind_ip` ensure consistent application behavior across restarts.
-
-### 2. **Operational State**
-Values like `deep_trace` or `autoplay` can be saved to maintain runtime states.
-
-### 3. **Custom Storage**
-Custom save/load functions allow storing attributes in external systems such as databases or specialized storage solutions.
-
----
-
 ## Benefits of Persistent Attributes
 
 - State Retention: Automatically preserve important data across restarts.
