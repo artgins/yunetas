@@ -77,6 +77,7 @@ The behavior for saving and loading persistent attributes can be customized by p
 ### Loading Attributes
 - Default: Attributes are automatically loaded during Yuno startup using the default or custom implementation provided in [`persistent_attrs_t`](persistent_attrs_t).
 
+
 ---
 
 ## Workflow for Persistent Attributes
@@ -85,7 +86,7 @@ The behavior for saving and loading persistent attributes can be customized by p
    Define attributes in the GClass schema ([`tattr_desc`](tattr_desc)) with the [`SDF_PERSIST`](SDF_PERSIST) flag.
 
 2. **Custom Save/Load:**
-   Optionally, provide custom save/load functions in [`persistent_attrs_t`](persistent_attrs_t) when initializing the Yuno with [`gobj_start_up()`]()gobj_start_up().
+   Optionally, provide custom save/load functions in [`persistent_attrs_t`](persistent_attrs_t) when initializing the Yuno with [`gobj_start_up()`](gobj_start_up()).
 
 3. **Loading:**
    Persistent attributes are automatically loaded during startup using either the default or custom implementation.
