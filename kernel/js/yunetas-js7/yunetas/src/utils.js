@@ -10,152 +10,42 @@
  *      15 Jul 2015 - Upgraded to yuneta 1.0.0.
  *      Jun 2024    - many new functions
  *
+ *      Feb 2025    - Migrate to yunetas-7
+ *
  *********************************************************************************/
 
 /************************************************************
- *
- ************************************************************/
-Function.prototype.__makeSubclass__ = function() {
-
-    function Class() {
-        if (!(this instanceof Class)) {
-              throw("Constructor called without new");
-        }
-        if ("__init__" in this) {
-            this.__init__.apply(this, arguments);
-        }
-    }
-    Function.prototype.__makeSubclass__.nonconstructor.prototype= this.prototype;
-    Class.prototype= new Function.prototype.__makeSubclass__.nonconstructor();
-    return Class;
-};
-Function.prototype.__makeSubclass__.nonconstructor= function() {};
-
-/************************************************************
- *  Clona arrays y objects, remains return the same.
-    WARNING
-
-    **duplicate** is a copy with new references
-
-    **clone** is a copy with incref references
- ************************************************************/
-function __duplicate__(obj)
-{
-    let clonedObjectsArray = [];
-    let originalObjectsArray = []; //used to remove the unique ids when finished
-    let next_objid = 0;
-
-    function objectId(obj) {
-        if (obj === null) {
-            return null;
-        }
-        if (obj.__obj_id === undefined) {
-            obj.__obj_id = next_objid++;
-            originalObjectsArray[obj.__obj_id] = obj;
-        }
-        return obj.__obj_id;
-    }
-
-    function cloneRecursive(obj) {
-        if(obj === null || obj === undefined || typeof obj === "string" || typeof obj === "number" || typeof obj === "boolean") {
-            return obj;
-        }
-
-        // Handle Date
-        if (obj instanceof Date) {
-            let copy = new Date();
-            copy.setTime(obj.getTime());
-            return copy;
-        }
-
-        // Handle Array
-        if (obj instanceof Array) {
-            let copy = [];
-            for (let i = 0; i < obj.length; ++i) {
-                copy[i] = cloneRecursive(obj[i]);
-            }
-            return copy;
-        }
-
-        // Handle Object
-        if (obj instanceof Object) {
-            if (clonedObjectsArray[objectId(obj)] !== undefined) {
-                return clonedObjectsArray[objectId(obj)];
-            }
-
-            let copy;
-            if (obj instanceof Function) {//Handle Function
-                copy = function () {
-                    return obj.apply(this, arguments);
-                };
-            } else {
-                copy = {};
-            }
-
-            clonedObjectsArray[objectId(obj)] = copy;
-
-            for (let attr in obj) {
-                if (attr !== "__obj_id" && obj.hasOwnProperty(attr)) {
-                    copy[attr] = cloneRecursive(obj[attr]);
-                }
-            }
-
-            return copy;
-        }
-
-        throw new Error("Unable to copy obj! Its type isn't supported.");
-    }
-    let cloneObj = cloneRecursive(obj);
-
-    //remove the unique ids
-    for (let i = 0; i < originalObjectsArray.length; i++) {
-        delete originalObjectsArray[i].__obj_id;
-    }
-
-    return cloneObj;
-}
-
-/************************************************************
- *  Duplicate objects (new references) in a new object
+ *  Duplicate an object (new references)
  *  using the modern structuredClone
  ************************************************************/
-function duplicate_objects(...sourceObjects)
+function json_deep_copy(obj) // old __duplicate__,duplicate_objects
 {
-    const result = {};
-    for (const obj of sourceObjects) {
-        const clonedObj = structuredClone(obj); // Deep copy using structuredClone
-        Object.assign(result, clonedObj); // Merge into the result object
-    }
-    return result;
+    return structuredClone(obj); // Deep copy of a single object
 }
 
 /************************************************************
- *  Update a dict with another dict: ONLY existing items!! (YES recursive)
+ *  Extend a dict with another dict (NOT recursive),
+ *  adding new keys and overwriting existing keys.
  ************************************************************/
-function json_object_update_existing_recursive(destination, source) {
+function json_object_update(destination, source) // old __extend_dict__
+{
     if(!source) {
         return destination;
     }
     for (let property in source) {
-        if (source.hasOwnProperty(property) && destination.hasOwnProperty(property)) {
-            if(is_object(destination[property]) && is_object(source[property])) {
-                json_object_update_existing_recursive(
-                    destination[property],
-                    source[property]
-                );
-            } else {
-                destination[property] = source[property];
-            }
+        if (source.hasOwnProperty(property)) {
+            destination[property] = source[property];
         }
     }
     return destination;
 }
 
 /************************************************************
- *  Update a dict with another dict: ONLY existing items!! (NOT recursive)
- *  Like json_object_update_existing()
+ *  Update a dict with another dict:
+ *  ONLY existing items!! (NOT recursive)
  ************************************************************/
-function __update_dict__(destination, source) {
+function json_object_update_existing(destination, source) // old __update_dict__
+{
     if(!source) {
         return destination;
     }
@@ -168,16 +58,16 @@ function __update_dict__(destination, source) {
 }
 
 /************************************************************
- *  Extend a dict with another dict (NOT recursive),
- *  adding new keys and overwriting existing keys.
- *  Like json_object_update()
+ *  Update a dict with another dict:
+ *  ONLY missing items!! (NOT recursive)
  ************************************************************/
-function __extend_dict__(destination, source) {
+function json_object_update_missing(destination, source)
+{
     if(!source) {
         return destination;
     }
-    for (var property in source) {
-        if (source.hasOwnProperty(property)) {
+    for (let property in source) {
+        if(source.hasOwnProperty(property) && !destination.hasOwnProperty(property)) {
             destination[property] = source[property];
         }
     }
@@ -187,7 +77,8 @@ function __extend_dict__(destination, source) {
 /************************************************************
  *  Extend array
  ************************************************************/
-function __extend_list__(destination, source) {
+function json_array_extend(destination, source)  // old  __extend_list__
+{
     if(!source) {
         return destination;
     }
@@ -195,36 +86,143 @@ function __extend_list__(destination, source) {
     return destination;
 }
 
-
 /************************************************************
- *  Update a dict with another dict: ONLY missing items!! (NOT recursive)
- *  Like json_object_update_missing()
+ *
  ************************************************************/
-function json_object_update_missing(destination, source) {
-    if(!source) {
-        return destination;
+function json_object_size(a)
+{
+    if(is_object(a)) {
+        return Object.keys(a).length;
     }
-    for (var property in source) {
-        if(source.hasOwnProperty(property) && !destination.hasOwnProperty(property)) {
-            destination[property] = source[property];
-        }
-    }
-    return destination;
+    return 0;
 }
 
 /************************************************************
  *
  ************************************************************/
-function array_real_length(list)
+function json_size(a)
 {
-    var ln = 0;
-    for(var i in list) {
-        if(list.hasOwnProperty(i)) { // TODO review, dudes
-            ln++;
-        }
+    if(is_object(a)) {
+        return Object.keys(a).length;
+    } else if(is_array(a)) {
+        return a.length;
+    } else if(is_string(a)) {
+        return 0;
+    } else {
+        return 0;
     }
-    return ln;
 }
+
+/************************************************************
+ *
+ ************************************************************/
+// Return if a value is an object
+function is_object(a)
+{
+    return (!!a) && (a.constructor === Object);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+// Return if a value is an array
+function is_array(a)
+{
+    return (!!a) && (a.constructor === Array);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+// Return if a value is a string
+function is_string(value)
+{
+    return typeof value === "string" || value instanceof String;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+// Return if a value is a number
+function is_number(value)
+{
+    return typeof value === "number" && isFinite(value);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+// Return if a value is a boolean
+function is_boolean(value)
+{
+    return value === false || value === true;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+// Return if a value is a null
+function is_null(value)
+{
+    return value === null || value === undefined;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function is_date(value)
+{
+    return value instanceof Date;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function is_function(value)
+{
+    return typeof value === "function";
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function is_gobj(value)
+{
+    return value instanceof GObj;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function empty_string(s)
+{
+    if(!s || typeof(s) !== "string") {
+        return true;
+    }
+
+    if(s.length === 0) {
+        return true;
+    }
+    return false;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /************************************************************
  * Finds the index of the element in the array.
@@ -487,126 +485,6 @@ function strncmp (str1, str2, lgth)
     return ( ( s1 === s2 ) ? 0 : ( ( s1 > s2 ) ? 1 : -1 ) );
 }
 
-
-/************************************************************
- *
- ************************************************************/
-// Return if a value is an object
-function is_object(a)
-{
-    return (!!a) && (a.constructor === Object);
-}
-
-/************************************************************
- *
- ************************************************************/
-function json_object_size(a)
-{
-    if(is_object(a)) {
-        return Object.keys(a).length;
-    }
-    return 0;
-}
-
-/************************************************************
- *
- ************************************************************/
-function json_size(a)
-{
-    if(is_object(a)) {
-        return Object.keys(a).length;
-    } else if(is_array(a)) {
-        return a.length;
-    } else if(is_string(a)) {
-        return 0;
-    } else {
-        return 0;
-    }
-}
-
-/************************************************************
- *
- ************************************************************/
-// Return if a value is an array
-function is_array(a)
-{
-    return (!!a) && (a.constructor === Array);
-}
-
-/************************************************************
- *
- ************************************************************/
-// Return if a value is a string
-function is_string(value)
-{
-    return typeof value === "string" || value instanceof String;
-}
-
-/************************************************************
- *
- ************************************************************/
-// Return if a value is a number
-function is_number(value)
-{
-    return typeof value === "number" && isFinite(value);
-}
-
-/************************************************************
- *
- ************************************************************/
-// Return if a value is a boolean
-function is_boolean(value)
-{
-    return value === false || value === true;
-}
-
-/************************************************************
- *
- ************************************************************/
-// Return if a value is a null
-function is_null(value)
-{
-    return value === null || value === undefined;
-}
-
-/************************************************************
- *
- ************************************************************/
-function is_date(value)
-{
-    return value instanceof Date;
-}
-
-/************************************************************
- *
- ************************************************************/
-function is_function(value)
-{
-    return typeof value === "function";
-}
-
-/************************************************************
- *
- ************************************************************/
-function is_gobj(value)
-{
-    return value instanceof GObj;
-}
-
-/************************************************************
- *
- ************************************************************/
-function empty_string(s)
-{
-    if(!s || typeof(s) !== "string") {
-        return true;
-    }
-
-    if(s.length === 0) {
-        return true;
-    }
-    return false;
-}
 
 /************************************************************
  *
@@ -2014,7 +1892,7 @@ function traverse_dict(obj, callback, full_path)
 function jdb_init(jdb, prefix, duplicate)
 {
     if(duplicate) {
-        jdb = __duplicate__(jdb);
+        jdb = json_deep_copy(jdb);
     }
     var type = kw_get_dict_value(jdb, "type", [], 1);
     var hook = kw_get_str(jdb, "hook", "data", 1);
@@ -2024,7 +1902,7 @@ function jdb_init(jdb, prefix, duplicate)
     // Create topics defined in schema
     var walk = function(obj, key, value, full_path) {
         if(key.substring(0, 2) != "__") {
-            kw_get_dict_value(topics, full_path, __duplicate__(type), 1);
+            kw_get_dict_value(topics, full_path, json_deep_copy(type), 1);
             //trace_msg(sprintf("full_path: '%s', key: %s, value: %j", full_path, key, value));
         }
     };
@@ -2241,7 +2119,7 @@ function _jdb_get(v, hook, id, recursive)
  ***************************************************************************/
 function create_json_record(json_desc, value) // here in js `json_desc` it's a dictionary with the defaults.
 {
-    let record = __duplicate__(json_desc);  // Get fields and default values from json_desc
+    let record = json_deep_copy(json_desc);  // Get fields and default values from json_desc
     json_object_update_existing(record, value); // Update (only with service fields) with user data
 
     return record;
@@ -3485,15 +3363,30 @@ function get_now()
 //}
 
 export {
-    __duplicate__,
-    __update_dict__,
-    __update_dict__ as  json_object_update_existing,
-    duplicate_objects,
-    json_object_update_existing_recursive,
-    __extend_dict__,
-     __extend_dict__ as json_object_update,
+    json_deep_copy,
+    json_object_update,
+    json_object_update_existing,
     json_object_update_missing,
-    array_real_length,
+    json_array_extend,
+    json_object_size,
+    json_size,
+
+    is_object,
+    is_array,
+    is_string,
+    is_number,
+    is_boolean,
+    is_null,
+    is_date,
+    is_function,
+    is_gobj,
+
+    empty_string,
+
+
+
+
+
     index_of_list,
     elm_in_list,
     elms_in_list,
@@ -3507,18 +3400,6 @@ export {
     id_index_in_obj_list,
     get_object_from_list,
     strncmp,
-    is_object,
-    json_object_size,
-    json_size,
-    is_array,
-    is_string,
-    is_number,
-    is_boolean,
-    is_null,
-    is_date,
-    is_function,
-    is_gobj,
-    empty_string,
     kw_is_identical,
     strcmp,
     cmp_two_simple_json,
