@@ -17,16 +17,16 @@ The function allows:
 - Selective Saving: By passing a list or dictionary in `jn_attrs`, only the specified attributes are saved.
 
 ### 3. **Access Control**
-Attributes marked with [`SDF_RD`](#SDF_RD) are accessible from other Yunos, while attributes without this flag remain private to the Yuno.
+Attributes marked with [`SDF_RD`](SDF_RD) are accessible from other Yunos, while attributes without this flag remain private to the Yuno.
 
 ### 4. **Default Values**
-Attributes with no explicitly provided value use their default values as defined in the GClass schema (`tattr_desc`).
+Attributes with no explicitly provided value use their default values as defined in the GClass schema ([`tattr_desc`](tattr_desc)).
 
 ---
 
 ## Customizing Save and Load Behavior
 
-The behavior for saving and loading persistent attributes can be customized by passing a `persistent_attrs_t` structure to `gobj_start_up()`. This structure includes pointers to custom save and load functions. If this argument is null, the default implementation is used, which stores attributes in a JSON file.
+The behavior for saving and loading persistent attributes can be customized by passing a [`persistent_attrs_t`](persistent_attrs_t) structure to [`gobj_start_up()`](gobj_start_up()). This structure includes pointers to custom save and load functions. If this argument is null, the default implementation is used, which stores attributes in a JSON file.
 
 ::: {list-table}
 :widths: 30 70
@@ -36,7 +36,7 @@ The behavior for saving and loading persistent attributes can be customized by p
   - **Description**
 
 * - **Custom Behavior**
-  - Provide custom functions in `persistent_attrs_t` for saving/loading attributes.
+  - Provide custom functions in [`persistent_attrs_t`](persistent_attrs_t) for saving/loading attributes.
 
 * - **Default Behavior**
   - If no custom functions are provided, attributes are stored in a JSON file.
@@ -69,29 +69,29 @@ The behavior for saving and loading persistent attributes can be customized by p
 ## API for Managing Persistent Attributes
 
 ### Saving Attributes
-- Function: `gobj_save_persistent_attrs(hgobj gobj, json_t *jn_attrs)`
+- Function: [`gobj_save_persistent_attrs(hgobj gobj, json_t *jn_attrs)`](gobj_save_persistent_attrs())
 - Behavior:
     - Save all attributes by passing null or an empty `jn_attrs`.
     - Save specific attributes by specifying their names in `jn_attrs`.
 
 ### Loading Attributes
-- Default: Attributes are automatically loaded during Yuno startup using the default or custom implementation provided in `persistent_attrs_t`.
+- Default: Attributes are automatically loaded during Yuno startup using the default or custom implementation provided in [`persistent_attrs_t`](persistent_attrs_t).
 
 ---
 
 ## Workflow for Persistent Attributes
 
 1. **Definition:**
-   Define attributes in the GClass schema (`tattr_desc`) with the `SDF_PERSIST` flag.
+   Define attributes in the GClass schema ([`tattr_desc`](tattr_desc)) with the [`SDF_PERSIST`](SDF_PERSIST) flag.
 
 2. **Custom Save/Load:**
-   Optionally, provide custom save/load functions in `persistent_attrs_t` when initializing the Yuno with `gobj_start_up()`.
+   Optionally, provide custom save/load functions in [`persistent_attrs_t`](persistent_attrs_t) when initializing the Yuno with [`gobj_start_up()`]()gobj_start_up().
 
 3. **Loading:**
    Persistent attributes are automatically loaded during startup using either the default or custom implementation.
 
 4. **Saving:**
-   Explicitly save attributes with `gobj_save_persistent_attrs()` as needed.
+   Explicitly save attributes with [`gobj_save_persistent_attrs()`](gobj_save_persistent_attrs()) as needed.
 
 ---
 
@@ -113,7 +113,7 @@ Custom save/load functions allow storing attributes in external systems such as 
 - State Retention: Automatically preserve important data across restarts.
 - Flexibility: Customize save/load behavior using [`persistent_attrs_t`](persistent_attrs_t).
 - Selective Saving: Save only the necessary attributes when needed.
-- Scalability: Manage attributes across multiple Yunos with controlled access ([`SDF_RD`](#SDF_RD)).
+- Scalability: Manage attributes across multiple Yunos with controlled access ([`SDF_RD`](SDF_RD)).
 
 (persistent_attrs_t)=
 ## persistent_attrs_t
