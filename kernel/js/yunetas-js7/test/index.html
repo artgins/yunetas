@@ -5,12 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Test Library</title>
     <script type="module">
-        import {dbSimpleQuery, createGobj} from "../yunetas/dist/yunetas.es.js";
+        import {gobj_register_gclass} from "../yunetas/dist/yunetas.es.js";
 
-        let x1 = dbSimpleQuery("SELECT * FROM users");
-        let x2 = createGobj("testObject");
-        console.log(`x1: ${x1}`);
-        console.log("x2", x2);
+        gobj_register_gclass();
     </script>
 </head>
 <body>
