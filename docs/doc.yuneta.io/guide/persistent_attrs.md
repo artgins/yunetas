@@ -28,21 +28,41 @@ Attributes with no explicitly provided value use their default values as defined
 
 The behavior for saving and loading persistent attributes can be customized by passing a `persistent_attrs_t` structure to `gobj_start_up()`. This structure includes pointers to custom save and load functions. If this argument is null, the default implementation is used, which stores attributes in a JSON file.
 
-| **Scenario**        | **Description**                                                               |
-|----------------------|-------------------------------------------------------------------------------|
-| **Custom Behavior**  | Provide custom functions in `persistent_attrs_t` for saving/loading attributes. |
-| **Default Behavior** | If no custom functions are provided, attributes are stored in a JSON file.    |
+::: {list-table}
+:widths: 30 70
+:header-rows: 1
+
+* - **Scenario**
+  - **Description**
+
+* - **Custom Behavior**
+  - Provide custom functions in `persistent_attrs_t` for saving/loading attributes.
+
+* - **Default Behavior**
+  - If no custom functions are provided, attributes are stored in a JSON file.
+
+:::
 
 ---
 
 ## Flags and Their Roles
 
-| **Flag**        | **Description**                                                                 |
-|------------------|---------------------------------------------------------------------------------|
-| `SDF_PERSIST`    | Marks the attribute as persistent, enabling it to be saved and loaded.          |
-| `SDF_RD`         | Makes the attribute readable by other Yunos.                                   |
-| `SDF_WR`         | Indicates that the attribute is writable (modifiable during runtime).           |
+::: {list-table}
+:widths: 30 70
+:header-rows: 1
 
+* - **Flag**
+  - **Description**
+
+* - `SDF_PERSIST`
+  - Marks the attribute as persistent, enabling it to be saved and loaded.
+
+* - `SDF_RD`
+  - Makes the attribute readable by other Yunos.
+
+* - `SDF_WR`
+  - Indicates that the attribute is writable (modifiable during runtime).
+:::
 
 ---
 
