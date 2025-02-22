@@ -48,6 +48,7 @@ kwid/kw_match_simple
 kwid/kw_pop
 kwid/kw_select
 kwid/kw_serialize
+kwid/kw_set_dict_value
 kwid/kw_set_path_delimiter
 kwid/kw_set_subdict_value
 kwid/kw_update_except

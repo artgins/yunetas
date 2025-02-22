@@ -46,28 +46,68 @@ The `data_type_t` enumeration defines the types of data that SData fields can re
 
 ---
 
+(sdata_flag_t)=
 ## Field Flags (`sdata_flag_t`)
 
 The `sdata_flag_t` enumeration defines the properties and characteristics of each field. Flags are bitwise-combinable to give fields multiple properties.
 
-| **Flag**           | **Description**                                                                 |
-|---------------------|---------------------------------------------------------------------------------|
-| `SDF_NOTACCESS`     | Field is not accessible.                                                       |
-| `SDF_RD`            | Field is read-only.                                                           |
-| `SDF_WR`            | Field is writable (and readable).                                              |
-| `SDF_REQUIRED`      | Field is required; it must not be null.                                        |
-| `SDF_PERSIST`       | Field is persistent and must be saved/loaded.                                  |
-| `SDF_VOLATIL`       | Field is volatile and must not be saved/loaded.                                |
-| `SDF_RESOURCE`      | Field is a resource, referencing another schema.                               |
-| `SDF_PKEY`          | Field is a primary key.                                                        |
-| `SDF_STATS`         | Field holds statistical data (metadata).                                       |
-| `SDF_RSTATS`        | Field holds resettable statistics, implicitly `SDF_STATS`.                     |
-| `SDF_PSTATS`        | Field holds persistent statistics, implicitly `SDF_STATS`.                    |
-| `SDF_AUTHZ_R`       | Read access requires authorization (`__read_attribute__`).                     |
-| `SDF_AUTHZ_W`       | Write access requires authorization (`__write_attribute__`).                   |
-| `SDF_AUTHZ_X`       | Execution requires authorization (`__execute_command__`).                      |
-| `SDF_AUTHZ_S`       | Stats read requires authorization (`__read_stats__`).                          |
-| `SDF_AUTHZ_RS`      | Stats reset requires authorization (`__reset_stats__`).                        |
+::: {list-table}
+:widths: 20 80
+:header-rows: 1
+
+* - **Flag**
+  - **Description**
+
+* - `SDF_NOTACCESS`
+  - Field is not accessible.
+
+* - `SDF_RD`
+  - Field is read-only.
+
+* - `SDF_WR`
+  - Field is writable (and readable).
+
+* - `SDF_REQUIRED`
+  - Field is required; it must not be null.
+
+* - `SDF_PERSIST`
+  - Field is persistent and must be saved/loaded.
+
+* - `SDF_VOLATIL`
+  - Field is volatile and must not be saved/loaded.
+
+* - `SDF_RESOURCE`
+  - Field is a resource, referencing another schema.
+
+* - `SDF_PKEY`
+  - Field is a primary key.
+
+* - `SDF_STATS`
+  - Field holds statistical data (metadata).
+
+* - `SDF_RSTATS`
+  - Field holds resettable statistics, implicitly `SDF_STATS`.
+
+* - `SDF_PSTATS`
+  - Field holds persistent statistics, implicitly `SDF_STATS`.
+
+* - `SDF_AUTHZ_R`
+  - Read access requires authorization (`__read_attribute__`).
+
+* - `SDF_AUTHZ_W`
+  - Write access requires authorization (`__write_attribute__`).
+
+* - `SDF_AUTHZ_X`
+  - Execution requires authorization (`__execute_command__`).
+
+* - `SDF_AUTHZ_S`
+  - Stats read requires authorization (`__read_stats__`).
+
+* - `SDF_AUTHZ_RS`
+  - Stats reset requires authorization (`__reset_stats__`).
+
+:::
+
 
 ### Common Flag Combinations
 - **Public Attributes:** Combine `SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS`.

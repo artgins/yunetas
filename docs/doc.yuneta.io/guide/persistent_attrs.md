@@ -1,4 +1,4 @@
-(persistent_attrs_t)=
+(persistent_attrs)=
 # **Persistent Attributes**
 
 Persistent attributes are attributes defined in a GClass that retain their values across restarts or state transitions. They are automatically loaded during Yuno startup and can be explicitly saved as needed. Persistent attributes ensure that critical configuration data and operational settings are preserved, enabling seamless continuity in operations.
@@ -11,12 +11,13 @@ Persistent attributes are attributes defined in a GClass that retain their value
 When a Yuno starts, persistent attributes are automatically loaded. If no custom loading function is provided, the default behavior loads these attributes from a JSON file.
 
 ### 2. **Explicit Saving**
-Persistent attributes are saved explicitly using `gobj_save_persistent_attrs()`. The function allows:
+Persistent attributes are saved explicitly using [`gobj_save_persistent_attrs()`](gobj_save_persistent_attrs()). 
+The function allows:
 - Saving All Attributes: By passing a null or empty `jn_attrs`, all persistent attributes are saved.
 - Selective Saving: By passing a list or dictionary in `jn_attrs`, only the specified attributes are saved.
 
 ### 3. **Access Control**
-Attributes marked with `SDF_RD` are accessible from other Yunos, while attributes without this flag remain private to the Yuno.
+Attributes marked with [`SDF_RD`](SDF_RD) are accessible from other Yunos, while attributes without this flag remain private to the Yuno.
 
 ### 4. **Default Values**
 Attributes with no explicitly provided value use their default values as defined in the GClass schema (`tattr_desc`).
@@ -89,10 +90,11 @@ Custom save/load functions allow storing attributes in external systems such as 
 ## Benefits of Persistent Attributes
 
 - State Retention: Automatically preserve important data across restarts.
-- Flexibility: Customize save/load behavior using `persistent_attrs_t`.
+- Flexibility: Customize save/load behavior using [`persistent_attrs_t`](persistent_attrs_t).
 - Selective Saving: Save only the necessary attributes when needed.
-- Scalability: Manage attributes across multiple Yunos with controlled access (`SDF_RD`).
+- Scalability: Manage attributes across multiple Yunos with controlled access ([`SDF_RD`](SDF_RD)).
 
+(persistent_attrs_t)=
 ## persistent_attrs_t
 The `persistent_attrs_t` structure contains function pointers for managing persistent attributes of a Yuno instance. This allows the user to handle attributes in storage or memory during the lifecycle of a Yuno.
 
@@ -108,9 +110,66 @@ typedef struct {
 ```
 
 **Persistent Attributes Store Functions**
-- `startup_persistent_attrs`: Initializes persistent attributes function.
-- `end_persistent_attrs`: Cleans up persistent attributes function.
-- `load_persistent_attrs`: Loads persistent attributes from storage function.
-- `save_persistent_attrs`: Saves persistent attributes to storage function.
-- `remove_persistent_attrs`: Deletes persistent attributes function.
-- `list_persistent_attrs`: Lists all persistent attributes function.
+- [`startup_persistent_attrs()`](startup_persistent_attrs_fn): Initializes persistent attributes function.
+- [`end_persistent_attrs()`](end_persistent_attrs_fn): Cleans up persistent attributes function.
+- [`load_persistent_attrs()`](load_persistent_attrs_fn): Loads persistent attributes from storage function.
+- [`save_persistent_attrs()`](save_persistent_attrs_fn): Saves persistent attributes to storage function.
+- [`remove_persistent_attrs()`](remove_persistent_attrs_fn): Deletes persistent attributes function.
+- [`list_persistent_attrs()`](list_persistent_attrs_fn): Lists all persistent attributes function.
+
+
+### Prototypes of functions to manage persistent attributes
+
+(startup_persistent_attrs_fn)=
+**`startup_persistent_attrs()`**
+
+```C
+typedef int (*startup_persistent_attrs_fn)(void);
+```
+
+(end_persistent_attrs_fn)=
+**`end_persistent_attrs()`**
+
+```C
+typedef void (*end_persistent_attrs_fn)(void);
+```
+
+(load_persistent_attrs_fn)=
+**`load_persistent_attrs()`**
+
+```C
+typedef int (*load_persistent_attrs_fn)(
+    hgobj gobj,
+    json_t *keys  // owned, if null load all persistent attrs, else, load
+);
+```
+
+(save_persistent_attrs_fn)=
+**`(save_persistent_attrs)`**
+
+```C
+typedef int (*save_persistent_attrs_fn)(
+    hgobj gobj,
+    json_t *keys  // owned
+);
+```
+
+(remove_persistent_attrs_fn)=
+**`(remove_persistent_attrs)`**
+
+```C
+typedef int (*remove_persistent_attrs_fn)(
+    hgobj gobj,
+    json_t *keys  // owned
+);
+```
+
+(list_persistent_attrs_fn)=
+**`(list_persistent_attrs)`**
+
+```C
+typedef json_t * (*list_persistent_attrs_fn)(
+    hgobj gobj,
+    json_t *keys  // owned
+);
+```

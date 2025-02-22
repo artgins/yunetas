@@ -60,7 +60,7 @@ int gobj_start_up(
   - Global settings in JSON format (not owned).
 
 * - `persistent_attrs`
-  - `const persistent_attrs_t *`
+  - [`const persistent_attrs_t *`](persistent_attrs_t)
   - Persistent attributes management functions.
 
 * - `global_command_parser`

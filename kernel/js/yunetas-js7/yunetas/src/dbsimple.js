@@ -11,7 +11,7 @@
  ************************************************************/
 function _get_persistent_path(gobj)
 {
-    var path = "persistent-attrs-" + gobj.gobj_short_name();
+    let path = "persistent-attrs-" + gobj.gobj_short_name();
     return path;
 }
 
@@ -20,7 +20,7 @@ function _get_persistent_path(gobj)
  ************************************************************/
 function db_load_persistent_attrs(gobj)
 {
-    var attrs = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+    let attrs = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
     if(attrs && is_object(attrs)) {
         __update_dict__(
             gobj.config,
