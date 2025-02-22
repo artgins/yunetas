@@ -2778,6 +2778,11 @@ PRIVATE int sdata_write_default_values(
         }
         if(include_flag == (sdata_flag_t)-1 || (it->flag & include_flag)) {
             set_default(gobj, gobj->jn_attrs, it);
+
+            if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
+                // Avoid call to mt_writing before mt_create!
+                gobj->gclass->gmt->mt_writing(gobj, it->name);
+            }
         }
         it++;
     }
