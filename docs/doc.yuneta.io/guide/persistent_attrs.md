@@ -17,7 +17,7 @@ The function allows:
 - Selective Saving: By passing a list or dictionary in `jn_attrs`, only the specified attributes are saved.
 
 ### 3. **Access Control**
-Attributes marked with [`SDF_RD`](SDF_RD) are accessible from other Yunos, while attributes without this flag remain private to the Yuno.
+Attributes marked with [`SDF_RD`](#SDF_RD) are accessible from other Yunos, while attributes without this flag remain private to the Yuno.
 
 ### 4. **Default Values**
 Attributes with no explicitly provided value use their default values as defined in the GClass schema (`tattr_desc`).
@@ -42,6 +42,7 @@ The behavior for saving and loading persistent attributes can be customized by p
 | `SDF_PERSIST`    | Marks the attribute as persistent, enabling it to be saved and loaded.          |
 | `SDF_RD`         | Makes the attribute readable by other Yunos.                                   |
 | `SDF_WR`         | Indicates that the attribute is writable (modifiable during runtime).           |
+
 
 ---
 
@@ -92,7 +93,7 @@ Custom save/load functions allow storing attributes in external systems such as 
 - State Retention: Automatically preserve important data across restarts.
 - Flexibility: Customize save/load behavior using [`persistent_attrs_t`](persistent_attrs_t).
 - Selective Saving: Save only the necessary attributes when needed.
-- Scalability: Manage attributes across multiple Yunos with controlled access ([`SDF_RD`](SDF_RD)).
+- Scalability: Manage attributes across multiple Yunos with controlled access ([`SDF_RD`](#SDF_RD)).
 
 (persistent_attrs_t)=
 ## persistent_attrs_t
@@ -121,21 +122,21 @@ typedef struct {
 ### Prototypes of functions to manage persistent attributes
 
 (startup_persistent_attrs_fn)=
-**`startup_persistent_attrs()`**
+#### **`startup_persistent_attrs()`**
 
 ```C
 typedef int (*startup_persistent_attrs_fn)(void);
 ```
 
 (end_persistent_attrs_fn)=
-**`end_persistent_attrs()`**
+#### **`end_persistent_attrs()`**
 
 ```C
 typedef void (*end_persistent_attrs_fn)(void);
 ```
 
 (load_persistent_attrs_fn)=
-**`load_persistent_attrs()`**
+#### **`load_persistent_attrs()`**
 
 ```C
 typedef int (*load_persistent_attrs_fn)(
@@ -145,7 +146,7 @@ typedef int (*load_persistent_attrs_fn)(
 ```
 
 (save_persistent_attrs_fn)=
-**`(save_persistent_attrs)`**
+#### **`(save_persistent_attrs)`**
 
 ```C
 typedef int (*save_persistent_attrs_fn)(
@@ -155,7 +156,7 @@ typedef int (*save_persistent_attrs_fn)(
 ```
 
 (remove_persistent_attrs_fn)=
-**`(remove_persistent_attrs)`**
+#### **`(remove_persistent_attrs)`**
 
 ```C
 typedef int (*remove_persistent_attrs_fn)(
@@ -165,7 +166,7 @@ typedef int (*remove_persistent_attrs_fn)(
 ```
 
 (list_persistent_attrs_fn)=
-**`(list_persistent_attrs)`**
+#### **`(list_persistent_attrs)`**
 
 ```C
 typedef json_t * (*list_persistent_attrs_fn)(

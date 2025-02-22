@@ -1,6 +1,6 @@
 <!-- ============================================================== -->
-(ISTREAM_CREATE())=
-# `ISTREAM_CREATE()`
+(macro ISTREAM_CREATE())=
+# `macro ISTREAM_CREATE()`
 <!-- ============================================================== -->
 
 Macro to create an `istream_h` instance with specified buffer sizes, ensuring proper memory management and error handling.

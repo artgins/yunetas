@@ -1,6 +1,6 @@
 <!-- ============================================================== -->
-(ISTREAM_DESTROY())=
-# `ISTREAM_DESTROY()`
+(macro ISTREAM_DESTROY())=
+# `macro ISTREAM_DESTROY()`
 <!-- ============================================================== -->
 
 The `ISTREAM_DESTROY` macro safely destroys an `istream_h` instance by calling `istream_destroy()` and setting the pointer to `NULL`.
