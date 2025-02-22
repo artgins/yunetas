@@ -42,7 +42,6 @@ var FSM = {
         ]
     }
 };
-var _gclass_register = {};
 
 var Yuno = GObj.__makeSubclass__();
 var proto = Yuno.prototype; // Easy access to the prototype

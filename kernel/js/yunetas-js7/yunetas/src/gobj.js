@@ -13,10 +13,12 @@
  *      15 Julio 2015 - Upgraded to yuneta 1.0.0.
  *
  *********************************************************************************/
+import {log_error} from "./utils.js";
 
 /**************************************************************************
  *        GObj
  **************************************************************************/
+let _gclass_register = {};
 let __inside_event_loop__ = 0;
 let __jn_global_settings__ =  null;
 let __global_load_persistent_attrs_fn__ = null;
