@@ -427,6 +427,46 @@ function _kw_match_simple(kw, jn_filter, level)
     return matched;
 }
 
+/***************************************************************************
+ *  Metadata key (variable) has a prefix of 2 underscore
+ ***************************************************************************/
+function is_metadata_key(key)
+{
+    if(!is_string(key)) {
+        return false;
+    }
+    let i;
+    for(i = 0; i < key.length; i++) {
+        if (key[i] !== '_') {
+            break;
+        }
+        if(i > 2) {
+            break;
+        }
+    }
+    return (i === 2);
+}
+
+/***************************************************************************
+ *  Private key (variable) has a prefix of 1 underscore
+ ***************************************************************************/
+function is_private_key(key)
+{
+    if(!is_string(key)) {
+        return false;
+    }
+    let i;
+    for(i = 0; i < key.length; i++) {
+        if (key[i] !== '_') {
+            break;
+        }
+        if(i > 2) {
+            break;
+        }
+    }
+    return (i === 1);
+}
+
 /************************************************************
  *
  ************************************************************/
@@ -1714,72 +1754,6 @@ function create_json_record(json_desc, value) // here in js `json_desc` it's a d
     return record;
 }
 
-/********************************************************
- *  Convert [s] or [{}] or {}
- *  in a webix list options:
- *      [{id:"", value:""}, ...]
- ********************************************************/
-function list2options(list, field_id, field_value)
-{
-    field_id = field_id?field_id:"id";
-    field_value = field_value?field_value:"value";
-
-    let options = [];
-
-    if(is_array(list)) {
-        for(let i=0; i<list.length; i++) {
-            let v = list[i];
-            if(is_string(v)) {
-                options.push({
-                    id: list[i],
-                    value: list[i]
-                });
-            } else if(is_object(v)) {
-                let vv = {};
-                if(!kw_has_key(v, field_id)) {
-                    /* If not exist, then get the first entry */
-                    if(json_size(v)>0) {
-                        field_id = Object.keys(v)[0];
-                    } else {
-                        log_error("list2options(): object without field id: " + field_id);
-                        continue;
-                    }
-                    vv["id"] = field_id;
-                    vv["value"] = v[field_id];
-                } else {
-                    if(!kw_has_key(v, field_value)) {
-                        /* If not exist, then get the first entry */
-                        if(json_size(v)>0) {
-                            field_value = Object.keys(v)[0];
-                        } else {
-                            log_error("list2options(): object without field value: " + field_value);
-                            continue;
-                        }
-
-                    }
-                    vv["id"] = v[field_id];
-                    vv["value"] = v[field_value];
-                }
-                options.push(vv);
-
-            } else {
-                log_error("list2options(): case1 not implemented");
-            }
-        }
-    } else if(is_object(list)) {
-        for(let k in list) {
-            options.push({
-                id: k,
-                value: k
-            });
-        }
-    } else {
-        log_error("list2options(): case2 not implemented");
-    }
-
-    return options;
-}
-
 /************************************************************
  *          log function
  ************************************************************/
@@ -1795,10 +1769,10 @@ function _logger(msg)
 /********************************************
  *  Log functions
  ********************************************/
-var f_error = null;
-var f_warning = null;
-var f_info = null;
-var f_debug = null;
+let f_error = null;
+let f_warning = null;
+let f_info = null;
+let f_debug = null;
 
 function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
 {
@@ -1887,76 +1861,6 @@ function trace_msg2(msg, msg2)
     }
 }
 
-/*
- * Converts a string to a bool.
- *
- * This conversion will:
- *
- *  - match 'true', 'on', or '1' as true.
- *  - ignore all white-space padding
- *  - ignore capitalization (case).
- *
- * '  tRue  ','ON', and '1   ' will all evaluate as true.
- *
- */
-function parseBoolean(s)
-{
-    if(is_number(s)) {
-        return Boolean(s);
-    }
-
-    // will match one and only one of the string 'true','1', or 'on' rerardless
-    // of capitalization and regardless off surrounding white-space.
-    //
-    let regex=/^\s*(true|1|on)\s*$/i;
-
-    return regex.test(s);
-}
-
-/********************************************
- *
- ********************************************/
-function escapeRegExp(stringToGoIntoTheRegex) {
-    return stringToGoIntoTheRegex.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-}
-
-/********************************************
- *  Code copied from
- *  https://stackoverflow.com/questions/17885855/use-dynamic-variable-string-as-regex-pattern-in-javascript
- *
- *  Example of use:
- *
- *      var regex = replace_variable_engine("ip");
- *      var input = "wss://#ip#:1600";
- *      var output = input.replace(regex, "localhost");
- *
- *          output: "wss://localhost:1600"
- *
- ********************************************/
-function replace_variable_engine(variable)
-{
-    var variable2 = escapeRegExp(variable);
-    return new RegExp("#" + variable2 + "#", "g");
-}
-
-/********************************************
- *
- ********************************************/
-function zot(v) {
-    return v==null; // both null and undefined match but not false or 0
-}
-
-/********************************************
- *
- ********************************************/
-function htmlToElement(html)
-{
-    let template = document.createElement('template');
-    html = html.trim(); // Never return a text node of whitespace as the result
-    template.innerHTML = html;
-    return template.content.firstChild;
-}
-
 /************************************************************
  * https://stackoverflow.com/questions/38552003/how-to-decode-jwt-token-in-javascript-without-using-a-library
  ************************************************************/
@@ -2024,119 +1928,6 @@ function jwt2json(jwt, what)
     } catch (e) {
         return null;
     }
-}
-
-/***************************************************************************
- *  Metadata key (variable) has a prefix of 2 underscore
- ***************************************************************************/
-function is_metadata_key(key)
-{
-    if(!is_string(key)) {
-        return false;
-    }
-    let i;
-    for(i = 0; i < key.length; i++) {
-        if (key[i] !== '_') {
-            break;
-        }
-        if(i > 2) {
-            break;
-        }
-    }
-    return (i === 2);
-}
-
-/***************************************************************************
- *  Private key (variable) has a prefix of 1 underscore
- ***************************************************************************/
-function is_private_key(key)
-{
-    if(!is_string(key)) {
-        return false;
-    }
-    let i;
-    for(i = 0; i < key.length; i++) {
-        if (key[i] !== '_') {
-            break;
-        }
-        if(i > 2) {
-            break;
-        }
-    }
-    return (i === 1);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-function icono(name)
-{
-    let icon_unicode = yuneta_icon_font[name];
-    if(!icon_unicode) {
-        log_error("Yuneta icon not found: '" + name + "'");
-        return null;
-    }
-    return String.fromCharCode(parseInt(icon_unicode, 10));
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-function get_str_list_difference(array1, array2)
-{
-    let difference1 = [];
-    for (let i = 0; i < array1.length; i++) {
-        if (!array2.includes(array1[i])) {
-            difference1.push(array1[i]);
-        }
-    }
-
-    let difference2 = [];
-    for (let i = 0; i < array2.length; i++) {
-        if (!array1.includes(array2[i])) {
-            difference2.push(array2[i]);
-        }
-    }
-
-    return {
-        array1: difference1,
-        array2: difference2
-    };
-}
-
-/***************************************************************************
- *  Get the dirName of window.location.pathname
- ***************************************************************************/
-function get_location_path_root() {
-    /*
-     *  window.location.pathname
-     *  en browser  = "/"
-     *  en electron = "/yuneta/development/.../gui_yunetas.js/tags/0.00.aa/index.html"
-     *  en android  = "/index.html"
-     */
-    // Split the path by '/' and get the last component
-    const segments = window.location.pathname.split('/');
-    const baseName = segments.pop(); // remove basename
-
-    // Join the remaining segments back into a string
-    return segments.join('/');
-}
-
-/***************************************************************************
- *  implement a debounce or throttle mechanism to limit the number
- *  of times the callback function is executed
- ***************************************************************************/
-function debounce(func, wait)
-{
-    let timeout;
-    return function executedFunction() {
-        const later = () => {
-           clearTimeout(timeout);
-            func();
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
 }
 
 /***************************************************************************
@@ -2424,144 +2215,6 @@ function createElement2(description) {
     return el;
 }
 
-/***************************************************************************
- * Create SVG element from string code
- ***************************************************************************/
-function parseSVG(string) {
-    return ((new DOMParser().parseFromString(string, 'image/svg+xml')).firstChild);
-}
-
-/***************************************************************************
- *  Code written by ChatGPT
-    // Usage example:
-    var element = document.getElementById("myElement");
-    var position = getPositionRelativeToBody(element);
-    console.log("Top: " + position.top + ", Left: " + position.left + ", Right: " + position.right + ", Bottom: " + position.bottom);
- ***************************************************************************/
-function getPositionRelativeToBody(element)
-{
-    let rect = element.getBoundingClientRect();
-    let scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
-    let scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft;
-
-    let top = rect.top + scrollTop;
-    let left = rect.left + scrollLeft;
-    let right = left + rect.width;
-    let bottom = top + rect.height;
-
-    return {
-        top: top,
-        left: left,
-        right: right,
-        bottom: bottom
-    };
-}
-
-/***************************************************************************
- *  Function to convert dataset (of DOM Element) to plain object
- ***************************************************************************/
-function datasetToObject(dataset)
-{
-    return Object.fromEntries(
-        Object.entries(dataset).map(([key, value]) => [key, value])
-    );
-}
-
-/************************************************************
- *   Build name
- ************************************************************/
-function build_name(self, name)
-{
-    // We need unique names
-    if(empty_string(self.gobj_name())) {
-        if(!self._uuid_name) {
-            self._uuid_name = get_unique_id(self.gobj_gclass_name());
-        }
-        return self._uuid_name + "-" + name;
-    }
-    return self.gobj_escaped_short_name() + "-" + name;
-}
-
-/************************************************************
- *   Build gobj clean name
- ************************************************************/
-function build_clean_gobj_name(self, name)
-{
-    let clean_name = self.gobj_short_name().replace(/[?# ^:]/g, '_');
-    return name + "-" + clean_name;
-}
-
-/************************************************************
- *   Build clean name
- ************************************************************/
-function clean_name(name)
-{
-    return name.replace(/[?# ^:]/g, '_');
-}
-
-/************************************************************
- *  Get the first gobj parent matching a gclass
- ************************************************************/
-function gobj_near_parent(gobj, gclass_name) // TODO put in gobj.c gobj.js
-{
-    while (gobj) {
-        gobj = gobj.gobj_parent();
-        if (gobj) {
-            // Check if the element has defined width and height
-            if(gobj.gobj_gclass_name() === gclass_name) {
-                return gobj;
-            }
-        }
-    }
-    return null; // No parent found
-}
-
-/************************************************************
- *  Get the first html parent matching a CSS selector
- *  - 'selector' is same parameter used by querySelector()
- *  TODO is the same as closest()?
- ************************************************************/
-function element_near_parent($element, selector)
-{
-    while ($element) {
-        if ($element.matches && $element.matches(selector)) {
-            return $element;
-        }
-        $element = $element.parentElement;
-    }
-    return null; // Return null if no parent matching the selector is found
-}
-
-/************************************************************
- *  Check if a string is a number
- *  The function correctly identifies both integer and floating-point numbers.
- *  It handles special cases like scientific notation (e.g., "1.2e3"),
- *  positive/negative numbers, and fractional numbers without leading digits.
- *  It returns false for non-numeric strings, empty strings,
- *  and strings with only whitespace.
- ************************************************************/
-function is_pure_number(str)
-{
-    if(is_number(str)) {
-        return true;
-    }
-    if(!is_string(str)) {
-        return false;
-    }
-
-    // Convert the string to a number
-    const num = Number(str);
-
-    // Check if the result is NaN (Not-a-Number)
-    if (isNaN(num)) {
-        return false; // The string is not a number
-    }
-
-    // Optionally, you can check if the input is exactly equal to the parsed number
-    // This ensures that the input is a valid number string
-    return str.trim() !== '' && !isNaN(num);
-}
-
 /************************************************************
  * Example Usage
  *     const tracker = timeTracker("Track1");
@@ -2714,7 +2367,6 @@ export {
     jdb_get_by_idx,
 
     create_json_record,
-    list2options,
 
     set_log_functions,
     log_error,
@@ -2724,29 +2376,12 @@ export {
     trace_msg,
     trace_msg2,
 
-    parseBoolean,
-    escapeRegExp,
-    replace_variable_engine,
-    htmlToElement,
     jwtDecode,
     jwt2json,
-    is_metadata_key,
-    is_private_key,
-    icono,
-    get_str_list_difference,
-    get_location_path_root,
-    debounce,
+
     createOneHtml,
     createElement2,
-    parseSVG,
-    getPositionRelativeToBody,
-    datasetToObject,
-    build_name,
-    build_clean_gobj_name,
-    clean_name,
-    gobj_near_parent,
-    element_near_parent,
-    is_pure_number,
+
     timeTracker,
     get_current_datetime,
     get_now,
