@@ -206,265 +206,10 @@ function empty_string(s)
     return false;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-/************************************************************
- * Finds the index of the element in the array.
- *
- * @param {Function} elm Element to look for.
- * @param {Function[]} list Array to search through.
- * @return {Number} Index of the specified elm, -1 if not found
- ************************************************************/
-function index_of_list(elm, list) {
-    // Existence of a native index
-    let nativeIndexOf = list.indexOf? true : false;
-
-    // Return the index via the native method if possible
-    if(nativeIndexOf) {
-        return list.indexOf(elm);
-    }
-
-    // There is no native method
-    // Use a manual loop to find the index
-    let i = list.length;
-    while(i--) {
-        // If the elm matches, return it is index
-        if(list[i] === elm) {
-            return i;
-        }
-    }
-
-    // Default to returning -1
-    return -1;
-}
-
-/************************************************************
- *
- ************************************************************/
-function elm_in_list(elm, list, case_insensitive) {
-    if(!list) {
-        log_error("ERROR: elm_in_list() list empty");
-        return false;
-    }
-    if(!elm) {
-        log_error("ERROR: elm_in_list() elm empty");
-        return false;
-    }
-    for(let i=0; i<list.length; i++) {
-        if(case_insensitive) {
-            if(elm.toLowerCase() === list[i].toLowerCase()) {
-                return true;
-            }
-        } else if(elm === list[i]) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/************************************************************
- *
- ************************************************************/
-function elms_in_list(elms, list, case_insensitive) {
-    if(!list) {
-        log_error("ERROR: elms_in_list() list empty");
-        return false;
-    }
-    if(!elms) {
-        log_error("ERROR: elms_in_list() elm empty");
-        return false;
-    }
-
-    for(let i=0; i<elms.length; i++) {
-        let elm = elms[i];
-        if(elm_in_list(elm, list, case_insensitive)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/************************************************************
- *
- ************************************************************/
-function index_in_list(list, elm) {
-    if(!list) {
-        throw "ERROR: index_in_list() list empty";
-    }
-    for(let i=0; i<list.length; i++) {
-        if(elm === list[i]) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-/************************************************************
- *
- ************************************************************/
-function id_index_in_obj_list(list, id) {
-    if(!list) {
-        return -1;
-    }
-    for(let i=0; i<list.length; i++) {
-        if(list[i] && list[i].id === id) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-/************************************************************
- *
- ************************************************************/
-function get_object_from_list(list, id) {
-
-    if(!list) {
-        return null;
-    }
-    for(let i=0; i<list.length; i++) {
-        if(list[i] && list[i].id === id) {
-            return list[i];
-        }
-    }
-    return null;
-}
-
-/************************************************************
- *
- ************************************************************/
-function none_in_list(list) {
-    for(let i=0; i<list.length; i++) {
-        if(!list[i]) {
-            return true;
-        }
-    }
-    return false;
-}
-
-/************************************************************
- *
- ************************************************************/
-function delete_from_list(list, elm) {
-    for(let i=0; i<list.length; i++) {
-        if(elm === list[i]) {
-            list.splice(i, 1);
-            return true;
-        }
-    }
-    return false; // elm does not exist!
-}
-
-/************************************************************
- *
- ************************************************************/
-function same_list(arrA, arrB) {
-    //check if lengths are different
-    if(arrA.length !== arrB.length) {
-        return false;
-    }
-
-    //slice so we do not effect the orginal
-    //sort makes sure they are in order
-    let cA = arrA.slice().sort();
-    let cB = arrB.slice().sort();
-
-    for(let i=0;i<cA.length; i++) {
-        if(cA[i]!==cB[i]) {
-            return false;
-        }
-    }
-    return true;
-}
-
-/************************************************************
- *
- ************************************************************/
-function __strip__(s){
-    return ( s || "" ).replace( /^\s+|\s+$/g, "" );
-}
-
-/************************************************************
- *
- ************************************************************/
-function __set__(arr) {
-    let seen = {},
-        result = [];
-    let len = arr.length;
-    for (let i = 0; i < len; i++) {
-        let el = arr[i];
-        if (!seen[el]) {
-            seen[el] = true;
-            result.push(el);
-        }
-    }
-    return result;
-}
-
-/************************************************************
- *
- ************************************************************/
-function get_function_name(func) {
-    var fName = null;
-    if (typeof func === "function" || typeof func === "object") {
-        fName = ("" + func).match(/function\s*([\w\$]*)\s*\(/);
-    }
-    if (fName !== null) {
-        return fName[1] + "()";
-    }
-    return "";
-}
-
-/************************************************************
- *      Array Remove - By John Resig (MIT Licensed)
- *      Same as utils.delete_from_list() ?
- ************************************************************/
-Array.prototype.remove = function(from, to) {
-  var rest = this.slice((to || from) + 1 || this.length);
-  this.length = from < 0 ? this.length + from : from;
-  return this.push.apply(this, rest);
-};
-
-/************************************************************
- *      String repeat
- *      http://stackoverflow.com/questions/202605/repeat-string-javascript
- ************************************************************/
-String.prototype.repeat = function(count) {
-    if (count < 1) {
-        return "";
-    }
-    var result = "", pattern = this.valueOf();
-    while (count > 1) {
-        if (count & 1) {
-            result += pattern;
-        }
-        count >>= 1;
-        pattern += pattern;
-    }
-    result += pattern;
-    return result;
-};
-
 /************************************************************
  *      Like C functions
  ************************************************************/
-function strncmp (str1, str2, lgth)
+function strncmp(str1, str2, lgth)
 {
     // Binary safe string comparison
     //
@@ -485,35 +230,6 @@ function strncmp (str1, str2, lgth)
     return ( ( s1 === s2 ) ? 0 : ( ( s1 > s2 ) ? 1 : -1 ) );
 }
 
-
-/************************************************************
- *
- ************************************************************/
-function match_dict_list_by_kw(set, __filter__)
-{
-    if(!__filter__) {
-        return [];
-    }
-    return set.filter(function (entry) {
-        return Object.keys(__filter__).every(function (key) {
-            if(!entry.hasOwnProperty(key)) {
-                return false;
-            }
-            return entry[key] === __filter__[key];
-        });
-    });
-}
-
-/************************************************************
- *
- ************************************************************/
-function kw_is_identical(kw1, kw2)
-{
-    var kw1_ = JSON.stringify(kw1);
-    var kw2_ = JSON.stringify(kw2);
-    return (kw1_ == kw2_)? true: false;
-}
-
 /************************************************************
  *
  ************************************************************/
@@ -529,7 +245,7 @@ function strcmp(str1, str2)
     // *     example 2: strcmp( "owald", "waldo" );
     // *     returns 2: -1
 
-    return ( ( str1 == str2 ) ? 0 : ( ( str1 > str2 ) ? 1 : -1 ) );
+    return ( ( str1 === str2 ) ? 0 : ( ( str1 > str2 ) ? 1 : -1 ) );
 }
 
 /***************************************************************************
@@ -584,8 +300,42 @@ function cmp_two_simple_json(jn_var1, jn_var2)
      */
     let val1 = String(jn_var1);
     let val2 = String(jn_var2);
-    let ret = strcmp(val1, val2);
-    return ret;
+    return strcmp(val1, val2);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function strstr(haystack, needle, bool)
+{
+    // Finds first occurrence of a string within another
+    //
+    // version: 1103.1210
+    // discuss at: http://phpjs.org/functions/strstr
+    // +   original by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+    // +   bugfixed by: Onno Marsman
+    // +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+    // *     example 1: strstr(‘Kevin van Zonneveld’, ‘van’);
+    // *     returns 1: ‘van Zonneveld’
+    // *     example 2: strstr(‘Kevin van Zonneveld’, ‘van’, true);
+    // *     returns 2: ‘Kevin ‘
+    // *     example 3: strstr(‘name@example.com’, ‘@’);
+    // *     returns 3: ‘@example.com’
+    // *     example 4: strstr(‘name@example.com’, ‘@’, true);
+    // *     returns 4: ‘name’
+    var pos = 0;
+
+    haystack += "";
+    pos = haystack.indexOf(needle);
+    if (pos === -1) {
+        return false;
+    } else {
+        if (bool) {
+            return haystack.substring(0, pos);
+        } else {
+            return haystack.slice(pos);
+        }
+    }
 }
 
 /************************************************************
@@ -593,16 +343,6 @@ function cmp_two_simple_json(jn_var1, jn_var2)
  ************************************************************/
 function _kw_match_simple(kw, jn_filter, level)
 {
-//         for (var key in __filter__) {
-//             if (!kw.hasOwnProperty(key)) {
-//                 return false; // si el filtro no exite en kw, fuera
-//             }
-//             if(kw[key] != __filter__[key]) {
-//                 return false;
-//             }
-//         }
-//         return true;
-
     let matched = false;
 
     level++;
@@ -623,7 +363,7 @@ function _kw_match_simple(kw, jn_filter, level)
         }
 
     } else if(is_object(jn_filter)) {
-        if(json_object_size(jn_filter)==0) {
+        if(json_object_size(jn_filter)===0) {
             // Empty object evaluate as false.
             matched = false;
         } else {
@@ -690,629 +430,6 @@ function _kw_match_simple(kw, jn_filter, level)
 /************************************************************
  *
  ************************************************************/
-function kw_match_simple(kw, jn_filter)
-{
-    if(!jn_filter) {
-     // Si no hay filtro pasan todos.
-       return true;
-    }
-    if(is_object(jn_filter) && Object.keys(jn_filter).length==0) {
-        // A empty object at first level evaluate as true.
-        return true;
-    }
-    return _kw_match_simple(kw, jn_filter, 0);
-}
-
-/*************************************************************
-    Being `kw` a row's list or list of dicts [{},...],
-    return a new list of incref (clone) kw filtering the rows by `jn_filter` (where),
-    If match_fn is 0 then kw_match_simple is used.
- *************************************************************/
-function kw_collect(kw, jn_filter, match_fn)
-{
-    if(!kw) {
-        return null;
-    }
-    if(!match_fn) {
-        match_fn = kw_match_simple;
-    }
-    var kw_new = [];
-
-    if(is_array(kw)) {
-        for(var i=0; i<kw.length; i++) {
-            var jn_value = kw[i];
-            if(match_fn(jn_value, jn_filter)) {
-                kw_new.push(jn_value);
-            }
-        }
-    } else if(is_object(kw)) {
-        if(match_fn(kw, jn_filter)) {
-            kw_new.push(kw);
-        }
-    } else {
-        log_error("kw_collect() BAD kw parameter");
-        return null;
-    }
-
-    return kw_new;
-}
-
-/*************************************************************
-    Utility for databases.
-    Being `ids` a:
-
-        "$id"
-
-        {
-            "$id": {
-                "id": "$id",
-                ...
-            }
-            ...
-        }
-
-        ["$id", ...]
-
-        [
-            "$id",
-            {
-                "id":$id,
-                ...
-            },
-            ...
-        ]
-
-    return a list of all ids
-*************************************************************/
-function kwid_get_ids(ids)
-{
-    if(!ids) {
-        return [];
-    }
-
-    let new_ids = [];
-
-    if(is_string(ids)) {
-        /*
-            "$id"
-        */
-        new_ids.push(ids);
-    } else if(is_object(ids)) {
-        /*
-            {
-                "$id": {
-                    "id": "$id",
-                    ...
-                }
-                ...
-            }
-        */
-        for(let id in ids) {
-            if (ids.hasOwnProperty(id)) {
-                new_ids.push(id);
-            }
-        }
-    } else if(is_array(ids)) {
-        ids.forEach(function(item) {
-            if(is_string(item)) {
-                /*
-                    ["$id", ...]
-                 */
-                if(!empty_string(item)) {
-                    new_ids.push(item);
-                }
-            } else if(is_object(item)) {
-                /*
-                    [
-                        {
-                            "id":$id,
-                            ...
-                        },
-                        ...
-                    ]
-                 */
-                let id = kw_get_str(item, "id", 0, 0);
-                if(id) {
-                    new_ids.push(id);
-                }
-            }
-        });
-    }
-
-    return new_ids;
-}
-
-/*************************************************************
-    Utility for databases.
-    Return TRUE if `id` is in the list/dict/str `ids`
- *************************************************************/
-function kwid_match_id(ids, id)
-{
-    if(is_null(ids) || is_null(id)) {
-        // Si no hay filtro pasan todos.
-        return true;
-    }
-
-    if(is_array(ids)) {
-        if(ids.length==0) {
-            // A empty object at first level evaluate as true.
-            return true;
-        }
-        for(let i=0; i<ids.length; i++) {
-            let value = ids[i];
-            if(value == id) {
-                return true;
-            }
-        }
-
-    } else if(is_object(ids)) {
-        if(Object.keys(ids).length==0) {
-            // A empty object at first level evaluate as true.
-            return true;
-        }
-        for(let key in ids) {
-            if(key == id) {
-                return true;
-            }
-        }
-
-    } else if(is_string(ids)) {
-        if(ids == id) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/*************************************************************
-    Utility for databases.
-    Being `kw` a:
-        - list of strings [s,...]
-        - list of dicts [{},...]
-        - dict of dicts {id:{},...}
-    return a **NEW** list of incref (clone) kw filtering the rows by `jn_filter` (where),
-    and matching the ids.
-    If match_fn is 0 then kw_match_simple is used.
-    NOTE Using JSON_INCREF/JSON_DECREF HACK
- *************************************************************/
-function kwid_collect(kw, ids, jn_filter, match_fn)
-{
-    if(!kw) {
-        return null;
-    }
-    if(!match_fn) {
-        match_fn = kw_match_simple;
-    }
-    let kw_new = [];
-
-    if(is_array(kw)) {
-        for(let i=0; i<kw.length; i++) {
-            let jn_value = kw[i];
-
-            let id;
-            if(is_object(jn_value)) {
-                id = kw_get_str(jn_value, "id", "", false);
-            } else if(is_string(jn_value)) {
-                id = jn_value;
-            } else {
-                continue;
-            }
-
-            if(!kwid_match_id(ids, id)) {
-                continue;
-            }
-            if(match_fn(jn_value, jn_filter)) {
-                kw_new.push(jn_value);
-            }
-        }
-    } else if(is_object(kw)) {
-        for(let id in kw) {
-            let jn_value = kw[id];
-
-            if(!kwid_match_id(ids, id)) {
-                continue;
-            }
-            if(match_fn(jn_value, jn_filter)) {
-                kw_new.push(jn_value);
-            }
-        }
-
-    } else  {
-        log_error("kw_collect() BAD kw parameter");
-        return null;
-    }
-
-    return kw_new;
-}
-
-/*************************************************************
-    Utility for databases.
-    Return a new dict from a "dict of records" or "list of records"
-    WARNING the "id" of a dict's record is hardcorded to their key.
-    Convention:
-        - all arrays are list of records (dicts) with "id" field as primary key
-        - delimiter is '`' and '.'
-    If path is empty then use kw
- *************************************************************/
-function kwid_new_dict(kw, path)
-{
-    let new_dict = {};
-    if(!empty_string(path)) {
-        kw = _kw_find_path(kw, path);
-    }
-    if(is_object(kw)) {
-        new_dict = kw;
-
-    } else if(is_array(kw)) {
-        for(let i=0; i<kw.length; i++) {
-            let kv = kw[i];
-            let id = kw_get_str(kv, "id", null, false);
-            if(!empty_string(id)) {
-                new_dict[id] = kv;
-            }
-        }
-
-    } else {
-        log_error("kwid_new_dict: data type unknown");
-    }
-
-    return new_dict;
-}
-
-/************************************************************
- *  kw can be a dict or a list
- *  dict: return the first key
- *  list: return the first item
- ************************************************************/
-function kwid_get_first_id(kw)
-{
-    let list = kwid_get_ids(kw);
-    if(list.length > 0) {
-        return list[0];
-    }
-
-    return null;
-}
-
-/*************************************************************
- *  Utility for databases. See kwid_collect parameters
- *************************************************************/
-function kwid_find_one_record(kw, ids, jn_filter, match_fn)
-{
-    let list = kwid_collect(kw, ids, jn_filter, match_fn);
-    if(list.length > 0) {
-        return list[0];
-    } else {
-        return null;
-    }
-}
-
-/*************************************************************
- *  Utility for databases
- *************************************************************/
-function kwid_delete_record(kw, ids_)
-{
-    let deletes = 0;
-    let ids = kwid_get_ids(ids_);
-
-    for(let i=0; i<ids.length; i++) {
-        let id = ids[i];
-        if(is_object(kw)) {
-            delete kw[id];
-            deletes++;
-        } else if(is_array(kw)) {
-            for(let j=0; j<kw.length; j++) {
-                if(id == kw[j].id) {
-                    delete_from_list(kw, kw[j]);
-                    deletes++;
-                    j = -1;
-                    continue;
-                }
-            }
-        } else {
-            log_error("kwid_delete_record: data type unknown");
-        }
-    }
-    return deletes>0?0:-1;
-}
-
-/*************************************************************
- *  From a dict,
- *  get a new dict with the same objects with only attributes in keylist
- *  keylist can be a [s,...] of {s:..., ...}
- *************************************************************/
-function filter_dict(dict, keylist)
-{
-    let new_dict = {};
-    if(is_array(keylist)) {
-        for(let j=0; j<keylist.length; j++) {
-            let key = keylist[j];
-            if(dict.hasOwnProperty(key)) {
-                new_dict[key] = dict[key];
-            }
-        }
-    } else if(is_object(keylist)) {
-        for(let key in keylist) {
-            if(dict.hasOwnProperty(key)) {
-                new_dict[key] = dict[key];
-            }
-        }
-    }
-    return new_dict;
-}
-
-/*************************************************************
- *  From a list of objects (dict_list),
- *  get a new list with the same objects with only attributes in keylist
- *************************************************************/
-function filter_dictlist(dict_list, keylist)
-{
-    let new_dictlist = [];
-    for(let i=0; i<dict_list.length; i++) {
-        let new_dict = filter_dict(dict_list[i], keylist);
-        new_dictlist.push(new_dict);
-    }
-    return new_dictlist;
-}
-
-/*************************************************************
- *  From a list of objects (dict_list),
- *  get a new list with the value of the `key` attribute
- *************************************************************/
-function filter_list(dict_list, key)
-{
-    let new_list = [];
-    for(let i=0; i<dict_list.length; i++) {
-        let dict = dict_list[i];
-        if(dict.hasOwnProperty(key)) {
-            new_list.push(dict[key]);
-        }
-    }
-    return new_list;
-}
-
-/************************************************************
- *   [{id:..}, ...] convierte en "id,id2,..."
- ************************************************************/
-function ids2str(dictlist)
-{
-    let s = "";
-
-    for(let i=0; i<dictlist.length; i++) {
-        let dict = dictlist[i];
-        if(i==0) {
-            s += dict.id;
-        } else {
-            s += "," + dict.id;
-        }
-    }
-    return s;
-}
-
-/************************************************************
- *  OLD msgx_read_MIA_key
- ************************************************************/
-function msg_iev_read_key(kw, key, create, default_value) // TODO create, default_value
-{
-    try {
-        var __md_iev__ = kw["__md_iev__"];
-        if(__md_iev__) {
-            return __md_iev__[key];
-        }
-    } catch (e) {
-        return undefined;
-    }
-    return undefined;
-}
-
-/************************************************************
- *  OLD msgx_write_MIA_key
- ************************************************************/
-function msg_iev_write_key(kw, key, value)
-{
-    var __md_iev__ = kw["__md_iev__"];
-    if(!__md_iev__) {
-        __md_iev__ = {};
-        kw["__md_iev__"] = __md_iev__;
-    }
-    __md_iev__[key] = value;
-}
-
-/************************************************************
- *  OLD msgx_delete_MIA_key
- ************************************************************/
-function msg_iev_delete_key(kw, key)
-{
-    var __md_iev__ = kw["__md_iev__"];
-    if(!__md_iev__) {
-        // log error?
-        return;
-    }
-    if(!kw_has_key(__md_iev__, key)) {
-        // log error?
-        return;
-    }
-    delete __md_iev__[key];
-}
-
-/************************************************************
- *
- ************************************************************/
-function msg_delete_MIA(kw, key)
-{
-    var __md_iev__ = kw["__md_iev__"];
-    if(!__md_iev__) {
-        // log error?
-        return;
-    }
-    delete kw["__md_iev__"];
-}
-
-/************************************************************
- *  Apply answer filters
- ************************************************************/
-var message_area_filters = [];
-function msg_iev_add_answer_filter(gobj, field_name, answer_filter_cb)
-{
-    var len = message_area_filters.length;
-    for(var i=0; i<len; i++) {
-        var name = message_area_filters[i].field_name;
-        if(name == field_name) {
-            return 0; // already registered
-        }
-    }
-    var filter = {
-        field_name: field_name,
-        answer_filter_fn: answer_filter_cb,
-        gobj: gobj
-    };
-    message_area_filters.push(filter);
-}
-
-/************************************************************
- *  Apply answer filters
- ************************************************************/
-function msg_apply_answer_filters(kw_answer, __md_iev__, src)
-{
-    var len = message_area_filters.length;
-    for(var i=0; i<len; i++) {
-        var name = message_area_filters[i].field_name;
-        var cb = message_area_filters[i].answer_filter_fn;
-        var gobj = message_area_filters[i].gobj;
-        if(kw_has_key(__md_iev__, name)) {
-            /*
-             *  Filter
-             */
-            var value = kw_get_dict_value(__md_iev__, name, 0);
-            (cb)(gobj, kw_answer, name, value, src);
-        }
-    }
-}
-
-/************************************************************
- *  Build the answer message
- *  with the id area of the request message
- ************************************************************/
-function msg_iev_answer(gobj, kw, kw_answer)
-{
-    try {
-        let __md_iev__ = kw["__md_iev__"];
-        if(__md_iev__) {
-            let new_msg_area = Object(__md_iev__); // WARNING new_msg_area is not a clone, is the same obj
-            kw_answer["__md_iev__"] = new_msg_area;
-            msg_apply_answer_filters(kw_answer, new_msg_area, gobj);
-        }
-    } catch (e) {
-    }
-
-    return kw_answer;
-}
-
-/************************************************************
- *
- ************************************************************/
-function msg_iev_push_stack(kw, stack, user_info)
-{
-    if(!kw) {
-        return;
-    }
-
-    let jn_stack = msg_iev_read_key(kw, stack);
-    if(!jn_stack) {
-        jn_stack = [];
-        msg_iev_write_key(kw, stack, jn_stack);
-    }
-    try {
-        // Code throwing an exception
-        if(is_array(jn_stack)) {
-            jn_stack.unshift(user_info);
-        }
-    } catch(e) {
-        console.log(e);
-    }
-}
-
-/************************************************************
- *
- ************************************************************/
-function msg_iev_get_stack(kw, stack)
-{
-    if(!kw) {
-        return null;
-    }
-
-    var jn_stack = msg_iev_read_key(kw, stack);
-    if(!jn_stack) {
-        return 0;
-    }
-
-    if(jn_stack.length == 0) {
-        return null;
-    }
-    return jn_stack[0];
-}
-
-/************************************************************
- *
- ************************************************************/
-function msg_iev_pop_stack(kw, stack)
-{
-    if(!kw) {
-        return null;
-    }
-
-    let jn_stack = msg_iev_read_key(kw, stack);
-    if(!jn_stack) {
-        return 0;
-    }
-
-    if(jn_stack.length == 0) {
-        return null;
-    }
-    let user_info = jn_stack.shift();
-    if(jn_stack.length == 0) {
-        msg_iev_delete_key(kw, stack);
-    }
-    return user_info;
-}
-
-/************************************************************
- *
- ************************************************************/
-var msg_type_list = [
-    "__command__",
-    "__publishing__",
-    "__subscribing__",
-    "__unsubscribing__",
-    "__query__",
-    "__response__",
-    "__order__",
-    "__first_shot__"
-];
-
-function msg_set_msg_type(kw, msg_type)
-{
-    if(!empty_string(msg_type)) {
-        if(is_metadata_key(msg_type) && !elm_in_list(msg_type, msg_type_list)) {
-            // HACK If it's a metadata key then only admit our message inter-event msg_type_list
-            return;
-        }
-        msg_iev_write_key(kw, "__msg_type__", msg_type);
-    }
-}
-
-/************************************************************
- *
- ************************************************************/
-function msg_get_msg_type(kw)
-{
-    return msg_iev_read_key(kw, "__msg_type__");
-}
-
-/************************************************************
- *
- ************************************************************/
 function kw_has_key(kw, key)
 {
     if(key in kw) {
@@ -1321,17 +438,6 @@ function kw_has_key(kw, key)
         }
     }
     return false;
-}
-
-/************************************************************
- *
- ************************************************************/
-function search_delimiter(s, delimiter_)
-{
-    if(!delimiter_) {
-        return 0;
-    }
-    return strchr(s, delimiter_);
 }
 
 /************************************************************
@@ -1612,9 +718,9 @@ function kw_set_subdict_value(kw, path, key, value)
  ************************************************************/
 function kw_extract_private(kw)
 {
-    var copy = {};
+    let copy = {};
 
-    for (var attr in kw) {
+    for (let attr in kw) {
         if (kw.hasOwnProperty(attr)) {
             if(is_private_key(attr)) {
                 copy[attr] = kw[attr];
@@ -1629,31 +735,615 @@ function kw_extract_private(kw)
 /************************************************************
  *
  ************************************************************/
-function get_unique_id(prefix)
+function kw_is_identical(kw1, kw2)
 {
-    if(!prefix) {
-        prefix = "random";
-    }
-    return prefix + "-" + uuidv4();
+    let kw1_ = JSON.stringify(kw1);
+    let kw2_ = JSON.stringify(kw2);
+    return (kw1_ === kw2_);
 }
 
 /************************************************************
- *  https://stackoverflow.com/questions/105034/create-guid-uuid-in-javascript#2117523
+ *
  ************************************************************/
-function uuidv4()
+function kw_match_simple(kw, jn_filter)
 {
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,
-        function(c) {
-            var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        }
-    );
+    if(!jn_filter) {
+     // Si no hay filtro pasan todos.
+       return true;
+    }
+    if(is_object(jn_filter) && Object.keys(jn_filter).length===0) {
+        // A empty object at first level evaluate as true.
+        return true;
+    }
+    return _kw_match_simple(kw, jn_filter, 0);
 }
+
+/*************************************************************
+    Being `kw` a row's list or list of dicts [{},...],
+    return a new list of incref (clone) kw filtering the rows by `jn_filter` (where),
+    If match_fn is 0 then kw_match_simple is used.
+ *************************************************************/
+function kw_collect(kw, jn_filter, match_fn)
+{
+    if(!kw) {
+        return null;
+    }
+    if(!match_fn) {
+        match_fn = kw_match_simple;
+    }
+    let kw_new = [];
+
+    if(is_array(kw)) {
+        for(let i=0; i<kw.length; i++) {
+            let jn_value = kw[i];
+            if(match_fn(jn_value, jn_filter)) {
+                kw_new.push(jn_value);
+            }
+        }
+    } else if(is_object(kw)) {
+        if(match_fn(kw, jn_filter)) {
+            kw_new.push(kw);
+        }
+    } else {
+        log_error("kw_collect() BAD kw parameter");
+        return null;
+    }
+
+    return kw_new;
+}
+
+/*************************************************************
+    Utility for databases.
+    Being `ids` a:
+
+        "$id"
+
+        {
+            "$id": {
+                "id": "$id",
+                ...
+            }
+            ...
+        }
+
+        ["$id", ...]
+
+        [
+            "$id",
+            {
+                "id":$id,
+                ...
+            },
+            ...
+        ]
+
+    return a list of all ids
+*************************************************************/
+function kwid_get_ids(ids)
+{
+    if(!ids) {
+        return [];
+    }
+
+    let new_ids = [];
+
+    if(is_string(ids)) {
+        /*
+            "$id"
+        */
+        new_ids.push(ids);
+    } else if(is_object(ids)) {
+        /*
+            {
+                "$id": {
+                    "id": "$id",
+                    ...
+                }
+                ...
+            }
+        */
+        for(let id in ids) {
+            if (ids.hasOwnProperty(id)) {
+                new_ids.push(id);
+            }
+        }
+    } else if(is_array(ids)) {
+        ids.forEach(function(item) {
+            if(is_string(item)) {
+                /*
+                    ["$id", ...]
+                 */
+                if(!empty_string(item)) {
+                    new_ids.push(item);
+                }
+            } else if(is_object(item)) {
+                /*
+                    [
+                        {
+                            "id":$id,
+                            ...
+                        },
+                        ...
+                    ]
+                 */
+                let id = kw_get_str(item, "id", 0, 0);
+                if(id) {
+                    new_ids.push(id);
+                }
+            }
+        });
+    }
+
+    return new_ids;
+}
+
+/*************************************************************
+    Utility for databases.
+    Return TRUE if `id` is in the list/dict/str `ids`
+ *************************************************************/
+function kwid_match_id(ids, id)
+{
+    if(is_null(ids) || is_null(id)) {
+        // Si no hay filtro pasan todos.
+        return true;
+    }
+
+    if(is_array(ids)) {
+        if(ids.length===0) {
+            // A empty object at first level evaluate as true.
+            return true;
+        }
+        for(let i=0; i<ids.length; i++) {
+            let value = ids[i];
+            if(value === id) {
+                return true;
+            }
+        }
+
+    } else if(is_object(ids)) {
+        if(Object.keys(ids).length===0) {
+            // A empty object at first level evaluate as true.
+            return true;
+        }
+        for(let key in ids) {
+            if(key === id) {
+                return true;
+            }
+        }
+
+    } else if(is_string(ids)) {
+        if(ids === id) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*************************************************************
+    Utility for databases.
+    Being `kw` a:
+        - list of strings [s,...]
+        - list of dicts [{},...]
+        - dict of dicts {id:{},...}
+    return a **NEW** list of incref (clone) kw filtering the rows by `jn_filter` (where),
+    and matching the ids.
+    If match_fn is 0 then kw_match_simple is used.
+    NOTE Using JSON_INCREF/JSON_DECREF HACK
+ *************************************************************/
+function kwid_collect(kw, ids, jn_filter, match_fn)
+{
+    if(!kw) {
+        return null;
+    }
+    if(!match_fn) {
+        match_fn = kw_match_simple;
+    }
+    let kw_new = [];
+
+    if(is_array(kw)) {
+        for(let i=0; i<kw.length; i++) {
+            let jn_value = kw[i];
+
+            let id;
+            if(is_object(jn_value)) {
+                id = kw_get_str(jn_value, "id", "", false);
+            } else if(is_string(jn_value)) {
+                id = jn_value;
+            } else {
+                continue;
+            }
+
+            if(!kwid_match_id(ids, id)) {
+                continue;
+            }
+            if(match_fn(jn_value, jn_filter)) {
+                kw_new.push(jn_value);
+            }
+        }
+    } else if(is_object(kw)) {
+        for(let id in kw) {
+            let jn_value = kw[id];
+
+            if(!kwid_match_id(ids, id)) {
+                continue;
+            }
+            if(match_fn(jn_value, jn_filter)) {
+                kw_new.push(jn_value);
+            }
+        }
+
+    } else  {
+        log_error("kw_collect() BAD kw parameter");
+        return null;
+    }
+
+    return kw_new;
+}
+
+/*************************************************************
+    Utility for databases.
+    Return a new dict from a "dict of records" or "list of records"
+    WARNING the "id" of a dict's record is hardcorded to their key.
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter is '`' and '.'
+    If path is empty then use kw
+ *************************************************************/
+function kwid_new_dict(kw, path)
+{
+    let new_dict = {};
+    if(!empty_string(path)) {
+        kw = _kw_find_path(kw, path);
+    }
+    if(is_object(kw)) {
+        new_dict = kw;
+
+    } else if(is_array(kw)) {
+        for(let i=0; i<kw.length; i++) {
+            let kv = kw[i];
+            let id = kw_get_str(kv, "id", null, false);
+            if(!empty_string(id)) {
+                new_dict[id] = kv;
+            }
+        }
+
+    } else {
+        log_error("kwid_new_dict: data type unknown");
+    }
+
+    return new_dict;
+}
+
+/************************************************************
+ *  kw can be a dict or a list
+ *  dict: return the first key
+ *  list: return the first item
+ ************************************************************/
+function kwid_get_first_id(kw)
+{
+    let list = kwid_get_ids(kw);
+    if(list.length > 0) {
+        return list[0];
+    }
+
+    return null;
+}
+
+/*************************************************************
+ *  Utility for databases. See kwid_collect parameters
+ *************************************************************/
+function kwid_find_one_record(kw, ids, jn_filter, match_fn)
+{
+    let list = kwid_collect(kw, ids, jn_filter, match_fn);
+    if(list.length > 0) {
+        return list[0];
+    } else {
+        return null;
+    }
+}
+
+/*************************************************************
+ *  Utility for databases
+ *************************************************************/
+function kwid_delete_record(kw, ids_)
+{
+    let deletes = 0;
+    let ids = kwid_get_ids(ids_);
+
+    for(let i=0; i<ids.length; i++) {
+        let id = ids[i];
+        if(is_object(kw)) {
+            delete kw[id];
+            deletes++;
+        } else if(is_array(kw)) {
+            for(let j=0; j<kw.length; j++) {
+                if(id === kw[j].id) {
+                    delete_from_list(kw, kw[j]);
+                    deletes++;
+                    j = -1;
+                    //continue; ???
+                }
+            }
+        } else {
+            log_error("kwid_delete_record: data type unknown");
+        }
+    }
+    return deletes>0?0:-1;
+}
+
+/********************************************
+ *  Get a local attribute
+ ********************************************/
+function kw_get_local_storage_value(key, default_value, create)
+{
+    if(!(key && window.JSON && window.localStorage)) {
+        return undefined;
+    }
+
+    let value = window.localStorage.getItem(key);
+    if(value === null || value===undefined) {
+        if(create) {
+            kw_set_local_storage_value(key, default_value);
+        }
+        return default_value;
+    }
+
+    try {
+        value = JSON.parse(value);
+    } catch (e) {
+    }
+
+    return value;
+}
+
+/********************************************
+ *  Save a local attribute
+ ********************************************/
+function kw_set_local_storage_value(key, value)
+{
+    if(key && window.JSON && window.localStorage) {
+        if(value !== undefined) {
+            window.localStorage.setItem(key, JSON.stringify(value));
+        }
+    }
+}
+
+/********************************************
+ *  Remove local attribute
+ ********************************************/
+function kw_remove_local_storage_value(key)
+{
+    if(key && window.localStorage) {
+        window.localStorage.removeItem(key);
+    }
+}
+
+/************************************************************
+ *  OLD msgx_read_MIA_key
+ ************************************************************/
+function msg_iev_read_key(kw, key, create, default_value) // TODO create, default_value
+{
+    try {
+        var __md_iev__ = kw["__md_iev__"];
+        if(__md_iev__) {
+            return __md_iev__[key];
+        }
+    } catch (e) {
+        return undefined;
+    }
+    return undefined;
+}
+
+/************************************************************
+ *  OLD msgx_write_MIA_key
+ ************************************************************/
+function msg_iev_write_key(kw, key, value)
+{
+    var __md_iev__ = kw["__md_iev__"];
+    if(!__md_iev__) {
+        __md_iev__ = {};
+        kw["__md_iev__"] = __md_iev__;
+    }
+    __md_iev__[key] = value;
+}
+
+/************************************************************
+ *  OLD msgx_delete_MIA_key
+ ************************************************************/
+function msg_iev_delete_key(kw, key)
+{
+    var __md_iev__ = kw["__md_iev__"];
+    if(!__md_iev__) {
+        // log error?
+        return;
+    }
+    if(!kw_has_key(__md_iev__, key)) {
+        // log error?
+        return;
+    }
+    delete __md_iev__[key];
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function msg_delete_MIA(kw, key)
+{
+    var __md_iev__ = kw["__md_iev__"];
+    if(!__md_iev__) {
+        // log error?
+        return;
+    }
+    delete kw["__md_iev__"];
+}
+
+/************************************************************
+ *  Apply answer filters
+ ************************************************************/
+var message_area_filters = [];
+function msg_iev_add_answer_filter(gobj, field_name, answer_filter_cb)
+{
+    var len = message_area_filters.length;
+    for(var i=0; i<len; i++) {
+        var name = message_area_filters[i].field_name;
+        if(name == field_name) {
+            return 0; // already registered
+        }
+    }
+    var filter = {
+        field_name: field_name,
+        answer_filter_fn: answer_filter_cb,
+        gobj: gobj
+    };
+    message_area_filters.push(filter);
+}
+
+/************************************************************
+ *  Apply answer filters
+ ************************************************************/
+function msg_apply_answer_filters(kw_answer, __md_iev__, src)
+{
+    var len = message_area_filters.length;
+    for(var i=0; i<len; i++) {
+        var name = message_area_filters[i].field_name;
+        var cb = message_area_filters[i].answer_filter_fn;
+        var gobj = message_area_filters[i].gobj;
+        if(kw_has_key(__md_iev__, name)) {
+            /*
+             *  Filter
+             */
+            var value = kw_get_dict_value(__md_iev__, name, 0);
+            (cb)(gobj, kw_answer, name, value, src);
+        }
+    }
+}
+
+/************************************************************
+ *  Build the answer message
+ *  with the id area of the request message
+ ************************************************************/
+function msg_iev_answer(gobj, kw, kw_answer)
+{
+    try {
+        let __md_iev__ = kw["__md_iev__"];
+        if(__md_iev__) {
+            let new_msg_area = Object(__md_iev__); // WARNING new_msg_area is not a clone, is the same obj
+            kw_answer["__md_iev__"] = new_msg_area;
+            msg_apply_answer_filters(kw_answer, new_msg_area, gobj);
+        }
+    } catch (e) {
+    }
+
+    return kw_answer;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function msg_iev_push_stack(kw, stack, user_info)
+{
+    if(!kw) {
+        return;
+    }
+
+    let jn_stack = msg_iev_read_key(kw, stack);
+    if(!jn_stack) {
+        jn_stack = [];
+        msg_iev_write_key(kw, stack, jn_stack);
+    }
+    try {
+        // Code throwing an exception
+        if(is_array(jn_stack)) {
+            jn_stack.unshift(user_info);
+        }
+    } catch(e) {
+        console.log(e);
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function msg_iev_get_stack(kw, stack)
+{
+    if(!kw) {
+        return null;
+    }
+
+    var jn_stack = msg_iev_read_key(kw, stack);
+    if(!jn_stack) {
+        return 0;
+    }
+
+    if(jn_stack.length == 0) {
+        return null;
+    }
+    return jn_stack[0];
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function msg_iev_pop_stack(kw, stack)
+{
+    if(!kw) {
+        return null;
+    }
+
+    let jn_stack = msg_iev_read_key(kw, stack);
+    if(!jn_stack) {
+        return 0;
+    }
+
+    if(jn_stack.length == 0) {
+        return null;
+    }
+    let user_info = jn_stack.shift();
+    if(jn_stack.length == 0) {
+        msg_iev_delete_key(kw, stack);
+    }
+    return user_info;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+var msg_type_list = [
+    "__command__",
+    "__publishing__",
+    "__subscribing__",
+    "__unsubscribing__",
+    "__query__",
+    "__response__",
+    "__order__",
+    "__first_shot__"
+];
+
+function msg_set_msg_type(kw, msg_type)
+{
+    if(!empty_string(msg_type)) {
+        if(is_metadata_key(msg_type) && !elm_in_list(msg_type, msg_type_list)) {
+            // HACK If it's a metadata key then only admit our message inter-event msg_type_list
+            return;
+        }
+        msg_iev_write_key(kw, "__msg_type__", msg_type);
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function msg_get_msg_type(kw)
+{
+    return msg_iev_read_key(kw, "__msg_type__");
+}
+
 
 /************************************************************
  *          Load json file from server
  ************************************************************/
-function fileLoaded(xhr) {
+function _fileLoaded(xhr) {
     return xhr.status === 0 && xhr.responseText && xhr.responseURL.startsWith("file:");
 }
 function load_json_file(url, on_success, on_error)
@@ -1664,7 +1354,7 @@ function load_json_file(url, on_success, on_error)
 
     req.onreadystatechange = function () {
         if (req.readyState === 4) {
-            if (req.status === 200 || fileLoaded(req)) {
+            if (req.status === 200 || _fileLoaded(req)) {
                 try {
                     let json = JSON.parse(req.responseText);
                     on_success(json);
@@ -1705,110 +1395,9 @@ function send_http_json_post(url, data, on_response) {
 }
 
 /************************************************************
- *
- ************************************************************/
-function strstr(haystack, needle, bool)
-{
-    // Finds first occurrence of a string within another
-    //
-    // version: 1103.1210
-    // discuss at: http://phpjs.org/functions/strstr
-    // +   original by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
-    // +   bugfixed by: Onno Marsman
-    // +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
-    // *     example 1: strstr(‘Kevin van Zonneveld’, ‘van’);
-    // *     returns 1: ‘van Zonneveld’
-    // *     example 2: strstr(‘Kevin van Zonneveld’, ‘van’, true);
-    // *     returns 2: ‘Kevin ‘
-    // *     example 3: strstr(‘name@example.com’, ‘@’);
-    // *     returns 3: ‘@example.com’
-    // *     example 4: strstr(‘name@example.com’, ‘@’, true);
-    // *     returns 4: ‘name’
-    var pos = 0;
-
-    haystack += "";
-    pos = haystack.indexOf(needle);
-    if (pos === -1) {
-        return false;
-    } else {
-        if (bool) {
-            return haystack.substring(0, pos);
-        } else {
-            return haystack.slice(pos);
-        }
-    }
-}
-
-/********************************************************
- *  Convert [s] or [{}] or {}
- *  in a webix list options:
- *      [{id:"", value:""}, ...]
- ********************************************************/
-function list2options(list, field_id, field_value)
-{
-    field_id = field_id?field_id:"id";
-    field_value = field_value?field_value:"value";
-
-    let options = [];
-
-    if(is_array(list)) {
-        for(let i=0; i<list.length; i++) {
-            let v = list[i];
-            if(is_string(v)) {
-                options.push({
-                    id: list[i],
-                    value: list[i]
-                });
-            } else if(is_object(v)) {
-                let vv = {};
-                if(!kw_has_key(v, field_id)) {
-                    /* If not exist, then get the first entry */
-                    if(json_size(v)>0) {
-                        field_id = Object.keys(v)[0];
-                    } else {
-                        log_error("list2options(): object without field id: " + field_id);
-                        continue;
-                    }
-                    vv["id"] = field_id;
-                    vv["value"] = v[field_id];
-                } else {
-                    if(!kw_has_key(v, field_value)) {
-                        /* If not exist, then get the first entry */
-                        if(json_size(v)>0) {
-                            field_value = Object.keys(v)[0];
-                        } else {
-                            log_error("list2options(): object without field value: " + field_value);
-                            continue;
-                        }
-
-                    }
-                    vv["id"] = v[field_id];
-                    vv["value"] = v[field_value];
-                }
-                options.push(vv);
-
-            } else {
-                log_error("list2options(): case1 not implemented");
-            }
-        }
-    } else if(is_object(list)) {
-        for(let k in list) {
-            options.push({
-                id: k,
-                value: k
-            });
-        }
-    } else {
-        log_error("list2options(): case2 not implemented");
-    }
-
-    return options;
-}
-
-/************************************************************
  *  callback (obj, key, value, full_path)
  ************************************************************/
-function traverse_dict(obj, callback, full_path)
+function _traverse_dict(obj, callback, full_path)
 {
     if(full_path === undefined || !is_string(full_path)) {
         full_path = "";
@@ -1824,7 +1413,7 @@ function traverse_dict(obj, callback, full_path)
 
         if(is_object(obj[key])) {
             //going one step down in the object tree!!
-            traverse_dict(obj[key], callback, full_path);
+            _traverse_dict(obj[key], callback, full_path);
         }
 
         full_path = full_path.slice(0, -sufix.length);
@@ -1894,19 +1483,19 @@ function jdb_init(jdb, prefix, duplicate)
     if(duplicate) {
         jdb = json_deep_copy(jdb);
     }
-    var type = kw_get_dict_value(jdb, "type", [], 1);
-    var hook = kw_get_str(jdb, "hook", "data", 1);
-    var schema = kw_get_dict_value(jdb, "schema", {}, 1);
-    var topics = kw_get_dict_value(jdb, "topics", {}, 1);
+    let type = kw_get_dict_value(jdb, "type", [], 1);
+    let hook = kw_get_str(jdb, "hook", "data", 1);
+    let schema = kw_get_dict_value(jdb, "schema", {}, 1);
+    let topics = kw_get_dict_value(jdb, "topics", {}, 1);
 
     // Create topics defined in schema
-    var walk = function(obj, key, value, full_path) {
-        if(key.substring(0, 2) != "__") {
+    let walk = function(obj, key, value, full_path) {
+        if(key.substring(0, 2) !== "__") {
             kw_get_dict_value(topics, full_path, json_deep_copy(type), 1);
             //trace_msg(sprintf("full_path: '%s', key: %s, value: %j", full_path, key, value));
         }
     };
-    traverse_dict(schema, walk, prefix);
+    _traverse_dict(schema, walk, prefix);
 
     return jdb;
 }
@@ -1916,8 +1505,8 @@ function jdb_init(jdb, prefix, duplicate)
  ********************************************/
 function jdb_update(jdb, topic_name, path, kw)
 {
-    var topics = kw_get_dict_value(jdb, "topics", null, 0);
-    var topic = kw_get_dict_value(topics, topic_name, null, 0);
+    let topics = kw_get_dict_value(jdb, "topics", null, 0);
+    let topic = kw_get_dict_value(topics, topic_name, null, 0);
     if(!topic) {
         log_error("jdb_update: topic not found: " + topic_name);
         return null;
@@ -1928,10 +1517,10 @@ function jdb_update(jdb, topic_name, path, kw)
         return null;
     }
 
-    var ids = path.split("`");
+    let ids = path.split("`");
 
-    var id;
-    var v = topic;
+    let id;
+    let v = topic;
     while((id = ids.shift())) {
         if(empty_string(id) || !v) {
             break;
@@ -1942,15 +1531,15 @@ function jdb_update(jdb, topic_name, path, kw)
         v = _jdb_get(v, null, id, false);
     }
 
-    if(ids.length==0 && v) {
+    if(ids.length===0 && v) {
         if(is_array(v)) {
             v.push(kw);
         } else {
-            if(v["id"]==kw["id"]) {
+            if(v["id"]===kw["id"]) {
                 Object.assign(v, kw);
             } else {
-                var v_ = kw_get_dict_value(v, jdb.hook, [], 1);
-                var v__ = _jdb_get(v_, jdb.hook, kw["id"], false);
+                let v_ = kw_get_dict_value(v, jdb.hook, [], 1);
+                let v__ = _jdb_get(v_, jdb.hook, kw["id"], false);
                 if(v__) {
                     Object.assign(v__, kw);
                 } else {
@@ -1970,8 +1559,8 @@ function jdb_update(jdb, topic_name, path, kw)
  ********************************************/
 function jdb_delete(jdb, topic_name, path, kw)
 {
-    var topics = kw_get_dict_value(jdb, "topics", null, 0);
-    var topic = kw_get_dict_value(topics, topic_name, null, 0);
+    let topics = kw_get_dict_value(jdb, "topics", null, 0);
+    let topic = kw_get_dict_value(topics, topic_name, null, 0);
     if(!topic) {
         log_error("jdb_delete: topic not found: " + topic_name);
         return null;
@@ -1982,10 +1571,10 @@ function jdb_delete(jdb, topic_name, path, kw)
         return null;
     }
 
-    var ids = path.split("`");
+    let ids = path.split("`");
 
-    var id;
-    var v = topic;
+    let id;
+    let v = topic;
     while((id = ids.shift())) {
         if(empty_string(id) || !v) {
             break;
@@ -2021,13 +1610,13 @@ function jdb_delete(jdb, topic_name, path, kw)
  ********************************************/
 function jdb_get_topic(jdb, topic_name)
 {
-    var topics = kw_get_dict_value(jdb, "topics", null, 0, false);
+    let topics = kw_get_dict_value(jdb, "topics", null, 0, false);
     if(!topics) {
         log_error("jdb topics section not found");
         trace_msg(jdb);
         return null;
     }
-    var topic = kw_get_dict_value(topics, topic_name, null, 0, false);
+    let topic = kw_get_dict_value(topics, topic_name, null, 0, false);
     if(!topic) {
         log_error("jdb topic not found: " + topic_name);
         trace_msg(topics);
@@ -2041,8 +1630,8 @@ function jdb_get_topic(jdb, topic_name)
  ********************************************/
 function jdb_get(jdb, topic_name, id, recursive)
 {
-    var topics = kw_get_dict_value(jdb, "topics", null, 0);
-    var topic = kw_get_dict_value(topics, topic_name, null, 0);
+    let topics = kw_get_dict_value(jdb, "topics", null, 0);
+    let topic = kw_get_dict_value(topics, topic_name, null, 0);
     if(!topic) {
         log_error("jdb_get: topic not found: " + topic_name);
         return null;
@@ -2058,8 +1647,8 @@ function jdb_get(jdb, topic_name, id, recursive)
  ********************************************/
 function jdb_get_by_idx(jdb, topic_name, idx)
 {
-    var topics = kw_get_dict_value(jdb, "topics", null, 0);
-    var topic = kw_get_dict_value(topics, topic_name, null, 0);
+    let topics = kw_get_dict_value(jdb, "topics", null, 0);
+    let topic = kw_get_dict_value(topics, topic_name, null, 0);
     if(!topic) {
         log_error("jdb_get_by_idx: topic not found: " + topic_name);
         return null;
@@ -2080,18 +1669,18 @@ function _jdb_get(v, hook, id, recursive)
     if(!v) {
         return null;
     }
-    var j;
-    var ln = v.length;
+    let j;
+    let ln = v.length;
     for(j=0; j<ln; j++) {
-        var v_ = v[j];
+        let v_ = v[j];
         if(v_) {
-            var id_ = v_["id"];
-            if(id_ && (id_ == id)) {
+            let id_ = v_["id"];
+            if(id_ && (id_ === id)) {
                 return v_;
             }
             if(recursive) {
                 if(kw_has_key(v_, hook)) {
-                    var v__ = _jdb_get(v_[hook], hook, id, recursive);
+                    let v__ = _jdb_get(v_[hook], hook, id, recursive);
                     if(v__) {
                         return v__;
                     }
@@ -2123,6 +1712,72 @@ function create_json_record(json_desc, value) // here in js `json_desc` it's a d
     json_object_update_existing(record, value); // Update (only with service fields) with user data
 
     return record;
+}
+
+/********************************************************
+ *  Convert [s] or [{}] or {}
+ *  in a webix list options:
+ *      [{id:"", value:""}, ...]
+ ********************************************************/
+function list2options(list, field_id, field_value)
+{
+    field_id = field_id?field_id:"id";
+    field_value = field_value?field_value:"value";
+
+    let options = [];
+
+    if(is_array(list)) {
+        for(let i=0; i<list.length; i++) {
+            let v = list[i];
+            if(is_string(v)) {
+                options.push({
+                    id: list[i],
+                    value: list[i]
+                });
+            } else if(is_object(v)) {
+                let vv = {};
+                if(!kw_has_key(v, field_id)) {
+                    /* If not exist, then get the first entry */
+                    if(json_size(v)>0) {
+                        field_id = Object.keys(v)[0];
+                    } else {
+                        log_error("list2options(): object without field id: " + field_id);
+                        continue;
+                    }
+                    vv["id"] = field_id;
+                    vv["value"] = v[field_id];
+                } else {
+                    if(!kw_has_key(v, field_value)) {
+                        /* If not exist, then get the first entry */
+                        if(json_size(v)>0) {
+                            field_value = Object.keys(v)[0];
+                        } else {
+                            log_error("list2options(): object without field value: " + field_value);
+                            continue;
+                        }
+
+                    }
+                    vv["id"] = v[field_id];
+                    vv["value"] = v[field_value];
+                }
+                options.push(vv);
+
+            } else {
+                log_error("list2options(): case1 not implemented");
+            }
+        }
+    } else if(is_object(list)) {
+        for(let k in list) {
+            options.push({
+                id: k,
+                value: k
+            });
+        }
+    } else {
+        log_error("list2options(): case2 not implemented");
+    }
+
+    return options;
 }
 
 /************************************************************
@@ -2232,53 +1887,6 @@ function trace_msg2(msg, msg2)
     }
 }
 
-/********************************************
- *  Get a local attribute
- ********************************************/
-function kw_get_local_storage_value(key, default_value, create)
-{
-    if(!(key && window.JSON && window.localStorage)) {
-        return undefined;
-    }
-
-    let value = window.localStorage.getItem(key);
-    if(value === null || value===undefined) {
-        if(create) {
-            kw_set_local_storage_value(key, default_value);
-        }
-        return default_value;
-    }
-
-    try {
-        value = JSON.parse(value);
-    } catch (e) {
-    }
-
-    return value;
-}
-
-/********************************************
- *  Save a local attribute
- ********************************************/
-function kw_set_local_storage_value(key, value)
-{
-    if(key && window.JSON && window.localStorage) {
-        if(value !== undefined) {
-            window.localStorage.setItem(key, JSON.stringify(value));
-        }
-    }
-}
-
-/********************************************
- *  Remove local attribute
- ********************************************/
-function kw_remove_local_storage_value(key)
-{
-    if(key && window.localStorage) {
-        window.localStorage.removeItem(key);
-    }
-}
-
 /*
  * Converts a string to a bool.
  *
@@ -2336,160 +1944,6 @@ function replace_variable_engine(variable)
  ********************************************/
 function zot(v) {
     return v==null; // both null and undefined match but not false or 0
-}
-
-/********************************************
- *
- ********************************************/
-/*--
-zim.Proportion = function(baseMin, baseMax, targetMin, targetMax, factor, targetRound, clamp)
-
-Proportion
-zim class
-
-DESCRIPTION
-Proportion converts an input value to an output value on a different scale.
-(sometimes called a map() function)
-For instance, like a slider controlling the scale of an object or sound volume.
-Make a Proportion object and then in an interval, ticker or event,
-convert the base value to the target value using the convert method.
-
-NOTE: as of ZIM 5.5.0 the zim namespace is no longer required (unless zns is set to true before running zim)
-
-EXAMPLE
-frame.loadAssets("mySound.mp3");
-frame.on("complete", function() {
-    var sound = frame.asset("mySound.mp3").play();
-    var p = new Proportion(0, 10, 0, 1);
-    var dial = new Dial(); // default range of 0 to 10
-    dial.currentValue = 10;
-    dial.on("change", function(){
-        sound.volume = p.convert(dial.currentValue);
-    }); // end of dial change
-}); // end sound loaded
-END EXAMPLE
-
-PARAMETERS supports DUO - parameters or single object with properties below
-baseMin - min for the input scale (say x value)
-baseMax - max for the input scale (say x value)
-targetMin - (default 0) min for the output scale (say volume)
-targetMax - (default 1) max for the output scale (say volume)
-factor - (default 1) is going the same direction and -1 is going in opposite direction
-targetRound - (default false) set to true to round the converted number
-clamp - (default true) set to false to let results go outside min and max range
-
-METHODS
-convert(input) - will return the output property (for instance, a volume)
-
-NOTE: the object always starts by assuming baseMin as baseValue
-just call the convert method right away if you want it to start at a different baseValue
-for instance, if your slider went from 100 to 500 and you want to start at half way
-make the object and call p.convert(300); on the next line
---*/
-let Proportion = function(baseMin, baseMax, targetMin, targetMax, factor, targetRound, clamp) {
-    // factor - set to 1 for increasing and -1 for decreasing
-    // round - true to round results to whole number
-    if (zot(targetMin)) targetMin = 0;
-    if (zot(targetMax)) targetMax = 1;
-    if (zot(factor)) factor = 1;
-    if (zot(targetRound)) targetRound = false;
-
-    // proportion
-    var proportion;
-    var targetAmount;
-
-    this.convert = function(baseAmount) {
-        if (zot(baseAmount)) {
-            baseAmount = baseMin; // just start at the min otherwise call immediate(baseValue);
-        }
-        if (isNaN(baseAmount) || (baseMax-baseMin==0)) {
-            return;
-        }
-        if (clamp) {
-            baseAmount = Math.max(baseAmount, baseMin);
-            baseAmount = Math.min(baseAmount, baseMax);
-        }
-        proportion = (baseAmount - baseMin) / (baseMax - baseMin);
-        if (factor > 0) {
-            targetAmount = targetMin + (targetMax-targetMin) * proportion;
-        } else {
-            targetAmount = targetMax - (targetMax-targetMin) * proportion;
-        }
-        if (targetRound) {targetAmount = Math.round(targetAmount);}
-        return targetAmount;
-    };
-};
-
-/************************************************
- *  Adjust font size to screen's pixels
- *  to see the same size in mobiles with text size changed
- ************************************************/
-function adjust_font_size(wanted_size, fontFamily)
-{
-    let h;
-
-    for(h = 1; h <80; h++) {
-        let dim = get_text_size("MWj|}", fontFamily, h, 0);
-        if(dim.height >= wanted_size) {
-            break;
-        }
-    }
-    return h;
-}
-
-/************************************************
- *  Adjust font size to screen's pixels
- *  to see the same size in mobiles with text size changed
- ************************************************/
-function adjust_icon_size(wanted_size, fontFamily)
-{
-    let h;
-
-    for(h = 1; h <80; h++) {
-        let dim = get_text_size("\u{EA01}\u{EA02}", fontFamily, h, 0);
-        if(dim.height >= wanted_size) {
-            break;
-        }
-    }
-    return h;
-}
-
-/********************************************
- *
- ********************************************/
-function get_text_size(text, font_family, font_size, padding)
-{
-    let pa = document.body;
-    let who = document.createElement('div');
-
-    if(is_null(padding)) {
-        padding = 0;
-    }
-    if(is_number(padding)) {
-        padding = padding + "px";
-    }
-    if(is_number(font_size)) {
-        font_size = font_size + "px";
-    }
-    if(empty_string(font_size)) {
-        font_size = "1em";
-    }
-    if(empty_string(font_family)) {
-        font_family = "sans-serif";
-    }
-    if(empty_string(text)) {
-        text = "Mj";
-    }
-    who.style.cssText="display:inline-block;padding:" + padding + ";line-height:1;position:absolute;visibility:hidden font-family:"+ font_family + ";font-size:" + font_size + ";";
-
-    who.appendChild(document.createTextNode(text));
-    pa.appendChild(who);
-    //let fs= {width: who.offsetWidth, height: who.offsetHeight};
-    let height = who.offsetHeight;
-    let width = who.offsetWidth;
-    pa.removeChild(who);
-
-    return {width: width, height: height};
 }
 
 /********************************************
@@ -2623,22 +2077,6 @@ function icono(name)
         return null;
     }
     return String.fromCharCode(parseInt(icon_unicode, 10));
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-function find_gobj_in_list(list, name) // TODO elimina, usa gobj api
-{
-    for(let gobj of list) {
-        if(!is_gobj(gobj)) {
-            continue;
-        }
-        if(gobj.gobj_name() === name) {
-            return gobj;
-        }
-    }
-    return null;
 }
 
 /***************************************************************************
@@ -3200,167 +2638,9 @@ function get_current_datetime()
  ********************************************/
 function get_now()
 {
-    let start = Math.floor(Date.now() / 1000);
-    return start;
+    return Math.floor(Date.now() / 1000);
 }
 
-
-// TODO move this code outside, to some helper
-///***************************************************************************
-// *
-//    compacted json:
-//
-//    {
-//        "alarm": "ppp",
-//        "description": "Alarma de consolador",
-//        "notifications": "",
-//        "enabled": true,
-//        "max_age": "60m",
-//        "hola.pepe": "juan",
-//        "triggers.0.measure": "power_on",
-//        "triggers.0.operation": "=",
-//        "triggers.0.value": "ON",
-//        "triggers.1.measure": "power_on",
-//        "triggers.1.operation": "=",
-//        "triggers.1.value": "OFF"
-//    }
-//
-//    expanded json:
-//
-//    {
-//        "alarm": "ppp",
-//        "description": "Alarma de consolador",
-//        "notifications": "",
-//        "enabled": true,
-//        "max_age": "60m",
-//        "hola": {
-//            "pepe": "juan"
-//        },
-//        "triggers": [
-//            {
-//                "measure": "power_on",
-//                "operation": "=",
-//                "value": "ON",
-//            },
-//            {
-//                "measure": "power_on",
-//                "operation": "=",
-//                "value": "OFF",
-//            }
-//        ]
-//    }
-//
-// ***************************************************************************/
-//// Helper function to handle nested objects and arrays
-//PRIVATE void json_to_compact_helper(json_t *json_obj, json_t *result_obj, const char *prefix) {
-//    const char *key;
-//    json_t *value;
-//
-//    json_object_foreach(json_obj, key, value) {
-//        char new_prefix[256];
-//        if (prefix[0] != '\0') {
-//            snprintf(new_prefix, sizeof(new_prefix), "%s.%s", prefix, key);
-//        } else {
-//            snprintf(new_prefix, sizeof(new_prefix), "%s", key);
-//        }
-//
-//        if (json_is_object(value)) {
-//            json_to_compact_helper(value, result_obj, new_prefix);
-//        } else if (json_is_array(value)) {
-//            size_t index;
-//            json_t *element;
-//            json_array_foreach(value, index, element) {
-//                char array_prefix[256];
-//                snprintf(array_prefix, sizeof(array_prefix), "%s.%zu", new_prefix, index);
-//                if (json_is_object(element)) {
-//                    json_to_compact_helper(element, result_obj, array_prefix);
-//                } else {
-//                    json_object_set(result_obj, array_prefix, element);
-//                }
-//            }
-//        } else {
-//            json_object_set(result_obj, new_prefix, value);
-//        }
-//    }
-//}
-//
-//// Main function to convert JSON object to compact JSON object
-//PRIVATE json_t *kw_compact(
-//    json_t *jn_normal  // NOT owned
-//)
-//{
-//    json_t *result_obj = json_object();
-//    json_to_compact_helper(jn_normal, result_obj, "");
-//    return result_obj;
-//}
-//
-//
-//// Helper function to check if a string is a number
-//PRIVATE int is_number(const char *str) {
-//    while (*str) {
-//        if (!isdigit(*str)) return 0;
-//        str++;
-//    }
-//    return 1;
-//}
-//
-//// Helper function to set nested keys
-//PRIVATE void json_from_compact_helper(json_t *result_obj, const char *key, json_t *value) {
-//    char *key_copy = gbmem_strdup(key);
-//    char *part = strtok(key_copy, ".");
-//
-//    json_t *current = result_obj;
-//    json_t *next = NULL;
-//
-//    while (part != NULL) {
-//        char *next_part = strtok(NULL, ".");
-//        if (next_part == NULL) {
-//            json_object_set(current, part, value);
-//            break;
-//        } else {
-//            if (is_number(part)) {
-//                int index = atoi(part);
-//                next = json_array_get(current, index);
-//                if (!next) {
-//                    next = json_object();
-//                    while (json_array_size(current) <= index) {
-//                        json_array_append_new(current, json_object());
-//                    }
-//                    json_array_set_new(current, index, next);
-//                }
-//                current = next;
-//            } else {
-//                next = json_object_get(current, part);
-//                if (!next) {
-//                    if (is_number(next_part)) {
-//                        next = json_array();
-//                    } else {
-//                        next = json_object();
-//                    }
-//                    json_object_set_new(current, part, next);
-//                }
-//                current = next;
-//            }
-//        }
-//        part = next_part;
-//    }
-//
-//    gbmem_free(key_copy);
-//}
-//
-//PRIVATE json_t *kw_decompact(
-//    json_t *jn_compacted  // NOT owned
-//)
-//{
-//    json_t *normal_obj = json_object();
-//    const char *key;
-//    json_t *value;
-//
-//    json_object_foreach(jn_compacted, key, value) {
-//        json_from_compact_helper(normal_obj, key, value);
-//    }
-//    return normal_obj;
-//}
 
 export {
     json_deep_copy,
@@ -3382,51 +2662,11 @@ export {
     is_gobj,
 
     empty_string,
-
-
-
-
-
-    index_of_list,
-    elm_in_list,
-    elms_in_list,
-    index_in_list,
-    delete_from_list,
-    __strip__,
-    __set__,
-    get_function_name,
-    same_list,
-    none_in_list,
-    id_index_in_obj_list,
-    get_object_from_list,
     strncmp,
-    kw_is_identical,
     strcmp,
     cmp_two_simple_json,
-    kw_match_simple,
-    kw_collect,
-    kwid_get_ids,
-    kwid_match_id,
-    kwid_collect,
-    kwid_new_dict,
-    kwid_get_first_id,
-    kwid_find_one_record,
-    kwid_delete_record,
-    match_dict_list_by_kw,
-    filter_dictlist,
-    filter_dict,
-    filter_list,
-    ids2str,
+    strstr,
 
-    msg_iev_read_key,
-    msg_iev_write_key,
-    msg_iev_add_answer_filter,
-    msg_iev_answer,
-    msg_iev_push_stack,
-    msg_iev_get_stack,
-    msg_iev_pop_stack,
-    msg_set_msg_type,
-    msg_get_msg_type,
     kw_has_key,
     kw_get_bool,
     kw_get_int,
@@ -3438,23 +2678,44 @@ export {
     kw_set_dict_value,
     kw_set_subdict_value,
     kw_extract_private,
-    get_unique_id,
-    uuidv4,
+    kw_is_identical,
+    kw_match_simple,
+    kw_collect,
+    kwid_get_ids,
+    kwid_match_id,
+    kwid_collect,
+    kwid_new_dict,
+    kwid_get_first_id,
+    kwid_find_one_record,
+    kwid_delete_record,
+
+    kw_get_local_storage_value,
+    kw_set_local_storage_value,
+    kw_remove_local_storage_value,
+
+    msg_iev_read_key,
+    msg_iev_write_key,
+    msg_iev_add_answer_filter,
+    msg_iev_answer,
+    msg_iev_push_stack,
+    msg_iev_get_stack,
+    msg_iev_pop_stack,
+    msg_set_msg_type,
+    msg_get_msg_type,
+
     load_json_file,
     send_http_json_post,
-    strstr,
-    list2options,
 
-    traverse_dict,
     jdb_init,
     jdb_update,
     jdb_delete,
     jdb_get_topic,
     jdb_get,
     jdb_get_by_idx,
-    create_json_record,
 
-    _logger,
+    create_json_record,
+    list2options,
+
     set_log_functions,
     log_error,
     log_warning,
@@ -3463,23 +2724,15 @@ export {
     trace_msg,
     trace_msg2,
 
-    kw_get_local_storage_value,
-    kw_set_local_storage_value,
-    kw_remove_local_storage_value,
     parseBoolean,
     escapeRegExp,
     replace_variable_engine,
-    Proportion,
-    get_text_size,
-    adjust_font_size,
-    adjust_icon_size,
     htmlToElement,
     jwtDecode,
     jwt2json,
     is_metadata_key,
     is_private_key,
     icono,
-    find_gobj_in_list, // TODO elimina, usa gobj api
     get_str_list_difference,
     get_location_path_root,
     debounce,
