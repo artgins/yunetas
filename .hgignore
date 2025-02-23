@@ -14,9 +14,6 @@ __pypackages__/
 /out/
 /platforms/
 
-\.config
-\.config.old
-
 \.vscode/
 cmake-build-release/
 cmake-build-debug/

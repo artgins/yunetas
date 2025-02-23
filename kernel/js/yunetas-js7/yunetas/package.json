@@ -1,17 +1,25 @@
 {
     "name": "yunetas",
     "version": "0.0.2",
-    "description": "Yunetas library",
-    "type": "module",
-    "main": "dist/yunetas.umd.js",
-    "module": "dist/yunetas.es.js",
+    "description": "Yunetas JavaScript Library",
     "author": "Niyamaka",
     "license": "MIT",
-    "scripts": {
-        "dev": "vite",
-        "build": "vite build",
-        "preview": "vite preview"
+    "type": "module",
+    "main": "dist/yunetas.cjs.js",
+    "module": "dist/yunetas.es.js",
+    "browser": "dist/yunetas.umd.js",
+    "exports": {
+        "import": "./dist/yunetas.es.js",
+        "require": "./dist/yunetas.cjs.js"
     },
+    "files": [
+        "dist/"
+    ],
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite"
+    },
+    "dependencies": {},
     "devDependencies": {
         "@rollup/plugin-terser": "^0.4.4",
         "vite": "^6.1.1"
