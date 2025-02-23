@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "vite": "^6.1.0"
+  },
+  "dependencies": {
+    "uplot": "^1.6.31"
   }
 }

@@ -170,6 +170,7 @@ export {
     gobj_start_up,
     gobj_register_gclass,
     gobj_find_gclass,
+
     gobj_get_gclass_config,
     // GObj,
     // gcflag_manual_start,
