@@ -1,5 +1,7 @@
 VERSION_INSTALLED.txt
 
+.vite/
+
 cmake-build-debug-clang/
 cmake-build-debug-musl/
 
