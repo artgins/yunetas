@@ -27,6 +27,6 @@ To preview the production build:
 
     vite preview
 
-To publish a new version of gobj-js:
+To publish a new version of yunetas:
 
     npm publish --access public
