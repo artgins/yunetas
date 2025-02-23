@@ -6,13 +6,6 @@
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-import {
-    gobj_start_up,
-    db_load_persistent_attrs,
-    db_save_persistent_attrs,
-    db_remove_persistent_attrs,
-    db_list_persistent_attrs,
-} from "yunetas";
 
 window.addEventListener('load', function() {
     /*

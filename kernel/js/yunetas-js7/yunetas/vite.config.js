@@ -5,48 +5,61 @@ export default defineConfig({
     build: {
         lib: {
             entry: "src/index.js",
-            name: "yunetas",
-            formats: ["es", "umd", "cjs"]
+            name: "yunetas"
         },
         rollupOptions: {
             output: [
+                // Non-minified ES Module
                 {
                     format: "es",
-                    file: "dist/yunetas.es.js",
-                    sourcemap: true,
-                    compact: false
+                    dir: "dist",
+                    entryFileNames: "yunetas.es.js",
+                    compact: false // ✅ Keep original formatting
                 },
+                // Non-minified UMD Module
                 {
-                    format: "umd",
                     name: "yunetas",
-                    file: "dist/yunetas.umd.js",
-                    sourcemap: true,
+                    format: "umd",
+                    dir: "dist",
+                    entryFileNames: "yunetas.umd.js",
                     compact: false
                 },
+                // Non-minified CJS Module
                 {
+                    name: "yunetas",
                     format: "cjs",
-                    file: "dist/yunetas.cjs.js",
-                    sourcemap: true,
+                    dir: "dist",
+                    entryFileNames: "yunetas.cjs.js",
                     compact: false
                 },
+
+                // Minified ES Module
                 {
                     format: "es",
-                    file: "dist/yunetas.es.min.js",
-                    plugins: [terser()]
+                    dir: "dist",
+                    entryFileNames: "yunetas.es.min.js",
+                    plugins: [terser()] // ✅ Minified version
                 },
+                // Minified UMD Module
                 {
-                    format: "umd",
                     name: "yunetas",
-                    file: "dist/yunetas.umd.min.js",
+                    format: "umd",
+                    dir: "dist",
+                    entryFileNames: "yunetas.umd.min.js",
                     plugins: [terser()]
                 },
+                // Minified CJS Module
                 {
+                    name: "yunetas",
                     format: "cjs",
-                    file: "dist/yunetas.cjs.min.js",
+                    dir: "dist",
+                    entryFileNames: "yunetas.cjs.min.js",
                     plugins: [terser()]
                 }
             ]
         },
-        target: "esnext"
+        sourcemap: true,
+        minify: false, // ✅ Disable Vite’s default minification
+        target: "esnext" // ✅ Prevent unnecessary transpilation
     }
 });
