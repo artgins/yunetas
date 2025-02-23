@@ -1,9 +1,29 @@
 import { defineConfig } from "vite";
+import fs from "fs";
+import path from "path";
 
 export default defineConfig({
-    build: {
-        // sourcemap: true, // ✅ Enable source maps for debugging
-        // target: "esnext",
-        // minify: false // ✅ Keep source maps readable
-    }
+    plugins: [
+        {
+            name: "html-transform",
+            transformIndexHtml(html) {
+                const configPath = path.resolve(__dirname, "config.json");
+                if (!fs.existsSync(configPath)) {
+                    console.error("⚠️ config.json not found");
+                    return html;
+                }
+
+                const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+
+                let metadataHtml = "";
+                for (const [key, value] of Object.entries(config.metadata)) {
+                    if (value) {
+                        metadataHtml += `<meta name="${key}" content="${value}">\n`;
+                    }
+                }
+
+                return html.replace("<!-- METADATA_PLACEHOLDER -->", metadataHtml);
+            }
+        }
+    ]
 });
