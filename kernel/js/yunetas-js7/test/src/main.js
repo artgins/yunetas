@@ -14,6 +14,10 @@ import {
     db_list_persistent_attrs,
 } from "yunetas";
 
+// Import uPlot
+import uPlot from "uplot";
+import "uplot/dist/uPlot.min.css"; // ✅ Import CSS
+
 window.addEventListener('load', function() {
     /*
      *  Delete message "Loading application. Wait please..."
@@ -32,4 +36,28 @@ window.addEventListener('load', function() {
         null,                           // global_command_parser_fn
         null                            // global_stats_parser_fn
     );
+
+
+
+    // Example: Creating a uPlot chart
+    const data = [
+        [0, 1, 2, 3, 4, 5], // X-axis values
+        [3, 4, 5, 6, 7, 8]  // Y-axis values
+    ];
+
+    const opts = {
+        title: "uPlot Example",
+        width: 800,
+        height: 400,
+        series: [
+            {},
+            { stroke: "red", fill: "rgba(255, 0, 0, 0.3)" }
+        ]
+    };
+
+    const chartContainer = document.createElement("div");
+    document.body.appendChild(chartContainer);
+
+    new uPlot(opts, data, chartContainer);
+
 });
