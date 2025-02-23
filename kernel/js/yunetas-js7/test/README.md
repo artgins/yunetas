@@ -13,8 +13,8 @@ When writing this readme the LTS version was:
 
 This project was created using:
 
-    npm create vite@latest test-gobj7 -- --template vanilla
-    cd test-gobj7
+    npm create vite@latest test -- --template vanilla
+    cd test
     npm install
     npm run dev
 
