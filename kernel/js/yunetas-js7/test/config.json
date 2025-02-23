@@ -1,7 +1,8 @@
 {
+    "title": "Test-Yunetas",
     "metadata": {
-        "description": "This is a test app using Yunetas",
-        "keywords": "yunetas, vite, test",
-        "author": "Your Name"
+        "application-name": "Test-Yunetas",
+        "description": "Test Yunetas",
+        "keywords": "yunetas test vite"
     }
 }

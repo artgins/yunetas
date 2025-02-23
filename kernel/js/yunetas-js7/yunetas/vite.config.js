@@ -32,6 +32,14 @@ export default defineConfig({
                     entryFileNames: "yunetas.cjs.js",
                     compact: false
                 },
+                // Non-minified IIFE Module
+                {
+                    name: "yunetas",
+                    format: "iife",
+                    dir: "dist",
+                    entryFileNames: "yunetas.iife.js",
+                    compact: false
+                },
 
                 // Minified ES Module
                 {
@@ -54,6 +62,14 @@ export default defineConfig({
                     format: "cjs",
                     dir: "dist",
                     entryFileNames: "yunetas.cjs.min.js",
+                    plugins: [terser()]
+                },
+                // Minified IIFE Module
+                {
+                    name: "yunetas",
+                    format: "iife",
+                    dir: "dist",
+                    entryFileNames: "yunetas.iife.min.js",
                     plugins: [terser()]
                 }
             ]
