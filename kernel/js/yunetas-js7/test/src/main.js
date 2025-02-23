@@ -16,7 +16,7 @@ import {
 
 // Import uPlot
 import uPlot from "uplot";
-import "uplot/dist/uPlot.min.css"; // ✅ Import CSS
+import "uplot/dist/uPlot.min.css";
 
 window.addEventListener('load', function() {
     /*
