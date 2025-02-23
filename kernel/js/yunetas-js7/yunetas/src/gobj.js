@@ -13,7 +13,10 @@
  *      15 Julio 2015 - Upgraded to yuneta 1.0.0.
  *
  *********************************************************************************/
-import {log_error} from "./utils.js";
+import {
+    log_error,
+    trace_msg,
+} from "./utils.js";
 
 /**************************************************************************
  *        GObj
@@ -50,6 +53,8 @@ function gobj_start_up(
     __global_command_parser_fn__ = global_command_parser_fn;
     __global_stats_parser_fn__ = global_stats_parser_fn;
 
+    console.log("MERDE");
+    trace_msg("MERDE 2");
     return 0;
 }
 
