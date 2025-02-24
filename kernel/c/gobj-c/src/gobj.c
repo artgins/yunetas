@@ -854,35 +854,49 @@ PUBLIC hgclass gclass_create( // create and register gclass
     /*----------------------------------------*
      *          Build States
      *----------------------------------------*/
-    struct states_s *state = states;
+    states_t *state = states;
     while(state->state_name) {
-        if(gclass_add_state_with_action_list(gclass, state->state_name, state->state)<0) {
+        if(gclass_add_state(gclass, state->state_name)<0) {
             // Error already logged
             gclass_unregister(gclass);
             return NULL;
         }
+
+        ev_action_t *ev_action_list = state->ev_action_list;
+        while(ev_action_list->event) {
+            gclass_add_ev_action(
+                gclass,
+                state->state_name,
+                ev_action_list->event,
+                ev_action_list->action,
+                ev_action_list->next_state
+            );
+            ev_action_list++;
+        }
+
         state++;
     }
 
     /*----------------------------------------*
      *          Build Events
      *----------------------------------------*/
-    while(event_types && event_types->event) {
-        if(gclass_find_event_in_event_list(gclass, event_types->event)) {
+    event_type_t *event_type = event_types;
+    while(event_type->event) {
+        if(gclass_find_event_type(gclass, event_type->event)) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "SMachine: event repeated in input_events",
                 "gclass",       "%s", gclass->gclass_name,
-                "event",        "%s", event_types->event,
+                "event",        "%s", event_type->event,
                 NULL
             );
             gclass_unregister(gclass);
             return NULL;
         }
 
-        add_event_type(&gclass->dl_events, event_types);
-        event_types++;
+        gclass_add_event_type(gclass, event_type);
+        event_type++;
     }
 
     /*----------------------------------------*
@@ -1062,33 +1076,6 @@ PUBLIC int gclass_add_ev_action(
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int gclass_add_state_with_action_list(
-    hgclass hgclass,
-    gobj_state_t state_name,
-    ev_action_t *ev_action_list
-) {
-    if(gclass_add_state(hgclass, state_name)<0) {
-        // Error already logged
-        return -1;
-    }
-
-    while(ev_action_list->event) {
-        gclass_add_ev_action(
-            hgclass,
-            state_name,
-            ev_action_list->event,
-            ev_action_list->action,
-            ev_action_list->next_state
-        );
-        ev_action_list++;
-    }
-
-    return 0;
-}
-
-/***************************************************************************
  *  Find a public event in any gclass
  ***************************************************************************/
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
@@ -1254,7 +1241,7 @@ PRIVATE int add_event_type(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC event_type_t *gclass_find_event_in_event_list(hgclass gclass_, gobj_event_t event)
+PUBLIC event_type_t *gclass_find_event_type(hgclass gclass_, gobj_event_t event)
 {
     gclass_t *gclass = gclass_;
     event_t *event_ = dl_first(&gclass->dl_events);
@@ -1265,6 +1252,16 @@ PUBLIC event_type_t *gclass_find_event_in_event_list(hgclass gclass_, gobj_event
         event_ = dl_next(event_);
     }
     return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gclass_add_event_type(hgclass gclass_, event_type_t *event_type)
+{
+    gclass_t *gclass = gclass_;
+
+    return add_event_type(&gclass->dl_events, event_type);
 }
 
 /***************************************************************************
@@ -1302,7 +1299,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             // gobj_event_t event;
             // gobj_action_fn action;
             // gobj_state_t next_state;
-            event_type_t *event_type = gclass_find_event_in_event_list(gclass, event_action->event);
+            event_type_t *event_type = gclass_find_event_type(gclass, event_action->event);
             if(!event_type) {
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
@@ -6872,7 +6869,7 @@ PUBLIC event_type_t *gobj_event_type( // silent function
         return NULL;
     }
 
-    event_type_t *event_type = gclass_find_event_in_event_list(gobj->gclass, event);
+    event_type_t *event_type = gclass_find_event_type(gobj->gclass, event);
     if(event_type) {
         return event_type;
     }

@@ -339,13 +339,12 @@ int do_test(void)
     /*-------------------------------------------------*
      *      Startup the timeranger db
      *-------------------------------------------------*/
-    int x; // TODO
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i, s:s, s:i, s:i, s:i}",
         "path", path_root,
         "database", DATABASE,
         "master", 1,
         "on_critical_error", 0,
-        "filename_mask", "%Y",      // TODO change or remove to see the effects
+        "filename_mask", "%Y",
         "xpermission" , 02770,
         "rpermission", 0600,
         "trace_level", 1

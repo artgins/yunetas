@@ -613,7 +613,7 @@ typedef struct {
 
 typedef struct states_s {
     gobj_state_t state_name;
-    ev_action_t *state;
+    ev_action_t *ev_action_list;
 } states_t;
 
 typedef enum { // HACK strict ascendant value!, strings in event_flag_names[]
@@ -1205,11 +1205,6 @@ PUBLIC int gclass_add_ev_action(
     gobj_action_fn action,
     gobj_state_t next_state
 );
-PUBLIC int gclass_add_state_with_action_list(
-    hgclass gclass,
-    gobj_state_t state_name,
-    ev_action_t *ev_action_list
-);
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); // Find a public event in any gclass
 PUBLIC void gclass_unregister(hgclass hgclass);
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
@@ -1217,7 +1212,8 @@ PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
 
 PUBLIC json_t *gclass_gclass_register(void); /* Get registered gclasses: Return [gclass:s}] */
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name);
-PUBLIC event_type_t *gclass_find_event_in_event_list(hgclass gclass, gobj_event_t event);
+PUBLIC event_type_t *gclass_find_event_type(hgclass gclass, gobj_event_t event);
+PUBLIC int gclass_add_event_type(hgclass gclass, event_type_t *event_type);
 
 PUBLIC int gclass_check_fsm(hgclass gclass);
 PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.

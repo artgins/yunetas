@@ -31,13 +31,21 @@ Change API
     open_exclusive  - parameter name changed
     mkrdir          - parameter name changed
 
+    typedef struct states_s:
+        ev_action_t *state; => ev_action_t *ev_action_list;
+
+    gclass_find_event_in_event_list -> gclass_find_event_type
+
 New API
 
     build_stats_response
     trq_append2
+    gclass_add_event_type
+
 
 Delete API
 
+    gclass_add_state_with_action_list
 
 <!-- ([full changelog](https://github.com/executablebooks/sphinx-book-theme/compare/v1.1.1...3da24da74f6042599fe6c9e2d612f5cbdef42280)) -->
 

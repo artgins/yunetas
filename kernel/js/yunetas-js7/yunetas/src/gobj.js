@@ -12,8 +12,9 @@ import {
     log_debug,
     empty_string,
     json_deep_copy,
-    kw_extract_private, kw_has_key,
+    kw_extract_private,
 } from "./utils.js";
+
 import {sprintf} from "./sprintf.js";
 
 /**************************************************************************
@@ -38,8 +39,6 @@ let __jn_services__ = {};
  **************************************************************************/
 function GClass(
     gclass_name,
-    event_types,
-    states,
     gmt,
     lmt,
     tattr_desc,
@@ -50,16 +49,24 @@ function GClass(
     gclass_flag
 ) {
     this.gclass_name = gclass_name;
-    this.event_types = event_types;
-    this.states = states;
-    this.gmt = gmt;
+    this.dl_states = {};  // FSM list states and their ev/action/next
+    this.dl_events = {};  // FSM list of events (gobj_event_t, event_flag_t)
+    this.gmt = gmt;        // Global methods
     this.lmt = lmt;
+
     this.tattr_desc = tattr_desc;
     this.priv_size = priv_size;
-    this.authz_table = authz_table;
-    this.command_table = command_table;
+    this.authz_table = authz_table; // acl
+    this.command_table = command_table; // if it exits then mt_command is not used.
+
     this.s_user_trace_level = s_user_trace_level;
     this.gclass_flag = gclass_flag;
+
+    this.instances = 0;              // instances of this gclass
+    this.trace_level = 0;
+    this.no_trace_level = 0;
+    this.jn_trace_filter = null;
+    this.fsm_checked = false;
 }
 
 function GObj(
@@ -128,7 +135,7 @@ function gobj_start_up(
 /************************************************************
  *      Register gclass
  ************************************************************/
-function gobj_register_gclass(
+function _register_gclass(
     gclass,
     gclass_name
 )
@@ -152,9 +159,114 @@ function gobj_register_gclass(
 }
 
 /************************************************************
+ *  create and register gclass
+ ************************************************************/
+function gclass_create(
+    gclass_name,
+    event_types,
+    states,
+    gmt,
+    lmt,
+    tattr_desc,
+    priv_size,
+    authz_table,
+    command_table,
+    s_user_trace_level,
+    gclass_flag
+) {
+    if(empty_string(gclass_name)) {
+        log_error(`gclass_name EMPTY`);
+        return null;
+    }
+    if (gclass_name.includes('`') ||
+        gclass_name.includes('^') ||
+        gclass_name.includes('.'))
+    {
+        log_error(`GClass name CANNOT have '.' or '^' or '\`' char: ${gclass_name}`);
+        return null;
+    }
+    if(gclass_find_by_name(gclass_name)) {
+        log_error(`GClass ALREADY exists: ${gclass_name}`);
+        return null;
+    }
+    let gclass = new GClass(
+        gclass_name,
+        gmt,
+        lmt,
+        tattr_desc,
+        priv_size,
+        authz_table,
+        command_table,
+        s_user_trace_level,
+        gclass_flag
+    );
+
+    _register_gclass(gclass, gclass_name);
+
+    /*----------------------------------------*
+     *          Build States
+     *----------------------------------------*/
+    const states_size = states.length;
+    for (let i = 0; i < states_size; i++) {
+        let state_name = states[i][0];      // First element is state name
+        let ev_action_list = states[i][1];  // Second element is the array of actions
+
+        if(gclass_add_state(gclass, state_name)<0) {
+            // Error already logged
+            gclass_unregister(gclass);
+            return null;
+        }
+
+        const ev_action_size = ev_action_list.length;
+        for (let j = 0; j < ev_action_size; j++) {
+            let event_name = ev_action_list[j][0];
+            let action = ev_action_list[j][1];
+            let next_state = ev_action_list[j][2];
+            gclass_add_ev_action(
+                gclass,
+                state_name,
+                event_name,
+                action,
+                next_state
+            );
+        }
+    }
+
+    /*----------------------------------------*
+     *          Build Events
+     *----------------------------------------*/
+    let event_types_size = event_types.length;
+    for (let i = 0; i < event_types_size; i++) {
+        let event_name = event_types[i][0];
+        let event_type = event_types[i][1];
+
+        if(gclass_find_event_type(gclass, event_name)) {
+            log_error(`SMachine: event repeated in input_events: ${event_name}`);
+            gclass_unregister(gclass);
+            return null;
+        }
+
+        gclass_add_event_type(gclass, event_type);
+    }
+
+    /*----------------------------------------*
+     *          Check FSM
+     *----------------------------------------*/
+    if(!gclass.fsm_checked) {
+        if(gclass_check_fsm(gclass)<0) {
+            gclass_unregister(gclass);
+            return null;
+        }
+        gclass.fsm_checked = true;
+    }
+
+    return gclass;
+}
+
+/************************************************************
  *      Find gclass
  ************************************************************/
-function gobj_find_gclass(gclass_name, verbose)
+function gclass_find_by_name(gclass_name, verbose)
 {
     let gclass = null;
     try {
@@ -215,7 +327,7 @@ function _register_service(gobj)
  ************************************************************/
 function gobj_get_gclass_config(gclass_name, verbose)
 {
-    let gclass = gobj_find_gclass(gclass_name, verbose);
+    let gclass = gclass_find_by_name(gclass_name, verbose);
     if(gclass && gclass.prototype.mt_get_gclass_config) { // TODO review
         return gclass.prototype.mt_get_gclass_config.call();
     } else {
@@ -279,7 +391,7 @@ function gobj_create2(
         log_error(`gclass_name must be a string`);
         return null;
     }
-    let gclass = gobj_find_gclass(gclass_name, false);
+    let gclass = gclass_find_by_name(gclass_name, false);
     if(!gclass) {
         log_error(`GClass not defined: ${gclass_name}`);
         return null;
@@ -293,14 +405,14 @@ function gobj_create2(
         /*
          *  Check that the gobj_name: cannot contain `
          */
-        if(gobj_name.indexOf("`")>=0) {
+        if(gobj_name.includes('`')) {
             log_error(`gobj_name cannot contain char \': ${gobj_name}`);
             return null;
         }
         /*
          *  Check that the gobj_name: cannot contain ^
          */
-        if(gobj_name.indexOf("^")>=0) {
+        if(gobj_name.includes('^')) {
             log_error(`gobj_name cannot contain char ^: ${gobj_name}`);
             return null;
         }
@@ -433,8 +545,7 @@ function gobj_create2(
 export {
     gobj_flag_t,
     gobj_start_up,
-    gobj_register_gclass,
-    gobj_find_gclass,
+    gclass_find_by_name,
     gobj_find_service,
     gobj_get_gclass_config,
     gobj_list_persistent_attrs,

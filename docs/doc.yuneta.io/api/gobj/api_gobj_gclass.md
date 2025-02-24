@@ -9,9 +9,9 @@ Source code in:
 :maxdepth: 1
 
 gclass/gclass2json.md
+gclass/gclass_add_event_type.md
 gclass/gclass_add_ev_action.md
 gclass/gclass_add_state.md
-gclass/gclass_add_state_with_action_list.md
 gclass/gclass_attr_desc.md
 gclass/gclass_authz_desc.md
 gclass/gclass_check_fsm.md
