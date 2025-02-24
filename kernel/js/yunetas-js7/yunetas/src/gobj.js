@@ -73,29 +73,6 @@ function GObj(
     this.gclass = gclass;
     this.parent = parent;
     this.gobj_flag = gobj_flag;
-
-    this.current_state = ""; // TODO dl_first(&gclass->dl_states);
-    this.last_state = 0;
-
-    this.dl_subscriptions = [];
-    this.dl_subscribings = []; // TODO WARNING not implemented, subscribed events loss
-    this.dl_childs = [];
-    this.user_data = {};
-
-    let config = {}; // TODO get from gclass
-
-    this.config = json_deep_copy(config);
-    _json_object_update_config(this.config, kw || {});
-    this.private = kw_extract_private(this.config);
-
-    this.tracing = 0;
-    this.trace_timer = 0;
-    this.running = false;
-    this._destroyed = false;
-    this.timer_id = -1; // for now, only one timer per fsm, and hardcoded.
-    this.timer_event_name = "EV_TIMEOUT";
-    // TODO this.fsm_create(fsm_desc); // Create this.fsm
-
 }
 
 /**************************************************************************
@@ -295,6 +272,9 @@ function gobj_create2(
     parent,
     gobj_flag
 ) {
+    /*--------------------------------*
+     *      Check parameters
+     *--------------------------------*/
     if(empty_string(gclass_name)) {
         log_error(`gclass_name must be a string`);
         return null;
@@ -347,6 +327,10 @@ function gobj_create2(
             return null;
         }
     }
+
+    /*--------------------------------*
+     *      Alloc memory
+     *--------------------------------*/
     let gobj = new GObj(gobj_name, gclass, kw, parent, gobj_flag);
 
     if(trace_creation) {
@@ -355,6 +339,32 @@ function gobj_create2(
             is_service?"service":"", gclass_name, gobj_name
         ));
     }
+
+    /*--------------------------------*
+     *      Initialize variables
+     *--------------------------------*/
+    gobj.current_state = ""; // TODO dl_first(&gclass->dl_states);
+    gobj.last_state = 0;
+
+    gobj.dl_subscriptions = [];
+    gobj.dl_subscribings = []; // TODO WARNING not implemented, subscribed events loss
+    gobj.dl_childs = [];
+    gobj.user_data = {};
+
+    let config = {}; // TODO get from gclass
+
+    gobj.config = json_deep_copy(config);
+    _json_object_update_config(gobj.config, kw || {});
+    gobj.private = kw_extract_private(gobj.config);
+
+    gobj.tracing = 0;
+    gobj.trace_timer = 0;
+    gobj.running = false;
+    gobj._destroyed = false;
+    gobj.timer_id = -1; // for now, only one timer per fsm, and hardcoded.
+    gobj.timer_event_name = "EV_TIMEOUT";
+    // TODO gobj.fsm_create(fsm_desc); // Create gobj.fsm
+
 
     if(is_service) {
         _register_service(gobj);

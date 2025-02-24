@@ -1767,9 +1767,6 @@ PUBLIC hgobj gobj_create2(
         );
     }
 
-    /*--------------------------*
-     *      Alloc data
-     *--------------------------*/
     gobj->gobj_name = gobj_strdup(gobj_name);
     gobj->jn_attrs = sdata_create(gobj, gclass->tattr_desc);
     gobj->jn_stats = json_object();
