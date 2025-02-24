@@ -38,7 +38,7 @@ hgclass gclass_create(
 **Parameters**
 
 ::: {list-table}
-:widths: 20 20 60
+:widths: 20 30 50
 :header-rows: 1
 
 * - Key
@@ -46,27 +46,27 @@ hgclass gclass_create(
   - Description
 
 * - `gclass_name`
-  - `gclass_name_t`
+  - [`gclass_name_t`](gclass_name_t)
   - The name of the `gclass` to be created.
 
 * - `event_types`
-  - `event_type_t *`
+  - [`event_type_t *`](event_type_t)
   - A list of event types associated with the `gclass`.
 
 * - `states`
-  - `states_t *`
+  - [`states_t *`](states_t)
   - A list of states defining the finite state machine of the `gclass`.
 
 * - `gmt`
-  - `const GMETHODS *`
+  - [`const GMETHODS *`](GMETHODS)
   - A pointer to the global methods table defining the behavior of the `gclass`.
 
 * - `lmt`
-  - `const LMETHOD *`
+  - [`const LMETHOD *`](LMETHOD)
   - A pointer to the local methods table for internal method handling.
 
 * - `tattr_desc`
-  - `const sdata_desc_t *`
+  - [`const sdata_desc_t *`](sdata_desc_t)
   - A pointer to the attribute description table defining the attributes of the `gclass`.
 
 * - `priv_size`
@@ -74,19 +74,19 @@ hgclass gclass_create(
   - The size of the private data structure allocated for each instance of the `gclass`.
 
 * - `authz_table`
-  - `const sdata_desc_t *`
+  - [`const sdata_desc_t *`](sdata_desc_t)
   - A pointer to the authorization table defining access control rules.
 
 * - `command_table`
-  - `const sdata_desc_t *`
+  - [`const sdata_desc_t *`](sdata_desc_t)
   - A pointer to the command table defining available commands for the `gclass`.
 
 * - `s_user_trace_level`
-  - `const trace_level_t *`
+  - [`const trace_level_t *`](trace_level_t)
   - A pointer to the trace level table defining user-defined trace levels.
 
 * - `gclass_flag`
-  - `gclass_flag_t`
+  - [`gclass_flag_t`](gclass_flag_t)
   - Flags defining special properties of the `gclass`.
 :::
 

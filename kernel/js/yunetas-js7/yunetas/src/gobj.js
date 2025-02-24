@@ -45,27 +45,29 @@ function gobj_start_up(
     __global_command_parser_fn__ = global_command_parser_fn;
     __global_stats_parser_fn__ = global_stats_parser_fn;
 
-    console.log("MERDE");
-    trace_msg("MERDE 2");
     return 0;
 }
 
 /************************************************************
  *      Register gclass
  ************************************************************/
-function gobj_register_gclass(gclass, gclass_name)
+function gobj_register_gclass(
+    gclass,
+    gclass_name
+)
 {
-    if(!gclass || !gclass_name) {
-        let msg = "Yuno.gobj_register_gclass(): gclass undefined";
-        log_error(msg);
+    if(!gclass) {
+        log_error(`gclass undefined`);
         return -1;
     }
+    if(!gclass_name) {
+        log_error(`gclass_name undefined`);
+        return -1;
+    }
+
     let gclass_ = _gclass_register[gclass_name];
     if (gclass_) {
-        let msg = "Yuno.gobj_register_gclass(): '" +
-            gclass_name +
-            "' ALREADY REGISTERED";
-        log_error(msg);
+        log_error(`gclass ALREADY REGISTERED: ${gclass_name}`);
         return -1;
     }
     _gclass_register[gclass_name] = gclass;
