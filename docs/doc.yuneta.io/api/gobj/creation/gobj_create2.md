@@ -44,7 +44,7 @@ hgobj gobj_create2(
   - The name of the `gobj` to be created. It is case-insensitive and converted to lowercase.
 
 * - `gclass_name`
-  - `gclass_name_t`
+  - [`gclass_name_t`](gclass_name_t)
   - The name of the `gclass` to which the `gobj` belongs.
 
 * - `kw`
@@ -56,7 +56,7 @@ hgobj gobj_create2(
   - The parent `gobj` under which the new `gobj` will be created. Must be non-null unless the `gobj` is a Yuno.
 
 * - `gobj_flag`
-  - `gobj_flag_t`
+  - [`gobj_flag_t`](gobj_flag_t)
   - Flags that define the behavior of the `gobj`, such as whether it is a service, volatile, or a pure child.
 :::
 
@@ -64,11 +64,18 @@ hgobj gobj_create2(
 
 **Return Value**
 
-Returns a handle to the newly created `gobj` (`hgobj`). Returns `NULL` if creation fails due to invalid parameters or memory allocation failure.
+Returns a handle to the newly created `gobj` (`hgobj`). 
+Returns `NULL` if creation fails due to invalid parameters or memory allocation failure.
 
 **Notes**
 
-['If the `gobj` is marked as a service, it is registered globally.', 'If the `gobj` is a Yuno, it is stored as the global Yuno instance.', 'The function checks for required attributes and applies global configuration variables.', 'If the `gobj` has a `mt_create2` method, it is called with the provided attributes.', "If the `gobj` has a parent, it is added to the parent's child list."]
+If the `gobj` is marked as a service, it is registered globally.
+If the `gobj` is a Yuno, it is stored as the global Yuno instance.
+
+The function checks for required attributes and applies global configuration variables.
+If the `gobj` has a [`mt_create2`](mt_create2) method, it is called with the provided attributes.
+
+If the `gobj` has a parent, it is added to the parent's child list.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

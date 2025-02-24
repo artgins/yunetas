@@ -134,7 +134,15 @@ If `global_authentication_parser` is `NULL`, authentication is bypassed.
 **Prototype**
 
 ````JS
-// Not applicable in JS
+function gobj_start_up(
+    jn_global_settings,
+    load_persistent_attrs_fn,
+    save_persistent_attrs_fn,
+    remove_persistent_attrs_fn,
+    list_persistent_attrs_fn,
+    global_command_parser_fn,
+    global_stats_parser_fn
+)
 ````
 
 <!--====================================================-->

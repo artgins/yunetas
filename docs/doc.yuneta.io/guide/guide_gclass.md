@@ -64,14 +64,21 @@ A `GClass` consists of several key components that define its operation:
     - The modular design of `GClass` allows new behaviors and features to be added by defining additional methods, events, or states.
 
 (gclass_name_t)=
-## GClass Name
+## gclass_name_t
 
-Each `GClass` has a unique name (e.g., `C_CHANNEL`) to identify it.
+The name of the gclass.
+
+Each `GClass` has a unique name to identify it.
+
+In C must be defined with the macro [`GOBJ_DEFINE_GCLASS`](GOBJ_DEFINE_GCLASS) in `.c` file 
+and [`GOBJ_DECLARE_GCLASS`](GOBJ_DECLARE_GCLASS) in `.h` file.
+
 
 (tattr_desc)=
 ## Attributes
 
-Attributes in a GClass define its properties or state. They are represented as structured data in the `tattr_desc` table, where each entry describes an attribute's type, access flags, default value, and purpose. Attributes are the foundation of a GClass, providing a schema for configuration, runtime state, and operational behavior.
+Attributes in a GClass define its properties or state. They are represented as structured data
+ of type [`sdata_desc_t`](sdata_desc_t) in the `tattr_desc` table, where each entry describes an attribute's type, access flags, default value, and purpose. Attributes are the foundation of a GClass, providing a schema for configuration, runtime state, and operational behavior.
 
 ---
 
