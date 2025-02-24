@@ -2363,7 +2363,7 @@ PRIVATE int _register_service(gobj_t *gobj)
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj unique ALREADY REGISTERED. Will be UPDATED",
+            "msg",          "%s", "service ALREADY REGISTERED. Will be UPDATED",
             "prev gclass",  "%s", gobj_gclass_name(prev_gobj),
             "gclass",       "%s", gobj_gclass_name(gobj),
             "name",         "%s", gobj_name(gobj),

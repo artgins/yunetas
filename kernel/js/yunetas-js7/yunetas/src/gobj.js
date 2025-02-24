@@ -12,7 +12,7 @@ import {
     log_debug,
     empty_string,
     json_deep_copy,
-    kw_extract_private,
+    kw_extract_private, kw_has_key,
 } from "./utils.js";
 import {sprintf} from "./sprintf.js";
 
@@ -31,7 +31,7 @@ let __global_stats_parser_fn__ = null;
 let trace_creation = false;
 
 let _gclass_register = {};
-let _service_gobjs = {};
+let __jn_services__ = {};
 
 /**************************************************************************
  *        Structures
@@ -200,7 +200,7 @@ function gobj_find_service(
     verbose
 )
 {
-    let service_gobj = _service_gobjs[service_name];
+    let service_gobj = __jn_services__[service_name];
     if(!service_gobj && verbose) {
         log_warning(`gobj service not found: ${service_name}`);
         return null;
@@ -208,10 +208,13 @@ function gobj_find_service(
     return service_gobj;
 }
 
-function _register_named_gobj(
-    gobj_name
-) {
-
+function _register_service(gobj)
+{
+    let service_name = gobj.name;
+    if(__jn_services__[service_name]) {
+        log_error(`service ALREADY REGISTERED: ${service_name}. Will be UPDATED`);
+    }
+    __jn_services__[service_name] = gobj;
 }
 
 /************************************************************
@@ -354,15 +357,13 @@ function gobj_create2(
     }
 
     if(is_service) {
-        if(!this._register_service_gobj(gobj)) {
-            return null;
-        }
+        _register_service(gobj);
         gobj.__service__ = true;
     } else {
         gobj.__service__ = false;
     }
-    if(is_service || is_unique) {
-        gobj.gobj_load_persistent_attrs();
+    if(is_service) {
+        gobj_load_persistent_attrs(gobj);
     }
     if(is_volatil) {
         gobj.__volatil__ = true;
