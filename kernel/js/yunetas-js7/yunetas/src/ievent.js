@@ -1,33 +1,10 @@
 /**************************************************************************
  *      IEvent GClass
-
-DEBUG: {
-    "realm_name": "",
-    "yuno_role": "Mobile",
-    "yuno_name": "mobile",
-    "yuno_version": "1.0.0",
-    "yuno_release": "1.0.0",
-    "yuneta_version": "4.19.0",
-    "playing": false,
-    "pid": 0,
-    "jwt": "",
-    "launch_id": 0,
-    "required_services": [],
-    "__md_iev__": {
-        "ievent_gate_stack": [
-            {
-                "dst_yuno": null,
-                "dst_role": "mobile_gate",
-                "dst_service": "agent",
-                "src_yuno": "mobile",
-                "src_role": "Mobile",
-                "src_service": "iev___default_service__"
-            }
-        ]
-    }
-}
-
- *      Interevents to remote yuno
+ *      Inter-events to remote yuno
+ *
+ *      Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Copyright (c) 2014,2024 Niyamaka.
+ *      Copyright (c) 2025, ArtGins.
  **************************************************************************/
 
 /********************************************

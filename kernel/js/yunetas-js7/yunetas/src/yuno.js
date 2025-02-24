@@ -1,15 +1,9 @@
 /*********************************************************************************
- *  The Default Yuno
+ *      The Default Yuno
  *
- *  Author: Niyamaka
- *  Email: Niyamaka at yuneta.io
- *  Licence: MIT (http://www.opensource.org/licenses/mit-license)
- *
- *  Last revision:
- *      20 Junio 2014 - Upgraded to yuneta api.
- *                      changes in send_inter_event.
- *
- *      15 Julio 2015 - Upgraded to yuneta 1.0.0.
+ *      Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Copyright (c) 2014,2024 Niyamaka.
+ *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
 
 /**************************************************************************

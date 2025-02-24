@@ -1,9 +1,9 @@
 /*********************************************************************************
- *          dbsimple.js
+ *      dbsimple.js
  *
- *          Author: Niyamaka
- *          Email: Niyamaka at yuneta.io
- *          Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Copyright (c) 2014,2024 Niyamaka.
+ *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
 
 /************************************************************

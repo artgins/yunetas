@@ -1,17 +1,9 @@
 /*********************************************************************************
  *  Objects with a simple Finite State Machine.
  *
- *  Author: Niyamaka
- *  Email: Niyamaka at yuneta.io
- *  Licence: MIT (http://www.opensource.org/licenses/mit-license)
- *
- *  Last revision:
- *      20 Junio 2014 - Upgraded to yuneta api.
- *          - changes in send_inter_event.
- *          - removed Event class. The even now is a simple string like C Yuneta.
- *
- *      15 Julio 2015 - Upgraded to yuneta 1.0.0.
- *
+ *      Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Copyright (c) 2014,2024 Niyamaka.
+ *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
 import {
     log_error,

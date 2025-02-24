@@ -1,17 +1,9 @@
 /*********************************************************************************
- *        Auxiliary functions
- *  Ni puta idea de javascript.
- *  La parte para simular clases es copiado. Casi acierto a la primera oye.
- *  Lo siento, solo quería crear una clase, pero ha salido esta cosa.
- *  Con poder programar con mis gobjs tengo suficiente.
+ *      Auxiliary functions
  *
- *  Last revision:
- *      20 Jun 2014 - Upgraded to yuneta api. Nothing to do.
- *      15 Jul 2015 - Upgraded to yuneta 1.0.0.
- *      Jun 2024    - many new functions
- *
- *      Feb 2025    - Migrate to yunetas-7
- *
+ *      Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Copyright (c) 2014,2024 Niyamaka.
+ *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
 
 /************************************************************
