@@ -351,35 +351,44 @@ function gobj_create2(
     gobj.dl_childs = [];
     gobj.user_data = {};
 
-    let config = {}; // TODO get from gclass
-
-    gobj.config = json_deep_copy(config);
-    _json_object_update_config(gobj.config, kw || {});
-    gobj.private = kw_extract_private(gobj.config);
-
     gobj.tracing = 0;
     gobj.trace_timer = 0;
     gobj.running = false;
     gobj._destroyed = false;
     gobj.timer_id = -1; // for now, only one timer per fsm, and hardcoded.
     gobj.timer_event_name = "EV_TIMEOUT";
+    gobj.__volatil__ = (gobj_flag & gobj_flag_t.gobj_flag_volatil);
     // TODO gobj.fsm_create(fsm_desc); // Create gobj.fsm
 
+    /*--------------------------------*
+     *  Write configuration
+     *--------------------------------*/
+    let config = {}; // TODO get from gclass
 
+    gobj.config = json_deep_copy(config);
+    _json_object_update_config(gobj.config, kw || {});
+    gobj.private = kw_extract_private(gobj.config);
+
+    /*--------------------------------------*
+     *  Load writable and persistent attrs
+     *  of services and __root__
+     *--------------------------------------*/
+    if(is_service) {
+        if(__global_load_persistent_attrs_fn__) {
+            __global_load_persistent_attrs_fn__(gobj, 0);
+        }
+    }
+
+    /*--------------------------*
+     *  Register service
+     *--------------------------*/
     if(is_service) {
         _register_service(gobj);
         gobj.__service__ = true;
     } else {
         gobj.__service__ = false;
     }
-    if(is_service) {
-        gobj_load_persistent_attrs(gobj);
-    }
-    if(is_volatil) {
-        gobj.__volatil__ = true;
-    } else {
-        gobj.__volatil__ = false;
-    }
+
 
     /*--------------------------------------*
      *      Add to parent
@@ -401,7 +410,11 @@ function gobj_create2(
      *-------------------------------------*/
     if(parent && parent.mt_child_added) {
         if (this.config.trace_creation) {
-            log_debug(sprintf("👦👦🔵 child_added(%s): %s", parent.gobj_full_name(), gobj.gobj_short_name()));
+            log_debug(sprintf(
+                "👦👦🔵 child_added(%s): %s",
+                parent.gobj_full_name(),
+                gobj.gobj_short_name())
+            );
         }
         parent.mt_child_added(gobj);
     }

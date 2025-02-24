@@ -1795,7 +1795,7 @@ PUBLIC hgobj gobj_create2(
 
     /*--------------------------------------*
      *  Load writable and persistent attrs
-     *  of named-gobjs and __root__
+     *  of services and __root__
      *--------------------------------------*/
     if(gobj->gobj_flag & (gobj_flag_service)) {
         if(__global_load_persistent_attrs_fn__) {
