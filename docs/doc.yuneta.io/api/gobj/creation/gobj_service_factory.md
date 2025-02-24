@@ -21,8 +21,8 @@ Creates a service gobj using [`gobj_create_tree0()`](#gobj_create_tree0) and reg
 
 ```C
 hgobj gobj_service_factory(
-    const char *name,
-    json_t *jn_service_config // owned
+    const char  *name,
+    json_t      *jn_service_config // owned
 );
 ```
 

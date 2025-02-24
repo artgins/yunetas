@@ -21,7 +21,7 @@ Destroys all child objects of the given [`hgobj`](#hgobj), ensuring proper clean
 
 ```C
 void gobj_destroy_childs(
-    hgobj gobj
+    hgobj   gobj
 );
 ```
 

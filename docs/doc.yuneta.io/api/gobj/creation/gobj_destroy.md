@@ -21,7 +21,7 @@ The `gobj_destroy()` function deallocates and removes a given [`hgobj`](#hgobj) 
 
 ```C
 void gobj_destroy(
-    hgobj gobj
+    hgobj   gobj
 );
 ```
 

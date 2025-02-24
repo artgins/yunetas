@@ -159,6 +159,152 @@ function json_object_update_config(destination, source) {
     return destination;
 }
 
+/************************************************************
+ *      gobj_create factory.
+ ************************************************************/
+function gobj_create2(
+    gobj_name,
+    gclass_name,
+    kw,
+    parent,
+    gobj_flag
+) {
+
+}
+
+proto._gobj_create = function(gobj_name, gclass_name, kw, parent, is_service, is_unique, is_volatil)
+{
+    if(is_string(gclass_name)) {
+        let gclass_ = gclass_name;
+        gclass_name = gobj_find_gclass(gclass_, false);
+        if(!gclass_name) {
+            log_error("GClass not found: '" + gclass_ +"'");
+            return null;
+        }
+    }
+
+    if(!empty_string(gobj_name)) {
+        /*
+         *  Check that the gobj_name: cannot contain `
+         */
+        if(gobj_name.indexOf("`")>=0) {
+            log_error("GObj gobj_name cannot contain \"`\" char: '" + gobj_name + "'");
+            return null;
+        }
+        /*
+         *  Check that the gobj_name: cannot contain ^
+         */
+        if(gobj_name.indexOf("^")>=0) {
+            log_error("GObj gobj_name cannot contain \"^\" char: '" + gobj_name + "'");
+            return null;
+        }
+    } else {
+        /*
+         *  To facility the work with jquery, I generate all gobjs as named gobjs.
+         *  If a gobj has no gobj_name, generate a unique gobj_name with uniqued_id.
+         */
+        // force all gobj to have a gobj_name.
+        // useful to make DOM elements with id depending of his gobj.
+        // WARNING danger change, 13/Ago/2020, now anonymous gobjs in js
+        gobj_name = ""; // get_unique_id('gobj');
+    }
+
+    if (!(typeof parent === 'string' || parent instanceof GObj)) {
+        log_error("Yuno.gobj_create() BAD TYPE of parent: " + parent);
+        return null;
+    }
+
+    if (typeof parent === 'string') {
+        // find the named gobj
+        parent = this.gobj_find_unique_gobj(parent);
+        if (!parent) {
+            let msg = "Yuno.gobj_create('" + gobj_name + "'): " +
+                "WITHOUT registered named PARENT: '" + parent + "'";
+            log_warning(msg);
+            return null;
+        }
+    }
+
+    let gobj = new gclass_name(gobj_name, kw);
+    gobj.yuno = this;
+
+    if (this.config.trace_creation) {
+        let gclass_name = gobj.gclass_name || '';
+        log_debug(sprintf("💙💙⏩ creating: %s%s %s^%s",
+            is_service?"service":"", is_unique?"unique":"", gclass_name, gobj_name
+        ));
+    }
+
+    if(!gobj.gobj_load_persistent_attrs) {
+        let msg = "Check GClass of '" + gobj_name + "': don't look a GClass";
+        log_error(msg);
+        return null;
+    }
+    if(gobj_name) {
+        // All js gobjs are unique-named!
+        // WARNING danger change, 13/Ago/2020, now anonymous gobjs in js
+        //if(!this._register_unique_gobj(gobj)) {
+        //    return null;
+        //}
+    }
+
+    if(is_unique) {
+        if(!this._register_unique_gobj(gobj)) {
+            return null;
+        }
+        gobj.__unique__ = true;
+    } else {
+        gobj.__unique__ = false;
+    }
+    if(is_service) {
+        if(!this._register_service_gobj(gobj)) {
+            return null;
+        }
+        gobj.__service__ = true;
+    } else {
+        gobj.__service__ = false;
+    }
+    if(is_service || is_unique) {
+        gobj.gobj_load_persistent_attrs();
+    }
+    if(is_volatil) {
+        gobj.__volatil__ = true;
+    } else {
+        gobj.__volatil__ = false;
+    }
+
+    /*--------------------------------------*
+     *      Add to parent
+     *--------------------------------------*/
+    if(parent) {
+        parent._add_child(gobj);
+    }
+
+    /*--------------------------------*
+     *      Exec mt_create
+     *--------------------------------*/
+    if(gobj.mt_create) {
+        gobj.mt_create(kw);
+    }
+
+    /*--------------------------------------*
+     *  Inform to parent
+     *  when the child is full operative
+     *-------------------------------------*/
+    if(parent && parent.mt_child_added) {
+        if (this.config.trace_creation) {
+            log_debug(sprintf("👦👦🔵 child_added(%s): %s", parent.gobj_full_name(), gobj.gobj_short_name()));
+        }
+        parent.mt_child_added(gobj);
+    }
+
+    if (this.config.trace_creation) {
+        log_debug("💙💙⏪ created: " + gobj.gobj_full_name());
+    }
+
+    return gobj;
+};
+
 
 //=======================================================================
 //      Expose the class via the global object

@@ -21,10 +21,10 @@ Creates a new `gobj` as a pure child of the specified parent. A pure child sends
 
 ```C
 hgobj gobj_create_pure_child(
-    const char *gobj_name,
-    gclass_name_t gclass_name,
-    json_t *kw,    // owned
-    hgobj parent
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw,    // owned
+    hgobj           parent
 );
 ```
 

@@ -21,10 +21,10 @@ Creates a new `gobj` (generic object) instance of the specified `gclass` and ass
 
 ```C
 hgobj gobj_create(
-    const char *gobj_name,
-    gclass_name_t gclass_name,
-    json_t *kw, // owned
-    hgobj parent
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent
 );
 ```
 

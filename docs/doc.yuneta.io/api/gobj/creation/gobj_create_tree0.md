@@ -21,8 +21,8 @@ Creates a hierarchical tree of `gobj` instances, initializing attributes and lin
 
 ```C
 hgobj gobj_create_tree0(
-    hgobj parent,
-    json_t *jn_tree
+    hgobj       parent,
+    json_t      *jn_tree
 );
 ```
 

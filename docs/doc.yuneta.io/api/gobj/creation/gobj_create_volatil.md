@@ -21,10 +21,10 @@ Creates a new volatile `gobj` instance of the specified `gclass_name` with the g
 
 ```C
 hgobj gobj_create_volatil(
-    const char *gobj_name,
-    gclass_name_t gclass_name,
-    json_t *kw, // owned
-    hgobj parent
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent
 );
 ```
 

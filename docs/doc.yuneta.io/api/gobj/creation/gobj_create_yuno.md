@@ -21,9 +21,9 @@ Creates a new Yuno object with the specified name and gclass. The Yuno object se
 
 ```C
 hgobj gobj_create_yuno(
-    const char *gobj_name,
-    gclass_name_t gclass_name,
-    json_t *kw // owned
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw // owned
 );
 ```
 

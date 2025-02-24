@@ -21,11 +21,11 @@ Creates a new `gobj` (generic object) with the specified name, class, attributes
 
 ```C
 hgobj gobj_create2(
-    const char *gobj_name_,
-    gclass_name_t gclass_name,
-    json_t *kw, // owned
-    hgobj parent_,
-    gobj_flag_t gobj_flag
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw,    // owned
+    hgobj           parent,
+    gobj_flag_t     gobj_flag
 );
 ```
 

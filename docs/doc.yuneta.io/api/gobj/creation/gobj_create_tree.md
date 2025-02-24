@@ -21,9 +21,9 @@ Creates a hierarchical tree of `gobj` instances from a JSON configuration string
 
 ```C
 hgobj gobj_create_tree(
-    hgobj parent,
-    const char *tree_config,
-    const char *json_config_variables
+    hgobj           parent,
+    const char      *tree_config,
+    const char      *json_config_variables
 );
 ```
 

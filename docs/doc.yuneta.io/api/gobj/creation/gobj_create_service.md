@@ -21,9 +21,9 @@ The `gobj_create_service()` function creates a new service GObj instance with th
 
 ```C
 hgobj gobj_create_service(
-    const char *gobj_name,
-    gclass_name_t gclass_name,
-    json_t *kw,  // owned
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw,  // owned
     hgobj parent
 );
 ```

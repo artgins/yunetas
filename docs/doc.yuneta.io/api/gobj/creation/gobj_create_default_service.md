@@ -21,10 +21,10 @@ The function `gobj_create_default_service()` creates a default service gobj with
 
 ```C
 hgobj gobj_create_default_service(
-    const char *gobj_name,
-    gclass_name_t gclass_name,
-    json_t *kw, // owned
-    hgobj parent
+    const char      *gobj_name,
+    gclass_name_t   gclass_name,
+    json_t          *kw, // owned
+    hgobj           parent
 );
 ```
 
