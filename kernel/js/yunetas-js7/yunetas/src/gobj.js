@@ -6,14 +6,17 @@
  *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
 import {
+    is_string,
     log_error,
+    log_warning,
     trace_msg,
+    empty_string,
 } from "./utils.js";
+import {sprintf} from "./sprintf.js";
 
 /**************************************************************************
- *        GObj
+ *        Private data
  **************************************************************************/
-let _gclass_register = {};
 let __inside_event_loop__ = 0;
 let __jn_global_settings__ =  null;
 let __global_load_persistent_attrs_fn__ = null;
@@ -23,6 +26,35 @@ let __global_list_persistent_attrs_fn__ = null;
 let __global_command_parser_fn__ = null;
 let __global_stats_parser_fn__ = null;
 
+let _gclass_register = {};
+let _service_gobjs = {};
+
+/**************************************************************************
+ *        gobj_flag_t
+ *
+    // Example usage:
+    let gobj_flag = gobj_flag_t.gobj_flag_yuno | gobj_flag_t.gobj_flag_service;
+
+    // Check if a flag is set
+    if (gobj_flag & gobj_flag_t.gobj_flag_service) {
+        console.log("Service flag is set");
+    }
+ **************************************************************************/
+const gobj_flag_t = Object.freeze({
+    gobj_flag_yuno:            0x0001,
+    gobj_flag_default_service: 0x0002,
+    gobj_flag_service:         0x0004,  // Interface (events, attrs, commands, stats)
+    gobj_flag_volatil:         0x0008,
+    gobj_flag_pure_child:      0x0010,  // Pure child sends events directly to parent
+    gobj_flag_autostart:       0x0020,  // Set by gobj_create_tree0 too
+    gobj_flag_autoplay:        0x0040,  // Set by gobj_create_tree0 too
+});
+
+
+// Convert to array of names for debugging
+function print_gobj_flags(flagValue) {
+    return Object.keys(gobj_flag_t).filter(key => flagValue & gobj_flag_t[key]);
+}
 
 /************************************************************
  *      Start up
@@ -86,10 +118,26 @@ function gobj_find_gclass(gclass_name, verbose)
     }
     if(!gclass) {
         if(verbose) {
-            log_error("Yuno.gobj_find_gclass(): '" + gclass_name + "' gclass not found");
+            log_error(`gclass not found: ${gclass_name}`);
         }
     }
     return gclass;
+}
+
+/************************************************************
+ *        find a service
+ ************************************************************/
+function gobj_find_service(
+    service_name,
+    verbose
+)
+{
+    let service_gobj = _service_gobjs[service_name];
+    if(!service_gobj && verbose) {
+        log_warning(`gobj service not found: ${service_name}`);
+        return null;
+    }
+    return service_gobj;
 }
 
 /************************************************************
@@ -114,7 +162,7 @@ function gobj_find_gclass(gclass_name, verbose)
 function gobj_get_gclass_config(gclass_name, verbose)
 {
     let gclass = gobj_find_gclass(gclass_name, verbose);
-    if(gclass && gclass.prototype.mt_get_gclass_config) {
+    if(gclass && gclass.prototype.mt_get_gclass_config) { // TODO review
         return gclass.prototype.mt_get_gclass_config.call();
     } else {
         if(verbose) {
@@ -125,7 +173,6 @@ function gobj_get_gclass_config(gclass_name, verbose)
         return null;
     }
 }
-
 
 /************************************************************
  *
@@ -142,7 +189,7 @@ function gobj_list_persistent_attrs()
 /************************************************************
  *  Update existing in first level, and all in next levels
  ************************************************************/
-function json_object_update_config(destination, source) {
+function _json_object_update_config(destination, source) {
     if(!source) {
         return destination;
     }
@@ -171,18 +218,18 @@ function gobj_create2(
     parent,
     gobj_flag
 ) {
-
-}
-
-proto._gobj_create = function(gobj_name, gclass_name, kw, parent, is_service, is_unique, is_volatil)
-{
-    if(is_string(gclass_name)) {
-        let gclass_ = gclass_name;
-        gclass_name = gobj_find_gclass(gclass_, false);
-        if(!gclass_name) {
-            log_error("GClass not found: '" + gclass_ +"'");
-            return null;
-        }
+    if(empty_string(gclass_name)) {
+        log_error(`gclass_name must be a string`);
+        return null;
+    }
+    gclass_name = gobj_find_gclass(gclass_name, false);
+    if(!gclass_name) {
+        log_error(`GClass not defined: ${gclass_name}`);
+        return null;
+    }
+    if(!is_string(gobj_name)) {
+        log_error(`gobj_name must be a string`);
+        return null;
     }
 
     if(!empty_string(gobj_name)) {
@@ -190,50 +237,41 @@ proto._gobj_create = function(gobj_name, gclass_name, kw, parent, is_service, is
          *  Check that the gobj_name: cannot contain `
          */
         if(gobj_name.indexOf("`")>=0) {
-            log_error("GObj gobj_name cannot contain \"`\" char: '" + gobj_name + "'");
+            log_error(`gobj_name cannot contain char \': ${gobj_name}`);
             return null;
         }
         /*
          *  Check that the gobj_name: cannot contain ^
          */
         if(gobj_name.indexOf("^")>=0) {
-            log_error("GObj gobj_name cannot contain \"^\" char: '" + gobj_name + "'");
+            log_error(`gobj_name cannot contain char ^: ${gobj_name}`);
             return null;
         }
-    } else {
-        /*
-         *  To facility the work with jquery, I generate all gobjs as named gobjs.
-         *  If a gobj has no gobj_name, generate a unique gobj_name with uniqued_id.
-         */
-        // force all gobj to have a gobj_name.
-        // useful to make DOM elements with id depending of his gobj.
-        // WARNING danger change, 13/Ago/2020, now anonymous gobjs in js
-        gobj_name = ""; // get_unique_id('gobj');
     }
 
     if (!(typeof parent === 'string' || parent instanceof GObj)) {
-        log_error("Yuno.gobj_create() BAD TYPE of parent: " + parent);
+        log_error(`BAD TYPE of parent: ${parent}`);
         return null;
     }
 
-    if (typeof parent === 'string') {
+    if (is_string(parent)) {
         // find the named gobj
-        parent = this.gobj_find_unique_gobj(parent);
+        parent = gobj_find_service(parent);
         if (!parent) {
-            let msg = "Yuno.gobj_create('" + gobj_name + "'): " +
-                "WITHOUT registered named PARENT: '" + parent + "'";
-            log_warning(msg);
+            log_warning(`parent service not found: ${parent}`);
             return null;
         }
     }
+
+    let is_service = (gobj_flag & gobj_flag_t.gobj_flag_service);
 
     let gobj = new gclass_name(gobj_name, kw);
     gobj.yuno = this;
 
     if (this.config.trace_creation) {
         let gclass_name = gobj.gclass_name || '';
-        log_debug(sprintf("💙💙⏩ creating: %s%s %s^%s",
-            is_service?"service":"", is_unique?"unique":"", gclass_name, gobj_name
+        log_debug(sprintf("💙💙⏩ creating: %s %s^%s",
+            is_service?"service":"", gclass_name, gobj_name
         ));
     }
 
@@ -250,14 +288,7 @@ proto._gobj_create = function(gobj_name, gclass_name, kw, parent, is_service, is
         //}
     }
 
-    if(is_unique) {
-        if(!this._register_unique_gobj(gobj)) {
-            return null;
-        }
-        gobj.__unique__ = true;
-    } else {
-        gobj.__unique__ = false;
-    }
+
     if(is_service) {
         if(!this._register_service_gobj(gobj)) {
             return null;
@@ -305,18 +336,21 @@ proto._gobj_create = function(gobj_name, gclass_name, kw, parent, is_service, is
     }
 
     return gobj;
-};
+}
 
 
 //=======================================================================
 //      Expose the class via the global object
 //=======================================================================
 export {
+    gobj_flag_t,
     gobj_start_up,
     gobj_register_gclass,
     gobj_find_gclass,
-
+    gobj_find_service,
     gobj_get_gclass_config,
+    gobj_list_persistent_attrs,
+    gobj_create2,
     // GObj,
     // gcflag_manual_start,
     // gcflag_no_check_output_events,
