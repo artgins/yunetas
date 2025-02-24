@@ -264,6 +264,54 @@ function gclass_create(
 }
 
 /************************************************************
+ *
+ ************************************************************/
+function gclass_unregister()
+{
+
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gclass_add_state()
+{
+
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gclass_add_ev_action()
+{
+
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gclass_find_event_type()
+{
+
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gclass_add_event_type()
+{
+
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gclass_check_fsm()
+{
+
+}
+
+/************************************************************
  *      Find gclass
  ************************************************************/
 function gclass_find_by_name(gclass_name, verbose)
@@ -545,9 +593,15 @@ function gobj_create2(
 export {
     gobj_flag_t,
     gobj_start_up,
+    gclass_create,
+    gclass_unregister,
+    gclass_add_state,
+    gclass_add_ev_action,
+    gclass_find_event_type,
+    gclass_add_event_type,
+    gclass_check_fsm,
     gclass_find_by_name,
     gobj_find_service,
-    gobj_get_gclass_config,
     gobj_list_persistent_attrs,
     gobj_create2,
     // GObj,
