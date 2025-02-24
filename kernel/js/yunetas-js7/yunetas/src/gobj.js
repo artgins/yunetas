@@ -9,8 +9,10 @@ import {
     is_string,
     log_error,
     log_warning,
-    trace_msg,
+    log_debug,
     empty_string,
+    json_deep_copy,
+    kw_extract_private,
 } from "./utils.js";
 import {sprintf} from "./sprintf.js";
 
@@ -26,8 +28,75 @@ let __global_list_persistent_attrs_fn__ = null;
 let __global_command_parser_fn__ = null;
 let __global_stats_parser_fn__ = null;
 
+let trace_creation = false;
+
 let _gclass_register = {};
 let _service_gobjs = {};
+
+/**************************************************************************
+ *        Structures
+ **************************************************************************/
+function GClass(
+    gclass_name,
+    event_types,
+    states,
+    gmt,
+    lmt,
+    tattr_desc,
+    priv_size,
+    authz_table,
+    command_table,
+    s_user_trace_level,
+    gclass_flag
+) {
+    this.gclass_name = gclass_name;
+    this.event_types = event_types;
+    this.states = states;
+    this.gmt = gmt;
+    this.lmt = lmt;
+    this.tattr_desc = tattr_desc;
+    this.priv_size = priv_size;
+    this.authz_table = authz_table;
+    this.command_table = command_table;
+    this.s_user_trace_level = s_user_trace_level;
+    this.gclass_flag = gclass_flag;
+}
+
+function GObj(
+    gobj_name,
+    gclass,
+    kw,
+    parent,
+    gobj_flag
+) {
+    this.gobj_name = gobj_name;
+    this.gclass = gclass;
+    this.parent = parent;
+    this.gobj_flag = gobj_flag;
+
+    this.current_state = ""; // TODO dl_first(&gclass->dl_states);
+    this.last_state = 0;
+
+    this.dl_subscriptions = [];
+    this.dl_subscribings = []; // TODO WARNING not implemented, subscribed events loss
+    this.dl_childs = [];
+    this.user_data = {};
+
+    let config = {}; // TODO get from gclass
+
+    this.config = json_deep_copy(config);
+    _json_object_update_config(this.config, kw || {});
+    this.private = kw_extract_private(this.config);
+
+    this.tracing = 0;
+    this.trace_timer = 0;
+    this.running = false;
+    this._destroyed = false;
+    this.timer_id = -1; // for now, only one timer per fsm, and hardcoded.
+    this.timer_event_name = "EV_TIMEOUT";
+    // TODO this.fsm_create(fsm_desc); // Create this.fsm
+
+}
 
 /**************************************************************************
  *        gobj_flag_t
@@ -49,7 +118,6 @@ const gobj_flag_t = Object.freeze({
     gobj_flag_autostart:       0x0020,  // Set by gobj_create_tree0 too
     gobj_flag_autoplay:        0x0040,  // Set by gobj_create_tree0 too
 });
-
 
 // Convert to array of names for debugging
 function print_gobj_flags(flagValue) {
@@ -88,7 +156,7 @@ function gobj_register_gclass(
     gclass_name
 )
 {
-    if(!gclass) {
+    if(!gclass || !(gclass instanceof GClass)) {
         log_error(`gclass undefined`);
         return -1;
     }
@@ -138,6 +206,12 @@ function gobj_find_service(
         return null;
     }
     return service_gobj;
+}
+
+function _register_named_gobj(
+    gobj_name
+) {
+
 }
 
 /************************************************************
@@ -222,8 +296,8 @@ function gobj_create2(
         log_error(`gclass_name must be a string`);
         return null;
     }
-    gclass_name = gobj_find_gclass(gclass_name, false);
-    if(!gclass_name) {
+    let gclass = gobj_find_gclass(gclass_name, false);
+    if(!gclass) {
         log_error(`GClass not defined: ${gclass_name}`);
         return null;
     }
@@ -249,12 +323,12 @@ function gobj_create2(
         }
     }
 
-    if (!(typeof parent === 'string' || parent instanceof GObj)) {
+    if(!(typeof parent === 'string' || parent instanceof GObj)) {
         log_error(`BAD TYPE of parent: ${parent}`);
         return null;
     }
 
-    if (is_string(parent)) {
+    if(is_string(parent)) {
         // find the named gobj
         parent = gobj_find_service(parent);
         if (!parent) {
@@ -264,30 +338,20 @@ function gobj_create2(
     }
 
     let is_service = (gobj_flag & gobj_flag_t.gobj_flag_service);
+    if(is_service) {
+        if(gobj_find_service(gobj_name)) {
+            log_warning(`service already defined: ${gobj_name}`);
+            return null;
+        }
+    }
+    let gobj = new GObj(gobj_name, gclass, kw, parent, gobj_flag);
 
-    let gobj = new gclass_name(gobj_name, kw);
-    gobj.yuno = this;
-
-    if (this.config.trace_creation) {
+    if(trace_creation) {
         let gclass_name = gobj.gclass_name || '';
         log_debug(sprintf("💙💙⏩ creating: %s %s^%s",
             is_service?"service":"", gclass_name, gobj_name
         ));
     }
-
-    if(!gobj.gobj_load_persistent_attrs) {
-        let msg = "Check GClass of '" + gobj_name + "': don't look a GClass";
-        log_error(msg);
-        return null;
-    }
-    if(gobj_name) {
-        // All js gobjs are unique-named!
-        // WARNING danger change, 13/Ago/2020, now anonymous gobjs in js
-        //if(!this._register_unique_gobj(gobj)) {
-        //    return null;
-        //}
-    }
-
 
     if(is_service) {
         if(!this._register_service_gobj(gobj)) {

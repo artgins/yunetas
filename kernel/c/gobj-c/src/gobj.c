@@ -200,7 +200,7 @@ PRIVATE void *_mem_malloc(size_t size);
 PRIVATE void _mem_free(void *p);
 PRIVATE void *_mem_realloc(void *p, size_t new_size);
 PRIVATE void *_mem_calloc(size_t n, size_t size);
-PRIVATE int register_named_gobj(gobj_t *gobj);
+PRIVATE int _register_service(gobj_t *gobj);
 PRIVATE int deregister_named_gobj(gobj_t *gobj);
 PRIVATE int write_json_parameters(
     gobj_t *gobj,
@@ -1810,7 +1810,7 @@ PUBLIC hgobj gobj_create2(
      *  Register service
      *--------------------------*/
     if(gobj->gobj_flag & (gobj_flag_service)) {
-        register_named_gobj(gobj);
+        _register_service(gobj);
     }
     if(gobj->gobj_flag & (gobj_flag_yuno)) {
         __yuno__ = gobj;
@@ -2351,9 +2351,9 @@ PUBLIC void gobj_destroy_childs(hgobj gobj_)
 }
 
 /***************************************************************************
- *  register named gobj
+ *  register service gobj
  ***************************************************************************/
-PRIVATE int register_named_gobj(gobj_t *gobj)
+PRIVATE int _register_service(gobj_t *gobj)
 {
     if(json_object_get(__jn_services__, gobj->gobj_name)) {
         gobj_t *prev_gobj = (hgobj)(size_t)json_integer_value(
