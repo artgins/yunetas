@@ -13,6 +13,7 @@ import {
     empty_string,
     json_deep_copy,
     kw_extract_private,
+    trace_msg,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -476,7 +477,7 @@ function _json_object_update_config(destination, source) {
 }
 
 /************************************************************
- *      gobj_create factory.
+ *
  ************************************************************/
 function gobj_create2(
     gobj_name,
@@ -639,6 +640,30 @@ function gobj_create2(
     return gobj;
 }
 
+/************************************************************
+ *
+ ************************************************************/
+function gobj_destroy(gobj)
+{
+    trace_msg("gobj_destroy()");
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_start(gobj)
+{
+    trace_msg("gobj_start()");
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_stop(gobj)
+{
+    trace_msg("gobj_stop()");
+}
+
 
 //=======================================================================
 //      Expose the class via the global object
@@ -657,6 +682,9 @@ export {
     gobj_find_service,
     gobj_list_persistent_attrs,
     gobj_create2,
+    gobj_destroy,
+    gobj_start,
+    gobj_stop,
     // GObj,
     // gcflag_manual_start,
     // gcflag_no_check_output_events,
