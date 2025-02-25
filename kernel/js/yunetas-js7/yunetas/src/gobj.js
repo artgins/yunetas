@@ -266,7 +266,54 @@ function gclass_create(
 /************************************************************
  *
  ************************************************************/
-function gclass_unregister()
+function gclass_unregister(gclass)
+{
+    let gclass_name;
+    if(is_string(gclass)) {
+        gclass_name = gclass;
+    } else if(gclass instanceof GClass) {
+        gclass_name = gclass.gclass_name;
+    } else {
+        log_error(`Cannot unregister gclass, type unknown`);
+        return -1;
+    }
+
+    let gclass_ = _gclass_register[gclass_name];
+    if(!gclass_) {
+        log_error(`Cannot unregister gclass, not found: ${gclass_name}`);
+        return -1;
+    }
+    if(gclass_.instances > 0) {
+        log_error(`Cannot unregister gclass, instances in use: ${gclass_name}`);
+        return -1;
+    }
+
+    delete _gclass_register[gclass_name];
+    return 0;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gclass_add_state(gclass, state_name)
+{
+    if(!(gclass instanceof GClass)) {
+        log_error(`Cannot add state, typeof not GClass`);
+        return -1;
+    }
+
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gclass_add_ev_action(
+    gclass,
+    state_name,
+    event_name,
+    action,
+    next_state
+)
 {
 
 }
@@ -274,7 +321,7 @@ function gclass_unregister()
 /************************************************************
  *
  ************************************************************/
-function gclass_add_state()
+function gclass_add_event_type(gclass, event_type)
 {
 
 }
@@ -282,7 +329,7 @@ function gclass_add_state()
 /************************************************************
  *
  ************************************************************/
-function gclass_add_ev_action()
+function gclass_find_event_type(gclass, event_name)
 {
 
 }
@@ -290,23 +337,7 @@ function gclass_add_ev_action()
 /************************************************************
  *
  ************************************************************/
-function gclass_find_event_type()
-{
-
-}
-
-/************************************************************
- *
- ************************************************************/
-function gclass_add_event_type()
-{
-
-}
-
-/************************************************************
- *
- ************************************************************/
-function gclass_check_fsm()
+function gclass_check_fsm(gclass)
 {
 
 }

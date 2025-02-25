@@ -1076,6 +1076,16 @@ PUBLIC int gclass_add_ev_action(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int gclass_add_event_type(hgclass gclass_, event_type_t *event_type)
+{
+    gclass_t *gclass = gclass_;
+
+    return add_event_type(&gclass->dl_events, event_type);
+}
+
+/***************************************************************************
  *  Find a public event in any gclass
  ***************************************************************************/
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
@@ -1252,16 +1262,6 @@ PUBLIC event_type_t *gclass_find_event_type(hgclass gclass_, gobj_event_t event)
         event_ = dl_next(event_);
     }
     return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int gclass_add_event_type(hgclass gclass_, event_type_t *event_type)
-{
-    gclass_t *gclass = gclass_;
-
-    return add_event_type(&gclass->dl_events, event_type);
 }
 
 /***************************************************************************
