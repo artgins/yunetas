@@ -1,6 +1,6 @@
 <!-- ============================================================== -->
-(gclass_find_event_in_event_list())=
-# `gclass_find_event_in_event_list()`
+(gclass_find_event_type())=
+# `gclass_find_event_type()`
 <!-- ============================================================== -->
 
 Searches for an event in the event list of a given `gclass` and returns its event type if found.
@@ -20,7 +20,7 @@ Searches for an event in the event list of a given `gclass` and returns its even
 **Prototype**
 
 ```C
-event_type_t *gclass_find_event_in_event_list(
+event_type_t *gclass_find_event_type(
     hgclass gclass,
     gobj_event_t event
 );
