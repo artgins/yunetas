@@ -302,6 +302,7 @@ function gclass_add_state(gclass, state_name)
         return -1;
     }
 
+    return 0;
 }
 
 /************************************************************
@@ -315,7 +316,12 @@ function gclass_add_ev_action(
     next_state
 )
 {
+    if(!(gclass instanceof GClass)) {
+        log_error(`Cannot add state, typeof not GClass`);
+        return -1;
+    }
 
+    return 0;
 }
 
 /************************************************************
@@ -323,7 +329,12 @@ function gclass_add_ev_action(
  ************************************************************/
 function gclass_add_event_type(gclass, event_type)
 {
+    if(!(gclass instanceof GClass)) {
+        log_error(`Cannot add state, typeof not GClass`);
+        return -1;
+    }
 
+    return 0;
 }
 
 /************************************************************
@@ -331,7 +342,12 @@ function gclass_add_event_type(gclass, event_type)
  ************************************************************/
 function gclass_find_event_type(gclass, event_name)
 {
+    if(!(gclass instanceof GClass)) {
+        log_error(`Cannot add state, typeof not GClass`);
+        return -1;
+    }
 
+    return 0;
 }
 
 /************************************************************
@@ -339,6 +355,12 @@ function gclass_find_event_type(gclass, event_name)
  ************************************************************/
 function gclass_check_fsm(gclass)
 {
+    if(!(gclass instanceof GClass)) {
+        log_error(`Cannot add state, typeof not GClass`);
+        return -1;
+    }
+
+    return 0;
 
 }
 
