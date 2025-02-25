@@ -187,7 +187,7 @@ static int register_yuno_and_more(void)
     int result = 0;
 
     /*--------------------*
-     *  Register service
+     *  Register gclass
      *--------------------*/
     result += register_c_teston();
     result += register_c_test2();

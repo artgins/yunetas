@@ -14,7 +14,7 @@ import {
 /***************************************************************
  *              Constants
  ***************************************************************/
-const GCLASS_NAME = "C_TIMER";
+const GCLASS_NAME = "C_SAMPLE";
 
 /***************************************************************
  *              Data
@@ -193,9 +193,9 @@ function create_gclass(gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-function register_c_timer()
+function register_c_sample()
 {
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_timer };
+export { register_c_sample };

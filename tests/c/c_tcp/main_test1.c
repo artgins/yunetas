@@ -173,7 +173,7 @@ static int register_yuno_and_more(void)
     int result = 0;
 
     /*--------------------*
-     *  Register service
+     *  Register gclass
      *--------------------*/
     result += register_c_pepon();
     result += register_c_test1();
