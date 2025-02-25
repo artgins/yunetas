@@ -2,29 +2,84 @@
 
 ```{glossary}
 
-PRIVATE
+bool
+    BOOL
+    ```C
+    #ifndef BOOL
+    # define BOOL   bool
+    #endif
+    ```
+
+false
+    FALSE
+    ```C
+    #ifndef FALSE
+    # define FALSE  false
+    #endif
+    ```
+
+true
+    TRUE
+    ```C
+    #ifndef TRUE
+    # define TRUE   true
+    #endif
+    ```
+
+private
+    PRIVATE
     Defines a static function or variable with file scope.
+    ```C
+    #define PRIVATE static
+    ```
 
-PUBLIC
+public
+    PUBLIC
     Defines a function or variable with external linkage.
+    ```C
+    #define PUBLIC
+    ```
 
-BOOL
-    Boolean type (`TRUE` or `FALSE`).
-
-TRUE
-    `0`
-
-FALSE
-    `0`
-
-MIN
+min
+    MIN
     Returns the smaller of `a` and `b`.
+    ```C
+    #ifndef MIN
+    # define MIN(a,b) (((a) < (b)) ? (a) : (b))
+    #endif
+    ```
 
-MAX
+max
+    MAX
     Returns the larger of `a` and `b`.
+    ```C
+    #ifndef MAX
+    # define MAX(a,b) (((a) > (b)) ? (a) : (b))
+    #endif
+    ```
 
-ARRAY_SIZE
+array_size
+    ARRAY_SIZE
     Returns the number of elements in array `a`.
+    ```C
+    #ifndef ARRAY_SIZE
+    #define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
+    #endif
+    ```
+
+gobj_define_gclass
+    GOBJ_DEFINE_GCLASS
+    Define a variable in the **`.c`** file.
+    ```C
+    #define GOBJ_DEFINE_GCLASS(id) gclass_name_t id = #id
+    ```
+
+gobj_declare_gclass
+    GOBJ_DECLARE_GCLASS
+    Declare a variable in the **`.h`** file.
+    ```C
+    #define GOBJ_DECLARE_GCLASS(id) extern gclass_name_t id
+    ```
 
 json_t
     The `json_t` type is part of the [Jansson](https://jansson.readthedocs.io/) library, used for representing JSON data in C. It provides a flexible way to work with JSON objects, arrays, and primitives such as strings and numbers.

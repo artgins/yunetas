@@ -70,8 +70,8 @@ The name of the gclass.
 
 Each `GClass` has a unique name to identify it.
 
-In C must be defined with the macro [`GOBJ_DEFINE_GCLASS`](GOBJ_DEFINE_GCLASS) in `.c` file 
-and [`GOBJ_DECLARE_GCLASS`](GOBJ_DECLARE_GCLASS) in `.h` file.
+In C must be defined with the macro [`GOBJ_DEFINE_GCLASS`](gobj_define_gclass) in `.c` file 
+and [`GOBJ_DECLARE_GCLASS`](gobj_declare_gclass) in `.h` file.
 
 
 (tattr_desc)=
