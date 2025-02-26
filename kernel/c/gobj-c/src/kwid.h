@@ -380,7 +380,7 @@ PUBLIC void kw_update_except(
 /************************************************************************
     WARNING
 
-    **duplicate** is a copy with new references
+    **duplicated** is a copy with new references
             to duplicate you must use json_deep_copy()
 
     **clone** is a copy with incref references
