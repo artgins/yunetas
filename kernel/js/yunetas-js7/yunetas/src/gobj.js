@@ -35,6 +35,8 @@ let trace_creation = false;
 let _gclass_register = {};
 let __jn_services__ = {};
 
+let __yuno__ = null;
+
 /**************************************************************************
  *        Structures
  **************************************************************************/
@@ -83,17 +85,26 @@ function GObj(
     this.gobj_flag = gobj_flag;
 }
 
-/**************************************************************************
+/*
  *        gobj_flag_t
  *
     // Example usage:
+
     let gobj_flag = gobj_flag_t.gobj_flag_yuno | gobj_flag_t.gobj_flag_service;
 
     // Check if a flag is set
+
     if (gobj_flag & gobj_flag_t.gobj_flag_service) {
         console.log("Service flag is set");
     }
- **************************************************************************/
+
+    // Convert to array of names for debugging
+
+    function print_gobj_flags(flagValue) {
+        return Object.keys(gobj_flag_t).filter(key => flagValue & gobj_flag_t[key]);
+    }
+
+ */
 const gobj_flag_t = Object.freeze({
     gobj_flag_yuno:            0x0001,
     gobj_flag_default_service: 0x0002,
@@ -104,10 +115,25 @@ const gobj_flag_t = Object.freeze({
     gobj_flag_autoplay:        0x0040,  // Set by gobj_create_tree0 too
 });
 
-// Convert to array of names for debugging
-function print_gobj_flags(flagValue) {
-    return Object.keys(gobj_flag_t).filter(key => flagValue & gobj_flag_t[key]);
-}
+const gclass_flag_t = Object.freeze({
+    gcflag_manual_start:             0x0001,   // gobj_start_tree() doesn't start automatically
+    gcflag_no_check_output_events:   0x0002,   // When publishing, don't check events in output_event_list
+    gcflag_ignore_unknown_attrs:     0x0004,   // When creating a gobj, ignore non-existing attrs
+    gcflag_required_start_to_play:   0x0008,   // Don't play if start wasn't done
+    gcflag_singleton:                0x0010,   // Can only have one instance
+});
+
+/*
+ *  Usage
+
+    let flags = gclass_flag_t.gcflag_manual_start | gclass_flag_t.gcflag_singleton;
+
+    if (flags & gclass_flag_t.gcflag_manual_start) {
+        console.log("Manual start flag is set");
+    }
+
+ */
+
 
 /************************************************************
  *      Start up
@@ -489,13 +515,60 @@ function gobj_create2(
     /*--------------------------------*
      *      Check parameters
      *--------------------------------*/
+    /*
+     *  gobj_name to lower, make case-insensitive
+     */
+    gobj_name = gobj_name.toLowerCase();
+
+    if(gobj_flag & (gobj_flag_t.gobj_flag_yuno)) {
+        if(__yuno__) {
+            log_error(`__yuno__ already created`);
+            return null;
+        }
+        gobj_flag |= gobj_flag_t.gobj_flag_service;
+
+    } else {
+        if(!parent) {
+            log_error(`gobj NEEDS a parent!`);
+            return null;
+        }
+    }
+
+    if(gobj_flag & (gobj_flag_t.gobj_flag_service)) {
+        if(gobj_find_service(gobj_name, false)) {
+            log_error(`service ALREADY registered: ${gclass_name}`);
+            return null;
+        }
+    }
+
+    if(gobj_flag & (gobj_flag_default_service)) {
+        if(gobj_find_service(gobj_name, FALSE) || __default_service__) {
+            gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "default service ALREADY registered!",
+                "gclass",       "%s", gclass_name,
+                "name",         "%s", gobj_name,
+                NULL
+            );
+            JSON_DECREF(kw)
+            return NULL;
+        }
+        gobj_flag |= gobj_flag_service;
+    }
+
+
+
+
+
+
     if(empty_string(gclass_name)) {
         log_error(`gclass_name must be a string`);
         return null;
     }
     let gclass = gclass_find_by_name(gclass_name, false);
     if(!gclass) {
-        log_error(`GClass not defined: ${gclass_name}`);
+        log_error(`GClass not registered: ${gclass_name}`);
         return null;
     }
     if(!is_string(gobj_name)) {
@@ -519,6 +592,16 @@ function gobj_create2(
             return null;
         }
     }
+
+
+
+
+
+
+
+
+
+
 
     if(!(typeof parent === 'string' || parent instanceof GObj)) {
         log_error(`BAD TYPE of parent: ${parent}`);
@@ -670,6 +753,7 @@ function gobj_stop(gobj)
 //=======================================================================
 export {
     gobj_flag_t,
+    gclass_flag_t,
     gobj_start_up,
     gclass_create,
     gclass_unregister,

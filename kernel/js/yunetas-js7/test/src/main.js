@@ -26,19 +26,6 @@ import {register_c_sample} from "./c_sample.js";
 /***************************************************************
  *
  ***************************************************************/
-window.addEventListener('load', function() {
-    /*
-     *  Delete message "Loading application. Wait please..."
-     */
-    document.getElementById("loading-message").remove();
-
-    main();
-    sample_uplot();
-});
-
-/***************************************************************
- *
- ***************************************************************/
 function sample_uplot()
 {
     // Example: Creating a uPlot chart
@@ -123,3 +110,16 @@ function main()
      *      Create __default_service__
      *------------------------------------------------*/
 }
+
+/***************************************************************
+ *
+ ***************************************************************/
+window.addEventListener('load', function() {
+    /*
+     *  Delete message "Loading application. Wait please..."
+     */
+    document.getElementById("loading-message").remove();
+
+    main();
+    sample_uplot();
+});
