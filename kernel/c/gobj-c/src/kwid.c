@@ -987,6 +987,57 @@ PUBLIC json_t *kw_select( // WARNING return **duplicated** objects
 }
 
 /***************************************************************************
+    Being `kw` a row's list or list of dicts [{},...],
+    return a new list of incref (clone) kw filtering the rows by `jn_filter` (where),
+    If match_fn is 0 then kw_match_simple is used.
+ ***************************************************************************/
+PUBLIC json_t *kw_collect( // WARNING return **duplicated** objects
+    hgobj gobj,
+    json_t *kw,         // not owned
+    json_t *jn_filter,  // owned
+    BOOL (*match_fn) (
+        json_t *kw,         // not owned
+        json_t *jn_filter   // owned
+    )
+)
+{
+    if(!match_fn) {
+        match_fn = kw_match_simple;
+    }
+    json_t *kw_new = json_array();
+
+    if(json_is_array(kw)) {
+        size_t idx;
+        json_t *jn_value;
+        json_array_foreach(kw, idx, jn_value) {
+            KW_INCREF(jn_filter);
+            if(match_fn(jn_value, jn_filter)) {
+                json_t *jn_row = json_incref(jn_value);
+                json_array_append_new(kw_new, jn_row);
+            }
+        }
+    } else if(json_is_object(kw)) {
+        KW_INCREF(jn_filter);
+        if(match_fn(kw, jn_filter)) {
+            json_t *jn_row = json_incref(kw);
+            json_array_append_new(kw_new, jn_row);
+        }
+
+    } else  {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "kw MUST BE a json array or object",
+            NULL
+        );
+        return kw_new;
+    }
+
+    KW_DECREF(jn_filter);
+    return kw_new;
+}
+
+/***************************************************************************
     Compare deeply two json **records**. Can be disordered.
  ***************************************************************************/
 PUBLIC BOOL kwid_compare_records(

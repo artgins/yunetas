@@ -38,6 +38,7 @@ New API
 
     build_stats_response
     trq_append2
+    kw_collect
 
 
 Delete API

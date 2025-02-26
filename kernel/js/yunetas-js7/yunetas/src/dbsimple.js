@@ -6,13 +6,20 @@
  *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
 
+import {
+    kw_get_local_storage_value,
+    kw_remove_local_storage_value,
+    kw_set_local_storage_value,
+    json_object_update_existing,
+    is_object,
+} from "./utils.js";
+
 /************************************************************
  *
  ************************************************************/
 function _get_persistent_path(gobj)
 {
-    let path = "persistent-attrs-" + gobj.gobj_short_name();
-    return path;
+    return "persistent-attrs-" + gobj.gobj_short_name();
 }
 
 /************************************************************
@@ -22,7 +29,7 @@ function db_load_persistent_attrs(gobj)
 {
     let attrs = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
     if(attrs && is_object(attrs)) {
-        __update_dict__(
+        json_object_update_existing(
             gobj.config,
             filter_dict(attrs, gobj.gobj_get_writable_attrs())
         );

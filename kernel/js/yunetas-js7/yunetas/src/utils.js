@@ -792,7 +792,41 @@ function kw_match_simple(kw, jn_filter)
 
 /*************************************************************
     Being `kw` a row's list or list of dicts [{},...],
-    return a new list of incref (clone) kw filtering the rows by `jn_filter` (where),
+    return a new list of **duplicated** kw filtering the rows by `jn_filter` (where),
+    If match_fn is 0 then kw_match_simple is used.
+ *************************************************************/
+function kw_select(kw, jn_filter, match_fn)
+{
+    if(!kw) {
+        return null;
+    }
+    if(!match_fn) {
+        match_fn = kw_match_simple;
+    }
+    let kw_new = [];
+
+    if(is_array(kw)) {
+        for(let i=0; i<kw.length; i++) {
+            let jn_value = kw[i];
+            if(match_fn(jn_value, jn_filter)) {
+                kw_new.push(json_deep_copy(jn_value));
+            }
+        }
+    } else if(is_object(kw)) {
+        if(match_fn(kw, jn_filter)) {
+            kw_new.push(json_deep_copy(kw));
+        }
+    } else {
+        log_error("kw_select() BAD kw parameter");
+        return null;
+    }
+
+    return kw_new;
+}
+
+/*************************************************************
+    Being `kw` a row's list or list of dicts [{},...],
+    return a new list of incref (clone) kw filtering the rows by `jn_filter` (where)
     If match_fn is 0 then kw_match_simple is used.
  *************************************************************/
 function kw_collect(kw, jn_filter, match_fn)
@@ -817,11 +851,36 @@ function kw_collect(kw, jn_filter, match_fn)
             kw_new.push(kw);
         }
     } else {
-        log_error("kw_collect() BAD kw parameter");
+        log_error("kw_select() BAD kw parameter");
         return null;
     }
 
     return kw_new;
+}
+
+/*************************************************************
+ *  From a dict,
+ *  get a new dict with the same objects with only attributes in keylist
+ *  keylist can be a [s,...] of {s:..., ...}
+ *************************************************************/
+function filter_dict(dict, keylist)
+{
+    let new_dict = {};
+    if(is_array(keylist)) {
+        for(let j=0; j<keylist.length; j++) {
+            let key = keylist[j];
+            if(dict.hasOwnProperty(key)) {
+                new_dict[key] = dict[key];
+            }
+        }
+    } else if(is_object(keylist)) {
+        for(let key in keylist) {
+            if(dict.hasOwnProperty(key)) {
+                new_dict[key] = dict[key];
+            }
+        }
+    }
+    return new_dict;
 }
 
 /*************************************************************
@@ -1006,7 +1065,7 @@ function kwid_collect(kw, ids, jn_filter, match_fn)
         }
 
     } else  {
-        log_error("kw_collect() BAD kw parameter");
+        log_error("kw_select() BAD kw parameter");
         return null;
     }
 
@@ -2325,6 +2384,7 @@ export {
     kw_extract_private,
     kw_is_identical,
     kw_match_simple,
+    kw_select,
     kw_collect,
     kwid_get_ids,
     kwid_match_id,
