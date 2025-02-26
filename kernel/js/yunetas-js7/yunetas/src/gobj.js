@@ -635,6 +635,7 @@ function gobj_create2(
     /*--------------------------------*
      *      Initialize variables
      *--------------------------------*/
+    // TODO
     gobj.jn_attrs =  json_deep_copy(gclass.config); // jn_attrs sdata_create tattr_desc;
     gobj.priv = json_deep_copy(gclass.private); // kw_extract_private(gobj.config);
     gobj.current_state = null; // TODO dl_first(&gclass->dl_states);
