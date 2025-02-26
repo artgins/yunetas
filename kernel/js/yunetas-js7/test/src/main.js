@@ -13,9 +13,15 @@ import {
     db_remove_persistent_attrs,
     db_list_persistent_attrs,
     gobj_create_yuno,
+    gobj_create_default_service,
+    gobj_create,
     gobj_destroy,
     gobj_start,
     gobj_stop,
+    gobj_play,
+    gobj_pause,
+    gobj_yuno,
+    trace_msg,
 } from "yunetas";
 
 // Import uPlot
@@ -74,39 +80,40 @@ function main()
     );
 
     /*------------------------------------------------*
-     *  Create a sample gobj
+     *  Create the yuno
      *------------------------------------------------*/
-    let gobj_sample = gobj_create_yuno(
+    trace_msg("CREATING __yuno__");
+    let yuno = gobj_create_yuno(
+        "yuno",
+        "C_YUNO",
+        {
+            yuno_name: "",
+            yuno_role: "",
+            yuno_version: "",
+        }
+    );
+
+    /*-------------------------------------*
+     *      Create default_service
+     *-------------------------------------*/
+    trace_msg("CREATING default_service");
+    let gobj_default_service = gobj_create_default_service(
         "sample",
         "C_SAMPLE",
-        {}
+        {},
+        gobj_yuno()
     );
-    gobj_start(gobj_sample);
-    gobj_stop(gobj_sample);
-    gobj_destroy(gobj_sample);
 
-    // trace_msg("CREATING __yuno__");
-    // let __yuno__ = new Yuno(
-    //     yuno_name,
-    //     yuno_role,
-    //     yuno_version,
-    //     kw
-    // );
-    //
-    //
-    // trace_msg("CREATING __default_service__: " + yuno_role);
-    // __yuno__.__default_service__ = __yuno__.gobj_create(
-    //     yuno_role,
-    //     gclass_default_service,
-    //     kw_main,
-    //     __yuno__
-    // );
-    // trace_msg("CREATED __default_service__");
-    // __yuno__.__default_service__.gobj_start();
+    /*-------------------------------------*
+     *      Play yuno
+     *-------------------------------------*/
+    gobj_play(yuno);
+    gobj_pause(yuno);
+    gobj_stop(yuno);
 
-    /*------------------------------------------------*
-     *      Create __default_service__
-     *------------------------------------------------*/
+    gobj_destroy(gobj_default_service);
+    gobj_destroy(yuno);
+
 }
 
 /***************************************************************

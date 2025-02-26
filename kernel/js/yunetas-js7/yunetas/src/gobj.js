@@ -818,12 +818,36 @@ function gobj_stop(gobj)
 /************************************************************
  *
  ************************************************************/
+function gobj_play(gobj)
+{
+    trace_msg("gobj_play()");
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_pause(gobj)
+{
+    trace_msg("gobj_pause()");
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function gobj_yuno()
 {
     if(!__yuno__ || (__yuno__.obflag & obflag_t.obflag_destroyed)) {
         return null;
     }
     return __yuno__;
+}
+
+function gobj_default_service()
+{
+    if(!__default_service__ || (__default_service__.obflag & obflag_t.obflag_destroyed)) {
+        return null;
+    }
+    return __default_service__;
 }
 
 /************************************************************
@@ -886,7 +910,10 @@ export {
     gobj_destroy,
     gobj_start,
     gobj_stop,
+    gobj_play,
+    gobj_pause,
     gobj_yuno,
+    gobj_default_service,
     gobj_short_name,
     gobj_full_name,
     gobj_parent,
