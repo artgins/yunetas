@@ -849,6 +849,14 @@ function gobj_full_name(gobj)
     return full_name;
 }
 
+/************************************************************
+ *      get parent
+ ************************************************************/
+function gobj_parent(gobj)
+{
+    return gobj.parent;
+}
+
 
 
 //=======================================================================
@@ -881,4 +889,5 @@ export {
     gobj_yuno,
     gobj_short_name,
     gobj_full_name,
+    gobj_parent,
 };
