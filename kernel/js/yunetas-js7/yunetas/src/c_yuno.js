@@ -7,10 +7,13 @@
  *          All Rights Reserved. ****************************************************************************/
 import {
     gclass_create,
-    log_error,
     gclass_flag_t,
+} from "./gobj.js";
+
+import {
+    log_error,
     trace_msg,
-} from "yunetas";
+} from "./utils.js";
 
 /***************************************************************
  *              Constants
