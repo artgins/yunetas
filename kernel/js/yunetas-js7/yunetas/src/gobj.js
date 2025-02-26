@@ -36,6 +36,7 @@ let _gclass_register = {};
 let __jn_services__ = {};
 
 let __yuno__ = null;
+let __default_service__ = null;
 
 /**************************************************************************
  *        Structures
@@ -44,8 +45,8 @@ function GClass(
     gclass_name,
     gmt,
     lmt,
-    tattr_desc,
-    priv_size,
+    config,
+    private_,
     authz_table,
     command_table,
     s_user_trace_level,
@@ -57,8 +58,8 @@ function GClass(
     this.gmt = gmt;        // Global methods
     this.lmt = lmt;
 
-    this.tattr_desc = tattr_desc;
-    this.priv_size = priv_size;
+    this.config = config;       // tattr_desc
+    this.private = private_;    // priv_size
     this.authz_table = authz_table; // acl
     this.command_table = command_table; // if it exits then mt_command is not used.
 
@@ -134,6 +135,12 @@ const gclass_flag_t = Object.freeze({
 
  */
 
+const obflag_t = Object.freeze({
+    obflag_destroying:  0x0001,
+    obflag_destroyed:   0x0002,
+    obflag_created:     0x0004,
+});
+
 
 /************************************************************
  *      Start up
@@ -194,8 +201,8 @@ function gclass_create(
     states,
     gmt,
     lmt,
-    tattr_desc,
-    priv_size,
+    config,
+    private_,
     authz_table,
     command_table,
     s_user_trace_level,
@@ -220,8 +227,8 @@ function gclass_create(
         gclass_name,
         gmt,
         lmt,
-        tattr_desc,
-        priv_size,
+        config,
+        private_,
         authz_table,
         command_table,
         s_user_trace_level,
@@ -532,6 +539,20 @@ function gobj_create2(
             log_error(`gobj NEEDS a parent!`);
             return null;
         }
+
+        if(!(typeof parent === 'string' || parent instanceof GObj)) {
+            log_error(`BAD TYPE of parent: ${parent}`);
+            return null;
+        }
+
+        if(is_string(parent)) {
+            // find the named gobj
+            parent = gobj_find_service(parent);
+            if (!parent) {
+                log_warning(`parent service not found: ${parent}`);
+                return null;
+            }
+        }
     }
 
     if(gobj_flag & (gobj_flag_t.gobj_flag_service)) {
@@ -541,26 +562,13 @@ function gobj_create2(
         }
     }
 
-    if(gobj_flag & (gobj_flag_default_service)) {
-        if(gobj_find_service(gobj_name, FALSE) || __default_service__) {
-            gobj_log_error(0, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "default service ALREADY registered!",
-                "gclass",       "%s", gclass_name,
-                "name",         "%s", gobj_name,
-                NULL
-            );
-            JSON_DECREF(kw)
-            return NULL;
+    if(gobj_flag & (gobj_flag_t.gobj_flag_default_service)) {
+        if(gobj_find_service(gobj_name, false) || __default_service__) {
+            log_error(`default service ALREADY registered: ${gclass_name}`);
+            return null;
         }
-        gobj_flag |= gobj_flag_service;
+        gobj_flag |= gobj_flag_t.gobj_flag_service;
     }
-
-
-
-
-
 
     if(empty_string(gclass_name)) {
         log_error(`gclass_name must be a string`);
@@ -593,84 +601,57 @@ function gobj_create2(
         }
     }
 
-
-
-
-
-
-
-
-
-
-
-    if(!(typeof parent === 'string' || parent instanceof GObj)) {
-        log_error(`BAD TYPE of parent: ${parent}`);
-        return null;
-    }
-
-    if(is_string(parent)) {
-        // find the named gobj
-        parent = gobj_find_service(parent);
-        if (!parent) {
-            log_warning(`parent service not found: ${parent}`);
-            return null;
-        }
-    }
-
-    let is_service = (gobj_flag & gobj_flag_t.gobj_flag_service);
-    if(is_service) {
-        if(gobj_find_service(gobj_name)) {
-            log_warning(`service already defined: ${gobj_name}`);
-            return null;
-        }
-    }
-
     /*--------------------------------*
      *      Alloc memory
      *--------------------------------*/
     let gobj = new GObj(gobj_name, gclass, kw, parent, gobj_flag);
 
-    if(trace_creation) {
-        let gclass_name = gobj.gclass_name || '';
-        log_debug(sprintf("💙💙⏩ creating: %s %s^%s",
-            is_service?"service":"", gclass_name, gobj_name
-        ));
-    }
-
     /*--------------------------------*
      *      Initialize variables
      *--------------------------------*/
+    gobj.gclass = gclass;
+    gobj.parent = parent;
+    gobj.dl_childs = [];
+    gobj.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
+    gobj.dl_subscriptions = [];
     gobj.current_state = ""; // TODO dl_first(&gclass->dl_states);
     gobj.last_state = 0;
+    gobj.obflag = 0;
+    gobj.gobj_flag = gobj_flag;
 
-    gobj.dl_subscriptions = [];
-    gobj.dl_subscribings = []; // TODO WARNING not implemented, subscribed events loss
-    gobj.dl_childs = [];
-    gobj.user_data = {};
+    gobj.gobj_name = gobj_name;
+    gobj.config =  json_deep_copy(gclass.config); // jn_attrs sdata_create tattr_desc;
+    gobj.jn_stats = {};
+    gobj.jn_user_data = {};
+    gobj.private = json_deep_copy(gclass.private); // kw_extract_private(gobj.config);
 
-    gobj.tracing = 0;
-    gobj.trace_timer = 0;
-    gobj.running = false;
-    gobj._destroyed = false;
-    gobj.timer_id = -1; // for now, only one timer per fsm, and hardcoded.
-    gobj.timer_event_name = "EV_TIMEOUT";
-    gobj.__volatil__ = (gobj_flag & gobj_flag_t.gobj_flag_volatil);
+    if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
+        log_debug(sprintf("💙💙⏩ creating: %s^%s",
+            gclass.gclass_name, gobj_name
+        ));
+    }
+
+    // from gobj.js 6
+    // gobj.tracing = 0;
+    // gobj.trace_timer = 0;
+    // gobj.running = false;
+    // gobj._destroyed = false;
+    // gobj.timer_id = -1; // for now, only one timer per fsm, and hardcoded.
+    // gobj.timer_event_name = "EV_TIMEOUT";
+    // gobj.__volatil__ = (gobj_flag & gobj_flag_t.gobj_flag_volatil);
     // TODO gobj.fsm_create(fsm_desc); // Create gobj.fsm
 
     /*--------------------------------*
      *  Write configuration
      *--------------------------------*/
-    let config = {}; // TODO get from gclass
-
-    gobj.config = json_deep_copy(config);
     _json_object_update_config(gobj.config, kw || {});
-    gobj.private = kw_extract_private(gobj.config);
+    //write_json_parameters(gobj, kw, __jn_global_settings__);
 
     /*--------------------------------------*
      *  Load writable and persistent attrs
      *  of services and __root__
      *--------------------------------------*/
-    if(is_service) {
+    if(gobj.gobj_flag & (gobj_flag_t.gobj_flag_service)) {
         if(__global_load_persistent_attrs_fn__) {
             __global_load_persistent_attrs_fn__(gobj, 0);
         }
@@ -679,48 +660,135 @@ function gobj_create2(
     /*--------------------------*
      *  Register service
      *--------------------------*/
-    if(is_service) {
+    if(gobj.gobj_flag & (gobj_flag_t.gobj_flag_service)) {
         _register_service(gobj);
-        gobj.__service__ = true;
-    } else {
-        gobj.__service__ = false;
     }
-
+    if(gobj.gobj_flag & (gobj_flag_t.gobj_flag_yuno)) {
+        __yuno__ = gobj;
+    }
+    if(gobj.gobj_flag & (gobj_flag_t.gobj_flag_default_service)) {
+        __default_service__ = gobj;
+    }
 
     /*--------------------------------------*
      *      Add to parent
      *--------------------------------------*/
-    if(parent) {
+    if(!(gobj.gobj_flag & (gobj_flag_t.gobj_flag_yuno))) {
         parent._add_child(gobj);
     }
 
     /*--------------------------------*
      *      Exec mt_create
      *--------------------------------*/
-    if(gobj.mt_create) {
-        gobj.mt_create(kw);
+    gobj.obflag |= obflag_t.obflag_created;
+    gobj.gclass.instances++;
+
+    if(gobj.gclass.gmt.mt_create2) {
+        gobj.gclass.gmt.mt_create2(gobj, kw);
+    } else if(gobj.gclass.gmt.mt_create) {
+        gobj.gclass.gmt.mt_create(gobj);
     }
 
     /*--------------------------------------*
      *  Inform to parent
      *  when the child is full operative
      *-------------------------------------*/
-    if(parent && parent.mt_child_added) {
-        if (this.config.trace_creation) {
+    if(parent && parent.gclass.gmt.mt_child_added) {
+        if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
             log_debug(sprintf(
                 "👦👦🔵 child_added(%s): %s",
                 parent.gobj_full_name(),
                 gobj.gobj_short_name())
             );
         }
-        parent.mt_child_added(gobj);
+        parent.gclass.gmt.mt_child_added(parent, gobj);
     }
 
-    if (this.config.trace_creation) {
+    if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
         log_debug("💙💙⏪ created: " + gobj.gobj_full_name());
     }
 
     return gobj;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_create_yuno(
+    gobj_name,
+    gclass_name,
+    kw
+) {
+    return gobj_create2(gobj_name, gclass_name, kw, null, gobj_flag_t.gobj_flag_yuno);
+}
+
+function gobj_create_service(
+    gobj_name,
+    gclass_name,
+    kw,
+    parent
+) {
+    return gobj_create2(gobj_name, gclass_name, kw, parent, gobj_flag_t.gobj_flag_service);
+}
+
+function gobj_create_default_service(
+    gobj_name,
+    gclass_name,
+    kw,
+    parent
+) {
+    return gobj_create2(
+        gobj_name,
+        gclass_name,
+        kw,
+        parent,
+        gobj_flag_t.gobj_flag_default_service|gobj_flag_t.gobj_flag_autostart
+    );
+}
+
+function gobj_create_volatil(
+    gobj_name,
+    gclass_name,
+    kw,
+    parent
+) {
+    return gobj_create2(
+        gobj_name,
+        gclass_name,
+        kw,
+        parent,
+        gobj_flag_t.gobj_flag_volatil
+    );
+}
+
+function gobj_create_pure_child(
+    gobj_name,
+    gclass_name,
+    kw,
+    parent
+) {
+    return gobj_create2(
+        gobj_name,
+        gclass_name,
+        kw,
+        parent,
+        gobj_flag_t.gobj_flag_pure_child
+    );
+}
+
+function gobj_create(
+    gobj_name,
+    gclass_name,
+    kw,
+    parent
+) {
+    return gobj_create2(
+        gobj_name,
+        gclass_name,
+        kw,
+        parent,
+        0
+    );
 }
 
 /************************************************************
@@ -747,6 +815,14 @@ function gobj_stop(gobj)
     trace_msg("gobj_stop()");
 }
 
+function gobj_yuno()
+{
+    if(!__yuno__ || (__yuno__.obflag & obflag_t.obflag_destroyed)) {
+        return null;
+    }
+    return __yuno__;
+}
+
 
 //=======================================================================
 //      Expose the class via the global object
@@ -766,10 +842,13 @@ export {
     gobj_find_service,
     gobj_list_persistent_attrs,
     gobj_create2,
+    gobj_create_yuno,
+    gobj_create_service,
+    gobj_create_default_service,
+    gobj_create_volatil,
+    gobj_create_pure_child,
+    gobj_create,
     gobj_destroy,
     gobj_start,
     gobj_stop,
-    // GObj,
-    // gcflag_manual_start,
-    // gcflag_no_check_output_events,
 };

@@ -12,7 +12,7 @@ import {
     db_save_persistent_attrs,
     db_remove_persistent_attrs,
     db_list_persistent_attrs,
-    gobj_create2,
+    gobj_create_yuno,
     gobj_destroy,
     gobj_start,
     gobj_stop,
@@ -76,12 +76,10 @@ function main()
     /*------------------------------------------------*
      *  Create a sample gobj
      *------------------------------------------------*/
-    let gobj_sample = gobj_create2(
+    let gobj_sample = gobj_create_yuno(
         "sample",
         "C_SAMPLE",
-        {},
-        null,
-        0
+        {}
     );
     gobj_start(gobj_sample);
     gobj_stop(gobj_sample);
