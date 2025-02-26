@@ -9,6 +9,7 @@ import {
     gclass_create,
     log_error,
     gclass_flag_t,
+    trace_msg,
 } from "yunetas";
 
 /***************************************************************
@@ -51,6 +52,7 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
+    trace_msg("mt_create");
 }
 
 /***************************************************************
@@ -58,6 +60,7 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_writing(gobj, path)
 {
+    trace_msg("mt_writing");
 }
 
 /***************************************************************
@@ -65,6 +68,7 @@ function mt_writing(gobj, path)
  ***************************************************************/
 function mt_start(gobj)
 {
+    trace_msg("mt_start");
     return 0;
 }
 
@@ -73,6 +77,7 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    trace_msg("mt_stop");
     return 0;
 }
 
@@ -81,6 +86,7 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+    trace_msg("mt_destroy");
 }
 
 
@@ -112,6 +118,7 @@ function mt_destroy(gobj)
  ***************************************************************/
 function ac_timeout(gobj, event, kw, src)
 {
+    trace_msg("ac_timeout");
     return 0;
 }
 
