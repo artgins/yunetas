@@ -22,6 +22,7 @@ import {
     gobj_pause,
     gobj_yuno,
     trace_msg,
+    register_c_yuno,
 } from "yunetas";
 
 // Import uPlot
@@ -64,6 +65,7 @@ function main()
     /*--------------------*
      *  Register gclass
      *--------------------*/
+    register_c_yuno();
     register_c_sample();
 
     /*------------------------------------------------*
