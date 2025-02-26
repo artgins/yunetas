@@ -860,23 +860,31 @@ function kw_collect(kw, jn_filter, match_fn)
 
 /*************************************************************
  *  From a dict,
- *  get a new dict with the same objects with only attributes in keylist
- *  keylist can be a [s,...] of {s:..., ...}
+ *  get a new dict with the same objects with only attributes in keys
+ *  keys can be
+ *          "$key"
+ *         ["$key1", "$key2", ...]
+ *         {"$key1":*, "$key2":*, ...}
  *************************************************************/
-function filter_dict(dict, keylist)
+function kw_clone_by_keys(kw, keys)    // old filter_dict
 {
     let new_dict = {};
-    if(is_array(keylist)) {
-        for(let j=0; j<keylist.length; j++) {
-            let key = keylist[j];
-            if(dict.hasOwnProperty(key)) {
-                new_dict[key] = dict[key];
+    if(is_string(keys)) {
+        let key = keys;
+        if(kw.hasOwnProperty(key)) {
+            new_dict[key] = kw[key];
+        }
+    } else if(is_array(keys)) {
+        for(let j=0; j<keys.length; j++) {
+            let key = keys[j];
+            if(kw.hasOwnProperty(key)) {
+                new_dict[key] = kw[key];
             }
         }
-    } else if(is_object(keylist)) {
-        for(let key in keylist) {
-            if(dict.hasOwnProperty(key)) {
-                new_dict[key] = dict[key];
+    } else if(is_object(keys)) {
+        for(let key in keys) {
+            if(kw.hasOwnProperty(key)) {
+                new_dict[key] = kw[key];
             }
         }
     }
@@ -2386,6 +2394,7 @@ export {
     kw_match_simple,
     kw_select,
     kw_collect,
+    kw_clone_by_keys,
     kwid_get_ids,
     kwid_match_id,
     kwid_collect,
