@@ -12,14 +12,19 @@ import {
     kw_set_local_storage_value,
     json_object_update_existing,
     is_object,
+    kw_clone_by_keys,
 } from "./utils.js";
+
+import {
+    gobj_short_name
+} from "./gobj.js";
 
 /************************************************************
  *
  ************************************************************/
 function _get_persistent_path(gobj)
 {
-    return "persistent-attrs-" + gobj.gobj_short_name();
+    return "persistent-attrs-" + gobj_short_name(gobj);
 }
 
 /************************************************************
@@ -31,7 +36,7 @@ function db_load_persistent_attrs(gobj)
     if(attrs && is_object(attrs)) {
         json_object_update_existing(
             gobj.config,
-            filter_dict(attrs, gobj.gobj_get_writable_attrs())
+            kw_clone_by_keys(attrs, gobj.gobj_get_writable_attrs())
         );
     }
 }
@@ -43,7 +48,7 @@ function db_save_persistent_attrs(gobj)
 {
     kw_set_local_storage_value(
         _get_persistent_path(gobj),
-        filter_dict(gobj.config, gobj.gobj_get_writable_attrs())
+        kw_clone_by_keys(gobj.config, gobj.gobj_get_writable_attrs())
     );
 }
 

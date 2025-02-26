@@ -815,6 +815,9 @@ function gobj_stop(gobj)
     trace_msg("gobj_stop()");
 }
 
+/************************************************************
+ *
+ ************************************************************/
 function gobj_yuno()
 {
     if(!__yuno__ || (__yuno__.obflag & obflag_t.obflag_destroyed)) {
@@ -822,6 +825,30 @@ function gobj_yuno()
     }
     return __yuno__;
 }
+
+/************************************************************
+ *      get short name (gclass^name)
+ ************************************************************/
+function gobj_short_name(gobj)
+{
+    return gobj.gclass.gclass_name + '^' + gobj.gobj_name;
+}
+
+/************************************************************
+ *      Get full name
+ ************************************************************/
+function gobj_full_name(gobj)
+{
+    let full_name = gobj_short_name(gobj);
+    let parent = gobj.parent;
+    while(parent) {
+        let prefix = parent.gobj_short_name();
+        full_name = prefix + '`' + full_name;
+        parent = parent.parent;
+    }
+    return full_name;
+}
+
 
 
 //=======================================================================
@@ -851,4 +878,7 @@ export {
     gobj_destroy,
     gobj_start,
     gobj_stop,
+    gobj_yuno,
+    gobj_short_name,
+    gobj_full_name,
 };
