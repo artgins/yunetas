@@ -12,8 +12,6 @@ import {
     log_debug,
     empty_string,
     json_deep_copy,
-    kw_extract_private,
-    trace_msg,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -39,77 +37,158 @@ let __yuno__ = null;
 let __default_service__ = null;
 
 /**************************************************************************
- *        Structures
+ *              SData - Structured Data
  **************************************************************************/
-function GClass(
-    gclass_name,
-    gmt,
-    lmt,
-    config,
-    private_,
-    authz_table,
-    command_table,
-    s_user_trace_level,
-    gclass_flag
-) {
-    this.gclass_name = gclass_name;
-    this.dl_states = {};  // FSM list states and their ev/action/next
-    this.dl_events = {};  // FSM list of events (gobj_event_t, event_flag_t)
-    this.gmt = gmt;        // Global methods
-    this.lmt = lmt;
+const data_type_t = Object.freeze({
+    DTP_STRING:  1,
+    DTP_BOOLEAN: 2,
+    DTP_INTEGER: 3,
+    DTP_REAL:    4,
+    DTP_LIST:    5,
+    DTP_DICT:    6,
+    DTP_JSON:    7,
+    DTP_POINTER: 8
+});
 
-    this.config = config;       // tattr_desc
-    this.private = private_;    // priv_size
-    this.authz_table = authz_table; // acl
-    this.command_table = command_table; // if it exits then mt_command is not used.
+// Macros as functions
+const DTP_IS_STRING  = (type) => type === data_type_t.DTP_STRING;
+const DTP_IS_BOOLEAN = (type) => type === data_type_t.DTP_BOOLEAN;
+const DTP_IS_INTEGER = (type) => type === data_type_t.DTP_INTEGER;
+const DTP_IS_REAL    = (type) => type === data_type_t.DTP_REAL;
+const DTP_IS_LIST    = (type) => type === data_type_t.DTP_LIST;
+const DTP_IS_DICT    = (type) => type === data_type_t.DTP_DICT;
+const DTP_IS_JSON    = (type) => type === data_type_t.DTP_JSON;
+const DTP_IS_POINTER = (type) => type === data_type_t.DTP_POINTER;
+const DTP_IS_SCHEMA  = (type) => type === DTP_SCHEMA;
+const DTP_SCHEMA     = data_type_t.DTP_POINTER;
+const DTP_IS_NUMBER  = (type) => DTP_IS_INTEGER(type) || DTP_IS_REAL(type) || DTP_IS_BOOLEAN(type);
 
-    this.s_user_trace_level = s_user_trace_level;
-    this.gclass_flag = gclass_flag;
+const sdata_flag_t = Object.freeze({
+    SDF_NOTACCESS:  0x00000001,
+    SDF_RD:         0x00000002,
+    SDF_WR:         0x00000004,
+    SDF_REQUIRED:   0x00000008,
+    SDF_PERSIST:    0x00000010,
+    SDF_VOLATIL:    0x00000020,
+    SDF_RESOURCE:   0x00000040,
+    SDF_PKEY:       0x00000080,
+    SDF_FUTURE1:    0x00000100,
+    SDF_FUTURE2:    0x00000200,
+    SDF_WILD_CMD:   0x00000400,
+    SDF_STATS:      0x00000800,
+    SDF_FKEY:       0x00001000,
+    SDF_RSTATS:     0x00002000,
+    SDF_PSTATS:     0x00004000,
+    SDF_AUTHZ_R:    0x00008000,
+    SDF_AUTHZ_W:    0x00010000,
+    SDF_AUTHZ_X:    0x00020000,
+    SDF_AUTHZ_P:    0x00040000,
+    SDF_AUTHZ_S:    0x00080000,
+    SDF_AUTHZ_RS:   0x00100000
+});
 
-    this.instances = 0;              // instances of this gclass
-    this.trace_level = 0;
-    this.no_trace_level = 0;
-    this.jn_trace_filter = null;
-    this.fsm_checked = false;
+const SDF_PUBLIC_ATTR = sdata_flag_t.SDF_RD | sdata_flag_t.SDF_WR | sdata_flag_t.SDF_STATS |
+                        sdata_flag_t.SDF_PERSIST | sdata_flag_t.SDF_VOLATIL |
+                        sdata_flag_t.SDF_RSTATS | sdata_flag_t.SDF_PSTATS;
+const ATTR_WRITABLE   = sdata_flag_t.SDF_WR | sdata_flag_t.SDF_PERSIST;
+const ATTR_READABLE   = SDF_PUBLIC_ATTR;
+
+class SDataDesc {
+    constructor(type, name, flag = 0, default_value = null, description = "",
+                alias = null, header = null, fillspace = 0, json_fn = null, schema = null, authpth = null) {
+        this.type         = type;
+        this.name         = name;
+        this.alias        = alias;
+        this.flag         = flag;
+        this.default_value= default_value;
+        this.header       = header;
+        this.fillspace    = fillspace;
+        this.description  = description;
+        this.json_fn      = json_fn;
+        this.schema       = schema;
+        this.authpth      = authpth;
+    }
 }
 
-function GObj(
-    gobj_name,
-    gclass,
-    kw,
-    parent,
-    gobj_flag
-) {
-    this.__refs__ = 0;
-    this.gclass = gclass;
-    this.parent = parent;
-    this.dl_childs = [];
+const SDATA_END   = () => new SDataDesc(0, null);
+const SDATA       = (type, name, flag, default_value, description) => new SDataDesc(type, name, flag, default_value, description);
+const SDATACM     = (type, name, alias, items, json_fn, description) => new SDataDesc(type, name, 0, null, description, alias, null, 0, json_fn, items, null);
+const SDATACM2    = (type, name, flag, alias, items, json_fn, description) => new SDataDesc(type, name, flag, null, description, alias, null, 0, json_fn, items, null);
+const SDATAPM     = (type, name, flag, default_value, description) => new SDataDesc(type, name, flag, default_value, description);
+const SDATAAUTHZ  = (type, name, flag, alias, items, description) => new SDataDesc(type, name, flag, null, description, alias, null, 0, null, items, null);
+const SDATAPM0    = (type, name, flag, authpth, description) => new SDataDesc(type, name, flag, null, description, null, null, 0, null, null, authpth);
+const SDATADF     = (type, name, flag, header, fillspace, description) => new SDataDesc(type, name, flag, null, description, null, header, fillspace);
 
-    this.current_state = null;
-    this.last_state = null;
+/***************************************************************
+ *              Structures
+ ***************************************************************/
+class GClass {
+    constructor(
+        gclass_name,
+        gmt,
+        lmt,
+        config,
+        priv,
+        authz_table,
+        command_table,
+        s_user_trace_level,
+        gclass_flag
+    ) {
+        this.gclass_name = gclass_name;
+        this.dl_states = {};  // FSM list states and their ev/action/next
+        this.dl_events = {};  // FSM list of events (gobj_event_t, event_flag_t)
+        this.gmt = gmt;        // Global methods
+        this.lmt = lmt;
 
-    this.gobj_flag = gobj_flag;
-    this.obflag = 0;
+        this.config = config;       // tattr_desc
+        this.priv = priv;           // C priv_size
+        this.authz_table = authz_table; // acl
+        this.command_table = command_table; // if it exits then mt_command is not used.
 
-    this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
-    this.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
+        this.s_user_trace_level = s_user_trace_level;
+        this.gclass_flag = gclass_flag;
 
-    // Data allocated
-    this.gobj_name = gobj_name;
-    this.jn_attrs = null;   // Set in gobj_create2
-    this.jn_stats = {};
-    this.jn_user_data = {};
-    this.full_name = null;
-    this.short_name = null;
-    this.priv = null;       // Set in gobj_create2
+        this.instances = 0;              // instances of this gclass
+        this.trace_level = 0;
+        this.no_trace_level = 0;
+        this.jn_trace_filter = null;
+        this.fsm_checked = false;
+    }
+}
 
-    this.running = false;       // set by gobj_start/gobj_stop
-    this.playing = false;       // set by gobj_play/gobj_pause
-    this.disabled = false;      // set by gobj_enable/gobj_disable
-    this.bottom_gobj = null;
+class GObj {
+    constructor(gobj_name, gclass, kw, parent, gobj_flag) {
+        this.__refs__ = 0;
+        this.gclass = gclass;
+        this.parent = parent;
+        this.dl_childs = [];
 
-    this.trace_level = 0;
-    this.no_trace_level = 0;
+        this.current_state = null;
+        this.last_state = null;
+
+        this.gobj_flag = gobj_flag;
+        this.obflag = 0;
+
+        this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
+        this.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
+
+        // Data allocated
+        this.gobj_name = gobj_name;
+        this.jn_attrs = null;   // Set in gobj_create2
+        this.jn_stats = {};
+        this.jn_user_data = {};
+        this.full_name = null;
+        this.short_name = null;
+        this.priv = null;       // Set in gobj_create2
+
+        this.running = false;       // set by gobj_start/gobj_stop
+        this.playing = false;       // set by gobj_play/gobj_pause
+        this.disabled = false;      // set by gobj_enable/gobj_disable
+        this.bottom_gobj = null;
+
+        this.trace_level = 0;
+        this.no_trace_level = 0;
+    }
 }
 
 /*
@@ -1105,11 +1184,21 @@ function gobj_parent(gobj)
 }
 
 
-
 //=======================================================================
 //      Expose the class via the global object
 //=======================================================================
 export {
+    data_type_t,
+    sdata_flag_t,
+    SDataDesc,
+    SDATA,
+    SDATACM,
+    SDATACM2,
+    SDATAPM,
+    SDATAAUTHZ,
+    SDATAPM0,
+    SDATADF,
+    SDATA_END,
     gobj_flag_t,
     gclass_flag_t,
     gobj_start_up,
