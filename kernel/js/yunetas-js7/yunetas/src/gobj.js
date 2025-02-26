@@ -80,10 +80,36 @@ function GObj(
     parent,
     gobj_flag
 ) {
-    this.gobj_name = gobj_name;
+    this.__refs__ = 0;
     this.gclass = gclass;
     this.parent = parent;
+    this.dl_childs = [];
+
+    this.current_state = null;
+    this.last_state = null;
+
     this.gobj_flag = gobj_flag;
+    this.obflag = 0;
+
+    this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
+    this.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
+
+    // Data allocated
+    this.gobj_name = gobj_name;
+    this.jn_attrs = null;   // Set in gobj_create2
+    this.jn_stats = {};
+    this.jn_user_data = {};
+    this.full_name = null;
+    this.short_name = null;
+    this.priv = null;       // Set in gobj_create2
+
+    this.running = false;       // set by gobj_start/gobj_stop
+    this.playing = false;       // set by gobj_play/gobj_pause
+    this.disabled = false;      // set by gobj_enable/gobj_disable
+    this.bottom_gobj = null;
+
+    this.trace_level = 0;
+    this.no_trace_level = 0;
 }
 
 /*
@@ -609,21 +635,9 @@ function gobj_create2(
     /*--------------------------------*
      *      Initialize variables
      *--------------------------------*/
-    gobj.gclass = gclass;
-    gobj.parent = parent;
-    gobj.dl_childs = [];
-    gobj.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
-    gobj.dl_subscriptions = [];
-    gobj.current_state = ""; // TODO dl_first(&gclass->dl_states);
-    gobj.last_state = 0;
-    gobj.obflag = 0;
-    gobj.gobj_flag = gobj_flag;
-
-    gobj.gobj_name = gobj_name;
-    gobj.config =  json_deep_copy(gclass.config); // jn_attrs sdata_create tattr_desc;
-    gobj.jn_stats = {};
-    gobj.jn_user_data = {};
-    gobj.private = json_deep_copy(gclass.private); // kw_extract_private(gobj.config);
+    gobj.jn_attrs =  json_deep_copy(gclass.config); // jn_attrs sdata_create tattr_desc;
+    gobj.priv = json_deep_copy(gclass.private); // kw_extract_private(gobj.config);
+    gobj.current_state = null; // TODO dl_first(&gclass->dl_states);
 
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
         log_debug(sprintf("💙💙⏩ creating: %s^%s",
@@ -796,10 +810,11 @@ function gobj_create(
  ************************************************************/
 function gobj_destroy(gobj)
 {
-    if(!gobj) {
-        log_error("gobj_destroy(): gobj NULL");
-        return;
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
+        return false;
     }
+
     let full_name = gobj_full_name(gobj);
 
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
@@ -855,60 +870,45 @@ function gobj_destroy(gobj)
  ************************************************************/
 function gobj_start(gobj)
 {
-    if(!gobj) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj NULL",
-            NULL
-        );
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
         return -1;
     }
     if(gobj.running) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "GObj ALREADY RUNNING",
-            NULL
-        );
+        log_error("GObj ALREADY RUNNING");
         return -1;
     }
     if(gobj.disabled) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "GObj DISABLED",
-            NULL
-        );
+        log_error("GObj DISABLED");
         return -1;
     }
 
     /*
-     *  Check required attributes.
+     *  TODO Check required attributes.
      */
-    json_t *jn_required_attrs = gobj_check_required_attrs(gobj);
-    if(jn_required_attrs) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "Cannot start without all required attributes",
-            "attrs",        "%j", jn_required_attrs,
-            NULL
-        );
-        JSON_DECREF(jn_required_attrs)
-        return -1;
-    }
+    // json_t *jn_required_attrs = gobj_check_required_attrs(gobj);
+    // if(jn_required_attrs) {
+    //     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+    //         "gobj",         "%s", gobj_full_name(gobj),
+    //         "function",     "%s", __FUNCTION__,
+    //         "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+    //         "msg",          "%s", "Cannot start without all required attributes",
+    //         "attrs",        "%j", jn_required_attrs,
+    //         NULL
+    //     );
+    //     JSON_DECREF(jn_required_attrs)
+    //     return -1;
+    // }
 
-    if(__trace_gobj_start_stop__(gobj)) {
-        trace_machine("⏺ ⏺ start: %s",
-            gobj_full_name(gobj)
-        );
-    }
+    // if(__trace_gobj_start_stop__(gobj)) {
+    //     trace_machine("⏺ ⏺ start: %s",
+    //         gobj_full_name(gobj)
+    //     );
+    // }
 
-    gobj.running = TRUE;
+    gobj.running = true;
 
-    int ret = 0;
+    let ret = 0;
     if(gobj.gclass.gmt.mt_start) {
         ret = gobj.gclass.gmt.mt_start(gobj);
     }
@@ -920,63 +920,31 @@ function gobj_start(gobj)
  ************************************************************/
 function gobj_stop(gobj)
 {
-    if(!gobj) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj NULL",
-            NULL
-        );
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
         return -1;
     }
-    if(gobj->obflag & obflag_destroying) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "hgobj destroying",
-            NULL
-        );
+    if(!gobj.running) {
+        log_error("GObj NOT RUNNING");
         return -1;
     }
-    if(!gobj->running) {
-        if(!gobj_is_shutdowning()) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-                "msg",          "%s", "GObj NOT RUNNING",
-                NULL
-            );
-        }
-        return -1;
-    }
-    if(gobj->playing) {
+    if(gobj.playing) {
         // It's auto-stopping but display error (magic but warn!).
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "GObj stopping without previous pause",
-            NULL
-        );
+        log_warning("GObj stopping without previous pause");
         gobj_pause(gobj);
     }
 
-    if(__trace_gobj_start_stop__(gobj)) {
-        trace_machine("⏹ ⏹ stop: %s",
-            gobj_full_name(gobj)
-        );
-    }
-//    if(__trace_gobj_monitor__(gobj)) {
-//        monitor_gobj(MTOR_GOBJ_STOP, gobj);
-//    }
+    // if(__trace_gobj_start_stop__(gobj)) {
+    //     trace_machine("⏹ ⏹ stop: %s",
+    //         gobj_full_name(gobj)
+    //     );
+    // }
 
-    gobj->running = FALSE;
+    gobj.running = false;
 
-    int ret = 0;
-    if(gobj->gclass->gmt->mt_stop) {
-        ret = gobj->gclass->gmt->mt_stop(gobj);
+    let ret = 0;
+    if(gobj.gclass.gmt.mt_stop) {
+        ret = gobj.gclass.gmt.mt_stop(gobj);
     }
 
     return ret;
@@ -987,88 +955,47 @@ function gobj_stop(gobj)
  ************************************************************/
 function gobj_play(gobj)
 {
-    if(!gobj) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj NULL",
-            NULL
-        );
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
         return -1;
     }
-    if(gobj->obflag & obflag_destroying) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "hgobj destroying",
-            NULL
-        );
+    if(gobj.playing) {
+        log_error("GObj ALREADY PLAYING");
         return -1;
     }
-    if(gobj->playing) {
-        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "GObj ALREADY PLAYING",
-            NULL
-        );
-        return -1;
-    }
-    if(gobj->disabled) {
-        gobj_log_warning(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "GObj DISABLED",
-            NULL
-        );
+    if(gobj.disabled) {
+        log_error("GObj DISABLED");
         return -1;
     }
     if(!gobj_is_running(gobj)) {
-        if(!(gobj->gclass->gclass_flag & gcflag_required_start_to_play)) {
+        if(!(gobj.gclass.gclass_flag & gclass_flag_t.gcflag_required_start_to_play)) {
             // Default: It's auto-starting but display error (magic but warn!).
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-                "msg",          "%s", "GObj playing without previous start",
-                NULL
-            );
+            log_warning("GObj playing without previous start");
             gobj_start(gobj);
         } else {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-                "msg",          "%s", "Cannot play, start not done",
-                NULL
-            );
+            log_error("Cannot play, start not done");
             return -1;
         }
     }
 
-    if(__trace_gobj_start_stop__(gobj)) {
-        if(!is_machine_not_tracing(gobj, 0)) {
-            trace_machine("⏯ ⏯ play: %s",
-                gobj_full_name(gobj)
-            );
-        }
-    }
-//    if(__trace_gobj_monitor__(gobj)) {
-//        monitor_gobj(MTOR_GOBJ_PLAY, gobj);
-//    }
-    gobj->playing = TRUE;
+    // if(__trace_gobj_start_stop__(gobj)) {
+    //     if(!is_machine_not_tracing(gobj, 0)) {
+    //         trace_machine("⏯ ⏯ play: %s",
+    //             gobj_full_name(gobj)
+    //         );
+    //     }
+    // }
 
-    if(gobj->gclass->gmt->mt_play) {
-        int ret = gobj->gclass->gmt->mt_play(gobj);
+    gobj.playing = true;
+
+    let ret = 0;
+    if(gobj.gclass.gmt.mt_play) {
+        ret = gobj.gclass.gmt.mt_play(gobj);
         if(ret < 0) {
-            gobj->playing = FALSE;
+            gobj.playing = false;
         }
-        return ret;
-    } else {
-        return 0;
     }
+    return ret;
 }
 
 /************************************************************
@@ -1076,49 +1003,27 @@ function gobj_play(gobj)
  ************************************************************/
 function gobj_pause(gobj)
 {
-    if(!gobj) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj NULL",
-            NULL
-        );
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
         return -1;
     }
-    if(gobj->obflag & obflag_destroying) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "hgobj destroying",
-            NULL
-        );
-        return -1;
-    }
-    if(!gobj->playing) {
-        gobj_log_info(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "GObj NOT PLAYING",
-            NULL
-        );
+    if(!gobj.playing) {
+        log_error("GObj NOT PLAYING");
         return -1;
     }
 
-    if(__trace_gobj_start_stop__(gobj)) {
-        if(!is_machine_not_tracing(gobj, 0)) {
-            trace_machine("⏸ ⏸ pause: %s",
-                gobj_full_name(gobj)
-            );
-        }
-    }
-//    if(__trace_gobj_monitor__(gobj)) {
-//        monitor_gobj(MTOR_GOBJ_PAUSE, gobj);
-//    }
-    gobj->playing = FALSE;
+    // if(__trace_gobj_start_stop__(gobj)) {
+    //     if(!is_machine_not_tracing(gobj, 0)) {
+    //         trace_machine("⏸ ⏸ pause: %s",
+    //             gobj_full_name(gobj)
+    //         );
+    //     }
+    // }
 
-    if(gobj->gclass->gmt->mt_pause) {
-        return gobj->gclass->gmt->mt_pause(gobj);
+    gobj.playing = false;
+
+    if(gobj.gclass.gmt.mt_pause) {
+        return gobj.gclass.gmt.mt_pause(gobj);
     } else {
         return 0;
     }
@@ -1130,7 +1035,7 @@ function gobj_pause(gobj)
 function gobj_is_running(gobj)
 {
     if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
-        log_error("hgobj NULL or DESTROYED");
+        log_error("gobj NULL or DESTROYED");
         return false;
     }
     return gobj.running;
@@ -1142,7 +1047,7 @@ function gobj_is_running(gobj)
 function gobj_is_playing(gobj)
 {
     if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
-        log_error("hgobj NULL or DESTROYED");
+        log_error("gobj NULL or DESTROYED");
         return false;
     }
     return gobj.playing;
