@@ -5,6 +5,8 @@
  *      Copyright (c) 2014,2024 Niyamaka.
  *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
+"use strict";
+
 import {
     is_string,
     log_error,
@@ -306,8 +308,8 @@ function gclass_create(
     states,
     gmt,
     lmt,
-    config,
-    private_,
+    tattr_desc,
+    priv,
     authz_table,
     command_table,
     s_user_trace_level,
