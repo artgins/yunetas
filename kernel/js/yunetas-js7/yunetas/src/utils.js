@@ -2358,6 +2358,21 @@ function get_now()
     return Math.floor(Date.now() / 1000);
 }
 
+/************************************************************
+ *
+ ************************************************************/
+function index_in_list(list, elm) {
+    if(!list) {
+        throw "ERROR: index_in_list() list empty";
+    }
+    for(let i=0; i<list.length; i++) {
+        if(elm === list[i]) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 
 export {
     json_deep_copy,
@@ -2452,4 +2467,5 @@ export {
     timeTracker,
     get_current_datetime,
     get_now,
+    index_in_list,
 };

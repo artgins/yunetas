@@ -2225,6 +2225,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
         );
         gobj_pause(gobj);
     }
+
     /*--------------------------------*
      *      Stop
      *--------------------------------*/
@@ -2393,7 +2394,7 @@ PRIVATE int _deregister_service(gobj_t *gobj)
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj NOT FOUND",
+            "msg",          "%s", "service NOT found in register",
             "gclass",       "%s", gobj_gclass_name(gobj),
             "name",         "%s", gobj_name(gobj),
             NULL

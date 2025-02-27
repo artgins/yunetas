@@ -17,6 +17,7 @@ import {
     empty_string,
     json_deep_copy,
     json_object_update,
+    index_in_list,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -539,6 +540,9 @@ function gobj_find_service(
     return service_gobj;
 }
 
+/************************************************************
+ *        register a service
+ ************************************************************/
 function _register_service(gobj)
 {
     let service_name = gobj.gobj_name;
@@ -546,6 +550,21 @@ function _register_service(gobj)
         log_error(`service ALREADY REGISTERED: ${service_name}. Will be UPDATED`);
     }
     __jn_services__[service_name] = gobj;
+    return 0;
+}
+
+/************************************************************
+ *        deregister a service
+ ************************************************************/
+function _deregister_service(gobj)
+{
+    let service_name = gobj.gobj_name;
+    if(!__jn_services__[service_name]) {
+        log_error(`"service NOT found in register": ${service_name}`);
+        return -1;
+    }
+    delete  __jn_services__[service_name];
+    return 0;
 }
 
 /************************************************************
@@ -614,6 +633,29 @@ function _json_object_update_config(destination, source) {
         }
     }
     return destination;
+}
+
+/************************************************************
+ *        add child.
+ ************************************************************/
+function _add_child(parent, child)
+{
+    if(child.parent) {
+        log_error(`_add_child() ALREADY HAS PARENT: ${child.gobj_name}`);
+    }
+    parent.dl_childs.push(child);
+    child.parent = parent;
+}
+
+/************************************************************
+ *        remove child
+ ************************************************************/
+function _remove_child(parent, child) {
+    let index = index_in_list(parent.dl_childs, child);
+    if (index >= 0) {
+        parent.dl_childs.remove(index);
+        child.parent = null;
+    }
 }
 
 /************************************************************
@@ -762,7 +804,7 @@ function gobj_create2(
      *      Add to parent
      *--------------------------------------*/
     if(!(gobj.gobj_flag & (gobj_flag_t.gobj_flag_yuno))) {
-        parent.dl_childs.push(gobj);
+        _add_child(parent, gobj);
     }
 
     /*--------------------------------*
@@ -920,26 +962,88 @@ function gobj_destroy(gobj)
      *  Deregister if service
      *--------------------------------*/
     if(gobj.gobj_flag & gobj_flag_t.gobj_flag_service) {
-        deregister_named_gobj(gobj);
+        _deregister_service(gobj);
     }
 
-    if(gobj_is_running(gobj)) {
+    /*--------------------------------*
+     *      Pause
+     *--------------------------------*/
+    if(gobj.playing) {
+        log_error(`Destroying a PLAYING gobj: ${gobj_full_name(gobj)}`);
+        gobj_pause(gobj);
+    }
+
+    /*--------------------------------*
+     *      Stop
+     *--------------------------------*/
+    if(gobj.running) {
+        log_error(`Destroying a RUNNING gobj: ${gobj_full_name(gobj)}`);
         gobj_stop(gobj);
     }
-    gobj._destroyed = true;
 
-    if (gobj.parent && gobj.parent.mt_child_removed) {
-        gobj.parent.mt_child_removed(gobj);
+    /*--------------------------------*
+     *      Delete subscriptions
+     *--------------------------------*/
+    json_t *dl_subs;
+    dl_subs = json_copy(gobj.dl_subscriptions);
+    gobj_unsubscribe_list(dl_subs, TRUE);
+    dl_subs = json_copy(gobj.dl_subscribings);
+    gobj_unsubscribe_list(dl_subs, TRUE);
+
+    /*--------------------------------*
+     *      Delete from parent
+     *--------------------------------*/
+    if(gobj.parent) {
+        _remove_child(gobj.parent, gobj);
+        if(gobj_is_volatil(gobj)) {
+            if(gobj_bottom_gobj(gobj.parent) === gobj &&
+                !gobj_is_destroying(gobj.parent))
+            {
+                gobj_set_bottom_gobj(gobj.parent, null);
+            }
+        }
     }
-    if (gobj.parent) {
-        gobj.parent._remove_child(gobj);
+
+
+    /*--------------------------------*
+     *      Delete childs
+     *--------------------------------*/
+    gobj_destroy_childs(gobj);
+
+    /*-------------------------------------------------*
+     *  Exec mt_destroy
+     *  Call this after all childs are destroyed.
+     *  Then you can delete resources used by childs
+     *  (example: event_loop in main/threads)
+     *-------------------------------------------------*/
+    if(gobj.obflag & obflag_created) {
+        if(gobj.gclass.gmt.mt_destroy) {
+            gobj.gclass.gmt.mt_destroy(gobj);
+        }
     }
-    if(gobj.gobj_is_unique()) {
-        this._deregister_unique_gobj(gobj);
+
+    /*--------------------------------*
+     *      Mark as destroyed
+     *--------------------------------*/
+    if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
+        trace_machine("💔💔⏪ destroyed: %s",
+            gobj_full_name(gobj)
+        );
     }
-    if(gobj.gobj_is_service()) {
-        this._deregister_service_gobj(gobj);
+    gobj.obflag |= obflag_t.obflag_destroyed;
+
+    /*--------------------------------*
+     *      Dealloc data
+     *--------------------------------*/
+    if(gobj.obflag & obflag_t.obflag_created) {
+        gobj.gclass.instances--;
     }
+
+
+
+
+
+
 
     var dl_childs = gobj.dl_childs.slice();
 
