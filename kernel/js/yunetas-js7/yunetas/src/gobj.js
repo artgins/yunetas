@@ -12,6 +12,7 @@ import {
     is_object,
     is_array,
     is_boolean,
+    is_number,
     log_error,
     log_warning,
     log_debug,
@@ -372,7 +373,7 @@ function set_default(gobj, sdata, it)
             }
             break;
         case data_type_t.DTP_INTEGER:
-            jn_value = BigInt(svalue);
+            jn_value = Number(svalue);
             break;
         case data_type_t.DTP_REAL:
             jn_value = Number(svalue);
@@ -434,119 +435,68 @@ function json2item(gobj, sdata, it, jn_value_)
         case data_type_t.DTP_BOOLEAN:
             if(is_boolean(jn_value_)) {
                 jn_value2 = jn_value_;
-            }
-            if(!json_is_boolean(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
+            } else if(is_string(jn_value_)) {
+                let s = jn_value_.toLowerCase();
                 if(s) {
-                    if(strcasecmp(s, "true")==0) {
-                        jn_value2 = json_true();
-                    } else if(strcasecmp(s, "false")==0) {
-                        jn_value2 = json_false();
+                    if(s === "true") {
+                        jn_value2 = true;
+                    } else if(s === "false") {
+                        jn_value2 = false;
                     } else {
-                        jn_value2 = atoi(s)? json_true(): json_false();
+                        jn_value2 = !!parseInt(s, 10);
                     }
-                    GBMEM_FREE(s)
                 }
             }
             break;
         case data_type_t.DTP_INTEGER:
-            if(json_is_integer(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else if(json_is_string(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    jn_value2 = json_integer(strtoll(s, NULL, 0));
-                    GBMEM_FREE(s)
-                }
+            if(is_number(jn_value_)) {
+                jn_value2 = jn_value_;
+            } else {
+                jn_value2 = Number(jn_value_);
             }
             break;
         case data_type_t.DTP_REAL:
-            if(json_is_real(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else if(json_is_string(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    jn_value2 = json_real(atof(s));
-                    GBMEM_FREE(s)
-                }
+            if(is_number(jn_value_)) {
+                jn_value2 = jn_value_;
+            } else {
+                jn_value2 = Number(jn_value_);
             }
             break;
         case data_type_t.DTP_LIST:
-            if(json_is_array(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else if(json_is_string(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    jn_value2 = string2json(s, TRUE);
-                    GBMEM_FREE(s)
-                }
+            if(is_array(jn_value_)) {
+                jn_value2 = jn_value_;
+            } else if(is_string(jn_value_)) {
+                jn_value2 = JSON.parse(jn_value_);
             }
 
-            if(!json_is_array(jn_value2)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "attr must be an array",
-                    "attr",         "%s", it.name,
-                    NULL
-                );
-                json_decref(jn_value2);
+            if(!is_array(jn_value2)) {
+                log_error(`attr must be an array: ${it.name}`);
                 return -1;
             }
             break;
 
         case data_type_t.DTP_DICT:
-            if(json_is_object(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
-            } else if(json_is_string(jn_value_)) {
-                char *s = json2uglystr(jn_value_);
-                if(s) {
-                    jn_value2 = string2json(s, TRUE);
-                    GBMEM_FREE(s)
-                }
+            if(is_object(jn_value_)) {
+                jn_value2 = jn_value_;
+            } else if(is_string(jn_value_)) {
+                jn_value2 = JSON.parse(jn_value_);
             }
 
-            if(!json_is_object(jn_value2)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "attr must be an object",
-                    "attr",         "%s", it.name,
-                    NULL
-                );
-                json_decref(jn_value2);
+            if(!is_object(jn_value2)) {
+                log_error(`attr must be an object: ${it.name}`);
                 return -1;
             }
             break;
 
         case data_type_t.DTP_JSON:
-            jn_value2 = json_incref(jn_value_);
+            jn_value2 = jn_value_;
             break;
         case data_type_t.DTP_POINTER:
-            if(!json_is_integer(jn_value_)) {
-                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "attr must be an integer",
-                    "attr",         "%s", it.name,
-                    NULL
-                );
-                return -1;
-            }
-            jn_value2 = json_incref(jn_value_);
+            jn_value2 = jn_value_;
             break;
     }
 
-    if(json_object_set_new(sdata, it.name, jn_value2)<0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_JSON_ERROR,
-            "msg",          "%s", "json_object_set() FAILED",
-            "attr",         "%s", it.name,
-            NULL
-        );
-        return -1;
-    }
+    sdata[it.name] = jn_value2;
 
     return 0;
 }
