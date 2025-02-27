@@ -263,7 +263,7 @@ function gobj_start_up(
     global_stats_parser_fn
 )
 {
-    __jn_global_settings__ =  0; // TODO kw_apply_json_config_variables(jn_global_settings, 0);
+    __jn_global_settings__ =  jn_global_settings;
     __global_load_persistent_attrs_fn__ = load_persistent_attrs_fn;
     __global_save_persistent_attrs_fn__ = save_persistent_attrs_fn;
     __global_remove_persistent_attrs_fn__ = remove_persistent_attrs_fn;
@@ -298,6 +298,14 @@ function _register_gclass(
     }
     _gclass_register[gclass_name] = gclass;
     return 0;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function sdata_create()
+{
+    // TODO
 }
 
 /************************************************************
@@ -568,6 +576,30 @@ function _deregister_service(gobj)
 }
 
 /************************************************************
+ *        add child.
+ ************************************************************/
+function _add_child(parent, child)
+{
+    if(child.parent) {
+        log_error(`_add_child() ALREADY HAS PARENT: ${child.gobj_name}`);
+    }
+    parent.dl_childs.push(child);
+    child.parent = parent;
+}
+
+/************************************************************
+ *        remove child
+ ************************************************************/
+function _remove_child(parent, child)
+{
+    let index = index_in_list(parent.dl_childs, child);
+    if (index >= 0) {
+        parent.dl_childs.remove(index);
+        child.parent = null;
+    }
+}
+
+/************************************************************
  *  Example how change CONFIG of a gclass (temporarily)
  *
         let CONFIG = gobj_get_gclass_config("Ka_scrollview", true);
@@ -635,27 +667,76 @@ function _json_object_update_config(destination, source) {
     return destination;
 }
 
-/************************************************************
- *        add child.
- ************************************************************/
-function _add_child(parent, child)
+/***************************************************************************
+ *  ATTR:
+ ***************************************************************************/
+function print_attr_not_found(gobj, attr)
 {
-    if(child.parent) {
-        log_error(`_add_child() ALREADY HAS PARENT: ${child.gobj_name}`);
+    if(attr !== "__json_config_variables__") {
+        log_error(`GClass Attribute NOT FOUND: ${attr}`);
     }
-    parent.dl_childs.push(child);
-    child.parent = parent;
+}
+
+/***************************************************************************
+ *  Update sdata fields from a json dict.
+ *  Constraint: if flag is -1
+ *                  => all fields!
+ *              else
+ *                  => matched flag
+ ***************************************************************************/
+function json2sdata(
+    hsdata,
+    kw,  // not owned
+    sdata_flag,
+    not_found_cb, // Called when the key not exist in hsdata
+    gobj)
+{
+    let ret = 0;
+    if(!hsdata || !kw) {
+        log_error(`hsdata or kw NULL`);
+        return -1;
+    }
+
+    for (const [key, jn_value] of Object.entries(kw)) {
+        //console.log(`Key: ${key}, Value: ${String(jn_value)}`);
+        const sdata_desc_t *it = gclass_attr_desc(gobj->gclass, key, FALSE);
+        if(!it) {
+            if(not_found_cb) {
+                not_found_cb(gobj, key);
+                ret--;
+            }
+            continue;
+        }
+        if(!(flag == -1 || (it->flag & flag))) {
+            continue;
+        }
+        ret += json2item(gobj, hsdata, it, jn_value);
+    }
+
+    return ret;
 }
 
 /************************************************************
- *        remove child
+ *  ATTR:
+ *  Get data from json kw parameter,
+ *  and put the data in config sdata.
  ************************************************************/
-function _remove_child(parent, child) {
-    let index = index_in_list(parent.dl_childs, child);
-    if (index >= 0) {
-        parent.dl_childs.remove(index);
-        child.parent = null;
+function write_json_parameters(gobj, kw, jn_global)
+{
+    let hs = gobj_hsdata(gobj);
+    let new_kw = kw; // kw_apply_json_config_variables(kw, jn_global_mine);
+
+    let ret = json2sdata(
+        hs,
+        new_kw,
+        -1,
+        (gobj.gclass.gclass_flag & gclass_flag_t.gcflag_ignore_unknown_attrs)?0:print_attr_not_found,
+        gobj
+    );
+    if(ret < 0) {
+        log_error(`json2data() FAILED, new_kw: ${new_kw}`);
     }
+
 }
 
 /************************************************************
@@ -984,11 +1065,13 @@ function gobj_destroy(gobj)
     /*--------------------------------*
      *      Delete subscriptions
      *--------------------------------*/
-    json_t *dl_subs;
-    dl_subs = json_copy(gobj.dl_subscriptions);
-    gobj_unsubscribe_list(dl_subs, TRUE);
-    dl_subs = json_copy(gobj.dl_subscribings);
-    gobj_unsubscribe_list(dl_subs, TRUE);
+    // TODO gobj.gobj_unsubscribe_list(gobj.gobj_find_subscriptions(), true);
+
+    // json_t *dl_subs;
+    // dl_subs = json_copy(gobj.dl_subscriptions);
+    // gobj_unsubscribe_list(dl_subs, TRUE);
+    // dl_subs = json_copy(gobj.dl_subscribings);
+    // gobj_unsubscribe_list(dl_subs, TRUE);
 
     /*--------------------------------*
      *      Delete from parent
@@ -1004,7 +1087,6 @@ function gobj_destroy(gobj)
         }
     }
 
-
     /*--------------------------------*
      *      Delete childs
      *--------------------------------*/
@@ -1016,7 +1098,7 @@ function gobj_destroy(gobj)
      *  Then you can delete resources used by childs
      *  (example: event_loop in main/threads)
      *-------------------------------------------------*/
-    if(gobj.obflag & obflag_created) {
+    if(gobj.obflag & obflag_t.obflag_created) {
         if(gobj.gclass.gmt.mt_destroy) {
             gobj.gclass.gmt.mt_destroy(gobj);
         }
@@ -1026,9 +1108,7 @@ function gobj_destroy(gobj)
      *      Mark as destroyed
      *--------------------------------*/
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-        trace_machine("💔💔⏪ destroyed: %s",
-            gobj_full_name(gobj)
-        );
+        trace_machine(`💔💔⏪ destroyed: ${gobj_full_name(gobj)}`);
     }
     gobj.obflag |= obflag_t.obflag_destroyed;
 
@@ -1041,30 +1121,26 @@ function gobj_destroy(gobj)
 
 
 
+    // TODO var dl_childs = gobj.dl_childs.slice();
+    //
+    // for (var i=0; i < dl_childs.length; i++) {
+    //     var child = dl_childs[i];
+    //     if (!child._destroyed) {
+    //         self.gobj_destroy(child);
+    //     }
+    // }
+    //
+    // gobj.clear_timeout();
+    //
 
+}
 
-
-
-    var dl_childs = gobj.dl_childs.slice();
-
-    for (var i=0; i < dl_childs.length; i++) {
-        var child = dl_childs[i];
-        if (!child._destroyed) {
-            self.gobj_destroy(child);
-        }
-    }
-
-    gobj.clear_timeout();
-
-    gobj.gobj_unsubscribe_list(gobj.gobj_find_subscriptions(), true);
-
-    if (gobj.mt_destroy) {
-        gobj.mt_destroy();
-    }
-
-    if (this.config.trace_creation) {
-        trace_machine("💔💔⏪ destroyed: " + full_name);
-    }
+/************************************************************
+ *
+ ************************************************************/
+function gobj_destroy_childs(gobj)
+{
+    // TODO
 }
 
 /************************************************************
@@ -1305,6 +1381,50 @@ function gobj_parent(gobj)
     return gobj.parent;
 }
 
+/************************************************************
+ *
+ ************************************************************/
+function gobj_is_volatil(gobj)
+{
+    if(gobj.gobj_flag & gobj_flag_t.gobj_flag_volatil) {
+        return true;
+    }
+    return false;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_is_destroying(gobj)
+{
+    if(gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        return true;
+    }
+    return false;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_bottom_gobj(gobj)
+{
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_hsdata(gobj)
+{
+    return gobj.jn_attrs;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_set_bottom_gobj(gobj)
+{
+}
+
 
 //=======================================================================
 //      Expose the class via the global object
@@ -1353,4 +1473,9 @@ export {
     gobj_short_name,
     gobj_full_name,
     gobj_parent,
+    gobj_is_volatil,
+    gobj_is_destroying,
+    gobj_bottom_gobj,
+    gobj_hsdata,
+    gobj_set_bottom_gobj,
 };

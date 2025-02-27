@@ -2546,7 +2546,7 @@ PRIVATE int json2sdata(
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "hsdata or schema or kw NULL",
+            "msg",          "%s", "hsdata or kw NULL",
             NULL
         );
         return -1;
