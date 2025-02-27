@@ -8,13 +8,13 @@
         "build": "vite build",
         "preview": "vite preview"
     },
-    "devDependencies": {
-        "@rollup/plugin-terser": "^0.4.4",
-        "vite": "^6.1.0",
-        "vitest": "^3.0.7"
-    },
     "dependencies": {
         "uplot": "^1.6.31",
         "yunetas": "file:../yunetas"
+    },
+    "devDependencies": {
+        "@rollup/plugin-terser": "^0.4.4",
+        "vite": "^6.2.0",
+        "vitest": "^3.0.7"
     }
 }
