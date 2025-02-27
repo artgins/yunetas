@@ -23,10 +23,13 @@ To build:
 
     vite build
 
-To preview the production build:
-
-    vite preview
-
 To publish a new version of yunetas:
 
     npm publish --access public
+
+To test
+
+    npm test
+or
+
+    npm run test:coverage

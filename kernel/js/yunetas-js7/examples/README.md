@@ -29,3 +29,10 @@ To build for production:
 To preview the production build:
 
     vite preview
+
+To test
+
+    npm test
+or
+
+    npm run test:coverage
