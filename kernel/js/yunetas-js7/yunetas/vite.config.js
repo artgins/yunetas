@@ -7,6 +7,13 @@ export default defineConfig({
             entry: "src/index.js",
             name: "yunetas"
         },
+        test: {
+            globals: true,  // Use global `describe` and `test` like Jest
+            environment: "node",  // Use Node.js or browser as test environment
+            coverage: {
+                reporter: ["text", "json", "html"],  // Test coverage output
+            },
+        },
         rollupOptions: {
             output: [
                 // Non-minified ES Module

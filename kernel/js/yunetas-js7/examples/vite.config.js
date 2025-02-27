@@ -3,6 +3,13 @@ import fs from "fs";
 import path from "path";
 
 export default defineConfig({
+    test: {
+        globals: true,  // Use global `describe` and `test` like Jest
+        environment: "node",  // Use Node.js or browser as test environment
+        coverage: {
+            reporter: ["text", "json", "html"],  // Test coverage output
+        },
+    },
     plugins: [
         {
             name: "html-transform",

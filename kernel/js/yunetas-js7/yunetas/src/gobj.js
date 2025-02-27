@@ -5,15 +5,17 @@
  *      Copyright (c) 2014,2024 Niyamaka.
  *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
-"use strict";
+/* jshint bitwise: false */
 
 import {
     is_string,
+    is_object,
     log_error,
     log_warning,
     log_debug,
     empty_string,
     json_deep_copy,
+    json_object_update,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -129,7 +131,7 @@ class GClass {
         gclass_name,
         gmt,
         lmt,
-        config,
+        tattr_desc,
         priv,
         authz_table,
         command_table,
@@ -142,8 +144,8 @@ class GClass {
         this.gmt = gmt;        // Global methods
         this.lmt = lmt;
 
-        this.config = config;       // tattr_desc
-        this.priv = priv;           // C priv_size
+        this.tattr_desc = tattr_desc;
+        this.priv = priv;
         this.authz_table = authz_table; // acl
         this.command_table = command_table; // if it exits then mt_command is not used.
 
@@ -334,8 +336,8 @@ function gclass_create(
         gclass_name,
         gmt,
         lmt,
-        config,
-        private_,
+        tattr_desc,
+        priv,
         authz_table,
         command_table,
         s_user_trace_level,
