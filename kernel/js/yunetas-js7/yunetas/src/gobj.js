@@ -11,6 +11,7 @@ import {
     is_string,
     is_object,
     is_array,
+    is_boolean,
     log_error,
     log_warning,
     log_debug,
@@ -422,18 +423,17 @@ function json2item(gobj, sdata, it, jn_value_)
     switch(it.type) {
         case data_type_t.DTP_STRING:
             if(is_string(jn_value_)) {
-                jn_value2 = jn_value_;
+                jn_value2 = String(jn_value_);
             } else {
                 let s = JSON.stringify(jn_value_);
                 if(s) {
-                    jn_value2 = anystring2json(s, strlen(s), FALSE);
-                    GBMEM_FREE(s)
+                    jn_value2 = String(s);
                 }
             }
             break;
         case data_type_t.DTP_BOOLEAN:
-            if(json_is_boolean(jn_value_)) {
-                jn_value2 = json_incref(jn_value_);
+            if(is_boolean(jn_value_)) {
+                jn_value2 = jn_value_;
             }
             if(!json_is_boolean(jn_value_)) {
                 char *s = json2uglystr(jn_value_);

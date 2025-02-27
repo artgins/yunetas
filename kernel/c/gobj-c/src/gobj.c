@@ -2910,8 +2910,7 @@ PRIVATE int json2item(
         case DTP_BOOLEAN:
             if(json_is_boolean(jn_value_)) {
                 jn_value2 = json_incref(jn_value_);
-            }
-            if(!json_is_boolean(jn_value_)) {
+            } else {
                 char *s = json2uglystr(jn_value_);
                 if(s) {
                     if(strcasecmp(s, "true")==0) {
