@@ -17,12 +17,14 @@
     ],
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
-    },
-    "dependencies": {
+        "dev": "vite",
+        "test": "vitest",
+        "test:watch": "vitest --watch",
+        "test:coverage": "vitest --coverage"
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^0.4.4",
-        "vite": "^6.2.0"
+        "vite": "^6.2.0",
+        "vitest": "^3.0.7"
     }
 }
