@@ -13,6 +13,7 @@ import {
     log_error,
     log_warning,
     log_debug,
+    trace_machine,
     empty_string,
     json_deep_copy,
     json_object_update,
@@ -166,24 +167,21 @@ class GObj {
         this.gclass = gclass;
         this.parent = parent;
         this.dl_childs = [];
-
-        this.current_state = null;
-        this.last_state = null;
-
-        this.gobj_flag = gobj_flag;
-        this.obflag = 0;
-
         this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
         this.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
+        this.current_state = null; // TODO dl_first(&gclass->dl_states);
+        this.last_state = null;
+        this.obflag = 0;
+        this.gobj_flag = gobj_flag;
 
         // Data allocated
         this.gobj_name = gobj_name;
-        this.jn_attrs = null;   // Set in gobj_create2
+        this.jn_attrs =  sdata_create(gclass.tattr_desc);
         this.jn_stats = {};
         this.jn_user_data = {};
         this.full_name = null;
         this.short_name = null;
-        this.priv = null;       // Set in gobj_create2
+        this.priv = json_deep_copy(gclass.priv);
 
         this.running = false;       // set by gobj_start/gobj_stop
         this.playing = false;       // set by gobj_play/gobj_pause
@@ -712,19 +710,12 @@ function gobj_create2(
 
     /*--------------------------------*
      *      Alloc memory
+     *      Initialize variables
      *--------------------------------*/
     let gobj = new GObj(gobj_name, gclass, kw, parent, gobj_flag);
 
-    /*--------------------------------*
-     *      Initialize variables
-     *--------------------------------*/
-    // TODO
-    gobj.jn_attrs =  json_deep_copy(gclass.config); // jn_attrs sdata_create tattr_desc;
-    gobj.priv = json_deep_copy(gclass.private); // kw_extract_private(gobj.config);
-    gobj.current_state = null; // TODO dl_first(&gclass->dl_states);
-
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-        log_debug(sprintf("💙💙⏩ creating: %s^%s",
+        trace_machine(sprintf("💙💙⏩ creating: %s^%s",
             gclass.gclass_name, gobj_name
         ));
     }
@@ -742,8 +733,7 @@ function gobj_create2(
     /*--------------------------------*
      *  Write configuration
      *--------------------------------*/
-    _json_object_update_config(gobj.config, kw || {});
-    //write_json_parameters(gobj, kw, __jn_global_settings__);
+    write_json_parameters(gobj, kw, __jn_global_settings__);
 
     /*--------------------------------------*
      *  Load writable and persistent attrs
@@ -793,7 +783,7 @@ function gobj_create2(
      *-------------------------------------*/
     if(parent && parent.gclass.gmt.mt_child_added) {
         if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-            log_debug(sprintf(
+            trace_machine(sprintf(
                 "👦👦🔵 child_added(%s): %s",
                 parent.gobj_full_name(),
                 gobj.gobj_short_name())
@@ -803,7 +793,7 @@ function gobj_create2(
     }
 
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-        log_debug("💙💙⏪ created: " + gobj.gobj_full_name());
+        trace_machine("💙💙⏪ created: " + gobj.gobj_full_name());
     }
 
     return gobj;
@@ -896,19 +886,43 @@ function gobj_destroy(gobj)
 {
     if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
         log_error("gobj NULL or DESTROYED");
-        return false;
-    }
-
-    let full_name = gobj_full_name(gobj);
-
-    if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-        log_debug("💔💔⏩ destroying: " + gobj_short_name(gobj));
-    }
-    if (gobj._destroyed) {
-        // Already deleted
-        log_error("<========== ALREADY DESTROYED! " + gobj_short_name(gobj));
         return;
     }
+
+    /*--------------------------------*
+     *      Check parameters
+     *--------------------------------*/
+    if(gobj.__refs__ > 0) {
+        log_error(`gobj DESTROYING with references: ${gobj.__refs__}`);
+    }
+    gobj.obflag |= obflag_t.obflag_destroying;
+
+    if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
+        trace_machine("💔💔⏩ destroying: " + gobj_full_name(gobj));
+    }
+
+    /*----------------------------------------------*
+     *  Inform to parent now,
+     *  when the child is NOT still full operative
+     *----------------------------------------------*/
+    let parent = gobj.parent;
+    if(parent && parent.gclass.gmt.mt_child_removed) {
+        if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
+            trace_machine(sprintf("👦👦🔴 child_removed(%s): %s",
+                gobj_full_name(parent),
+                gobj_short_name(gobj)
+            ));
+        }
+        parent.gclass.gmt.mt_child_removed(parent, gobj);
+    }
+
+    /*--------------------------------*
+     *  Deregister if service
+     *--------------------------------*/
+    if(gobj.gobj_flag & gobj_flag_t.gobj_flag_service) {
+        deregister_named_gobj(gobj);
+    }
+
     if(gobj_is_running(gobj)) {
         gobj_stop(gobj);
     }
@@ -945,7 +959,7 @@ function gobj_destroy(gobj)
     }
 
     if (this.config.trace_creation) {
-        log_debug("💔💔⏪ destroyed: " + full_name);
+        trace_machine("💔💔⏪ destroyed: " + full_name);
     }
 }
 

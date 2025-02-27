@@ -1902,6 +1902,11 @@ function log_debug(msg)
     }
 }
 
+function trace_machine(msg)
+{
+    console.log(msg);
+}
+
 function trace_msg(msg)
 {
     console.log(msg);
@@ -2434,6 +2439,7 @@ export {
     log_warning,
     log_info,
     log_debug,
+    trace_machine,
     trace_msg,
     trace_msg2,
 

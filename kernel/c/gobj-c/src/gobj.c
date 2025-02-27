@@ -201,7 +201,7 @@ PRIVATE void _mem_free(void *p);
 PRIVATE void *_mem_realloc(void *p, size_t new_size);
 PRIVATE void *_mem_calloc(size_t n, size_t size);
 PRIVATE int _register_service(gobj_t *gobj);
-PRIVATE int deregister_named_gobj(gobj_t *gobj);
+PRIVATE int _deregister_service(gobj_t *gobj);
 PRIVATE int write_json_parameters(
     gobj_t *gobj,
     json_t *kw,     // not own
@@ -2209,7 +2209,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
      *  Deregister if service
      *--------------------------------*/
     if(gobj->gobj_flag & gobj_flag_service) {
-        deregister_named_gobj(gobj);
+        _deregister_service(gobj);
     }
 
     /*--------------------------------*
@@ -2384,9 +2384,9 @@ PRIVATE int _register_service(gobj_t *gobj)
 }
 
 /***************************************************************************
- *  deregister named gobj
+ *  deregister service
  ***************************************************************************/
-PRIVATE int deregister_named_gobj(gobj_t *gobj)
+PRIVATE int _deregister_service(gobj_t *gobj)
 {
     json_t *jn_obj = json_object_get(__jn_services__, gobj->gobj_name);
     if(!jn_obj) {
