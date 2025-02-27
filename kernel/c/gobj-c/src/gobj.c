@@ -2902,7 +2902,7 @@ PRIVATE int json2item(
             } else {
                 char *s = json2uglystr(jn_value_);
                 if(s) {
-                    jn_value2 = anystring2json(s, strlen(s), FALSE);
+                    jn_value2 = json_string(s);
                     GBMEM_FREE(s)
                 }
             }

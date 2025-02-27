@@ -10,6 +10,7 @@
 import {
     is_string,
     is_object,
+    is_array,
     log_error,
     log_warning,
     log_debug,
@@ -300,12 +301,292 @@ function _register_gclass(
     return 0;
 }
 
-/************************************************************
- *
- ************************************************************/
-function sdata_create()
+/***************************************************************************
+ *  WRITE - high level -
+ ***************************************************************************/
+function sdata_write_default_values(
+    gobj,
+    include_flag,   // sdata_flag_t
+    exclude_flag    // sdata_flag_t
+)
 {
-    // TODO
+    let sdata_desc = gobj.gclass.tattr_desc;
+
+    for(let i=0; i < sdata_desc.length; i++) {
+        const it = sdata_desc[i];
+
+        if(exclude_flag && (it.flag & exclude_flag)) {
+            continue;
+        }
+        if(include_flag === -1 || (it.flag & include_flag)) {
+            set_default(gobj, gobj.jn_attrs, it);
+
+            if((gobj.obflag & obflag_t.obflag_created) &&
+                !(gobj.obflag & obflag_t.obflag_destroyed))
+            {
+                // Avoid call to mt_writing before mt_create!
+                gobj.gclass.gmt.mt_writing(gobj, it.name);
+            }
+        }
+    }
+}
+
+/***************************************************************************
+ *  Build default values
+ ***************************************************************************/
+function sdata_create(gobj, sdata_desc)
+{
+    let sdata = {};
+    for(let i=0; i < sdata_desc.length; i++) {
+        const it = sdata_desc[i];
+        set_default(gobj, sdata, it);
+    }
+
+    return sdata;
+}
+
+/***************************************************************************
+ *  Set array values to sdata, from json or binary
+ ***************************************************************************/
+function set_default(gobj, sdata, it)
+{
+    let jn_value;
+    let svalue = it.default_value;
+
+    switch(it.type) {
+        case data_type_t.DTP_STRING:
+            jn_value = String(svalue);
+            break;
+        case data_type_t.DTP_BOOLEAN:
+            jn_value = Boolean(svalue);
+            if(is_string(svalue)) {
+                svalue = svalue.toLowerCase();
+                if(svalue === "true") {
+                    jn_value = true;
+                } else if(svalue === "false") {
+                    jn_value = false;
+                } else {
+                    jn_value = !!parseInt(svalue, 10);
+                }
+            }
+            break;
+        case data_type_t.DTP_INTEGER:
+            jn_value = BigInt(svalue);
+            break;
+        case data_type_t.DTP_REAL:
+            jn_value = Number(svalue);
+            break;
+        case data_type_t.DTP_LIST:
+            jn_value = JSON.parse(svalue);
+            if(!is_array(jn_value)) {
+                jn_value = [];
+            }
+            break;
+        case data_type_t.DTP_DICT:
+            jn_value = JSON.parse(svalue);
+            if(!is_object(jn_value)) {
+                jn_value = {};
+            }
+            break;
+        case data_type_t.DTP_JSON:
+            if(!empty_string(svalue)) {
+                jn_value = JSON.parse(svalue);
+            } else {
+                jn_value = null;
+            }
+            break;
+        case data_type_t.DTP_POINTER:
+            jn_value = BigInt(svalue);
+            break;
+    }
+
+    if(jn_value === undefined) {
+        log_error(`default_value WRONG, it: ${it.name}, value: ${it.name}`);
+        jn_value = null;
+    }
+
+    sdata[it.name] = jn_value;
+    return 0;
+}
+
+/***************************************************************************
+ *  Set array values to sdata, from json or binary
+ ***************************************************************************/
+function json2item(gobj, sdata, it, jn_value_)
+{
+    if(!it) {
+        return -1;
+    }
+    let jn_value2;
+
+    switch(it.type) {
+        case data_type_t.DTP_STRING:
+            if(is_string(jn_value_)) {
+                jn_value2 = jn_value_;
+            } else {
+                let s = JSON.stringify(jn_value_);
+                if(s) {
+                    jn_value2 = anystring2json(s, strlen(s), FALSE);
+                    GBMEM_FREE(s)
+                }
+            }
+            break;
+        case data_type_t.DTP_BOOLEAN:
+            if(json_is_boolean(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            }
+            if(!json_is_boolean(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    if(strcasecmp(s, "true")==0) {
+                        jn_value2 = json_true();
+                    } else if(strcasecmp(s, "false")==0) {
+                        jn_value2 = json_false();
+                    } else {
+                        jn_value2 = atoi(s)? json_true(): json_false();
+                    }
+                    GBMEM_FREE(s)
+                }
+            }
+            break;
+        case data_type_t.DTP_INTEGER:
+            if(json_is_integer(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else if(json_is_string(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = json_integer(strtoll(s, NULL, 0));
+                    GBMEM_FREE(s)
+                }
+            }
+            break;
+        case data_type_t.DTP_REAL:
+            if(json_is_real(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else if(json_is_string(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = json_real(atof(s));
+                    GBMEM_FREE(s)
+                }
+            }
+            break;
+        case data_type_t.DTP_LIST:
+            if(json_is_array(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else if(json_is_string(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = string2json(s, TRUE);
+                    GBMEM_FREE(s)
+                }
+            }
+
+            if(!json_is_array(jn_value2)) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "attr must be an array",
+                    "attr",         "%s", it.name,
+                    NULL
+                );
+                json_decref(jn_value2);
+                return -1;
+            }
+            break;
+
+        case data_type_t.DTP_DICT:
+            if(json_is_object(jn_value_)) {
+                jn_value2 = json_incref(jn_value_);
+            } else if(json_is_string(jn_value_)) {
+                char *s = json2uglystr(jn_value_);
+                if(s) {
+                    jn_value2 = string2json(s, TRUE);
+                    GBMEM_FREE(s)
+                }
+            }
+
+            if(!json_is_object(jn_value2)) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "attr must be an object",
+                    "attr",         "%s", it.name,
+                    NULL
+                );
+                json_decref(jn_value2);
+                return -1;
+            }
+            break;
+
+        case data_type_t.DTP_JSON:
+            jn_value2 = json_incref(jn_value_);
+            break;
+        case data_type_t.DTP_POINTER:
+            if(!json_is_integer(jn_value_)) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "attr must be an integer",
+                    "attr",         "%s", it.name,
+                    NULL
+                );
+                return -1;
+            }
+            jn_value2 = json_incref(jn_value_);
+            break;
+    }
+
+    if(json_object_set_new(sdata, it.name, jn_value2)<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_JSON_ERROR,
+            "msg",          "%s", "json_object_set() FAILED",
+            "attr",         "%s", it.name,
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_hsdata(gobj)
+{
+    return gobj.jn_attrs;
+}
+
+/***************************************************************************
+ *  Return the data description of the attribute `attr`
+ *  If `attr` is null returns full attr's table
+ ***************************************************************************/
+function gclass_attr_desc(gclass, attr, verbose)
+{
+    if(!gclass) {
+        if(verbose) {
+            log_error(`gclass NULL`);
+        }
+        return null;
+    }
+
+    if(!attr) {
+        return gclass.tattr_desc;
+    }
+
+    for(let i=0; i < gclass.tattr_desc.length; i++) {
+        const it = gclass.tattr_desc[i];
+        if (it.name === attr) {
+            return it;
+        }
+    }
+
+    if(verbose) {
+        log_error(`${gclass.gclass_name}: GClass Attribute NOT FOUND: ${attr}`);
+    }
+    return null;
 }
 
 /************************************************************
@@ -687,7 +968,7 @@ function print_attr_not_found(gobj, attr)
 function json2sdata(
     hsdata,
     kw,  // not owned
-    sdata_flag,
+    flag,
     not_found_cb, // Called when the key not exist in hsdata
     gobj)
 {
@@ -698,8 +979,7 @@ function json2sdata(
     }
 
     for (const [key, jn_value] of Object.entries(kw)) {
-        //console.log(`Key: ${key}, Value: ${String(jn_value)}`);
-        const sdata_desc_t *it = gclass_attr_desc(gobj->gclass, key, FALSE);
+        const it = gclass_attr_desc(gobj.gclass, key, false);
         if(!it) {
             if(not_found_cb) {
                 not_found_cb(gobj, key);
@@ -707,7 +987,7 @@ function json2sdata(
             }
             continue;
         }
-        if(!(flag == -1 || (it->flag & flag))) {
+        if(!(flag === -1 || (it.flag & flag))) {
             continue;
         }
         ret += json2item(gobj, hsdata, it, jn_value);
@@ -1410,14 +1690,6 @@ function gobj_bottom_gobj(gobj)
 {
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-function gobj_hsdata(gobj)
-{
-    return gobj.jn_attrs;
-}
-
 /************************************************************
  *
  ************************************************************/
@@ -1444,6 +1716,7 @@ export {
     gobj_flag_t,
     gclass_flag_t,
     gobj_start_up,
+    gobj_hsdata,
     gclass_create,
     gclass_unregister,
     gclass_add_state,
@@ -1476,6 +1749,5 @@ export {
     gobj_is_volatil,
     gobj_is_destroying,
     gobj_bottom_gobj,
-    gobj_hsdata,
     gobj_set_bottom_gobj,
 };
