@@ -77,7 +77,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_BOOLEAN,     "persistent_channels",SDF_RD,           0,          "legacy, TODO remove"),
 SDATA (DTP_INTEGER,     "send_type",        SDF_RD,             0,          "Send type: 0 one dst, 1 all destinations"),
@@ -1402,7 +1402,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
         command_table,  // command_table,

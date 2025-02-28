@@ -26,7 +26,7 @@
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE const sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
 SDATA (DTP_BOOLEAN, "periodic",         SDF_RD,         "0",        "True for periodic timeouts"),
@@ -246,7 +246,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
         0,  // command_table,

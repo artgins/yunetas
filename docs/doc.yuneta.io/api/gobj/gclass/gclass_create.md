@@ -26,7 +26,7 @@ hgclass gclass_create(
     states_t             *states,
     const GMETHODS      *gmt,
     const LMETHOD       *lmt,
-    const sdata_desc_t  *tattr_desc,
+    const sdata_desc_t  *attrs_table,
     size_t               priv_size,
     const sdata_desc_t  *authz_table,
     const sdata_desc_t  *command_table,
@@ -65,7 +65,7 @@ hgclass gclass_create(
   - [`const LMETHOD *`](LMETHOD)
   - A pointer to the local methods table for internal method handling.
 
-* - `tattr_desc`
+* - `attrs_table`
   - [`const sdata_desc_t *`](sdata_desc_t)
   - A pointer to the attribute description table defining the attributes of the `gclass`.
 

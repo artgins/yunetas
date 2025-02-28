@@ -20,7 +20,7 @@ The function allows:
 Attributes marked with [`SDF_RD`](SDF_RD) are accessible from other Yunos, while attributes without this flag remain private to the Yuno.
 
 ### 4. **Default Values**
-Attributes with no explicitly provided value use their default values as defined in the GClass schema ([`tattr_desc`](tattr_desc)).
+Attributes with no explicitly provided value use their default values as defined in the GClass schema ([`attrs_table`](attrs_table)).
 
 ---
 
@@ -83,7 +83,7 @@ The behavior for saving and loading persistent attributes can be customized by p
 ## Workflow for Persistent Attributes
 
 1. **Definition:**
-   Define attributes in the GClass schema ([`tattr_desc`](tattr_desc)) with the [`SDF_PERSIST`](SDF_PERSIST) flag.
+   Define attributes in the GClass schema ([`attrs_table`](attrs_table)) with the [`SDF_PERSIST`](SDF_PERSIST) flag.
 
 2. **Custom Save/Load:**
    Optionally, provide custom save/load functions in [`persistent_attrs_t`](persistent_attrs_t) when initializing the Yuno with [`gobj_start_up()`](gobj_start_up()).

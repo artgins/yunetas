@@ -103,7 +103,7 @@ target: ../_static/gclass_diagram.svg
 
     - `lmt`: Local Methods Table, A table of private methods that can be explicitly invoked by users using [](#gobj_local_method()). Should only be used when necessary. The natural interface for interacting with gobjs is through events, commands, and attributes.
 
-    - `tattr_desc`: Attribute Table, defines the attributes of the gclass. See [](#attributes). Attributes form a crucial part of the gobj's interface. They configure the gobj and can dynamically modify its behavior at runtime. Changes to attributes can trigger monitoring or additional actions.
+    - `attrs_table`: Attribute Table, defines the attributes of the gclass. See [](#attributes). Attributes form a crucial part of the gobj's interface. They configure the gobj and can dynamically modify its behavior at runtime. Changes to attributes can trigger monitoring or additional actions.
 
     - `priv_size`: Specifies the size of private data for the gobj. A memory buffer of this size is allocated for each gobj instance to store its private data (in C).
 

@@ -362,7 +362,7 @@ SDATA_END()
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE const sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type---------name---------------flag------------default---------description---------- */
 SDATA (DTP_STRING,  "url_udp_log",      SDF_PERSIST,    "",             "UDP Log url"),
 SDATA (DTP_STRING,  "process",          SDF_RD,         "",             "Process name"),
@@ -4310,7 +4310,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,
         command_table,

@@ -101,7 +101,7 @@ def SDATADF(type, name, flag, header, fillspace, description):
 ##############################################################
 #              Example Usage (Attributes)
 ##############################################################
-tattr_desc = [
+attrs_table = [
 SDATA(DataType.DTP_JSON,    "jobs",         SDataFlag.SDF_RD,         None,      "Jobs"),
 SDATA(DataType.DTP_JSON,    "input_data",   SDataFlag.SDF_RD,         "{}",      "Input Jobs Data. Available in exec_action() and exec_result()"),
 SDATA(DataType.DTP_JSON,    "output_data",  SDataFlag.SDF_RD,         "{}",      "Output Jobs Data. Available in exec_action() and exec_result()"),

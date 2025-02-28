@@ -18,7 +18,7 @@ A `GClass` consists of several key components that define its operation:
 1. [`GClass Name`](gclass_name_t)
     - Unique name to identify it.
 
-2. [`Attributes`](tattr_desc)
+2. [`Attributes`](attrs_table)
     - Set of public attributes
 
 3. [`Private Variables`](private_vars)
@@ -74,11 +74,11 @@ In C must be defined with the macro [`GOBJ_DEFINE_GCLASS`](gobj_define_gclass) i
 and [`GOBJ_DECLARE_GCLASS`](gobj_declare_gclass) in `.h` file.
 
 
-(tattr_desc)=
+(attrs_table)=
 ## Attributes
 
 Attributes in a GClass define its properties or state. They are represented as structured data
- of type [`sdata_desc_t`](sdata_desc_t) in the `tattr_desc` table, where each entry describes an attribute's type, access flags, default value, and purpose. Attributes are the foundation of a GClass, providing a schema for configuration, runtime state, and operational behavior.
+ of type [`sdata_desc_t`](sdata_desc_t) in the `attrs_table` table, where each entry describes an attribute's type, access flags, default value, and purpose. Attributes are the foundation of a GClass, providing a schema for configuration, runtime state, and operational behavior.
 
 ---
 
@@ -121,9 +121,9 @@ Attributes can reference other schemas, allowing for nested and hierarchical dat
 
 ---
 
-### Purpose of `tattr_desc`
+### Purpose of `attrs_table`
 
-The `tattr_desc` table serves multiple purposes in a GClass:
+The `attrs_table` table serves multiple purposes in a GClass:
 - **Configuration:** Defines configurable properties for the GClass.
 - **State Management:** Represents the runtime state of an instance.
 - **Validation:** Ensures that attributes conform to defined types and constraints.
@@ -167,7 +167,7 @@ Attributes can represent metadata about the GClass or its environment, including
 
 ---
 
-### Benefits of Attribute Design with `tattr_desc`
+### Benefits of Attribute Design with `attrs_table`
 
 - **Modularity:** Attributes are defined in structured schemas, making them reusable and maintainable.
 - **Flexibility:** Support for various data types and nested schemas allows for complex configurations.

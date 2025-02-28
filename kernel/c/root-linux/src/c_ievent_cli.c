@@ -46,7 +46,7 @@ PRIVATE json_t *build_ievent_request(
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE const sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,  "wanted_yuno_role", SDF_RD,         "",         "wanted yuno role"),
 SDATA (DTP_STRING,  "wanted_yuno_name", SDF_RD,         "",         "wanted yuno name"),
@@ -1390,7 +1390,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
         0,  // command_table,

@@ -1186,7 +1186,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     states_t *states,
     const GMETHODS *gmt,
     const LMETHOD *lmt,
-    const sdata_desc_t *tattr_desc,
+    const sdata_desc_t *attrs_table,
     size_t priv_size,
     const sdata_desc_t *authz_table,
     const sdata_desc_t *command_table,

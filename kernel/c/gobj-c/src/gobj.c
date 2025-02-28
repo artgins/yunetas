@@ -78,7 +78,7 @@ typedef struct gclass_s {
     const GMETHODS *gmt;            // Global methods
     const LMETHOD *lmt;
 
-    const sdata_desc_t *tattr_desc;
+    const sdata_desc_t *attrs_table;
     size_t priv_size;
     const sdata_desc_t *authz_table; // acl
     /*
@@ -770,7 +770,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     states_t *states,
     const GMETHODS *gmt,
     const LMETHOD *lmt,
-    const sdata_desc_t *tattr_desc,
+    const sdata_desc_t *attrs_table,
     size_t priv_size,
     const sdata_desc_t *authz_table,
     const sdata_desc_t *command_table,
@@ -844,7 +844,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     gclass->gclass_name = gclass_name;  // DANGER gobj_strdup(gclass_name); 14/11/2024
     gclass->gmt = gmt;
     gclass->lmt = lmt;
-    gclass->tattr_desc = tattr_desc;
+    gclass->attrs_table = attrs_table;
     gclass->priv_size = priv_size;
     gclass->authz_table = authz_table;
     gclass->command_table = command_table;
@@ -1765,7 +1765,7 @@ PUBLIC hgobj gobj_create2(
     }
 
     gobj->gobj_name = gobj_strdup(gobj_name);
-    gobj->jn_attrs = sdata_create(gobj, gclass->tattr_desc);
+    gobj->jn_attrs = sdata_create(gobj, gclass->attrs_table);
     gobj->jn_stats = json_object();
     gobj->jn_user_data = json_object();
     gobj->priv = gclass->priv_size? sys_malloc_fn(gclass->priv_size):NULL;
@@ -2764,7 +2764,7 @@ PRIVATE int sdata_write_default_values(
     sdata_flag_t exclude_flag
 )
 {
-    const sdata_desc_t *it = gobj->gclass->tattr_desc;
+    const sdata_desc_t *it = gobj->gclass->attrs_table;
     while(it->name) {
         if(exclude_flag && (it->flag & exclude_flag)) {
             it++;
@@ -3069,9 +3069,9 @@ PUBLIC const sdata_desc_t *gclass_attr_desc(hgclass gclass_, const char *attr, B
     }
 
     if(!attr) {
-        return gclass->tattr_desc;
+        return gclass->attrs_table;
     }
-    const sdata_desc_t *it = gclass->tattr_desc;
+    const sdata_desc_t *it = gclass->attrs_table;
     while(it->name) {
         if(strcmp(it->name, attr)==0) {
             return it;
@@ -3112,7 +3112,7 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj_, const char *attr, BOOL ve
     }
 
     if(!attr) {
-        return gobj->gclass->tattr_desc;
+        return gobj->gclass->attrs_table;
     }
 
     return gclass_attr_desc(gobj->gclass, attr, verbose);
@@ -3238,7 +3238,7 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
 
     json_t *jn_attrs = json_object();
 
-    const sdata_desc_t *it = gobj->gclass->tattr_desc;
+    const sdata_desc_t *it = gobj->gclass->attrs_table;
     while(it->name) {
         if(include_flag == (sdata_flag_t)-1 || (it->flag & include_flag)) {
             json_t *jn = json_object_get(gobj->jn_attrs, it->name);
@@ -3908,7 +3908,7 @@ PRIVATE json_t *gobj_check_required_attrs(gobj_t *gobj)
     json_t *hs = gobj_hsdata(gobj);
     json_t *jn_required_attrs = json_array();
 
-    const sdata_desc_t *it = gobj->gclass->tattr_desc;
+    const sdata_desc_t *it = gobj->gclass->attrs_table;
     while(it->name) {
         if(it->flag & SDF_REQUIRED) {
             const json_t *jn_value = json_object_get(hs, it->name);
@@ -6195,7 +6195,7 @@ PUBLIC json_t *get_attrs_schema(hgobj gobj_)
     json_t *jn_data = json_array();
 
     int id = 1;
-    const sdata_desc_t *it = gobj->gclass->tattr_desc;
+    const sdata_desc_t *it = gobj->gclass->attrs_table;
     while(it && it->name) {
         if(it->flag & (SDF_PUBLIC_ATTR)) {
             char *type;
@@ -6271,7 +6271,7 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
     // TODO   json_object_set_new(
 //        jn_dict,
 //        "attrs",
-//        sdatadesc2json2(gclass->tattr_desc, -1, 0)
+//        sdatadesc2json2(gclass->attrs_table, -1, 0)
 //    );
 //    json_object_set_new(
 //        jn_dict,

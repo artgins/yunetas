@@ -80,7 +80,7 @@ PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE const sdata_desc_t tattr_desc[] = { // WARNING repeated in c_tcp/c_esp_transport
+PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_transport
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
@@ -1492,7 +1492,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
         0,  // command_table,

@@ -42,7 +42,7 @@ PRIVATE int yev_callback(yev_event_h yev_event);
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag----------------default---------description---------- */
 SDATA (DTP_JSON,        "crypto",               SDF_RD,             0,              "Crypto config"),
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "false",        "True if schema is secure. Set internally"),
@@ -637,7 +637,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
         0,  // command_table,

@@ -80,7 +80,7 @@ SDATA_END()
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-PRIVATE const sdata_desc_t tattr_desc[] = {
+PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag--------------------default-description---------- */
 SDATA (DTP_STRING,  "url_ota",          SDF_WR,                 "",     "OTA url"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,            "",     "SSL server certificate, PEM format"),
@@ -1000,7 +1000,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  // lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
         command_table,

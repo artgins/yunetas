@@ -130,7 +130,7 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
-PRIVATE sdata_desc_t tattr_desc[] = {
+PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_JSON,        "jobs",             SDF_RD,         0,              "Jobs"),
 SDATA (DTP_JSON,        "input_data",       SDF_RD,         "{}",           "Input Jobs Data. Use as you want. Available in exec_action() and exec_result() action methods."),
@@ -765,7 +765,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         states,
         &gmt,
         0,  //lmt,
-        tattr_desc,
+        attrs_table,
         sizeof(PRIVATE_DATA),
         authz_table,  // authz_table,
         command_table,  // command_table,

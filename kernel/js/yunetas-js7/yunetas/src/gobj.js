@@ -136,7 +136,7 @@ class GClass {
         gclass_name,
         gmt,
         lmt,
-        tattr_desc,
+        attrs_table,
         priv,
         authz_table,
         command_table,
@@ -149,7 +149,7 @@ class GClass {
         this.gmt = gmt;        // Global methods
         this.lmt = lmt;
 
-        this.tattr_desc = tattr_desc;
+        this.attrs_table = attrs_table;
         this.priv = priv;
         this.authz_table = authz_table; // acl
         this.command_table = command_table; // if it exits then mt_command is not used.
@@ -180,7 +180,7 @@ class GObj {
 
         // Data allocated
         this.gobj_name = gobj_name;
-        this.jn_attrs =  sdata_create(gclass.tattr_desc);
+        this.jn_attrs =  sdata_create(gclass.attrs_table);
         this.jn_stats = {};
         this.jn_user_data = {};
         this.full_name = null;
@@ -312,7 +312,7 @@ function sdata_write_default_values(
     exclude_flag    // sdata_flag_t
 )
 {
-    let sdata_desc = gobj.gclass.tattr_desc;
+    let sdata_desc = gobj.gclass.attrs_table;
 
     for(let i=0; i < sdata_desc.length; i++) {
         const it = sdata_desc[i];
@@ -523,11 +523,11 @@ function gclass_attr_desc(gclass, attr, verbose)
     }
 
     if(!attr) {
-        return gclass.tattr_desc;
+        return gclass.attrs_table;
     }
 
-    for(let i=0; i < gclass.tattr_desc.length; i++) {
-        const it = gclass.tattr_desc[i];
+    for(let i=0; i < gclass.attrs_table.length; i++) {
+        const it = gclass.attrs_table[i];
         if (it.name === attr) {
             return it;
         }
@@ -548,7 +548,7 @@ function gclass_create(
     states,
     gmt,
     lmt,
-    tattr_desc,
+    attrs_table,
     priv,
     authz_table,
     command_table,
@@ -574,7 +574,7 @@ function gclass_create(
         gclass_name,
         gmt,
         lmt,
-        tattr_desc,
+        attrs_table,
         priv,
         authz_table,
         command_table,
