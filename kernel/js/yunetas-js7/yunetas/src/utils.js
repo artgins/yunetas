@@ -92,6 +92,17 @@ function json_object_size(a)
 /************************************************************
  *
  ************************************************************/
+function json_array_size(a)
+{
+    if(is_array(a)) {
+        return a.length;
+    }
+    return 0;
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function json_size(a)
 {
     if(is_object(a)) {
@@ -2381,6 +2392,7 @@ export {
     json_object_update_missing,
     json_array_extend,
     json_object_size,
+    json_array_size,
     json_size,
 
     is_object,

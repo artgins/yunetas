@@ -169,7 +169,6 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_TIMEOUT",          "EVF_OUTPUT_EVENT"],
         ["EV_TIMEOUT_PERIODIC", "EVF_OUTPUT_EVENT"]
     ];
 

@@ -21,7 +21,7 @@ import {
     json_deep_copy,
     json_object_update,
     index_in_list,
-    json_object_size,
+    json_array_size,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -181,7 +181,7 @@ class GObj {
 
         // Data allocated
         this.gobj_name = gobj_name;
-        this.jn_attrs =  sdata_create(gclass.attrs_table);
+        this.jn_attrs =  sdata_create(this, gclass.attrs_table);
         this.jn_stats = {};
         this.jn_user_data = {};
         this.full_name = null;
@@ -857,7 +857,7 @@ function gclass_check_fsm(gclass)
     /*
      *  check states
      */
-    if(!json_object_size(gclass.dl_states)) {
+    if(!json_array_size(gclass.dl_states)) {
         log_error(`GClass without states: ${gclass.gclass_name}`);
         ret += -1;
     }
