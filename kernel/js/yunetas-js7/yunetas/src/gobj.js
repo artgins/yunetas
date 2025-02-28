@@ -260,6 +260,13 @@ const obflag_t = Object.freeze({
     obflag_created:     0x0004,
 });
 
+const event_flag_t = Object.freeze({
+    EVF_NO_WARN_SUBS    : 0x0001,   // Don't warn of "Publish event WITHOUT subscribers"
+    EVF_OUTPUT_EVENT    : 0x0002,   // Output Event
+    EVF_SYSTEM_EVENT    : 0x0004,   // System Event
+    EVF_PUBLIC_EVENT    : 0x0008,   // You should document a public event, it's the API
+});
+
 /*---------------------------*
  *          FSM
  *---------------------------*/
@@ -660,7 +667,7 @@ function gclass_create(
             return null;
         }
 
-        gclass_add_event_type(gclass, event_type);
+        gclass_add_event_type(gclass, event_name, event_type);
     }
 
     /*----------------------------------------*
@@ -782,16 +789,7 @@ function gclass_add_ev_action(
         return -1;
     }
 
-    let event_action = new Event_Action(event_name, action, next_state);
-
-    event_action->event = event;
-    event_action->action = action;
-    event_action->next_state = next_state;
-
-    dl_add(&state->dl_actions, event_action);
-
-    return 0;
-
+    state.dl_actions[event_name] = new Event_Action(event_name, action, next_state);
 
     return 0;
 }
@@ -799,14 +797,14 @@ function gclass_add_ev_action(
 /************************************************************
  *
  ************************************************************/
-function gclass_add_event_type(gclass, event_type)
+function gclass_add_event_type(gclass, event_name, event_flag)
 {
     if(!(gclass instanceof GClass)) {
         log_error(`Cannot add state, typeof not GClass`);
         return -1;
     }
-    // TODO
 
+    gclass.dl_events[event_name] = new Event_Type(event_name, event_flag);
     return 0;
 }
 
@@ -817,11 +815,16 @@ function gclass_find_event_type(gclass, event_name)
 {
     if(!(gclass instanceof GClass)) {
         log_error(`Cannot add state, typeof not GClass`);
-        return -1;
+        return 0;
     }
-    // TODO
 
-    return 0;
+    let event_type = gclass.dl_events[event_name];
+    if(event_type === undefined) {
+        log_error(`Event not found: gclass ${gclass.gclass_name}, event ${event_name}`);
+        return 0;
+    }
+
+    return event_type;
 }
 
 /************************************************************
