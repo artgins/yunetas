@@ -45,7 +45,7 @@ extern void jsonp_free(void *ptr);
 typedef struct event_action_s {
     DL_ITEM_FIELDS
 
-    gobj_event_t event;
+    gobj_event_t event_name;
     gobj_action_fn action;
     gobj_state_t next_state;
 } event_action_t;
@@ -982,11 +982,11 @@ PRIVATE state_t *find_state(gclass_t *gclass, gobj_state_t state_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event)
+PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event_name)
 {
     event_action_t *event_action = dl_first(&state->dl_actions);
     while(event_action) {
-        if(event == event_action->event) {
+        if(event_name == event_action->event_name) {
             return event_action;
         }
         event_action = dl_next(event_action);
@@ -1000,7 +1000,7 @@ PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event)
 PUBLIC int gclass_add_ev_action(
     hgclass hgclass,
     gobj_state_t state_name,
-    gobj_event_t event,
+    gobj_event_t event_name,
     gobj_action_fn action,
     gobj_state_t next_state
 ) {
@@ -1038,14 +1038,14 @@ PUBLIC int gclass_add_ev_action(
         return -1;
     }
 
-    if(find_event_action(state, event)) {
+    if(find_event_action(state, event_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "event already exists",
             "gclass",       "%s", gclass->gclass_name,
             "state",        "%s", state_name,
-            "event",        "%s", event,
+            "event",        "%s", event_name,
             NULL
         );
         return -1;
@@ -1059,14 +1059,14 @@ PUBLIC int gclass_add_ev_action(
             "msg",          "%s", "No memory",
             "gclass",       "%s", gclass->gclass_name,
             "state",        "%s", state_name,
-            "event",        "%s", event,
+            "event",        "%s", event_name,
             "size",         "%d", (int)sizeof(*state),
             NULL
         );
         return -1;
     }
 
-    event_action->event = event;
+    event_action->event_name = event_name;
     event_action->action = action;
     event_action->next_state = next_state;
 
@@ -1299,7 +1299,9 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             // gobj_event_t event;
             // gobj_action_fn action;
             // gobj_state_t next_state;
-            event_type_t *event_type = gclass_find_event_type(gclass, event_action->event);
+            event_type_t *event_type = gclass_find_event_type(
+                gclass, event_action->event_name
+            );
             if(!event_type) {
                 gobj_log_error(0, 0,
                     "function",     "%s", __FUNCTION__,
@@ -1307,7 +1309,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
                     "msg",          "%s", "SMachine: state's event NOT in input_events",
                     "gclass",       "%s", gclass->gclass_name,
                     "state",        "%s", state->state_name,
-                    "event",        "%s", event_action->event,
+                    "event",        "%s", event_action->event_name,
                     NULL
                 );
                 ret += -1;

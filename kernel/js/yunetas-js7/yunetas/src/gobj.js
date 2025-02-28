@@ -198,7 +198,30 @@ class GObj {
 }
 
 /*
- *        gobj_flag_t
+ *  gclass_flag_t
+ *  Features of the gclass
+ *
+    // Example usage:
+
+    let flags = gclass_flag_t.gcflag_manual_start | gclass_flag_t.gcflag_singleton;
+
+    if (flags & gclass_flag_t.gcflag_manual_start) {
+        console.log("Manual start flag is set");
+    }
+
+ */
+
+const gclass_flag_t = Object.freeze({
+    gcflag_manual_start:             0x0001,   // gobj_start_tree() doesn't start automatically
+    gcflag_no_check_output_events:   0x0002,   // When publishing, don't check events in output_event_list
+    gcflag_ignore_unknown_attrs:     0x0004,   // When creating a gobj, ignore non-existing attrs
+    gcflag_required_start_to_play:   0x0008,   // Don't play if start wasn't done
+    gcflag_singleton:                0x0010,   // Can only have one instance
+});
+
+/*
+ *  gobj_flag_t
+ *  Features of the gobj
  *
     // Example usage:
 
@@ -227,31 +250,40 @@ const gobj_flag_t = Object.freeze({
     gobj_flag_autoplay:        0x0040,  // Set by gobj_create_tree0 too
 });
 
-const gclass_flag_t = Object.freeze({
-    gcflag_manual_start:             0x0001,   // gobj_start_tree() doesn't start automatically
-    gcflag_no_check_output_events:   0x0002,   // When publishing, don't check events in output_event_list
-    gcflag_ignore_unknown_attrs:     0x0004,   // When creating a gobj, ignore non-existing attrs
-    gcflag_required_start_to_play:   0x0008,   // Don't play if start wasn't done
-    gcflag_singleton:                0x0010,   // Can only have one instance
-});
-
 /*
- *  Usage
-
-    let flags = gclass_flag_t.gcflag_manual_start | gclass_flag_t.gcflag_singleton;
-
-    if (flags & gclass_flag_t.gcflag_manual_start) {
-        console.log("Manual start flag is set");
-    }
-
+ *  obflag_t
+ *  Features realtime of the gobj
  */
-
 const obflag_t = Object.freeze({
     obflag_destroying:  0x0001,
     obflag_destroyed:   0x0002,
     obflag_created:     0x0004,
 });
 
+/*---------------------------*
+ *          FSM
+ *---------------------------*/
+class Event_Action { // C event_action_t
+    constructor(event_name, action, next_state) {
+        this.event_name = event_name;
+        this.action = action;
+        this.next_state = next_state;
+    }
+}
+
+class State { // C state_t
+    constructor(state_name) {
+        this.state_name = state_name;
+        this.dl_actions = {};
+    }
+}
+
+class Event_Type { // C event_type_t
+    constructor(event_name, event_flag) {
+        this.event_name = event_name;
+        this.event_flag = event_flag;
+    }
+}
 
 /************************************************************
  *      Start up
@@ -491,8 +523,9 @@ function json2item(gobj, sdata, it, jn_value_)
         case data_type_t.DTP_JSON:
             jn_value2 = jn_value_;
             break;
+
         case data_type_t.DTP_POINTER:
-            jn_value2 = jn_value_;
+            jn_value2 = BigInt(jn_value_);
             break;
     }
 
@@ -673,6 +706,30 @@ function gclass_unregister(gclass)
     return 0;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+function _find_state(gclass, state_name)
+{
+    let state = gclass.dl_states[state_name];
+    if(state === undefined) {
+        state = null;
+    }
+    return state;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function _find_event_action(state, event_name)
+{
+    let event_action = state.dl_actions[event_name];
+    if(event_action === undefined) {
+        event_action = null;
+    }
+    return event_action;
+}
+
 /************************************************************
  *
  ************************************************************/
@@ -682,6 +739,13 @@ function gclass_add_state(gclass, state_name)
         log_error(`Cannot add state, typeof not GClass`);
         return -1;
     }
+
+    if(_find_state(gclass, state_name)) {
+        log_error(`state already exists: ${state_name}`);
+        return -1;
+    }
+
+    gclass.dl_states[state_name] = new State(state_name);
 
     return 0;
 }
@@ -702,6 +766,33 @@ function gclass_add_ev_action(
         return -1;
     }
 
+    if(empty_string(state_name)) {
+        log_error(`state_name EMPTY`);
+        return -1;
+    }
+
+    let state = _find_state(gclass, state_name);
+    if(!state) {
+        log_error(`state not found: ${state_name}`);
+        return -1;
+    }
+
+    if(_find_event_action(state, event_name)) {
+        log_error(`event already exists: gclass ${gclass.gclass_name}, state ${state_name}, event ${event_name}`);
+        return -1;
+    }
+
+    let event_action = new Event_Action(event_name, action, next_state);
+
+    event_action->event = event;
+    event_action->action = action;
+    event_action->next_state = next_state;
+
+    dl_add(&state->dl_actions, event_action);
+
+    return 0;
+
+
     return 0;
 }
 
@@ -714,6 +805,7 @@ function gclass_add_event_type(gclass, event_type)
         log_error(`Cannot add state, typeof not GClass`);
         return -1;
     }
+    // TODO
 
     return 0;
 }
@@ -727,6 +819,7 @@ function gclass_find_event_type(gclass, event_name)
         log_error(`Cannot add state, typeof not GClass`);
         return -1;
     }
+    // TODO
 
     return 0;
 }
@@ -740,6 +833,7 @@ function gclass_check_fsm(gclass)
         log_error(`Cannot add state, typeof not GClass`);
         return -1;
     }
+    // TODO
 
     return 0;
 
@@ -966,7 +1060,6 @@ function write_json_parameters(gobj, kw, jn_global)
     if(ret < 0) {
         log_error(`json2data() FAILED, new_kw: ${new_kw}`);
     }
-
 }
 
 /************************************************************
@@ -1638,6 +1731,7 @@ function gobj_is_destroying(gobj)
  ************************************************************/
 function gobj_bottom_gobj(gobj)
 {
+    // TODO
 }
 
 /************************************************************
@@ -1645,6 +1739,7 @@ function gobj_bottom_gobj(gobj)
  ************************************************************/
 function gobj_set_bottom_gobj(gobj)
 {
+    // TODO
 }
 
 
