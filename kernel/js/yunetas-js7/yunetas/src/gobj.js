@@ -21,6 +21,7 @@ import {
     json_deep_copy,
     json_object_update,
     index_in_list,
+    json_object_size,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -144,8 +145,8 @@ class GClass {
         gclass_flag
     ) {
         this.gclass_name = gclass_name;
-        this.dl_states = {};  // FSM list states and their ev/action/next
-        this.dl_events = {};  // FSM list of events (gobj_event_t, event_flag_t)
+        this.dl_states = [];  // FSM list states and their ev/action/next
+        this.dl_events = [];  // FSM list of events (gobj_event_t, event_flag_t)
         this.gmt = gmt;        // Global methods
         this.lmt = lmt;
 
@@ -155,7 +156,7 @@ class GClass {
         this.command_table = command_table; // if it exits then mt_command is not used.
 
         this.s_user_trace_level = s_user_trace_level;
-        this.gclass_flag = gclass_flag;
+        this.gclass_flag = Number(gclass_flag) || 0;
 
         this.instances = 0;              // instances of this gclass
         this.trace_level = 0;
@@ -176,7 +177,7 @@ class GObj {
         this.current_state = null; // TODO dl_first(&gclass->dl_states);
         this.last_state = null;
         this.obflag = 0;
-        this.gobj_flag = gobj_flag;
+        this.gobj_flag = Number(gobj_flag) || 0;
 
         // Data allocated
         this.gobj_name = gobj_name;
@@ -281,14 +282,14 @@ class Event_Action { // C event_action_t
 class State { // C state_t
     constructor(state_name) {
         this.state_name = state_name;
-        this.dl_actions = {};
+        this.dl_actions = [];
     }
 }
 
 class Event_Type { // C event_type_t
     constructor(event_name, event_flag) {
         this.event_name = event_name;
-        this.event_flag = event_flag;
+        this.event_flag = Number(event_flag) || 0;
     }
 }
 
@@ -718,11 +719,16 @@ function gclass_unregister(gclass)
  ***************************************************************************/
 function _find_state(gclass, state_name)
 {
-    let state = gclass.dl_states[state_name];
-    if(state === undefined) {
-        state = null;
+    const size = gclass.dl_states.length;
+    const dl = gclass.dl_states;
+
+    for(let i=0; i<size; i++) {
+        let state = dl[i];
+        if(state.state_name === state_name) {
+            return state;
+        }
     }
-    return state;
+    return null;
 }
 
 /************************************************************
@@ -730,11 +736,16 @@ function _find_state(gclass, state_name)
  ************************************************************/
 function _find_event_action(state, event_name)
 {
-    let event_action = state.dl_actions[event_name];
-    if(event_action === undefined) {
-        event_action = null;
+    const size = state.dl_actions.length;
+    const dl = state.dl_actions;
+
+    for(let i=0; i<size; i++) {
+        let event_action = dl[i];
+        if(event_action.event_name === event_name) {
+            return event_action;
+        }
     }
-    return event_action;
+    return null;
 }
 
 /************************************************************
@@ -752,7 +763,7 @@ function gclass_add_state(gclass, state_name)
         return -1;
     }
 
-    gclass.dl_states[state_name] = new State(state_name);
+    gclass.dl_states.push(new State(state_name));
 
     return 0;
 }
@@ -789,7 +800,7 @@ function gclass_add_ev_action(
         return -1;
     }
 
-    state.dl_actions[event_name] = new Event_Action(event_name, action, next_state);
+    state.dl_actions.push(new Event_Action(event_name, action, next_state));
 
     return 0;
 }
@@ -804,7 +815,7 @@ function gclass_add_event_type(gclass, event_name, event_flag)
         return -1;
     }
 
-    gclass.dl_events[event_name] = new Event_Type(event_name, event_flag);
+    gclass.dl_events.push(new Event_Type(event_name, event_flag));
     return 0;
 }
 
@@ -818,13 +829,17 @@ function gclass_find_event_type(gclass, event_name)
         return 0;
     }
 
-    let event_type = gclass.dl_events[event_name];
-    if(event_type === undefined) {
-        log_error(`Event not found: gclass ${gclass.gclass_name}, event ${event_name}`);
-        return 0;
+    const size = gclass.dl_events.length;
+    const dl = gclass.dl_events;
+
+    for(let i=0; i<size; i++) {
+        let event_type = dl[i];
+        if(event_type.event_name === event_name) {
+            return event_type;
+        }
     }
 
-    return event_type;
+    return null;
 }
 
 /************************************************************
@@ -836,10 +851,73 @@ function gclass_check_fsm(gclass)
         log_error(`Cannot add state, typeof not GClass`);
         return -1;
     }
-    // TODO
 
-    return 0;
+    let ret = 0;
 
+    /*
+     *  check states
+     */
+    if(!json_object_size(gclass.dl_states)) {
+        log_error(`GClass without states: ${gclass.gclass_name}`);
+        ret += -1;
+    }
+
+    /*
+     *  check state's event in input_list
+     */
+    for(let i=0; i<gclass.dl_states.length; i++) {
+        let state = gclass.dl_states[i];
+        // gobj_state_t state_name;
+        // dl_list_t dl_actions;
+
+        for(let j=0; j<state.dl_actions.length; j++) {
+            let event_action = state.dl_actions[j];
+            // gobj_event_t event;
+            // gobj_action_fn action;
+            // gobj_state_t next_state;
+            let event_type = gclass_find_event_type(gclass, event_action.event_name);
+            if(!event_type) {
+                log_error(`SMachine: state's event NOT in input_events: gclass ${gclass.gclass_name}, state ${state.state_name}, event ${event_action.event_name}`);
+                ret += -1;
+            }
+
+            if(event_action.next_state) {
+                let next_state = _find_state(gclass, event_action.next_state);
+                if(!next_state) {
+                    log_error(`SMachine: next state NOT in state names: gclass ${gclass.gclass_name}, state ${state.state_name}, next_state ${event_action.next_state}`);
+                    ret += -1;
+                }
+            }
+        }
+    }
+
+    /*
+     *  check input_list's event in state
+     */
+    for(let i=0; i<gclass.dl_events.length; i++) {
+        let event_type = gclass.dl_events[i];
+        // gobj_event_t event_type.event_name;
+        // event_flag_t event_type.event_flag;
+
+        if(!(event_type.event_flag & event_flag_t.EVF_OUTPUT_EVENT)) {
+            let found = false;
+
+            for(let j=0; j<gclass.dl_states.length; j++) {
+                let state = gclass.dl_states[j];
+                let event_action = _find_event_action(state, event_type.event_name);
+                if(event_action) {
+                    found = true;
+                }
+            }
+
+            if(!found) {
+                log_error(`SMachine: input_list's event NOT in state: gclass ${gclass.gclass_name}, event ${event_type.event_name}`);
+                ret += -1;
+            }
+        }
+    }
+
+    return ret;
 }
 
 /************************************************************
