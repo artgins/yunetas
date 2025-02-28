@@ -30,6 +30,54 @@ import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
 import {register_c_sample} from "./c_sample.js";
 
+/************************************************
+ *          Data
+ ************************************************/
+const yuno_name = "EstadoDelAire GUI";
+const yuno_role = "estadodelaire_gui";
+const yuno_version = "2.0.0";
+
+/*
+ *  TEST Trace Simple Machine
+ *  Set 1 or 2 to see activity machine.
+ *  1: without kw details
+ *  2: with kw details.
+ */
+let tracing = 0;
+let trace_timer = 0;
+
+/*
+ *  Trace inter-events or gobjs creation
+ */
+let trace_inter_event = 0;
+let trace_creation = 0;
+let trace_i18n = 0;
+
+/************************************************
+ *          Startup code
+ ************************************************/
+if (!('WebSocket' in window)) {
+    window.alert("This app cannot run without websockets!");
+    return;
+}
+
+function isFlexSupported()
+{
+    // Create a temporary element
+    let testElement = document.createElement('div');
+
+    // Attempt to set the display property to flex
+    testElement.style.display = 'flex';
+
+    // Check if the display property is set to flex
+    return testElement.style.display === 'flex';
+}
+
+if (!isFlexSupported()) {
+    window.alert("This app cannot run in old browser versions!");
+}
+
+
 /***************************************************************
  *
  ***************************************************************/
@@ -130,3 +178,51 @@ window.addEventListener('load', function() {
     main();
     sample_uplot();
 });
+
+
+
+    /*
+     *  Create the __yuno__ gobj, the grandfather.
+     */
+    let kw = {
+        tracing: tracing,
+        trace_timer: trace_timer,
+        trace_inter_event: trace_inter_event,
+        trace_ievent_callback: null,
+        trace_creation: kw_get_local_storage_value("trace_creation", trace_creation,false),
+        trace_i18n: kw_get_local_storage_value("trace_i18n", trace_i18n, false),
+    };
+    trace_msg("CREATING __yuno__");
+    let __yuno__ = new Yuno(
+        yuno_name,
+        yuno_role,
+        yuno_version,
+        kw
+    );
+
+    window.addEventListener('load', function() {
+        /*
+         *  Delete message "Loading application. Wait please..."
+         */
+        document.getElementById("loading-message").remove();
+        let kw_main = {
+            locales: locales
+        };
+
+        /*
+         *  Clean url hash
+         */
+        window.location.hash = '';
+
+        /*
+         *  Create __default_service__
+         */
+        trace_msg("CREATING __default_service__: " + yuno_role);
+        __yuno__.__default_service__ = __yuno__.gobj_create(
+            yuno_role,
+            gclass_default_service,
+            kw_main,
+            __yuno__
+        );
+        trace_msg("CREATED __default_service__");
+        __yuno__.__default_service__.gobj_start();
