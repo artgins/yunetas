@@ -1498,13 +1498,13 @@ function gobj_destroy(gobj)
     /*--------------------------------*
      *      Delete from parent
      *--------------------------------*/
-    if(gobj.parent) {
-        _remove_child(gobj.parent, gobj);
+    if(parent) {
+        _remove_child(parent, gobj);
         if(gobj_is_volatil(gobj)) {
-            if(gobj_bottom_gobj(gobj.parent) === gobj &&
-                !gobj_is_destroying(gobj.parent))
+            if(gobj_bottom_gobj(parent) === gobj &&
+                !gobj_is_destroying(parent))
             {
-                gobj_set_bottom_gobj(gobj.parent, null);
+                gobj_set_bottom_gobj(parent, null);
             }
         }
     }
@@ -1783,12 +1783,31 @@ function gobj_yuno()
     return __yuno__;
 }
 
+/************************************************************
+ *
+ ************************************************************/
 function gobj_default_service()
 {
     if(!__default_service__ || (__default_service__.obflag & obflag_t.obflag_destroyed)) {
         return null;
     }
     return __default_service__;
+}
+
+/***************************************************************************
+ *  Return name
+ ***************************************************************************/
+function gobj_name(gobj)
+{
+    return gobj.gobj_name;
+}
+
+/***************************************************************************
+ *  Return mach name. Same as gclass name.
+ ***************************************************************************/
+function gobj_gclass_name(gobj)
+{
+    return gobj.gclass.gclass_name;
 }
 
 /************************************************************
@@ -1849,17 +1868,110 @@ function gobj_is_destroying(gobj)
  ************************************************************/
 function gobj_bottom_gobj(gobj)
 {
-    // TODO
+    return gobj.bottom_gobj;
 }
 
 /************************************************************
  *
  ************************************************************/
-function gobj_set_bottom_gobj(gobj)
+function gobj_set_bottom_gobj(gobj, bottom_gobj)
 {
-    // TODO
+    if(gobj.bottom_gobj) {
+        log_warning(`"bottom_gobj already set: ${gobj_short_name(gobj)}`);
+    }
+    gobj.bottom_gobj = bottom_gobj;
 }
 
+/************************************************************
+ *
+ ************************************************************/
+function its_me(gobj, shortname)
+{
+    let n = shortname.split("^");
+    let gobj_name_ =null;
+    let gclass_name_ = null;
+    if(n.length === 2) {
+        gclass_name_ = n[0];
+        gobj_name_ = n[1];
+        if(gclass_name_ !== gobj_gclass_name(gobj)) {
+            return false;
+        }
+    } else if(n.length === 1) {
+        gobj_name_ = n[0];
+    } else {
+        return false;
+    }
+    return gobj_name_ === gobj_name(gobj);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_find_gobj(gobj, path)
+{
+    if(empty_string(path)) {
+        return 0;
+    }
+    /*
+     *  WARNING code repeated
+     */
+    const path_ = path.toLowerCase();
+    if(path_ === "__default_service__") {
+        return __default_service__;
+    }
+    if(path_ === "__yuno__" || path_ === "__root__") {
+        return __yuno__;
+    }
+
+    return gobj_search_path(__yuno__, path);
+}
+
+/***************************************************************************
+ *  Return the object searched by path.
+ *  The separator of tree's gobj must be '`'
+ ***************************************************************************/
+function gobj_search_path(gobj, path)
+{
+    if(!path) {
+        return null;
+    }
+    /*
+     *  Get node and compare with this
+     */
+    let p = path.split("`");
+    let shortname = p[0];
+    if(!its_me(gobj, shortname)) {
+        return null;
+    }
+    if(p.length===1) {
+        // No more nodes
+        return gobj;
+    }
+
+    /*
+     *  Get next node and compare with childs
+     */
+    let n = p[1];
+    let nn = n.split("^");
+    let filter = {};
+    if(nn.length === 1) {
+        filter.__gobj_name__ = nn;
+    } else {
+        filter.__gclass_name__ = nn[0];
+        filter.__gobj_name__ = nn[1];
+    }
+
+    /*
+     *  Search in childs
+     */
+    let child = gobj.gobj_find_child(filter);
+    if(!child) {
+        return null;
+    }
+    p.splice(0, 1);
+    p = p.join("`");
+    return gobj_search_path(child, p);
+}
 
 //=======================================================================
 //      Expose the class via the global object
@@ -1907,6 +2019,8 @@ export {
     gobj_stop_childs,
     gobj_yuno,
     gobj_default_service,
+    gobj_name,
+    gobj_gclass_name,
     gobj_short_name,
     gobj_full_name,
     gobj_parent,
@@ -1914,4 +2028,5 @@ export {
     gobj_is_destroying,
     gobj_bottom_gobj,
     gobj_set_bottom_gobj,
+    gobj_find_gobj,
 };
