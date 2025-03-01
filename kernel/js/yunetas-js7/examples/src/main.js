@@ -23,11 +23,13 @@ import {
     gobj_yuno,
     trace_msg,
     register_c_yuno,
+    kw_get_local_storage_value,
 } from "yunetas";
 
 // Import uPlot
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
+
 import {register_c_sample} from "./c_sample.js";
 
 /************************************************
@@ -58,7 +60,6 @@ let trace_i18n = 0;
  ************************************************/
 if (!('WebSocket' in window)) {
     window.alert("This app cannot run without websockets!");
-    return;
 }
 
 function isFlexSupported()
@@ -130,16 +131,22 @@ function main()
     );
 
     /*------------------------------------------------*
-     *  Create the yuno
+     *  Create the __yuno__ gobj, the grandfather.
      *------------------------------------------------*/
     trace_msg("CREATING __yuno__");
     let yuno = gobj_create_yuno(
         "yuno",
         "C_YUNO",
         {
-            yuno_name: "",
-            yuno_role: "",
-            yuno_version: "",
+            yuno_name: yuno_name,
+            yuno_role: yuno_role,
+            yuno_version: yuno_version,
+            tracing: tracing,
+            trace_timer: trace_timer,
+            trace_inter_event: trace_inter_event,
+            trace_ievent_callback: null,
+            trace_creation: kw_get_local_storage_value("trace_creation", trace_creation,false),
+            trace_i18n: kw_get_local_storage_value("trace_i18n", trace_i18n, false),
         }
     );
 
@@ -150,20 +157,20 @@ function main()
     let gobj_default_service = gobj_create_default_service(
         "sample",
         "C_SAMPLE",
-        {},
+        {
+        },
         gobj_yuno()
     );
 
     /*-------------------------------------*
      *      Play yuno
      *-------------------------------------*/
-    gobj_play(yuno);
-    gobj_pause(yuno);
-    gobj_stop(yuno);
-
-    gobj_destroy(gobj_default_service);
-    gobj_destroy(yuno);
-
+    gobj_play(yuno);    // this will start default service
+    // gobj_pause(yuno);
+    // gobj_stop(yuno);
+    //
+    // gobj_destroy(gobj_default_service);
+    // gobj_destroy(yuno);
 }
 
 /***************************************************************
@@ -175,54 +182,11 @@ window.addEventListener('load', function() {
      */
     document.getElementById("loading-message").remove();
 
+    /*
+     *  Clean url hash
+     */
+    window.location.hash = '';
+
     main();
     sample_uplot();
 });
-
-
-
-    /*
-     *  Create the __yuno__ gobj, the grandfather.
-     */
-    let kw = {
-        tracing: tracing,
-        trace_timer: trace_timer,
-        trace_inter_event: trace_inter_event,
-        trace_ievent_callback: null,
-        trace_creation: kw_get_local_storage_value("trace_creation", trace_creation,false),
-        trace_i18n: kw_get_local_storage_value("trace_i18n", trace_i18n, false),
-    };
-    trace_msg("CREATING __yuno__");
-    let __yuno__ = new Yuno(
-        yuno_name,
-        yuno_role,
-        yuno_version,
-        kw
-    );
-
-    window.addEventListener('load', function() {
-        /*
-         *  Delete message "Loading application. Wait please..."
-         */
-        document.getElementById("loading-message").remove();
-        let kw_main = {
-            locales: locales
-        };
-
-        /*
-         *  Clean url hash
-         */
-        window.location.hash = '';
-
-        /*
-         *  Create __default_service__
-         */
-        trace_msg("CREATING __default_service__: " + yuno_role);
-        __yuno__.__default_service__ = __yuno__.gobj_create(
-            yuno_role,
-            gclass_default_service,
-            kw_main,
-            __yuno__
-        );
-        trace_msg("CREATED __default_service__");
-        __yuno__.__default_service__.gobj_start();
