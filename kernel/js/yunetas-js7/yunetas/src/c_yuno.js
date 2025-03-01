@@ -8,6 +8,11 @@
 import {
     gclass_create,
     gclass_flag_t,
+    SDataDesc,
+    SDATA,
+    SDATA_END,
+    data_type_t,
+    sdata_flag_t
 } from "./gobj.js";
 
 import {
@@ -24,19 +29,23 @@ const GCLASS_NAME = "C_YUNO";
  *              Data
  ***************************************************************/
 /*---------------------------------------------*
- *          Configuration (C attributes)
+ *          Attributes
  *---------------------------------------------*/
-let CONFIG = {
-    changesLost: false, // Use with window.onbeforeunload in __yuno__.
-                        // Set true to warning about leaving page.
-    tracing: 0,
-    no_poll: 0,
-    trace_timer: 0,
-    trace_creation: 0,
-    trace_i18n: 0,
-    trace_inter_event: 0,       // trace traffic
-    trace_ievent_callback: null     // trace traffic
-};
+
+// Define structured data (SData)
+const attrs_table = [
+SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",           0,  false, "Set true to warn about leaving page."),
+SDATA(data_type_t.DTP_STRING,   "yuno_name",             0,  "",    "Yuno name"),
+SDATA(data_type_t.DTP_STRING,   "yuno_role",             0,  "",    "Yuno role"),
+SDATA(data_type_t.DTP_STRING,   "yuno_version",          0,  "",    "Yuno version"),
+SDATA(data_type_t.DTP_INTEGER,  "tracing",               0,  0,     "Tracing level"),
+SDATA(data_type_t.DTP_INTEGER,  "trace_timer",           0,  0,     "Trace timers"),
+SDATA(data_type_t.DTP_INTEGER,  "trace_inter_event",     0,  0,     "Trace traffic"),
+SDATA(data_type_t.DTP_POINTER,  "trace_ievent_callback", 0,  0,     "Trace traffic callback"),
+SDATA(data_type_t.DTP_INTEGER,  "trace_creation",        0,  0,     "Trace creation"),
+SDATA(data_type_t.DTP_INTEGER,  "trace_i18n",            0,  0,     "Trace i18n"),
+SDATA_END()
+];
 
 let PRIVATE_DATA = {
 };
@@ -164,7 +173,7 @@ function create_gclass(gclass_name)
      *          States
      *---------------------------------------------*/
     const st_idle = [
-        ["EV_TIMEOUT",      null,       null]
+        ["EV_TIMEOUT",      ac_timeout,         null]
     ];
 
     const states = [
@@ -187,7 +196,7 @@ function create_gclass(gclass_name)
         states,
         gmt,
         0,  // lmt,
-        CONFIG,
+        attrs_table,
         PRIVATE_DATA,
         0,  // authz_table,
         0,  // command_table,

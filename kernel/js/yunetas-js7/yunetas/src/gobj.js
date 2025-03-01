@@ -356,6 +356,9 @@ function sdata_write_default_values(
 
     for(let i=0; i < sdata_desc.length; i++) {
         const it = sdata_desc[i];
+        if(!it.name) {
+            continue;
+        }
 
         if(exclude_flag && (it.flag & exclude_flag)) {
             continue;
@@ -381,6 +384,9 @@ function sdata_create(gobj, sdata_desc)
     let sdata = {};
     for(let i=0; i < sdata_desc.length; i++) {
         const it = sdata_desc[i];
+        if(!it.name) {
+            continue;
+        }
         set_default(gobj, sdata, it);
     }
 
@@ -569,7 +575,7 @@ function gclass_attr_desc(gclass, attr, verbose)
 
     for(let i=0; i < gclass.attrs_table.length; i++) {
         const it = gclass.attrs_table[i];
-        if (it.name === attr) {
+        if (it.name && it.name === attr) {
             return it;
         }
     }
@@ -724,7 +730,7 @@ function _find_state(gclass, state_name)
 
     for(let i=0; i<size; i++) {
         let state = dl[i];
-        if(state.state_name === state_name) {
+        if(state.name && state.state_name === state_name) {
             return state;
         }
     }
@@ -741,7 +747,7 @@ function _find_event_action(state, event_name)
 
     for(let i=0; i<size; i++) {
         let event_action = dl[i];
-        if(event_action.event_name === event_name) {
+        if(event_action.event_name && event_action.event_name === event_name) {
             return event_action;
         }
     }
@@ -834,7 +840,7 @@ function gclass_find_event_type(gclass, event_name)
 
     for(let i=0; i<size; i++) {
         let event_type = dl[i];
-        if(event_type.event_name === event_name) {
+        if(event_type.event_name && event_type.event_name === event_name) {
             return event_type;
         }
     }
@@ -867,12 +873,18 @@ function gclass_check_fsm(gclass)
      */
     for(let i=0; i<gclass.dl_states.length; i++) {
         let state = gclass.dl_states[i];
+        if(!state.name) {
+            continue;
+        }
         // gobj_state_t state_name;
         // dl_list_t dl_actions;
 
         for(let j=0; j<state.dl_actions.length; j++) {
             let event_action = state.dl_actions[j];
-            // gobj_event_t event;
+            if(!event_action.event_name) {
+                continue;
+            }
+            // gobj_event_t event_name;
             // gobj_action_fn action;
             // gobj_state_t next_state;
             let event_type = gclass_find_event_type(gclass, event_action.event_name);
@@ -896,6 +908,9 @@ function gclass_check_fsm(gclass)
      */
     for(let i=0; i<gclass.dl_events.length; i++) {
         let event_type = gclass.dl_events[i];
+        if(!event_type.event_name) {
+            continue;
+        }
         // gobj_event_t event_type.event_name;
         // event_flag_t event_type.event_flag;
 
@@ -904,6 +919,9 @@ function gclass_check_fsm(gclass)
 
             for(let j=0; j<gclass.dl_states.length; j++) {
                 let state = gclass.dl_states[j];
+                if(!state.state_name) {
+                    continue;
+                }
                 let event_action = _find_event_action(state, event_type.event_name);
                 if(event_action) {
                     found = true;

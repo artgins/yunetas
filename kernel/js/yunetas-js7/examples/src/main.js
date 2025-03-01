@@ -35,9 +35,9 @@ import {register_c_sample} from "./c_sample.js";
 /************************************************
  *          Data
  ************************************************/
-const yuno_name = "EstadoDelAire GUI";
-const yuno_role = "estadodelaire_gui";
-const yuno_version = "2.0.0";
+const yuno_name = "Sample GUI";
+const yuno_role = "sample_gui";
+const yuno_version = "1.0.0";
 
 /*
  *  TEST Trace Simple Machine
@@ -77,7 +77,6 @@ function isFlexSupported()
 if (!isFlexSupported()) {
     window.alert("This app cannot run in old browser versions!");
 }
-
 
 /***************************************************************
  *
