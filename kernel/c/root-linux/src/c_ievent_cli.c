@@ -123,7 +123,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  SERVICE subscription model
      */
-    hgobj subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+    hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
         gobj_subscribe_event(gobj, NULL, NULL, subscriber);
     }
