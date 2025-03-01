@@ -164,6 +164,7 @@ function main()
     /*-------------------------------------*
      *      Play yuno
      *-------------------------------------*/
+    gobj_start(yuno);
     gobj_play(yuno);    // this will start default service
     // gobj_pause(yuno);
     // gobj_stop(yuno);

@@ -170,7 +170,7 @@ class GObj {
     constructor(gobj_name, gclass, kw, parent, gobj_flag) {
         this.__refs__ = 0;
         this.gclass = gclass;
-        this.parent = parent;
+        this.parent = null;     // assign in _add_child()
         this.dl_childs = [];
         this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
         this.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
@@ -444,7 +444,7 @@ function set_default(gobj, sdata, it)
             }
             break;
         case data_type_t.DTP_POINTER:
-            jn_value = BigInt(svalue);
+            jn_value = svalue;
             break;
     }
 
@@ -539,7 +539,7 @@ function json2item(gobj, sdata, it, jn_value_)
             break;
 
         case data_type_t.DTP_POINTER:
-            jn_value2 = BigInt(jn_value_);
+            jn_value2 = jn_value_;
             break;
     }
 
@@ -730,7 +730,7 @@ function _find_state(gclass, state_name)
 
     for(let i=0; i<size; i++) {
         let state = dl[i];
-        if(state.name && state.state_name === state_name) {
+        if(state.state_name && state.state_name === state_name) {
             return state;
         }
     }
@@ -1656,24 +1656,24 @@ function gobj_stop(gobj)
 function gobj_play(gobj)
 {
     if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
-        log_error("gobj NULL or DESTROYED");
+        log_error(`gobj NULL or DESTROYED: ${gobj_short_name(gobj)}`);
         return -1;
     }
     if(gobj.playing) {
-        log_error("GObj ALREADY PLAYING");
+        log_error(`GObj ALREADY PLAYING: ${gobj_short_name(gobj)}`);
         return -1;
     }
     if(gobj.disabled) {
-        log_error("GObj DISABLED");
+        log_error(`GObj DISABLED: ${gobj_short_name(gobj)}`);
         return -1;
     }
     if(!gobj_is_running(gobj)) {
         if(!(gobj.gclass.gclass_flag & gclass_flag_t.gcflag_required_start_to_play)) {
             // Default: It's auto-starting but display error (magic but warn!).
-            log_warning("GObj playing without previous start");
+            log_warning(`GObj playing without previous start: ${gobj_short_name(gobj)}`);
             gobj_start(gobj);
         } else {
-            log_error("Cannot play, start not done");
+            log_error(`Cannot play, start not done: ${gobj_short_name(gobj)}`);
             return -1;
         }
     }
@@ -1751,6 +1751,25 @@ function gobj_is_playing(gobj)
         return false;
     }
     return gobj.playing;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_stop_childs(gobj)
+{
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
+        return -1;
+    }
+    const dl_childs = gobj.dl_childs;
+    for(let i=0; i < dl_childs.length; i++) {
+        const child = dl_childs[i];
+        if(gobj_is_running(child)) {
+            gobj_stop(child);
+        }
+    }
+    return 0;
 }
 
 /************************************************************
@@ -1885,6 +1904,7 @@ export {
     gobj_pause,
     gobj_is_running,
     gobj_is_playing,
+    gobj_stop_childs,
     gobj_yuno,
     gobj_default_service,
     gobj_short_name,
