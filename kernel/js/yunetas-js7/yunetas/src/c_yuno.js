@@ -207,7 +207,7 @@ function create_gclass(gclass_name)
      *          States
      *---------------------------------------------*/
     const st_idle = [
-        ["EV_TIMEOUT",      ac_timeout,         null]
+        ["EV_TIMEOUT_PERIODIC",     ac_timeout,     null]
     ];
 
     const states = [
@@ -218,7 +218,7 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_TIMEOUT",          null],
+        ["EV_TIMEOUT_PERIODIC",     0]
     ];
 
     /*----------------------------------------*
