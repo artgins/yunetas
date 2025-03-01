@@ -59,7 +59,7 @@ SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
 SDATA (DTP_JSON,    "extra_info",       SDF_RD,         "{}",       "dict data set by user, added to the identity card msg."),
 SDATA (DTP_INTEGER, "timeout_idack",    SDF_RD,         "5000",     "timeout waiting idAck"),
-SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
+SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
 
@@ -123,7 +123,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  SERVICE subscription model
      */
-    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+    hgobj subscriber = gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
         gobj_subscribe_event(gobj, NULL, NULL, subscriber);
     }

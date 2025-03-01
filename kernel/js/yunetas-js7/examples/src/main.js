@@ -23,6 +23,7 @@ import {
     gobj_yuno,
     trace_msg,
     register_c_yuno,
+    register_c_timer,
     kw_get_local_storage_value,
 } from "yunetas";
 
@@ -102,7 +103,7 @@ function sample_uplot()
     const chartContainer = document.createElement("div");
     document.body.appendChild(chartContainer);
 
-    new uPlot(opts, data, chartContainer);
+    let uplot = new uPlot(opts, data, chartContainer);
 }
 
 /***************************************************************
@@ -114,6 +115,7 @@ function main()
      *  Register gclass
      *--------------------*/
     register_c_yuno();
+    register_c_timer();
     register_c_sample();
 
     /*------------------------------------------------*

@@ -6,12 +6,9 @@
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved. ****************************************************************************/
 import {
-    gclass_flag_t,
-    SDataDesc,
     SDATA,
     SDATA_END,
     data_type_t,
-    sdata_flag_t,
     gclass_create,
     gobj_create_pure_child,
     gobj_start,
@@ -45,19 +42,17 @@ const GCLASS_NAME = "C_YUNO";
 /*---------------------------------------------*
  *          Attributes
  *---------------------------------------------*/
-
-// Define structured data (SData)
 const attrs_table = [
-SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",           0,  false, "Set true to warn about leaving page."),
-SDATA(data_type_t.DTP_STRING,   "yuno_name",             0,  "",    "Yuno name"),
-SDATA(data_type_t.DTP_STRING,   "yuno_role",             0,  "",    "Yuno role"),
-SDATA(data_type_t.DTP_STRING,   "yuno_version",          0,  "",    "Yuno version"),
-SDATA(data_type_t.DTP_INTEGER,  "tracing",               0,  0,     "Tracing level"),
-SDATA(data_type_t.DTP_INTEGER,  "trace_timer",           0,  0,     "Trace timers"),
-SDATA(data_type_t.DTP_INTEGER,  "trace_inter_event",     0,  0,     "Trace traffic"),
-SDATA(data_type_t.DTP_POINTER,  "trace_ievent_callback", 0,  null,  "Trace traffic callback"),
-SDATA(data_type_t.DTP_INTEGER,  "trace_creation",        0,  0,     "Trace creation"),
-SDATA(data_type_t.DTP_INTEGER,  "trace_i18n",            0,  0,     "Trace i18n"),
+SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",          0,  false,  "Set true to warn about leaving page."),
+SDATA(data_type_t.DTP_STRING,   "yuno_name",            0,  "",     "Yuno name"),
+SDATA(data_type_t.DTP_STRING,   "yuno_role",            0,  "",     "Yuno role"),
+SDATA(data_type_t.DTP_STRING,   "yuno_version",         0,  "",     "Yuno version"),
+SDATA(data_type_t.DTP_INTEGER,  "tracing",              0,  0,      "Tracing level"),
+SDATA(data_type_t.DTP_INTEGER,  "trace_timer",          0,  0,      "Trace timers"),
+SDATA(data_type_t.DTP_INTEGER,  "trace_inter_event",    0,  0,      "Trace traffic"),
+SDATA(data_type_t.DTP_POINTER,  "trace_ievent_callback",0,  null,   "Trace traffic callback"),
+SDATA(data_type_t.DTP_INTEGER,  "trace_creation",       0,  0,      "Trace creation"),
+SDATA(data_type_t.DTP_INTEGER,  "trace_i18n",           0,  0,      "Trace i18n"),
 SDATA_END()
 ];
 

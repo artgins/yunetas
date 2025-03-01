@@ -47,7 +47,7 @@ SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server 
 SDATA (DTP_INTEGER, "max_pkt_size",     SDF_WR,         "4048",     "Package maximum size"),
 SDATA (DTP_POINTER, "user_data",        0,              0,          "user data"),
 SDATA (DTP_POINTER, "user_data2",       0,              0,          "more user data"),
-SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
+SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
 
@@ -98,7 +98,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  CHILD subscription model
      */
-    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+    hgobj subscriber = gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber) {
         subscriber = gobj_parent(gobj);
     }
