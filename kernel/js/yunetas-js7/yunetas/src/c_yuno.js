@@ -13,19 +13,26 @@ import {
     data_type_t,
     sdata_flag_t,
     gclass_create,
+    gobj_create_pure_child,
     gobj_start,
+    gobj_stop,
     gobj_play,
     gobj_pause,
     gobj_is_playing,
     gobj_is_running,
     gobj_default_service,
     gobj_stop_childs,
+    gobj_name,
 } from "./gobj.js";
 
 import {
     log_error,
     trace_msg,
 } from "./utils.js";
+
+import {
+    set_timeout_periodic
+} from "./c_timer.js";
 
 /***************************************************************
  *              Constants
@@ -55,6 +62,7 @@ SDATA_END()
 ];
 
 let PRIVATE_DATA = {
+    gobj_timer: null,
 };
 
 let __gclass__ = null;
@@ -74,6 +82,10 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
+    /*------------------------*
+     *  Create childs
+     *------------------------*/
+    gobj.priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
 }
 
 /***************************************************************
@@ -88,8 +100,8 @@ function mt_writing(gobj, path)
  ***************************************************************/
 function mt_start(gobj)
 {
-    // gobj_start(priv->gobj_timer);
-    // set_timeout_periodic0(priv->gobj_timer, priv->periodic);
+    gobj_start(gobj.priv.gobj_timer);
+    set_timeout_periodic(gobj.priv.gobj_timer, gobj.priv.periodic);
     return 0;
 }
 
@@ -101,7 +113,7 @@ function mt_stop(gobj)
     /*
      *  When yuno stops, it's the death of the app
      */
-    // gobj_stop(priv->gobj_timer);
+    gobj_stop(gobj.priv.gobj_timer);
     gobj_stop_childs(gobj);
     return 0;
 }
