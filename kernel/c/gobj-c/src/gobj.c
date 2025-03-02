@@ -615,7 +615,7 @@ PUBLIC int gobj_start_up(
     dl_init(&dl_global_event_types, 0);
 
     event_type_t *event_types = global_events;
-    while(event_types && event_types->event) {
+    while(event_types && event_types->event_name) {
         _add_event_type(&dl_global_event_types, event_types);
         event_types++;
     }
@@ -881,14 +881,14 @@ PUBLIC hgclass gclass_create( // create and register gclass
      *          Build Events
      *----------------------------------------*/
     event_type_t *event_type = event_types;
-    while(event_type->event) {
-        if(gclass_find_event_type(gclass, event_type->event)) {
+    while(event_type->event_name) {
+        if(gclass_find_event_type(gclass, event_type->event_name)) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "SMachine: event repeated in input_events",
                 "gclass",       "%s", gclass->gclass_name,
-                "event",        "%s", event_type->event,
+                "event",        "%s", event_type->event_name,
                 NULL
             );
             gclass_unregister(gclass);
@@ -1095,8 +1095,8 @@ PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
         event_t *event_ = dl_first(&gclass->dl_events);
         while(event_) {
             if((event_->event_type.event_flag & EVF_PUBLIC_EVENT)) {
-                if(event_->event_type.event && strcmp(event_->event_type.event, event)==0) {
-                    return event_->event_type.event;
+                if(event_->event_type.event_name && strcmp(event_->event_type.event_name, event)==0) {
+                    return event_->event_type.event_name;
                 }
             }
             event_ = dl_next(event_);
@@ -1242,7 +1242,7 @@ PRIVATE int _add_event_type(
         return -1;
     }
 
-    event->event_type.event = event_type_->event;
+    event->event_type.event_name = event_type_->event_name;
     event->event_type.event_flag = event_type_->event_flag;
 
     return dl_add(dl, event);
@@ -1256,7 +1256,7 @@ PUBLIC event_type_t *gclass_find_event_type(hgclass gclass_, gobj_event_t event)
     gclass_t *gclass = gclass_;
     event_t *event_ = dl_first(&gclass->dl_events);
     while(event_) {
-        if(event_->event_type.event && event_->event_type.event == event) {
+        if(event_->event_type.event_name && event_->event_type.event_name == event) {
             return &event_->event_type;
         }
         event_ = dl_next(event_);
@@ -1348,14 +1348,14 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
      */
     event_t *event_ = dl_first(&gclass->dl_events);
     while(event_) {
-        // gobj_event_t event_type.event;
+        // gobj_event_t event_type.event_name;
         // event_flag_t event_type.event_flag;
 
         if(!(event_->event_type.event_flag & EVF_OUTPUT_EVENT)) {
             BOOL found = FALSE;
             state = dl_first(&gclass->dl_states);
             while(state) {
-                event_action_t *ev_ac = _find_event_action(state, event_->event_type.event);
+                event_action_t *ev_ac = _find_event_action(state, event_->event_type.event_name);
                 if(ev_ac) {
                     found = TRUE;
                 }
@@ -1368,7 +1368,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "SMachine: input_list's event NOT in state",
                     "gclass",       "%s", gclass->gclass_name,
-                    "event",        "%s", event_->event_type.event,
+                    "event",        "%s", event_->event_type.event_name,
                     NULL
                 );
                 ret += -1;
@@ -6880,7 +6880,7 @@ PUBLIC event_type_t *gobj_event_type( // silent function
          */
         event_t *event_ = dl_first(&dl_global_event_types);
         while(event_) {
-            if(event_->event_type.event && event_->event_type.event == event) {
+            if(event_->event_type.event_name && event_->event_type.event_name == event) {
                 return &event_->event_type;
             }
             event_ = dl_next(event_);
@@ -6919,7 +6919,7 @@ PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name
 
     event_t *event_ = dl_first(&gobj->gclass->dl_events);
     while(event_) {
-        if(event_->event_type.event && strcasecmp(event_->event_type.event, event_name)==0) {
+        if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event_name)==0) {
             return &event_->event_type;
         }
         event_ = dl_next(event_);
@@ -6930,7 +6930,7 @@ PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name
      */
     event_ = dl_first(&dl_global_event_types);
     while(event_) {
-        if(event_->event_type.event && strcasecmp(event_->event_type.event, event_name)==0) {
+        if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event_name)==0) {
             return &event_->event_type;
         }
         event_ = dl_next(event_);
@@ -7352,7 +7352,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         } else {
             // WARNING see collateral damages
             event_type_t *event_type = gobj_event_type(publisher, event, TRUE);
-            event = event_type->event;
+            event = event_type->event_name;
         }
     }
 
@@ -7534,7 +7534,7 @@ PUBLIC int gobj_unsubscribe_event(
         } else {
             // WARNING see collateral damages
             event_type_t *event_type = gobj_event_type(publisher, event, TRUE);
-            event = event_type->event;
+            event = event_type->event_name;
         }
     }
 
@@ -8045,12 +8045,12 @@ PUBLIC int gobj_publish_event(
             event_type_t *ev_ = gobj_event_type(subscriber, event, TRUE);
             if(ev_) {
                 if(ev_->event_flag & EVF_SYSTEM_EVENT) {
-                    if(!gobj_has_event(subscriber, ev_->event, 0)) {
+                    if(!gobj_has_event(subscriber, ev_->event_name, 0)) {
                         KW_DECREF(kw2publish)
                         continue;
                     }
                 }
-                event = ev_->event;
+                event = ev_->event_name;
             }
 
             /*

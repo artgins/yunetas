@@ -53,6 +53,11 @@ let __global_list_persistent_attrs_fn__ = null;
 let __global_command_parser_fn__ = null;
 let __global_stats_parser_fn__ = null;
 
+/*
+ *  System (gobj) output events
+ */
+let dl_global_event_types = [];
+
 let trace_creation = false;
 
 let _gclass_register = {};
@@ -329,6 +334,24 @@ function gobj_start_up(
     __global_list_persistent_attrs_fn__ = list_persistent_attrs_fn;
     __global_command_parser_fn__ = global_command_parser_fn;
     __global_stats_parser_fn__ = global_stats_parser_fn;
+
+    /*----------------------------------------*
+     *          Build Global Events
+     *----------------------------------------*/
+    const global_events = [
+        ["EV_STATE_CHANGED",    event_flag_t.EVF_SYSTEM_EVENT|
+                                event_flag_t.EVF_OUTPUT_EVENT|
+                                event_flag_t.EVF_NO_WARN_SUBS],
+        [0, 0]
+    ];
+
+    for (let i = 0; i < global_events.length; i++) {
+        let event_name = global_events[i][0];
+        let event_type = global_events[i][1];
+
+        dl_global_event_types.push(new Event_Type(event_name, event_flag));
+    }
+
 
     return 0;
 }
@@ -695,8 +718,7 @@ function gclass_create(
     /*----------------------------------------*
      *          Build Events
      *----------------------------------------*/
-    let event_types_size = event_types.length;
-    for (let i = 0; i < event_types_size; i++) {
+    for (let i = 0; i < event_types.length; i++) {
         let event_name = event_types[i][0];
         let event_type = event_types[i][1];
 
@@ -846,12 +868,22 @@ function gclass_add_ev_action(
 /************************************************************
  *
  ************************************************************/
+function _add_event_type(dl, event_type)
+{
+
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function gclass_add_event_type(gclass, event_name, event_flag)
 {
     if(!(gclass instanceof GClass)) {
         log_error(`Cannot add state, typeof not GClass`);
         return -1;
     }
+
+    return _add_event_type(gclass.dl_events, event_type);
 
     gclass.dl_events.push(new Event_Type(event_name, event_flag));
     return 0;
@@ -2407,6 +2439,73 @@ function gobj_current_state(gobj)
     return gobj.current_state.state_name;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_event_type( // silent function
+    gobj,
+    event,
+    include_system_events
+)
+{
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
+    let event_type = gclass_find_event_type(gobj.gclass, event);
+    if(event_type) {
+        return event_type;
+    }
+
+    if(include_system_events) {
+        /*
+         *  Check global (gobj) output events
+         */
+        const size = dl_global_event_types.length;
+        const dl = dl_global_event_types;
+
+        for(let i=0; i<size; i++) {
+            let event_type = dl[i];
+            if(event_type.event_name && event_type.event_name === event_name) {
+                return event_type;
+            }
+        }
+
+
+        event_t *event_ = dl_first(&dl_global_event_types);
+        while(event_) {
+            if(event_->event_type.event && event_->event_type.event == event) {
+                return &event_->event_type;
+            }
+            event_ = dl_next(event_);
+        }
+    }
+
+    return NULL;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_has_output_event(gobj, event, event_flag)
+{
+    event_type_t *event_type = gobj_event_type(gobj, event, FALSE);
+    if(!event_type) {
+        return FALSE;
+    }
+
+    if(event_flag && !(event_type->event_flag & event_flag)) {
+        return FALSE;
+    }
+
+    if(!(event_type->event_flag & EVF_OUTPUT_EVENT)) {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
 /************************************************************
  *      send_event
  ************************************************************/
@@ -2860,37 +2959,20 @@ function _delete_subscription(
  *  See .h
  ***************************************************************************/
 function gobj_subscribe_event(
-    publisher_,
+    publisher,
     event,
     kw,
     subscriber)
 {
-    gobj_t * publisher = publisher_;
-    gobj_t * subscriber = subscriber_;
-
     /*---------------------*
      *  Check something
      *---------------------*/
     if(!publisher) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "publisher NULL",
-            "event",        "%s", event,
-            NULL
-        );
-        JSON_DECREF(kw)
+        log_error(`publisher NULL: ev ${event}`);
         return 0;
     }
     if(!subscriber) {
-        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "subscriber NULL",
-            "event",        "%s", event,
-            NULL
-        );
-        JSON_DECREF(kw)
+        log_error(`subscriber NULL: ev ${event}`);
         return 0;
     }
 
@@ -2900,7 +2982,7 @@ function gobj_subscribe_event(
      *--------------------------------------------------------------*/
     if(!empty_string(event)) {
         if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
-            if(!(publisher.gclass.gclass_flag & gcflag_no_check_output_events)) {
+            if(!(publisher.gclass.gclass_flag & gclass_flag_t.gcflag_no_check_output_events)) {
                 gobj_log_error(publisher, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,

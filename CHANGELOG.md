@@ -34,6 +34,8 @@ Change API
     typedef struct states_s:
         ev_action_t *state; => ev_action_t *ev_action_list;
 
+    gclass_add_event_type()
+
 New API
 
     build_stats_response

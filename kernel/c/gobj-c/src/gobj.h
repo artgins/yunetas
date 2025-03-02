@@ -624,7 +624,7 @@ typedef enum { // HACK strict ascendant value!, strings in event_flag_names[]
 } event_flag_t;
 
 typedef struct event_type_s {
-    gobj_event_t event;
+    gobj_event_t event_name;
     event_flag_t event_flag;
 } event_type_t;
 
