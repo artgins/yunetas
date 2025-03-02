@@ -2578,6 +2578,7 @@ export {
     json_object_update_missing,
     json_object_get,
     json_object_set_new,
+    json_object_del,
     json_array_append,
     json_array_remove,
     json_array_extend,
