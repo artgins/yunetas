@@ -20,8 +20,10 @@ import {
     empty_string,
     json_deep_copy,
     json_object_update,
+    json_object_get,
     index_in_list,
     json_array_size,
+    strcasecmp,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -554,6 +556,22 @@ function json2item(gobj, sdata, it, jn_value_)
 function gobj_hsdata(gobj)
 {
     return gobj.jn_attrs;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_hsdata2(gobj, name, verbose)
+{
+    if(gobj_has_attr(gobj, name)) {
+        return gobj_hsdata(gobj);
+    } else if(gobj && gobj.bottom_gobj) {
+        return gobj_hsdata2(gobj.bottom_gobj, name, verbose);
+    }
+    if(verbose) {
+        log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    }
+    return 0;
 }
 
 /***************************************************************************
@@ -1747,6 +1765,30 @@ function gobj_is_running(gobj)
 /************************************************************
  *
  ************************************************************/
+function gobj_is_disabled(gobj)
+{
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
+        return false;
+    }
+    return gobj.disabled;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_is_service(gobj)
+{
+    if(gobj && (gobj.gobj_flag & (gobj_flag_t.gobj_flag_service))) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function gobj_is_playing(gobj)
 {
     if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
@@ -1855,6 +1897,17 @@ function gobj_is_volatil(gobj)
     return false;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_is_pure_child(gobj)
+{
+    if(gobj.gobj_flag & gobj_flag_t.gobj_flag_pure_child) {
+        return true;
+    }
+    return false;
+}
+
 /************************************************************
  *
  ************************************************************/
@@ -1930,6 +1983,84 @@ function gobj_find_gobj(gobj, path)
 }
 
 /***************************************************************************
+ *  Match child.
+ ***************************************************************************/
+function gobj_match_gobj(gobj, jn_filter)
+{
+    let __gclass_name__ = jn_filter.__gclass_name__;
+    let __gobj_name__ = jn_filter.__gobj_name__;
+    let __prefix_gobj_name__ = jn_filter.__prefix_gobj_name__;
+    let __disabled__ = jn_filter.__disabled__;
+    let __state__ = jn_filter.__state__;
+
+    /*
+     *  Check the system keys of the jn_filter used in find loop
+     */
+    if(__gclass_name__) {
+        if(__gclass_name__ !== gobj_gclass_name(gobj)) {
+            return false;
+        }
+    }
+    if(__gobj_name__) {
+        if(__gobj_name__ !== gobj_name(gobj)) {
+            return false;
+        }
+    }
+    if(__prefix_gobj_name__) {
+        let l = __prefix_gobj_name__.length;
+        let name = gobj_name(gobj).substring(0, l);
+        if(__prefix_gobj_name__ !== name) {
+            return false;
+        }
+    }
+    if(__state__) {
+        let state = gobj_current_state(gobj);
+        if(__state__ !== state) {
+            return false;
+        }
+    }
+
+    let jn_attrs = gobj.jn_attrs;
+
+    for(const key of Object.keys(jn_filter)) {
+        if(key === "__gclass_name__" ||
+                key === "__gobj_name__" ||
+                key === "__prefix_gobj_name__" ||
+                key === "__disabled__" ||
+                key === "__state__") {
+            continue;
+        }
+        if(gobj_has_attr(gobj, key)) {
+            if(jn_attrs[key] !== jn_filter[key]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/***************************************************************************
+ *  Returns the first matched child.
+ ***************************************************************************/
+function gobj_find_child(gobj, jn_filter)
+{
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
+        return null;
+    }
+
+    const dl_childs = gobj.dl_childs;
+    for(let i=0; i < dl_childs.length; i++) {
+        const child = dl_childs[i];
+        if(gobj_match_gobj(child, jn_filter)) {
+            return child;
+        }
+    }
+
+    return null;
+}
+
+/***************************************************************************
  *  Return the object searched by path.
  *  The separator of tree's gobj must be '`'
  ***************************************************************************/
@@ -1976,6 +2107,588 @@ function gobj_search_path(gobj, path)
     return gobj_search_path(child, p);
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_has_attr(gobj, name)
+{
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        return false; // WARNING must be a silence function!
+    }
+    if(empty_string(name)) {
+        return false; // WARNING must be a silence function!
+    }
+    return !!gclass_attr_desc(gobj.gclass, name, false);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_read_attr(gobj, name, src)
+{
+    let jn_attrs = gobj.jn_attrs;
+
+    // TODO implement inherited attributes
+    // TODO if attribute not found then find in bottom gobj
+    if(name in jn_attrs) {
+        if(jn_attrs.hasOwnProperty(name)) {
+            let value = jn_attrs[name];
+            if(gobj.gmt.mt_reading) {
+                return gobj.gmt.mt_reading(name, value);
+            }
+            return value;
+        }
+    }
+    return null;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_write_attr(
+    gobj,
+    path, // If it has ` then segments are gobj and leaf is the attribute (+bottom)
+    value,
+    src
+) {
+    // TODO implement inherited attributes
+    // TODO if attribute not found then find in bottom gobj
+
+    if(!is_string(path)) {
+        log_error(sprintf(
+            "gobj_write_attr(%s): path must be a string",
+            gobj_short_name(gobj))
+        );
+        return -1;
+    }
+    let jn_attrs = gobj.jn_attrs;
+
+    let ss = path.split("`");
+    if(ss.length<=1) {
+        let key = path;
+        if(key in jn_attrs) {
+            if(jn_attrs.hasOwnProperty(key)) {
+                jn_attrs[key] = value;
+
+                if(gobj.gmt.mt_writing) {
+                    gobj.gmt.mt_writing(key);
+                }
+                return 0;
+            }
+        }
+        log_error(sprintf("gobj_write_attr(%s): attr not found '%s'", gobj_short_name(gobj), key));
+        return -1;
+    }
+
+    let key;
+    let len = ss.length;
+    for(let i=0; i<len; i++) {
+        key = ss[i];
+        let child = gobj_find_child(gobj, {"__gobj_name__": key});
+        if(child && i<len-1) {
+            gobj = child;
+            continue;
+        }
+
+        if(key in jn_attrs) {
+            if (jn_attrs.hasOwnProperty(key)) {
+                jn_attrs[key] = value;
+
+                if(gobj.mt_writing) {
+                    gobj.mt_writing(key);
+                }
+                return 0;
+            }
+        }
+        break;
+    }
+
+    log_error(sprintf("gobj_write_attr(%s): attr not found '%s'", gobj_short_name(gobj), key));
+    return -1;
+}
+
+/***************************************************************************
+ *  ATTR: read bool
+ ***************************************************************************/
+function gobj_read_bool_attr(gobj, name)
+{
+    if(name) {
+        if(strcasecmp(name, "__disabled__")===0) {
+            return gobj_is_disabled(gobj);
+        } else if(strcasecmp(name, "__running__")===0) {
+            return gobj_is_running(gobj);
+        } else if(strcasecmp(name, "__playing__")===0) {
+            return gobj_is_playing(gobj);
+        } else if(strcasecmp(name, "__service__")===0) {
+            return gobj_is_service(gobj);
+        }
+    }
+
+    let hs = gobj_hsdata2(gobj, name, false);
+    if(hs) {
+        if(gobj.gclass.gmt.mt_reading) {
+            if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
+                let v = gobj.gclass.gmt.mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.b;
+                }
+            }
+        }
+        return json_object_get(hs, name);
+    }
+
+    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    return 0;
+}
+
+/***************************************************************************
+ *  ATTR: read
+ ***************************************************************************/
+function gobj_read_integer_attr(gobj, name)
+{
+    // TODO if(name && strcasecmp(name, "__trace_level__")===0) {
+    //     return gobj_trace_level(gobj);
+    // }
+
+    let hs = gobj_hsdata2(gobj, name, false);
+    if(hs) {
+        if(gobj.gclass.gmt.mt_reading) {
+            if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
+                let v = gobj.gclass.gmt.mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.i;
+                }
+            }
+        }
+        return json_object_get(hs, name);
+    }
+
+    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    return 0;
+}
+
+/***************************************************************************
+ *  ATTR: read
+ ***************************************************************************/
+function gobj_read_pointer_attr(gobj, name)
+{
+    let hs = gobj_hsdata2(gobj, name, false);
+    if(hs) {
+        if(gobj.gclass.gmt.mt_reading) {
+            if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
+                let v = gobj.gclass.gmt.mt_reading(gobj, name);
+                if(v.found) {
+                    return v.v.p;
+                }
+            }
+        }
+        return json_object_get(hs, name);
+    }
+
+    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    return 0;
+}
+
+/***************************************************************************
+ *  ATTR: write
+ ***************************************************************************/
+function gobj_write_bool_attr(gobj, name, value)
+{
+    let hs = gobj_hsdata2(gobj, name, false);
+    if(hs) {
+        hs[name] = value;
+        if(gobj.gclass.gmt.mt_writing) {
+            if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+                // Avoid call to mt_writing before mt_create!
+                gobj.gclass.gmt.mt_writing(gobj, name);
+            }
+        }
+        return 0;
+    }
+
+    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    return -1;
+}
+
+/***************************************************************************
+ *  ATTR: write
+ ***************************************************************************/
+function gobj_write_integer_attr(gobj, name, value)
+{
+    let hs = gobj_hsdata2(gobj, name, false);
+    if(hs) {
+        hs[name] = value;
+        if(gobj.gclass.gmt.mt_writing) {
+            if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+                // Avoid call to mt_writing before mt_create!
+                gobj.gclass.gmt.mt_writing(gobj, name);
+            }
+        }
+        return 0;
+    }
+
+    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    return -1;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_current_state(gobj)
+{
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
+        return null;
+    }
+
+    return ""; // TODO gobj->current_state->state_name;
+}
+
+/************************************************************
+ *      send_event
+ ************************************************************/
+function gobj_send_event(gobj, event, kw, src)
+{
+    // if(!src) {
+    //     // Let events without src, from yuneta outside world.
+    //     //log_error("gobj_send_event('" + event + "') with no src");
+    // }
+    // if(!kw) {
+    //     kw = {};
+    // }
+    // if(this.mt_inject_event) {
+    //     if(!this.gobj_event_in_input_event_list(event)) {
+    //         let tracing = this.is_tracing();
+    //         if(tracing) {
+    //             let hora = get_current_datetime();
+    //             let msg = sprintf("%s%s+> mach: %s, st: %s, ev: %s, src: %s",
+    //                 hora,
+    //                 this._tab(),
+    //                 this.gobj_short_name(),
+    //                 this.fsm.state_list[this.fsm.current_state-1],
+    //                 event,
+    //                 src?src.gobj_short_name():"undefined"
+    //             );
+    //             log_debug(msg);
+    //             if(tracing > 1) {
+    //                 trace_msg(kw);
+    //             }
+    //         }
+    //
+    //         return this.mt_inject_event(event, kw, src);
+    //     }
+    // }
+    //
+    // return this.inject_event(event, kw, src);
+}
+
+/************************************************************
+ *      publish_event
+ *      Return the number of sent events
+ ************************************************************/
+function gobj_publish_event(gobj, event, kw)
+{
+    // let sent_count = 0;
+    //
+    // if(!kw) {
+    //     kw = {};
+    // }
+    // if(empty_string(event)) {
+    //     let msg = sprintf("GObj.gobj_publish_event('%s'): event NULL", this.gobj_short_name());
+    //     log_error(msg);
+    //     return 0;
+    // }
+    //
+    // /*
+    //  *  Chequea que el evento existe en la output_event_list
+    //  */
+    // let output_events = this.get_output_event_list();
+    // if(!(this.gcflag & gcflag_no_check_output_events)) {
+    //     if (!elm_in_list(event, output_events)) {
+    //         let msg = sprintf("GObj.gobj_publish_event('%s'): event '%s' not in output-event list",
+    //             this.gobj_short_name(),
+    //             event
+    //         );
+    //         log_error(msg);
+    //         return 0;
+    //     }
+    // }
+    //
+    // let tracing = this.is_tracing(event);
+    // if (tracing) {
+    //     let hora = get_current_datetime();
+    //     let msg = sprintf("%s%s**> mach: %s, st: %s, ev: %s",
+    //         hora,
+    //         this._tab(),
+    //         this.gobj_short_name(),
+    //         this.fsm.state_list[this.fsm.current_state-1],
+    //         event
+    //     );
+    //     log_debug(msg);
+    //     if(tracing > 1) {
+    //         trace_msg(kw);
+    //     }
+    // }
+    //
+    // /*-------------------------------------*
+    //  *  Own publication method
+    //  *  Return:
+    //  *     -1  (broke),
+    //  *      0  continue without publish,
+    //  *      1  continue and publish
+    //  *-------------------------------------*/
+    // if(this.mt_publish_event) {
+    //     let topublish = this.mt_publish_event(event, kw);
+    //     if(topublish<=0) {
+    //         return 0;
+    //     }
+    // }
+    //
+    // /*--------------------------------------------------------------*
+    //  *  Default publication method
+    //  *--------------------------------------------------------------*/
+    // let subscriptions = this.dl_subscriptions;
+    // let len = subscriptions.length;
+    // for(let i=0; i<len; i++) {
+    //     let subs = subscriptions[i];
+    //     if(!subs) {
+    //         continue;
+    //     }
+    //     if(this.mt_publication_pre_filter) {
+    //         let topublish = this.mt_publication_pre_filter(subs, event, kw);
+    //         if(topublish<0) {
+    //             break;
+    //         } else if(topublish==0) {
+    //             continue;
+    //         }
+    //     }
+    //     let subscriber = subs.subscriber;
+    //
+    //     /*
+    //      *  Check if event null or event in event_list
+    //      */
+    //     if (subs.event===null ||subs.event===undefined || event === subs.event) {
+    //         let kw2publish = null;
+    //         let __global__ = subs.__global__;
+    //         let __filter__ = subs.__filter__;
+    //
+    //         /*
+    //          *  Check renamed_event
+    //          */
+    //         let event_name = subs.renamed_event;
+    //         if (empty_string(event_name)) {
+    //             event_name = event;
+    //         }
+    //
+    //         /*
+    //          *  If kw_global exists then clone and update over it the kw content
+    //          *  (__extend_dict__): add new keys and overwrite existing keys.
+    //          */
+    //         if(__global__) {
+    //             kw2publish = __duplicate__(__global__);
+    //             __extend_dict__(kw2publish, kw);
+    //         } else {
+    //             kw2publish = kw; // like C, it's a shared kw
+    //         }
+    //
+    //         /*
+    //          *  User filter or configured filter
+    //          */
+    //         let topublish = 1;
+    //         if(this.mt_publication_filter) {
+    //             topublish = this.mt_publication_filter(
+    //                 this,
+    //                 event,
+    //                 kw2publish,  // not owned
+    //                 subscriber
+    //             );
+    //         } else if(__filter__) {
+    //             topublish = kw_match_simple(kw2publish , __filter__);
+    //         }
+    //         if(topublish<0) {
+    //             break;
+    //         } else if(topublish===0) {
+    //             /*
+    //              *  Must not be published
+    //              *  Next subs
+    //              */
+    //             continue;
+    //         }
+    //
+    //         /*
+    //          *  Send event
+    //          */
+    //         let ret = subscriber.gobj_send_event(
+    //             event_name,
+    //             kw2publish,
+    //             this
+    //         );
+    //         if(ret < 0 && subs.own_event) {
+    //             sent_count = -1; // Return of -1 indicates that someone owned the event
+    //             break;
+    //         }
+    //         sent_count++;
+    //
+    //         if(this._destroyed) {
+    //             /*
+    //              *  break all, self publisher deleted
+    //              */
+    //             break;
+    //         }
+    //     }
+    // }
+    //
+    // if(!sent_count) {
+    //     let event_id = this.fsm.event_index[event] || 0;
+    //     let attrs = this.fsm.event_attrs[event_id-1] || {};
+    //     if(!elm_in_list("no_warn_subs", attrs)) {
+    //         if(!this._destroyed) {
+    //             log_warning(
+    //                 "Publish event WITHOUT subscribers: " +
+    //                 this.gobj_short_name() + ", " + event
+    //             );
+    //         }
+    //     }
+    // }
+    // return sent_count;
+}
+
+/************************************************************
+ *      subscribe_event
+ *  event can be string or string's list.
+ *
+ *  Possible values for **kw** arguments:
+        __config__,
+        __global__,
+        __filter__
+ *
+ ************************************************************/
+function gobj_subscribe_event(gobj, event, kw, subscriber)
+{
+    /*
+     *  Check subscriber
+     */
+    if(!subscriber) {
+        log_error("GObj.gobj_subscribe_event(): subscriber NULL");
+        return;
+    }
+
+    /*
+     *  Si el subscriber es un string, búsca su object
+     */
+    if (!(typeof subscriber === 'string' || subscriber instanceof GObj)) {
+        log_error("GObj.gobj_subscribe_event(): BAD TYPE subscriber");
+    }
+
+    if (typeof subscriber === 'string') {
+        let new_subscriber = gobj_find_service(subscriber);
+        if (!new_subscriber) {
+            log_error("GObj.gobj_subscribe_event(): '" + subscriber + "' gobj NOT FOUND");
+            return;
+        }
+        subscriber = new_subscriber;
+    } else if(!(subscriber instanceof GObj)) {
+        log_error("GObj.gobj_subscribe_event(): BAD TYPE subscriber");
+        return;
+    }
+
+    // /*
+    //  *  Comprueba que el evento está declarado en output_event_list,
+    //  *  solo para warning, no cortes el procedimiento.
+    //  */
+    // let output_events = this.get_output_event_list();
+    //
+    // /*
+    //  *  Event can be null or undefined
+    //  */
+    // if(event) {
+    //     if (typeof event !== 'string') {
+    //         let msg = "GObj.gobj_subscribe_event('" +
+    //             this.gobj_short_name() +
+    //             "') from " + subscriber.gobj_short_name() + ": '" +
+    //             event + "' is not a string";
+    //         log_error(msg);
+    //         return 0;
+    //     }
+    //
+    //     if(!(this.gcflag & gcflag_no_check_output_events)) {
+    //         if (!elm_in_list(event, output_events)) {
+    //             let msg = "GObj.gobj_subscribe_event('" +
+    //                 this.gobj_short_name() +
+    //                 "') from " + subscriber.gobj_short_name() + ": '" +
+    //                 event + "' not in output-event list";
+    //             log_error(msg);
+    //             return 0;
+    //         }
+    //     }
+    // }
+    //
+    // /*------------------------------*
+    //  *  Find repeated subscription
+    //  *------------------------------*/
+    // let dl_subs = this.gobj_find_subscriptions(event, kw, subscriber);
+    // if(dl_subs.length > 0) {
+    //     log_error(sprintf(
+    //         "subscription(s) REPEATED, event %s, publisher %s, subscriber %s: NEW IGNORED",
+    //         event,
+    //         this.gobj_short_name(),
+    //         subscriber.gobj_short_name()
+    //     ));
+    //     return 0;
+    // }
+    //
+    //
+    // /*
+    //  *  Crea una instancia de subscription
+    //  */
+    // let subscription = new _Subscription(this, event, kw, subscriber);
+    // this.dl_subscriptions.push(subscription);
+    //
+    // /*-----------------------------*
+    //  *  Trace
+    //  *-----------------------------*/
+    // // TODO tracea subs
+    // // trace_msg("subscribe list " + this.gobj_short_name());
+    // // trace_msg(this.gobj_print_subscriptions());
+    //
+    // /*
+    //  *  Avisa de la nueva subscription si quieren
+    //  */
+    // if(this.mt_subscription_added) {
+    //     this.mt_subscription_added(subscription);
+    // }
+    //
+    // return subscription;
+}
+
+/************************************************************
+ *  Delete subscription by name and subscriber gobj
+ *  event must be the original string or string's list.
+ ************************************************************/
+function gobj_unsubscribe_event(gobj, event, kw, subscriber)
+{
+    // let sub_list = this.gobj_find_subscriptions(event, kw, subscriber);
+    //
+    // if(sub_list.length) {
+    //     for (let i=0; i<sub_list.length; i++) {
+    //         this._delete_subscription(sub_list[i], false);
+    //     }
+    //
+    // } else {
+    //     log_error(
+    //         sprintf("%s: gobj_unsubscribe_event(): event '%s', subscriber %s, NOT FOUND",
+    //             this.gobj_short_name(),
+    //             event,
+    //             subscriber.gobj_short_name()
+    //         )
+    //     );
+    //     return -1;
+    // }
+    // return 0;
+}
+
+
+
 //=======================================================================
 //      Expose the class via the global object
 //=======================================================================
@@ -1993,6 +2706,7 @@ export {
     SDATA_END,
     gobj_flag_t,
     gclass_flag_t,
+    event_flag_t,
     GObj,
     gobj_start_up,
     gobj_hsdata,
@@ -2029,8 +2743,25 @@ export {
     gobj_full_name,
     gobj_parent,
     gobj_is_volatil,
+    gobj_is_pure_child,
     gobj_is_destroying,
     gobj_bottom_gobj,
     gobj_set_bottom_gobj,
     gobj_find_gobj,
+    gobj_match_gobj,
+    gobj_find_child,
+    gobj_search_path,
+    gobj_has_attr,
+    gobj_read_attr,
+    gobj_write_attr,
+    gobj_read_bool_attr,
+    gobj_read_integer_attr,
+    gobj_read_pointer_attr,
+    gobj_write_bool_attr,
+    gobj_write_integer_attr,
+    gobj_current_state,
+    gobj_send_event,
+    gobj_publish_event,
+    gobj_subscribe_event,
+    gobj_unsubscribe_event,
 };

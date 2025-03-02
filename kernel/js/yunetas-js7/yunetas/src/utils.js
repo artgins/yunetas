@@ -69,6 +69,17 @@ function json_object_update_missing(destination, source)
 /************************************************************
  *  Extend array
  ************************************************************/
+function json_object_get(o, key)
+{
+    if (o.hasOwnProperty(key)) {
+        return o[key];
+    }
+    return undefined;
+}
+
+/************************************************************
+ *  Extend array
+ ************************************************************/
 function json_array_extend(destination, source)  // old  __extend_list__
 {
     if(!source) {
@@ -249,6 +260,26 @@ function strcmp(str1, str2)
     // *     returns 2: -1
 
     return ( ( str1 === str2 ) ? 0 : ( ( str1 > str2 ) ? 1 : -1 ) );
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function strcasecmp(str1, str2)
+{
+    // http://kevin.vanzonneveld.net
+    // +   original by: Waldo Malqui Silva
+    // +      input by: Steve Hilder
+    // +   improved by: Kevin van Zonneveld (http://kevin.vanzonneveld.net)
+    // +    revised by: gorthaur
+    // *     example 1: strcmp( "waldo", "owald" );
+    // *     returns 1: 1
+    // *     example 2: strcmp( "owald", "waldo" );
+    // *     returns 2: -1
+    let s1 = str1.toLowerCase();
+    let s2 = str2.toLowerCase();
+
+    return ( ( s1 === s2 ) ? 0 : ( ( s1 > s2 ) ? 1 : -1 ) );
 }
 
 /***************************************************************************
@@ -2390,6 +2421,7 @@ export {
     json_object_update,
     json_object_update_existing,
     json_object_update_missing,
+    json_object_get,
     json_array_extend,
     json_object_size,
     json_array_size,
@@ -2408,6 +2440,7 @@ export {
     empty_string,
     strncmp,
     strcmp,
+    strcasecmp,
     cmp_two_simple_json,
     strstr,
 

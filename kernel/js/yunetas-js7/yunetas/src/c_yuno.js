@@ -19,7 +19,8 @@ import {
     gobj_is_running,
     gobj_default_service,
     gobj_stop_childs,
-    gobj_name, gobj_read_bool_attr, gobj_read_integer_attr,
+    gobj_name,
+    gobj_read_attr,
 } from "./gobj.js";
 
 import {
@@ -53,6 +54,7 @@ SDATA(data_type_t.DTP_INTEGER,  "trace_inter_event",    0,  0,      "Trace traff
 SDATA(data_type_t.DTP_POINTER,  "trace_ievent_callback",0,  null,   "Trace traffic callback"),
 SDATA(data_type_t.DTP_INTEGER,  "trace_creation",       0,  0,      "Trace creation"),
 SDATA(data_type_t.DTP_INTEGER,  "trace_i18n",           0,  0,      "Trace i18n"),
+SDATA(data_type_t.DTP_INTEGER,  "periodic_timeout",     0,  "1000", "Timeout periodic, in miliseconds."),
 SDATA_END()
 ];
 
@@ -84,9 +86,7 @@ function mt_create(gobj)
      */
     gobj.priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
 
-    priv.periodic = gobj_read_bool_attr(gobj, "periodic");
-    priv.msec     = gobj_read_integer_attr(gobj, "msec");
-
+    priv.periodic_timeout   = gobj_read_attr(gobj, "periodic_timeout");
 }
 
 /***************************************************************
@@ -102,7 +102,7 @@ function mt_writing(gobj, path)
 function mt_start(gobj)
 {
     gobj_start(gobj.priv.gobj_timer);
-    set_timeout_periodic(gobj.priv.gobj_timer, gobj.priv.periodic);
+    set_timeout_periodic(gobj.priv.gobj_timer, gobj.priv.periodic_timeout);
     return 0;
 }
 
