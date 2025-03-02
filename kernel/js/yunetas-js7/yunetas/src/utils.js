@@ -5,6 +5,9 @@
  *      Copyright (c) 2014,2024 Niyamaka.
  *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
+import {
+    GObj
+} from "./gobj.js";
 
 /************************************************************
  *  Duplicate an object (new references)
@@ -214,10 +217,7 @@ function empty_string(s)
         return true;
     }
 
-    if(s.length === 0) {
-        return true;
-    }
-    return false;
+    return s.length === 0;
 }
 
 /************************************************************
@@ -405,7 +405,7 @@ function _kw_match_simple(kw, jn_filter, level)
             matched = true;
         }
 
-        for(let filter_path in jn_filter) {
+        for(const filter_path of Object.keys(jn_filter)) {
             let jn_filter_value = jn_filter[filter_path];
             /*
              *  Variable compleja, recursivo
@@ -1103,7 +1103,7 @@ function kwid_collect(kw, ids, jn_filter, match_fn)
             }
         }
     } else if(is_object(kw)) {
-        for(let id in kw) {
+        for(const id of Object.keys(kw)) {
             let jn_value = kw[id];
 
             if(!kwid_match_id(ids, id)) {
@@ -1182,6 +1182,58 @@ function kwid_find_one_record(kw, ids, jn_filter, match_fn)
     } else {
         return null;
     }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function id_index_in_obj_list(list, id) {
+    if(!list) {
+        return -1;
+    }
+    for(let i=0; i<list.length; i++) {
+        if(list[i] && list[i].id === id) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function elm_in_list(elm, list, case_insensitive) {
+    if(!list) {
+        log_error("ERROR: elm_in_list() list empty");
+        return false;
+    }
+    if(!elm) {
+        log_error("ERROR: elm_in_list() elm empty");
+        return false;
+    }
+    for(let i=0; i<list.length; i++) {
+        if(case_insensitive) {
+            if(elm.toLowerCase() === list[i].toLowerCase()) {
+                return true;
+            }
+        } else if(elm === list[i]) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function delete_from_list(list, elm) {
+    for(let i=0; i<list.length; i++) {
+        if(elm === list[i]) {
+            list.splice(i, 1);
+            return true;
+        }
+    }
+    return false; // elm does not exist!
 }
 
 /*************************************************************
@@ -1322,17 +1374,17 @@ function msg_delete_MIA(kw, key)
 /************************************************************
  *  Apply answer filters
  ************************************************************/
-var message_area_filters = [];
+let message_area_filters = [];
 function msg_iev_add_answer_filter(gobj, field_name, answer_filter_cb)
 {
-    var len = message_area_filters.length;
-    for(var i=0; i<len; i++) {
-        var name = message_area_filters[i].field_name;
-        if(name == field_name) {
+    let len = message_area_filters.length;
+    for(let i=0; i<len; i++) {
+        let name = message_area_filters[i].field_name;
+        if(name === field_name) {
             return 0; // already registered
         }
     }
-    var filter = {
+    let filter = {
         field_name: field_name,
         answer_filter_fn: answer_filter_cb,
         gobj: gobj
@@ -1399,7 +1451,7 @@ function msg_iev_push_stack(kw, stack, user_info)
             jn_stack.unshift(user_info);
         }
     } catch(e) {
-        console.log(e);
+        log_error(e);
     }
 }
 
@@ -1417,7 +1469,7 @@ function msg_iev_get_stack(kw, stack)
         return 0;
     }
 
-    if(jn_stack.length == 0) {
+    if(jn_stack.length === 0) {
         return null;
     }
     return jn_stack[0];
@@ -1437,11 +1489,11 @@ function msg_iev_pop_stack(kw, stack)
         return 0;
     }
 
-    if(jn_stack.length == 0) {
+    if(jn_stack.length === 0) {
         return null;
     }
     let user_info = jn_stack.shift();
-    if(jn_stack.length == 0) {
+    if(jn_stack.length === 0) {
         msg_iev_delete_key(kw, stack);
     }
     return user_info;
@@ -1864,7 +1916,7 @@ function create_json_record(json_desc, value) // here in js `json_desc` it's a d
  ************************************************************/
 function _logger(msg)
 {
-    console.log(msg);
+    window.console.log(msg);
 }
 
 /********************************************
@@ -1897,13 +1949,13 @@ function log_error(msg)
         msg = JSON.stringify(msg);
     }
     let hora = get_current_datetime();
-    console.log("%c" + hora + " ERROR: " + String(msg), "color:yellow");
+    window.console.log("%c" + hora + " ERROR: " + String(msg), "color:yellow");
 
     if(f_error) {
         f_error("" + hora + " ERROR: " + String(msg));
     }
 
-    console.error(msg);
+    window.console.error(msg);
 }
 
 function log_warning(msg)
@@ -1912,7 +1964,7 @@ function log_warning(msg)
         msg = JSON.stringify(msg);
     }
     let hora = get_current_datetime();
-    console.log("%c" + hora + " WARNING: " + String(msg), "color:cyan");
+    window.console.log("%c" + hora + " WARNING: " + String(msg), "color:cyan");
     if(f_warning) {
         f_warning("" + hora + " WARNING: " + String(msg));
     }
@@ -1924,7 +1976,7 @@ function log_info(msg)
         msg = JSON.stringify(msg);
     }
     if(!empty_string(msg)) {
-        console.log(String(msg));
+        window.console.log(String(msg));
     }
     if(f_info) {
         f_info(String(msg));
@@ -1937,7 +1989,7 @@ function log_debug(msg)
         msg = JSON.stringify(msg);
     }
     if(!empty_string(msg)) {
-        console.log(String(msg));
+        window.console.log(String(msg));
     }
     if(f_debug) {
         f_debug(String(msg));
@@ -1946,12 +1998,12 @@ function log_debug(msg)
 
 function trace_machine(msg)
 {
-    console.log(msg);
+    window.console.log(msg);
 }
 
 function trace_msg(msg)
 {
-    console.log(msg);
+    window.console.log(msg);
     if(f_debug) {
         f_debug(String(msg));
     }
@@ -1959,8 +2011,8 @@ function trace_msg(msg)
 
 function trace_msg2(msg, msg2)
 {
-    console.log(msg);
-    console.log(msg2);
+    window.console.log(msg);
+    window.console.log(msg2);
     if(f_debug) {
         f_debug(String(msg));
         f_debug(String(msg2));
@@ -2235,7 +2287,7 @@ function createElement2(description) {
      *  Create the html element
      */
     if (!tag) {
-        console.error("Tag must be a valid HTML element.");
+        log_error("Tag must be a valid HTML element.");
         return;
     }
     let el = document.createElement(tag);
@@ -2250,7 +2302,8 @@ function createElement2(description) {
             if (attr === 'style' && typeof attrs[attr] === 'object') {
                 // Convert the style object to a CSS string
                 let styleString = '';
-                for (let prop in attrs[attr]) {
+
+                for(const prop of Object.keys(attrs[attr])) {
                     styleString += `${prop}: ${attrs[attr][prop]};`;
                 }
                 el.style.cssText = styleString;
@@ -2305,7 +2358,7 @@ function createElement2(description) {
     } else {
         if(content !== undefined) {
             log_error("content ignored");
-            console.error(content);
+            window.console.error(content);
         }
     }
 
@@ -2313,7 +2366,7 @@ function createElement2(description) {
      *  Attach event listeners
      */
     if (events && typeof events === 'object') {
-        for (let eventType in events) {
+        for(const eventType of Object.keys(events)) {
             el.addEventListener(eventType, events[eventType]);
         }
     }
