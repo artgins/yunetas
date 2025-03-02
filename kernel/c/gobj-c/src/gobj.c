@@ -195,7 +195,7 @@ GOBJ_DEFINE_STATE(ST_WAITING_PAYLOAD_DATA);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE state_t *find_state(gclass_t *gclass, gobj_state_t state_name);
+PRIVATE state_t *_find_state(gclass_t *gclass, gobj_state_t state_name);
 PRIVATE void *_mem_malloc(size_t size);
 PRIVATE void _mem_free(void *p);
 PRIVATE void *_mem_realloc(void *p, size_t new_size);
@@ -249,8 +249,8 @@ PUBLIC void trace_vjson(
     const char *fmt,
     va_list ap
 );
-PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event);
-PRIVATE int add_event_type(
+PRIVATE event_action_t *_find_event_action(state_t *state, gobj_event_t event);
+PRIVATE int _add_event_type(
     dl_list_t *dl,
     event_type_t *event_type_
 );
@@ -616,7 +616,7 @@ PUBLIC int gobj_start_up(
 
     event_type_t *event_types = global_events;
     while(event_types && event_types->event) {
-        add_event_type(&dl_global_event_types, event_types);
+        _add_event_type(&dl_global_event_types, event_types);
         event_types++;
     }
 
@@ -932,7 +932,7 @@ PUBLIC int gclass_add_state(
 
     gclass_t *gclass = (gclass_t *)hgclass;
 
-    if(find_state(gclass, state_name)) {
+    if(_find_state(gclass, state_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -967,7 +967,7 @@ PUBLIC int gclass_add_state(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE state_t *find_state(gclass_t *gclass, gobj_state_t state_name)
+PRIVATE state_t *_find_state(gclass_t *gclass, gobj_state_t state_name)
 {
     state_t *state = dl_first(&gclass->dl_states);
     while(state) {
@@ -982,7 +982,7 @@ PRIVATE state_t *find_state(gclass_t *gclass, gobj_state_t state_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE event_action_t *find_event_action(state_t *state, gobj_event_t event_name)
+PRIVATE event_action_t *_find_event_action(state_t *state, gobj_event_t event_name)
 {
     event_action_t *event_action = dl_first(&state->dl_actions);
     while(event_action) {
@@ -1025,7 +1025,7 @@ PUBLIC int gclass_add_ev_action(
 
     gclass_t *gclass = (gclass_t *)hgclass;
 
-    state_t *state = find_state(gclass, state_name);
+    state_t *state = _find_state(gclass, state_name);
     if(!state) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1038,7 +1038,7 @@ PUBLIC int gclass_add_ev_action(
         return -1;
     }
 
-    if(find_event_action(state, event_name)) {
+    if(_find_event_action(state, event_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1082,7 +1082,7 @@ PUBLIC int gclass_add_event_type(hgclass gclass_, event_type_t *event_type)
 {
     gclass_t *gclass = gclass_;
 
-    return add_event_type(&gclass->dl_events, event_type);
+    return _add_event_type(&gclass->dl_events, event_type);
 }
 
 /***************************************************************************
@@ -1226,7 +1226,7 @@ PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int add_event_type(
+PRIVATE int _add_event_type(
     dl_list_t *dl,
     event_type_t *event_type_
 ) {
@@ -1316,7 +1316,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             }
 
             if(event_action->next_state) {
-                state_t *next_state = find_state(gclass, event_action->next_state);
+                state_t *next_state = _find_state(gclass, event_action->next_state);
                 if(!next_state) {
                     gobj_log_error(0, 0,
                         "function",     "%s", __FUNCTION__,
@@ -1355,7 +1355,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             BOOL found = FALSE;
             state = dl_first(&gclass->dl_states);
             while(state) {
-                event_action_t *ev_ac = find_event_action(state, event_->event_type.event);
+                event_action_t *ev_ac = _find_event_action(state, event_->event_type.event);
                 if(ev_ac) {
                     found = TRUE;
                 }
@@ -6556,7 +6556,7 @@ PUBLIC int gobj_send_event(
     BOOL tracea = is_machine_tracing(dst, event) && !is_machine_not_tracing(src, event);
     __inside__ ++;
 
-    event_action_t *event_action = find_event_action(state, event);
+    event_action_t *event_action = _find_event_action(state, event);
     if(!event_action) {
         if(dst->gclass->gmt->mt_inject_event) {
             __inside__ --;
@@ -6705,7 +6705,7 @@ PUBLIC BOOL gobj_change_state(
     if(gobj->current_state->state_name == state_name) {
         return FALSE;
     }
-    state_t *new_state = find_state(gobj->gclass, state_name);
+    state_t *new_state = _find_state(gobj->gclass, state_name);
     if(!new_state) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -6794,7 +6794,7 @@ PUBLIC BOOL gobj_has_state(hgobj gobj_, gobj_state_t gobj_state)
 {
     gobj_t *gobj = (gobj_t *)gobj_;
 
-    state_t *state = find_state(gobj->gclass, gobj_state);
+    state_t *state = _find_state(gobj->gclass, gobj_state);
     if(state) {
         return TRUE;
     }
