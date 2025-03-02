@@ -194,93 +194,73 @@ function json_size(a)
 }
 
 /************************************************************
- *
+ *  Return if a value is an object (excluding arrays & null)
  ************************************************************/
-// Return if a value is an object
-function is_object(a)
-{
-    return (!!a) && (a.constructor === Object);
+function is_object(value) {
+    return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 /************************************************************
- *
+ *  Return if a value is an array
  ************************************************************/
-// Return if a value is an array
-function is_array(a)
-{
-    return (!!a) && (a.constructor === Array);
+function is_array(value) {
+    return Array.isArray(value);
 }
 
 /************************************************************
- *
+ *  Return if a value is a string
  ************************************************************/
-// Return if a value is a string
-function is_string(value)
-{
-    return typeof value === "string" || value instanceof String;
+function is_string(value) {
+    return typeof value === "string";
 }
 
 /************************************************************
- *
+ *  Return if a value is a number (excluding NaN & Infinity)
  ************************************************************/
-// Return if a value is a number
-function is_number(value)
-{
-    return typeof value === "number" && isFinite(value);
+function is_number(value) {
+    return typeof value === "number" && Number.isFinite(value);
 }
 
 /************************************************************
- *
+ *  Return if a value is a boolean
  ************************************************************/
-// Return if a value is a boolean
-function is_boolean(value)
-{
-    return value === false || value === true;
+function is_boolean(value) {
+    return typeof value === "boolean";
 }
 
 /************************************************************
- *
+ *  Return if a value is null or undefined
  ************************************************************/
-// Return if a value is a null
-function is_null(value)
-{
-    return value === null || value === undefined;
+function is_null(value) {
+    return value == null;  // Covers both `null` and `undefined`
 }
 
 /************************************************************
- *
+ *  Return if a value is a Date object
  ************************************************************/
-function is_date(value)
-{
-    return value instanceof Date;
+function is_date(value) {
+    return value instanceof Date && !isNaN(value);
 }
 
 /************************************************************
- *
+ *  Return if a value is a function
  ************************************************************/
-function is_function(value)
-{
+function is_function(value) {
     return typeof value === "function";
 }
 
 /************************************************************
- *
+ *  Return if a value is an instance of GObj
  ************************************************************/
-function is_gobj(value)
-{
+function is_gobj(value) {
     return value instanceof GObj;
 }
 
 /************************************************************
- *
+ *  Return if a value is an empty string or not a string
  ************************************************************/
-function empty_string(s)
-{
-    if(!s || typeof(s) !== "string") {
-        return true;
-    }
-
-    return s.length === 0;
+function empty_string(value) {
+    return !is_string(value) || value.length === 0;
 }
 
 /************************************************************
@@ -562,6 +542,28 @@ function is_private_key(key)
         }
     }
     return (i === 1);
+}
+
+/************************************************************
+ * Remove from `kw1` all keys in `kw2`.
+ * `kw2` can be a string, object, or array.
+ ************************************************************/
+function kw_pop(kw1, kw2)
+{
+    if (typeof kw2 === "object" && !Array.isArray(kw2)) {
+        // If kw2 is an object, remove its keys from kw1
+        for (const key of Object.keys(kw2)) {
+            delete kw1[key];
+        }
+    } else if (Array.isArray(kw2)) {
+        // If kw2 is an array, recursively remove each element from kw1
+        for (const item of kw2) {
+            kw_pop(kw1, item);
+        }
+    } else if (typeof kw2 === "string") {
+        // If kw2 is a string, remove it as a key from kw1
+        delete kw1[kw2];
+    }
 }
 
 /************************************************************
@@ -2600,6 +2602,7 @@ export {
     cmp_two_simple_json,
     strstr,
 
+    kw_pop,
     kw_has_key,
     kw_get_bool,
     kw_get_int,

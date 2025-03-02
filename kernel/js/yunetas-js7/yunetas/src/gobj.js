@@ -38,6 +38,7 @@ import {
     kw_find_json_in_list,
     kw_get_str,
     kw_has_key,
+    kw_pop,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -45,7 +46,6 @@ import {sprintf} from "./sprintf.js";
 /**************************************************************************
  *        Private data
  **************************************************************************/
-let 0, true = 1;
 let __inside_event_loop__ = 0;
 let __jn_global_settings__ =  null;
 let __global_load_persistent_attrs_fn__ = null;
@@ -54,6 +54,8 @@ let __global_remove_persistent_attrs_fn__ = null;
 let __global_list_persistent_attrs_fn__ = null;
 let __global_command_parser_fn__ = null;
 let __global_stats_parser_fn__ = null;
+
+let __publish_event_match__ = kw_match_simple;
 
 /*
  *  System (gobj) output events
@@ -2524,6 +2526,23 @@ function gobj_event_type( // silent function
 /***************************************************************************
  *
  ***************************************************************************/
+function gobj_has_event(gobj, event, event_flag)
+{
+    let event_type = gobj_event_type(gobj, event, false);
+    if(!event_type) {
+        return false;
+    }
+
+    if(event_flag && !(event_type.event_flag & event_flag)) {
+        return false;
+    }
+
+    return true;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 function gobj_has_output_event(gobj, event, event_flag)
 {
     let event_type = gobj_event_type(gobj, event, false);
@@ -3483,8 +3502,9 @@ function gobj_publish_event(
     let dl_subs = [...publisher.dl_subscriptions]; // Create a shallow copy
     let sent_count = 0;
     let ret = 0;
-    json_t *subs; size_t idx;
-    json_array_foreach(dl_subs, idx, subs) {
+
+    for(let idx=0; idx<dl_subs.length; idx++) {
+        let subs = dl_subs[idx];
         /*-------------------------------------*
          *  Pre-filter
          *  kw NOT owned! you can modify the publishing kw
@@ -3494,7 +3514,7 @@ function gobj_publish_event(
          *      1  continue to publish
          *-------------------------------------*/
         if(publisher.gclass.gmt.mt_publication_pre_filter) {
-            int topublish = publisher.gclass.gmt.mt_publication_pre_filter(
+            let topublish = publisher.gclass.gmt.mt_publication_pre_filter(
                 publisher,
                 subs,
                 event,
@@ -3502,31 +3522,25 @@ function gobj_publish_event(
             );
             if(topublish<0) {
                 break;
-            } else if(topublish==0) {
+            } else if(topublish===0) {
                 continue;
             }
         }
-        gobj_t *subscriber = (gobj_t *)(size_t)kw_get_int(
-            publisher, subs, "subscriber", 0, 0, true
-        );
-        if(!(subscriber && !(subscriber.obflag & (obflag_destroying|obflag_destroyed)))) {
+        let subscriber = kw_get_int(subs, "subscriber", null, 0, true);
+        if(!(subscriber && !gobj_is_destroying(subscriber))) {
             continue;
         }
 
         /*
          *  Check if event null or event in event_list
          */
-        subs_flag_t subs_flag = (subs_flag_t)kw_get_int(
-            publisher, subs, "subs_flag", 0, 0, true
-        );
-        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(
-            publisher, subs, "event", 0, 0, true
-        );
-        if(empty_string(event_) || strcasecmp(event_, event)==0) {
-            json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);
-            json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
-            json_t *__local__ = kw_get_dict(publisher, subs, "__local__", 0, 0);
-            json_t *__filter__ = kw_get_dict_value(publisher, subs, "__filter__", 0, 0);
+        let subs_flag = kw_get_int(subs, "subs_flag", 0, 0, true);
+        let event_ = kw_get_str(subs, "event", "", 0, true);
+        if(empty_string(event_) || strcasecmp(event_, event)===0) {
+            let __config__ = kw_get_dict(subs, "__config__", null, 0);
+            let __global__ = kw_get_dict(subs, "__global__", null, 0);
+            let __local__ = kw_get_dict(subs, "__local__", null, 0);
+            let __filter__ = kw_get_dict_value(subs, "__filter__", null, 0);
 
             /*
              *  Check renamed_event
@@ -3540,7 +3554,7 @@ function gobj_publish_event(
              *  Duplicate the kw to publish if not shared
              *  NOW always shared
              */
-            json_t *kw2publish = kw_incref(kw);
+            let kw2publish = kw;
 
             /*-------------------------------------*
              *  User filter method or filter parameter
@@ -3549,7 +3563,7 @@ function gobj_publish_event(
              *      0  continue without publish,
              *      1  continue and publish
              *-------------------------------------*/
-            int topublish = 1;
+            let topublish = 1;
             if(publisher.gclass.gmt.mt_publication_filter) {
                 topublish = publisher.gclass.gmt.mt_publication_filter(
                     publisher,
@@ -3559,49 +3573,45 @@ function gobj_publish_event(
                 );
             } else if(__filter__) {
                 if(__publish_event_match__) {
-                    KW_INCREF(__filter__)
                     topublish = __publish_event_match__(kw2publish , __filter__);
                 }
-                if(tracea) {
-                    trace_machine(
-                        "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
-                        topublish?"👍":"👎",
-                        event?event:"",
-                        gobj_short_name(subscriber),
-                        gobj_short_name(publisher)
-                    );
-                    gobj_trace_json(
-                        publisher,
-                        __filter__,
-                        "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
-                        topublish?"👍":"👎",
-                        event?event:"",
-                        gobj_short_name(subscriber),
-                        gobj_short_name(publisher)
-                    );
-                }
+                // if(tracea) {
+                //     trace_machine(
+                //         "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
+                //         topublish?"👍":"👎",
+                //         event?event:"",
+                //         gobj_short_name(subscriber),
+                //         gobj_short_name(publisher)
+                //     );
+                //     gobj_trace_json(
+                //         publisher,
+                //         __filter__,
+                //         "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
+                //         topublish?"👍":"👎",
+                //         event?event:"",
+                //         gobj_short_name(subscriber),
+                //         gobj_short_name(publisher)
+                //     );
+                // }
             }
 
             if(topublish<0) {
-                KW_DECREF(kw2publish)
                 break;
-            } else if(topublish==0) {
+            } else if(topublish===0) {
                 /*
                  *  Must not be published
                  *  Next subs
                  */
-                KW_DECREF(kw2publish)
                 continue;
             }
 
             /*
              *  Check if System event: don't send it if subscriber has not it
              */
-            event_type_t *ev_ = gobj_event_type(subscriber, event, true);
+            let ev_ = gobj_event_type(subscriber, event, true);
             if(ev_) {
-                if(ev_.event_flag & EVF_SYSTEM_EVENT) {
-                    if(!gobj_has_event(subscriber, ev_.event, 0)) {
-                        KW_DECREF(kw2publish)
+                if(ev_.event_flag & event_flag_t.EVF_SYSTEM_EVENT) {
+                    if(!gobj_has_event(subscriber, ev_.event_name, 0)) {
                         continue;
                     }
                 }
@@ -3640,36 +3650,36 @@ function gobj_publish_event(
             /*
              *  Send event
              */
-            if(tracea) {
-                trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
-                    (!subscriber.running)?"!!":"",
-                    gobj_short_name(subscriber),
-                    gobj_current_state(subscriber),
-                    event?event:"",
-                    (publisher && !publisher.running)?"!!":"",
-                    gobj_short_name(publisher)
-                );
-                if(__trace_gobj_ev_kw__(publisher)) {
-                    if(json_object_size(kw2publish)) {
-                        gobj_trace_json(publisher, kw2publish, "kw publish send event");
-                    }
-                }
-            }
+            // if(tracea) {
+            //     trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
+            //         (!subscriber.running)?"!!":"",
+            //         gobj_short_name(subscriber),
+            //         gobj_current_state(subscriber),
+            //         event?event:"",
+            //         (publisher && !publisher.running)?"!!":"",
+            //         gobj_short_name(publisher)
+            //     );
+            //     if(__trace_gobj_ev_kw__(publisher)) {
+            //         if(json_object_size(kw2publish)) {
+            //             gobj_trace_json(publisher, kw2publish, "kw publish send event");
+            //         }
+            //     }
+            // }
 
-            int ret_ = gobj_send_event(
+            let ret_ = gobj_send_event(
                 subscriber,
                 event,
                 kw2publish,
                 publisher
             );
-            if(ret_ < 0 && (subs_flag & __own_event__)) {
+            if(ret_ < 0 && (subs_flag & subs_flag_t.__own_event__)) {
                 sent_count = -1; // Return of -1 indicates that someone owned the event
                 break;
             }
             ret += ret_;
             sent_count++;
 
-            if(publisher.obflag & (obflag_destroying|obflag_destroyed)) {
+            if(gobj_is_destroying(publisher)) {
                 /*
                  *  break all, self publisher deleted
                  */
@@ -3679,23 +3689,16 @@ function gobj_publish_event(
     }
 
     if(!sent_count) {
-        if(!ev || !(ev.event_flag & EVF_NO_WARN_SUBS)) {
-            gobj_log_warning(publisher, 0,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Publish event WITHOUT subscribers",
-                "event",        "%s", event,
-                NULL
-            );
-            if(__trace_gobj_ev_kw__(publisher)) {
-                if(json_object_size(kw)) {
-                    gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
-                }
-            }
+        if(!ev || !(ev.event_flag & event_flag_t.EVF_NO_WARN_SUBS)) {
+            log_warning(`Publish event WITHOUT subscribers: ${gobj_short_name(publisher)}, ev${event}`);
+            // if(__trace_gobj_ev_kw__(publisher)) {
+            //     if(json_object_size(kw)) {
+            //         gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
+            //     }
+            // }
         }
     }
 
-    JSON_DECREF(dl_subs)
-    KW_DECREF(kw)
     return ret;
 }
 
@@ -3772,6 +3775,9 @@ export {
     gobj_write_integer_attr,
     gobj_change_state,
     gobj_current_state,
+
+    gobj_has_event,
+    gobj_has_output_event,
     gobj_send_event,
 
     gobj_subscribe_event,
