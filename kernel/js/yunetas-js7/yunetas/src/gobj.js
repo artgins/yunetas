@@ -36,6 +36,8 @@ import {
     trace_json,
     json_array_remove,
     kw_find_json_in_list,
+    kw_get_str,
+    kw_has_key,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -43,7 +45,7 @@ import {sprintf} from "./sprintf.js";
 /**************************************************************************
  *        Private data
  **************************************************************************/
-let KW_REQUIRED = 1;
+let 0, true = 1;
 let __inside_event_loop__ = 0;
 let __jn_global_settings__ =  null;
 let __global_load_persistent_attrs_fn__ = null;
@@ -1553,13 +1555,8 @@ function gobj_destroy(gobj)
     /*--------------------------------*
      *      Delete subscriptions
      *--------------------------------*/
-    // TODO gobj.gobj_unsubscribe_list(gobj.gobj_find_subscriptions(), true);
-
-    // json_t *dl_subs;
-    // dl_subs = json_copy(gobj.dl_subscriptions);
-    // gobj_unsubscribe_list(dl_subs, true);
-    // dl_subs = json_copy(gobj.dl_subscribings);
-    // gobj_unsubscribe_list(dl_subs, true);
+    gobj_unsubscribe_list(gobj.dl_subscriptions, true);
+    gobj_unsubscribe_list(gobj.dl_subscribings, true);
 
     /*--------------------------------*
      *      Delete from parent
@@ -1889,6 +1886,11 @@ function gobj_default_service()
  ***************************************************************************/
 function gobj_name(gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
     return gobj.gobj_name;
 }
 
@@ -1897,6 +1899,11 @@ function gobj_name(gobj)
  ***************************************************************************/
 function gobj_gclass_name(gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
     return gobj.gclass.gclass_name;
 }
 
@@ -1905,6 +1912,11 @@ function gobj_gclass_name(gobj)
  ************************************************************/
 function gobj_short_name(gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
     return gobj.gclass.gclass_name + '^' + gobj.gobj_name;
 }
 
@@ -1913,6 +1925,11 @@ function gobj_short_name(gobj)
  ************************************************************/
 function gobj_full_name(gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
     let full_name = gobj_short_name(gobj);
     let parent = gobj.parent;
     while(parent) {
@@ -1928,6 +1945,11 @@ function gobj_full_name(gobj)
  ************************************************************/
 function gobj_parent(gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
     return gobj.parent;
 }
 
@@ -1936,6 +1958,11 @@ function gobj_parent(gobj)
  ************************************************************/
 function gobj_is_volatil(gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
     if(gobj.gobj_flag & gobj_flag_t.gobj_flag_volatil) {
         return true;
     }
@@ -1947,6 +1974,11 @@ function gobj_is_volatil(gobj)
  ***************************************************************************/
 function gobj_is_pure_child(gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
     if(gobj.gobj_flag & gobj_flag_t.gobj_flag_pure_child) {
         return true;
     }
@@ -1969,6 +2001,10 @@ function gobj_is_destroying(gobj)
  ************************************************************/
 function gobj_bottom_gobj(gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
     return gobj.bottom_gobj;
 }
 
@@ -1977,6 +2013,11 @@ function gobj_bottom_gobj(gobj)
  ************************************************************/
 function gobj_set_bottom_gobj(gobj, bottom_gobj)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
     if(gobj.bottom_gobj) {
         log_warning(`"bottom_gobj already set: ${gobj_short_name(gobj)}`);
     }
@@ -2011,7 +2052,7 @@ function its_me(gobj, shortname)
 function gobj_find_gobj(gobj, path)
 {
     if(empty_string(path)) {
-        return 0;
+        return null;
     }
     /*
      *  WARNING code repeated
@@ -2032,6 +2073,11 @@ function gobj_find_gobj(gobj, path)
  ***************************************************************************/
 function gobj_match_gobj(gobj, jn_filter)
 {
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return false;
+    }
+
     let __gclass_name__ = jn_filter.__gclass_name__;
     let __gobj_name__ = jn_filter.__gobj_name__;
     let __prefix_gobj_name__ = jn_filter.__prefix_gobj_name__;
@@ -2466,22 +2512,13 @@ function gobj_event_type( // silent function
 
         for(let i=0; i<size; i++) {
             let event_type = dl[i];
-            if(event_type.event_name && event_type.event_name === event_name) {
+            if(event_type.event_name && event_type.event_name === event) {
                 return event_type;
             }
         }
-
-
-        event_t *event_ = dl_first(&dl_global_event_types);
-        while(event_) {
-            if(event_->event_type.event && event_->event_type.event == event) {
-                return &event_->event_type;
-            }
-            event_ = dl_next(event_);
-        }
     }
 
-    return NULL;
+    return null;
 }
 
 /***************************************************************************
@@ -2489,20 +2526,20 @@ function gobj_event_type( // silent function
  ***************************************************************************/
 function gobj_has_output_event(gobj, event, event_flag)
 {
-    event_type_t *event_type = gobj_event_type(gobj, event, FALSE);
+    let event_type = gobj_event_type(gobj, event, false);
     if(!event_type) {
-        return FALSE;
+        return false;
     }
 
-    if(event_flag && !(event_type->event_flag & event_flag)) {
-        return FALSE;
+    if(event_flag && !(event_type.event_flag & event_flag)) {
+        return false;
     }
 
-    if(!(event_type->event_flag & EVF_OUTPUT_EVENT)) {
-        return FALSE;
+    if(!(event_type.event_flag & event_flag_t.EVF_OUTPUT_EVENT)) {
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 /************************************************************
@@ -2686,11 +2723,11 @@ function _create_subscription(
     let subs_flag = 0;
 
     if(kw) {
-        let __config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
-        let __global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
-        let __local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
-        let __filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
-        //const char *__service__ = kw_get_str(publisher, kw, "__service__", 0, 0);
+        let __config__ = kw_get_dict(kw, "__config__", 0, 0);
+        let __global__ = kw_get_dict(kw, "__global__", 0, 0);
+        let __local__ = kw_get_dict(kw, "__local__", 0, 0);
+        let __filter__ = kw_get_dict_value(kw, "__filter__", 0, 0);
+        //const char *__service__ = kw_get_str(kw, "__service__", 0, 0);
 
         if(__global__) {
             let kw_clone = json_deep_copy(__global__);
@@ -2723,18 +2760,18 @@ function _create_subscription(
 
             if(kw_has_key(kw_clone, "__hard_subscription__")) {
                 let hard_subscription = kw_get_bool(
-                    publisher, kw_clone, "__hard_subscription__", 0, 0
+                    kw_clone, "__hard_subscription__", 0, 0
                 );
                 json_object_del(kw_clone, "__hard_subscription__");
                 if(hard_subscription) {
-                    subs_flag |= __hard_subscription__;
+                    subs_flag |= subs_flag_t.__hard_subscription__;
                 }
             }
             if(kw_has_key(kw_clone, "__own_event__")) {
-                let own_event= kw_get_bool(publisher, kw_clone, "__own_event__", 0, 0);
+                let own_event= kw_get_bool(kw_clone, "__own_event__", 0, 0);
                 json_object_del(kw_clone, "__own_event__");
                 if(own_event) {
-                    subs_flag |= __own_event__;
+                    subs_flag |= subs_flag_t.__own_event__;
                 }
             }
         }
@@ -2775,10 +2812,10 @@ function _find_subscription(
         _match = kw_match_simple; // WARNING decref second parameter
     }
 
-    let __config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
-    let __global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
-    let __local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
-    let __filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
+    let __config__ = kw_get_dict(kw, "__config__", null);
+    let __global__ = kw_get_dict(kw, "__global__", null);
+    let __local__ = kw_get_dict(kw, "__local__", null);
+    let __filter__ = kw_get_dict_value(kw, "__filter__", null);
 
     let iter = [];
 
@@ -2787,28 +2824,28 @@ function _find_subscription(
         let match = true;
 
         if(publisher) {
-            let publisher_ = kw_get_int(0, subs, "publisher", 0, 1);
+            let publisher_ = kw_get_int(subs, "publisher", null);
             if(publisher !== publisher_) {
                 match = false;
             }
         }
 
         if(subscriber) {
-            let subscriber_ = kw_get_int(0, subs, "subscriber", 0, 1);
+            let subscriber_ = kw_get_int(subs, "subscriber", null);
             if(subscriber !== subscriber_) {
                 match = false;
             }
         }
 
         if(event) {
-            let event_ = kw_get_int(0, subs, "event", 0, 1);
+            let event_ = kw_get_int(subs, "event", null);
             if(!event_ || event !== event_) {
                 match = false;
             }
         }
 
         if(__config__) {
-            let kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
+            let kw_config = kw_get_dict(subs, "__config__", null);
             if(kw_config) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     //KW_INCREF(__config__);
@@ -2821,7 +2858,7 @@ function _find_subscription(
             }
         }
         if(__global__) {
-            let kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
+            let kw_global = kw_get_dict(subs, "__global__", null);
             if(kw_global) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     //KW_INCREF(__global__);
@@ -2834,7 +2871,7 @@ function _find_subscription(
             }
         }
         if(__local__) {
-            let kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
+            let kw_local = kw_get_dict(subs, "__local__", null);
             if(kw_local) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     //KW_INCREF(__local__);
@@ -2847,7 +2884,7 @@ function _find_subscription(
             }
         }
         if(__filter__) {
-            let kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
+            let kw_filter = kw_get_dict_value(subs, "__filter__", null);
             if(kw_filter) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     //KW_INCREF(__filter__);
@@ -2878,11 +2915,11 @@ function _delete_subscription(
     force,
     not_inform
 ) {
-    let publisher = kw_get_int(gobj, subs, "publisher", 0, KW_REQUIRED);
-    let subscriber = kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
-    let event = kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
-    let subs_flag = kw_get_int(gobj, subs, "subs_flag", 0, KW_REQUIRED);
-    let hard_subscription = (subs_flag & __hard_subscription__)?1:0;
+    let publisher = kw_get_int(subs, "publisher", null, false, true);
+    let subscriber = kw_get_int(subs, "subscriber", null, false, true);
+    let event = kw_get_int(subs, "event", null, false, true);
+    let subs_flag = kw_get_int(subs, "subs_flag", null, false, true);
+    let hard_subscription = (subs_flag & subs_flag_t.__hard_subscription__)?1:0;
 
     /*-------------------------------*
      *  Check if hard subscription
@@ -2980,22 +3017,11 @@ function gobj_subscribe_event(
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
     if(!empty_string(event)) {
-        if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
+        if(!gobj_has_output_event(publisher, event, event_flag_t.EVF_OUTPUT_EVENT)) {
             if(!(publisher.gclass.gclass_flag & gclass_flag_t.gcflag_no_check_output_events)) {
-                gobj_log_error(publisher, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "event NOT in output event list",
-                    "event",        "%s", event,
-                    NULL
-                );
-                KW_DECREF(kw)
+                log_error(`event NOT in output event list: ${gobj_short_name(publisher)}, ${event}`);
                 return 0;
             }
-        } else {
-            // WARNING see collateral damages
-            event_type_t *event_type = gobj_event_type(publisher, event, true);
-            event = event_type.event;
         }
     }
 
@@ -3006,105 +3032,66 @@ function gobj_subscribe_event(
     /*------------------------------*
      *  Find repeated subscription
      *------------------------------*/
-    json_t *dl_subs = _find_subscription(
+    let dl_subs = _find_subscription(
         publisher.dl_subscriptions,
         publisher,
         event,
-        json_incref(kw),
+        kw,
         subscriber,
         true
     );
     if(json_array_size(dl_subs) > 0) {
-        gobj_log_warning(publisher, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "subscription(s) REPEATED, will be deleted and override",
-            "event",        "%s", event,
-            "kw",           "%j", kw,
-            "publisher",    "%s", gobj_full_name(publisher),
-            "subscriber",   "%s", gobj_full_name(subscriber),
-            NULL
-        );
-        gobj_unsubscribe_list(json_incref(dl_subs), false);
+        log_warning(`subscription(s) REPEATED, will be deleted and override`);
+        gobj_unsubscribe_list(dl_subs, false);
     }
-    JSON_DECREF(dl_subs)
 
     /*-----------------------------*
      *  Create subscription
      *-----------------------------*/
-    json_t *subs = _create_subscription(
+    let subs = _create_subscription(
         publisher,
         event,
-        kw,  // not owned
+        kw,
         subscriber
     );
     if(!subs) {
-        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "_create_subscription() FAILED",
-            "event",        "%s", event,
-            "publisher",    "%s", gobj_full_name(publisher),
-            "subscriber",   "%s", gobj_full_name(subscriber),
-            NULL
-        );
-        JSON_DECREF(kw)
+        log_error(`_create_subscription() FAILED`);
         return 0;
     }
 
-    if(json_array_append(publisher.dl_subscriptions, subs)<0) {
-        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "json_array_append(subscriptions) FAILED",
-            "event",        "%s", event,
-            "publisher",    "%s", gobj_full_name(publisher),
-            "subscriber",   "%s", gobj_full_name(subscriber),
-            NULL
-        );
-    }
-    if(json_array_append(subscriber.dl_subscribings, subs)<0) {
-        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "json_array_append(subscribings) FAILED",
-            "event",        "%s", event,
-            "publisher",    "%s", gobj_full_name(publisher),
-            "subscriber",   "%s", gobj_full_name(subscriber),
-            NULL
-        );
-    }
+    json_array_append(publisher.dl_subscriptions, subs);
+    json_array_append(subscriber.dl_subscribings, subs);
 
     /*-----------------------------*
      *          Trace
      *-----------------------------*/
-    if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)
-    ) {
-        trace_machine(
-            "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
-            event?event:"",
-            gobj_short_name(subscriber),
-            gobj_short_name(publisher)
-        );
-        if(kw) {
-            if(json_object_size(kw)) {
-                gobj_trace_json(
-                    publisher,
-                    subs,
-                    "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
-                    event?event:"",
-                    gobj_short_name(subscriber),
-                    gobj_short_name(publisher)
-                );
-            }
-        }
-    }
+    // if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)
+    // ) {
+    //     trace_machine(
+    //         "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
+    //         event?event:"",
+    //         gobj_short_name(subscriber),
+    //         gobj_short_name(publisher)
+    //     );
+    //     if(kw) {
+    //         if(json_object_size(kw)) {
+    //             gobj_trace_json(
+    //                 publisher,
+    //                 subs,
+    //                 "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
+    //                 event?event:"",
+    //                 gobj_short_name(subscriber),
+    //                 gobj_short_name(publisher)
+    //             );
+    //         }
+    //     }
+    // }
 
     /*--------------------------------*
      *      Inform new subscription
      *--------------------------------*/
     if(publisher.gclass.gmt.mt_subscription_added) {
-        int result = publisher.gclass.gmt.mt_subscription_added(
+        let result = publisher.gclass.gmt.mt_subscription_added(
             publisher,
             subs
         );
@@ -3114,8 +3101,6 @@ function gobj_subscribe_event(
         }
     }
 
-    json_decref(subs);
-    json_decref(kw);
     return subs;
 }
 
@@ -3128,33 +3113,16 @@ function gobj_unsubscribe_event(
     kw,
     subscriber)
 {
-    gobj_t *publisher = publisher_;
-    gobj_t *subscriber = subscriber_;
-
     /*---------------------*
      *  Check something
      *---------------------*/
     if(!publisher) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "publisher NULL",
-            "event",        "%s", event,
-            NULL
-        );
-        KW_DECREF(kw)
-        return -1;
+        log_error(`publisher NULL: ev ${event}`);
+        return 0;
     }
     if(!subscriber) {
-        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "subscriber NULL",
-            "event",        "%s", event,
-            NULL
-        );
-        KW_DECREF(kw)
-        return -1;
+        log_error(`subscriber NULL: ev ${event}`);
+        return 0;
     }
 
     /*--------------------------------------------------------------*
@@ -3162,30 +3130,18 @@ function gobj_unsubscribe_event(
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
     if(!empty_string(event)) {
-        if(!gobj_has_output_event(publisher, event, EVF_OUTPUT_EVENT)) {
-            if(!(publisher.gclass.gclass_flag & gcflag_no_check_output_events)) {
-                gobj_log_error(publisher, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "event NOT in output event list",
-                    "event",        "%s", event,
-                    NULL
-                );
-                KW_DECREF(kw)
+        if(!gobj_has_output_event(publisher, event, event_flag_t.EVF_OUTPUT_EVENT)) {
+            if(!(publisher.gclass.gclass_flag & gclass_flag_t.gcflag_no_check_output_events)) {
+                log_error(`event NOT in output event list: ${gobj_short_name(publisher)}, ev ${event}`);
                 return 0;
             }
-        } else {
-            // WARNING see collateral damages
-            event_type_t *event_type = gobj_event_type(publisher, event, true);
-            event = event_type.event;
         }
     }
 
     /*-----------------------------*
      *      Find subscription
      *-----------------------------*/
-    KW_INCREF(kw)
-    json_t *dl_subs = _find_subscription(
+    let dl_subs = _find_subscription(
         publisher.dl_subscriptions,
         publisher,
         event,
@@ -3193,29 +3149,19 @@ function gobj_unsubscribe_event(
         subscriber,
         true
     );
-    int deleted = 0;
 
-    size_t idx; json_t *subs;
-    json_array_foreach(dl_subs, idx, subs) {
+    let deleted = 0;
+    for(let i=0; i<dl_subs.length; i++) {
+        let subs = dl_subs[i];
         _delete_subscription(publisher, subs, false, false);
         deleted++;
     }
 
     if(!deleted) {
-        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "No subscription found",
-            "event",        "%s", event,
-            "publisher",    "%s", gobj_full_name(publisher),
-            "subscriber",   "%s", gobj_full_name(subscriber),
-            NULL
-        );
-        gobj_trace_json(publisher, kw, "No subscription found");
+        log_error(`No subscription found`);
+        trace_json(kw);
     }
 
-    JSON_DECREF(dl_subs)
-    KW_DECREF(kw)
     return 0;
 }
 
@@ -3227,11 +3173,11 @@ function gobj_unsubscribe_list(
     force // delete hard_subscription subs too
 )
 {
-    size_t idx; json_t *subs=0;
-    json_array_foreach(dl_subs, idx, subs) {
+    let dl = [...dl_subs];
+    for(let i=0; i<dl.length; i++) {
+        let subs = dl[i];
         _delete_subscription(0, subs, force, false);
     }
-    JSON_DECREF(dl_subs)
     return 0;
 }
 
@@ -3299,10 +3245,9 @@ function gobj_find_subscriptions(
     kw,
     subscriber)
 {
-    gobj_t * publisher = publisher_;
     return _find_subscription(
         publisher.dl_subscriptions,
-        publisher_,
+        publisher,
         event,
         kw,
         subscriber,
@@ -3315,46 +3260,46 @@ function gobj_find_subscriptions(
  ***************************************************************************/
 function gobj_list_subscriptions(gobj2view)
 {
-    json_t *subscriptions = gobj_find_subscriptions( // Return is YOURS
+    let subscriptions = gobj_find_subscriptions(
         gobj2view,
         0,      // event,
-        NULL,   // kw (__config__, __global__, __local__)
+        null,   // kw (__config__, __global__, __local__)
         0       // subscriber
     );
-    int idx; json_t *sub;
-    json_array_foreach(subscriptions, idx, sub) {
-        hgobj publisher = (hgobj)(size_t)kw_get_int(gobj2view, sub, "publisher", 0, KW_REQUIRED);
-        hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj2view, sub, "subscriber", 0, KW_REQUIRED);
-        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, sub, "event", 0, KW_REQUIRED);
+    for(let i=0; i<subscriptions.length; i++) {
+        let sub = subscriptions[i];
+        let publisher = kw_get_int(sub, "publisher", null, false, true);
+        let subscriber = kw_get_int(sub, "subscriber", null, false, true);
+        let event_ = kw_get_str(sub, "event", "", false, true);
 
-        json_object_set_new(sub, "s_event", json_string(event_));
-        json_object_set_new(sub, "s_publisher", json_string(gobj_short_name(publisher)));
-        json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
+        json_object_set_new(sub, "s_event", event_);
+        json_object_set_new(sub, "s_publisher", gobj_short_name(publisher));
+        json_object_set_new(sub, "s_subscriber", gobj_short_name(subscriber));
     }
 
-    json_t *subscribings = gobj_find_subscribings( // Return is YOURS
+    let subscribings = gobj_find_subscribings( // Return is YOURS
         gobj2view,
         0,      // event,
-        NULL,   // kw (__config__, __global__, __local__)
+        null,   // kw (__config__, __global__, __local__)
         0       // subscriber
     );
-    json_array_foreach(subscribings, idx, sub) {
-        hgobj publisher = (hgobj)(size_t)kw_get_int(gobj2view, sub, "publisher", 0, KW_REQUIRED);
-        hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj2view, sub, "subscriber", 0, KW_REQUIRED);
-        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, sub, "event", 0, KW_REQUIRED);
+    for(let i=0; i<subscribings.length; i++) {
+        let sub = subscribings[i];
+        let publisher = kw_get_int(sub, "publisher", null, false, true);
+        let subscriber = kw_get_int(sub, "subscriber", null, false, true);
+        let event_ = kw_get_str(sub, "event", "", false, true);
 
-        json_object_set_new(sub, "s_event", json_string(event_));
-        json_object_set_new(sub, "s_publisher", json_string(gobj_short_name(publisher)));
-        json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
+        json_object_set_new(sub, "s_event", event_);
+        json_object_set_new(sub, "s_publisher", gobj_short_name(publisher));
+        json_object_set_new(sub, "s_subscriber", gobj_short_name(subscriber));
     }
 
-    json_t *jn_data2 = json_pack("{s:o, s:o, s:i, s:i}",
-        "subscriptions", subscriptions,
-        "subscribings", subscribings,
-        "total subscriptions", json_array_size(subscriptions),
-        "total_subscribings", json_array_size(subscribings)
-    );
-    return jn_data2;
+    return {
+        "subscriptions": subscriptions,
+        "subscribings": subscribings,
+        "total subscriptions": json_array_size(subscriptions),
+        "total_subscribings": json_array_size(subscribings)
+    };
 }
 
 /***************************************************************************
@@ -3446,7 +3391,6 @@ function gobj_find_subscribings(
     publisher
 )
 {
-    gobj_t * subscriber = subscriber_;
     return _find_subscription(
         subscriber.dl_subscribings,
         publisher,
@@ -3465,43 +3409,19 @@ function gobj_publish_event(
     event,
     kw)
 {
-    gobj_t * publisher = publisher_;
-
-    if(!kw) {
-        kw = json_object();
+    if(!is_object(kw)) {
+        kw = {};
     }
 
     /*---------------------*
      *  Check something
      *---------------------*/
-    if(!publisher) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj NULL",
-            NULL
-        );
-        KW_DECREF(kw)
-        return -1;
-    }
-    if(publisher.obflag & obflag_destroyed) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj DESTROYED",
-            NULL
-        );
-        KW_DECREF(kw)
+    if(!publisher || publisher.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
         return -1;
     }
     if(empty_string(event)) {
-        gobj_log_error(publisher, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "event EMPTY",
-            NULL
-        );
-        KW_DECREF(kw)
+        log_error("event EMPTY");
         return -1;
     }
 
@@ -3509,42 +3429,35 @@ function gobj_publish_event(
      *  Event must be in output event list
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
-    event_type_t *ev = gobj_event_type(publisher, event, true);
-    if(!(ev && ev.event_flag & (EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT))) {
+    let ev = gobj_event_type(publisher, event, true);
+    if(!(ev && (ev.event_flag & (event_flag_t.EVF_SYSTEM_EVENT|event_flag_t.EVF_OUTPUT_EVENT)))) {
         /*
          *  HACK ev can be null,
          *  there are gclasses like c_iogate that are intermediate of other events.
          */
-        if(!(publisher.gclass.gclass_flag & gcflag_no_check_output_events)) {
-            gobj_log_error(publisher, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "event NOT in output event list",
-                "event",        "%s", event,
-                NULL
-            );
-            KW_DECREF(kw)
+        if(!(publisher.gclass.gclass_flag & gclass_flag_t.gcflag_no_check_output_events)) {
+            log_error(`event NOT in output event list: ${gobj_short_name(publisher)}, ev ${event}`);
             return -1;
         }
     }
 
-    BOOL tracea = __trace_gobj_subscriptions__(publisher) &&
-        !is_machine_not_tracing(publisher, event);
-    if(tracea) {
-        trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
-            (!publisher.running)?"!!":"",
-            gobj_gclass_name(publisher), gobj_name(publisher),
-            publisher.current_state.state_name,
-            On_Black BBlue,
-            event?event:"",
-            Color_Off
-        );
-        if(__trace_gobj_ev_kw__(publisher)) {
-            if(json_object_size(kw)) {
-                gobj_trace_json(publisher, kw, "kw publish event %s", event?event:"");
-            }
-        }
-    }
+    // let tracea = __trace_gobj_subscriptions__(publisher) &&
+    //     !is_machine_not_tracing(publisher, event);
+    // if(tracea) {
+    //     trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
+    //         (!publisher.running)?"!!":"",
+    //         gobj_gclass_name(publisher), gobj_name(publisher),
+    //         publisher.current_state.state_name,
+    //         On_Black BBlue,
+    //         event?event:"",
+    //         Color_Off
+    //     );
+    //     if(__trace_gobj_ev_kw__(publisher)) {
+    //         if(json_object_size(kw)) {
+    //             gobj_trace_json(publisher, kw, "kw publish event %s", event?event:"");
+    //         }
+    //     }
+    // }
 
     /*----------------------------------------------------------*
      *  Own publication method
@@ -3554,13 +3467,12 @@ function gobj_publish_event(
      *      1  publish and continue         . continue below
      *----------------------------------------------------------*/
     if(publisher.gclass.gmt.mt_publish_event) {
-        int topublish = publisher.gclass.gmt.mt_publish_event(
+        let topublish = publisher.gclass.gmt.mt_publish_event(
             publisher,
             event,
             kw  // not owned
         );
         if(topublish<=0) {
-            KW_DECREF(kw)
             return topublish;
         }
     }
@@ -3568,9 +3480,9 @@ function gobj_publish_event(
     /*--------------------------------------------------------------*
      *      Default publication method
      *--------------------------------------------------------------*/
-    json_t *dl_subs = json_copy(publisher.dl_subscriptions); // Protect to inside deleted subs
-    int sent_count = 0;
-    int ret = 0;
+    let dl_subs = [...publisher.dl_subscriptions]; // Create a shallow copy
+    let sent_count = 0;
+    let ret = 0;
     json_t *subs; size_t idx;
     json_array_foreach(dl_subs, idx, subs) {
         /*-------------------------------------*
@@ -3595,7 +3507,7 @@ function gobj_publish_event(
             }
         }
         gobj_t *subscriber = (gobj_t *)(size_t)kw_get_int(
-            publisher, subs, "subscriber", 0, KW_REQUIRED
+            publisher, subs, "subscriber", 0, 0, true
         );
         if(!(subscriber && !(subscriber.obflag & (obflag_destroying|obflag_destroyed)))) {
             continue;
@@ -3605,10 +3517,10 @@ function gobj_publish_event(
          *  Check if event null or event in event_list
          */
         subs_flag_t subs_flag = (subs_flag_t)kw_get_int(
-            publisher, subs, "subs_flag", 0, KW_REQUIRED
+            publisher, subs, "subs_flag", 0, 0, true
         );
         gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(
-            publisher, subs, "event", 0, KW_REQUIRED
+            publisher, subs, "event", 0, 0, true
         );
         if(empty_string(event_) || strcasecmp(event_, event)==0) {
             json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);

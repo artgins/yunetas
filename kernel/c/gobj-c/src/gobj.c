@@ -2255,11 +2255,8 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     /*--------------------------------*
      *      Delete subscriptions
      *--------------------------------*/
-    json_t *dl_subs;
-    dl_subs = json_copy(gobj->dl_subscriptions);
-    gobj_unsubscribe_list(dl_subs, TRUE);
-    dl_subs = json_copy(gobj->dl_subscribings);
-    gobj_unsubscribe_list(dl_subs, TRUE);
+    gobj_unsubscribe_list(json_incref(gobj->dl_subscriptions), TRUE);
+    gobj_unsubscribe_list(json_incref(gobj->dl_subscribings), TRUE);
 
     /*--------------------------------*
      *      Delete from parent
@@ -7594,11 +7591,14 @@ PUBLIC int gobj_unsubscribe_list(
     BOOL force  // delete hard_subscription subs too
 )
 {
+    json_t *dl = json_copy(dl_subs);
+
     size_t idx; json_t *subs=0;
-    json_array_foreach(dl_subs, idx, subs) {
+    json_array_foreach(dl, idx, subs) {
         _delete_subscription(0, subs, force, FALSE);
     }
     JSON_DECREF(dl_subs)
+    JSON_DECREF(dl)
     return 0;
 }
 
