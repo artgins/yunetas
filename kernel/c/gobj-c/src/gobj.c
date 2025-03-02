@@ -6975,8 +6975,8 @@ PRIVATE sdata_desc_t subscription_desc[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
 SDATA (DTP_POINTER, "publisher",        0,          0,          "publisher gobj"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "subscriber gobj"),
-SDATA (DTP_STRING,  "event",            0,          "",          "event name subscribed"),
-SDATA (DTP_STRING,  "renamed_event",    0,          "",          "rename event name"),
+SDATA (DTP_STRING,  "event",            0,          "",         "event name subscribed"),
+SDATA (DTP_STRING,  "renamed_event",    0,          "",         "rename event name"),
 SDATA (DTP_INTEGER, "subs_flag",        0,          0,          "subscription flag"),
 //SDATA (DTP_JSON,    "__config__",       0,          0,          "subscription config kw"),
 //SDATA (DTP_JSON,    "__global__",       0,          0,          "global event kw"),

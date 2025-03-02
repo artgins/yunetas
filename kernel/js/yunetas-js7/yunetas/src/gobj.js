@@ -2525,41 +2525,6 @@ function gobj_send_event(dst, event, kw, src)
     __inside__ --;
 
     return ret;
-
-
-
-
-    if(!src) {
-        // Let events without src, from yuneta outside world.
-        //log_error("gobj_send_event('" + event + "') with no src");
-    }
-    if(!kw) {
-        kw = {};
-    }
-    if(this.mt_inject_event) {
-        if(!this.gobj_event_in_input_event_list(event)) {
-            let tracing = this.is_tracing();
-            if(tracing) {
-                let hora = get_current_datetime();
-                let msg = sprintf("%s%s+> mach: %s, st: %s, ev: %s, src: %s",
-                    hora,
-                    this._tab(),
-                    this.gobj_short_name(),
-                    this.fsm.state_list[this.fsm.current_state-1],
-                    event,
-                    src?src.gobj_short_name():"undefined"
-                );
-                log_debug(msg);
-                if(tracing > 1) {
-                    trace_msg(kw);
-                }
-            }
-
-            return this.mt_inject_event(event, kw, src);
-        }
-    }
-
-    return this.inject_event(event, kw, src);
 }
 
 /************************************************************
