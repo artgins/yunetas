@@ -19,6 +19,37 @@ function json_deep_copy(obj) // old __duplicate__,duplicate_objects
 }
 
 /************************************************************
+ *
+ ************************************************************/
+function json_is_identical(json1, json2) {
+    if (json1 === json2) {
+        return true;  // If both references are the same, they are identical
+    }
+
+    if (typeof json1 !== "object" || typeof json2 !== "object" || json1 === null || json2 === null) {
+        return false; // If not objects or one is null, they are not identical
+    }
+
+    const keys1 = Object.keys(json1);
+    const keys2 = Object.keys(json2);
+
+    if (keys1.length !== keys2.length) {
+        return false; // Different number of keys → not identical
+    }
+
+    for (const key of keys1) {
+        if (!json2.hasOwnProperty(key)) {
+            return false; // Key missing in json2 → not identical
+        }
+        if (!json_is_identical(json1[key], json2[key])) {
+            return false; // Recursively check nested values
+        }
+    }
+
+    return true;
+}
+
+/************************************************************
  *  Extend a dict with another dict (NOT recursive),
  *  adding new keys and overwriting existing keys.
  ************************************************************/
@@ -70,7 +101,7 @@ function json_object_update_missing(destination, source)
 }
 
 /************************************************************
- *  Extend array
+ *  Simulate jansson function
  ************************************************************/
 function json_object_get(o, key)
 {
@@ -78,6 +109,38 @@ function json_object_get(o, key)
         return o[key];
     }
     return undefined;
+}
+
+/************************************************************
+ *  Simulate jansson function
+ ************************************************************/
+function json_object_del(o, k)
+{
+    delete o[k];
+}
+
+/************************************************************
+ *  Simulate jansson function
+ ************************************************************/
+function json_object_set_new(o, k, v)
+{
+    o[k] = v;
+}
+
+/************************************************************
+ *  Simulate jansson function
+ ************************************************************/
+function json_array_append(a, v)
+{
+    a.push(v);
+}
+
+/************************************************************
+ *  Simulate jansson function
+ ************************************************************/
+function json_array_remove(a, idx)
+{
+    a.splice(idx, 1);
 }
 
 /************************************************************
@@ -830,6 +893,37 @@ function kw_match_simple(kw, jn_filter)
         return true;
     }
     return _kw_match_simple(kw, jn_filter, 0);
+}
+
+/***************************************************************************
+    Get a the idx of simple json item in a json list.
+    Return -1 if not found
+ ***************************************************************************/
+function kw_find_json_in_list(
+    gobj,
+    kw_list,
+    item,
+    flag
+)
+{
+    if(!item || !is_array(kw_list)) {
+        if(flag) {
+            log_error(`item NULL or kw_list is not a list`);
+        }
+        return -1;
+    }
+
+    for(let i=0; i<kw_list.length; i++) {
+        let jn_item = kw_list[i];
+        if(json_is_identical(item, jn_item)) {
+            return i;
+        }
+    }
+
+    if(flag) {
+        log_error(`item not found in this list`);
+    }
+    return -1;
 }
 
 /*************************************************************
@@ -2019,6 +2113,11 @@ function trace_msg2(msg, msg2)
     }
 }
 
+function trace_json(jn)
+{
+    window.console.dir(jn);
+}
+
 /************************************************************
  * https://stackoverflow.com/questions/38552003/how-to-decode-jwt-token-in-javascript-without-using-a-library
  ************************************************************/
@@ -2471,10 +2570,14 @@ function index_in_list(list, elm) {
 
 export {
     json_deep_copy,
+    json_is_identical,
     json_object_update,
     json_object_update_existing,
     json_object_update_missing,
     json_object_get,
+    json_object_set_new,
+    json_array_append,
+    json_array_remove,
     json_array_extend,
     json_object_size,
     json_array_size,
@@ -2510,6 +2613,7 @@ export {
     kw_extract_private,
     kw_is_identical,
     kw_match_simple,
+    kw_find_json_in_list,
     kw_select,
     kw_collect,
     kw_clone_by_keys,
@@ -2555,6 +2659,7 @@ export {
     trace_machine,
     trace_msg,
     trace_msg2,
+    trace_json,
 
     jwtDecode,
     jwt2json,

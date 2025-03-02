@@ -7714,7 +7714,6 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
     return jn_data2;
 }
 
-
 /***************************************************************************
  *  Return a iter of subscribings (sdata) of the subcriber gobj,
  *  filtering by matching: event,kw (__config__, __global__, __local__, __filter__), publisher
