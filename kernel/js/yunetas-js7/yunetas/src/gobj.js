@@ -913,7 +913,10 @@ function gclass_check_fsm(gclass)
         }
         // gobj_event_t event_type.event_name;
         // event_flag_t event_type.event_flag;
-
+        if(!is_number(event_type.event_flag)) {
+            log_error(`SMachine: event flag is NOT number: gclass ${gclass.gclass_name}, event ${event_type.event_name}`);
+            ret += -1;
+        }
         if(!(event_type.event_flag & event_flag_t.EVF_OUTPUT_EVENT)) {
             let found = false;
 
@@ -1990,6 +1993,7 @@ export {
     SDATA_END,
     gobj_flag_t,
     gclass_flag_t,
+    GObj,
     gobj_start_up,
     gobj_hsdata,
     gclass_create,

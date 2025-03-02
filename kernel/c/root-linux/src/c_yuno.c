@@ -419,7 +419,7 @@ SDATA (DTP_JSON,    "denied_ips",       SDF_PERSIST,    "{}",           "Denied 
 SDATA (DTP_INTEGER, "deep_trace",       SDF_WR|SDF_STATS|SDF_PERSIST,"0", "Deep trace set or not set"),
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
-SDATA (DTP_INTEGER, "periodic",         SDF_RD,         "500",          "Timeout periodic, in miliseconds. This periodic timeout feeds C_TIMER, the precision is important, but affect to performance, many C_TIMER gobjs will be consumed a lot of CPU"),
+SDATA (DTP_INTEGER, "periodic_timeout", SDF_RD,         "500",          "Timeout periodic, in miliseconds. This periodic timeout feeds C_TIMER, the precision is important, but affect to performance, many C_TIMER gobjs will be consumed a lot of CPU"),
 SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout (seconds) for publishing stats. WARNING don't change timeout, must be 1 second as is used by autokill"),
 SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2",            "timeout (seconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
@@ -472,7 +472,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout_flush;
     json_int_t timeout_stats;
     json_int_t timeout_restart;
-    json_int_t periodic;
+    json_int_t periodic_timeout;
     json_int_t autokill;
     json_int_t autokill_init;
     json_int_t limit_open_files;
@@ -638,7 +638,7 @@ PRIVATE void mt_create(hgobj gobj)
         save_pid_in_file(gobj);
     }
 
-    SET_PRIV(periodic,              gobj_read_integer_attr)
+    SET_PRIV(periodic_timeout,      gobj_read_integer_attr)
     SET_PRIV(autokill,              gobj_read_integer_attr)
     SET_PRIV(timeout_stats,         gobj_read_integer_attr)
     SET_PRIV(timeout_flush,         gobj_read_integer_attr)
@@ -653,9 +653,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(periodic,            gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(periodic_timeout,            gobj_read_integer_attr)
         if(gobj_is_running(gobj)) {
-            set_timeout_periodic0(priv->gobj_timer, priv->periodic);
+            set_timeout_periodic0(priv->gobj_timer, priv->periodic_timeout);
         }
     ELIF_EQ_SET_PRIV(autokill,          gobj_read_integer_attr)
         priv->autokill_init = 0;
@@ -688,7 +688,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_start(priv->gobj_timer);
 
-    set_timeout_periodic0(priv->gobj_timer, priv->periodic);
+    set_timeout_periodic0(priv->gobj_timer, priv->periodic_timeout);
 
     if(priv->timeout_flush > 0) {
         priv->t_flush = start_sectimer(priv->timeout_flush);

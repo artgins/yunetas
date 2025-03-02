@@ -19,7 +19,7 @@ import {
     gobj_is_running,
     gobj_default_service,
     gobj_stop_childs,
-    gobj_name,
+    gobj_name, gobj_read_bool_attr, gobj_read_integer_attr,
 } from "./gobj.js";
 
 import {
@@ -77,10 +77,16 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
-    /*------------------------*
+    let priv = gobj.priv;
+
+    /*
      *  Create childs
-     *------------------------*/
+     */
     gobj.priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
+
+    priv.periodic = gobj_read_bool_attr(gobj, "periodic");
+    priv.msec     = gobj_read_integer_attr(gobj, "msec");
+
 }
 
 /***************************************************************

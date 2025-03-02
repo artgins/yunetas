@@ -15,6 +15,7 @@ import {
     data_type_t,
     gclass_flag_t,
     event_flag_t,
+    GObj,
     gclass_create,
     gobj_parent,
     gobj_yuno,
@@ -23,6 +24,11 @@ import {
     gobj_read_bool_attr,
     gobj_read_integer_attr,
     gobj_read_pointer_attr,
+    gobj_subscribe_event,
+    gobj_is_pure_child,
+    gobj_gclass_name,
+    gobj_write_bool_attr,
+    gobj_write_integer_attr,
 } from "./gobj.js";
 
 import {
@@ -73,6 +79,14 @@ function mt_create(gobj)
 {
     let priv = gobj.priv;
 
+    /*
+     *  SERVICE subscription model
+     */
+    const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+    if(subscriber) {
+        gobj_subscribe_event(gobj, null, null, subscriber);
+    }
+
     priv.periodic = gobj_read_bool_attr(gobj, "periodic");
     priv.msec     = gobj_read_integer_attr(gobj, "msec");
 }
@@ -90,30 +104,14 @@ function mt_writing(gobj, path)
             break;
         case "msec":
             priv.msec = gobj_read_integer_attr(gobj, "msec");
-            if (priv.timer_id !== -1) {
+           if(priv.timer_id !== -1) {
                 clearTimeout(priv.timer_id);
                 priv.timer_id = -1;
             }
-
-            if (priv.msec > 0) {
+            if(priv.msec > 0) {
                 priv.timer_id = setTimeout(
                     function() {
-                        priv.timer_id = -1;
-                        const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
-                        let ev = priv.periodic ? "EV_TIMEOUT_PERIODIC" : "EV_TIMEOUT";
-
-                        if (gobj_is_pure_child(gobj)) {
-                            gobj_send_event(gobj_parent(gobj), ev, {}, gobj);
-                        } else {
-                            gobj_publish_event(gobj, ev, {});
-                        }
-
-
-                        gobj_send_event(subscriber, "EV_TIMEOUT", null, gobj);
-                        gobj.inject_event(gobj.timer_event_name);
-                        if(priv.periodic) {
-
-                        }
+                        gobj_send_event(gobj, "EV_TIMEOUT", {}, gobj);
                     },
                     priv.msec
                 );
@@ -127,11 +125,6 @@ function mt_writing(gobj, path)
  ***************************************************************/
 function mt_start(gobj)
 {
-    gobj_subscribe_event(gobj_yuno(), "EV_TIMEOUT_PERIODIC", 0, gobj);
-
-    if (gobj.priv.msec > 0) {
-        gobj.priv.t_flush = start_msectimer(gobj.priv.msec);
-    }
     return 0;
 }
 
@@ -140,9 +133,7 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
-    gobj.priv.t_flush = 0;
-    gobj_unsubscribe_event(gobj_yuno(), "EV_TIMEOUT_PERIODIC", 0, gobj);
-
+    gobj_write_integer_attr(gobj, "msec", -1);    // This write stops any timer
     return 0;
 }
 
@@ -168,22 +159,26 @@ function mt_destroy(gobj)
  ***************************************************************/
 function ac_timeout(gobj, event, kw, src)
 {
-    let ev = gobj.priv.periodic ? "EV_TIMEOUT_PERIODIC" : "EV_TIMEOUT";
+    let priv = gobj.priv;
 
-    if (gobj.priv.msec > 0) {
-        if (test_msectimer(gobj.priv.t_flush)) {
-            if (gobj.priv.periodic) {
-                gobj.priv.t_flush = start_msectimer(gobj.priv.msec);
-            } else {
-                gobj.priv.t_flush = 0;
-            }
+    let ev = priv.periodic ? "EV_TIMEOUT_PERIODIC" : "EV_TIMEOUT";
 
-            if (gobj_is_pure_child(gobj)) {
-                gobj_send_event(gobj_parent(gobj), ev, json_incref(kw), gobj);
-            } else {
-                gobj_publish_event(gobj, ev, json_incref(kw));
-            }
-        }
+    /*
+     *  SERVICE subscription model
+     */
+    if (gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), ev, {}, gobj);
+    } else {
+        gobj_publish_event(gobj, ev, {});
+    }
+
+    if(priv.periodic) {
+        priv.timer_id = setTimeout(
+            function() {
+                gobj_send_event(gobj, "EV_TIMEOUT", {}, gobj);
+            },
+            priv.msec
+        );
     }
 
     return 0;
@@ -224,7 +219,7 @@ function create_gclass(gclass_name)
      *          States
      *---------------------------------------------*/
     const st_idle = [
-        ["EV_TIMEOUT_PERIODIC",     ac_timeout,     null]
+        ["EV_TIMEOUT",      ac_timeout,     null]
     ];
 
     const states = [
@@ -286,34 +281,17 @@ function register_c_timer()
  ***************************************************************************/
 function set_timeout(gobj, msec)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!gobj_typeof_gclass(gobj, C_TIMER)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "set_timeout() must be used only in C_TIMER",
-            NULL
-        );
-        return;
+    if(!(gobj instanceof GObj)) {
+        log_error(`not GObj TYPE`);
+        return -1;
+    }
+    if(gobj_gclass_name(gobj) !== "C_TIMER") {
+        log_error(`not C_TIMER GObj`);
+        return -1;
     }
 
-    uint32_t level = TRACE_TIMER;
-    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-    if(tracea) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "set_timeout",
-            "msg2",         "%s", "⏰⏰ 🟦 set_timeout",
-            "periodic",     "%d", priv->periodic?1:0,
-            "msec",         "%ld", (long)priv->msec,
-            NULL
-        );
-    }
-
-    gobj_write_bool_attr(gobj, "periodic", FALSE);
-    gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
+    gobj_write_bool_attr(gobj, "periodic", false);
+    gobj_write_integer_attr(gobj, "msec", msec);    // This write launches the timer
 }
 
 /***************************************************************************
@@ -321,34 +299,17 @@ function set_timeout(gobj, msec)
  ***************************************************************************/
 function set_timeout_periodic(gobj, msec)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!gobj_typeof_gclass(gobj, C_TIMER)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "set_timeout_periodic() must be used only in C_TIMER",
-            NULL
-        );
-        return;
+    if(!(gobj instanceof GObj)) {
+        log_error(`not GObj TYPE`);
+        return -1;
+    }
+    if(gobj_gclass_name(gobj) !== "C_TIMER") {
+        log_error(`not C_TIMER GObj`);
+        return -1;
     }
 
-    uint32_t level = TRACE_TIMER_PERIODIC;
-    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-    if(tracea) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "set_timeout_periodic",
-            "msg2",         "%s", "⏰⏰ 🟦🟦 set_timeout_periodic",
-            "periodic",     "%d", priv->periodic?1:0,
-            "msec",         "%ld", (long)priv->msec,
-            NULL
-        );
-    }
-
-    gobj_write_bool_attr(gobj, "periodic", TRUE);
-    gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
+    gobj_write_bool_attr(gobj, "periodic", true);
+    gobj_write_integer_attr(gobj, "msec", msec);    // This write launches the timer
 }
 
 /***************************************************************************
@@ -356,33 +317,16 @@ function set_timeout_periodic(gobj, msec)
  ***************************************************************************/
 function clear_timeout(gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!gobj_typeof_gclass(gobj, C_TIMER)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "clear_timeout() must be used only in C_TIMER",
-            NULL
-        );
-        return;
+    if(!(gobj instanceof GObj)) {
+        log_error(`not GObj TYPE`);
+        return -1;
+    }
+    if(gobj_gclass_name(gobj) !== "C_TIMER") {
+        log_error(`not C_TIMER GObj`);
+        return -1;
     }
 
-    uint32_t level = priv->periodic? TRACE_TIMER_PERIODIC:TRACE_TIMER;
-    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
-    if(tracea) {
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "clear_timeout",
-            "msg2",         "%s", "⏰⏰ ❎ clear_timeout",
-            "periodic",     "%d", priv->periodic?1:0,
-            "msec",         "%ld", (long)priv->msec,
-            NULL
-        );
-    }
-
-    gobj_write_integer_attr(gobj, "msec", 0);    // This write stop timer
+    gobj_write_integer_attr(gobj, "msec", -1);    // This write stops the timer
 }
 
 export { register_c_timer, set_timeout, set_timeout_periodic, clear_timeout };
