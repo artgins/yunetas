@@ -289,7 +289,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     process_msg(gobj, kw, src);
     if(priv->rxMsgs == 5) {
-        uint64_t yuno_periodic = (uint64_t)gobj_read_integer_attr(gobj_yuno(), "periodic");
+        uint64_t yuno_periodic = (uint64_t)gobj_read_integer_attr(gobj_yuno(), "periodic_timeout");
         uint64_t time_measure_end = time_in_miliseconds_monotonic();
         uint64_t tm = time_measure_end - priv->time_measure_start;
         if(!(tm >= 5000 && tm <= 5010 + yuno_periodic)) {

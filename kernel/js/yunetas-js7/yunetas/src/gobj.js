@@ -177,7 +177,7 @@ class GObj {
         this.dl_childs = [];
         this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
         this.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
-        this.current_state = null; // TODO dl_first(&gclass->dl_states);
+        this.current_state = null; // TODO dl_first(&gclass.dl_states);
         this.last_state = null;
         this.obflag = 0;
         this.gobj_flag = Number(gobj_flag) || 0;
@@ -2335,6 +2335,55 @@ function gobj_write_integer_attr(gobj, name, value)
 /***************************************************************************
  *
  ***************************************************************************/
+function gobj_change_state(gobj, state_name)
+{
+    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+        log_error("gobj NULL or DESTROYED");
+        return null;
+    }
+
+    if(gobj.current_state.state_name === state_name) {
+        return false;
+    }
+    let new_state = _find_state(gobj.gclass, state_name);
+    if(!new_state) {
+        log_error(`state unknown: ${gobj_short_name(gobj)}, ${state_name}`);
+        return false;
+    }
+    gobj.last_state = gobj.current_state;
+    gobj.current_state = new_state;
+
+    // let tracea = is_machine_tracing(gobj, EV_STATE_CHANGED);
+    // let tracea_states = __trace_gobj_states__(gobj)?TRUE:FALSE;
+    // if(tracea || tracea_states) {
+    //     trace_machine("🔀🔀 mach(%s%s^%s), new st(%s%s%s), prev st(%s%s%s)",
+    //         (!gobj.running)?"!!":"",
+    //         gobj_gclass_name(gobj), gobj_name(gobj),
+    //         On_Black RGreen,
+    //         gobj_current_state(gobj),
+    //         Color_Off,
+    //         On_Black RGreen,
+    //         gobj.last_state.state_name,
+    //         Color_Off
+    //     );
+    // }
+
+    // TODO let kw_st = {};
+    // kw_st["previous_state"] = gobj.last_state.state_name;
+    // kw_st["current_state"] = gobj.current_state.state_name;
+    //
+    // if(gobj.gclass.gmt.mt_state_changed) {
+    //     gobj.gclass.gmt.mt_state_changed(gobj, "EV_STATE_CHANGED", kw_st);
+    // } else {
+    //     gobj_publish_event(gobj, "EV_STATE_CHANGED", kw_st);
+    // }
+
+    return true;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 function gobj_current_state(gobj)
 {
     if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
@@ -2342,7 +2391,7 @@ function gobj_current_state(gobj)
         return null;
     }
 
-    return ""; // TODO gobj->current_state->state_name;
+    return gobj.current_state.state_name;
 }
 
 /************************************************************
@@ -2374,84 +2423,74 @@ function gobj_send_event(dst, event, kw, src)
 
     let event_action = _find_event_action(state, event);
     if(!event_action) {
-        if(dst->gclass->gmt->mt_inject_event) {
+        if(dst.gclass.gmt.mt_inject_event) {
             __inside__ --;
-            if(tracea) {
-                trace_machine("🔃 mach(%s%s), st: %s, ev: %s, from(%s%s)",
-                    (!dst->running)?"!!":"",
-                    gobj_short_name(dst),
-                    state->state_name,
-                    event?event:"",
-                    (src && !src->running)?"!!":"",
-                    gobj_short_name(src)
-                );
-                if(kw) {
-                    if(__trace_gobj_ev_kw__(dst)) {
-                        if(json_object_size(kw)) {
-                            gobj_trace_json(dst, kw, "kw send_event");
-                        }
-                    }
-                }
-            }
-            return dst->gclass->gmt->mt_inject_event(dst, event, kw, src);
+            // if(tracea) {
+                // trace_machine("🔃 mach(%s%s), st: %s, ev: %s, from(%s%s)",
+                //     (!dst.running)?"!!":"",
+                //     gobj_short_name(dst),
+                //     state.state_name,
+                //     event?event:"",
+                //     (src && !src.running)?"!!":"",
+                //     gobj_short_name(src)
+                // );
+                // if(kw) {
+                //     if(__trace_gobj_ev_kw__(dst)) {
+                //         if(json_object_size(kw)) {
+                //             gobj_trace_json(dst, kw, "kw send_event");
+                //         }
+                //     }
+                // }
+            // }
+            return dst.gclass.gmt.mt_inject_event(dst, event, kw, src);
         }
 
-        if(tracea) {
-            trace_machine(
-                "📛 mach(%s%s^%s), st: %s, ev: %s, 📛📛ERROR Event NOT DEFINED in state📛📛, from(%s%s^%s)",
-                (!dst->running)?"!!":"",
-                gobj_gclass_name(dst), gobj_name(dst),
-                state->state_name,
-                event?event:"",
-                (src && !src->running)?"!!":"",
-                gobj_gclass_name(src), gobj_name(src)
-            );
-        }
-        gobj_log_error(dst, LOG_OPT_TRACE_STACK,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Event NOT DEFINED in state",
-            "msg2",          "%s", "📛📛 Event NOT DEFINED in state 📛📛",
-            "gclass_name",  "%s", dst->gclass->gclass_name,
-            "state_name",   "%s", state->state_name,
-            "event",        "%s", event,
-            "src",          "%s", gobj_short_name(src),
-            NULL
-        );
+        // if(tracea) {
+        //     trace_machine(
+        //         "📛 mach(%s%s^%s), st: %s, ev: %s, 📛📛ERROR Event NOT DEFINED in state📛📛, from(%s%s^%s)",
+        //         (!dst.running)?"!!":"",
+        //         gobj_gclass_name(dst), gobj_name(dst),
+        //         state.state_name,
+        //         event?event:"",
+        //         (src && !src.running)?"!!":"",
+        //         gobj_gclass_name(src), gobj_name(src)
+        //     );
+        // }
+        log_error(`📛📛 Event NOT DEFINED in state 📛📛: ${gobj_short_name(dst)}, ${state.state_name}, ${event}`);
 
         __inside__ --;
 
-        KW_DECREF(kw)
         return -1;
     }
 
     /*----------------------------------*
      *      Check AUTHZ
      *----------------------------------*/
-//     if(ev_desc->authz & EV_AUTHZ_INJECT) {
+//     if(ev_desc.authz & EV_AUTHZ_INJECT) {
 //     }
 
     /*----------------------------------*
      *      Exec the event
      *----------------------------------*/
-    if(tracea) {
-        trace_machine("🔄 mach(%s%s^%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
-            (!dst->running)?"!!":"",
-            gobj_gclass_name(dst), gobj_name(dst),
-            state->state_name,
-            On_Black RBlue,
-            event?event:"",
-            Color_Off,
-            (src && !src->running)?"!!":"",
-            gobj_gclass_name(src), gobj_name(src)
-        );
-        if(kw) {
-            if(__trace_gobj_ev_kw__(dst)) {
-                if(json_object_size(kw)) {
-                    gobj_trace_json(dst, kw, "kw exec event: %s", event?event:"");
-                }
-            }
-        }
-    }
+    // if(tracea) {
+    //     trace_machine("🔄 mach(%s%s^%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
+    //         (!dst.running)?"!!":"",
+    //         gobj_gclass_name(dst), gobj_name(dst),
+    //         state.state_name,
+    //         On_Black RBlue,
+    //         event?event:"",
+    //         Color_Off,
+    //         (src && !src.running)?"!!":"",
+    //         gobj_gclass_name(src), gobj_name(src)
+    //     );
+    //     if(kw) {
+    //         if(__trace_gobj_ev_kw__(dst)) {
+    //             if(json_object_size(kw)) {
+    //                 gobj_trace_json(dst, kw, "kw exec event: %s", event?event:"");
+    //             }
+    //         }
+    //     }
+    // }
 
     /*
      *  IMPORTANT HACK
@@ -2461,27 +2500,26 @@ function gobj_send_event(dst, event, kw, src)
      *  If you don’t like this behavior, set the next-state to NULL
      *  and use change_state() to change the state inside the actions.
      */
-    if(event_action->next_state) {
-        gobj_change_state(dst, event_action->next_state);
+    if(event_action.next_state) {
+        gobj_change_state(dst, event_action.next_state);
     }
 
-    int ret = -1;
-    if(event_action->action) {
+    let ret = -1;
+    if(event_action.action) {
         // Execute the action
-        ret = (*event_action->action)(dst, event, kw, src);
+        ret = (event_action.action)(dst, event, kw, src);
     } else {
         // No action, there is nothing amiss!.
-        KW_DECREF(kw)
     }
 
-    if(tracea && !(dst->obflag & obflag_destroyed)) {
-        trace_machine("<- mach(%s%s^%s), st: %s, ev: %s, ret: %d",
-            (!dst->running)?"!!":"",
-            gobj_gclass_name(dst), gobj_name(dst),
-            dst->current_state->state_name,
-            event?event:"",
-            ret
-        );
+    if(tracea && !(dst.obflag & obflag_t.obflag_destroyed)) {
+        // trace_machine("<- mach(%s%s^%s), st: %s, ev: %s, ret: %d",
+        //     (!dst.running)?"!!":"",
+        //     gobj_gclass_name(dst), gobj_name(dst),
+        //     dst.current_state.state_name,
+        //     event?event:"",
+        //     ret
+        // );
     }
 
     __inside__ --;
@@ -2901,6 +2939,7 @@ export {
     gobj_read_pointer_attr,
     gobj_write_bool_attr,
     gobj_write_integer_attr,
+    gobj_change_state,
     gobj_current_state,
     gobj_send_event,
     gobj_publish_event,
