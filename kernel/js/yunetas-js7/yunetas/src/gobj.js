@@ -868,9 +868,9 @@ function gclass_add_ev_action(
 /************************************************************
  *
  ************************************************************/
-function _add_event_type(dl, event_type)
+function _add_event_type(dl, event_name, event_flag)
 {
-
+    dl.push(new Event_Type(event_name, event_flag));
 }
 
 /************************************************************
@@ -883,10 +883,7 @@ function gclass_add_event_type(gclass, event_name, event_flag)
         return -1;
     }
 
-    return _add_event_type(gclass.dl_events, event_type);
-
-    gclass.dl_events.push(new Event_Type(event_name, event_flag));
-    return 0;
+    return _add_event_type(gclass.dl_events, event_name, event_flag);
 }
 
 /************************************************************

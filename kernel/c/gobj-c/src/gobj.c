@@ -896,7 +896,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
             return NULL;
         }
 
-        gclass_add_event_type(gclass, event_type);
+        gclass_add_event_type(gclass, event_type->event_name, event_type-> event_flag);
         event_type++;
     }
 
@@ -1079,11 +1079,15 @@ PUBLIC int gclass_add_ev_action(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int gclass_add_event_type(hgclass gclass_, event_type_t *event_type)
+PUBLIC int gclass_add_event_type(
+    hgclass gclass_,
+    gobj_event_t event_name,
+    event_flag_t event_flag
+)
 {
     gclass_t *gclass = gclass_;
 
-    return _add_event_type(&gclass->dl_events, event_type->event_name, event_type->event_flag);
+    return _add_event_type(&gclass->dl_events, event_name, event_flag);
 }
 
 /***************************************************************************

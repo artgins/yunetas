@@ -1205,7 +1205,11 @@ PUBLIC int gclass_add_ev_action(
     gobj_action_fn action,
     gobj_state_t next_state
 );
-PUBLIC int gclass_add_event_type(hgclass gclass, event_type_t *event_type);
+PUBLIC int gclass_add_event_type(
+    hgclass gclass,
+    gobj_event_t event_name,
+    event_flag_t event_flag
+);
 
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); // Find a public event in any gclass
 PUBLIC void gclass_unregister(hgclass hgclass);
