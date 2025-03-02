@@ -57,7 +57,7 @@ SDATA_END()
 let PRIVATE_DATA = {
     periodic:   false,
     msec:       0,
-    timer_id:   null,
+    timer_id:   -1,
 };
 
 let __gclass__ = null;

@@ -2133,8 +2133,8 @@ function gobj_read_attr(gobj, name, src)
     if(name in jn_attrs) {
         if(jn_attrs.hasOwnProperty(name)) {
             let value = jn_attrs[name];
-            if(gobj.gmt.mt_reading) {
-                return gobj.gmt.mt_reading(name, value);
+            if(gobj.gclass.gmt.mt_reading) {
+                return gobj.gclass.gmt.mt_reading(name, value);
             }
             return value;
         }
@@ -2170,8 +2170,8 @@ function gobj_write_attr(
             if(jn_attrs.hasOwnProperty(key)) {
                 jn_attrs[key] = value;
 
-                if(gobj.gmt.mt_writing) {
-                    gobj.gmt.mt_writing(key);
+                if(gobj.gclass.gmt.mt_writing) {
+                    gobj.gclass.gmt.mt_writing(key);
                 }
                 return 0;
             }
