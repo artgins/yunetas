@@ -63,6 +63,14 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  SERVICE subscription model
+     */
+    hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
+    if(subscriber) {
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    }
+
     SET_PRIV(periodic,          gobj_read_bool_attr)
     SET_PRIV(msec,              gobj_read_integer_attr)
 }
@@ -153,6 +161,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 priv->t_flush = 0;
             }
 
+            /*
+             *  SERVICE subscription model
+             */
             if(gobj_is_pure_child(gobj)) {
                 gobj_send_event(gobj_parent(gobj), ev, json_incref(kw), gobj);
             } else {

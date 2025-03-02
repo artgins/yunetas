@@ -71,6 +71,14 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->yev_event = yev_create_timer_event(yuno_event_loop(), yev_callback, gobj);
 
+    /*
+     *  SERVICE subscription model
+     */
+    hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
+    if(subscriber) {
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    }
+
     SET_PRIV(periodic,          gobj_read_bool_attr)
     SET_PRIV(msec,              gobj_read_integer_attr)
 }
@@ -194,6 +202,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    /*
+     *  SERVICE subscription model
+     */
     if(gobj_is_pure_child(gobj)) {
         return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
     } else {
@@ -206,6 +217,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    /*
+     *  SERVICE subscription model
+     */
     if(gobj_is_pure_child(gobj)) {
         return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
     } else {
