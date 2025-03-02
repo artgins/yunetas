@@ -252,7 +252,8 @@ PUBLIC void trace_vjson(
 PRIVATE event_action_t *_find_event_action(state_t *state, gobj_event_t event);
 PRIVATE int _add_event_type(
     dl_list_t *dl,
-    event_type_t *event_type_
+    gobj_event_t event_name,
+    event_flag_t event_flag
 );
 
 PRIVATE json_t *bit2level(
@@ -616,7 +617,7 @@ PUBLIC int gobj_start_up(
 
     event_type_t *event_types = global_events;
     while(event_types && event_types->event_name) {
-        _add_event_type(&dl_global_event_types, event_types);
+        _add_event_type(&dl_global_event_types, event_types->event_name, event_types->event_flag);
         event_types++;
     }
 
@@ -1082,7 +1083,7 @@ PUBLIC int gclass_add_event_type(hgclass gclass_, event_type_t *event_type)
 {
     gclass_t *gclass = gclass_;
 
-    return _add_event_type(&gclass->dl_events, event_type);
+    return _add_event_type(&gclass->dl_events, event_type->event_name, event_type->event_flag);
 }
 
 /***************************************************************************
@@ -1228,7 +1229,8 @@ PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
  ***************************************************************************/
 PRIVATE int _add_event_type(
     dl_list_t *dl,
-    event_type_t *event_type_
+    gobj_event_t event_name,
+    event_flag_t event_flag
 ) {
     event_t *event = sys_malloc_fn(sizeof(*event));
     if(event == NULL) {
@@ -1242,8 +1244,8 @@ PRIVATE int _add_event_type(
         return -1;
     }
 
-    event->event_type.event_name = event_type_->event_name;
-    event->event_type.event_flag = event_type_->event_flag;
+    event->event_type.event_name = event_name;
+    event->event_type.event_flag = event_flag;
 
     return dl_add(dl, event);
 }
