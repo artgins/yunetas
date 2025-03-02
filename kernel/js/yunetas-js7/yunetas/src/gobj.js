@@ -177,7 +177,7 @@ class GObj {
         this.dl_childs = [];
         this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
         this.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
-        this.current_state = null; // TODO dl_first(&gclass.dl_states);
+        this.current_state = gclass.dl_states[0];
         this.last_state = null;
         this.obflag = 0;
         this.gobj_flag = Number(gobj_flag) || 0;
