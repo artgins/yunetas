@@ -347,9 +347,9 @@ function gobj_start_up(
 
     for (let i = 0; i < global_events.length; i++) {
         let event_name = global_events[i][0];
-        let event_type = global_events[i][1];
+        let event_flag = global_events[i][1];
 
-        dl_global_event_types.push(new Event_Type(event_name, event_flag));
+        _add_event_type(dl_global_event_types, event_name, event_flag);
     }
 
 
@@ -870,7 +870,9 @@ function gclass_add_ev_action(
  ************************************************************/
 function _add_event_type(dl, event_name, event_flag)
 {
-    dl.push(new Event_Type(event_name, event_flag));
+    if(!empty_string(event_name)) {
+        dl.push(new Event_Type(event_name, event_flag));
+    }
 }
 
 /************************************************************

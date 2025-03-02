@@ -1236,6 +1236,10 @@ PRIVATE int _add_event_type(
     gobj_event_t event_name,
     event_flag_t event_flag
 ) {
+    if(empty_string(event_name)) {
+        return -1;
+    }
+
     event_t *event = sys_malloc_fn(sizeof(*event));
     if(event == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
