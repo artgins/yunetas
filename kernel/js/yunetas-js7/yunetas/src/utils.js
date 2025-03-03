@@ -799,6 +799,40 @@ function kw_get_str(gobj, kw, path, default_value, flag)
 /************************************************************
  *
  ************************************************************/
+function kw_get_pointer(gobj, kw, path, default_value, flag)
+{
+    if(kw !== Object(kw)) {
+        return default_value;
+    }
+    let v = kw_find_path(gobj, kw, path, false);
+
+    const required = flag && (flag & kw_flag_t.KW_REQUIRED);
+    const create = flag && (flag & kw_flag_t.KW_CREATE);
+    const extract = flag && (flag & kw_flag_t.KW_EXTRACT);
+
+    if(v === undefined) {
+        if(create) {
+            let v = default_value;
+            kw_set_dict_value(gobj, kw, path, v);
+            return v;
+
+        } else if(required) {
+            log_error(`path not found: '${path}'`);
+            trace_json(kw);
+        }
+        return default_value;
+    }
+
+    if(extract) {
+        kw_delete(gobj, kw, path);
+    }
+
+    return v;
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function kw_get_dict(gobj, kw, path, default_value, flag)
 {
     if(kw !== Object(kw)) {
@@ -2418,6 +2452,7 @@ export {
     kw_get_int,
     kw_get_real,
     kw_get_str,
+    kw_get_pointer,
     kw_get_dict,
     kw_get_list,
     kw_get_dict_value,

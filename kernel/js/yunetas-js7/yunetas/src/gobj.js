@@ -39,6 +39,7 @@ import {
     kw_has_key,
     kw_pop,
     json_is_identical,
+    kw_get_pointer,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -2849,14 +2850,14 @@ function _find_subscription(
         let match = true;
 
         if(publisher) {
-            let publisher_ = kw_get_int(null, subs, "publisher", null);
+            let publisher_ = kw_get_pointer(null, subs, "publisher", null);
             if(publisher !== publisher_) {
                 match = false;
             }
         }
 
         if(subscriber) {
-            let subscriber_ = kw_get_int(null, subs, "subscriber", null);
+            let subscriber_ = kw_get_pointer(null, subs, "subscriber", null);
             if(subscriber !== subscriber_) {
                 match = false;
             }
@@ -2940,8 +2941,8 @@ function _delete_subscription(
     force,
     not_inform
 ) {
-    let publisher = kw_get_int(gobj, subs, "publisher", null, kw_flag_t.KW_REQUIRED);
-    let subscriber = kw_get_int(gobj, subs, "subscriber", null, kw_flag_t.KW_REQUIRED);
+    let publisher = kw_get_pointer(gobj, subs, "publisher", null, kw_flag_t.KW_REQUIRED);
+    let subscriber = kw_get_pointer(gobj, subs, "subscriber", null, kw_flag_t.KW_REQUIRED);
     let event = kw_get_int(gobj, subs, "event", null, kw_flag_t.KW_REQUIRED);
     let subs_flag = kw_get_int(gobj, subs, "subs_flag", null, kw_flag_t.KW_REQUIRED);
     let hard_subscription = (subs_flag & subs_flag_t.__hard_subscription__)?1:0;
@@ -3293,8 +3294,8 @@ function gobj_list_subscriptions(gobj2view)
     );
     for(let i=0; i<subscriptions.length; i++) {
         let sub = subscriptions[i];
-        let publisher = kw_get_int(gobj2view, sub, "publisher", null, kw_flag_t.KW_REQUIRED);
-        let subscriber = kw_get_int(gobj2view, sub, "subscriber", null, kw_flag_t.KW_REQUIRED);
+        let publisher = kw_get_pointer(gobj2view, sub, "publisher", null, kw_flag_t.KW_REQUIRED);
+        let subscriber = kw_get_pointer(gobj2view, sub, "subscriber", null, kw_flag_t.KW_REQUIRED);
         let event_ = kw_get_str(gobj2view, sub, "event", "", kw_flag_t.KW_REQUIRED);
 
         json_object_set_new(sub, "s_event", event_);
@@ -3310,8 +3311,8 @@ function gobj_list_subscriptions(gobj2view)
     );
     for(let i=0; i<subscribings.length; i++) {
         let sub = subscribings[i];
-        let publisher = kw_get_int(gobj2view, sub, "publisher", null, kw_flag_t.KW_REQUIRED);
-        let subscriber = kw_get_int(gobj2view, sub, "subscriber", null, kw_flag_t.KW_REQUIRED);
+        let publisher = kw_get_pointer(gobj2view, sub, "publisher", null, kw_flag_t.KW_REQUIRED);
+        let subscriber = kw_get_pointer(gobj2view, sub, "subscriber", null, kw_flag_t.KW_REQUIRED);
         let event_ = kw_get_str(gobj2view, sub, "event", "", kw_flag_t.KW_REQUIRED);
 
         json_object_set_new(sub, "s_event", event_);
@@ -3466,6 +3467,8 @@ function gobj_publish_event(
         }
     }
 
+    event = ev.event_name;
+
     // let tracea = __trace_gobj_subscriptions__(publisher) &&
     //     !is_machine_not_tracing(publisher, event);
     // if(tracea) {
@@ -3532,7 +3535,7 @@ function gobj_publish_event(
                 continue;
             }
         }
-        let subscriber = kw_get_int(publisher, subs, "subscriber", null, kw_flag_t.KW_REQUIRED);
+        let subscriber = kw_get_pointer(publisher, subs, "subscriber", null, kw_flag_t.KW_REQUIRED);
         if(!(subscriber && !gobj_is_destroying(subscriber))) {
             continue;
         }
@@ -3621,7 +3624,6 @@ function gobj_publish_event(
                         continue;
                     }
                 }
-                event = ev_.event;
             }
 
             /*
