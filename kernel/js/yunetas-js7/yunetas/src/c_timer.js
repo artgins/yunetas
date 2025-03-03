@@ -45,7 +45,7 @@ const GCLASS_NAME = "C_TIMER";
  *              Data
  ***************************************************************/
 /*---------------------------------------------*
- *          Configuration (C attributes)
+ *          Attributes
  *---------------------------------------------*/
 const attrs_table = [
 SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),

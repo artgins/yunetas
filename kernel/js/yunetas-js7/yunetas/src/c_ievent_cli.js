@@ -1,28 +1,44 @@
-/****************************************************************************
- *          c_sample.js
+/**************************************************************************
+ *          c_ievent_cli.js
+ *          Ievent_cli GClass.
  *
- *          A gclass to test
+ *          Inter-event (client side)
+ *          Simulate a remote service like a local gobj.
  *
- *          Copyright (c) 2025, ArtGins.
- *          All Rights Reserved. ****************************************************************************/
+ *      Licence: MIT (http://www.opensource.org/licenses/mit-license)
+ *      Copyright (c) 2014,2024 Niyamaka.
+ *      Copyright (c) 2025, ArtGins.
+ **************************************************************************/
 import {
     SDATA,
     SDATA_END,
     data_type_t,
-    gclass_create,
-    log_error,
     gclass_flag_t,
-    trace_msg,
+    event_flag_t,
+    GObj,
+    gclass_create,
+    gobj_parent,
     gobj_yuno,
+    gobj_send_event,
+    gobj_publish_event,
+    gobj_read_bool_attr,
+    gobj_read_integer_attr,
+    gobj_read_pointer_attr,
     gobj_subscribe_event,
-} from "yunetas";
+    gobj_is_pure_child,
+    gobj_gclass_name,
+    gobj_write_bool_attr,
+    gobj_write_integer_attr, sdata_flag_t,
+} from "./gobj.js";
 
-import {locales} from "./locales.js";
+import {
+    log_error,
+} from "./utils.js";
 
 /***************************************************************
  *              Constants
  ***************************************************************/
-const GCLASS_NAME = "C_SAMPLE";
+const GCLASS_NAME = "C_IEVENT_CLI";
 
 /***************************************************************
  *              Data
@@ -31,14 +47,49 @@ const GCLASS_NAME = "C_SAMPLE";
  *          Attributes
  *---------------------------------------------*/
 const attrs_table = [
-SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
+/*-ATTR-type--------------------name----------------flag------------------------default-----description---------- */
+SDATA (data_type_t.DTP_STRING,  "wanted_yuno_role", sdata_flag_t.SDF_RD,         "",         "wanted yuno role"),
+SDATA (data_type_t.DTP_STRING,  "wanted_yuno_name", sdata_flag_t.SDF_RD,         "",         "wanted yuno name"),
+SDATA (data_type_t.DTP_STRING,  "wanted_yuno_service",sdata_flag_t.SDF_RD,       "",         "wanted yuno service"),
+SDATA (data_type_t.DTP_STRING,  "remote_yuno_role", sdata_flag_t.SDF_RD,         "",         "confirmed remote yuno role"),
+SDATA (data_type_t.DTP_STRING,  "remote_yuno_name", sdata_flag_t.SDF_RD,         "",         "confirmed remote yuno name"),
+SDATA (data_type_t.DTP_STRING,  "remote_yuno_service",sdata_flag_t.SDF_RD,       "",         "confirmed remote yuno service"),
+SDATA (data_type_t.DTP_STRING,  "url",              sdata_flag_t.SDF_PERSIST,    "",         "Url to connect"),
+SDATA (data_type_t.DTP_STRING,  "jwt",              sdata_flag_t.SDF_PERSIST,    "",         "JWT"),
+SDATA (data_type_t.DTP_STRING,  "cert_pem",         sdata_flag_t.SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
+SDATA (data_type_t.DTP_JSON,    "extra_info",       sdata_flag_t.SDF_RD,         "{}",       "dict data set by user, added to the identity card msg."),
+SDATA (data_type_t.DTP_INTEGER, "timeout_idack",    sdata_flag_t.SDF_RD,         "5000",     "timeout waiting idAck"),
+SDATA (data_type_t.DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 ];
 
+/*---------------------------------------------*
+ *      GClass trace levels
+ *  HACK strict ascendant value!
+ *  required paired correlative strings
+ *  in s_user_trace_level
+ *---------------------------------------------*/
+// enum {
+//     TRACE_IEVENTS       = 0x0001,
+//     TRACE_IEVENTS2      = 0x0002,
+//     TRACE_IDENTITY_CARD = 0x0004,
+// };
+// PRIVATE const trace_level_t s_user_trace_level[16] = {
+//     {"ievents",        "Trace inter-events with metadata of kw"},
+//     {"ievents2",       "Trace inter-events with full kw"},
+//     {"identity-card",  "Trace identity_card messages"},
+//     {0, 0},
+// };
+
+/*---------------------------------------------*
+ *              Private data
+ *---------------------------------------------*/
 let PRIVATE_DATA = {
-    periodic:   false,
-    msec:       0,
-    t_flush:    0
+    remote_yuno_name:   null,
+    remote_yuno_role:   null,
+    remote_yuno_service:null,
+    gobj_timer:         null,
+    inform_on_close:    false
 };
 
 let __gclass__ = null;
@@ -72,7 +123,6 @@ function mt_writing(gobj, path)
  ***************************************************************/
 function mt_start(gobj)
 {
-    gobj_subscribe_event(gobj_yuno(), "EV_TIMEOUT_PERIODIC", {}, gobj);
     return 0;
 }
 
@@ -99,15 +149,6 @@ function mt_destroy(gobj)
                      ***************************/
 
 
-
-
-/***************************************************************
- *
- ***************************************************************/
-
-
-
-
                     /***************************
                      *      Actions
                      ***************************/
@@ -120,7 +161,6 @@ function mt_destroy(gobj)
  ***************************************************************/
 function ac_timeout(gobj, event, kw, src)
 {
-    trace_msg("c_sample ac_timeout");
     return 0;
 }
 
