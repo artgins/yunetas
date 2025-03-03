@@ -20,7 +20,7 @@ import {
     gobj_default_service,
     gobj_stop_childs,
     gobj_name,
-    gobj_read_attr,
+    gobj_read_attr, gobj_publish_event, event_flag_t,
 } from "./gobj.js";
 
 import {
@@ -178,7 +178,7 @@ function mt_destroy(gobj)
  ***************************************************************/
 function ac_timeout(gobj, event, kw, src)
 {
-    trace_msg("ac_timeout");
+    gobj_publish_event(gobj, event, kw);
     return 0;
 }
 
@@ -231,7 +231,7 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_TIMEOUT_PERIODIC",     0],
+        ["EV_TIMEOUT_PERIODIC", event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         [0, 0]
     ];
 

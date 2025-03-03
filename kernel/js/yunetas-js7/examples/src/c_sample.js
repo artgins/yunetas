@@ -6,10 +6,15 @@
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved. ****************************************************************************/
 import {
+    SDATA,
+    SDATA_END,
+    data_type_t,
     gclass_create,
     log_error,
     gclass_flag_t,
     trace_msg,
+    gobj_yuno,
+    gobj_subscribe_event,
 } from "yunetas";
 
 import {locales} from "./locales.js";
@@ -25,11 +30,10 @@ const GCLASS_NAME = "C_SAMPLE";
 /*---------------------------------------------*
  *          Configuration (C attributes)
  *---------------------------------------------*/
-let CONFIG = {
-    subscriber: null,   // Subscriber of output events, default is parent
-    periodic:   false,  // True for periodic timeouts
-    msec:       0,      // Timeout in milliseconds
-};
+const attrs_table = [
+SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "Subscriber of output events"),
+SDATA_END()
+];
 
 let PRIVATE_DATA = {
     periodic:   false,
@@ -68,6 +72,7 @@ function mt_writing(gobj, path)
  ***************************************************************/
 function mt_start(gobj)
 {
+    gobj_subscribe_event(gobj_yuno(), "EV_TIMEOUT_PERIODIC", {}, gobj);
     return 0;
 }
 
@@ -178,7 +183,7 @@ function create_gclass(gclass_name)
         states,
         gmt,
         0,  // lmt,
-        CONFIG,
+        attrs_table,
         PRIVATE_DATA,
         0,  // authz_table,
         0,  // command_table,

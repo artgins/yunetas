@@ -15,7 +15,6 @@ import {
     is_number,
     log_error,
     log_warning,
-    log_debug,
     trace_machine,
     empty_string,
     json_deep_copy,
@@ -198,7 +197,7 @@ class GObj {
         this.parent = null;     // assign in _add_child()
         this.dl_childs = [];
         this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
-        this.dl_subscribings = []; // TODO WARNING not implemented in v6, subscribed events loss
+        this.dl_subscribings = [];  // subscribed events
         this.current_state = gclass.dl_states[0];
         this.last_state = null;
         this.obflag = 0;
@@ -425,6 +424,12 @@ function sdata_write_default_values(
 function sdata_create(gobj, sdata_desc)
 {
     let sdata = {};
+
+    if(!is_array(sdata_desc)) {
+        log_error(`sdata_desc MUST be an array`);
+        trace_json(sdata_desc);
+        return sdata;
+    }
     for(let i=0; i < sdata_desc.length; i++) {
         const it = sdata_desc[i];
         if(!it.name) {
@@ -1335,7 +1340,7 @@ function gobj_create2(
         ));
     }
 
-    // from gobj.js 6
+    // TODO from gobj.js 6, is valid?
     // gobj.tracing = 0;
     // gobj.trace_timer = 0;
     // gobj.running = false;
@@ -1343,7 +1348,6 @@ function gobj_create2(
     // gobj.timer_id = -1; // for now, only one timer per fsm, and hardcoded.
     // gobj.timer_event_name = "EV_TIMEOUT";
     // gobj.__volatil__ = (gobj_flag & gobj_flag_t.gobj_flag_volatil);
-    // TODO gobj.fsm_create(fsm_desc); // Create gobj.fsm
 
     /*--------------------------------*
      *  Write configuration
@@ -3690,7 +3694,7 @@ function gobj_publish_event(
 
     if(!sent_count) {
         if(!ev || !(ev.event_flag & event_flag_t.EVF_NO_WARN_SUBS)) {
-            log_warning(`Publish event WITHOUT subscribers: ${gobj_short_name(publisher)}, ev${event}`);
+            log_warning(`Publish event WITHOUT subscribers: ${gobj_short_name(publisher)}, ev ${event}`);
             // if(__trace_gobj_ev_kw__(publisher)) {
             //     if(json_object_size(kw)) {
             //         gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
