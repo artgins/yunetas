@@ -198,52 +198,52 @@ function mt_destroy(gobj)
 
 
 /***************************************************************
- *  Setup websocket
+ *  Setup WebSocket
  *  Mixin DOM events -> Yuneta events
  ***************************************************************/
-function setup_websocket(gobj)
-{
+function setup_websocket(gobj) {
     const url = gobj_read_str_attr(gobj, "url");
     log_debug(`====> Starting WebSocket to '${url}' (${gobj_short_name(gobj)})`);
 
-    // Define event handlers
+    // Define event handlers (bound to `gobj`)
     function handleOpen() {
-        gobj_send_event(gobj, "EV_ON_OPEN", { url: url }, gobj);
+        gobj_send_event(gobj, "EV_ON_OPEN", { url }, gobj);
     }
 
-    function handleClose() {
-        gobj_send_event(gobj, "EV_ON_CLOSE", { url: url }, gobj);
+    function handleClose(event) {
+        gobj_send_event(gobj, "EV_ON_CLOSE", { url, code: event.code, reason: event.reason }, gobj);
     }
 
-    function handleError() {
-        gobj_send_event(gobj, "EV_ON_CLOSE", { url: url }, gobj); // Intentional?
+    function handleError(event) {
         log_error(`${gobj_short_name(gobj)}: WebSocket error occurred.`);
     }
 
     function handleMessage(event) {
-        gobj_send_event(gobj, "EV_ON_MESSAGE", { url: url, data: event.data }, gobj);
+        gobj_send_event(gobj, "EV_ON_MESSAGE", { url, data: event.data }, gobj);
     }
 
     // Initialize WebSocket
     let websocket;
     try {
         websocket = new WebSocket(url);
-        if (!websocket) {
-            log_error(`${gobj_short_name(gobj)}: Cannot open WebSocket to '${url}'`);
-            return null; // Explicitly return null on failure
-        }
     } catch (e) {
         log_error(`${gobj_short_name(gobj)}: Cannot open WebSocket to '${url}', Error: ${e.message}`);
         return null;
     }
 
-    // Assign WebSocket event handlers
-    websocket.onopen = handleOpen;
-    websocket.onclose = handleClose;
-    websocket.onerror = handleError;
-    websocket.onmessage = handleMessage;
+    // Validate WebSocket instance
+    if (!websocket) {
+        log_error(`${gobj_short_name(gobj)}: Failed to initialize WebSocket.`);
+        return null;
+    }
 
-    return websocket; // Return the WebSocket instance
+    // Assign WebSocket event handlers
+    websocket.onopen = handleOpen.bind(gobj);
+    websocket.onclose = handleClose.bind(gobj);
+    websocket.onerror = handleError.bind(gobj);
+    websocket.onmessage = handleMessage.bind(gobj);
+
+    return websocket; // Return WebSocket instance
 }
 
 
