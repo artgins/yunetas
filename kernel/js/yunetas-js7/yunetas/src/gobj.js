@@ -2327,7 +2327,7 @@ function gobj_read_bool_attr(gobj, name)
     if(hs) {
         if(gobj.gclass.gmt.mt_reading) {
             if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
-                let v = gobj.gclass.gmt.mt_reading(gobj, name);
+                let v = gobj.gclass.gmt.mt_reading(gobj, name); // TODO review
                 if(v.found) {
                     return v.v.b;
                 }
@@ -2345,17 +2345,43 @@ function gobj_read_bool_attr(gobj, name)
  ***************************************************************************/
 function gobj_read_integer_attr(gobj, name)
 {
-    // TODO if(name && strcasecmp(name, "__trace_level__")===0) {
-    //     return gobj_trace_level(gobj);
-    // }
+    if(name && strcasecmp(name, "__trace_level__")===0) {
+        // TODO return gobj_trace_level(gobj);
+    }
 
     let hs = gobj_hsdata2(gobj, name, false);
     if(hs) {
         if(gobj.gclass.gmt.mt_reading) {
             if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
-                let v = gobj.gclass.gmt.mt_reading(gobj, name);
+                let v = gobj.gclass.gmt.mt_reading(gobj, name); // TODO review
                 if(v.found) {
                     return v.v.i;
+                }
+            }
+        }
+        return json_object_get(hs, name);
+    }
+
+    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    return 0;
+}
+
+/***************************************************************************
+ *  ATTR: read
+ ***************************************************************************/
+function gobj_read_str_attr(gobj, name)
+{
+    if(name && strcasecmp(name, "__state__")===0) {
+        return gobj_current_state(gobj);
+    }
+
+    let hs = gobj_hsdata2(gobj, name, false);
+    if(hs) {
+        if(gobj.gclass.gmt.mt_reading) {
+            if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
+                let v = gobj.gclass.gmt.mt_reading(gobj, name); // TODO review
+                if(v.found) {
+                    return v.v.s;
                 }
             }
         }
@@ -2375,7 +2401,7 @@ function gobj_read_pointer_attr(gobj, name)
     if(hs) {
         if(gobj.gclass.gmt.mt_reading) {
             if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
-                let v = gobj.gclass.gmt.mt_reading(gobj, name);
+                let v = gobj.gclass.gmt.mt_reading(gobj, name); // TODO review
                 if(v.found) {
                     return v.v.p;
                 }
@@ -2416,7 +2442,28 @@ function gobj_write_integer_attr(gobj, name, value)
 {
     let hs = gobj_hsdata2(gobj, name, false);
     if(hs) {
-        hs[name] = value;
+        hs[name] = parseInt(value);
+        if(gobj.gclass.gmt.mt_writing) {
+            if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+                // Avoid call to mt_writing before mt_create!
+                gobj.gclass.gmt.mt_writing(gobj, name);
+            }
+        }
+        return 0;
+    }
+
+    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    return -1;
+}
+
+/***************************************************************************
+ *  ATTR: write
+ ***************************************************************************/
+function gobj_write_str_attr(gobj, name, value)
+{
+    let hs = gobj_hsdata2(gobj, name, false);
+    if(hs) {
+        hs[name] = String(value);
         if(gobj.gclass.gmt.mt_writing) {
             if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
                 // Avoid call to mt_writing before mt_create!
@@ -3778,9 +3825,11 @@ export {
     gobj_write_attr,
     gobj_read_bool_attr,
     gobj_read_integer_attr,
+    gobj_read_str_attr,
     gobj_read_pointer_attr,
     gobj_write_bool_attr,
     gobj_write_integer_attr,
+    gobj_write_str_attr,
     gobj_change_state,
     gobj_current_state,
 

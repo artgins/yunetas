@@ -9,6 +9,7 @@ import {
     SDATA,
     SDATA_END,
     data_type_t,
+    event_flag_t,
     gclass_create,
     gobj_create_pure_child,
     gobj_start,
@@ -20,7 +21,8 @@ import {
     gobj_default_service,
     gobj_stop_childs,
     gobj_name,
-    gobj_read_attr, gobj_publish_event, event_flag_t,
+    gobj_read_attr,
+    gobj_publish_event,
 } from "./gobj.js";
 
 import {

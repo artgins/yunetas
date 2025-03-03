@@ -14,31 +14,40 @@ import {
     SDATA_END,
     data_type_t,
     gclass_flag_t,
+    sdata_flag_t,
     event_flag_t,
     GObj,
     gclass_create,
     gobj_parent,
+    gobj_short_name,
     gobj_yuno,
     gobj_send_event,
     gobj_publish_event,
     gobj_read_bool_attr,
     gobj_read_integer_attr,
+    gobj_read_str_attr,
     gobj_read_pointer_attr,
+    gobj_write_str_attr,
     gobj_subscribe_event,
     gobj_is_pure_child,
     gobj_gclass_name,
     gobj_write_bool_attr,
-    gobj_write_integer_attr, sdata_flag_t,
+    gobj_write_integer_attr,
+    gobj_create_pure_child,
+    gobj_name,
 } from "./gobj.js";
 
 import {
     log_error,
+    log_debug,
 } from "./utils.js";
 
 /***************************************************************
  *              Constants
  ***************************************************************/
 const GCLASS_NAME = "C_IEVENT_CLI";
+
+const IEVENT_MESSAGE_AREA_ID = "ievent_gate_stack";
 
 /***************************************************************
  *              Data
@@ -48,17 +57,17 @@ const GCLASS_NAME = "C_IEVENT_CLI";
  *---------------------------------------------*/
 const attrs_table = [
 /*-ATTR-type--------------------name----------------flag------------------------default-----description---------- */
-SDATA (data_type_t.DTP_STRING,  "wanted_yuno_role", sdata_flag_t.SDF_RD,         "",         "wanted yuno role"),
-SDATA (data_type_t.DTP_STRING,  "wanted_yuno_name", sdata_flag_t.SDF_RD,         "",         "wanted yuno name"),
-SDATA (data_type_t.DTP_STRING,  "wanted_yuno_service",sdata_flag_t.SDF_RD,       "",         "wanted yuno service"),
-SDATA (data_type_t.DTP_STRING,  "remote_yuno_role", sdata_flag_t.SDF_RD,         "",         "confirmed remote yuno role"),
-SDATA (data_type_t.DTP_STRING,  "remote_yuno_name", sdata_flag_t.SDF_RD,         "",         "confirmed remote yuno name"),
-SDATA (data_type_t.DTP_STRING,  "remote_yuno_service",sdata_flag_t.SDF_RD,       "",         "confirmed remote yuno service"),
-SDATA (data_type_t.DTP_STRING,  "url",              sdata_flag_t.SDF_PERSIST,    "",         "Url to connect"),
-SDATA (data_type_t.DTP_STRING,  "jwt",              sdata_flag_t.SDF_PERSIST,    "",         "JWT"),
-SDATA (data_type_t.DTP_STRING,  "cert_pem",         sdata_flag_t.SDF_PERSIST,    "",         "SSL server certification, PEM str format"),
-SDATA (data_type_t.DTP_JSON,    "extra_info",       sdata_flag_t.SDF_RD,         "{}",       "dict data set by user, added to the identity card msg."),
-SDATA (data_type_t.DTP_INTEGER, "timeout_idack",    sdata_flag_t.SDF_RD,         "5000",     "timeout waiting idAck"),
+SDATA (data_type_t.DTP_STRING,  "wanted_yuno_role", sdata_flag_t.SDF_RD,        "",         "wanted yuno role"),
+SDATA (data_type_t.DTP_STRING,  "wanted_yuno_name", sdata_flag_t.SDF_RD,        "",         "wanted yuno name"),
+SDATA (data_type_t.DTP_STRING,  "wanted_yuno_service",sdata_flag_t.SDF_RD,      "",         "wanted yuno service"),
+SDATA (data_type_t.DTP_STRING,  "remote_yuno_role", sdata_flag_t.SDF_RD,        "",         "confirmed remote yuno role"),
+SDATA (data_type_t.DTP_STRING,  "remote_yuno_name", sdata_flag_t.SDF_RD,        "",         "confirmed remote yuno name"),
+SDATA (data_type_t.DTP_STRING,  "remote_yuno_service",sdata_flag_t.SDF_RD,      "",         "confirmed remote yuno service"),
+SDATA (data_type_t.DTP_STRING,  "url",              sdata_flag_t.SDF_RD,        "",         "Url to connect"),
+SDATA (data_type_t.DTP_STRING,  "jwt",              sdata_flag_t.SDF_PERSIST,   "",         "JWT"),
+SDATA (data_type_t.DTP_STRING,  "cert_pem",         sdata_flag_t.SDF_PERSIST,   "",         "SSL server certification, PEM str format"),
+SDATA (data_type_t.DTP_JSON,    "extra_info",       sdata_flag_t.SDF_RD,        "{}",       "dict data set by user, added to the identity card msg."),
+SDATA (data_type_t.DTP_INTEGER, "timeout_idack",    sdata_flag_t.SDF_RD,        "5000",     "timeout waiting idAck"),
 SDATA (data_type_t.DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 ];
@@ -109,6 +118,30 @@ let __gclass__ = null;
  ***************************************************************/
 function mt_create(gobj)
 {
+    let priv = gobj.priv;
+
+    /*
+     *  Create childs
+     */
+    gobj.priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
+
+    priv.periodic = gobj_read_bool_attr(gobj, "periodic");
+
+    priv.remote_yuno_name = gobj_read_str_attr(gobj, "remote_yuno_name");
+    priv.remote_yuno_role = gobj_read_str_attr(gobj, "remote_yuno_role");
+    priv.remote_yuno_service = gobj_read_str_attr(gobj, "remote_yuno_service");
+
+    gobj_write_str_attr(gobj, "wanted_yuno_name", priv.remote_yuno_name);
+    gobj_write_str_attr(gobj, "wanted_yuno_role", priv.remote_yuno_role);
+    gobj_write_str_attr(gobj, "wanted_yuno_service", priv.remote_yuno_service);
+
+    /*
+     *  SERVICE subscription model
+     */
+    const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
+    if(subscriber) {
+        gobj_subscribe_event(gobj, null, null, subscriber);
+    }
 }
 
 /***************************************************************
@@ -116,6 +149,19 @@ function mt_create(gobj)
  ***************************************************************/
 function mt_writing(gobj, path)
 {
+    let priv = gobj.priv;
+
+    switch(path) {
+        case "remote_yuno_name":
+            priv.remote_yuno_name = gobj_read_bool_attr(gobj, "remote_yuno_name");
+            break;
+        case "remote_yuno_role":
+            priv.remote_yuno_role = gobj_read_bool_attr(gobj, "remote_yuno_role");
+            break;
+        case "remote_yuno_service":
+            priv.remote_yuno_service = gobj_read_bool_attr(gobj, "remote_yuno_service");
+            break;
+    }
 }
 
 /***************************************************************
@@ -147,6 +193,60 @@ function mt_destroy(gobj)
                     /***************************
                      *      Local Methods
                      ***************************/
+
+
+
+
+/***************************************************************
+ *  Setup websocket
+ *  Mixin DOM events -> Yuneta events
+ ***************************************************************/
+function setup_websocket(gobj)
+{
+    const url = gobj_read_str_attr(gobj, "url");
+    log_debug(`====> Starting WebSocket to '${url}' (${gobj_short_name(gobj)})`);
+
+    // Define event handlers
+    function handleOpen() {
+        gobj_send_event(gobj, "EV_ON_OPEN", { url: url }, gobj);
+    }
+
+    function handleClose() {
+        gobj_send_event(gobj, "EV_ON_CLOSE", { url: url }, gobj);
+    }
+
+    function handleError() {
+        gobj_send_event(gobj, "EV_ON_CLOSE", { url: url }, gobj); // Intentional?
+        log_error(`${gobj_short_name(gobj)}: WebSocket error occurred.`);
+    }
+
+    function handleMessage(event) {
+        gobj_send_event(gobj, "EV_ON_MESSAGE", { url: url, data: event.data }, gobj);
+    }
+
+    // Initialize WebSocket
+    let websocket;
+    try {
+        websocket = new WebSocket(url);
+        if (!websocket) {
+            log_error(`${gobj_short_name(gobj)}: Cannot open WebSocket to '${url}'`);
+            return null; // Explicitly return null on failure
+        }
+    } catch (e) {
+        log_error(`${gobj_short_name(gobj)}: Cannot open WebSocket to '${url}', Error: ${e.message}`);
+        return null;
+    }
+
+    // Assign WebSocket event handlers
+    websocket.onopen = handleOpen;
+    websocket.onclose = handleClose;
+    websocket.onerror = handleError;
+    websocket.onmessage = handleMessage;
+
+    return websocket; // Return the WebSocket instance
+}
+
+
 
 
                     /***************************
