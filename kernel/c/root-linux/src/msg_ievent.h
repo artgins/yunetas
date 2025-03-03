@@ -231,7 +231,7 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     BOOL reverse_dst
 );
 
-static inline json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
+PUBLIC json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
     hgobj gobj,
     json_int_t result,
     json_t *jn_comment, // owned
@@ -239,13 +239,9 @@ static inline json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
     json_t *jn_data,    // owned
     const char *msg_type,
     json_t *kw_request  // owned, used to get ONLY __md_iev__.
-) {
-    json_t *jn_response = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
-    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_response, msg_type, TRUE);
-    return jn_answer;
-}
+);
 
-static inline json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev_build_webix2_without_answer_filter()
+PUBLIC json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev_build_webix2_without_answer_filter()
     hgobj gobj,
     json_int_t result,
     json_t *jn_comment, // owned
@@ -253,20 +249,11 @@ static inline json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev
     json_t *jn_data,    // owned
     const char *msg_type,
     json_t *kw_request  // owned, used to get ONLY __md_iev__.
-) {
-    json_t *jn_response = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
-    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_response, msg_type, FALSE);
-    return jn_answer;
-}
+);
 
-static inline void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
+PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
     json_t *kw // not owned
-) {
-    json_object_del((kw), "__md_iev__");
-    json_object_del((kw), "__temp__");
-    json_object_del((kw), "__md_tranger__");
-    json_object_del((kw), "__md_yuno__");
-}
+);
 
 /*
  *  Trace inter-events with metadata of kw

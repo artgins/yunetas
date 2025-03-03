@@ -35,6 +35,7 @@ import {
     gobj_write_integer_attr,
     gobj_create_pure_child,
     gobj_name,
+    gobj_current_state,
 } from "./gobj.js";
 
 import {
@@ -44,7 +45,7 @@ import {
     log_warning,
     get_current_datetime,
     empty_string,
-    json_array_get,
+    msg_iev_push_stack,
 } from "./utils.js";
 
 /***************************************************************
@@ -103,7 +104,8 @@ let PRIVATE_DATA = {
     remote_yuno_role:   null,
     remote_yuno_service:null,
     gobj_timer:         null,
-    inform_on_close:    false
+    inform_on_close:    false,
+    websocket:          null,
 };
 
 let __gclass__ = null;
@@ -174,6 +176,10 @@ function mt_writing(gobj, path)
  ***************************************************************/
 function mt_start(gobj)
 {
+    let priv = gobj.priv;
+
+    priv.websocket = setup_websocket(gobj);
+
     return 0;
 }
 
@@ -182,6 +188,10 @@ function mt_start(gobj)
  ***************************************************************/
 function mt_stop(gobj)
 {
+    let priv = gobj.priv;
+
+    close_websocket(priv.websocket);
+
     return 0;
 }
 
@@ -190,6 +200,51 @@ function mt_stop(gobj)
  ***************************************************************/
 function mt_destroy(gobj)
 {
+}
+
+/***************************************************************
+ *          Framework Method: Stats
+ ***************************************************************/
+function mt_stats(gobj)
+{
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        return gobj_build_webix_answer(
+            self,
+            -1,
+            self.config.remote_yuno_role + "^" + self.config.remote_yuno_name + " not in session.",
+            null,
+            null,
+            kw
+        );
+    }
+
+    if(!kw) {
+        kw = {};
+    }
+
+    /*
+     *      __REQUEST__ __MESSAGE__
+     */
+    let jn_ievent_id = build_ievent_request(
+        self,
+        src.name,
+        kw.service?kw.service:null
+    );
+    msg_iev_push_stack(
+        kw,         // not owned
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id   // owned
+    );
+
+    kw["__stats__"] = stats;
+    msg_iev_write_key(
+        kw,         // not owned
+        "__stats__",
+        stats   // owned
+    );
+
+    return send_static_iev(self, "EV_MT_STATS", kw);
+
 }
 
 
@@ -206,7 +261,8 @@ function mt_destroy(gobj)
  *  Setup WebSocket
  *  Mixin DOM events -> Yuneta events
  ***************************************************************/
-function setup_websocket(gobj) {
+function setup_websocket(gobj)
+{
     const url = gobj_read_str_attr(gobj, "url");
     log_debug(`====> Starting WebSocket to '${url}' (${gobj_short_name(gobj)})`);
 
@@ -296,9 +352,9 @@ function close_websocket(websocket, code = 1000, reason = "") {
     }
 }
 
-/*****************************************
+/***************************************************************
  *      Trace intra event
- *****************************************/
+ ***************************************************************/
 function trace_inter_event(self, prefix, iev)
 {
     let hora = get_current_datetime();
@@ -314,11 +370,11 @@ function trace_inter_event(self, prefix, iev)
 /************************************************************
  *  inter event container
  ************************************************************/
-function InterEvent(
-        event,
-        kw) {
-    this.event = event;
-    this.kw = kw || {};
+class InterEvent {
+    constructor(event, kw) {
+        this.event = event;
+        this.kw = kw || {};
+    }
 }
 
 /************************************************************
@@ -333,10 +389,7 @@ function iev_create(
         return null;
     }
 
-    return {
-        event: event,
-        kw: kw || {}
-    };
+    return new InterEvent(event, kw);
 }
 
 /**************************************
@@ -393,27 +446,6 @@ function build_ievent_request(self, src_service, dst_service)
         src_service: src_service
     };
     return jn_ievent_chain;
-}
-
-/**************************************
- *
- **************************************/
-function ievent_answer_filter(self, kw_answer, area_key, ivent_gate_stack, src)
-{
-    var ievent = json_array_get(ievent_gate_stack, 0);
-
-    /*
-    *  Dale la vuelta src->dst dst->src
-    */
-    var iev_src_service = kw_get_str(ievent, "src_service", "");
-
-    ievent["dst_yuno"] = self.config.remote_yuno_name;
-    ievent["dst_role"] = self.config.remote_yuno_role;
-    ievent["dst_service"] = iev_src_service;
-
-    ievent["src_yuno"] = self.yuno.yuno_name;
-    ievent["src_role"] = self.yuno.yuno_role;
-    ievent["src_service"] = src.name;
 }
 
 /********************************************
@@ -535,6 +567,7 @@ const gmt = {
     mt_start:   mt_start,
     mt_stop:    mt_stop,
     mt_destroy: mt_destroy,
+    mt_stats:   mt_stats,
 };
 
 
