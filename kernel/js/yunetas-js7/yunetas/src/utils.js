@@ -648,9 +648,9 @@ function kw_get_bool(gobj, kw, path, default_value, flag)
     }
     let b = kw_find_path(gobj, kw, path, false);
 
-    const required = flag & kw_flag_t.KW_REQUIRED;
-    const create = flag & kw_flag_t.KW_CREATE;
-    const extract = flag & kw_flag_t.KW_EXTRACT;
+    const required = flag && (flag & kw_flag_t.KW_REQUIRED);
+    const create = flag && (flag & kw_flag_t.KW_CREATE);
+    const extract = flag && (flag & kw_flag_t.KW_EXTRACT);
 
     if(b === undefined) {
         if(create) {
@@ -680,9 +680,9 @@ function kw_get_int(gobj, kw, path, default_value, flag)
     }
     let v = kw_find_path(gobj, kw, path, false);
 
-    const required = flag & kw_flag_t.KW_REQUIRED;
-    const create = flag & kw_flag_t.KW_CREATE;
-    const extract = flag & kw_flag_t.KW_EXTRACT;
+    const required = flag && (flag & kw_flag_t.KW_REQUIRED);
+    const create = flag && (flag & kw_flag_t.KW_CREATE);
+    const extract = flag && (flag & kw_flag_t.KW_EXTRACT);
 
     if(v === undefined) {
         if(create) {
@@ -722,9 +722,9 @@ function kw_get_real(gobj, kw, path, default_value, flag)
     }
     let v = kw_find_path(gobj, kw, path, false);
 
-    const required = flag & kw_flag_t.KW_REQUIRED;
-    const create = flag & kw_flag_t.KW_CREATE;
-    const extract = flag & kw_flag_t.KW_EXTRACT;
+    const required = flag && (flag & kw_flag_t.KW_REQUIRED);
+    const create = flag && (flag & kw_flag_t.KW_CREATE);
+    const extract = flag && (flag & kw_flag_t.KW_EXTRACT);
 
     if(v === undefined) {
         if(create) {
@@ -764,9 +764,9 @@ function kw_get_str(gobj, kw, path, default_value, flag)
     }
     let v = kw_find_path(gobj, kw, path, false);
 
-    const required = flag & kw_flag_t.KW_REQUIRED;
-    const create = flag & kw_flag_t.KW_CREATE;
-    const extract = flag & kw_flag_t.KW_EXTRACT;
+    const required = flag && (flag & kw_flag_t.KW_REQUIRED);
+    const create = flag && (flag & kw_flag_t.KW_CREATE);
+    const extract = flag && (flag & kw_flag_t.KW_EXTRACT);
 
     if(v === undefined) {
         if(create) {
@@ -806,9 +806,9 @@ function kw_get_dict(gobj, kw, path, default_value, flag)
     }
     let v = kw_find_path(gobj, kw, path, false);
 
-    const required = flag & kw_flag_t.KW_REQUIRED;
-    const create = flag & kw_flag_t.KW_CREATE;
-    const extract = flag & kw_flag_t.KW_EXTRACT;
+    const required = flag && (flag & kw_flag_t.KW_REQUIRED);
+    const create = flag && (flag & kw_flag_t.KW_CREATE);
+    const extract = flag && (flag & kw_flag_t.KW_EXTRACT);
 
     if(v === undefined) {
         if(create) {
@@ -848,9 +848,9 @@ function kw_get_dict_value(gobj, kw, path, default_value, flag)
     }
     let v = kw_find_path(gobj, kw, path, false);
 
-    const required = flag & kw_flag_t.KW_REQUIRED;
-    const create = flag & kw_flag_t.KW_CREATE;
-    const extract = flag & kw_flag_t.KW_EXTRACT;
+    const required = flag && (flag & kw_flag_t.KW_REQUIRED);
+    const create = flag && (flag & kw_flag_t.KW_CREATE);
+    const extract = flag && (flag & kw_flag_t.KW_EXTRACT);
 
     if(v === undefined) {
         if(create) {
@@ -882,9 +882,9 @@ function kw_get_list(gobj, kw, path, default_value, flag)
     }
     let v = kw_find_path(gobj, kw, path, false);
 
-    const required = flag & kw_flag_t.KW_REQUIRED;
-    const create = flag & kw_flag_t.KW_CREATE;
-    const extract = flag & kw_flag_t.KW_EXTRACT;
+    const required = flag && (flag & kw_flag_t.KW_REQUIRED);
+    const create = flag && (flag & kw_flag_t.KW_CREATE);
+    const extract = flag && (flag & kw_flag_t.KW_EXTRACT);
 
     if(v === undefined) {
         if(create) {
@@ -2378,6 +2378,7 @@ function index_in_list(list, elm) {
 
 
 export {
+    kw_flag_t,
     json_deep_copy,
     json_is_identical,
     json_object_update,

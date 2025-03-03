@@ -8,6 +8,7 @@
 /* jshint bitwise: false */
 
 import {
+    kw_flag_t,
     is_string,
     is_object,
     is_array,
@@ -27,7 +28,6 @@ import {
     strcasecmp,
     kw_get_dict,
     kw_get_bool,
-    kw_is_identical,
     kw_match_simple,
     kw_get_int,
     json_array_append,
@@ -37,7 +37,8 @@ import {
     kw_find_json_in_list,
     kw_get_str,
     kw_has_key,
-    kw_pop, json_is_identical,
+    kw_pop,
+    json_is_identical,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -2746,11 +2747,10 @@ function _create_subscription(
     let subs_flag = 0;
 
     if(kw) {
-        let __config__ = kw_get_dict(kw, "__config__", 0, 0);
-        let __global__ = kw_get_dict(kw, "__global__", 0, 0);
-        let __local__ = kw_get_dict(kw, "__local__", 0, 0);
-        let __filter__ = kw_get_dict_value(kw, "__filter__", 0, 0);
-        //const char *__service__ = kw_get_str(kw, "__service__", 0, 0);
+        let __config__ = kw_get_dict(publisher, kw, "__config__", null);
+        let __global__ = kw_get_dict(publisher, kw, "__global__", null);
+        let __local__ = kw_get_dict(publisher, kw, "__local__", null);
+        let __filter__ = kw_get_dict_value(publisher, kw, "__filter__", null);
 
         if(__global__) {
             let kw_clone = json_deep_copy(__global__);
@@ -2782,8 +2782,8 @@ function _create_subscription(
 //            }
 
             if(kw_has_key(kw_clone, "__hard_subscription__")) {
-                let hard_subscription = kw_get_bool(
-                    kw_clone, "__hard_subscription__", 0, 0
+                let hard_subscription = kw_get_bool(publisher,
+                    kw_clone, "__hard_subscription__", false
                 );
                 json_object_del(kw_clone, "__hard_subscription__");
                 if(hard_subscription) {
@@ -2791,7 +2791,9 @@ function _create_subscription(
                 }
             }
             if(kw_has_key(kw_clone, "__own_event__")) {
-                let own_event= kw_get_bool(kw_clone, "__own_event__", 0, 0);
+                let own_event= kw_get_bool(publisher,
+                    kw_clone, "__own_event__", false
+                );
                 json_object_del(kw_clone, "__own_event__");
                 if(own_event) {
                     subs_flag |= subs_flag_t.__own_event__;
@@ -2835,10 +2837,10 @@ function _find_subscription(
         _match = kw_match_simple; // WARNING decref second parameter
     }
 
-    let __config__ = kw_get_dict(kw, "__config__", null);
-    let __global__ = kw_get_dict(kw, "__global__", null);
-    let __local__ = kw_get_dict(kw, "__local__", null);
-    let __filter__ = kw_get_dict_value(kw, "__filter__", null);
+    let __config__ = kw_get_dict(publisher, kw, "__config__", null);
+    let __global__ = kw_get_dict(publisher, kw, "__global__", null);
+    let __local__ = kw_get_dict(publisher, kw, "__local__", null);
+    let __filter__ = kw_get_dict_value(publisher, kw, "__filter__", null);
 
     let iter = [];
 
@@ -2847,28 +2849,28 @@ function _find_subscription(
         let match = true;
 
         if(publisher) {
-            let publisher_ = kw_get_int(subs, "publisher", null);
+            let publisher_ = kw_get_int(null, subs, "publisher", null);
             if(publisher !== publisher_) {
                 match = false;
             }
         }
 
         if(subscriber) {
-            let subscriber_ = kw_get_int(subs, "subscriber", null);
+            let subscriber_ = kw_get_int(null, subs, "subscriber", null);
             if(subscriber !== subscriber_) {
                 match = false;
             }
         }
 
         if(event) {
-            let event_ = kw_get_int(subs, "event", null);
+            let event_ = kw_get_int(null, subs, "event", null);
             if(!event_ || event !== event_) {
                 match = false;
             }
         }
 
         if(__config__) {
-            let kw_config = kw_get_dict(subs, "__config__", null);
+            let kw_config = kw_get_dict(null, subs, "__config__", null);
             if(kw_config) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     //KW_INCREF(__config__);
@@ -2881,7 +2883,7 @@ function _find_subscription(
             }
         }
         if(__global__) {
-            let kw_global = kw_get_dict(subs, "__global__", null);
+            let kw_global = kw_get_dict(null, subs, "__global__", null);
             if(kw_global) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     //KW_INCREF(__global__);
@@ -2894,7 +2896,7 @@ function _find_subscription(
             }
         }
         if(__local__) {
-            let kw_local = kw_get_dict(subs, "__local__", null);
+            let kw_local = kw_get_dict(null, subs, "__local__", null);
             if(kw_local) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     //KW_INCREF(__local__);
@@ -2907,7 +2909,7 @@ function _find_subscription(
             }
         }
         if(__filter__) {
-            let kw_filter = kw_get_dict_value(subs, "__filter__", null);
+            let kw_filter = kw_get_dict_value(null, subs, "__filter__", null);
             if(kw_filter) {
                 if(!strict) { // HACK decref when calling _match (kw_match_simple)
                     //KW_INCREF(__filter__);
@@ -2938,10 +2940,10 @@ function _delete_subscription(
     force,
     not_inform
 ) {
-    let publisher = kw_get_int(subs, "publisher", null, false, true);
-    let subscriber = kw_get_int(subs, "subscriber", null, false, true);
-    let event = kw_get_int(subs, "event", null, false, true);
-    let subs_flag = kw_get_int(subs, "subs_flag", null, false, true);
+    let publisher = kw_get_int(gobj, subs, "publisher", null, kw_flag_t.KW_REQUIRED);
+    let subscriber = kw_get_int(gobj, subs, "subscriber", null, kw_flag_t.KW_REQUIRED);
+    let event = kw_get_int(gobj, subs, "event", null, kw_flag_t.KW_REQUIRED);
+    let subs_flag = kw_get_int(gobj, subs, "subs_flag", null, kw_flag_t.KW_REQUIRED);
     let hard_subscription = (subs_flag & subs_flag_t.__hard_subscription__)?1:0;
 
     /*-------------------------------*
@@ -3291,9 +3293,9 @@ function gobj_list_subscriptions(gobj2view)
     );
     for(let i=0; i<subscriptions.length; i++) {
         let sub = subscriptions[i];
-        let publisher = kw_get_int(sub, "publisher", null, false, true);
-        let subscriber = kw_get_int(sub, "subscriber", null, false, true);
-        let event_ = kw_get_str(sub, "event", "", false, true);
+        let publisher = kw_get_int(gobj2view, sub, "publisher", null, kw_flag_t.KW_REQUIRED);
+        let subscriber = kw_get_int(gobj2view, sub, "subscriber", null, kw_flag_t.KW_REQUIRED);
+        let event_ = kw_get_str(gobj2view, sub, "event", "", kw_flag_t.KW_REQUIRED);
 
         json_object_set_new(sub, "s_event", event_);
         json_object_set_new(sub, "s_publisher", gobj_short_name(publisher));
@@ -3308,9 +3310,9 @@ function gobj_list_subscriptions(gobj2view)
     );
     for(let i=0; i<subscribings.length; i++) {
         let sub = subscribings[i];
-        let publisher = kw_get_int(sub, "publisher", null, false, true);
-        let subscriber = kw_get_int(sub, "subscriber", null, false, true);
-        let event_ = kw_get_str(sub, "event", "", false, true);
+        let publisher = kw_get_int(gobj2view, sub, "publisher", null, kw_flag_t.KW_REQUIRED);
+        let subscriber = kw_get_int(gobj2view, sub, "subscriber", null, kw_flag_t.KW_REQUIRED);
+        let event_ = kw_get_str(gobj2view, sub, "event", "", kw_flag_t.KW_REQUIRED);
 
         json_object_set_new(sub, "s_event", event_);
         json_object_set_new(sub, "s_publisher", gobj_short_name(publisher));
@@ -3530,7 +3532,7 @@ function gobj_publish_event(
                 continue;
             }
         }
-        let subscriber = kw_get_int(subs, "subscriber", null, 0, true);
+        let subscriber = kw_get_int(publisher, subs, "subscriber", null, kw_flag_t.KW_REQUIRED);
         if(!(subscriber && !gobj_is_destroying(subscriber))) {
             continue;
         }
@@ -3538,13 +3540,13 @@ function gobj_publish_event(
         /*
          *  Check if event null or event in event_list
          */
-        let subs_flag = kw_get_int(subs, "subs_flag", 0, 0, true);
-        let event_ = kw_get_str(subs, "event", "", 0, true);
+        let subs_flag = kw_get_int(publisher, subs, "subs_flag", 0, kw_flag_t.KW_REQUIRED);
+        let event_ = kw_get_str(publisher, subs, "event", "", kw_flag_t.KW_REQUIRED);
         if(empty_string(event_) || strcasecmp(event_, event)===0) {
-            let __config__ = kw_get_dict(subs, "__config__", null, 0);
-            let __global__ = kw_get_dict(subs, "__global__", null, 0);
-            let __local__ = kw_get_dict(subs, "__local__", null, 0);
-            let __filter__ = kw_get_dict_value(subs, "__filter__", null, 0);
+            let __config__ = kw_get_dict(publisher, subs, "__config__", null, 0);
+            let __global__ = kw_get_dict(publisher, subs, "__global__", null, 0);
+            let __local__ = kw_get_dict(publisher, subs, "__local__", null, 0);
+            let __filter__ = kw_get_dict_value(publisher, subs, "__filter__", null, 0);
 
             /*
              *  Check renamed_event
