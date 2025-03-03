@@ -744,15 +744,10 @@ PUBLIC json_t *build_command_response( // // old build_webix()
 
     json_t *response = json_object();
     json_object_set_new(response, "result", json_integer(result));
-    if(jn_comment) {
-        json_object_set_new(response, "comment", jn_comment);
-    }
-    if(jn_schema) {
-        json_object_set_new(response, "schema", jn_schema);
-    }
-    if(jn_data) {
-        json_object_set_new(response, "data", jn_data);
-    }
+    json_object_set_new(response, "comment", jn_comment);
+    json_object_set_new(response, "schema", jn_schema);
+    json_object_set_new(response, "data", jn_data);
+
     return response;
 }
 
