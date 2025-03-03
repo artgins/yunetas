@@ -120,7 +120,7 @@ function mt_destroy(gobj)
  ***************************************************************/
 function ac_timeout(gobj, event, kw, src)
 {
-    trace_msg("ac_timeout");
+    trace_msg("c_sample ac_timeout");
     return 0;
 }
 
