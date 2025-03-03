@@ -728,9 +728,9 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
 PUBLIC json_t *build_command_response( // // old build_webix()
     hgobj gobj,
     json_int_t result,
-    json_t *jn_comment, // owned, if null then not set
-    json_t *jn_schema,  // owned, if null then not set
-    json_t *jn_data     // owned, if null then not set
+    json_t *jn_comment, // owned
+    json_t *jn_schema,  // owned
+    json_t *jn_data     // owned
 ) {
     if(!jn_comment) {
         jn_comment = json_string("");

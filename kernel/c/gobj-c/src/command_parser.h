@@ -36,9 +36,9 @@ PUBLIC json_t *gobj_build_cmds_doc(
 PUBLIC json_t *build_command_response( // OLD build_webix()
     hgobj gobj,
     json_int_t result,
-    json_t *jn_comment, // owned, if null then not set
-    json_t *jn_schema,  // owned, if null then not set
-    json_t *jn_data     // owned, if null then not set
+    json_t *jn_comment, // owned
+    json_t *jn_schema,  // owned
+    json_t *jn_data     // owned
 );
 
 PUBLIC json_t *authzs_list(

@@ -813,7 +813,7 @@ proto.mt_command = function(command, kw, src)
 {
     let self = this;
     if(self.gobj_current_state() != "ST_SESSION") {
-        return self.gobj_build_webix_answer(
+        return build_command_response(
             self,
             -1,
             self.config.remote_yuno_role + "^" + self.config.remote_yuno_name + " not in session.",
