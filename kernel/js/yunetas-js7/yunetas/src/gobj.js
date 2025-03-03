@@ -37,7 +37,7 @@ import {
     kw_find_json_in_list,
     kw_get_str,
     kw_has_key,
-    kw_pop,
+    kw_pop, json_is_identical,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -2830,7 +2830,7 @@ function _find_subscription(
 ) {
     let _match;
     if(strict) {
-        _match = kw_is_identical; // WARNING don't decref anything
+        _match = json_is_identical; // WARNING don't decref anything
     } else {
         _match = kw_match_simple; // WARNING decref second parameter
     }

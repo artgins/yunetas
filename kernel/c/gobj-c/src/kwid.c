@@ -455,10 +455,9 @@ PRIVATE char *search_delimiter(const char *s, char delimiter_)
 }
 
 /***************************************************************************
- *  Return the json's value find by path
- *  Walk over dicts and lists
+    Return the json's value find by path, walking over lists and dicts
  ***************************************************************************/
-PRIVATE json_t *_kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
+PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
 {
     if(!(json_is_object(kw) || json_is_array(kw))) {
         if(verbose) {
@@ -573,15 +572,7 @@ PRIVATE json_t *_kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL ver
         }
     }
 
-    return _kw_find_path(gobj, next_json, p+1, verbose);
-}
-
-/***************************************************************************
-    Return the json's value find by path, walking over lists and dicts
- ***************************************************************************/
-PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbose)
-{
-    return _kw_find_path(gobj, kw, path, verbose);
+    return kw_find_path(gobj, next_json, p+1, verbose);
 }
 
 /***************************************************************************

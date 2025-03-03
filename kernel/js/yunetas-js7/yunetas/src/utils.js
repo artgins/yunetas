@@ -21,7 +21,8 @@ function json_deep_copy(obj) // old __duplicate__,duplicate_objects
 /************************************************************
  *
  ************************************************************/
-function json_is_identical(json1, json2) {
+function json_is_identical(json1, json2)
+{
     if (json1 === json2) {
         return true;  // If both references are the same, they are identical
     }
@@ -582,7 +583,7 @@ function kw_has_key(kw, key)
 /************************************************************
  *
  ************************************************************/
-function _kw_find_path(kw, path)
+function _kw_find_path(gobj, kw, path, verbose)
 {
     if(!is_object(kw)) {
         // silence
@@ -610,12 +611,12 @@ function _kw_find_path(kw, path)
 /************************************************************
  *
  ************************************************************/
-function kw_get_bool(kw, key, default_value, create, verbose)
+function kw_get_bool(gobj, kw, key, default_value, create, verbose)
 {
     if(kw !== Object(kw)) {
         return default_value?true:false;
     }
-    let b = _kw_find_path(kw, key);
+    let b = _kw_find_path(gobj, kw, key, verbose);
     if(b === undefined) {
         if(create) {
             kw[key] = default_value?true:false;
@@ -631,12 +632,12 @@ function kw_get_bool(kw, key, default_value, create, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_int(kw, key, default_value, create, verbose)
+function kw_get_int(gobj, kw, key, default_value, create, verbose)
 {
     if(kw !== Object(kw)) {
         return default_value;
     }
-    let v = _kw_find_path(kw, key);
+    let v = _kw_find_path(gobj, kw, key, verbose);
     if(v === undefined) {
         if(create) {
             kw[key] = default_value;
@@ -661,12 +662,12 @@ function kw_get_int(kw, key, default_value, create, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_real(kw, key, default_value, create, verbose)
+function kw_get_real(gobj, kw, key, default_value, create, verbose)
 {
     if(kw !== Object(kw)) {
         return default_value;
     }
-    let v = _kw_find_path(kw, key);
+    let v = _kw_find_path(gobj, kw, key, verbose);
     if(v === undefined) {
         if(create) {
             kw[key] = default_value;
@@ -691,12 +692,12 @@ function kw_get_real(kw, key, default_value, create, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_str(kw, key, default_value, create, verbose)
+function kw_get_str(gobj, kw, key, default_value, create, verbose)
 {
     if(kw !== Object(kw)) {
         return default_value;
     }
-    let v = _kw_find_path(kw, key);
+    let v = _kw_find_path(gobj, kw, key, verbose);
     if(v === undefined) {
         if(create) {
             kw[key] = default_value;
@@ -721,12 +722,12 @@ function kw_get_str(kw, key, default_value, create, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_dict(kw, path, default_value, create, verbose)
+function kw_get_dict(gobj, kw, path, default_value, create, verbose)
 {
     if(kw !== Object(kw)) {
         return default_value;
     }
-    let v = _kw_find_path(kw, path);
+    let v = _kw_find_path(gobj, kw, path, verbose);
     if(v === undefined) {
         if(create && default_value !== undefined) {
             kw_set_dict_value(kw, path, default_value);
@@ -750,12 +751,12 @@ function kw_get_dict(kw, path, default_value, create, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_dict_value(kw, path, default_value, create, verbose)
+function kw_get_dict_value(gobj, kw, path, default_value, create, verbose)
 {
     if(kw !== Object(kw)) {
         return default_value;
     }
-    let v = _kw_find_path(kw, path);
+    let v = _kw_find_path(gobj, kw, path, verbose);
     if(v === undefined) {
         if(create && default_value !== undefined) {
             kw_set_dict_value(kw, path, default_value);
@@ -771,12 +772,12 @@ function kw_get_dict_value(kw, path, default_value, create, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_list(kw, key, default_value, create, verbose)
+function kw_get_list(gobj, kw, key, default_value, create, verbose)
 {
     if(kw !== Object(kw)) {
         return default_value;
     }
-    let v = _kw_find_path(kw, key);
+    let v = _kw_find_path(gobj, kw, key, verbose);
     if(v === undefined) {
         if(create) {
             kw[key] = default_value;
@@ -869,16 +870,6 @@ function kw_extract_private(kw)
     }
 
     return copy;
-}
-
-/************************************************************
- *
- ************************************************************/
-function kw_is_identical(kw1, kw2)
-{
-    let kw1_ = JSON.stringify(kw1);
-    let kw2_ = JSON.stringify(kw2);
-    return (kw1_ === kw2_);
 }
 
 /************************************************************
@@ -1029,257 +1020,6 @@ function kw_clone_by_keys(kw, keys)    // old filter_dict
     return new_dict;
 }
 
-/*************************************************************
-    Utility for databases.
-    Being `ids` a:
-
-        "$id"
-
-        {
-            "$id": {
-                "id": "$id",
-                ...
-            }
-            ...
-        }
-
-        ["$id", ...]
-
-        [
-            "$id",
-            {
-                "id":$id,
-                ...
-            },
-            ...
-        ]
-
-    return a list of all ids
-*************************************************************/
-function kwid_get_ids(ids)
-{
-    if(!ids) {
-        return [];
-    }
-
-    let new_ids = [];
-
-    if(is_string(ids)) {
-        /*
-            "$id"
-        */
-        new_ids.push(ids);
-    } else if(is_object(ids)) {
-        /*
-            {
-                "$id": {
-                    "id": "$id",
-                    ...
-                }
-                ...
-            }
-        */
-        for(let id in ids) {
-            if (ids.hasOwnProperty(id)) {
-                new_ids.push(id);
-            }
-        }
-    } else if(is_array(ids)) {
-        ids.forEach(function(item) {
-            if(is_string(item)) {
-                /*
-                    ["$id", ...]
-                 */
-                if(!empty_string(item)) {
-                    new_ids.push(item);
-                }
-            } else if(is_object(item)) {
-                /*
-                    [
-                        {
-                            "id":$id,
-                            ...
-                        },
-                        ...
-                    ]
-                 */
-                let id = kw_get_str(item, "id", 0, 0);
-                if(id) {
-                    new_ids.push(id);
-                }
-            }
-        });
-    }
-
-    return new_ids;
-}
-
-/*************************************************************
-    Utility for databases.
-    Return TRUE if `id` is in the list/dict/str `ids`
- *************************************************************/
-function kwid_match_id(ids, id)
-{
-    if(is_null(ids) || is_null(id)) {
-        // Si no hay filtro pasan todos.
-        return true;
-    }
-
-    if(is_array(ids)) {
-        if(ids.length===0) {
-            // A empty object at first level evaluate as true.
-            return true;
-        }
-        for(let i=0; i<ids.length; i++) {
-            let value = ids[i];
-            if(value === id) {
-                return true;
-            }
-        }
-
-    } else if(is_object(ids)) {
-        if(Object.keys(ids).length===0) {
-            // A empty object at first level evaluate as true.
-            return true;
-        }
-        for(let key in ids) {
-            if(key === id) {
-                return true;
-            }
-        }
-
-    } else if(is_string(ids)) {
-        if(ids === id) {
-            return true;
-        }
-    }
-
-    return false;
-}
-
-/*************************************************************
-    Utility for databases.
-    Being `kw` a:
-        - list of strings [s,...]
-        - list of dicts [{},...]
-        - dict of dicts {id:{},...}
-    return a **NEW** list of incref (clone) kw filtering the rows by `jn_filter` (where),
-    and matching the ids.
-    If match_fn is 0 then kw_match_simple is used.
-    NOTE Using JSON_INCREF/JSON_DECREF HACK
- *************************************************************/
-function kwid_collect(kw, ids, jn_filter, match_fn)
-{
-    if(!kw) {
-        return null;
-    }
-    if(!match_fn) {
-        match_fn = kw_match_simple;
-    }
-    let kw_new = [];
-
-    if(is_array(kw)) {
-        for(let i=0; i<kw.length; i++) {
-            let jn_value = kw[i];
-
-            let id;
-            if(is_object(jn_value)) {
-                id = kw_get_str(jn_value, "id", "", false);
-            } else if(is_string(jn_value)) {
-                id = jn_value;
-            } else {
-                continue;
-            }
-
-            if(!kwid_match_id(ids, id)) {
-                continue;
-            }
-            if(match_fn(jn_value, jn_filter)) {
-                kw_new.push(jn_value);
-            }
-        }
-    } else if(is_object(kw)) {
-        for(const id of Object.keys(kw)) {
-            let jn_value = kw[id];
-
-            if(!kwid_match_id(ids, id)) {
-                continue;
-            }
-            if(match_fn(jn_value, jn_filter)) {
-                kw_new.push(jn_value);
-            }
-        }
-
-    } else  {
-        log_error("kw_select() BAD kw parameter");
-        return null;
-    }
-
-    return kw_new;
-}
-
-/*************************************************************
-    Utility for databases.
-    Return a new dict from a "dict of records" or "list of records"
-    WARNING the "id" of a dict's record is hardcorded to their key.
-    Convention:
-        - all arrays are list of records (dicts) with "id" field as primary key
-        - delimiter is '`' and '.'
-    If path is empty then use kw
- *************************************************************/
-function kwid_new_dict(kw, path)
-{
-    let new_dict = {};
-    if(!empty_string(path)) {
-        kw = _kw_find_path(kw, path);
-    }
-    if(is_object(kw)) {
-        new_dict = kw;
-
-    } else if(is_array(kw)) {
-        for(let i=0; i<kw.length; i++) {
-            let kv = kw[i];
-            let id = kw_get_str(kv, "id", null, false);
-            if(!empty_string(id)) {
-                new_dict[id] = kv;
-            }
-        }
-
-    } else {
-        log_error("kwid_new_dict: data type unknown");
-    }
-
-    return new_dict;
-}
-
-/************************************************************
- *  kw can be a dict or a list
- *  dict: return the first key
- *  list: return the first item
- ************************************************************/
-function kwid_get_first_id(kw)
-{
-    let list = kwid_get_ids(kw);
-    if(list.length > 0) {
-        return list[0];
-    }
-
-    return null;
-}
-
-/*************************************************************
- *  Utility for databases. See kwid_collect parameters
- *************************************************************/
-function kwid_find_one_record(kw, ids, jn_filter, match_fn)
-{
-    let list = kwid_collect(kw, ids, jn_filter, match_fn);
-    if(list.length > 0) {
-        return list[0];
-    } else {
-        return null;
-    }
-}
-
 /************************************************************
  *
  ************************************************************/
@@ -1330,35 +1070,6 @@ function delete_from_list(list, elm) {
         }
     }
     return false; // elm does not exist!
-}
-
-/*************************************************************
- *  Utility for databases
- *************************************************************/
-function kwid_delete_record(kw, ids_)
-{
-    let deletes = 0;
-    let ids = kwid_get_ids(ids_);
-
-    for(let i=0; i<ids.length; i++) {
-        let id = ids[i];
-        if(is_object(kw)) {
-            delete kw[id];
-            deletes++;
-        } else if(is_array(kw)) {
-            for(let j=0; j<kw.length; j++) {
-                if(id === kw[j].id) {
-                    delete_from_list(kw, kw[j]);
-                    deletes++;
-                    j = -1;
-                    //continue; ???
-                }
-            }
-        } else {
-            log_error("kwid_delete_record: data type unknown");
-        }
-    }
-    return deletes>0?0:-1;
 }
 
 /********************************************
@@ -2615,19 +2326,11 @@ export {
     kw_set_dict_value,
     kw_set_subdict_value,
     kw_extract_private,
-    kw_is_identical,
     kw_match_simple,
     kw_find_json_in_list,
     kw_select,
     kw_collect,
     kw_clone_by_keys,
-    kwid_get_ids,
-    kwid_match_id,
-    kwid_collect,
-    kwid_new_dict,
-    kwid_get_first_id,
-    kwid_find_one_record,
-    kwid_delete_record,
 
     kw_get_local_storage_value,
     kw_set_local_storage_value,
