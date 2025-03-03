@@ -2356,11 +2356,8 @@ export {
 
     msg_iev_read_key,
     msg_iev_write_key,
-    msg_iev_add_answer_filter,
-    msg_iev_answer,
     msg_iev_push_stack,
     msg_iev_get_stack,
-    msg_iev_pop_stack,
     msg_set_msg_type,
     msg_get_msg_type,
 
