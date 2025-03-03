@@ -9,6 +9,18 @@ import {
     GObj
 } from "./gobj.js";
 
+const kw_flag_t = Object.freeze({
+    KW_REQUIRED     : 0x0001,   // Log error message if not exist.
+    KW_CREATE       : 0x0002,   // Create if not exist
+    KW_WILD_NUMBER  : 0x0004,   // For numbers work with real/int/bool/string without error logging
+    KW_EXTRACT      : 0x0008,   // Extract (delete) the key on read from dictionary.
+    KW_BACKWARD     : 0x0010,   // Search backward in lists or arrays
+    KW_VERBOSE      : 0x0020,   //
+    KW_LOWER        : 0x0040,   //
+    KW_RECURSIVE    : 0x0080,   //
+});
+
+
 /************************************************************
  *  Duplicate an object (new references)
  *  using the modern structuredClone
@@ -583,14 +595,19 @@ function kw_has_key(kw, key)
 /************************************************************
  *
  ************************************************************/
-function _kw_find_path(gobj, kw, path, verbose)
+function kw_find_path(gobj, kw, path, verbose)
 {
     if(!is_object(kw)) {
         // silence
+        if(verbose) {
+            log_error("kw must be list or dict");
+        }
         return 0;
     }
     if(!is_string(path)) {
-        log_error("path must be a string: " + String(path));
+        if(verbose) {
+            log_error("path must be a string: " + String(path));
+        }
         return 0;
     }
     let ss = path.split("`");
@@ -602,6 +619,9 @@ function _kw_find_path(gobj, kw, path, verbose)
         let key = ss[i];
         kw = kw[key];
         if(kw === undefined) {
+            if(verbose) {
+                log_error(`path not found: ${String(path)}`);
+            }
             return undefined;
         }
     }
@@ -611,49 +631,82 @@ function _kw_find_path(gobj, kw, path, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_bool(gobj, kw, key, default_value, create, verbose)
+function kw_delete(gobj, kw, path)
 {
-    if(kw !== Object(kw)) {
-        return default_value?true:false;
-    }
-    let b = _kw_find_path(gobj, kw, key, verbose);
-    if(b === undefined) {
-        if(create) {
-            kw[key] = default_value?true:false;
-        } else if(verbose) {
-            log_error("kw_get_bool() path not found: '" + key + "'");
-            trace_msg(kw);
-        }
-        return default_value?true:false;
-    }
-    return b?true:false;
+    // TODO use delimiter `
+    json_object_del(kw, path);
+    return 0;
 }
 
 /************************************************************
  *
  ************************************************************/
-function kw_get_int(gobj, kw, key, default_value, create, verbose)
+function kw_get_bool(gobj, kw, path, default_value, flag)
 {
     if(kw !== Object(kw)) {
-        return default_value;
+        return Boolean(default_value);
     }
-    let v = _kw_find_path(gobj, kw, key, verbose);
+    let b = kw_find_path(gobj, kw, path, false);
+
+    const required = flag & kw_flag_t.KW_REQUIRED;
+    const create = flag & kw_flag_t.KW_CREATE;
+    const extract = flag & kw_flag_t.KW_EXTRACT;
+
+    if(b === undefined) {
+        if(create) {
+            let v = Boolean(default_value);
+            kw_set_dict_value(gobj, kw, path, v);
+            return v;
+
+        } else if(required) {
+            log_error(`path not found: '${path}'`);
+            trace_json(kw);
+        }
+        return Boolean(default_value);
+    }
+    if(extract) {
+        kw_delete(gobj, kw, path);
+    }
+    return Boolean(b);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function kw_get_int(gobj, kw, path, default_value, flag)
+{
+    if(kw !== Object(kw)) {
+        return parseInt(default_value);
+    }
+    let v = kw_find_path(gobj, kw, path, false);
+
+    const required = flag & kw_flag_t.KW_REQUIRED;
+    const create = flag & kw_flag_t.KW_CREATE;
+    const extract = flag & kw_flag_t.KW_EXTRACT;
+
     if(v === undefined) {
         if(create) {
-            kw[key] = default_value;
-        } else if(verbose) {
-            log_error("kw_get_int() path not found: '" + key + "'");
-            trace_msg(kw);
+            let v = parseInt(default_value);
+            kw_set_dict_value(gobj, kw, path, v);
+            return v;
+
+        } else if(required) {
+            log_error(`path not found: '${path}'`);
+            trace_json(kw);
         }
-        return default_value;
+        return parseInt(default_value);
+    }
+
+    if(extract) {
+        kw_delete(gobj, kw, path);
     }
 
     if(!is_number(v)) {
-        if(verbose) {
-            log_error("path value MUST BE a number: " + key);
+        if(required) {
+            log_error(`path value MUST BE a number: ${path}`);
             trace_msg(kw);
         }
-        return default_value;
+        return parseInt(default_value);
     }
 
     return parseInt(v);
@@ -662,58 +715,82 @@ function kw_get_int(gobj, kw, key, default_value, create, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_real(gobj, kw, key, default_value, create, verbose)
+function kw_get_real(gobj, kw, path, default_value, flag)
 {
     if(kw !== Object(kw)) {
-        return default_value;
+        return Number(default_value);
     }
-    let v = _kw_find_path(gobj, kw, key, verbose);
+    let v = kw_find_path(gobj, kw, path, false);
+
+    const required = flag & kw_flag_t.KW_REQUIRED;
+    const create = flag & kw_flag_t.KW_CREATE;
+    const extract = flag & kw_flag_t.KW_EXTRACT;
+
     if(v === undefined) {
         if(create) {
-            kw[key] = default_value;
-        } else if(verbose) {
-            log_error("kw_get_real() path not found: '" + key + "'");
-            trace_msg(kw);
+            let v = Number(default_value);
+            kw_set_dict_value(gobj, kw, path, v);
+            return v;
+
+        } else if(required) {
+            log_error(`path not found: '${path}'`);
+            trace_json(kw);
         }
-        return default_value;
+        return Number(default_value);
+    }
+
+    if(extract) {
+        kw_delete(gobj, kw, path);
     }
 
     if(!is_number(v)) {
-        if(verbose) {
-            log_error("path value MUST BE a number: " + key);
+        if(required) {
+            log_error(`path value MUST BE a number: ${path}`);
             trace_msg(kw);
         }
-        return default_value;
+        return Number(default_value);
     }
 
-    return parseFloat(v);
+    return Number(v);
 }
 
 /************************************************************
  *
  ************************************************************/
-function kw_get_str(gobj, kw, key, default_value, create, verbose)
+function kw_get_str(gobj, kw, path, default_value, flag)
 {
     if(kw !== Object(kw)) {
-        return default_value;
+        return String(default_value);
     }
-    let v = _kw_find_path(gobj, kw, key, verbose);
+    let v = kw_find_path(gobj, kw, path, false);
+
+    const required = flag & kw_flag_t.KW_REQUIRED;
+    const create = flag & kw_flag_t.KW_CREATE;
+    const extract = flag & kw_flag_t.KW_EXTRACT;
+
     if(v === undefined) {
         if(create) {
-            kw[key] = default_value;
-        } else if(verbose) {
-            log_error("kw_get_str() path not found: '" + key + "'");
-            trace_msg(kw);
+            let v = String(default_value);
+            kw_set_dict_value(gobj, kw, path, v);
+            return v;
+
+        } else if(required) {
+            log_error(`path not found: '${path}'`);
+            trace_json(kw);
         }
-        return default_value;
+        return String(default_value);
+    }
+
+    if(extract) {
+        kw_delete(gobj, kw, path);
     }
 
     if(!is_string(v)) {
-        if(verbose) {
-            log_error("path value MUST BE a string: " + key);
+        if(required) {
+            log_error(`path value MUST BE a string: ${path}`);
             trace_msg(kw);
         }
-        return default_value;
+        return String(default_value);
     }
 
     return String(v);
@@ -722,86 +799,125 @@ function kw_get_str(gobj, kw, key, default_value, create, verbose)
 /************************************************************
  *
  ************************************************************/
-function kw_get_dict(gobj, kw, path, default_value, create, verbose)
+function kw_get_dict(gobj, kw, path, default_value, flag)
 {
     if(kw !== Object(kw)) {
-        return default_value;
+        return Object(default_value);
     }
-    let v = _kw_find_path(gobj, kw, path, verbose);
-    if(v === undefined) {
-        if(create && default_value !== undefined) {
-            kw_set_dict_value(kw, path, default_value);
-        } else if(verbose) {
-            log_error("kw_get_dict() path not found: '" + path + "'");
-            trace_msg(kw);
-        }
-        return default_value;
-    }
-    if(!is_object(v)) {
-        if(verbose) {
-            log_error("path value MUST BE a json dict: " + path);
-            trace_msg(kw);
-        }
-        return default_value;
-    }
+    let v = kw_find_path(gobj, kw, path, false);
 
-    return v;
-}
+    const required = flag & kw_flag_t.KW_REQUIRED;
+    const create = flag & kw_flag_t.KW_CREATE;
+    const extract = flag & kw_flag_t.KW_EXTRACT;
 
-/************************************************************
- *
- ************************************************************/
-function kw_get_dict_value(gobj, kw, path, default_value, create, verbose)
-{
-    if(kw !== Object(kw)) {
-        return default_value;
-    }
-    let v = _kw_find_path(gobj, kw, path, verbose);
-    if(v === undefined) {
-        if(create && default_value !== undefined) {
-            kw_set_dict_value(kw, path, default_value);
-        } else if(verbose) {
-            log_error("kw_get_dict_value() path not found: '" + path + "'");
-            trace_msg(kw);
-        }
-        return default_value;
-    }
-    return v;
-}
-
-/************************************************************
- *
- ************************************************************/
-function kw_get_list(gobj, kw, key, default_value, create, verbose)
-{
-    if(kw !== Object(kw)) {
-        return default_value;
-    }
-    let v = _kw_find_path(gobj, kw, key, verbose);
     if(v === undefined) {
         if(create) {
-            kw[key] = default_value;
-        } else if(verbose) {
-            log_error("kw_get_list() path not found: '" + key + "'");
+            let v = Object(default_value);
+            kw_set_dict_value(gobj, kw, path, v);
+            return v;
+
+        } else if(required) {
+            log_error(`path not found: '${path}'`);
+            trace_json(kw);
+        }
+        return Object(default_value);
+    }
+
+    if(extract) {
+        kw_delete(gobj, kw, path);
+    }
+
+    if(!is_object(v)) {
+        if(required) {
+            log_error(`path value MUST BE a dict: ${path}`);
             trace_msg(kw);
+        }
+        return Object(default_value);
+    }
+
+    return Object(v);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function kw_get_dict_value(gobj, kw, path, default_value, flag)
+{
+    if(kw !== Object(kw)) {
+        return default_value;
+    }
+    let v = kw_find_path(gobj, kw, path, false);
+
+    const required = flag & kw_flag_t.KW_REQUIRED;
+    const create = flag & kw_flag_t.KW_CREATE;
+    const extract = flag & kw_flag_t.KW_EXTRACT;
+
+    if(v === undefined) {
+        if(create) {
+            let v = default_value;
+            kw_set_dict_value(gobj, kw, path, v);
+            return v;
+
+        } else if(required) {
+            log_error(`path not found: '${path}'`);
+            trace_json(kw);
         }
         return default_value;
     }
-    if(!is_array(v)) {
-        if(verbose) {
-            log_error("path value MUST BE a json list: " + key);
-            trace_msg(kw);
-        }
-        return default_value;
+
+    if(extract) {
+        kw_delete(gobj, kw, path);
     }
 
     return v;
 }
 
 /************************************************************
- *  TODO and change key by path in all kw_get_...() functions
+ *
  ************************************************************/
-function kw_set_dict_value(kw, path, value)
+function kw_get_list(gobj, kw, path, default_value, flag)
+{
+    if(kw !== Object(kw)) {
+        return Array(default_value);
+    }
+    let v = kw_find_path(gobj, kw, path, false);
+
+    const required = flag & kw_flag_t.KW_REQUIRED;
+    const create = flag & kw_flag_t.KW_CREATE;
+    const extract = flag & kw_flag_t.KW_EXTRACT;
+
+    if(v === undefined) {
+        if(create) {
+            let v = Array(default_value);
+            kw_set_dict_value(gobj, kw, path, v);
+            return v;
+
+        } else if(required) {
+            log_error(`path not found: '${path}'`);
+            trace_json(kw);
+        }
+        return Array(default_value);
+    }
+
+    if(extract) {
+        kw_delete(gobj, kw, path);
+    }
+
+    if(!is_array(v)) {
+        if(required) {
+            log_error(`path value MUST BE an array: ${path}`);
+            trace_msg(kw);
+        }
+        return Array(default_value);
+    }
+
+    return Array(v);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function kw_set_dict_value(gobj, kw, path, value)
 {
     if(!is_object(kw)) {
         log_error("kw is not an object");
@@ -835,7 +951,7 @@ function kw_set_dict_value(kw, path, value)
 /************************************************************
  *
  ************************************************************/
-function kw_set_subdict_value(kw, path, key, value)
+function kw_set_subdict_value(gobj, kw, path, key, value)
 {
     if(!is_object(kw)) {
         log_error("kw is not an object");
@@ -850,26 +966,6 @@ function kw_set_subdict_value(kw, path, key, value)
     subdict[key] = value;
 
     return 0;
-}
-
-/************************************************************
- *  Return object with private data (HACK original kw modified)
- *  (keys begin with "_" are extracted, removed from source)
- ************************************************************/
-function kw_extract_private(kw)
-{
-    let copy = {};
-
-    for (let attr in kw) {
-        if (kw.hasOwnProperty(attr)) {
-            if(is_private_key(attr)) {
-                copy[attr] = kw[attr];
-                delete kw[attr];
-            }
-        }
-    }
-
-    return copy;
 }
 
 /************************************************************
@@ -2316,6 +2412,7 @@ export {
 
     kw_pop,
     kw_has_key,
+    kw_find_path,
     kw_get_bool,
     kw_get_int,
     kw_get_real,
@@ -2325,7 +2422,6 @@ export {
     kw_get_dict_value,
     kw_set_dict_value,
     kw_set_subdict_value,
-    kw_extract_private,
     kw_match_simple,
     kw_find_json_in_list,
     kw_select,
