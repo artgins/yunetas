@@ -40,6 +40,11 @@ import {
 import {
     log_error,
     log_debug,
+    trace_msg,
+    log_warning,
+    get_current_datetime,
+    empty_string,
+    json_array_get,
 } from "./utils.js";
 
 /***************************************************************
@@ -244,6 +249,253 @@ function setup_websocket(gobj) {
     websocket.onmessage = handleMessage.bind(gobj);
 
     return websocket; // Return WebSocket instance
+}
+
+/********************************************
+ *  Close websocket
+ ********************************************/
+function xclose_websocket(self)
+{
+    self.clear_timeout();
+    if(self.websocket) {
+        try {
+            if(self.websocket) {
+                if(self.websocket.close) {
+                    self.websocket.close();
+                } else if(self.websocket.websocket.close) {
+                    self.websocket.websocket.close();
+                } else {
+                    trace_msg("What fuck*! websocket.close?");
+                }
+            }
+        } catch (e) {
+            log_error(self.gobj_short_name() + ": close_websocket(): " + e);
+        }
+        // self.websocket = null; // HACK wait to on_close
+    }
+}
+
+/***************************************************************
+ *  Closes the WebSocket connection safely.
+ ***************************************************************/
+function close_websocket(websocket, code = 1000, reason = "") {
+    if (!websocket ||
+        websocket.readyState === WebSocket.CLOSED ||
+        websocket.readyState === WebSocket.CLOSING)
+    {
+        log_warning("WebSocket is already closed or in the process of closing.");
+        return;
+    }
+
+    log_debug(`Closing WebSocket (Code: ${code}, Reason: "${reason}")`);
+
+    try {
+        websocket.close(code, reason);
+    } catch (e) {
+        log_error("Error closing WebSocket:", e.message);
+    }
+}
+
+/*****************************************
+ *      Trace intra event
+ *****************************************/
+function trace_inter_event(self, prefix, iev)
+{
+    let hora = get_current_datetime();
+    try {
+        log_debug("\n" + hora + " " + prefix + "\n");
+        //trace_msg(JSON.stringify(iev,  null, 4));
+        trace_msg(iev);
+    } catch (e) {
+        log_debug("ERROR in trace_inter_event: " + e);
+    }
+}
+
+/************************************************************
+ *  inter event container
+ ************************************************************/
+function InterEvent(
+        event,
+        kw) {
+    this.event = event;
+    this.kw = kw || {};
+}
+
+/************************************************************
+ *        Create inter-event
+ ************************************************************/
+function iev_create(
+        event,
+        kw)
+{
+    if(empty_string(event)) {
+        log_error("iev_create() event NULL");
+        return null;
+    }
+
+    return {
+        event: event,
+        kw: kw || {}
+    };
+}
+
+/**************************************
+ *  Send jsonify inter-event message
+ **************************************/
+function send_iev(self, iev)
+{
+    var msg = JSON.stringify(iev);
+
+    if (self.yuno.config.trace_inter_event) {
+        var url = self.config.urls[self.config.idx_url];
+        var prefix = self.yuno.yuno_name + ' ==> ' + url;
+        if(self.yuno.config.trace_ievent_callback) {
+            var size = msg.length;
+            self.yuno.config.trace_ievent_callback(prefix, iev, 1, size);
+        } else {
+            trace_inter_event(self, prefix, iev);
+        }
+    }
+
+    try {
+        self.websocket.send(msg);
+    } catch (e) {
+        log_error(self.gobj_short_name() + ": send_iev(): " + e);
+        log_error(msg);
+    }
+    return 0;
+}
+
+/**************************************
+ *
+ **************************************/
+function send_static_iev(self, event, kw)
+{
+    var iev = iev_create(
+        event,
+        kw
+    );
+
+    return send_iev(self, iev);
+}
+
+/**************************************
+ *
+ **************************************/
+function build_ievent_request(self, src_service, dst_service)
+{
+    var jn_ievent_chain = {
+        dst_yuno: self.config._wanted_yuno_name,
+        dst_role: self.config._wanted_yuno_role,
+        dst_service: dst_service?dst_service:self.config._wanted_yuno_service,
+        src_yuno: self.yuno.yuno_name,
+        src_role: self.yuno.yuno_role,
+        src_service: src_service
+    };
+    return jn_ievent_chain;
+}
+
+/**************************************
+ *
+ **************************************/
+function ievent_answer_filter(self, kw_answer, area_key, ivent_gate_stack, src)
+{
+    var ievent = json_array_get(ievent_gate_stack, 0);
+
+    /*
+    *  Dale la vuelta src->dst dst->src
+    */
+    var iev_src_service = kw_get_str(ievent, "src_service", "");
+
+    ievent["dst_yuno"] = self.config.remote_yuno_name;
+    ievent["dst_role"] = self.config.remote_yuno_role;
+    ievent["dst_service"] = iev_src_service;
+
+    ievent["src_yuno"] = self.yuno.yuno_name;
+    ievent["src_role"] = self.yuno.yuno_role;
+    ievent["src_service"] = src.name;
+}
+
+/********************************************
+ *      Send identity card
+ ********************************************/
+function send_identity_card(self)
+{
+    var kw = {
+        "yuno_role": self.yuno.yuno_role,
+        "yuno_name": self.yuno.yuno_name,
+        "yuno_version": self.yuno.yuno_version,
+        "yuno_release": self.yuno.yuno_version,
+        "yuneta_version": "4.19.0",
+        "playing": false,
+        "pid": 0,
+        "jwt": self.config.jwt,
+        "user_agent": navigator.userAgent,
+        "launch_id" : 0,
+        "yuno_startdate" : "", // TODO
+        "required_services": self.config.required_services
+    };
+    /*
+     *      __REQUEST__ __MESSAGE__
+     */
+    var jn_ievent_id = build_ievent_request(
+        self,
+        self.parent.name,
+        null
+    );
+    msg_iev_push_stack(
+        kw,
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id   // owned
+    );
+
+    self.set_timeout(self.config.timeout_idack*1000);
+
+    return send_static_iev(self, "EV_IDENTITY_CARD", kw);
+}
+
+/********************************************
+ *  Create iev from data received
+ *  on websocket connection
+ ********************************************/
+function iev_create_from_json(self, data)
+{
+    let x;
+    try {
+        x = JSON.parse(data);
+    } catch (e) {
+        log_error("parsing inter_event json: " + e);
+        return null;
+    }
+
+    if(!(x instanceof Object)) {
+        log_error("parsing inter_event: websocket data not a json object");
+        return null;
+    }
+    let event = x['event'];
+    if(!event) {
+        log_error("parsing inter_event: no event");
+        return null;
+    }
+    if(typeof event !== 'string') {
+        log_error("parsing inter_event: event not a string");
+        return null;
+    }
+
+    let kw = x['kw'];
+    if(!kw) {
+        log_error("parsing inter_kw: no kw");
+        return null;
+    }
+    if(!(kw instanceof Object)) {
+        log_error("parsing inter_event: kw not a json object");
+        return null;
+    }
+
+    return {
+        event: event,
+        kw: kw || {}
+    };
 }
 
 

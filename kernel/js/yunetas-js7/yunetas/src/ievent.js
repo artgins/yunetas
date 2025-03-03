@@ -748,7 +748,7 @@ proto.mt_start = function(kw)
     var self = this;
 
     self.config.idx_url = 0;
-    msg_iev_add_answer_filter(self, IEVENT_MESSAGE_AREA_ID, ievent_answer_filter);
+    // msg_iev_add_answer_filter(self, IEVENT_MESSAGE_AREA_ID, ievent_answer_filter);
     self.websocket = setup_websocket(self);
 };
 

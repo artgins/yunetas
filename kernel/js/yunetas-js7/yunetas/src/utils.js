@@ -1279,96 +1279,6 @@ function msg_iev_write_key(kw, key, value)
 }
 
 /************************************************************
- *  OLD msgx_delete_MIA_key
- ************************************************************/
-function msg_iev_delete_key(kw, key)
-{
-    var __md_iev__ = kw["__md_iev__"];
-    if(!__md_iev__) {
-        // log error?
-        return;
-    }
-    if(!kw_has_key(__md_iev__, key)) {
-        // log error?
-        return;
-    }
-    delete __md_iev__[key];
-}
-
-/************************************************************
- *
- ************************************************************/
-function msg_delete_MIA(kw, key)
-{
-    var __md_iev__ = kw["__md_iev__"];
-    if(!__md_iev__) {
-        // log error?
-        return;
-    }
-    delete kw["__md_iev__"];
-}
-
-/************************************************************
- *  Apply answer filters
- ************************************************************/
-let message_area_filters = [];
-function msg_iev_add_answer_filter(gobj, field_name, answer_filter_cb)
-{
-    let len = message_area_filters.length;
-    for(let i=0; i<len; i++) {
-        let name = message_area_filters[i].field_name;
-        if(name === field_name) {
-            return 0; // already registered
-        }
-    }
-    let filter = {
-        field_name: field_name,
-        answer_filter_fn: answer_filter_cb,
-        gobj: gobj
-    };
-    message_area_filters.push(filter);
-}
-
-/************************************************************
- *  Apply answer filters
- ************************************************************/
-function msg_apply_answer_filters(kw_answer, __md_iev__, src)
-{
-    var len = message_area_filters.length;
-    for(var i=0; i<len; i++) {
-        var name = message_area_filters[i].field_name;
-        var cb = message_area_filters[i].answer_filter_fn;
-        var gobj = message_area_filters[i].gobj;
-        if(kw_has_key(__md_iev__, name)) {
-            /*
-             *  Filter
-             */
-            var value = kw_get_dict_value(__md_iev__, name, 0);
-            (cb)(gobj, kw_answer, name, value, src);
-        }
-    }
-}
-
-/************************************************************
- *  Build the answer message
- *  with the id area of the request message
- ************************************************************/
-function msg_iev_answer(gobj, kw, kw_answer)
-{
-    try {
-        let __md_iev__ = kw["__md_iev__"];
-        if(__md_iev__) {
-            let new_msg_area = Object(__md_iev__); // WARNING new_msg_area is not a clone, is the same obj
-            kw_answer["__md_iev__"] = new_msg_area;
-            msg_apply_answer_filters(kw_answer, new_msg_area, gobj);
-        }
-    } catch (e) {
-    }
-
-    return kw_answer;
-}
-
-/************************************************************
  *
  ************************************************************/
 function msg_iev_push_stack(kw, stack, user_info)
@@ -1410,30 +1320,6 @@ function msg_iev_get_stack(kw, stack)
         return null;
     }
     return jn_stack[0];
-}
-
-/************************************************************
- *
- ************************************************************/
-function msg_iev_pop_stack(kw, stack)
-{
-    if(!kw) {
-        return null;
-    }
-
-    let jn_stack = msg_iev_read_key(kw, stack);
-    if(!jn_stack) {
-        return 0;
-    }
-
-    if(jn_stack.length === 0) {
-        return null;
-    }
-    let user_info = jn_stack.shift();
-    if(jn_stack.length === 0) {
-        msg_iev_delete_key(kw, stack);
-    }
-    return user_info;
 }
 
 /************************************************************
