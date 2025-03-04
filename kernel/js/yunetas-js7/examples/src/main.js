@@ -24,7 +24,9 @@ import {
     trace_msg,
     register_c_yuno,
     register_c_timer,
+    register_c_ievent_cli,
     kw_get_local_storage_value,
+    gobj_create_service,
 } from "yunetas";
 
 // Import uPlot
@@ -116,6 +118,7 @@ function main()
      *--------------------*/
     register_c_yuno();
     register_c_timer();
+    register_c_ievent_cli();
     register_c_sample();
 
     /*------------------------------------------------*
@@ -155,10 +158,27 @@ function main()
      *      Create default_service
      *-------------------------------------*/
     trace_msg("CREATING default_service");
-    let gobj_default_service = gobj_create_default_service(
+    let gobj_service = gobj_create_service(
         "sample",
         "C_SAMPLE",
         {
+        },
+        gobj_yuno()
+    );
+
+    /*-------------------------------------*
+     *      Create default_service
+     *-------------------------------------*/
+    trace_msg("CREATING ievent");
+    let gobj_ievent = gobj_create_default_service(
+        "sample",
+        "C_IEVENT_CLI",
+        {
+            remote_yuno_role: "db_history",
+            remote_yuno_service: "db_history",
+            required_services: ["treedb_airedb", "treedb_authzs"], // HACK add others needed services
+            url: "wss://localhost:1600",
+            jwt: null,
         },
         gobj_yuno()
     );

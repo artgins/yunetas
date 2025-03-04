@@ -1657,7 +1657,7 @@ PUBLIC hgobj gobj_create2(
     }
 
     if(gobj_flag & (gobj_flag_default_service)) {
-        if(gobj_find_service(gobj_name, FALSE) || __default_service__) {
+        if(__default_service__) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,

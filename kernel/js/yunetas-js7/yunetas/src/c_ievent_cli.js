@@ -37,7 +37,9 @@ import {
     gobj_name,
     gobj_current_state,
     gobj_yuno_name,
-    gobj_yuno_role, gobj_find_subscriptions,
+    gobj_yuno_role,
+    gobj_find_subscriptions,
+    gobj_is_running,
 
 } from "./gobj.js";
 
@@ -51,8 +53,15 @@ import {
     msg_iev_push_stack,
     msg_iev_get_stack,
     kw_get_str,
-    json_object_del, kw_set_dict_value, msg_set_msg_type,
+    json_object_del,
+    kw_set_dict_value,
+    msg_set_msg_type,
+    kw_get_int,
+    kw_get_dict_value,
+    msg_get_msg_type,
 } from "./utils.js";
+
+import {clear_timeout, set_timeout} from "./c_timer.js";
 
 /***************************************************************
  *              Constants
@@ -79,6 +88,7 @@ SDATA (data_type_t.DTP_STRING,  "url",              sdata_flag_t.SDF_RD,        
 SDATA (data_type_t.DTP_STRING,  "jwt",              sdata_flag_t.SDF_PERSIST,   "",         "JWT"),
 SDATA (data_type_t.DTP_STRING,  "cert_pem",         sdata_flag_t.SDF_PERSIST,   "",         "SSL server certification, PEM str format"),
 SDATA (data_type_t.DTP_JSON,    "extra_info",       sdata_flag_t.SDF_RD,        "{}",       "dict data set by user, added to the identity card msg."),
+SDATA (data_type_t.DTP_INTEGER, "timeout_retry",    sdata_flag_t.SDF_RD,        "5000",     "timeout waiting idAck"),
 SDATA (data_type_t.DTP_INTEGER, "timeout_idack",    sdata_flag_t.SDF_RD,        "5000",     "timeout waiting idAck"),
 SDATA (data_type_t.DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
@@ -198,7 +208,12 @@ function mt_stop(gobj)
 {
     let priv = gobj.priv;
 
-    close_websocket(priv.websocket);
+    clear_timeout(priv.gobj_timer);
+
+    if(priv.websocket) {
+        close_websocket(priv.websocket);
+        priv.websocket = null;
+    }
 
     return 0;
 }
@@ -248,7 +263,7 @@ function mt_stats(gobj, stats, kw, src)
         stats
     );
 
-    send_static_iev(gobj, "EV_MT_STATS", kw);
+    send_static_iev(gobj, "EV_MT_STATS", kw, src);
 
     return null;   // return null on asynchronous response.
 }
@@ -291,7 +306,7 @@ function mt_command(gobj, command, kw, src)
         command   // owned
     );
 
-    send_static_iev(gobj, "EV_MT_COMMAND", kw);
+    send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
 
     return null;   // return null on asynchronous response.
 }
@@ -335,7 +350,7 @@ function mt_inject_event(gobj, event, kw, src)
         );
     }
 
-    return send_static_iev(gobj, event, kw);
+    return send_static_iev(gobj, event, kw, src);
 }
 
 /***************************************************************
@@ -413,7 +428,7 @@ function mt_subscription_deleted(gobj, subs)
     msg_set_msg_type(kw, "__unsubscribing__");
     // esto en C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__unsubscribing__"));
 
-    return send_static_iev(gobj, subs.event, kw);
+    return send_static_iev(gobj, subs.event, kw, gobj);
 }
 
 
@@ -435,24 +450,6 @@ function setup_websocket(gobj)
     const url = gobj_read_str_attr(gobj, "url");
     log_debug(`====> Starting WebSocket to '${url}' (${gobj_short_name(gobj)})`);
 
-    // Define event handlers (bound to `gobj`)
-    function handleOpen() {
-        gobj_send_event(gobj, "EV_ON_OPEN", { url }, gobj);
-    }
-
-    function handleClose(event) {
-        gobj_send_event(gobj, "EV_ON_CLOSE", { url, code: event.code, reason: event.reason }, gobj);
-    }
-
-    function handleError(event) {
-        log_error(`${gobj_short_name(gobj)}: WebSocket error occurred.`);
-    }
-
-    function handleMessage(event) {
-        gobj_send_event(gobj, "EV_ON_MESSAGE", { url, data: event.data }, gobj);
-    }
-
-    // Initialize WebSocket
     let websocket;
     try {
         websocket = new WebSocket(url);
@@ -461,43 +458,38 @@ function setup_websocket(gobj)
         return null;
     }
 
-    // Validate WebSocket instance
     if (!websocket) {
         log_error(`${gobj_short_name(gobj)}: Failed to initialize WebSocket.`);
         return null;
     }
 
-    // Assign WebSocket event handlers
-    websocket.onopen = handleOpen.bind(gobj);
-    websocket.onclose = handleClose.bind(gobj);
-    websocket.onerror = handleError.bind(gobj);
-    websocket.onmessage = handleMessage.bind(gobj);
+    websocket.onopen = () => {
+        // log_debug(`${gobj_short_name(gobj)}: WebSocket connection opened.`);
+        gobj_send_event(gobj, "EV_ON_OPEN", { url }, gobj);
+    };
 
-    return websocket; // Return WebSocket instance
-}
+    websocket.onmessage = (e) => {
+        // log_debug(`${gobj_short_name(gobj)}: Received message: ${event.data}`);
+        gobj_send_event(gobj, "EV_ON_MESSAGE", { url, data: e.data }, gobj);
+    };
 
-/********************************************
- *  Close websocket
- ********************************************/
-function xclose_websocket(self)
-{
-    self.clear_timeout();
-    if(self.websocket) {
-        try {
-            if(self.websocket) {
-                if(self.websocket.close) {
-                    self.websocket.close();
-                } else if(self.websocket.websocket.close) {
-                    self.websocket.websocket.close();
-                } else {
-                    trace_msg("What fuck*! websocket.close?");
-                }
-            }
-        } catch (e) {
-            log_error(self.gobj_short_name() + ": close_websocket(): " + e);
-        }
-        // self.websocket = null; // HACK wait to on_close
-    }
+    websocket.onerror = (e) => {
+        log_error(`${gobj_short_name(gobj)}: WebSocket error occurred.`);
+        log_debug(`Error details: ${e}`);
+    };
+
+    websocket.onclose = (e) => {
+        gobj_send_event(
+            gobj,
+            "EV_ON_CLOSE",
+            {
+                url, e: e
+            },
+            gobj
+        );
+    };
+
+    return websocket; // Return the WebSocket instance
 }
 
 /***************************************************************
@@ -594,7 +586,7 @@ function send_iev(gobj, iev)
 /**************************************
  *
  **************************************/
-function send_static_iev(gobj, event, kw)
+function send_static_iev(gobj, event, kw, src)
 {
     let iev = iev_create(
         event,
@@ -765,7 +757,7 @@ function send_remote_subscription(gobj, subs)
     msg_set_msg_type(kw, "__subscribing__");
     // esto en C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__subscribing__"));
 
-    return send_static_iev(gobj, subs.event, kw);
+    return send_static_iev(gobj, subs.event, kw, gobj);
 }
 
 /***************************************************************
@@ -793,8 +785,271 @@ function resend_subscriptions(gobj)
 /***************************************************************
  *
  ***************************************************************/
-function ac_timeout(gobj, event, kw, src)
+function ac_on_open(gobj, event, kw, src)
 {
+    log_debug('Websocket opened: ' + gobj.priv.url); // TODO que no se vea en prod
+// TODO repon    send_identity_card(gobj);
+    return 0;
+}
+
+/***************************************************************
+ *
+ ***************************************************************/
+function ac_on_close(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+    let e = kw.e;
+    let url = kw.url;
+
+    log_warning(`${gobj_short_name(gobj)}: WebSocket closed ${url} (Code: ${e.code}, Reason: "${e.reason}", Clean: ${e.wasClean})`);
+
+    // Cleanup WebSocket event handlers
+    if(priv.websocket) {
+        priv.websocket.onopen = null;
+        priv.websocket.onmessage = null;
+        priv.websocket.onerror = null;
+        priv.websocket.onclose = null;
+        priv.websocket = null;
+    }
+
+    if(priv.inform_on_close) {
+        priv.inform_on_close = false;
+        // Any interesting information for on_close event?
+        gobj_publish_event(
+            gobj,
+            'EV_ON_CLOSE',
+            {
+                url: url,
+                remote_yuno_name: priv.remote_yuno_name,
+                remote_yuno_role: priv.remote_yuno_role,
+                remote_yuno_service: priv.remote_yuno_service
+            }
+        );
+    }
+
+    if(gobj_is_running(gobj)) {
+        set_timeout(priv.gobj_timer, gobj_read_integer_attr(gobj, "timeout_retry"));
+    }
+
+    return 0;
+}
+
+/***************************************************************
+ *
+ ***************************************************************/
+function ac_timeout_disconnected(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    // TODO ??? close_websocket(self);
+    if(gobj_is_running(gobj)) {
+        priv.websocket = setup_websocket(gobj);
+    }
+    return 0;
+}
+
+/********************************************
+ *
+ ********************************************/
+function ac_identity_card_ack(self, event, kw, src)
+{
+    /*---------------------------------------*
+     *  Clear timeout
+     *---------------------------------------*/
+    self.clear_timeout();
+
+    /*---------------------------------------*
+     *  Update remote values
+     *---------------------------------------*/
+    /*
+     *  Here is the end point of the request.
+     *  Don't pop the request, because
+     *  the event can be publish to serveral users.
+     */
+    /*
+     *      __ANSWER__ __MESSAGE__
+     */
+    var request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
+    var src_yuno = kw_get_str(request, "src_yuno", "");
+    var src_role = kw_get_str(request, "src_role", "");
+    var src_service = kw_get_str(request, "src_service", "");
+
+    var result = kw_get_int(kw, "result", -1);
+    var comment = kw_get_str(kw, "comment", "");
+    var username_ = kw_get_str(kw, "username", "");
+    if(result < 0) {
+        close_websocket(self);
+        self.gobj_publish_event(
+            'EV_IDENTITY_CARD_REFUSED',
+            {
+                url: self.config.urls[self.config.idx_url],
+                result: result,
+                comment: comment,
+                username_: username_,
+                remote_yuno_name: src_yuno,
+                remote_yuno_role: src_role,
+                remote_yuno_service: src_service
+            }
+        );
+    } else {
+        var services_roles = kw_get_dict_value(kw, "services_roles", {});
+        var data = kw_get_dict_value(kw, "data", null);
+
+        self.config.remote_yuno_role = src_role;
+        self.config.remote_yuno_name = src_yuno;
+        self.config.remote_yuno_service = src_service;
+
+        self.gobj_change_state("ST_SESSION");
+        self.config.inside_on_open = true;
+
+        if(!self.inform_on_close) {
+            self.inform_on_close = true;
+            self.gobj_publish_event(
+                'EV_ON_OPEN',
+                {
+                    url: self.config.urls[self.config.idx_url],
+                    remote_yuno_name: src_yuno,
+                    remote_yuno_role: src_role,
+                    remote_yuno_service: src_service,
+                    services_roles: services_roles,
+                    data: data
+                }
+            );
+        }
+        self.config.inside_on_open = false;
+
+        /*
+         *  Resend subscriptions
+         */
+        self.resend_subscriptions();
+    }
+
+    return 0;
+}
+
+/********************************************
+ *
+ ********************************************/
+function ac_timeout_wait_idAck(self, event, kw, src)
+{
+    send_identity_card(self);
+    return 0;
+}
+
+/********************************************
+ *
+ ********************************************/
+function ac_on_message(self, event, kw, src)
+{
+    let url = self.config.urls[self.config.idx_url];
+
+    /*------------------------------------------*
+     *  Create inter_event from received data
+     *------------------------------------------*/
+    let size = kw.data.length;
+    let iev_msg = iev_create_from_json(self, kw.data);
+
+    /*---------------------------------------*
+     *          trace inter_event
+     *---------------------------------------*/
+    if (self.yuno.config.trace_inter_event) {
+        let prefix = self.yuno.yuno_name + ' <== ' + url;
+        if(self.yuno.config.trace_ievent_callback) {
+            self.yuno.config.trace_ievent_callback(prefix, iev_msg, 2, size);
+        } else {
+            trace_inter_event(self, prefix, iev_msg);
+        }
+    }
+
+    /*----------------------------------------*
+     *
+     *----------------------------------------*/
+    let iev_event = iev_msg.event;
+    let iev_kw = iev_msg.kw;
+
+    /*-----------------------------------------*
+     *  If state is not SESSION send self.
+     *  Mainly process EV_IDENTITY_CARD_ACK
+     *-----------------------------------------*/
+    if(!self.gobj_in_this_state("ST_SESSION")) {
+        if(self.gobj_event_in_input_event_list(iev_event)) {
+            self.gobj_send_event(iev_event, iev_kw, self);
+        } else {
+            log_error("ignoring event: " + iev_event + " for " + self.name);
+        }
+        iev_msg = null;
+        return 0;
+    }
+    iev_msg = null;
+
+    /*------------------------------------*
+     *   Analyze inter_event
+     *------------------------------------*/
+    let msg_type = msg_get_msg_type(iev_kw);
+
+    /*----------------------------------------*
+     *  Pop inter-event routing information.
+     *----------------------------------------*/
+    let event_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID);
+    let dst_service = kw_get_str(event_id, "dst_service", "");
+    // Chequea tb el nombre TODO
+    let dst_role = kw_get_str(event_id, "dst_role", "");
+
+    if(dst_role !== self.yuno.yuno_role) {
+        log_error("It's not my role, yuno_role: " + dst_role + ", my_role: " + self.yuno.yuno_role);
+        return 0;
+    }
+
+    /*------------------------------------*
+     *   Is the event a subscription?
+     *------------------------------------*/
+    if(msg_type === "__subscribing__") {
+        /*
+         *  it's a external subscription
+         */
+        // TODO subscription
+        return 0;
+    }
+
+    /*---------------------------------------*
+     *   Is the event is a unsubscription?
+     *---------------------------------------*/
+    if(msg_type === "__unsubscribing__") {
+        /*
+         *  it's a external unsubscription
+         */
+        // TODO unsubscription
+        return 0;
+    }
+
+    /*-------------------------------------------------------*
+     *  Filter public events of this gobj
+     *-------------------------------------------------------*/
+    if(self.gobj_event_in_input_event_list(iev_event)) {
+        self.gobj_send_event(iev_event, iev_kw, self);
+        return 0;
+    }
+
+    /*-------------------------*
+     *  Dispatch the event
+     *-------------------------*/
+    // 4 Dic 2022, WARNING until 6.2.2 version was used gobj_find_unique_gobj(),
+    // improving security: only gobj services must be accessed externally,
+    // may happen collateral damages
+    let gobj_service = self.yuno.gobj_find_service(dst_service);
+    if(gobj_service) {
+        if(gobj_service.gobj_event_in_input_event_list(iev_event)) {
+            gobj_service.gobj_send_event(iev_event, iev_kw, self);
+        } else {
+            log_error(gobj_service.gobj_short_name() + ": event '" + iev_event + "' not in input event list");
+        }
+    } else {
+        self.gobj_publish_event( /* NOTE original behaviour */
+            iev_event,
+            iev_kw
+        );
+    }
+
     return 0;
 }
 
@@ -838,19 +1093,42 @@ function create_gclass(gclass_name)
     /*---------------------------------------------*
      *          States
      *---------------------------------------------*/
-    const st_idle = [
-        ["EV_TIMEOUT_PERIODIC",     ac_timeout,     null]
+    const st_disconnected = [
+        ["EV_ON_OPEN",              ac_on_open,             "ST_WAIT_IDENTITY_CARD_ACK"],
+        ["EV_ON_CLOSE",             ac_on_close,            null],
+        ["EV_TIMEOUT",              ac_timeout_disconnected,null],
+        [null, null, null]
+    ];
+    const st_wait_identity_card_ack = [
+        ["EV_ON_MESSAGE",           ac_on_message,          null],
+        ["EV_IDENTITY_CARD_ACK",    ac_identity_card_ack,   null],
+        ["EV_ON_CLOSE",             ac_on_close,            "ST_DISCONNECTED"],
+        ["EV_TIMEOUT",              ac_timeout_wait_idAck,  null],
+        [null, null, null]
+    ];
+    const st_session = [
+        ["EV_ON_MESSAGE",           ac_on_message,          null],
+        ["EV_ON_CLOSE",             ac_on_close,            "ST_DISCONNECTED"],
+        [null, null, null]
     ];
 
     const states = [
-        ["ST_IDLE",     st_idle]
+        ["ST_DISCONNECTED",           st_disconnected],
+        ["ST_WAIT_IDENTITY_CARD_ACK", st_wait_identity_card_ack],
+        ["ST_SESSION",                st_session],
+        [null, null]
     ];
 
     /*---------------------------------------------*
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_TIMEOUT_PERIODIC",      0]
+        ["EV_ON_MESSAGE",           0],
+        ["EV_IDENTITY_CARD_ACK",    0],
+        ["EV_ON_OPEN",              0],
+        ["EV_ON_CLOSE",             0],
+        ["EV_TIMEOUT",              0],
+        [null, 0]
     ];
 
     /*----------------------------------------*
@@ -880,9 +1158,9 @@ function create_gclass(gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-function register_c_sample()
+function register_c_ievent_cli()
 {
     return create_gclass(GCLASS_NAME);
 }
 
-export { register_c_sample };
+export { register_c_ievent_cli };

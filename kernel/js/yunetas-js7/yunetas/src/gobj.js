@@ -705,6 +705,9 @@ function gclass_create(
         let state_name = states[i][0];      // First element is state name
         let ev_action_list = states[i][1];  // Second element is the array of actions
 
+        if(empty_string(state_name)) {
+            continue;
+        }
         if(gclass_add_state(gclass, state_name)<0) {
             // Error already logged
             gclass_unregister(gclass);
@@ -716,6 +719,10 @@ function gclass_create(
             let event_name = ev_action_list[j][0];
             let action = ev_action_list[j][1];
             let next_state = ev_action_list[j][2];
+
+            if(empty_string(event_name)) {
+                continue;
+            }
             gclass_add_ev_action(
                 gclass,
                 state_name,
@@ -733,6 +740,9 @@ function gclass_create(
         let event_name = event_types[i][0];
         let event_type = event_types[i][1];
 
+        if(empty_string(event_name)) {
+            continue;
+        }
         if(gclass_find_event_type(gclass, event_name)) {
             log_error(`SMachine: event repeated in input_events: ${event_name}`);
             gclass_unregister(gclass);
@@ -947,7 +957,7 @@ function gclass_check_fsm(gclass)
      */
     for(let i=0; i<gclass.dl_states.length; i++) {
         let state = gclass.dl_states[i];
-        if(!state.name) {
+        if(empty_string(state.state_name)) {
             continue;
         }
         // gobj_state_t state_name;
@@ -955,7 +965,7 @@ function gclass_check_fsm(gclass)
 
         for(let j=0; j<state.dl_actions.length; j++) {
             let event_action = state.dl_actions[j];
-            if(!event_action.event_name) {
+            if(empty_string(event_action.event_name)) {
                 continue;
             }
             // gobj_event_t event_name;
@@ -982,7 +992,7 @@ function gclass_check_fsm(gclass)
      */
     for(let i=0; i<gclass.dl_events.length; i++) {
         let event_type = gclass.dl_events[i];
-        if(!event_type.event_name) {
+        if(empty_string(event_type.event_name)) {
             continue;
         }
         // gobj_event_t event_type.event_name;
@@ -996,7 +1006,7 @@ function gclass_check_fsm(gclass)
 
             for(let j=0; j<gclass.dl_states.length; j++) {
                 let state = gclass.dl_states[j];
-                if(!state.state_name) {
+                if(empty_string(state.state_name)) {
                     continue;
                 }
                 let event_action = _find_event_action(state, event_type.event_name);
@@ -1292,7 +1302,7 @@ function gobj_create2(
     }
 
     if(gobj_flag & (gobj_flag_t.gobj_flag_default_service)) {
-        if(gobj_find_service(gobj_name, false) || __default_service__) {
+        if(__default_service__) {
             log_error(`default service ALREADY registered: ${gclass_name}`);
             return null;
         }
