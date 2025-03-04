@@ -94,6 +94,9 @@ typedef struct _PRIVATE_DATA {
     const char *remote_yuno_service;
     hgobj gobj_timer;
     BOOL inform_on_close;
+    BOOL inside_on_open;    // avoid duplicates, no subscriptions while in on_open,
+                            // they will send in resend_subscriptions
+
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -363,12 +366,19 @@ PRIVATE int mt_subscription_added(
     hgobj gobj,
     json_t *subs)
 {
-    return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
 
     if(gobj_current_state(gobj) != ST_SESSION) {
         // on_open will send all subscriptions
         return 0;
     }
+
+    if(priv->inside_on_open) {
+        // avoid duplicates of subscriptions
+        return 0;
+    }
+
     return send_remote_subscription(gobj, subs);
 }
 
@@ -379,10 +389,16 @@ PRIVATE int mt_subscription_deleted(
     hgobj gobj,
     json_t *subs)
 {
-    return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
 
     if(gobj_current_state(gobj) != ST_SESSION) {
         // Nothing to do. On open this subscription will be not sent.
+        return 0;
+    }
+
+    if(priv->inside_on_open) {
+        // avoid duplicates of subscriptions
         return 0;
     }
 
@@ -648,8 +664,6 @@ PRIVATE int send_remote_subscription(
  ***************************************************************************/
 PRIVATE int resend_subscriptions(hgobj gobj)
 {
-    return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
-
     json_t *dl_subs = gobj_find_subscriptions(gobj, 0, 0, 0);
 
     size_t idx; json_t *subs;

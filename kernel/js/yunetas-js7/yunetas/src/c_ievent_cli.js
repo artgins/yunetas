@@ -136,7 +136,7 @@ let PRIVATE_DATA = {
     inform_on_close:    false,
     websocket:          null,
     inside_on_open:     false,  // avoid duplicates, no subscriptions while in on_open,
-                                // will send in resend_subscriptions
+                                // they will send in resend_subscriptions
 };
 
 let __gclass__ = null;
@@ -374,9 +374,6 @@ function mt_subscription_added(gobj, subs)
 {
     let priv = gobj.priv;
 
-    // in C: return 0;
-    // TODO hay algo mal, las subscripciones locales se interpretan como remotas
-
     if(gobj_current_state(gobj) !== "ST_SESSION") {
         // on_open will send all subscriptions
         return 0;
@@ -394,6 +391,7 @@ function mt_subscription_added(gobj, subs)
  ***************************************************************/
 function mt_subscription_deleted(gobj, subs)
 {
+    let priv = gobj.priv;
     // in C: return 0;
     // TODO hay algo mal, las subscripciones locales se interpretan como remotas
 
@@ -402,6 +400,10 @@ function mt_subscription_deleted(gobj, subs)
         return 0;
     }
 
+    if(priv.inside_on_open) {
+        // avoid duplicates of subscriptions
+        return 0;
+    }
     if(empty_string(subs.event)) {
         // HACK only resend explicit subscriptions
         return;
@@ -858,7 +860,7 @@ function resend_subscriptions(gobj)
  ***************************************************************/
 function ac_on_open(gobj, event, kw, src)
 {
-    log_debug('Websocket opened: ' + gobj.priv.url); // TODO que no se vea en prod
+    log_debug('Websocket opened: ' + gobj.priv.url);
     send_identity_card(gobj);
     return 0;
 }
@@ -986,7 +988,7 @@ function ac_on_message(gobj, event, kw, src)
      *  Check dst role^name
      *----------------------------------------*/
     let iev_dst_role = kw_get_str(event_id, "dst_role", "");
-    // Chequea tb el nombre TODO
+    // Check yuno_name too
 
     if(iev_dst_role !== gobj_yuno_role()) {
         log_error(`"It's not my role, dst_role: ${iev_dst_role}, my_role: ${gobj_yuno_role()}`);
