@@ -39,6 +39,10 @@ PRIVATE json_t *build_ievent_request(
     const char *src_service,
     const char *dst_service
 );
+PRIVATE int send_remote_subscription(
+    hgobj gobj,
+    json_t *subs
+);
 
 /***************************************************************
  *              Data
@@ -223,7 +227,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
             NULL
         );
         KW_DECREF(kw)
-        return 0;
+        return NULL;
     }
 
     if(!kw) {
@@ -255,7 +259,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     send_static_iev(gobj, EV_MT_STATS, kw, src);
 
-    return 0;   // return 0 on asynchronous response.
+    return NULL;   // return NULL on asynchronous response.
 }
 
 /***************************************************************************
@@ -272,7 +276,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
             NULL
         );
         KW_DECREF(kw)
-        return 0;
+        return NULL;
     }
 
     if(!kw) {
@@ -303,7 +307,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 
     send_static_iev(gobj, EV_MT_COMMAND, kw, src);
 
-    return 0;   // return 0 on asynchronous response.
+    return NULL;   // return NULL on asynchronous response.
 }
 
 /***************************************************************************
@@ -332,8 +336,8 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, FALSE);
     if(!jn_request) {
         /*
-         *  Pon el ievent si no viene con él,
-         *  si lo trae es que será alguna respuesta/redirección
+         * Put the ievent if it doesn't come with it,
+         * if it does come with it, it's because it will be some kind of response/redirect
          */
         json_t *jn_ievent_id = build_ievent_request(
             gobj,
@@ -350,55 +354,6 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         );
     }
     return send_static_iev(gobj, event, kw, src);
-}
-
-/***************************************************************************
- *      Framework Method subscription_added
- ***************************************************************************/
-PRIVATE int send_remote_subscription(
-    hgobj gobj,
-    json_t *subs)
-{
-    // const char *event
-    gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
-    if(empty_string(event)) {
-        // HACK only resend explicit subscriptions
-        return -1;
-    }
-    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, KW_REQUIRED);
-    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, KW_REQUIRED);
-    json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, KW_REQUIRED);
-    const char *__service__ = kw_get_str(gobj, subs, "__service__", "", KW_REQUIRED);
-    hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
-
-    /*
-     *      __MESSAGE__
-     */
-    json_t *kw = json_object();
-    if(__config__) {
-        json_object_set(kw, "__config__", __config__);
-    }
-    if(__global__) {
-        json_object_set(kw, "__global__", __global__);
-    }
-    if(__filter__) {
-        json_object_set(kw, "__filter__", __filter__);
-    }
-    json_t *jn_ievent_id = build_ievent_request(
-        gobj,
-        gobj_name(subscriber),
-        __service__
-    );
-
-    msg_iev_push_stack(
-        gobj,
-        kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id   // owned
-    );
-    kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__subscribing__"));
-
-    return send_static_iev(gobj, event, kw, gobj);
 }
 
 /***************************************************************************
@@ -428,7 +383,7 @@ PRIVATE int mt_subscription_deleted(
 
     if(gobj_current_state(gobj) != ST_SESSION) {
         // Nothing to do. On open this subscription will be not sent.
-        return -1;
+        return 0;
     }
 
     gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
@@ -636,6 +591,56 @@ PRIVATE int send_static_iev(
         kw_send,
         gobj
     );
+}
+
+/***************************************************************************
+ *  send subscription
+ ***************************************************************************/
+PRIVATE int send_remote_subscription(
+    hgobj gobj,
+    json_t *subs
+)
+{
+    // const char *event
+    gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
+    if(empty_string(event)) {
+        // HACK only resend explicit subscriptions
+        return -1;
+    }
+    json_t *__config__ = kw_get_dict(gobj, subs, "__config__", 0, KW_REQUIRED);
+    json_t *__global__ = kw_get_dict(gobj, subs, "__global__", 0, KW_REQUIRED);
+    json_t *__filter__ = kw_get_dict(gobj, subs, "__filter__", 0, KW_REQUIRED);
+    const char *__service__ = kw_get_str(gobj, subs, "__service__", "", KW_REQUIRED);
+    hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
+
+    /*
+     *      __MESSAGE__
+     */
+    json_t *kw = json_object();
+    if(__config__) {
+        json_object_set(kw, "__config__", __config__);
+    }
+    if(__global__) {
+        json_object_set(kw, "__global__", __global__);
+    }
+    if(__filter__) {
+        json_object_set(kw, "__filter__", __filter__);
+    }
+    json_t *jn_ievent_id = build_ievent_request(
+        gobj,
+        gobj_name(subscriber),
+        __service__
+    );
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id   // owned
+    );
+    kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__subscribing__"));
+
+    return send_static_iev(gobj, event, kw, gobj);
 }
 
 /***************************************************************************

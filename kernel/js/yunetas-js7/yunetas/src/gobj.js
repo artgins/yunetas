@@ -1881,6 +1881,30 @@ function gobj_yuno()
 /************************************************************
  *
  ************************************************************/
+function gobj_yuno_name()
+{
+    let yuno = gobj_yuno();
+    if(!yuno) {
+        return "";
+    }
+    return gobj_name(yuno);
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_yuno_role()
+{
+    let yuno = gobj_yuno();
+    if(!yuno) {
+        return "";
+    }
+    return gobj_read_str_attr(yuno, "yuno_role");
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function gobj_default_service()
 {
     if(!__default_service__ || (__default_service__.obflag & obflag_t.obflag_destroyed)) {
@@ -3805,6 +3829,8 @@ export {
     gobj_is_playing,
     gobj_stop_childs,
     gobj_yuno,
+    gobj_yuno_name,
+    gobj_yuno_role,
     gobj_default_service,
     gobj_name,
     gobj_gclass_name,

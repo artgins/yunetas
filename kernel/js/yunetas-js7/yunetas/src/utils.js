@@ -1255,7 +1255,7 @@ function kw_remove_local_storage_value(key)
 function msg_iev_read_key(kw, key, create, default_value) // TODO create, default_value
 {
     try {
-        var __md_iev__ = kw["__md_iev__"];
+        let __md_iev__ = kw["__md_iev__"];
         if(__md_iev__) {
             return __md_iev__[key];
         }
@@ -1270,7 +1270,7 @@ function msg_iev_read_key(kw, key, create, default_value) // TODO create, defaul
  ************************************************************/
 function msg_iev_write_key(kw, key, value)
 {
-    var __md_iev__ = kw["__md_iev__"];
+    let __md_iev__ = kw["__md_iev__"];
     if(!__md_iev__) {
         __md_iev__ = {};
         kw["__md_iev__"] = __md_iev__;
@@ -1281,7 +1281,7 @@ function msg_iev_write_key(kw, key, value)
 /************************************************************
  *
  ************************************************************/
-function msg_iev_push_stack(kw, stack, user_info)
+function msg_iev_push_stack(gobj, kw, stack, jn_data)
 {
     if(!kw) {
         return;
@@ -1295,7 +1295,7 @@ function msg_iev_push_stack(kw, stack, user_info)
     try {
         // Code throwing an exception
         if(is_array(jn_stack)) {
-            jn_stack.unshift(user_info);
+            jn_stack.unshift(jn_data);
         }
     } catch(e) {
         log_error(e);
@@ -1305,18 +1305,25 @@ function msg_iev_push_stack(kw, stack, user_info)
 /************************************************************
  *
  ************************************************************/
-function msg_iev_get_stack(kw, stack)
+function msg_iev_get_stack(gobj, kw, stack, verbose)
 {
-    if(!kw) {
+    if(!is_object(kw)) {
+        log_error(`kw is not a dict`);
         return null;
     }
 
-    var jn_stack = msg_iev_read_key(kw, stack);
+    let jn_stack = msg_iev_read_key(kw, stack);
     if(!jn_stack) {
-        return 0;
+        if(verbose) {
+            log_error(`stack NOT FOUND: ${stack}`);
+        }
+        return null;
     }
 
     if(jn_stack.length === 0) {
+        if(verbose) {
+            log_error(`stack empty: ${stack}`);
+        }
         return null;
     }
     return jn_stack[0];

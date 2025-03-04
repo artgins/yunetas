@@ -36,6 +36,9 @@ import {
     gobj_create_pure_child,
     gobj_name,
     gobj_current_state,
+    gobj_yuno_name,
+    gobj_yuno_role, gobj_find_subscriptions,
+
 } from "./gobj.js";
 
 import {
@@ -46,6 +49,9 @@ import {
     get_current_datetime,
     empty_string,
     msg_iev_push_stack,
+    msg_iev_get_stack,
+    kw_get_str,
+    json_object_del, kw_set_dict_value, msg_set_msg_type,
 } from "./utils.js";
 
 /***************************************************************
@@ -106,6 +112,8 @@ let PRIVATE_DATA = {
     gobj_timer:         null,
     inform_on_close:    false,
     websocket:          null,
+    inside_on_open:     false,  // avoid duplicates, no subscriptions while in on_open,
+                                // will send in resend_subscriptions
 };
 
 let __gclass__ = null;
@@ -204,18 +212,13 @@ function mt_destroy(gobj)
 
 /***************************************************************
  *          Framework Method: Stats
+ *  Ask for stats to remote `kw.service` (or wanted_yuno_service)
  ***************************************************************/
-function mt_stats(gobj)
+function mt_stats(gobj, stats, kw, src)
 {
     if(gobj_current_state(gobj) !== "ST_SESSION") {
-        return gobj_build_webix_answer(
-            self,
-            -1,
-            self.config.remote_yuno_role + "^" + self.config.remote_yuno_name + " not in session.",
-            null,
-            null,
-            kw
-        );
+        log_error(`Not in session`);
+        return null;
     }
 
     if(!kw) {
@@ -226,9 +229,180 @@ function mt_stats(gobj)
      *      __REQUEST__ __MESSAGE__
      */
     let jn_ievent_id = build_ievent_request(
-        self,
-        src.name,
-        kw.service?kw.service:null
+        gobj,
+        gobj_name(src),
+        kw_get_str(gobj, kw, "service", null, 0)
+    );
+    msg_iev_push_stack(
+        gobj,
+        kw,
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id
+    );
+
+    kw["__stats__"] = stats;
+    msg_iev_push_stack( // TODO review, before was msg_iev_write_key
+        gobj,
+        kw,
+        "__stats__",
+        stats
+    );
+
+    send_static_iev(gobj, "EV_MT_STATS", kw);
+
+    return null;   // return null on asynchronous response.
+}
+
+/***************************************************************
+ *          Framework Method: Command
+ *  Ask for command to remote `kw.service` (or wanted_yuno_service)
+ ***************************************************************/
+function mt_command(gobj, command, kw, src)
+{
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        log_error(`Not in session`);
+        return null;
+    }
+
+    if(!kw) {
+        kw = {};
+    }
+
+    /*
+     *      __REQUEST__ __MESSAGE__
+     */
+    let jn_ievent_id = build_ievent_request(
+        gobj,
+        gobj_name(src),
+        kw_get_str(gobj, kw, "service", null, 0)
+    );
+    msg_iev_push_stack(
+        gobj,
+        kw,
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id
+    );
+
+    kw["__command__"] = command;
+    msg_iev_push_stack( // TODO review, before was msg_iev_write_key
+        gobj,
+        kw,         // not owned
+        "__command__",
+        command   // owned
+    );
+
+    send_static_iev(gobj, "EV_MT_COMMAND", kw);
+
+    return null;   // return null on asynchronous response.
+}
+
+/***************************************************************
+ *          Framework Method: inject_event
+ *  Send event to remote `kw.service` (or wanted_yuno_service)
+ ***************************************************************/
+function mt_inject_event(gobj, event, kw, src)
+{
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        log_error(`Not in session`);
+        return -1;
+    }
+
+    if(!kw) {
+        kw = {};
+    }
+
+    /*
+     *      __MESSAGE__
+     */
+    let jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
+    if(!jn_request) {
+        /*
+         * Put the ievent if it doesn't come with it,
+         * if it does come with it, it's because it will be some kind of response/redirect
+         */
+        let jn_ievent_id = build_ievent_request(
+            gobj,
+            gobj_name(src),
+            kw_get_str(gobj, kw, "__service__", 0, 0)
+        );
+        json_object_del(kw, "__service__");
+
+        msg_iev_push_stack(
+            gobj,
+            kw,
+            IEVENT_MESSAGE_AREA_ID,
+            jn_ievent_id
+        );
+    }
+
+    return send_static_iev(gobj, event, kw);
+}
+
+/***************************************************************
+ *      Framework Method subscription_added
+ ***************************************************************/
+function mt_subscription_added(gobj, subs)
+{
+    let priv = gobj.priv;
+
+    // esto es en C: return 0;
+    // TODO hay algo mal, las subscripciones locales se interpretan como remotas
+
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        // on_open will send all subscriptions
+        return 0;
+    }
+
+    if(priv.inside_on_open) {
+        // avoid duplicates of subscriptions
+        return 0;
+    }
+    return send_remote_subscription(gobj, subs);
+}
+
+/***************************************************************
+ *      Framework Method subscription_deleted
+ ***************************************************************/
+function mt_subscription_deleted(gobj, subs)
+{
+    // esto es en C: return 0;
+    // TODO hay algo mal, las subscripciones locales se interpretan como remotas
+
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        // Nothing to do. On open this subscription will be not sent.
+        return 0;
+    }
+
+    if(empty_string(subs.event)) {
+        // HACK only resend explicit subscriptions
+        return;
+    }
+
+    let kw = {};
+
+    let __global__ = subs.__global__;
+    let __config__ = subs.__config__;
+    let __filter__ = subs.__filter__;
+    let __service__ = subs.__service__;
+    let subscriber = subs.subscriber;
+
+    if(__config__) {
+        kw["__config__"] = __config__;
+    }
+    if(__global__) {
+        kw["__global__"] = __global__;
+    }
+    if(__filter__) {
+        kw["__filter__"] = __filter__;
+    }
+
+    /*
+     *      __MESSAGE__
+     */
+    let jn_ievent_id = build_ievent_request(
+        gobj,
+        gobj_name(subscriber),
+        __service__
     );
     msg_iev_push_stack(
         kw,         // not owned
@@ -236,15 +410,10 @@ function mt_stats(gobj)
         jn_ievent_id   // owned
     );
 
-    kw["__stats__"] = stats;
-    msg_iev_write_key(
-        kw,         // not owned
-        "__stats__",
-        stats   // owned
-    );
+    msg_set_msg_type(kw, "__unsubscribing__");
+    // esto en C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__unsubscribing__"));
 
-    return send_static_iev(self, "EV_MT_STATS", kw);
-
+    return send_static_iev(gobj, subs.event, kw);
 }
 
 
@@ -334,7 +503,8 @@ function xclose_websocket(self)
 /***************************************************************
  *  Closes the WebSocket connection safely.
  ***************************************************************/
-function close_websocket(websocket, code = 1000, reason = "") {
+function close_websocket(websocket, code = 1000, reason = "")
+{
     if (!websocket ||
         websocket.readyState === WebSocket.CLOSED ||
         websocket.readyState === WebSocket.CLOSING)
@@ -395,26 +565,28 @@ function iev_create(
 /**************************************
  *  Send jsonify inter-event message
  **************************************/
-function send_iev(self, iev)
+function send_iev(gobj, iev)
 {
-    var msg = JSON.stringify(iev);
+    let priv = gobj.priv;
 
-    if (self.yuno.config.trace_inter_event) {
-        var url = self.config.urls[self.config.idx_url];
-        var prefix = self.yuno.yuno_name + ' ==> ' + url;
-        if(self.yuno.config.trace_ievent_callback) {
-            var size = msg.length;
-            self.yuno.config.trace_ievent_callback(prefix, iev, 1, size);
-        } else {
-            trace_inter_event(self, prefix, iev);
-        }
-    }
+    let msg = JSON.stringify(iev);
+
+    // if (self.yuno.config.trace_inter_event) {
+    //     var url = self.config.urls[self.config.idx_url];
+    //     var prefix = self.yuno.yuno_name + ' ==> ' + url;
+    //     if(self.yuno.config.trace_ievent_callback) {
+    //         var size = msg.length;
+    //         self.yuno.config.trace_ievent_callback(prefix, iev, 1, size);
+    //     } else {
+    //         trace_inter_event(self, prefix, iev);
+    //     }
+    // }
 
     try {
-        self.websocket.send(msg);
+        priv.websocket.send(msg);
     } catch (e) {
-        log_error(self.gobj_short_name() + ": send_iev(): " + e);
-        log_error(msg);
+        log_error(`${gobj_short_name(gobj)}: send_iev(): ${e}`);
+        //log_error(msg);
     }
     return 0;
 }
@@ -422,30 +594,33 @@ function send_iev(self, iev)
 /**************************************
  *
  **************************************/
-function send_static_iev(self, event, kw)
+function send_static_iev(gobj, event, kw)
 {
-    var iev = iev_create(
+    let iev = iev_create(
         event,
         kw
     );
 
-    return send_iev(self, iev);
+    return send_iev(gobj, iev);
 }
 
-/**************************************
- *
- **************************************/
-function build_ievent_request(self, src_service, dst_service)
+/***************************************************************
+ *  __MESSAGE__
+ ***************************************************************/
+function build_ievent_request(gobj, src_service, dst_service)
 {
-    var jn_ievent_chain = {
-        dst_yuno: self.config._wanted_yuno_name,
-        dst_role: self.config._wanted_yuno_role,
-        dst_service: dst_service?dst_service:self.config._wanted_yuno_service,
-        src_yuno: self.yuno.yuno_name,
-        src_role: self.yuno.yuno_role,
-        src_service: src_service
+    if(empty_string(dst_service)) {
+        dst_service = gobj_read_str_attr(gobj, "wanted_yuno_service");
+    }
+
+    return {
+        "dst_yuno": gobj_read_str_attr(gobj, "wanted_yuno_name"),
+        "dst_role": gobj_read_str_attr(gobj, "wanted_yuno_role"),
+        "dst_service": dst_service,
+        "src_yuno": gobj_yuno_name(),
+        "src_role": gobj_yuno_role(),
+        "src_service": src_service
     };
-    return jn_ievent_chain;
 }
 
 /********************************************
@@ -530,6 +705,81 @@ function iev_create_from_json(self, data)
     };
 }
 
+/************************************************
+ *      Framework Method subscription_added
+ *
+ *  SCHEMA subs
+ *  ===========
+ *
+    publisher           gobj
+    subscriber          gobj
+    event               str
+    renamed_event       str
+    hard_subscription   bool
+    __config__          json (dict)
+    __global__          json (dict)
+    __filter__          json (dict)
+    __service__         json (str)
+
+ *
+ ************************************************/
+function send_remote_subscription(gobj, subs)
+{
+    if(empty_string(subs.event)) {
+        // HACK only resend explicit subscriptions
+        return -1;
+    }
+
+    let kw = {};
+
+    let __global__ = subs.__global__;
+    let __config__ = subs.__config__;
+    let __filter__ = subs.__filter__;
+    let __service__ = subs.__service__;
+    let subscriber = subs.subscriber;
+
+    if(__config__) {
+        kw["__config__"] = __config__;
+    }
+    if(__global__) {
+        kw["__global__"] = __global__;
+    }
+    if(__filter__) {
+        kw["__filter__"] = __filter__;
+    }
+
+    /*
+     *      __MESSAGE__
+     */
+    let jn_ievent_id = build_ievent_request(
+        gobj,
+        gobj_name(subscriber),
+        __service__
+    );
+    msg_iev_push_stack(
+        kw,         // not owned
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id   // owned
+    );
+
+    msg_set_msg_type(kw, "__subscribing__");
+    // esto en C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__subscribing__"));
+
+    return send_static_iev(gobj, subs.event, kw);
+}
+
+/***************************************************************
+ *  resend subscriptions
+ ***************************************************************/
+function resend_subscriptions(gobj)
+{
+    let dl_subs = gobj_find_subscriptions(gobj);
+    for(let i=0; i<dl_subs.length; i++) {
+        let subs = dl_subs[i];
+        send_remote_subscription(gobj, subs);
+    }
+}
+
 
 
 
@@ -568,6 +818,10 @@ const gmt = {
     mt_stop:    mt_stop,
     mt_destroy: mt_destroy,
     mt_stats:   mt_stats,
+    mt_command: mt_command,
+    mt_inject_event: mt_inject_event,
+    mt_subscription_added: mt_subscription_added,
+    mt_subscription_deleted: mt_subscription_deleted,
 };
 
 
