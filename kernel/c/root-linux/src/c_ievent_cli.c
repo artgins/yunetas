@@ -964,8 +964,6 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Check dst service
      *----------------------------------------*/
-    int ret = 0;
-
     const char *iev_dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
     // TODO de momento pasa todo, multi-servicio.
     // Obligado al servicio acordado en el identity_card.
@@ -1008,55 +1006,45 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         KW_DECREF(iev_kw)
         KW_DECREF(kw)
         return -1;
+    }
 
+    /*-------------------------------------------------------*
+     *  Filter public events of this gobj
+     *-------------------------------------------------------*/
+    if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
+        /*
+         *  It's mine (I manage inter-command and inter-stats)
+         */
+        gobj_send_event(
+            gobj,
+            iev_event,
+            iev_kw,
+            gobj
+        );
+        KW_DECREF(kw)
+        return 0;
+    }
+
+    /*-------------------------*
+     *  Dispatch the event
+     *-------------------------*/
+    hgobj gobj_service = gobj_find_service(iev_dst_service, TRUE);
+
+    if(gobj_service && gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+        gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
     } else {
-        /*-------------------------------------------------------*
-         *  Publish the event
-         *  Graph documentation in:
-         *  https://www.draw.io/#G0B-uHwiqttlN9UG5xTm50ODBFbnM
-         *  Este documento estaba hecho pensando en los antiguos
-         *  inter-eventos. Hay que rehacerlo sobre los nuevos.
-         *-------------------------------------------------------*/
-        /*-------------------------------------------------------*
-         *  Filter public events of this gobj
-         *-------------------------------------------------------*/
-        if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
-            /*
-             *  It's mine (I manage inter-command and inter-stats)
-             */
-            ret = gobj_send_event(
-                gobj,
-                iev_event,
-                iev_kw,
-                gobj
-            );
-            KW_DECREF(kw)
-            return ret;
-        }
-
-        /*-------------------------*
-         *  Dispatch the event
-         *-------------------------*/
-        // 4 Dic 2022, WARNING until 6.2.2 version was used gobj_find_unique_gobj(),
-        // improving security: only gobj services must be accessed externally,
-        // may happen collateral damages
-        hgobj gobj_service = gobj_find_service(iev_dst_service, TRUE);
-        if(gobj_service && gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-            ret = gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
+        /*
+         *  SERVICE subscription model
+         */
+        if(gobj_is_pure_child(gobj)) {
+            gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
         } else {
-            /*
-             *  SERVICE subscription model
-             */
-            if(gobj_is_pure_child(gobj)) {
-                ret = gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
-            } else {
-                ret = gobj_publish_event(gobj, iev_event, iev_kw);
-            }
+            gobj_publish_event(gobj, iev_event, iev_kw);
         }
     }
 
     KW_DECREF(kw)
-    return ret;
+    return 0;
 }
 
 /***************************************************************************

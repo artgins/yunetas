@@ -1150,6 +1150,53 @@ function kw_clone_by_keys(kw, keys)    // old filter_dict
     return new_dict;
 }
 
+/********************************************
+ *  Get a local attribute
+ ********************************************/
+function kw_get_local_storage_value(key, default_value, create)
+{
+    if(!(key && window.JSON && window.localStorage)) {
+        return undefined;
+    }
+
+    let value = window.localStorage.getItem(key);
+    if(value === null || value===undefined) {
+        if(create) {
+            kw_set_local_storage_value(key, default_value);
+        }
+        return default_value;
+    }
+
+    try {
+        value = JSON.parse(value);
+    } catch (e) {
+    }
+
+    return value;
+}
+
+/********************************************
+ *  Save a local attribute
+ ********************************************/
+function kw_set_local_storage_value(key, value)
+{
+    if(key && window.JSON && window.localStorage) {
+        if(value !== undefined) {
+            window.localStorage.setItem(key, JSON.stringify(value));
+        }
+    }
+}
+
+/********************************************
+ *  Remove local attribute
+ ********************************************/
+function kw_remove_local_storage_value(key)
+{
+    if(key && window.localStorage) {
+        window.localStorage.removeItem(key);
+    }
+}
+
 /************************************************************
  *
  ************************************************************/
@@ -1202,57 +1249,10 @@ function delete_from_list(list, elm) {
     return false; // elm does not exist!
 }
 
-/********************************************
- *  Get a local attribute
- ********************************************/
-function kw_get_local_storage_value(key, default_value, create)
-{
-    if(!(key && window.JSON && window.localStorage)) {
-        return undefined;
-    }
-
-    let value = window.localStorage.getItem(key);
-    if(value === null || value===undefined) {
-        if(create) {
-            kw_set_local_storage_value(key, default_value);
-        }
-        return default_value;
-    }
-
-    try {
-        value = JSON.parse(value);
-    } catch (e) {
-    }
-
-    return value;
-}
-
-/********************************************
- *  Save a local attribute
- ********************************************/
-function kw_set_local_storage_value(key, value)
-{
-    if(key && window.JSON && window.localStorage) {
-        if(value !== undefined) {
-            window.localStorage.setItem(key, JSON.stringify(value));
-        }
-    }
-}
-
-/********************************************
- *  Remove local attribute
- ********************************************/
-function kw_remove_local_storage_value(key)
-{
-    if(key && window.localStorage) {
-        window.localStorage.removeItem(key);
-    }
-}
-
 /************************************************************
- *  OLD msgx_read_MIA_key
+ *
  ************************************************************/
-function msg_iev_read_key(kw, key, create, default_value) // TODO create, default_value
+function msg_iev_read_key(kw, key)
 {
     try {
         let __md_iev__ = kw["__md_iev__"];
@@ -1266,7 +1266,7 @@ function msg_iev_read_key(kw, key, create, default_value) // TODO create, defaul
 }
 
 /************************************************************
- *  OLD msgx_write_MIA_key
+ *
  ************************************************************/
 function msg_iev_write_key(kw, key, value)
 {
@@ -1328,40 +1328,6 @@ function msg_iev_get_stack(gobj, kw, stack, verbose)
     }
     return jn_stack[0];
 }
-
-/************************************************************
- *
- ************************************************************/
-var msg_type_list = [
-    "__command__",
-    "__publishing__",
-    "__subscribing__",
-    "__unsubscribing__",
-    "__query__",
-    "__response__",
-    "__order__",
-    "__first_shot__"
-];
-
-function msg_set_msg_type(kw, msg_type)
-{
-    if(!empty_string(msg_type)) {
-        if(is_metadata_key(msg_type) && !elm_in_list(msg_type, msg_type_list)) {
-            // HACK If it's a metadata key then only admit our message inter-event msg_type_list
-            return;
-        }
-        msg_iev_write_key(kw, "__msg_type__", msg_type);
-    }
-}
-
-/************************************************************
- *
- ************************************************************/
-function msg_get_msg_type(kw)
-{
-    return msg_iev_read_key(kw, "__msg_type__");
-}
-
 
 /************************************************************
  *          Load json file from server
@@ -2341,6 +2307,8 @@ export {
     cmp_two_simple_json,
     strstr,
 
+    is_metadata_key,
+    is_private_key,
     kw_pop,
     kw_has_key,
     kw_find_path,
@@ -2364,12 +2332,14 @@ export {
     kw_set_local_storage_value,
     kw_remove_local_storage_value,
 
+    id_index_in_obj_list,
+    elm_in_list,
+    delete_from_list,
+
     msg_iev_read_key,
     msg_iev_write_key,
     msg_iev_push_stack,
     msg_iev_get_stack,
-    msg_set_msg_type,
-    msg_get_msg_type,
 
     load_json_file,
     send_http_json_post,

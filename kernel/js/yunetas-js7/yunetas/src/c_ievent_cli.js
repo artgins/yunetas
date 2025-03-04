@@ -45,6 +45,7 @@ import {
     gobj_read_attr,
     gobj_yuno_id,
     gobj_has_event,
+    gobj_find_service,
 
 } from "./gobj.js";
 
@@ -60,11 +61,13 @@ import {
     kw_get_str,
     json_object_del,
     kw_set_dict_value,
-    msg_set_msg_type,
     kw_get_int,
     kw_get_dict_value,
-    msg_get_msg_type,
     node_uuid,
+    is_metadata_key,
+    msg_iev_write_key,
+    msg_iev_read_key,
+    elm_in_list,
 } from "./utils.js";
 
 import {
@@ -371,7 +374,7 @@ function mt_subscription_added(gobj, subs)
 {
     let priv = gobj.priv;
 
-    // esto es en C: return 0;
+    // in C: return 0;
     // TODO hay algo mal, las subscripciones locales se interpretan como remotas
 
     if(gobj_current_state(gobj) !== "ST_SESSION") {
@@ -391,7 +394,7 @@ function mt_subscription_added(gobj, subs)
  ***************************************************************/
 function mt_subscription_deleted(gobj, subs)
 {
-    // esto es en C: return 0;
+    // in C: return 0;
     // TODO hay algo mal, las subscripciones locales se interpretan como remotas
 
     if(gobj_current_state(gobj) !== "ST_SESSION") {
@@ -437,7 +440,7 @@ function mt_subscription_deleted(gobj, subs)
     );
 
     msg_set_msg_type(kw, "__unsubscribing__");
-    // esto en C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__unsubscribing__"));
+    // in C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__unsubscribing__"));
 
     return send_static_iev(gobj, subs.event, kw, gobj);
 }
@@ -616,6 +619,39 @@ function send_static_iev(gobj, event, kw, src)
     return send_iev(gobj, iev);
 }
 
+/************************************************************
+ *
+ ************************************************************/
+let msg_type_list = [
+    "__command__",
+    "__publishing__",
+    "__subscribing__",
+    "__unsubscribing__",
+    "__query__",
+    "__response__",
+    "__order__",
+    "__first_shot__"
+];
+
+function msg_set_msg_type(kw, msg_type)
+{
+    if(!empty_string(msg_type)) {
+        if(is_metadata_key(msg_type) && !elm_in_list(msg_type, msg_type_list)) {
+            // HACK If it's a metadata key then only admit our message inter-event msg_type_list
+            return;
+        }
+        msg_iev_write_key(kw, "__msg_type__", msg_type);
+    }
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function msg_get_msg_type(kw)
+{
+    return msg_iev_read_key(kw, "__msg_type__");
+}
+
 /***************************************************************
  *  __MESSAGE__
  ***************************************************************/
@@ -790,7 +826,7 @@ function send_remote_subscription(gobj, subs)
     );
 
     msg_set_msg_type(kw, "__subscribing__");
-    // esto en C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__subscribing__"));
+    // in C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__subscribing__"));
 
     return send_static_iev(gobj, subs.event, kw, gobj);
 }
@@ -939,19 +975,29 @@ function ac_on_message(gobj, event, kw, src)
      *   Analyze inter_event
      *------------------------------------*/
     let msg_type = msg_get_msg_type(iev_kw);
+    // in C, const char *msg_type = kw_get_str(gobj, iev_kw, "__md_iev__`__msg_type__", "", 0);
 
     /*----------------------------------------*
-     *  Pop inter-event routing information.
+     *  Get inter-event routing information.
      *----------------------------------------*/
     let event_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID);
-    let dst_service = kw_get_str(event_id, "dst_service", "");
-    // Chequea tb el nombre TODO
-    let dst_role = kw_get_str(event_id, "dst_role", "");
 
-    if(dst_role !== self.yuno.yuno_role) {
-        log_error("It's not my role, yuno_role: " + dst_role + ", my_role: " + self.yuno.yuno_role);
+    /*----------------------------------------*
+     *  Check dst role^name
+     *----------------------------------------*/
+    let iev_dst_role = kw_get_str(event_id, "dst_role", "");
+    // Chequea tb el nombre TODO
+
+    if(iev_dst_role !== gobj_yuno_role()) {
+        log_error(`"It's not my role, dst_role: ${iev_dst_role}, my_role: ${gobj_yuno_role()}`);
         return 0;
     }
+
+    /*----------------------------------------*
+     *  Check dst service
+     *----------------------------------------*/
+    let ret = 0;
+    let iev_dst_service = kw_get_str(event_id, "dst_service", "");
 
     /*------------------------------------*
      *   Is the event a subscription?
@@ -978,29 +1024,30 @@ function ac_on_message(gobj, event, kw, src)
     /*-------------------------------------------------------*
      *  Filter public events of this gobj
      *-------------------------------------------------------*/
-    if(self.gobj_event_in_input_event_list(iev_event)) {
-        self.gobj_send_event(iev_event, iev_kw, self);
+    if(gobj_has_event(gobj, iev_event, event_flag_t.EVF_PUBLIC_EVENT)) {
+        /*
+         *  It's mine (I manage inter-command and inter-stats)
+         */
+        gobj_send_event(gobj, iev_event, iev_kw, gobj);
         return 0;
     }
 
     /*-------------------------*
      *  Dispatch the event
      *-------------------------*/
-    // 4 Dic 2022, WARNING until 6.2.2 version was used gobj_find_unique_gobj(),
-    // improving security: only gobj services must be accessed externally,
-    // may happen collateral damages
-    let gobj_service = self.yuno.gobj_find_service(dst_service);
-    if(gobj_service) {
-        if(gobj_service.gobj_event_in_input_event_list(iev_event)) {
-            gobj_service.gobj_send_event(iev_event, iev_kw, self);
-        } else {
-            log_error(gobj_service.gobj_short_name() + ": event '" + iev_event + "' not in input event list");
-        }
+    let gobj_service = gobj_find_service(iev_dst_service,true);
+
+    if(gobj_service && gobj_has_event(gobj_service, iev_event, event_flag_t.EVF_PUBLIC_EVENT)) {
+        gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
     } else {
-        self.gobj_publish_event( /* NOTE original behaviour */
-            iev_event,
-            iev_kw
-        );
+        /*
+         *  SERVICE subscription model
+         */
+        if(gobj_is_pure_child(gobj)) {
+            gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
+        } else {
+            gobj_publish_event(gobj, iev_event, iev_kw);
+        }
     }
 
     return 0;

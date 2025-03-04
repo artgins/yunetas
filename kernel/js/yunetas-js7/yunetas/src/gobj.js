@@ -3427,86 +3427,13 @@ function gobj_list_subscriptions(gobj2view)
 }
 
 /***************************************************************************
- *  Return a iter of subscribings (sdata) of the subcriber gobj,
+ *  Return a iter of subscribings (sdata) of the subscriber gobj,
  *  filtering by matching: event,kw (__config__, __global__, __local__, __filter__), publisher
  *  Free return with rc_free_iter(iter, true, false);
  *
  *  gobj_find_subscribings()
  *  Return a list of subscribings of the subscriber gobj,
  *  filtering by matching: event,kw (__config__, __global__, __local__, __filter__), publisher
- *
- *
-
-    USO
-    ----
-     TO  Delete external subscriptions in c_ievent_src en ac_on_close()
-        PRIVATE int ac_on_close(hgobj gobj,  gobj_event_t event, json_t *kw, hgobj src)
-            json_t *kw2match = json_object();
-            kw_set_dict_value(
-                kw2match,
-                "__local__`__subscription_reference__",
-                json_integer((json_int_t)(size_t)gobj)
-            );
-
-            dl_list_t * dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
-            gobj_unsubscribe_list(dl_s, true, false);
-
-        que son creadas en ac_on_message() en
-             *   Dispatch event
-            if(strcasecmp(msg_type, "__subscribing__")==0) {
-                 *  It's a external subscription
-
-                 *   Protect: only public events
-                if(!gobj_event_in_output_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-                    char temp[256];
-                    snprintf(temp, sizeof(temp),
-                        "SUBSCRIBING event ignored, not in output_event_list or not PUBLIC event, check service '%s'",
-                        iev_dst_service
-                    );
-                    log_error(0,
-                        "gobj",         "%s", gobj_full_name(gobj),
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", temp,
-                        "service",      "%s", iev_dst_service,
-                        "gobj_service", "%s", gobj_short_name(gobj_service),
-                        "event",        "%s", iev_event,
-                        NULL
-                    );
-                    KW_DECREF(iev_kw);
-                    KW_DECREF(kw);
-                    return -1;
-                }
-
-                // Set locals to remove on publishing
-                kw_set_subdict_value(
-                    iev_kw,
-                    "__local__", "__subscription_reference__",
-                    json_integer((json_int_t)(size_t)gobj)
-                );
-                kw_set_subdict_value(iev_kw, "__local__", "__temp__", json_null());
-
-                // Prepare the return of response
-                json_t *__md_iev__ = kw_get_dict(iev_kw, "__md_iev__", 0, 0);
-                if(__md_iev__) {
-                    KW_INCREF(iev_kw);
-                    json_t *kw3 = msg_iev_answer(
-                        gobj,
-                        iev_kw,
-                        0,
-                        "__publishing__"
-                    );
-                    json_object_del(iev_kw, "__md_iev__");
-                    json_t *__global__ = kw_get_dict(iev_kw, "__global__", 0, 0);
-                    if(__global__) {
-                        json_object_update_new(__global__, kw3);
-                    } else {
-                        json_object_set_new(iev_kw, "__global__", kw3);
-                    }
-                }
-
-                gobj_subscribe_event(gobj_service, iev_event, iev_kw, gobj);
-
  ***************************************************************************/
 function gobj_find_subscribings(
     subscriber,
