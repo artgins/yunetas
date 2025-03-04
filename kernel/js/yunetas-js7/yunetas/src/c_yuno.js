@@ -24,9 +24,11 @@ import {
     gobj_name,
     gobj_read_attr,
     gobj_publish_event,
+    gobj_write_str_attr,
 } from "./gobj.js";
 
 import {
+    current_timestamp,
     log_error,
     trace_msg,
 } from "./utils.js";
@@ -48,6 +50,9 @@ const GCLASS_NAME = "C_YUNO";
  *---------------------------------------------*/
 const attrs_table = [
 SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",          0,  false,  "Set true to warn about leaving page."),
+
+SDATA(data_type_t.DTP_STRING,   "__username__",         0,  "",     "Username"),
+SDATA(data_type_t.DTP_STRING,   "start_date",           0,  "",     "Yuno starting date"),
 SDATA(data_type_t.DTP_STRING,   "yuno_name",            0,  "",     "Yuno name"),
 SDATA(data_type_t.DTP_STRING,   "yuno_role",            0,  "",     "Yuno role"),
 SDATA(data_type_t.DTP_STRING,   "yuno_version",         0,  "",     "Yuno version"),
@@ -91,6 +96,9 @@ let __gclass__ = null;
 function mt_create(gobj)
 {
     let priv = gobj.priv;
+
+    let date = current_timestamp();
+    gobj_write_str_attr(gobj, "start_date", date);
 
     /*
      *  Create childs

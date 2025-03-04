@@ -52,7 +52,7 @@ import {
     log_debug,
     trace_msg,
     log_warning,
-    get_current_datetime,
+    current_timestamp,
     empty_string,
     msg_iev_push_stack,
     msg_iev_get_stack,
@@ -66,7 +66,10 @@ import {
     node_uuid,
 } from "./utils.js";
 
-import {clear_timeout, set_timeout} from "./c_timer.js";
+import {
+    clear_timeout,
+    set_timeout
+} from "./c_timer.js";
 
 /***************************************************************
  *              Constants
@@ -527,7 +530,7 @@ function close_websocket(websocket, code = 1000, reason = "")
  ***************************************************************/
 function trace_inter_event(self, prefix, iev)
 {
-    let hora = get_current_datetime();
+    let hora = current_timestamp();
     try {
         log_debug("\n" + hora + " " + prefix + "\n");
         //trace_msg(JSON.stringify(iev,  null, 4));
@@ -628,11 +631,12 @@ function build_ievent_request(gobj, src_service, dst_service)
  ***************************************************************/
 function send_identity_card(gobj)
 {
+    let priv = gobj.priv;
+
     let playing = gobj_is_playing(gobj_yuno());
     let yuno_version = gobj_read_str_attr(gobj_yuno(), "yuno_version");
     let yuno_release = gobj_read_str_attr(gobj_yuno(), "yuno_release");
     let yuno_tag = gobj_read_str_attr(gobj_yuno(), "yuno_tag");
-
 
     let kw = {
         "yuno_role": gobj_yuno_role(),
@@ -650,26 +654,29 @@ function send_identity_card(gobj)
         "launch_id": 0,
         "yuno_startdate": gobj_read_str_attr(gobj_yuno(), "start_date"),
         "id": node_uuid(),
-        "user_agent": navigator.userAgent,
+        "user_agent": window.navigator.userAgent,
+        "language": window.navigator.language,
         "required_services": gobj_read_attr(gobj_yuno(), "required_services")
     };
+
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    var jn_ievent_id = build_ievent_request(
-        self,
-        self.parent.name,
+    let jn_ievent_id = build_ievent_request(
+        gobj,
+        gobj_name(gobj_parent(gobj)), // TODO ??? in C is gobj_name(gobj),
         null
     );
     msg_iev_push_stack(
+        gobj,
         kw,
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
     );
 
-    self.set_timeout(self.config.timeout_idack*1000);
+    set_timeout(priv.gobj_timer, gobj_read_integer_attr(gobj, "timeout_idack"));
 
-    return send_static_iev(self, "EV_IDENTITY_CARD", kw);
+    return send_static_iev(gobj, "EV_IDENTITY_CARD", kw, gobj);
 }
 
 /********************************************

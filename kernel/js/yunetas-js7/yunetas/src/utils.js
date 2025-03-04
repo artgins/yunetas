@@ -1778,7 +1778,7 @@ function log_error(msg)
     if(is_object(msg)) {
         msg = JSON.stringify(msg);
     }
-    let hora = get_current_datetime();
+    let hora = current_timestamp();
     window.console.log("%c" + hora + " ERROR: " + String(msg), "color:yellow");
 
     if(f_error) {
@@ -1793,7 +1793,7 @@ function log_warning(msg)
     if(is_object(msg)) {
         msg = JSON.stringify(msg);
     }
-    let hora = get_current_datetime();
+    let hora = current_timestamp();
     window.console.log("%c" + hora + " WARNING: " + String(msg), "color:cyan");
     if(f_warning) {
         f_warning("" + hora + " WARNING: " + String(msg));
@@ -2247,37 +2247,27 @@ function timeTracker(tracker_name="Time Tracker", verbose=false)
 }
 
 /************************************************************
- *        Get current date
- *        Return string in "2022/09/12 12:27:15" format
+ *  Get the current timestamp in ISO 8601 format with milliseconds and time zone.
+ *  Example Output: "2024-02-24T14:05:30.123+0200"
  ************************************************************/
-function get_current_datetime()
+function current_timestamp()
 {
-    let currentTime = new Date();
-    let month = currentTime.getMonth() + 1;
-    if (month < 10) {
-        month = "0" + month;
-    }
-    let day = currentTime.getDate();
-    if (day < 10) {
-        day = "0" + day;
-    }
-    let year = currentTime.getFullYear();
-    let fecha = year + "/" + month + "/" + day;
+    const now = new Date();
 
-    let hours = currentTime.getHours();
-    if (hours < 10) {
-        hours = "0" + hours;
-    }
-    let minutes = currentTime.getMinutes();
-    if (minutes < 10) {
-        minutes = "0" + minutes;
-    }
-    let seconds = currentTime.getSeconds();
-    if (seconds < 10) {
-        seconds = "0" + seconds;
-    }
-    let hora = hours + ":" + minutes + ":" + seconds;
-    return fecha + " " + hora;
+    // Format YYYY-MM-DDTHH:mm:ss
+    const timestamp = now.toISOString().slice(0, 19);
+
+    // Get milliseconds (3-digit nanosecond equivalent)
+    const milliseconds = String(now.getMilliseconds()).padStart(3, "0");
+
+    // Get time zone offset in ±HHMM format
+    const offsetMinutes = now.getTimezoneOffset();
+    const sign = offsetMinutes > 0 ? "-" : "+";
+    const hours = String(Math.abs(offsetMinutes) / 60).padStart(2, "0");
+    const minutes = String(Math.abs(offsetMinutes) % 60).padStart(2, "0");
+    const timezone = `${sign}${hours}${minutes}`;
+
+    return `${timestamp}.${milliseconds}${timezone}`;
 }
 
 /********************************************
@@ -2410,7 +2400,7 @@ export {
     createElement2,
 
     timeTracker,
-    get_current_datetime,
+    current_timestamp,
     get_now,
     index_in_list,
     node_uuid,
