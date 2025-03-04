@@ -1237,7 +1237,7 @@ function create_gclass(gclass_name)
     const event_types = [
         ["EV_ON_MESSAGE",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_IDENTITY_CARD_ACK",    event_flag_t.EVF_PUBLIC_EVENT],
-        ["EV_ON_ID_NAK",            event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_ON_ID_NAK",            event_flag_t.EVF_PUBLIC_EVENT|event_flag_t.EVF_OUTPUT_EVENT],
 
         ["EV_MT_STATS",             event_flag_t.EVF_PUBLIC_EVENT],
         ["EV_MT_COMMAND",           event_flag_t.EVF_PUBLIC_EVENT],
