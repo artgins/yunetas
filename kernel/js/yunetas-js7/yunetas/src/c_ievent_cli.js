@@ -44,6 +44,7 @@ import {
     gobj_is_playing,
     gobj_read_attr,
     gobj_yuno_id,
+    gobj_has_event,
 
 } from "./gobj.js";
 
@@ -458,6 +459,10 @@ function mt_subscription_deleted(gobj, subs)
  ***************************************************************/
 function setup_websocket(gobj)
 {
+    if(gobj.priv.websocket) {
+        log_error(`Websocket ALREADY setup`);
+    }
+
     const url = gobj_read_str_attr(gobj, "url");
     log_debug(`====> Starting WebSocket to '${url}' (${gobj_short_name(gobj)})`);
 
@@ -873,6 +878,129 @@ function ac_timeout_disconnected(gobj, event, kw, src)
     return 0;
 }
 
+/***************************************************************
+ *
+ ***************************************************************/
+function ac_on_message(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    let url = priv.url;
+
+    /*------------------------------------------*
+     *  Create inter_event from received data
+     *------------------------------------------*/
+    let iev_msg = iev_create_from_json(gobj, kw.data);
+
+    /*---------------------------------------*
+     *          trace inter_event
+     *---------------------------------------*/
+    // if (self.yuno.config.trace_inter_event) {
+    //     let prefix = self.yuno.yuno_name + ' <== ' + url;
+    //     let size = kw.data.length;
+    //     if(self.yuno.config.trace_ievent_callback) {
+    //         self.yuno.config.trace_ievent_callback(prefix, iev_msg, 2, size);
+    //     } else {
+    //         trace_inter_event(self, prefix, iev_msg);
+    //     }
+    // }
+
+    /*----------------------------------------*
+     *
+     *----------------------------------------*/
+    let iev_event = iev_msg.event;
+    let iev_kw = iev_msg.kw;
+
+    /*-----------------------------------------*
+     *  If state is not SESSION send self.
+     *  Mainly process EV_IDENTITY_CARD_ACK
+     *-----------------------------------------*/
+    if(gobj_current_state(gobj) !== "ST_SESSION") {
+        if(gobj_has_event(gobj, iev_event, event_flag_t.EVF_PUBLIC_EVENT)) {
+            if(gobj_send_event(gobj, iev_event, iev_kw, gobj)===0) {
+                // iev_kw consumed
+                return 0;
+            }
+            // iev_kw consumed
+            return -1;
+        }
+        log_error(`event UNKNOWN in not-session state ${iev_event}`);
+        return -1;
+    }
+
+    iev_msg = null;
+
+    /*------------------------------------*
+     *   Analyze inter_event
+     *------------------------------------*/
+    let msg_type = msg_get_msg_type(iev_kw);
+
+    /*----------------------------------------*
+     *  Pop inter-event routing information.
+     *----------------------------------------*/
+    let event_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID);
+    let dst_service = kw_get_str(event_id, "dst_service", "");
+    // Chequea tb el nombre TODO
+    let dst_role = kw_get_str(event_id, "dst_role", "");
+
+    if(dst_role !== self.yuno.yuno_role) {
+        log_error("It's not my role, yuno_role: " + dst_role + ", my_role: " + self.yuno.yuno_role);
+        return 0;
+    }
+
+    /*------------------------------------*
+     *   Is the event a subscription?
+     *------------------------------------*/
+    if(msg_type === "__subscribing__") {
+        /*
+         *  it's a external subscription
+         */
+        // TODO subscription
+        return 0;
+    }
+
+    /*---------------------------------------*
+     *   Is the event is a unsubscription?
+     *---------------------------------------*/
+    if(msg_type === "__unsubscribing__") {
+        /*
+         *  it's a external unsubscription
+         */
+        // TODO unsubscription
+        return 0;
+    }
+
+    /*-------------------------------------------------------*
+     *  Filter public events of this gobj
+     *-------------------------------------------------------*/
+    if(self.gobj_event_in_input_event_list(iev_event)) {
+        self.gobj_send_event(iev_event, iev_kw, self);
+        return 0;
+    }
+
+    /*-------------------------*
+     *  Dispatch the event
+     *-------------------------*/
+    // 4 Dic 2022, WARNING until 6.2.2 version was used gobj_find_unique_gobj(),
+    // improving security: only gobj services must be accessed externally,
+    // may happen collateral damages
+    let gobj_service = self.yuno.gobj_find_service(dst_service);
+    if(gobj_service) {
+        if(gobj_service.gobj_event_in_input_event_list(iev_event)) {
+            gobj_service.gobj_send_event(iev_event, iev_kw, self);
+        } else {
+            log_error(gobj_service.gobj_short_name() + ": event '" + iev_event + "' not in input event list");
+        }
+    } else {
+        self.gobj_publish_event( /* NOTE original behaviour */
+            iev_event,
+            iev_kw
+        );
+    }
+
+    return 0;
+}
+
 /********************************************
  *
  ********************************************/
@@ -961,123 +1089,6 @@ function ac_timeout_wait_idAck(gobj, event, kw, src)
     return 0;
 }
 
-/********************************************
- *
- ********************************************/
-function ac_on_message(self, event, kw, src)
-{
-    let url = self.config.urls[self.config.idx_url];
-
-    /*------------------------------------------*
-     *  Create inter_event from received data
-     *------------------------------------------*/
-    let size = kw.data.length;
-    let iev_msg = iev_create_from_json(self, kw.data);
-
-    /*---------------------------------------*
-     *          trace inter_event
-     *---------------------------------------*/
-    if (self.yuno.config.trace_inter_event) {
-        let prefix = self.yuno.yuno_name + ' <== ' + url;
-        if(self.yuno.config.trace_ievent_callback) {
-            self.yuno.config.trace_ievent_callback(prefix, iev_msg, 2, size);
-        } else {
-            trace_inter_event(self, prefix, iev_msg);
-        }
-    }
-
-    /*----------------------------------------*
-     *
-     *----------------------------------------*/
-    let iev_event = iev_msg.event;
-    let iev_kw = iev_msg.kw;
-
-    /*-----------------------------------------*
-     *  If state is not SESSION send self.
-     *  Mainly process EV_IDENTITY_CARD_ACK
-     *-----------------------------------------*/
-    if(!self.gobj_in_this_state("ST_SESSION")) {
-        if(self.gobj_event_in_input_event_list(iev_event)) {
-            self.gobj_send_event(iev_event, iev_kw, self);
-        } else {
-            log_error("ignoring event: " + iev_event + " for " + self.name);
-        }
-        iev_msg = null;
-        return 0;
-    }
-    iev_msg = null;
-
-    /*------------------------------------*
-     *   Analyze inter_event
-     *------------------------------------*/
-    let msg_type = msg_get_msg_type(iev_kw);
-
-    /*----------------------------------------*
-     *  Pop inter-event routing information.
-     *----------------------------------------*/
-    let event_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID);
-    let dst_service = kw_get_str(event_id, "dst_service", "");
-    // Chequea tb el nombre TODO
-    let dst_role = kw_get_str(event_id, "dst_role", "");
-
-    if(dst_role !== self.yuno.yuno_role) {
-        log_error("It's not my role, yuno_role: " + dst_role + ", my_role: " + self.yuno.yuno_role);
-        return 0;
-    }
-
-    /*------------------------------------*
-     *   Is the event a subscription?
-     *------------------------------------*/
-    if(msg_type === "__subscribing__") {
-        /*
-         *  it's a external subscription
-         */
-        // TODO subscription
-        return 0;
-    }
-
-    /*---------------------------------------*
-     *   Is the event is a unsubscription?
-     *---------------------------------------*/
-    if(msg_type === "__unsubscribing__") {
-        /*
-         *  it's a external unsubscription
-         */
-        // TODO unsubscription
-        return 0;
-    }
-
-    /*-------------------------------------------------------*
-     *  Filter public events of this gobj
-     *-------------------------------------------------------*/
-    if(self.gobj_event_in_input_event_list(iev_event)) {
-        self.gobj_send_event(iev_event, iev_kw, self);
-        return 0;
-    }
-
-    /*-------------------------*
-     *  Dispatch the event
-     *-------------------------*/
-    // 4 Dic 2022, WARNING until 6.2.2 version was used gobj_find_unique_gobj(),
-    // improving security: only gobj services must be accessed externally,
-    // may happen collateral damages
-    let gobj_service = self.yuno.gobj_find_service(dst_service);
-    if(gobj_service) {
-        if(gobj_service.gobj_event_in_input_event_list(iev_event)) {
-            gobj_service.gobj_send_event(iev_event, iev_kw, self);
-        } else {
-            log_error(gobj_service.gobj_short_name() + ": event '" + iev_event + "' not in input event list");
-        }
-    } else {
-        self.gobj_publish_event( /* NOTE original behaviour */
-            iev_event,
-            iev_kw
-        );
-    }
-
-    return 0;
-}
-
 
 
 
@@ -1148,10 +1159,10 @@ function create_gclass(gclass_name)
      *          Events
      *---------------------------------------------*/
     const event_types = [
-        ["EV_ON_MESSAGE",           0],
-        ["EV_IDENTITY_CARD_ACK",    0],
-        ["EV_ON_OPEN",              0],
-        ["EV_ON_CLOSE",             0],
+        ["EV_ON_MESSAGE",           event_flag_t.EVF_OUTPUT_EVENT],
+        ["EV_IDENTITY_CARD_ACK",    event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_ON_OPEN",              event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
+        ["EV_ON_CLOSE",             event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_TIMEOUT",              0],
         [null, 0]
     ];
