@@ -45,6 +45,11 @@ import {
 import {sprintf} from "./sprintf.js";
 
 /**************************************************************************
+ *        Constants
+ **************************************************************************/
+let YUNETA_VERSION = "7.0.0a";
+
+/**************************************************************************
  *        Private data
  **************************************************************************/
 let __inside_event_loop__ = 0;
@@ -1910,6 +1915,18 @@ function gobj_yuno_role()
         return "";
     }
     return gobj_read_str_attr(yuno, "yuno_role");
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_yuno_id()
+{
+    let yuno = gobj_yuno();
+    if(!yuno) {
+        return "";
+    }
+    return gobj_read_str_attr(yuno, "yuno_id");
 }
 
 /************************************************************
@@ -3796,6 +3813,7 @@ function gobj_publish_event(
 //      Expose the class via the global object
 //=======================================================================
 export {
+    YUNETA_VERSION,
     data_type_t,
     sdata_flag_t,
     SDataDesc,
@@ -3841,6 +3859,7 @@ export {
     gobj_yuno,
     gobj_yuno_name,
     gobj_yuno_role,
+    gobj_yuno_id,
     gobj_default_service,
     gobj_name,
     gobj_gclass_name,

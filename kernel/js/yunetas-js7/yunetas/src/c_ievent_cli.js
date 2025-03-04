@@ -10,6 +10,7 @@
  *      Copyright (c) 2025, ArtGins.
  **************************************************************************/
 import {
+    YUNETA_VERSION,
     SDATA,
     SDATA_END,
     data_type_t,
@@ -40,6 +41,9 @@ import {
     gobj_yuno_role,
     gobj_find_subscriptions,
     gobj_is_running,
+    gobj_is_playing,
+    gobj_read_attr,
+    gobj_yuno_id,
 
 } from "./gobj.js";
 
@@ -59,6 +63,7 @@ import {
     kw_get_int,
     kw_get_dict_value,
     msg_get_msg_type,
+    node_uuid,
 } from "./utils.js";
 
 import {clear_timeout, set_timeout} from "./c_timer.js";
@@ -618,24 +623,35 @@ function build_ievent_request(gobj, src_service, dst_service)
     };
 }
 
-/********************************************
+/***************************************************************
  *      Send identity card
- ********************************************/
-function send_identity_card(self)
+ ***************************************************************/
+function send_identity_card(gobj)
 {
-    var kw = {
-        "yuno_role": self.yuno.yuno_role,
-        "yuno_name": self.yuno.yuno_name,
-        "yuno_version": self.yuno.yuno_version,
-        "yuno_release": self.yuno.yuno_version,
-        "yuneta_version": "4.19.0",
-        "playing": false,
+    let playing = gobj_is_playing(gobj_yuno());
+    let yuno_version = gobj_read_str_attr(gobj_yuno(), "yuno_version");
+    let yuno_release = gobj_read_str_attr(gobj_yuno(), "yuno_release");
+    let yuno_tag = gobj_read_str_attr(gobj_yuno(), "yuno_tag");
+
+
+    let kw = {
+        "yuno_role": gobj_yuno_role(),
+        "yuno_id": gobj_yuno_id(),
+        "yuno_name": gobj_yuno_name(),
+        "yuno_tag": yuno_tag,
+        "yuno_version": yuno_version,
+        "yuno_release": yuno_release,
+        "yuneta_version": YUNETA_VERSION,
+        "playing": playing,
         "pid": 0,
-        "jwt": self.config.jwt,
+        "watcher_pid": 0,
+        "jwt": gobj_read_str_attr(gobj, "jwt"),
+        "username": gobj_read_str_attr(gobj_yuno(), "__username__"),
+        "launch_id": 0,
+        "yuno_startdate": gobj_read_str_attr(gobj_yuno(), "start_date"),
+        "id": node_uuid(),
         "user_agent": navigator.userAgent,
-        "launch_id" : 0,
-        "yuno_startdate" : "", // TODO
-        "required_services": self.config.required_services
+        "required_services": gobj_read_attr(gobj_yuno(), "required_services")
     };
     /*
      *      __REQUEST__ __MESSAGE__
@@ -791,7 +807,7 @@ function resend_subscriptions(gobj)
 function ac_on_open(gobj, event, kw, src)
 {
     log_debug('Websocket opened: ' + gobj.priv.url); // TODO que no se vea en prod
-// TODO repon    send_identity_card(gobj);
+    send_identity_card(gobj);
     return 0;
 }
 
@@ -844,7 +860,6 @@ function ac_timeout_disconnected(gobj, event, kw, src)
 {
     let priv = gobj.priv;
 
-    // TODO ??? close_websocket(self);
     if(gobj_is_running(gobj)) {
         priv.websocket = setup_websocket(gobj);
     }
@@ -933,9 +948,9 @@ function ac_identity_card_ack(self, event, kw, src)
 /********************************************
  *
  ********************************************/
-function ac_timeout_wait_idAck(self, event, kw, src)
+function ac_timeout_wait_idAck(gobj, event, kw, src)
 {
-    send_identity_card(self);
+    send_identity_card(gobj);
     return 0;
 }
 

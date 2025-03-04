@@ -6,6 +6,7 @@
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved. ****************************************************************************/
 import {
+    YUNETA_VERSION,
     SDATA,
     SDATA_END,
     data_type_t,
@@ -50,6 +51,11 @@ SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",          0,  false,  "Set true to
 SDATA(data_type_t.DTP_STRING,   "yuno_name",            0,  "",     "Yuno name"),
 SDATA(data_type_t.DTP_STRING,   "yuno_role",            0,  "",     "Yuno role"),
 SDATA(data_type_t.DTP_STRING,   "yuno_version",         0,  "",     "Yuno version"),
+SDATA(data_type_t.DTP_STRING,   "yuno_release",         0,  "",     "Yuno Release. Set by agent"),
+SDATA(data_type_t.DTP_STRING,   "yuno_tag",             0,  "",     "Tags of yuno. Set by agent"),
+SDATA(data_type_t.DTP_STRING,   "yuno_id",              0,  "",     "Yuno Id. Set by agent"),
+
+SDATA(data_type_t.DTP_STRING,   "yuneta_version",       0,  YUNETA_VERSION, "Yuneta version"),
 
 SDATA(data_type_t.DTP_JSON,     "required_services",    0,  "[]",   "Required services"),
 

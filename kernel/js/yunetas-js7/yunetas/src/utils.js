@@ -2303,6 +2303,19 @@ function index_in_list(list, elm) {
     return -1;
 }
 
+/************************************************************
+ *
+ ************************************************************/
+function node_uuid()
+{
+    let uuid = window.localStorage.getItem("host_uuid");
+    if (!uuid) {
+        uuid = window.crypto.randomUUID();  // Generate a new UUID
+        window.localStorage.setItem("host_uuid", uuid);
+    }
+    return uuid;
+}
+
 
 export {
     kw_flag_t,
@@ -2400,4 +2413,5 @@ export {
     get_current_datetime,
     get_now,
     index_in_list,
+    node_uuid,
 };
