@@ -145,6 +145,7 @@ function main()
             yuno_name: yuno_name,
             yuno_role: yuno_role,
             yuno_version: yuno_version,
+            required_services: ["treedb_airedb", "treedb_authzs"],
             tracing: tracing,
             trace_timer: trace_timer,
             trace_inter_event: trace_inter_event,
@@ -176,7 +177,6 @@ function main()
         {
             remote_yuno_role: "db_history",
             remote_yuno_service: "db_history",
-            required_services: ["treedb_airedb", "treedb_authzs"], // HACK add others needed services
             url: "wss://localhost:1600",
             jwt: null,
         },

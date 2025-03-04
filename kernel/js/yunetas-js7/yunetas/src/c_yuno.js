@@ -50,6 +50,9 @@ SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",          0,  false,  "Set true to
 SDATA(data_type_t.DTP_STRING,   "yuno_name",            0,  "",     "Yuno name"),
 SDATA(data_type_t.DTP_STRING,   "yuno_role",            0,  "",     "Yuno role"),
 SDATA(data_type_t.DTP_STRING,   "yuno_version",         0,  "",     "Yuno version"),
+
+SDATA(data_type_t.DTP_JSON,     "required_services",    0,  "[]",   "Required services"),
+
 SDATA(data_type_t.DTP_INTEGER,  "tracing",              0,  0,      "Tracing level"),
 SDATA(data_type_t.DTP_INTEGER,  "trace_timer",          0,  0,      "Trace timers"),
 SDATA(data_type_t.DTP_INTEGER,  "trace_inter_event",    0,  0,      "Trace traffic"),

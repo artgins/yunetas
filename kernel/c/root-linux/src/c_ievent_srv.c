@@ -569,6 +569,12 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_idGot(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    gobj_log_info(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+        "msg",          "%s", "Timeout waiting identity card",
+        NULL
+    );
     drop(gobj);
 
     KW_DECREF(kw)

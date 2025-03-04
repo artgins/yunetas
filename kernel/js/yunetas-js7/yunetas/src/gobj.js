@@ -617,7 +617,7 @@ function gobj_hsdata2(gobj, name, verbose)
         return gobj_hsdata2(gobj.bottom_gobj, name, verbose);
     }
     if(verbose) {
-        log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+        log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     }
     return 0;
 }
@@ -2370,7 +2370,7 @@ function gobj_read_bool_attr(gobj, name)
         return json_object_get(hs, name);
     }
 
-    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     return 0;
 }
 
@@ -2396,7 +2396,7 @@ function gobj_read_integer_attr(gobj, name)
         return json_object_get(hs, name);
     }
 
-    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     return 0;
 }
 
@@ -2422,7 +2422,7 @@ function gobj_read_str_attr(gobj, name)
         return json_object_get(hs, name);
     }
 
-    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     return 0;
 }
 
@@ -2444,7 +2444,7 @@ function gobj_read_pointer_attr(gobj, name)
         return json_object_get(hs, name);
     }
 
-    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     return 0;
 }
 
@@ -2465,7 +2465,7 @@ function gobj_write_bool_attr(gobj, name, value)
         return 0;
     }
 
-    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     return -1;
 }
 
@@ -2486,7 +2486,7 @@ function gobj_write_integer_attr(gobj, name, value)
         return 0;
     }
 
-    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     return -1;
 }
 
@@ -2507,7 +2507,7 @@ function gobj_write_str_attr(gobj, name, value)
         return 0;
     }
 
-    log_warning(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     return -1;
 }
 

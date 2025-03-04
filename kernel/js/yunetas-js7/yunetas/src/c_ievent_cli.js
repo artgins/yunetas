@@ -149,9 +149,7 @@ function mt_create(gobj)
     /*
      *  Create childs
      */
-    gobj.priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
-
-    priv.periodic = gobj_read_bool_attr(gobj, "periodic");
+    priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
 
     priv.url = gobj_read_str_attr(gobj, "url");
     priv.remote_yuno_name = gobj_read_str_attr(gobj, "remote_yuno_name");
