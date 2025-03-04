@@ -405,9 +405,9 @@ SDATA (DTP_INTEGER, "cpu",              SDF_RD|SDF_STATS,"0",           "Cpu per
 SDATA (DTP_INTEGER, "disk_size_in_gigas",SDF_RD|SDF_STATS,"0",          "Disk size of /yuneta"),
 SDATA (DTP_INTEGER, "disk_free_percent",SDF_RD|SDF_STATS, "0",          "Disk free of /yuneta"),
 
-SDATA (DTP_JSON,    "tags",             SDF_RD,         "{}",           "tags"),
-SDATA (DTP_JSON,    "required_services",SDF_RD,         "{}",           "Required services"),
-SDATA (DTP_JSON,    "public_services",  SDF_RD,         "{}",           "Public services"),
+SDATA (DTP_JSON,    "tags",             SDF_RD,         "[]",           "tags"),
+SDATA (DTP_JSON,    "required_services",SDF_RD,         "[]",           "Required services"),
+SDATA (DTP_JSON,    "public_services",  SDF_RD,         "[]",           "Public services"),
 SDATA (DTP_JSON,    "service_descriptor",SDF_RD,        "{}",           "Public service descriptor"),
 SDATA (DTP_STRING,  "i18n_dirname",     SDF_RD,         "",             "dir_name parameter of bindtextdomain()"),
 SDATA (DTP_STRING,  "i18n_domain",      SDF_RD,         "",             "domain_name parameter of bindtextdomain() and textdomain()"),

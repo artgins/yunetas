@@ -116,6 +116,7 @@ SDATA_END()
  *              Private data
  *---------------------------------------------*/
 let PRIVATE_DATA = {
+    url:                null,
     remote_yuno_name:   null,
     remote_yuno_role:   null,
     remote_yuno_service:null,
@@ -152,6 +153,7 @@ function mt_create(gobj)
 
     priv.periodic = gobj_read_bool_attr(gobj, "periodic");
 
+    priv.url = gobj_read_str_attr(gobj, "url");
     priv.remote_yuno_name = gobj_read_str_attr(gobj, "remote_yuno_name");
     priv.remote_yuno_role = gobj_read_str_attr(gobj, "remote_yuno_role");
     priv.remote_yuno_service = gobj_read_str_attr(gobj, "remote_yuno_service");
@@ -177,6 +179,9 @@ function mt_writing(gobj, path)
     let priv = gobj.priv;
 
     switch(path) {
+        case "url":
+            priv.url = gobj_read_str_attr(gobj, "url");
+            break;
         case "remote_yuno_name":
             priv.remote_yuno_name = gobj_read_bool_attr(gobj, "remote_yuno_name");
             break;
@@ -473,10 +478,10 @@ function setup_websocket(gobj)
         gobj_send_event(gobj, "EV_ON_MESSAGE", { url, data: e.data }, gobj);
     };
 
-    websocket.onerror = (e) => {
-        log_error(`${gobj_short_name(gobj)}: WebSocket error occurred.`);
-        log_debug(`Error details: ${e}`);
-    };
+    // not useful
+    // websocket.onerror = (e) => {
+    //     log_error(`${gobj_short_name(gobj)}: WebSocket error occurred.`);
+    // };
 
     websocket.onclose = (e) => {
         gobj_send_event(

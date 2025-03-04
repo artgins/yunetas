@@ -171,7 +171,7 @@ function main()
      *-------------------------------------*/
     trace_msg("CREATING ievent");
     let gobj_ievent = gobj_create_default_service(
-        "sample",
+        "ievent_cli",
         "C_IEVENT_CLI",
         {
             remote_yuno_role: "db_history",
