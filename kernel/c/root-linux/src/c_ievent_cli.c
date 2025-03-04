@@ -745,7 +745,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     /*
      *  Here is the end point of the request.
      *  Don't pop the request, because in the
-     *  the event can be publish to serveral users.
+     *  the event can be publish to more users.
      */
     /*
      *      __ANSWER__ __MESSAGE__

@@ -1071,25 +1071,25 @@ function ac_identity_card_ack(gobj, event, kw, src)
     /*
      *  Here is the end point of the request.
      *  Don't pop the request, because
-     *  the event can be publish to serveral users.
+     *  the event can be publish to more users.
      */
     /*
      *      __ANSWER__ __MESSAGE__
      */
-    var request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
-    var src_yuno = kw_get_str(request, "src_yuno", "");
-    var src_role = kw_get_str(request, "src_role", "");
-    var src_service = kw_get_str(request, "src_service", "");
+    let request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
+    let src_yuno = kw_get_str(request, "src_yuno", "");
+    let src_role = kw_get_str(request, "src_role", "");
+    let src_service = kw_get_str(request, "src_service", "");
 
-    var result = kw_get_int(kw, "result", -1);
-    var comment = kw_get_str(kw, "comment", "");
-    var username_ = kw_get_str(kw, "username", "");
+    let result = kw_get_int(kw, "result", -1);
+    let comment = kw_get_str(kw, "comment", "");
+    let username_ = kw_get_str(kw, "username", "");
     if(result < 0) {
         close_websocket(gobj);
-        self.gobj_publish_event(
+        gobj.gobj_publish_event(
             'EV_IDENTITY_CARD_REFUSED',
             {
-                url: self.config.urls[self.config.idx_url],
+                url: gobj.config.urls[gobj.config.idx_url],
                 result: result,
                 comment: comment,
                 username_: username_,
@@ -1099,22 +1099,22 @@ function ac_identity_card_ack(gobj, event, kw, src)
             }
         );
     } else {
-        var services_roles = kw_get_dict_value(kw, "services_roles", {});
-        var data = kw_get_dict_value(kw, "data", null);
+        let services_roles = kw_get_dict_value(kw, "services_roles", {});
+        let data = kw_get_dict_value(kw, "data", null);
 
-        self.config.remote_yuno_role = src_role;
-        self.config.remote_yuno_name = src_yuno;
-        self.config.remote_yuno_service = src_service;
+        gobj.config.remote_yuno_role = src_role;
+        gobj.config.remote_yuno_name = src_yuno;
+        gobj.config.remote_yuno_service = src_service;
 
-        self.gobj_change_state("ST_SESSION");
-        self.config.inside_on_open = true;
+        gobj.gobj_change_state("ST_SESSION");
+        gobj.config.inside_on_open = true;
 
-        if(!self.inform_on_close) {
-            self.inform_on_close = true;
-            self.gobj_publish_event(
+        if(!gobj.inform_on_close) {
+            gobj.inform_on_close = true;
+            gobj.gobj_publish_event(
                 'EV_ON_OPEN',
                 {
-                    url: self.config.urls[self.config.idx_url],
+                    url: gobj.config.urls[gobj.config.idx_url],
                     remote_yuno_name: src_yuno,
                     remote_yuno_role: src_role,
                     remote_yuno_service: src_service,
@@ -1123,12 +1123,12 @@ function ac_identity_card_ack(gobj, event, kw, src)
                 }
             );
         }
-        self.config.inside_on_open = false;
+        gobj.config.inside_on_open = false;
 
         /*
          *  Resend subscriptions
          */
-        self.resend_subscriptions();
+        gobj.resend_subscriptions();
     }
 
     return 0;
