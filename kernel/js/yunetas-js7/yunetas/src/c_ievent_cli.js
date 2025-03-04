@@ -223,8 +223,7 @@ function mt_stop(gobj)
     clear_timeout(priv.gobj_timer);
 
     if(priv.websocket) {
-        close_websocket(priv.websocket);
-        priv.websocket = null;
+        close_websocket(gobj);
     }
 
     return 0;
@@ -511,8 +510,13 @@ function setup_websocket(gobj)
 /***************************************************************
  *  Closes the WebSocket connection safely.
  ***************************************************************/
-function close_websocket(websocket, code = 1000, reason = "")
+function close_websocket(gobj, code = 1000, reason = "")
 {
+    let priv = gobj.priv;
+
+    let websocket = priv.websocket;
+    priv.websocket = null;
+
     if (!websocket ||
         websocket.readyState === WebSocket.CLOSED ||
         websocket.readyState === WebSocket.CLOSING)
@@ -912,7 +916,7 @@ function ac_on_message(gobj, event, kw, src)
     let iev_kw = iev_msg.kw;
 
     /*-----------------------------------------*
-     *  If state is not SESSION send self.
+     *  If state is not in SESSION, send self.
      *  Mainly process EV_IDENTITY_CARD_ACK
      *-----------------------------------------*/
     if(gobj_current_state(gobj) !== "ST_SESSION") {
@@ -922,9 +926,10 @@ function ac_on_message(gobj, event, kw, src)
                 return 0;
             }
             // iev_kw consumed
-            return -1;
+        } else {
+            log_error(`event UNKNOWN in not-session state ${iev_event}`);
         }
-        log_error(`event UNKNOWN in not-session state ${iev_event}`);
+        close_websocket(gobj);
         return -1;
     }
 
@@ -1004,7 +1009,7 @@ function ac_on_message(gobj, event, kw, src)
 /********************************************
  *
  ********************************************/
-function ac_identity_card_ack(self, event, kw, src)
+function ac_identity_card_ack(gobj, event, kw, src)
 {
     /*---------------------------------------*
      *  Clear timeout
@@ -1031,7 +1036,7 @@ function ac_identity_card_ack(self, event, kw, src)
     var comment = kw_get_str(kw, "comment", "");
     var username_ = kw_get_str(kw, "username", "");
     if(result < 0) {
-        close_websocket(self);
+        close_websocket(gobj);
         self.gobj_publish_event(
             'EV_IDENTITY_CARD_REFUSED',
             {

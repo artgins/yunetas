@@ -877,10 +877,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
-    /*---------------------------------------*
-     *  If state is not SESSION send self.
+    /*-----------------------------------------*
+     *  If state is not in SESSION, send self.
      *  Mainly process EV_IDENTITY_CARD_ACK
-     *---------------------------------------*/
+     *-----------------------------------------*/
     if(gobj_current_state(gobj) != ST_SESSION) {
         if(gobj_has_event(gobj, iev_event, EVF_PUBLIC_EVENT)) {
             if(gobj_send_event(gobj, iev_event, iev_kw, gobj)==0) {
@@ -889,16 +889,16 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 return 0;
             }
             // iev_kw consumed
-            KW_DECREF(kw)
-            return -1;
+            iev_kw = NULL;
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "event UNKNOWN in not-session state",
+                "event",        "%s", iev_event,
+                NULL
+            );
         }
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "event UNKNOWN in not-session state",
-            "event",        "%s", iev_event,
-            NULL
-        );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
         KW_DECREF(iev_kw)
         KW_DECREF(kw)
