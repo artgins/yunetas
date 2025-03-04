@@ -759,7 +759,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     /*
      *  Here is the end point of the request.
      *  Don't pop the request, because in the
-     *  the event can be publish to more users.
+     *  the event can be publishing to more users.
      */
     /*
      *      __ANSWER__ __MESSAGE__
@@ -1374,7 +1374,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_PAUSE_YUNO,             EVF_PUBLIC_EVENT},  // request clients
         {EV_MT_STATS,               EVF_PUBLIC_EVENT},
         {EV_MT_COMMAND,             EVF_PUBLIC_EVENT},
-        {EV_SEND_COMMAND_ANSWER,    EVF_PUBLIC_EVENT},
+        {EV_SEND_COMMAND_ANSWER,    0},
 
         {EV_ON_OPEN,                EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_ON_CLOSE,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},

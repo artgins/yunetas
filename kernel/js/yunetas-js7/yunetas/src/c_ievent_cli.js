@@ -923,6 +923,87 @@ function ac_timeout_disconnected(gobj, event, kw, src)
 /***************************************************************
  *
  ***************************************************************/
+function ac_identity_card_ack(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    /*---------------------------------------*
+     *  Clear timeout
+     *---------------------------------------*/
+    clear_timeout(priv.gobj_timer);
+
+    /*---------------------------------------*
+     *  Update remote values
+     *---------------------------------------*/
+    /*
+     *  Here is the end point of the request.
+     *  Don't pop the request, because
+     *  the event can be publishing to more users.
+     */
+    /*
+     *      __ANSWER__ __MESSAGE__
+     */
+    let event_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
+    let src_yuno = kw_get_str(gobj, event_id, "src_yuno", "");
+    let src_role = kw_get_str(gobj, event_id, "src_role", "");
+    let src_service = kw_get_str(event_id, "src_service", "");
+    gobj_write_str_attr(gobj, "remote_yuno_name", src_yuno);
+    gobj_write_str_attr(gobj, "remote_yuno_role", src_role);
+    gobj_write_str_attr(gobj, "remote_yuno_service", src_service);
+
+    // WARNING comprueba result, ahora puede venir negativo
+    let result = kw_get_int(gobj, kw, "result", -1, 0);
+    if(result < 0) {
+        close_websocket(gobj);
+
+        /*
+         *  SERVICE subscription model
+         */
+        if(gobj_is_pure_child(gobj)) {
+            gobj_send_event(gobj_parent(gobj), "EV_ON_ID_NAK", kw, gobj);
+        } else {
+            gobj_publish_event(gobj, "EV_ON_ID_NAK", kw);
+        }
+
+    } else {
+        let data = kw_get_dict_value(gobj, kw, "data", null, 0);
+
+        gobj_change_state(gobj, "ST_SESSION");
+        priv.inside_on_open = true;
+
+        if(!priv.inform_on_close) {
+            priv.inform_on_close = true;
+            let kw_on_open = {
+                "remote_yuno_name": gobj_read_str_attr(gobj, "remote_yuno_name"),
+                "remote_yuno_role": gobj_read_str_attr(gobj, "remote_yuno_role"),
+                "remote_yuno_service": gobj_read_str_attr(gobj, "remote_yuno_service"),
+                "data": data
+            };
+
+            /*
+             *  SERVICE subscription model
+             */
+            if(gobj_is_pure_child(gobj)) {
+                gobj_send_event(gobj_parent(gobj), "EV_ON_OPEN", kw_on_open, gobj);
+            } else {
+                gobj_publish_event(gobj, "EV_ON_OPEN", kw_on_open);
+            }
+        }
+
+        priv.inside_on_open = false;
+
+        /*
+         *  Resend subscriptions
+         */
+        resend_subscriptions(gobj);
+    }
+
+    return 0;
+}
+
+/***************************************************************
+ *
+ ***************************************************************/
 function ac_on_message(gobj, event, kw, src)
 {
     let priv = gobj.priv;
@@ -1055,85 +1136,22 @@ function ac_on_message(gobj, event, kw, src)
     return 0;
 }
 
-/***************************************************************
- *
- ***************************************************************/
-function ac_identity_card_ack(gobj, event, kw, src)
+/***************************************************************************
+ *  remote asking for stats
+ ***************************************************************************/
+function ac_mt_stats(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
+    // TODO
+    return null;
+}
 
-    /*---------------------------------------*
-     *  Clear timeout
-     *---------------------------------------*/
-    clear_timeout(priv.gobj_timer);
-
-    /*---------------------------------------*
-     *  Update remote values
-     *---------------------------------------*/
-    /*
-     *  Here is the end point of the request.
-     *  Don't pop the request, because
-     *  the event can be publish to more users.
-     */
-    /*
-     *      __ANSWER__ __MESSAGE__
-     */
-    let event_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
-    let src_yuno = kw_get_str(gobj, event_id, "src_yuno", "");
-    let src_role = kw_get_str(gobj, event_id, "src_role", "");
-    let src_service = kw_get_str(event_id, "src_service", "");
-    gobj_write_str_attr(gobj, "remote_yuno_name", src_yuno);
-    gobj_write_str_attr(gobj, "remote_yuno_role", src_role);
-    gobj_write_str_attr(gobj, "remote_yuno_service", src_service);
-
-    // WARNING comprueba result, ahora puede venir negativo
-    let result = kw_get_int(gobj, kw, "result", -1, 0);
-    if(result < 0) {
-        close_websocket(gobj);
-
-        /*
-         *  SERVICE subscription model
-         */
-        if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), "EV_ON_ID_NAK", kw, gobj);
-        } else {
-            gobj_publish_event(gobj, "EV_ON_ID_NAK", kw);
-        }
-
-    } else {
-        let data = kw_get_dict_value(gobj, kw, "data", null, 0);
-
-        gobj_change_state(gobj, "ST_SESSION");
-        priv.inside_on_open = true;
-
-        if(!priv.inform_on_close) {
-            priv.inform_on_close = true;
-            let kw_on_open = {
-                "remote_yuno_name": gobj_read_str_attr(gobj, "remote_yuno_name"),
-                "remote_yuno_role": gobj_read_str_attr(gobj, "remote_yuno_role"),
-                "remote_yuno_service": gobj_read_str_attr(gobj, "remote_yuno_service"),
-                "data": data
-            };
-
-            /*
-             *  SERVICE subscription model
-             */
-            if(gobj_is_pure_child(gobj)) {
-                gobj_send_event(gobj_parent(gobj), "EV_ON_OPEN", kw_on_open, gobj);
-            } else {
-                gobj_publish_event(gobj, "EV_ON_OPEN", kw_on_open);
-            }
-        }
-
-        priv.inside_on_open = false;
-
-        /*
-         *  Resend subscriptions
-         */
-        resend_subscriptions(gobj);
-    }
-
-    return 0;
+/***************************************************************************
+ *  remote asking for command
+ ***************************************************************************/
+function ac_mt_command(gobj, event, kw, src)
+{
+    // TODO
+    return null;
 }
 
 /********************************************
@@ -1200,6 +1218,8 @@ function create_gclass(gclass_name)
     ];
     const st_session = [
         ["EV_ON_MESSAGE",           ac_on_message,          null],
+        ["EV_MT_STATS",             ac_mt_stats,            null],
+        ["EV_MT_COMMAND",           ac_mt_command,          null],
         ["EV_ON_CLOSE",             ac_on_close,            "ST_DISCONNECTED"],
         [null, null, null]
     ];
@@ -1217,6 +1237,11 @@ function create_gclass(gclass_name)
     const event_types = [
         ["EV_ON_MESSAGE",           event_flag_t.EVF_OUTPUT_EVENT],
         ["EV_IDENTITY_CARD_ACK",    event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_ON_ID_NAK",            event_flag_t.EVF_PUBLIC_EVENT],
+
+        ["EV_MT_STATS",             event_flag_t.EVF_PUBLIC_EVENT],
+        ["EV_MT_COMMAND",           event_flag_t.EVF_PUBLIC_EVENT],
+
         ["EV_ON_OPEN",              event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_ON_CLOSE",             event_flag_t.EVF_OUTPUT_EVENT|event_flag_t.EVF_NO_WARN_SUBS],
         ["EV_TIMEOUT",              0],
