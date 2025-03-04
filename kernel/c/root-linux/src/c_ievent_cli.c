@@ -797,8 +797,8 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
         }
 
         /*
-        *  Resend subscriptions
-        */
+         *  Resend subscriptions
+         */
         resend_subscriptions(gobj);
     }
 

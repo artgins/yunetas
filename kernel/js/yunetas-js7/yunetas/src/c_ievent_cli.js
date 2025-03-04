@@ -45,7 +45,7 @@ import {
     gobj_read_attr,
     gobj_yuno_id,
     gobj_has_event,
-    gobj_find_service,
+    gobj_find_service, gobj_change_state,
 
 } from "./gobj.js";
 
@@ -1076,59 +1076,59 @@ function ac_identity_card_ack(gobj, event, kw, src)
     /*
      *      __ANSWER__ __MESSAGE__
      */
-    let request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
-    let src_yuno = kw_get_str(request, "src_yuno", "");
-    let src_role = kw_get_str(request, "src_role", "");
-    let src_service = kw_get_str(request, "src_service", "");
+    let event_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
+    let src_yuno = kw_get_str(gobj, event_id, "src_yuno", "");
+    let src_role = kw_get_str(gobj, event_id, "src_role", "");
+    let src_service = kw_get_str(event_id, "src_service", "");
+    gobj_write_str_attr(gobj, "remote_yuno_name", src_yuno);
+    gobj_write_str_attr(gobj, "remote_yuno_role", src_role);
+    gobj_write_str_attr(gobj, "remote_yuno_service", src_service);
 
-    let result = kw_get_int(kw, "result", -1);
-    let comment = kw_get_str(kw, "comment", "");
-    let username_ = kw_get_str(kw, "username", "");
+    // WARNING comprueba result, ahora puede venir negativo
+    let result = kw_get_int(gobj, kw, "result", -1, 0);
     if(result < 0) {
         close_websocket(gobj);
-        gobj.gobj_publish_event(
-            'EV_IDENTITY_CARD_REFUSED',
-            {
-                url: gobj.config.urls[gobj.config.idx_url],
-                result: result,
-                comment: comment,
-                username_: username_,
-                remote_yuno_name: src_yuno,
-                remote_yuno_role: src_role,
-                remote_yuno_service: src_service
-            }
-        );
-    } else {
-        let services_roles = kw_get_dict_value(kw, "services_roles", {});
-        let data = kw_get_dict_value(kw, "data", null);
 
-        gobj.config.remote_yuno_role = src_role;
-        gobj.config.remote_yuno_name = src_yuno;
-        gobj.config.remote_yuno_service = src_service;
-
-        gobj.gobj_change_state("ST_SESSION");
-        gobj.config.inside_on_open = true;
-
-        if(!gobj.inform_on_close) {
-            gobj.inform_on_close = true;
-            gobj.gobj_publish_event(
-                'EV_ON_OPEN',
-                {
-                    url: gobj.config.urls[gobj.config.idx_url],
-                    remote_yuno_name: src_yuno,
-                    remote_yuno_role: src_role,
-                    remote_yuno_service: src_service,
-                    services_roles: services_roles,
-                    data: data
-                }
-            );
+        /*
+         *  SERVICE subscription model
+         */
+        if(gobj_is_pure_child(gobj)) {
+            gobj_send_event(gobj_parent(gobj), "EV_ON_ID_NAK", kw, gobj);
+        } else {
+            gobj_publish_event(gobj, "EV_ON_ID_NAK", kw);
         }
-        gobj.config.inside_on_open = false;
+
+    } else {
+        let data = kw_get_dict_value(gobj, kw, "data", null, 0);
+
+        gobj_change_state(gobj, "ST_SESSION");
+        priv.inside_on_open = true;
+
+        if(!priv.inform_on_close) {
+            priv.inform_on_close = true;
+            let kw_on_open = {
+                "remote_yuno_name": gobj_read_str_attr(gobj, "remote_yuno_name"),
+                "remote_yuno_role": gobj_read_str_attr(gobj, "remote_yuno_role"),
+                "remote_yuno_service": gobj_read_str_attr(gobj, "remote_yuno_service"),
+                "data": data
+            };
+
+            /*
+             *  SERVICE subscription model
+             */
+            if(gobj_is_pure_child(gobj)) {
+                gobj_send_event(gobj_parent(gobj), "EV_ON_OPEN", kw_on_open, gobj);
+            } else {
+                gobj_publish_event(gobj, "EV_ON_OPEN", kw_on_open);
+            }
+        }
+
+        priv.inside_on_open = false;
 
         /*
          *  Resend subscriptions
          */
-        gobj.resend_subscriptions();
+        resend_subscriptions(gobj);
     }
 
     return 0;
