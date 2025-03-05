@@ -57,6 +57,8 @@ let trace_timer = 0;
 let trace_inter_event = 0;
 let trace_creation = 1;
 let trace_i18n = 0;
+let trace_start_stop = 0;
+let trace_subscriptions = 1;
 
 /************************************************
  *          Startup code
@@ -152,6 +154,8 @@ function main()
             trace_ievent_callback: null,
             trace_creation: kw_get_local_storage_value("trace_creation", trace_creation,false),
             trace_i18n: kw_get_local_storage_value("trace_i18n", trace_i18n, false),
+            trace_start_stop: kw_get_local_storage_value("trace_start_stop", trace_start_stop,false),
+            trace_subscriptions: kw_get_local_storage_value("trace_subscriptions", trace_subscriptions,false),
         }
     );
 

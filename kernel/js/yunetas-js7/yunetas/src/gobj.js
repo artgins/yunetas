@@ -1691,11 +1691,13 @@ function gobj_start(gobj)
     //     return -1;
     // }
 
-    // if(__trace_gobj_start_stop__(gobj)) {
-    //     trace_machine("⏺ ⏺ start: %s",
-    //         gobj_full_name(gobj)
-    //     );
-    // }
+    //if(__trace_gobj_start_stop__(gobj)) {
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
+    if(tracea) {
+        trace_machine("⏺ ⏺ start: %s",
+            gobj_full_name(gobj)
+        );
+    }
 
     gobj.running = true;
 
@@ -1725,11 +1727,13 @@ function gobj_stop(gobj)
         gobj_pause(gobj);
     }
 
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
+    if(tracea) {
     // if(__trace_gobj_start_stop__(gobj)) {
-    //     trace_machine("⏹ ⏹ stop: %s",
-    //         gobj_full_name(gobj)
-    //     );
-    // }
+        trace_machine("⏹ ⏹ stop: %s",
+            gobj_full_name(gobj)
+        );
+    }
 
     gobj.running = false;
 
@@ -1769,13 +1773,13 @@ function gobj_play(gobj)
         }
     }
 
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
+    if(tracea) {
     // if(__trace_gobj_start_stop__(gobj)) {
-    //     if(!is_machine_not_tracing(gobj, 0)) {
-    //         trace_machine("⏯ ⏯ play: %s",
-    //             gobj_full_name(gobj)
-    //         );
-    //     }
-    // }
+        trace_machine("⏯ ⏯ play: %s",
+            gobj_full_name(gobj)
+        );
+    }
 
     gobj.playing = true;
 
@@ -1803,13 +1807,13 @@ function gobj_pause(gobj)
         return -1;
     }
 
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
+    if(tracea) {
     // if(__trace_gobj_start_stop__(gobj)) {
-    //     if(!is_machine_not_tracing(gobj, 0)) {
-    //         trace_machine("⏸ ⏸ pause: %s",
-    //             gobj_full_name(gobj)
-    //         );
-    //     }
-    // }
+        trace_machine("⏸ ⏸ pause: %s",
+            gobj_full_name(gobj)
+        );
+    }
 
     gobj.playing = false;
 
@@ -3052,23 +3056,17 @@ function _delete_subscription(
     /*-----------------------------*
      *          Trace
      *-----------------------------*/
-    // if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)
-    // ) {
-    //     trace_machine(
-    //         "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
-    //         event?event:"",
-    //         gobj_short_name(subscriber),
-    //         gobj_short_name(publisher)
-    //     );
-    //     gobj_trace_json(
-    //         gobj,
-    //         subs,
-    //         "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
-    //         event?event:"",
-    //         gobj_short_name(subscriber),
-    //         gobj_short_name(publisher)
-    //     );
-    // }
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_subscriptions");
+    if(tracea) {
+    // if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher) ) {
+        trace_machine(
+            "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
+            event?event:"",
+            gobj_short_name(subscriber),
+            gobj_short_name(publisher)
+        );
+        trace_json(subs);
+    }
 
     /*------------------------------------------------*
      *      Inform (BEFORE) of subscription removed
@@ -3184,27 +3182,19 @@ function gobj_subscribe_event(
     /*-----------------------------*
      *          Trace
      *-----------------------------*/
-    // if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)
-    // ) {
-    //     trace_machine(
-    //         "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
-    //         event?event:"",
-    //         gobj_short_name(subscriber),
-    //         gobj_short_name(publisher)
-    //     );
-    //     if(kw) {
-    //         if(json_object_size(kw)) {
-    //             gobj_trace_json(
-    //                 publisher,
-    //                 subs,
-    //                 "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
-    //                 event?event:"",
-    //                 gobj_short_name(subscriber),
-    //                 gobj_short_name(publisher)
-    //             );
-    //         }
-    //     }
-    // }
+    // if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)) {
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_subscriptions");
+    if(tracea) {
+        trace_machine(
+            "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
+            event?event:"",
+            gobj_short_name(subscriber),
+            gobj_short_name(publisher)
+        );
+        if(kw) {
+            trace_json(kw);
+        }
+    }
 
     /*--------------------------------*
      *      Inform new subscription
@@ -3489,23 +3479,20 @@ function gobj_publish_event(
 
     event = ev.event_name;
 
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_subscriptions");
     // let tracea = __trace_gobj_subscriptions__(publisher) &&
     //     !is_machine_not_tracing(publisher, event);
-    // if(tracea) {
-    //     trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
-    //         (!publisher.running)?"!!":"",
-    //         gobj_gclass_name(publisher), gobj_name(publisher),
-    //         publisher.current_state.state_name,
-    //         On_Black BBlue,
-    //         event?event:"",
-    //         Color_Off
-    //     );
-    //     if(__trace_gobj_ev_kw__(publisher)) {
-    //         if(json_object_size(kw)) {
-    //             gobj_trace_json(publisher, kw, "kw publish event %s", event?event:"");
-    //         }
-    //     }
-    // }
+    if(tracea) {
+        trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
+            (!publisher.running)?"!!":"",
+            gobj_gclass_name(publisher), gobj_name(publisher),
+            publisher.current_state.state_name,
+            "", //On_Black BBlue,
+            event?event:"",
+            "" //Color_Off
+        );
+        trace_json(kw);
+    }
 
     /*----------------------------------------------------------*
      *  Own publication method
@@ -3604,24 +3591,16 @@ function gobj_publish_event(
                 if(__publish_event_match__) {
                     topublish = __publish_event_match__(kw2publish , __filter__);
                 }
-                // if(tracea) {
-                //     trace_machine(
-                //         "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
-                //         topublish?"👍":"👎",
-                //         event?event:"",
-                //         gobj_short_name(subscriber),
-                //         gobj_short_name(publisher)
-                //     );
-                //     gobj_trace_json(
-                //         publisher,
-                //         __filter__,
-                //         "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
-                //         topublish?"👍":"👎",
-                //         event?event:"",
-                //         gobj_short_name(subscriber),
-                //         gobj_short_name(publisher)
-                //     );
-                // }
+                if(tracea) {
+                    trace_machine(
+                        "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
+                        topublish?"👍":"👎",
+                        event?event:"",
+                        gobj_short_name(subscriber),
+                        gobj_short_name(publisher)
+                    );
+                    trace_json(__filter__);
+                }
             }
 
             if(topublish<0) {
@@ -3678,21 +3657,17 @@ function gobj_publish_event(
             /*
              *  Send event
              */
-            // if(tracea) {
-            //     trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
-            //         (!subscriber.running)?"!!":"",
-            //         gobj_short_name(subscriber),
-            //         gobj_current_state(subscriber),
-            //         event?event:"",
-            //         (publisher && !publisher.running)?"!!":"",
-            //         gobj_short_name(publisher)
-            //     );
-            //     if(__trace_gobj_ev_kw__(publisher)) {
-            //         if(json_object_size(kw2publish)) {
-            //             gobj_trace_json(publisher, kw2publish, "kw publish send event");
-            //         }
-            //     }
-            // }
+            if(tracea) {
+                trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
+                    (!subscriber.running)?"!!":"",
+                    gobj_short_name(subscriber),
+                    gobj_current_state(subscriber),
+                    event?event:"",
+                    (publisher && !publisher.running)?"!!":"",
+                    gobj_short_name(publisher)
+                );
+                trace_json(kw2publish);
+            }
 
             let ret_ = gobj_send_event(
                 subscriber,

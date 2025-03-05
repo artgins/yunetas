@@ -45,7 +45,10 @@ import {
     gobj_read_attr,
     gobj_yuno_id,
     gobj_has_event,
-    gobj_find_service, gobj_change_state,
+    gobj_find_service,
+    gobj_change_state,
+    gobj_start,
+    gobj_stop,
 
 } from "./gobj.js";
 
@@ -211,8 +214,9 @@ function mt_start(gobj)
 {
     let priv = gobj.priv;
 
-    priv.websocket = setup_websocket(gobj);
+    gobj_start(priv.gobj_timer);
 
+    priv.websocket = setup_websocket(gobj);
     return 0;
 }
 
@@ -224,6 +228,8 @@ function mt_stop(gobj)
     let priv = gobj.priv;
 
     clear_timeout(priv.gobj_timer);
+
+    gobj_stop(priv.gobj_timer);
 
     if(priv.websocket) {
         close_websocket(gobj);
