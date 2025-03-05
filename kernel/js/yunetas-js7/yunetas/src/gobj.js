@@ -1357,15 +1357,6 @@ function gobj_create2(
         ));
     }
 
-    // TODO from gobj.js 6, is valid?
-    // gobj.tracing = 0;
-    // gobj.trace_timer = 0;
-    // gobj.running = false;
-    // gobj._destroyed = false;
-    // gobj.timer_id = -1; // for now, only one timer per fsm, and hardcoded.
-    // gobj.timer_event_name = "EV_TIMEOUT";
-    // gobj.__volatil__ = (gobj_flag & gobj_flag_t.gobj_flag_volatil);
-
     /*--------------------------------*
      *  Write configuration
      *--------------------------------*/
@@ -1626,21 +1617,6 @@ function gobj_destroy(gobj)
     if(gobj.obflag & obflag_t.obflag_created) {
         gobj.gclass.instances--;
     }
-
-
-
-    // TODO var dl_childs = gobj.dl_childs.slice();
-    //
-    // for (var i=0; i < dl_childs.length; i++) {
-    //     var child = dl_childs[i];
-    //     if (!child._destroyed) {
-    //         self.gobj_destroy(child);
-    //     }
-    // }
-    //
-    // gobj.clear_timeout();
-    //
-
 }
 
 /************************************************************
@@ -1648,7 +1624,14 @@ function gobj_destroy(gobj)
  ************************************************************/
 function gobj_destroy_childs(gobj)
 {
-    // TODO
+    let dl_childs = gobj.dl_childs.slice();
+
+    for(let i=0; i < dl_childs.length; i++) {
+        let child = dl_childs[i];
+        if (!gobj_is_destroying(child)) {
+            gobj_destroy(child);
+        }
+    }
 }
 
 /************************************************************
@@ -2378,10 +2361,7 @@ function gobj_read_bool_attr(gobj, name)
     if(hs) {
         if(gobj.gclass.gmt.mt_reading) {
             if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
-                let v = gobj.gclass.gmt.mt_reading(gobj, name); // TODO review
-                if(v.found) {
-                    return v.v.b;
-                }
+                return gobj.gclass.gmt.mt_reading(gobj, name);
             }
         }
         return json_object_get(hs, name);
@@ -2404,10 +2384,7 @@ function gobj_read_integer_attr(gobj, name)
     if(hs) {
         if(gobj.gclass.gmt.mt_reading) {
             if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
-                let v = gobj.gclass.gmt.mt_reading(gobj, name); // TODO review
-                if(v.found) {
-                    return v.v.i;
-                }
+                return gobj.gclass.gmt.mt_reading(gobj, name);
             }
         }
         return json_object_get(hs, name);
@@ -2430,10 +2407,7 @@ function gobj_read_str_attr(gobj, name)
     if(hs) {
         if(gobj.gclass.gmt.mt_reading) {
             if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
-                let v = gobj.gclass.gmt.mt_reading(gobj, name); // TODO review
-                if(v.found) {
-                    return v.v.s;
-                }
+                return gobj.gclass.gmt.mt_reading(gobj, name);
             }
         }
         return json_object_get(hs, name);
@@ -2452,10 +2426,7 @@ function gobj_read_pointer_attr(gobj, name)
     if(hs) {
         if(gobj.gclass.gmt.mt_reading) {
             if(!(gobj.obflag & obflag_t.obflag_destroyed)) {
-                let v = gobj.gclass.gmt.mt_reading(gobj, name); // TODO review
-                if(v.found) {
-                    return v.v.p;
-                }
+                return gobj.gclass.gmt.mt_reading(gobj, name);
             }
         }
         return json_object_get(hs, name);

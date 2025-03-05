@@ -65,11 +65,11 @@ SDATA(data_type_t.DTP_STRING,   "yuneta_version",       0,  YUNETA_VERSION, "Yun
 SDATA(data_type_t.DTP_JSON,     "required_services",    0,  "[]",   "Required services"),
 
 SDATA(data_type_t.DTP_INTEGER,  "tracing",              0,  0,      "Tracing level"),
-SDATA(data_type_t.DTP_INTEGER,  "trace_timer",          0,  0,      "Trace timers"),
-SDATA(data_type_t.DTP_INTEGER,  "trace_inter_event",    0,  0,      "Trace traffic"),
+SDATA(data_type_t.DTP_BOOLEAN,  "trace_timer",          0,  0,      "Trace timers"),
+SDATA(data_type_t.DTP_BOOLEAN,  "trace_inter_event",    0,  0,      "Trace traffic"),
 SDATA(data_type_t.DTP_POINTER,  "trace_ievent_callback",0,  null,   "Trace traffic callback"),
-SDATA(data_type_t.DTP_INTEGER,  "trace_creation",       0,  0,      "Trace creation"),
-SDATA(data_type_t.DTP_INTEGER,  "trace_i18n",           0,  0,      "Trace i18n"),
+SDATA(data_type_t.DTP_BOOLEAN,  "trace_creation",       0,  0,      "Trace creation"),
+SDATA(data_type_t.DTP_BOOLEAN,  "trace_i18n",           0,  0,      "Trace i18n"),
 SDATA(data_type_t.DTP_INTEGER,  "periodic_timeout",     0,  "1000", "Timeout periodic, in miliseconds."),
 SDATA_END()
 ];
