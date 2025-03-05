@@ -24,6 +24,8 @@ To build:
     vite build
 
 To publish a new version of yunetas:
+    
+    # change the version in package.json
 
     npm publish --access public
 
