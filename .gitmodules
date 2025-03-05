@@ -1,6 +1,3 @@
-[submodule "yunos/gui_yunetas.js"]
-	path = yunos/gui_yunetas.js
-	url = https://github.com/artgins/gui_yunetas.js.git
 [submodule "yunos/tui_yunetas"]
 	path = yunos/tui_yunetas
 	url = https://github.com/artgins/tui_yunetas.py.git
