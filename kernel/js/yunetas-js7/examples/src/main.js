@@ -14,12 +14,8 @@ import {
     db_list_persistent_attrs,
     gobj_create_yuno,
     gobj_create_default_service,
-    gobj_create,
-    gobj_destroy,
     gobj_start,
-    gobj_stop,
     gobj_play,
-    gobj_pause,
     gobj_yuno,
     trace_msg,
     register_c_yuno,
@@ -48,17 +44,17 @@ const yuno_version = "1.0.0";
  *  1: without kw details
  *  2: with kw details.
  */
-let tracing = 1;
+let tracing = 0;
 let trace_timer = 0;
 
 /*
  *  Trace inter-events or gobjs creation
  */
 let trace_inter_event = 0;
-let trace_creation = 1;
+let trace_creation = 0;
 let trace_i18n = 0;
 let trace_start_stop = 0;
-let trace_subscriptions = 1;
+let trace_subscriptions = 0;
 
 /************************************************
  *          Startup code
