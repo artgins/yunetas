@@ -193,13 +193,13 @@ function mt_writing(gobj, path)
             priv.url = gobj_read_str_attr(gobj, "url");
             break;
         case "remote_yuno_name":
-            priv.remote_yuno_name = gobj_read_bool_attr(gobj, "remote_yuno_name");
+            priv.remote_yuno_name = gobj_read_str_attr(gobj, "remote_yuno_name");
             break;
         case "remote_yuno_role":
-            priv.remote_yuno_role = gobj_read_bool_attr(gobj, "remote_yuno_role");
+            priv.remote_yuno_role = gobj_read_str_attr(gobj, "remote_yuno_role");
             break;
         case "remote_yuno_service":
-            priv.remote_yuno_service = gobj_read_bool_attr(gobj, "remote_yuno_service");
+            priv.remote_yuno_service = gobj_read_str_attr(gobj, "remote_yuno_service");
             break;
     }
 }
