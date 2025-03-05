@@ -16,7 +16,6 @@ import {
     is_number,
     log_error,
     log_warning,
-    trace_machine,
     empty_string,
     json_deep_copy,
     json_object_update,
@@ -40,6 +39,9 @@ import {
     kw_pop,
     json_is_identical,
     kw_get_pointer,
+    json_object_size,
+    current_timestamp,
+    log_debug,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -67,8 +69,6 @@ let __publish_event_match__ = kw_match_simple;
  *  System (gobj) output events
  */
 let dl_global_event_types = [];
-
-let trace_creation = false;
 
 let _gclass_register = {};
 let __jn_services__ = {};
@@ -322,6 +322,26 @@ class Event_Type { // C event_type_t
         this.event_name = event_name;
         this.event_flag = Number(event_flag) || 0;
     }
+}
+
+function tab()
+{
+    let bf = '';
+    for(let i=1; i<__inside__*2; i++) {
+        bf += ' ';
+    }
+    return bf;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function trace_machine(msg)
+{
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
+    }
+    log_debug(tab() + String(msg), "color:lime");
 }
 
 /************************************************************
@@ -1351,6 +1371,7 @@ function gobj_create2(
      *--------------------------------*/
     let gobj = new GObj(gobj_name, gclass, kw, parent, gobj_flag);
 
+    let trace_creation = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_creation");
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
         trace_machine(sprintf("💙💙⏩ creating: %s^%s",
             gclass.gclass_name, gobj_name
@@ -1524,6 +1545,7 @@ function gobj_destroy(gobj)
     }
     gobj.obflag |= obflag_t.obflag_destroying;
 
+    let trace_creation = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_creation");
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
         trace_machine("💔💔⏩ destroying: " + gobj_full_name(gobj));
     }
@@ -2661,43 +2683,45 @@ function gobj_send_event(dst, event, kw, src)
      *  Find the event/action in state
      *----------------------------------*/
     let tracea = 0; // TODO is_machine_tracing(dst, event) && !is_machine_not_tracing(src, event);
+    tracea = __yuno__ && gobj_read_integer_attr(__yuno__, "tracing");
     __inside__ ++;
 
     let event_action = _find_event_action(state, event);
     if(!event_action) {
         if(dst.gclass.gmt.mt_inject_event) {
             __inside__ --;
-            // if(tracea) {
-                // trace_machine("🔃 mach(%s%s), st: %s, ev: %s, from(%s%s)",
-                //     (!dst.running)?"!!":"",
-                //     gobj_short_name(dst),
-                //     state.state_name,
-                //     event?event:"",
-                //     (src && !src.running)?"!!":"",
-                //     gobj_short_name(src)
-                // );
-                // if(kw) {
-                //     if(__trace_gobj_ev_kw__(dst)) {
-                //         if(json_object_size(kw)) {
-                //             gobj_trace_json(dst, kw, "kw send_event");
-                //         }
-                //     }
-                // }
-            // }
+            if(tracea) {
+                trace_machine(sprintf("🔃 mach(%s%s), st: %s, ev: %s, from(%s%s)",
+                    (!dst.running)?"!!":"",
+                    gobj_short_name(dst),
+                    state.state_name,
+                    event?event:"",
+                    (src && !src.running)?"!!":"",
+                    gobj_short_name(src)
+                ));
+                if(kw) {
+                    //if(__trace_gobj_ev_kw__(dst)) {
+                    if(tracea > 1) {
+                        if(json_object_size(kw)) {
+                            trace_json(kw);
+                        }
+                    }
+                }
+            }
             return dst.gclass.gmt.mt_inject_event(dst, event, kw, src);
         }
 
-        // if(tracea) {
-        //     trace_machine(
-        //         "📛 mach(%s%s^%s), st: %s, ev: %s, 📛📛ERROR Event NOT DEFINED in state📛📛, from(%s%s^%s)",
-        //         (!dst.running)?"!!":"",
-        //         gobj_gclass_name(dst), gobj_name(dst),
-        //         state.state_name,
-        //         event?event:"",
-        //         (src && !src.running)?"!!":"",
-        //         gobj_gclass_name(src), gobj_name(src)
-        //     );
-        // }
+        if(tracea) {
+            trace_machine(sprintf(
+                "📛 mach(%s%s^%s), st: %s, ev: %s, 📛📛ERROR Event NOT DEFINED in state📛📛, from(%s%s^%s)",
+                (!dst.running)?"!!":"",
+                gobj_gclass_name(dst), gobj_name(dst),
+                state.state_name,
+                event?event:"",
+                (src && !src.running)?"!!":"",
+                gobj_gclass_name(src), gobj_name(src)
+            ));
+        }
         log_error(`📛📛 Event NOT DEFINED in state 📛📛: ${gobj_short_name(dst)}, ${state.state_name}, ${event}`);
 
         __inside__ --;
@@ -2714,25 +2738,25 @@ function gobj_send_event(dst, event, kw, src)
     /*----------------------------------*
      *      Exec the event
      *----------------------------------*/
-    // if(tracea) {
-    //     trace_machine("🔄 mach(%s%s^%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
-    //         (!dst.running)?"!!":"",
-    //         gobj_gclass_name(dst), gobj_name(dst),
-    //         state.state_name,
-    //         On_Black RBlue,
-    //         event?event:"",
-    //         Color_Off,
-    //         (src && !src.running)?"!!":"",
-    //         gobj_gclass_name(src), gobj_name(src)
-    //     );
-    //     if(kw) {
-    //         if(__trace_gobj_ev_kw__(dst)) {
-    //             if(json_object_size(kw)) {
-    //                 gobj_trace_json(dst, kw, "kw exec event: %s", event?event:"");
-    //             }
-    //         }
-    //     }
-    // }
+    if(tracea) {
+        trace_machine(sprintf("🔄 mach(%s%s^%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
+            (!dst.running)?"!!":"",
+            gobj_gclass_name(dst), gobj_name(dst),
+            state.state_name,
+            "", //On_Black RBlue,
+            event?event:"",
+            "", //Color_Off,
+            (src && !src.running)?"!!":"",
+            gobj_gclass_name(src), gobj_name(src)
+        ));
+        if(kw) {
+            if(tracea > 1) { //if(__trace_gobj_ev_kw__(dst)) {
+                if(json_object_size(kw)) {
+                    trace_json(kw);
+                }
+            }
+        }
+    }
 
     /*
      *  IMPORTANT HACK
@@ -2755,13 +2779,13 @@ function gobj_send_event(dst, event, kw, src)
     }
 
     if(tracea && !(dst.obflag & obflag_t.obflag_destroyed)) {
-        // trace_machine("<- mach(%s%s^%s), st: %s, ev: %s, ret: %d",
-        //     (!dst.running)?"!!":"",
-        //     gobj_gclass_name(dst), gobj_name(dst),
-        //     dst.current_state.state_name,
-        //     event?event:"",
-        //     ret
-        // );
+        trace_machine(sprintf("<- mach(%s%s^%s), st: %s, ev: %s, ret: %d",
+            (!dst.running)?"!!":"",
+            gobj_gclass_name(dst), gobj_name(dst),
+            dst.current_state.state_name,
+            event?event:"",
+            ret
+        ));
     }
 
     __inside__ --;

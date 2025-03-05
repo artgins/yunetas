@@ -94,17 +94,6 @@ function log_debug(msg)
     }
 }
 
-function trace_machine(msg)
-{
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
-    }
-    let hora = current_timestamp();
-    if(f_debug) {
-        f_debug("%c" + hora + " TRACE: " + String(msg), "color:lime");
-    }
-}
-
 function trace_msg(msg)
 {
     if(is_object(msg)) {
@@ -2347,7 +2336,6 @@ export {
     log_warning,
     log_info,
     log_debug,
-    trace_machine,
     trace_msg,
     trace_json,
 

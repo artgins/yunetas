@@ -48,14 +48,14 @@ const yuno_version = "1.0.0";
  *  1: without kw details
  *  2: with kw details.
  */
-let tracing = 0;
+let tracing = 1;
 let trace_timer = 0;
 
 /*
  *  Trace inter-events or gobjs creation
  */
 let trace_inter_event = 0;
-let trace_creation = 0;
+let trace_creation = 1;
 let trace_i18n = 0;
 
 /************************************************
