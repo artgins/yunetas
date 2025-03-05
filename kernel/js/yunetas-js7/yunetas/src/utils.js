@@ -1155,7 +1155,7 @@ function kw_clone_by_keys(kw, keys)    // old filter_dict
  ********************************************/
 function kw_get_local_storage_value(key, default_value, create)
 {
-    if(!(key && window.JSON && window.localStorage)) {
+    if(!(key && window && window.JSON && window.localStorage)) {
         return undefined;
     }
 
@@ -1180,7 +1180,7 @@ function kw_get_local_storage_value(key, default_value, create)
  ********************************************/
 function kw_set_local_storage_value(key, value)
 {
-    if(key && window.JSON && window.localStorage) {
+    if(key && window && window.JSON && window.localStorage) {
         if(value !== undefined) {
             window.localStorage.setItem(key, JSON.stringify(value));
         }
@@ -1192,7 +1192,7 @@ function kw_set_local_storage_value(key, value)
  ********************************************/
 function kw_remove_local_storage_value(key)
 {
-    if(key && window.localStorage) {
+    if(key && window && window.localStorage) {
         window.localStorage.removeItem(key);
     }
 }
@@ -1707,21 +1707,13 @@ function create_json_record(json_desc, value) // here in js `json_desc` it's a d
  *          log function
  ************************************************************/
 
-/************************************************************
- *          low level log function
- ************************************************************/
-function _logger(msg)
-{
-    window.console.log(msg);
-}
-
 /********************************************
  *  Log functions
  ********************************************/
-let f_error = null;
-let f_warning = null;
-let f_info = null;
-let f_debug = null;
+let f_error = window.console.error;
+let f_warning = window.console.warn;
+let f_info = window.console.info;
+let f_debug = window.console.debug;
 
 function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
 {
@@ -1745,13 +1737,10 @@ function log_error(msg)
         msg = JSON.stringify(msg);
     }
     let hora = current_timestamp();
-    window.console.log("%c" + hora + " ERROR: " + String(msg), "color:yellow");
 
     if(f_error) {
-        f_error("" + hora + " ERROR: " + String(msg));
+        f_error("%c" + hora + " ERROR: " + String(msg), "color:yellow");
     }
-
-    window.console.error(msg);
 }
 
 function log_warning(msg)
@@ -1760,9 +1749,8 @@ function log_warning(msg)
         msg = JSON.stringify(msg);
     }
     let hora = current_timestamp();
-    window.console.log("%c" + hora + " WARNING: " + String(msg), "color:cyan");
     if(f_warning) {
-        f_warning("" + hora + " WARNING: " + String(msg));
+        f_warning("%c" + hora + " WARNING: " + String(msg), "color:cyan");
     }
 }
 
@@ -1771,11 +1759,9 @@ function log_info(msg)
     if(is_object(msg)) {
         msg = JSON.stringify(msg);
     }
-    if(!empty_string(msg)) {
-        window.console.log(String(msg));
-    }
-    if(f_info) {
-        f_info(String(msg));
+    let hora = current_timestamp();
+    if(f_warning) {
+        f_warning("%c" + hora + " INFO: " + String(msg), "color:cyan");
     }
 }
 
@@ -1784,40 +1770,39 @@ function log_debug(msg)
     if(is_object(msg)) {
         msg = JSON.stringify(msg);
     }
-    if(!empty_string(msg)) {
-        window.console.log(String(msg));
-    }
+    let hora = current_timestamp();
     if(f_debug) {
-        f_debug(String(msg));
+        f_debug("%c" + hora + " DEBUG: " + String(msg), "color:cyan");
     }
 }
 
 function trace_machine(msg)
 {
-    window.console.log(msg);
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
+    }
+    let hora = current_timestamp();
+    if(f_debug) {
+        f_debug("%c" + hora + " DEBUG: " + String(msg), "color:cyan");
+    }
 }
 
 function trace_msg(msg)
 {
-    window.console.log(msg);
-    if(f_debug) {
-        f_debug(String(msg));
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
     }
-}
-
-function trace_msg2(msg, msg2)
-{
-    window.console.log(msg);
-    window.console.log(msg2);
+    let hora = current_timestamp();
     if(f_debug) {
-        f_debug(String(msg));
-        f_debug(String(msg2));
+        f_debug("%c" + hora + " DEBUG: " + String(msg), "color:cyan");
     }
 }
 
 function trace_json(jn)
 {
-    window.console.dir(jn);
+    if(window) {
+        window.console.dir(jn);
+    }
 }
 
 /************************************************************
@@ -2159,7 +2144,7 @@ function createElement2(description) {
     } else {
         if(content !== undefined) {
             log_error("content ignored");
-            window.console.error(content);
+            trace_json(content);
         }
     }
 
@@ -2264,10 +2249,14 @@ function index_in_list(list, elm) {
  ************************************************************/
 function node_uuid()
 {
-    let uuid = window.localStorage.getItem("host_uuid");
-    if (!uuid) {
-        uuid = window.crypto.randomUUID();  // Generate a new UUID
-        window.localStorage.setItem("host_uuid", uuid);
+    let uuid = "";
+
+    if(window) {
+        uuid = window.localStorage.getItem("host_uuid");
+        if (!uuid) {
+            uuid = window.crypto.randomUUID();  // Generate a new UUID
+            window.localStorage.setItem("host_uuid", uuid);
+        }
     }
     return uuid;
 }
@@ -2360,7 +2349,6 @@ export {
     log_debug,
     trace_machine,
     trace_msg,
-    trace_msg2,
     trace_json,
 
     jwtDecode,
