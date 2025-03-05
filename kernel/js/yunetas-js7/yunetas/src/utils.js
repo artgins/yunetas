@@ -22,6 +22,108 @@ const kw_flag_t = Object.freeze({
 
 
 /************************************************************
+ *          log function
+ ************************************************************/
+
+/********************************************
+ *  Log functions
+ ********************************************/
+let f_error = window.console.error;
+let f_warning = window.console.warn;
+let f_info = window.console.info;
+let f_debug = window.console.debug;
+
+function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
+{
+    if(f_error_) {
+        f_error = f_error_;
+    }
+    if(f_warning_) {
+        f_warning = f_warning_;
+    }
+    if(f_info_) {
+        f_info = f_info_;
+    }
+    if(f_debug_) {
+        f_debug = f_debug_;
+    }
+}
+
+function log_error(msg)
+{
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
+    }
+    let hora = current_timestamp();
+
+    if(f_error) {
+        f_error("%c" + hora + " ERROR: " + String(msg), "color:red");
+    }
+}
+
+function log_warning(msg)
+{
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
+    }
+    let hora = current_timestamp();
+    if(f_warning) {
+        f_warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
+    }
+}
+
+function log_info(msg)
+{
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
+    }
+    let hora = current_timestamp();
+    if(f_warning) {
+        f_warning("%c" + hora + " INFO: " + String(msg), "color:cyan");
+    }
+}
+
+function log_debug(msg)
+{
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
+    }
+    let hora = current_timestamp();
+    if(f_debug) {
+        f_debug("%c" + hora + " DEBUG: " + String(msg), "color:silver");
+    }
+}
+
+function trace_machine(msg)
+{
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
+    }
+    let hora = current_timestamp();
+    if(f_debug) {
+        f_debug("%c" + hora + " TRACE: " + String(msg), "color:lime");
+    }
+}
+
+function trace_msg(msg)
+{
+    if(is_object(msg)) {
+        msg = JSON.stringify(msg);
+    }
+    let hora = current_timestamp();
+    if(f_debug) {
+        f_debug("%c" + hora + " MSG: " + String(msg), "color:cyan");
+    }
+}
+
+function trace_json(jn)
+{
+    if(window) {
+        window.console.dir(jn);
+    }
+}
+
+/************************************************************
  *  Duplicate an object (new references)
  *  using the modern structuredClone
  ************************************************************/
@@ -1701,108 +1803,6 @@ function create_json_record(json_desc, value) // here in js `json_desc` it's a d
     json_object_update_existing(record, value); // Update (only with service fields) with user data
 
     return record;
-}
-
-/************************************************************
- *          log function
- ************************************************************/
-
-/********************************************
- *  Log functions
- ********************************************/
-let f_error = window.console.error;
-let f_warning = window.console.warn;
-let f_info = window.console.info;
-let f_debug = window.console.debug;
-
-function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
-{
-    if(f_error_) {
-        f_error = f_error_;
-    }
-    if(f_warning_) {
-        f_warning = f_warning_;
-    }
-    if(f_info_) {
-        f_info = f_info_;
-    }
-    if(f_debug_) {
-        f_debug = f_debug_;
-    }
-}
-
-function log_error(msg)
-{
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
-    }
-    let hora = current_timestamp();
-
-    if(f_error) {
-        f_error("%c" + hora + " ERROR: " + String(msg), "color:yellow");
-    }
-}
-
-function log_warning(msg)
-{
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
-    }
-    let hora = current_timestamp();
-    if(f_warning) {
-        f_warning("%c" + hora + " WARNING: " + String(msg), "color:cyan");
-    }
-}
-
-function log_info(msg)
-{
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
-    }
-    let hora = current_timestamp();
-    if(f_warning) {
-        f_warning("%c" + hora + " INFO: " + String(msg), "color:cyan");
-    }
-}
-
-function log_debug(msg)
-{
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
-    }
-    let hora = current_timestamp();
-    if(f_debug) {
-        f_debug("%c" + hora + " DEBUG: " + String(msg), "color:cyan");
-    }
-}
-
-function trace_machine(msg)
-{
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
-    }
-    let hora = current_timestamp();
-    if(f_debug) {
-        f_debug("%c" + hora + " DEBUG: " + String(msg), "color:cyan");
-    }
-}
-
-function trace_msg(msg)
-{
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
-    }
-    let hora = current_timestamp();
-    if(f_debug) {
-        f_debug("%c" + hora + " DEBUG: " + String(msg), "color:cyan");
-    }
-}
-
-function trace_json(jn)
-{
-    if(window) {
-        window.console.dir(jn);
-    }
 }
 
 /************************************************************
