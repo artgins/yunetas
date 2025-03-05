@@ -40,7 +40,6 @@ import {
     json_is_identical,
     kw_get_pointer,
     json_object_size,
-    current_timestamp,
     log_debug,
 } from "./utils.js";
 

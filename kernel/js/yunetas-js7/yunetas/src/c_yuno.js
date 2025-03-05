@@ -30,7 +30,6 @@ import {
 import {
     current_timestamp,
     log_error,
-    trace_msg,
 } from "./utils.js";
 
 import {

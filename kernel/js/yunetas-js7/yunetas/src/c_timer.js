@@ -18,7 +18,6 @@ import {
     GObj,
     gclass_create,
     gobj_parent,
-    gobj_yuno,
     gobj_send_event,
     gobj_publish_event,
     gobj_read_bool_attr,
