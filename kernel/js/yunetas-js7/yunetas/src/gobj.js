@@ -3003,6 +3003,10 @@ function gobj_send_event(dst, event, kw, src)
      *----------------------------------*/
     let tracea = 0; // TODO is_machine_tracing(dst, event) && !is_machine_not_tracing(src, event);
     tracea = __yuno__ && gobj_read_integer_attr(__yuno__, "tracing");
+    if(gobj_gclass_name(src) === "C_TIMER") {
+        tracea = __yuno__ && gobj_read_integer_attr(__yuno__, "trace_timer");
+    }
+
     __inside__ ++;
 
     let event_action = _find_event_action(state, event);
