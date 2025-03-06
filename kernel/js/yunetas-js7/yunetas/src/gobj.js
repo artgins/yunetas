@@ -587,9 +587,15 @@ function json2item(gobj, sdata, it, jn_value_)
             break;
         case data_type_t.DTP_INTEGER:
             jn_value2 = parseInt(jn_value_);
+            if(isNaN(jn_value2)) {
+                log_error(`${gobj_short_name(gobj)}: attr NaN: ${it.name}`);
+            }
             break;
         case data_type_t.DTP_REAL:
             jn_value2 = Number(jn_value_);
+            if(isNaN(jn_value2)) {
+                log_error(`${gobj_short_name(gobj)}: attr NaN: ${it.name}`);
+            }
             break;
         case data_type_t.DTP_LIST:
             if(is_array(jn_value_)) {
@@ -628,9 +634,6 @@ function json2item(gobj, sdata, it, jn_value_)
 
     if(jn_value2 === undefined) {
         log_error(`${gobj_short_name(gobj)}: attr undefined: ${it.name}`);
-    }
-    if(isNaN(jn_value2)) {
-        log_error(`${gobj_short_name(gobj)}: attr NaN: ${it.name}`);
     }
 
     sdata[it.name] = jn_value2;
@@ -1129,7 +1132,7 @@ function gobj_find_service(
  ************************************************************/
 function _register_service(gobj)
 {
-    let service_name = gobj.gobj_name;
+    let service_name = gobj_name(gobj);
     if(__jn_services__[service_name]) {
         log_error(`service ALREADY REGISTERED: ${service_name}. Will be UPDATED`);
     }
@@ -1142,7 +1145,7 @@ function _register_service(gobj)
  ************************************************************/
 function _deregister_service(gobj)
 {
-    let service_name = gobj.gobj_name;
+    let service_name = gobj_name(gobj);
     if(!__jn_services__[service_name]) {
         log_error(`"service NOT found in register": ${service_name}`);
         return -1;
@@ -1475,14 +1478,14 @@ function gobj_create2(
             trace_machine(sprintf(
                 "👦👦🔵 child_added(%s): %s",
                 parent.gobj_full_name(),
-                gobj.gobj_short_name())
-            );
+                gobj_short_name(gobj)
+            ));
         }
         parent.gclass.gmt.mt_child_added(parent, gobj);
     }
 
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-        trace_machine("💙💙⏪ created: " + gobj.gobj_full_name());
+        trace_machine(sprintf("💙💙⏪ created: %s", gobj_full_name(gobj)));
     }
 
     return gobj;
@@ -1588,14 +1591,14 @@ function gobj_destroy(gobj)
 
     let trace_creation = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_creation");
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-        trace_machine("💔💔⏩ destroying: " + gobj_full_name(gobj));
+        trace_machine(sprintf("💔💔⏩ destroying: %s", gobj_full_name(gobj)));
     }
 
     /*----------------------------------------------*
      *  Inform to parent now,
      *  when the child is NOT still full operative
      *----------------------------------------------*/
-    let parent = gobj.parent;
+    let parent = gobj_parent(gobj);
     if(parent && parent.gclass.gmt.mt_child_removed) {
         if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
             trace_machine(sprintf("👦👦🔴 child_removed(%s): %s",
@@ -1670,7 +1673,7 @@ function gobj_destroy(gobj)
      *      Mark as destroyed
      *--------------------------------*/
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-        trace_machine(`💔💔⏪ destroyed: ${gobj_full_name(gobj)}`);
+        trace_machine(sprintf("💔💔⏪ destroyed: %s", gobj_full_name(gobj)));
     }
     gobj.obflag |= obflag_t.obflag_destroyed;
 
@@ -1735,9 +1738,9 @@ function gobj_start(gobj)
     //if(__trace_gobj_start_stop__(gobj)) {
     let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
     if(tracea) {
-        trace_machine("⏺ ⏺ start: %s",
+        trace_machine(sprintf("⏺ ⏺ start: %s",
             gobj_full_name(gobj)
-        );
+        ));
     }
 
     gobj.running = true;
@@ -1794,11 +1797,14 @@ function gobj_start_tree(gobj)
         log_error("gobj NULL or DESTROYED");
         return -1;
     }
+
     // if(__trace_gobj_start_stop__(gobj)) {
-    //     trace_machine("⏺ ⏺ ⏺ ⏺ start_tree: %s",
-    //         gobj_full_name(gobj)
-    //     );
-    // }
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
+    if(tracea) {
+        trace_machine(sprintf("⏺ ⏺ ⏺ ⏺ start_tree: %s",
+            gobj_full_name(gobj)
+        ));
+    }
 
     if((gobj.gclass.gclass_flag & gclass_flag_t.gcflag_manual_start)) {
         return 0;
@@ -1831,12 +1837,12 @@ function gobj_stop(gobj)
         gobj_pause(gobj);
     }
 
+    // if(__trace_gobj_start_stop__(gobj)) {
     let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
     if(tracea) {
-    // if(__trace_gobj_start_stop__(gobj)) {
-        trace_machine("⏹ ⏹ stop: %s",
+        trace_machine(sprintf("⏹ ⏹ stop: %s",
             gobj_full_name(gobj)
-        );
+        ));
     }
 
     gobj.running = false;
@@ -1878,11 +1884,14 @@ function gobj_stop_tree(gobj)
         log_error("gobj NULL or DESTROYED");
         return -1;
     }
+
+    let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
     // if(__trace_gobj_start_stop__(gobj)) {
-    //     trace_machine("⏹ ⏹ ⏹ ⏹ stop_tree: %s",
-    //         gobj_full_name(gobj)
-    //     );
-    // }
+    if(tracea) {
+        trace_machine(sprintf("⏹ ⏹ ⏹ ⏹ stop_tree: %s",
+            gobj_full_name(gobj)
+        ));
+    }
 
     if(gobj_is_running(gobj)) {
         gobj_stop(gobj);
@@ -1921,9 +1930,9 @@ function gobj_play(gobj)
     let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
     if(tracea) {
     // if(__trace_gobj_start_stop__(gobj)) {
-        trace_machine("⏯ ⏯ play: %s",
+        trace_machine(sprintf("⏯ ⏯ play: %s",
             gobj_full_name(gobj)
-        );
+        ));
     }
 
     gobj.playing = true;
@@ -1955,9 +1964,9 @@ function gobj_pause(gobj)
     let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_start_stop");
     if(tracea) {
     // if(__trace_gobj_start_stop__(gobj)) {
-        trace_machine("⏸ ⏸ pause: %s",
+        trace_machine(sprintf("⏸ ⏸ pause: %s",
             gobj_full_name(gobj)
-        );
+        ));
     }
 
     gobj.playing = false;
@@ -2100,7 +2109,7 @@ function gobj_short_name(gobj)
         return null;
     }
 
-    return gobj.gclass.gclass_name + '^' + gobj.gobj_name;
+    return gobj.gclass.gclass_name + '^' + gobj_name(gobj);
 }
 
 /************************************************************
@@ -2114,11 +2123,11 @@ function gobj_full_name(gobj)
     }
 
     let full_name = gobj_short_name(gobj);
-    let parent = gobj.parent;
+    let parent = gobj_parent(gobj);
     while(parent) {
-        let prefix = parent.gobj_short_name();
+        let prefix = gobj_short_name(parent);
         full_name = prefix + '`' + full_name;
-        parent = parent.parent;
+        parent = gobj_parent(parent);
     }
     return full_name;
 }
@@ -2571,7 +2580,7 @@ function gobj_search_path(gobj, path)
     /*
      *  Search in childs
      */
-    let child = gobj.gobj_find_child(filter);
+    let child = gobj_find_child(gobj, filter);
     if(!child) {
         return null;
     }
@@ -2863,7 +2872,7 @@ function gobj_change_state(gobj, state_name)
     // let tracea = is_machine_tracing(gobj, EV_STATE_CHANGED);
     // let tracea_states = __trace_gobj_states__(gobj)?true:false;
     // if(tracea || tracea_states) {
-    //     trace_machine("🔀🔀 mach(%s%s^%s), new st(%s%s%s), prev st(%s%s%s)",
+    //     trace_machine(sprintf("🔀🔀 mach(%s%s^%s), new st(%s%s%s), prev st(%s%s%s)",
     //         (!gobj.running)?"!!":"",
     //         gobj_gclass_name(gobj), gobj_name(gobj),
     //         On_Black RGreen,
@@ -2872,7 +2881,7 @@ function gobj_change_state(gobj, state_name)
     //         On_Black RGreen,
     //         gobj.last_state.state_name,
     //         Color_Off
-    //     );
+    //     ));
     // }
 
     // TODO let kw_st = {};
@@ -3377,12 +3386,12 @@ function _delete_subscription(
     let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_subscriptions");
     if(tracea) {
     // if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher) ) {
-        trace_machine(
+        trace_machine(sprintf(
             "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
             event?event:"",
             gobj_short_name(subscriber),
             gobj_short_name(publisher)
-        );
+        ));
         trace_json(subs);
     }
 
@@ -3503,12 +3512,12 @@ function gobj_subscribe_event(
     // if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)) {
     let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_subscriptions");
     if(tracea) {
-        trace_machine(
+        trace_machine(sprintf(
             "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
             event?event:"",
             gobj_short_name(subscriber),
             gobj_short_name(publisher)
-        );
+        ));
         if(kw) {
             trace_json(kw);
         }
@@ -3801,14 +3810,14 @@ function gobj_publish_event(
     // let tracea = __trace_gobj_subscriptions__(publisher) &&
     //     !is_machine_not_tracing(publisher, event);
     if(tracea) {
-        trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
+        trace_machine(sprintf("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
             (!publisher.running)?"!!":"",
             gobj_gclass_name(publisher), gobj_name(publisher),
             publisher.current_state.state_name,
             "", //On_Black BBlue,
             event?event:"",
             "" //Color_Off
-        );
+        ));
         trace_json(kw);
     }
 
@@ -3910,13 +3919,13 @@ function gobj_publish_event(
                     topublish = __publish_event_match__(kw2publish , __filter__);
                 }
                 if(tracea) {
-                    trace_machine(
+                    trace_machine(sprintf(
                         "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
                         topublish?"👍":"👎",
                         event?event:"",
                         gobj_short_name(subscriber),
                         gobj_short_name(publisher)
-                    );
+                    ));
                     trace_json(__filter__);
                 }
             }
@@ -3976,14 +3985,14 @@ function gobj_publish_event(
              *  Send event
              */
             if(tracea) {
-                trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
+                trace_machine(sprintf("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
                     (!subscriber.running)?"!!":"",
                     gobj_short_name(subscriber),
                     gobj_current_state(subscriber),
                     event?event:"",
                     (publisher && !publisher.running)?"!!":"",
                     gobj_short_name(publisher)
-                );
+                ));
                 trace_json(kw2publish);
             }
 
