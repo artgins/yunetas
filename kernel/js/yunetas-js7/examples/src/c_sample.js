@@ -145,7 +145,6 @@ const gmt = {
     mt_destroy: mt_destroy,
 };
 
-
 /***************************************************************
  *          Create the GClass
  ***************************************************************/
@@ -188,7 +187,7 @@ function create_gclass(gclass_name)
         0,  // authz_table,
         0,  // command_table,
         0,  // s_user_trace_level
-        gclass_flag_t.gcflag_manual_start // gclass_flag
+        0   // gclass_flag
     );
     if(!__gclass__) {
         // Error already logged
