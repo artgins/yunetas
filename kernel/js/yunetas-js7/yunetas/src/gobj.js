@@ -41,6 +41,7 @@ import {
     kw_get_pointer,
     json_object_size,
     log_debug,
+    json_array_append_new,
 } from "./utils.js";
 
 import {sprintf} from "./sprintf.js";
@@ -1083,6 +1084,31 @@ function gclass_find_by_name(gclass_name, verbose)
     return gclass;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_services()
+{
+    let jn_register = [];
+
+    for(const key of Object.keys(__jn_services__)) {
+        json_array_append_new(jn_register, key);
+    }
+
+    return jn_register;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function gobj_default_service()
+{
+    if(!__default_service__ || (__default_service__.obflag & obflag_t.obflag_destroyed)) {
+        return null;
+    }
+    return __default_service__;
+}
+
 /************************************************************
  *        find a service
  ************************************************************/
@@ -2036,17 +2062,6 @@ function gobj_yuno_id()
         return "";
     }
     return gobj_read_str_attr(yuno, "yuno_id");
-}
-
-/************************************************************
- *
- ************************************************************/
-function gobj_default_service()
-{
-    if(!__default_service__ || (__default_service__.obflag & obflag_t.obflag_destroyed)) {
-        return null;
-    }
-    return __default_service__;
 }
 
 /***************************************************************************
@@ -4035,6 +4050,8 @@ export {
     gclass_add_event_type,
     gclass_check_fsm,
     gclass_find_by_name,
+    gobj_services,
+    gobj_default_service,
     gobj_find_service,
     gobj_list_persistent_attrs,
     gobj_create2,
@@ -4059,7 +4076,6 @@ export {
     gobj_yuno_name,
     gobj_yuno_role,
     gobj_yuno_id,
-    gobj_default_service,
     gobj_name,
     gobj_gclass_name,
     gobj_short_name,

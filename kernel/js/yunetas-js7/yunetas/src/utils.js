@@ -242,6 +242,14 @@ function json_array_append(a, v)
 /************************************************************
  *  Simulate jansson function
  ************************************************************/
+function json_array_append_new(a, v)
+{
+    a.push(v);
+}
+
+/************************************************************
+ *  Simulate jansson function
+ ************************************************************/
 function json_array_remove(a, idx)
 {
     a.splice(idx, 1);
@@ -2262,6 +2270,7 @@ export {
     json_object_set_new,
     json_object_del,
     json_array_append,
+    json_array_append_new,
     json_array_remove,
     json_array_extend,
     json_object_size,
