@@ -242,12 +242,12 @@ function create_gclass(gclass_name)
         event_types,
         states,
         gmt,
-        0,               // lmt,
+        0,  // lmt,
         attrs_table,
         PRIVATE_DATA,
-        0,               // authz_table,
-        0,               // command_table,
-        0,               // s_user_trace_level
+        0,  // authz_table,
+        0,  // command_table,
+        0,  // s_user_trace_level
         gclass_flag_t.gcflag_manual_start // gclass_flag
     );
     if (!__gclass__) {
