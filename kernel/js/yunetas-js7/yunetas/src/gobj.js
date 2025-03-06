@@ -510,7 +510,7 @@ function set_default(gobj, sdata, it)
             }
             break;
         case data_type_t.DTP_INTEGER:
-            jn_value = Number(svalue);
+            jn_value = parseInt(svalue);
             break;
         case data_type_t.DTP_REAL:
             jn_value = Number(svalue);
@@ -570,9 +570,7 @@ function json2item(gobj, sdata, it, jn_value_)
             }
             break;
         case data_type_t.DTP_BOOLEAN:
-            if(is_boolean(jn_value_)) {
-                jn_value2 = jn_value_;
-            } else if(is_string(jn_value_)) {
+            if(is_string(jn_value_)) {
                 let s = jn_value_.toLowerCase();
                 if(s) {
                     if(s === "true") {
@@ -583,21 +581,15 @@ function json2item(gobj, sdata, it, jn_value_)
                         jn_value2 = !!parseInt(s, 10);
                     }
                 }
+            } else {
+                jn_value2 = Boolean(jn_value_);
             }
             break;
         case data_type_t.DTP_INTEGER:
-            if(is_number(jn_value_)) {
-                jn_value2 = jn_value_;
-            } else {
-                jn_value2 = Number(jn_value_);
-            }
+            jn_value2 = parseInt(jn_value_);
             break;
         case data_type_t.DTP_REAL:
-            if(is_number(jn_value_)) {
-                jn_value2 = jn_value_;
-            } else {
-                jn_value2 = Number(jn_value_);
-            }
+            jn_value2 = Number(jn_value_);
             break;
         case data_type_t.DTP_LIST:
             if(is_array(jn_value_)) {
@@ -632,6 +624,13 @@ function json2item(gobj, sdata, it, jn_value_)
         case data_type_t.DTP_POINTER:
             jn_value2 = jn_value_;
             break;
+    }
+
+    if(jn_value2 === undefined) {
+        log_error(`${gobj_short_name(gobj)}: attr undefined: ${it.name}`);
+    }
+    if(isNaN(jn_value2)) {
+        log_error(`${gobj_short_name(gobj)}: attr NaN: ${it.name}`);
     }
 
     sdata[it.name] = jn_value2;
