@@ -61,7 +61,7 @@ SDATA(data_type_t.DTP_STRING,   "yuno_id",              0,  "",     "Yuno Id. Se
 
 SDATA(data_type_t.DTP_STRING,   "yuneta_version",       0,  YUNETA_VERSION, "Yuneta version"),
 
-SDATA(data_type_t.DTP_JSON,     "required_services",    0,  "[]",   "Required services"),
+SDATA(data_type_t.DTP_LIST,     "required_services",    0,  "[]",   "Required services"),
 
 SDATA(data_type_t.DTP_INTEGER,  "tracing",              0,  0,      "Tracing level"),
 SDATA(data_type_t.DTP_BOOLEAN,  "trace_timer",          0,  0,      "Trace timers"),

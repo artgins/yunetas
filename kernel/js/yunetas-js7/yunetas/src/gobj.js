@@ -1247,10 +1247,10 @@ function _json_object_update_config(destination, source) {
 /***************************************************************************
  *  ATTR:
  ***************************************************************************/
-function print_attr_not_found(gobj, attr)
+function print_attr_not_found(gobj, name)
 {
-    if(attr !== "__json_config_variables__") {
-        log_error(`GClass Attribute NOT FOUND: ${attr}`);
+    if(name !== "__json_config_variables__") {
+        log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     }
 }
 
@@ -1310,7 +1310,8 @@ function write_json_parameters(gobj, kw, jn_global)
         gobj
     );
     if(ret < 0) {
-        log_error(`json2data() FAILED, new_kw: ${new_kw}`);
+        log_error(`${gobj_short_name(gobj)} json2data() FAILED`);
+        trace_json(new_kw);
     }
 }
 
