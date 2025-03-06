@@ -1724,6 +1724,29 @@ function gobj_start(gobj)
 }
 
 /***************************************************************************
+ *  Start all childs of the gobj.
+ ***************************************************************************/
+function cb_start_child(child, user_data, user_data2)
+{
+    if(child.gclass.gclass_flag & gclass_flag_t.gcflag_manual_start) {
+        return 0;
+    }
+    if(!gobj_is_destroying(child) && !gobj_is_running(child) && !gobj_is_disabled(child)) {
+        gobj_start(child);
+    }
+    return 0;
+}
+function gobj_start_childs(gobj)
+{
+    if(gobj_is_destroying(gobj)) {
+        log_error("gobj NULL or DESTROYED");
+        return -1;
+    }
+
+    return gobj_walk_gobj_childs(gobj, walk_type_t.WALK_FIRST2LAST, cb_start_child, 0, 0);
+}
+
+/***************************************************************************
  *  Start this gobj and all childs tree of the gobj.
  ***************************************************************************/
 function cb_start_child_tree(child, user_data, user_data2)
@@ -1760,7 +1783,7 @@ function gobj_start_tree(gobj)
             gobj_start(gobj);
         }
     }
-    return gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0);
+    return gobj_walk_gobj_childs_tree(gobj, walk_type_t.WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0);
 }
 
 /************************************************************
@@ -1798,6 +1821,47 @@ function gobj_stop(gobj)
     }
 
     return ret;
+}
+
+/***************************************************************************
+ *  Stop all childs of the gobj.
+ ***************************************************************************/
+function cb_stop_child(child, user_data, user_data2)
+{
+    if(gobj_is_running(child)) {
+        gobj_stop(child);
+    }
+    return 0;
+}
+function gobj_stop_childs(gobj)
+{
+    if(gobj_is_destroying(gobj)) {
+        log_error("gobj NULL or DESTROYED");
+        return -1;
+    }
+
+    return gobj_walk_gobj_childs(gobj, walk_type_t.WALK_FIRST2LAST, cb_stop_child, 0, 0);
+}
+
+/***************************************************************************
+ *  Stop this gobj and all childs tree of the gobj.
+ ***************************************************************************/
+function gobj_stop_tree(gobj)
+{
+    if(gobj_is_destroying(gobj)) {
+        log_error("gobj NULL or DESTROYED");
+        return -1;
+    }
+    // if(__trace_gobj_start_stop__(gobj)) {
+    //     trace_machine("⏹ ⏹ ⏹ ⏹ stop_tree: %s",
+    //         gobj_full_name(gobj)
+    //     );
+    // }
+
+    if(gobj_is_running(gobj)) {
+        gobj_stop(gobj);
+    }
+    return gobj_walk_gobj_childs_tree(gobj, walk_type_t.WALK_TOP2BOTTOM, cb_stop_child, 0, 0);
 }
 
 /************************************************************
@@ -1925,25 +1989,6 @@ function gobj_is_playing(gobj)
         return false;
     }
     return gobj.playing;
-}
-
-/************************************************************
- *
- ************************************************************/
-function gobj_stop_childs(gobj)
-{
-    if(gobj_is_destroying(gobj)) {
-        log_error("gobj NULL or DESTROYED");
-        return -1;
-    }
-    const dl_childs = gobj.dl_childs;
-    for(let i=0; i < dl_childs.length; i++) {
-        const child = dl_childs[i];
-        if(gobj_is_running(child)) {
-            gobj_stop(child);
-        }
-    }
-    return 0;
 }
 
 /************************************************************
@@ -4001,12 +4046,15 @@ export {
     gobj_create,
     gobj_destroy,
     gobj_start,
+    gobj_start_childs,
+    gobj_start_tree,
     gobj_stop,
+    gobj_stop_childs,
+    gobj_stop_tree,
     gobj_play,
     gobj_pause,
     gobj_is_running,
     gobj_is_playing,
-    gobj_stop_childs,
     gobj_yuno,
     gobj_yuno_name,
     gobj_yuno_role,

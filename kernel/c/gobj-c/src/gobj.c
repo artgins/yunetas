@@ -4077,7 +4077,7 @@ PRIVATE int cb_start_child(hgobj child_, void *user_data, void *user_data2)
     if(child->gclass->gclass_flag & gcflag_manual_start) {
         return 0;
     }
-    if(!gobj_is_running(child) && !gobj_is_disabled(child)) {
+    if(!gobj_is_destroying(child) && !gobj_is_running(child) && !gobj_is_disabled(child)) {
         gobj_start(child);
     }
     return 0;
