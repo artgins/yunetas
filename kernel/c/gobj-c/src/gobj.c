@@ -5460,11 +5460,11 @@ PUBLIC int gobj_walk_gobj_childs(
     void *user_data2
 ) {
     gobj_t *gobj = gobj_;
-    if(!gobj) {
+    if(gobj_is_destroying(gobj)) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj NULL",
+            "msg",          "%s", "gobj NULL or destroying",
             NULL
         );
         return 0;
@@ -5527,7 +5527,7 @@ PUBLIC int rc_walk_by_list(
             next = dl_next(child);
         }
 
-        int ret = (cb_walking)(child, user_data, 0);
+        int ret = (cb_walking)(child, user_data, user_data2);
         if(ret < 0) {
             return ret;
         }

@@ -298,6 +298,22 @@ const event_flag_t = Object.freeze({
     EVF_PUBLIC_EVENT    : 0x0008,   // You should document a public event, it's the API
 });
 
+const walk_type_t = Object.freeze({
+    /*
+     * One must be selected
+     */
+    WALK_TOP2BOTTOM : 0x0001,
+    WALK_BOTTOM2TOP : 0x0002,
+    WALK_BYLEVEL    : 0x0004,
+
+    /*
+     * One must be selected when WALK_BYLEVEL is selected.
+     */
+    WALK_FIRST2LAST : 0x0010,
+    WALK_LAST2FIRST : 0x0020,
+});
+
+
 /*---------------------------*
  *          FSM
  *---------------------------*/
@@ -1531,7 +1547,7 @@ function gobj_create(
  ************************************************************/
 function gobj_destroy(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return;
     }
@@ -1660,7 +1676,7 @@ function gobj_destroy_childs(gobj)
  ************************************************************/
 function gobj_start(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return -1;
     }
@@ -1707,12 +1723,52 @@ function gobj_start(gobj)
     return ret;
 }
 
+/***************************************************************************
+ *  Start this gobj and all childs tree of the gobj.
+ ***************************************************************************/
+function cb_start_child_tree(child, user_data, user_data2)
+{
+    if(child.gclass.gclass_flag & gclass_flag_t.gcflag_manual_start) {
+        return 1;
+    }
+    if(gobj_is_disabled(child)) {
+        return 1;
+    }
+    if(!gobj_is_running(child)) {
+        gobj_start(child);
+    }
+    return 0;
+}
+function gobj_start_tree(gobj)
+{
+    if(gobj_is_destroying(gobj)) {
+        log_error("gobj NULL or DESTROYED");
+        return -1;
+    }
+    // if(__trace_gobj_start_stop__(gobj)) {
+    //     trace_machine("⏺ ⏺ ⏺ ⏺ start_tree: %s",
+    //         gobj_full_name(gobj)
+    //     );
+    // }
+
+    if((gobj.gclass.gclass_flag & gclass_flag_t.gcflag_manual_start)) {
+        return 0;
+    } else if(gobj.disabled) {
+        return 0;
+    } else {
+        if(!gobj.running) {
+            gobj_start(gobj);
+        }
+    }
+    return gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0);
+}
+
 /************************************************************
  *
  ************************************************************/
 function gobj_stop(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return -1;
     }
@@ -1749,7 +1805,7 @@ function gobj_stop(gobj)
  ************************************************************/
 function gobj_play(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error(`gobj NULL or DESTROYED: ${gobj_short_name(gobj)}`);
         return -1;
     }
@@ -1797,7 +1853,7 @@ function gobj_play(gobj)
  ************************************************************/
 function gobj_pause(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return -1;
     }
@@ -1828,7 +1884,7 @@ function gobj_pause(gobj)
  ************************************************************/
 function gobj_is_running(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return false;
     }
@@ -1840,7 +1896,7 @@ function gobj_is_running(gobj)
  ************************************************************/
 function gobj_is_disabled(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return false;
     }
@@ -1864,7 +1920,7 @@ function gobj_is_service(gobj)
  ************************************************************/
 function gobj_is_playing(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return false;
     }
@@ -1876,7 +1932,7 @@ function gobj_is_playing(gobj)
  ************************************************************/
 function gobj_stop_childs(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return -1;
     }
@@ -2057,6 +2113,13 @@ function gobj_is_pure_child(gobj)
  ************************************************************/
 function gobj_is_destroying(gobj)
 {
+    if(!gobj) {
+        return true;
+    }
+    if(!(gobj instanceof GObj)) {
+        return true;
+    }
+
     if(gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
         return true;
     }
@@ -2089,6 +2152,198 @@ function gobj_set_bottom_gobj(gobj, bottom_gobj)
         log_warning(`"bottom_gobj already set: ${gobj_short_name(gobj)}`);
     }
     gobj.bottom_gobj = bottom_gobj;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_walk_gobj_childs(
+    gobj,
+    walk_type,  // walk_type_t
+    cb_walking,
+    user_data,
+    user_data2
+) {
+    if(gobj_is_destroying(gobj)) {
+        log_error(`gobj NULL, destroying, or bad type`);
+        return 0;
+    }
+
+    return rc_walk_by_list(gobj.dl_childs, walk_type, cb_walking, user_data, user_data2);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+function gobj_walk_gobj_childs_tree(
+    gobj,
+    walk_type,  // walk_type_t
+    cb_walking,
+    user_data,
+    user_data2
+) {
+    if(gobj_is_destroying(gobj)) {
+        log_error(`gobj NULL, destroying, or bad type`);
+        return 0;
+    }
+
+    return rc_walk_by_tree(gobj.dl_childs, walk_type, cb_walking, user_data, user_data2);
+}
+
+/***************************************************************
+ *  Walking
+ ***************************************************************/
+function rc_walk_by_list(
+    iter_,              // dl_list_t
+    walk_type,          // walk_type_t
+    cb_walking,         // cb_walking_t
+    user_data,
+    user_data2
+) {
+    /*
+     *  This let destroy the current item
+     */
+    let iter = [...iter_];
+
+    let child;
+    if(walk_type & walk_type_t.WALK_LAST2FIRST) {
+        for(let i=iter.length; i>0; i--) {
+            child = iter[i-1];
+            let ret = (cb_walking)(child, user_data, user_data2);
+            if(ret < 0) {
+                return ret;
+            }
+        }
+    } else {
+        for(let i=0; i<iter.length; i++) {
+            child = iter[i];
+            let ret = (cb_walking)(child, user_data, user_data2);
+            if(ret < 0) {
+                return ret;
+            }
+        }
+    }
+
+    return 0;
+}
+
+/***************************************************************
+ *  Walking
+ *  If cb_walking return negative, the iter will stop.
+ *  Valid options:
+ *      WALK_BYLEVEL:
+ *          WALK_FIRST2LAST
+ *          or
+ *          WALK_LAST2FIRST
+ ***************************************************************/
+function rc_walk_by_level(
+    iter,              // dl_list_t
+    walk_type,          // walk_type_t
+    cb_walking,         // cb_walking_t
+    user_data,
+    user_data2
+) {
+    /*
+     *  First my childs
+     */
+    let ret = rc_walk_by_list(iter, walk_type, cb_walking, user_data, user_data2);
+    if(ret < 0) {
+        return ret;
+    }
+
+    /*
+     *  Now child's childs
+     */
+    let child;
+    if(walk_type & walk_type_t.WALK_LAST2FIRST) {
+        for(let i=iter.length; i>0; i--) {
+            child = iter[i-1];
+
+            let dl_child_list = [...child.dl_childs];
+            ret = rc_walk_by_level(dl_child_list, walk_type, cb_walking, user_data, user_data2);
+            if(ret < 0) {
+                return ret;
+            }
+        }
+    } else {
+        for(let i=0; i<iter.length; i++) {
+            child = iter[i];
+
+            let dl_child_list = [...child.dl_childs];
+            ret = rc_walk_by_level(dl_child_list, walk_type, cb_walking, user_data, user_data2);
+            if(ret < 0) {
+                return ret;
+            }
+        }
+    }
+
+    return ret;
+}
+
+/***************************************************************
+ *  Walking
+ *  If cb_walking return negative, the iter will stop.
+ *                return 0, continue
+ *                return positive, step current branch (only in WALK_TOP2BOTTOM)
+ *  Valid options:
+ *      WALK_TOP2BOTTOM
+ *      or
+ *      WALK_BOTTOM2TOP
+ *      or
+ *      WALK_BYLEVEL:
+ *          WALK_FIRST2LAST
+ *          or
+ *          WALK_LAST2FIRST
+ ***************************************************************/
+function rc_walk_by_tree(
+    iter,              // dl_list_t
+    walk_type,          // walk_type_t
+    cb_walking,         // cb_walking_t
+    user_data,
+    user_data2
+) {
+    if(walk_type & walk_type_t.WALK_BYLEVEL) {
+        return rc_walk_by_level(iter, walk_type, cb_walking, user_data, user_data2);
+    }
+
+    let ret;
+    let child;
+    if(walk_type & walk_type_t.WALK_BOTTOM2TOP) {
+        for(let i=iter.length; i>0; i--) {
+            child = iter[i-1];
+
+            let dl_child_list = [...child.dl_childs];
+            ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data, user_data2);
+            if(ret < 0) {
+                return ret;
+            }
+
+            ret = (cb_walking)(child, user_data, user_data2);
+            if(ret < 0) {
+                return ret;
+            }
+
+        }
+    } else {
+        for(let i=0; i<iter.length; i++) {
+            child = iter[i];
+
+            ret = (cb_walking)(child, user_data, user_data2);
+            if(ret < 0) {
+                return ret;
+            } else if(ret === 0) {
+                let dl_child_list = [...child.dl_childs];
+                ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data, user_data2);
+                if(ret < 0) {
+                    return ret;
+                }
+            } else {
+                // positive, continue next
+            }
+        }
+    }
+
+    return 0;
 }
 
 /************************************************************
@@ -2202,7 +2457,7 @@ function gobj_match_gobj(gobj, jn_filter)
  ***************************************************************************/
 function gobj_find_child(gobj, jn_filter)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return null;
     }
@@ -2270,7 +2525,7 @@ function gobj_search_path(gobj, path)
  ***************************************************************************/
 function gobj_has_attr(gobj, name)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         return false; // WARNING must be a silence function!
     }
     if(empty_string(name)) {
@@ -2529,7 +2784,7 @@ function gobj_write_str_attr(gobj, name, value)
  ***************************************************************************/
 function gobj_change_state(gobj, state_name)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return null;
     }
@@ -2578,7 +2833,7 @@ function gobj_change_state(gobj, state_name)
  ***************************************************************************/
 function gobj_current_state(gobj)
 {
-    if(!gobj || gobj.obflag & (obflag_t.obflag_destroyed|obflag_t.obflag_destroying)) {
+    if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return null;
     }
@@ -3767,6 +4022,8 @@ export {
     gobj_is_destroying,
     gobj_bottom_gobj,
     gobj_set_bottom_gobj,
+    gobj_walk_gobj_childs,
+    gobj_walk_gobj_childs_tree,
     gobj_find_gobj,
     gobj_match_gobj,
     gobj_find_child,
