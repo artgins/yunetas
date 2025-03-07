@@ -9,6 +9,8 @@ import {
     GObj
 } from "./gobj.js";
 
+import i18next from 'i18next';
+
 const kw_flag_t = Object.freeze({
     KW_REQUIRED     : 0x0001,   // Log error message if not exist.
     KW_CREATE       : 0x0002,   // Create if not exist
@@ -1490,11 +1492,11 @@ function _traverse_dict(obj, callback, full_path)
     if(full_path === undefined || !is_string(full_path)) {
         full_path = "";
     }
-    for (var key in obj) {
+    for (let key in obj) {
         if(!obj.hasOwnProperty(key)) {
             continue;
         }
-        var sufix = (full_path.length? "`":"") + key;
+        let sufix = (full_path.length? "`":"") + key;
         full_path += sufix;
 
         callback.apply(this, [obj, key, obj[key], full_path]);
@@ -2157,6 +2159,32 @@ function createElement2(description) {
     return el;
 }
 
+/***************************************************************************
+ *  Code written by ChatGPT
+    // Usage example:
+    var element = document.getElementById("myElement");
+    var position = getPositionRelativeToBody(element);
+    console.log("Top: " + position.top + ", Left: " + position.left + ", Right: " + position.right + ", Bottom: " + position.bottom);
+ ***************************************************************************/
+function getPositionRelativeToBody(element)
+{
+    let rect = element.getBoundingClientRect();
+    let scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
+    let scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft;
+
+    let top = rect.top + scrollTop;
+    let left = rect.left + scrollLeft;
+    let right = left + rect.width;
+    let bottom = top + rect.height;
+
+    return {
+        top: top,
+        left: left,
+        right: right,
+        bottom: bottom
+    };
+}
+
 /************************************************************
  * Example Usage
  *     const tracker = timeTracker("Track1");
@@ -2353,6 +2381,7 @@ export {
 
     createOneHtml,
     createElement2,
+    getPositionRelativeToBody,
 
     timeTracker,
     current_timestamp,
