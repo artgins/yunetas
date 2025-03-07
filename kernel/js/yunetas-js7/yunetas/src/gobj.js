@@ -42,7 +42,7 @@ import {
     json_object_size,
     log_debug,
     json_array_append_new,
-} from "./utils.js";
+} from "./helpers.js";
 
 import {sprintf} from "./sprintf.js";
 

@@ -13,7 +13,7 @@ import {
     json_object_update_existing,
     is_object,
     kw_clone_by_keys,
-} from "./utils.js";
+} from "./helpers.js";
 
 import {
     gobj_short_name
