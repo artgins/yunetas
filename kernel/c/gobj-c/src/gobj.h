@@ -1373,13 +1373,17 @@ PUBLIC void gobj_destroy_childs(hgobj gobj);
  *  attrs can be a string, a list of keys, or a dict with the keys to saved/deleted
  *  if attrs is empty list/save/remove all attrs
  */
-PUBLIC int gobj_save_persistent_attrs(  // str, list or dict
+PUBLIC int gobj_load_persistent_attrs(  // str, list or dict. Only gobj services can load/save writable-persistent
+    hgobj gobj,
+    json_t *jn_attrs  // owned, WARNING: persistent attrs are loaded automatically in the creation of gobjs
+);
+PUBLIC int gobj_save_persistent_attrs(  // str, list or dict. Only gobj services can load/save writable-persistent
     hgobj gobj,
     json_t *jn_attrs  // owned
 );
 PUBLIC int gobj_remove_persistent_attrs( // str, list or dict
     hgobj gobj,
-    json_t *jn_attrs  // owned
+    json_t *jn_attrs  // owned, Only gobj services can load/save writable-persistent
 );
 PUBLIC json_t *gobj_list_persistent_attrs( // str, list or dict
     hgobj gobj,

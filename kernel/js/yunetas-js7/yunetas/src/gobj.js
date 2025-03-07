@@ -1213,11 +1213,63 @@ function gobj_get_gclass_config(gclass_name, verbose)
 }
 
 /************************************************************
+ *  Only gobj services can load/save persistent attrs.
+ *  WARNING: persistent attrs are loaded automatically in the creation of gobjs
+ ************************************************************/
+function gobj_load_persistent_attrs(
+    gobj,
+    jn_attrs  // // str, list or dict.
+) {
+    if(!gobj_is_service(gobj)) {
+        log_error(`${gobj_short_name(gobj)}: Only gobj services can load/save writable-persistent`);
+        return -1;
+    }
+    if(__global_load_persistent_attrs_fn__) {
+        return __global_load_persistent_attrs_fn__(gobj, jn_attrs);
+    }
+    return -1;
+}
+
+/************************************************************
+ *  Only gobj services can load/save persistent attrs.
+ ************************************************************/
+function gobj_save_persistent_attrs(
+    gobj,
+    jn_attrs  // // str, list or dict.
+) {
+    if(!gobj_is_service(gobj)) {
+        log_error(`${gobj_short_name(gobj)}: Only gobj services can load/save writable-persistent`);
+        return -1;
+    }
+    if(__global_save_persistent_attrs_fn__) {
+        return __global_save_persistent_attrs_fn__(gobj, jn_attrs);
+    }
+    return -1;
+}
+
+/************************************************************
+ *  Only gobj services can load/save persistent attrs.
+ ************************************************************/
+function gobj_remove_persistent_attrs(
+    gobj,
+    jn_attrs  // // str, list or dict.
+) {
+
+    if(!gobj_is_service(gobj)) {
+        log_error(`${gobj_short_name(gobj)}: Only gobj services can load/save writable-persistent`);
+        return -1;
+    }
+    if(!__global_remove_persistent_attrs_fn__) {
+        return -1;
+    }
+    return __global_remove_persistent_attrs_fn__(gobj, jn_attrs);
+}
+
+/************************************************************
  *
  ************************************************************/
-function gobj_list_persistent_attrs()
+function gobj_list_persistent_attrs(gobj)
 {
-    // TODO
     if(!__global_list_persistent_attrs_fn__) {
         return null;
     }
@@ -4067,6 +4119,9 @@ export {
     gobj_services,
     gobj_default_service,
     gobj_find_service,
+    gobj_load_persistent_attrs,
+    gobj_save_persistent_attrs,
+    gobj_remove_persistent_attrs,
     gobj_list_persistent_attrs,
     gobj_create2,
     gobj_create_yuno,

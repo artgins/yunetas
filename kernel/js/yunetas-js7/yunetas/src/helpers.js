@@ -1,5 +1,5 @@
 /*********************************************************************************
- *      Auxiliary functions
+ *      Helper functions
  *
  *      Licence: MIT (http://www.opensource.org/licenses/mit-license)
  *      Copyright (c) 2014,2024 Niyamaka.

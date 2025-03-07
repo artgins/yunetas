@@ -41,6 +41,7 @@ New API
     build_stats_response
     trq_append2
     kw_collect
+    gobj_load_persistent_attrs
 
 
 Delete API

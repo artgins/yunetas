@@ -2685,18 +2685,51 @@ PRIVATE int write_json_parameters(
 }
 
 /***************************************************************************
- *  save now persistent and writable attrs
+ *  load persistent and writable attrs
     attrs can be a string, a list of keys, or a dict with the keys to save/delete
+    Only gobj services can load/save writable-persistent
  ***************************************************************************/
-PUBLIC int gobj_save_persistent_attrs(hgobj gobj_, json_t *jn_attrs)
+PUBLIC int gobj_load_persistent_attrs(  // str, list or dict. Only gobj services are loaded!.
+    hgobj gobj_,
+    json_t *jn_attrs  // owned
+)
 {
     gobj_t *gobj = gobj_;
 
     if(!(gobj->gobj_flag & (gobj_flag_service))) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Cannot save writable-persistent attrs in no named-gobjs",
+            "msg",          "%s", "Only gobj services can load/save persistent attrs",
+            NULL
+        );
+        JSON_DECREF(jn_attrs)
+        return -1;
+    }
+    if(__global_load_persistent_attrs_fn__) {
+        return __global_load_persistent_attrs_fn__(gobj, jn_attrs);
+    }
+    JSON_DECREF(jn_attrs)
+    return -1;
+}
+
+/***************************************************************************
+ *  save persistent and writable attrs
+    attrs can be a string, a list of keys, or a dict with the keys to save/delete
+    Only gobj services can load/save writable-persistent
+ ***************************************************************************/
+PUBLIC int gobj_save_persistent_attrs(
+    hgobj gobj_,
+    json_t *jn_attrs // owned
+)
+{
+    gobj_t *gobj = gobj_;
+
+    if(!(gobj->gobj_flag & (gobj_flag_service))) {
+        gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Only gobj services can load/save persistent attrs",
             NULL
         );
         JSON_DECREF(jn_attrs)
