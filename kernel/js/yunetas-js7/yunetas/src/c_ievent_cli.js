@@ -174,7 +174,7 @@ function mt_create(gobj)
      */
     const subscriber = gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
-        gobj_subscribe_event(gobj, null, null, subscriber);
+        gobj_subscribe_event(gobj, null, {}, subscriber);
     }
 }
 
