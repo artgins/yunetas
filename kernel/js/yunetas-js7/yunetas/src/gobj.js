@@ -4037,6 +4037,7 @@ function gobj_publish_event(
 //      Expose the class via the global object
 //=======================================================================
 export {
+    __yuno__,
     YUNETA_VERSION,
     data_type_t,
     sdata_flag_t,
