@@ -124,6 +124,20 @@ function json_deep_copy(obj) // old __duplicate__,duplicate_objects
 }
 
 /************************************************************
+ *  Duplicate objects (new references) in a new object
+ *  using the modern structuredClone
+ ************************************************************/
+function duplicate_objects(...sourceObjects)
+{
+    const result = {};
+    for (const obj of sourceObjects) {
+        const clonedObj = structuredClone(obj); // Deep copy using structuredClone
+        Object.assign(result, clonedObj); // Merge into the result object
+    }
+    return result;
+}
+
+/************************************************************
  *
  ************************************************************/
 function json_is_identical(json1, json2)
@@ -1340,6 +1354,28 @@ function elm_in_list(elm, list, case_insensitive) {
 /************************************************************
  *
  ************************************************************/
+function elms_in_list(elms, list, case_insensitive) {
+    if(!list) {
+        log_error("ERROR: elms_in_list() list empty");
+        return false;
+    }
+    if(!elms) {
+        log_error("ERROR: elms_in_list() elm empty");
+        return false;
+    }
+
+    for(let i=0; i<elms.length; i++) {
+        let elm = elms[i];
+        if(elm_in_list(elm, list, case_insensitive)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function delete_from_list(list, elm) {
     for(let i=0; i<list.length; i++) {
         if(elm === list[i]) {
@@ -2185,6 +2221,13 @@ function getPositionRelativeToBody(element)
     };
 }
 
+/***************************************************************************
+ * Create SVG element from string code
+ ***************************************************************************/
+function parseSVG(string) {
+    return ((new DOMParser().parseFromString(string, 'image/svg+xml')).firstChild);
+}
+
 /************************************************************
  * Example Usage
  *     const tracker = timeTracker("Track1");
@@ -2290,6 +2333,7 @@ function node_uuid()
 export {
     kw_flag_t,
     json_deep_copy,
+    duplicate_objects,
     json_is_identical,
     json_object_update,
     json_object_update_existing,
@@ -2349,6 +2393,7 @@ export {
 
     id_index_in_obj_list,
     elm_in_list,
+    elms_in_list,
     delete_from_list,
 
     msg_iev_read_key,
@@ -2382,6 +2427,7 @@ export {
     createOneHtml,
     createElement2,
     getPositionRelativeToBody,
+    parseSVG,
 
     timeTracker,
     current_timestamp,
