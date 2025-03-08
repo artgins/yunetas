@@ -3507,6 +3507,9 @@ function gobj_subscribe_event(
         log_error(`subscriber NULL: ev ${event}`);
         return 0;
     }
+    if(event == null) {
+        event = "";
+    }
 
     /*--------------------------------------------------------------*
      *  Event must be in output event list
@@ -3611,6 +3614,9 @@ function gobj_unsubscribe_event(
     if(!subscriber) {
         log_error(`subscriber NULL: ev ${event}`);
         return 0;
+    }
+    if(event == null) {
+        event = "";
     }
 
     /*--------------------------------------------------------------*

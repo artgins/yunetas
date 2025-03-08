@@ -6,7 +6,8 @@
  *      Copyright (c) 2025, ArtGins.
  *********************************************************************************/
 import {
-    GObj
+    GObj,
+    gobj_short_name,
 } from "./gobj.js";
 
 import i18next from 'i18next';
@@ -53,9 +54,14 @@ function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
 
 function log_error(msg)
 {
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
+    try {
+        if(is_object(msg)) {
+            msg = JSON.stringify(msg);
+        }
+    } catch (e) {
+        msg = "???";
     }
+
     let hora = current_timestamp();
 
     if(f_error) {
@@ -65,9 +71,14 @@ function log_error(msg)
 
 function log_warning(msg)
 {
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
+    try {
+        if(is_object(msg)) {
+            msg = JSON.stringify(msg);
+        }
+    } catch (e) {
+        msg = "???";
     }
+
     let hora = current_timestamp();
     if(f_warning) {
         f_warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
@@ -76,9 +87,14 @@ function log_warning(msg)
 
 function log_info(msg)
 {
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
+    try {
+        if(is_object(msg)) {
+            msg = JSON.stringify(msg);
+        }
+    } catch (e) {
+        msg = "???";
     }
+
     let hora = current_timestamp();
     if(f_warning) {
         f_warning("%c" + hora + " INFO: " + String(msg), "color:cyan");
@@ -87,9 +103,14 @@ function log_info(msg)
 
 function log_debug(msg)
 {
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
+    try {
+        if(is_object(msg)) {
+            msg = JSON.stringify(msg);
+        }
+    } catch (e) {
+        msg = "???";
     }
+
     let hora = current_timestamp();
     if(f_debug) {
         f_debug("%c" + hora + " DEBUG: " + String(msg), "color:silver");
@@ -98,9 +119,14 @@ function log_debug(msg)
 
 function trace_msg(msg)
 {
-    if(is_object(msg)) {
-        msg = JSON.stringify(msg);
+    try {
+        if(is_object(msg)) {
+            msg = JSON.stringify(msg);
+        }
+    } catch (e) {
+        msg = "???";
     }
+
     let hora = current_timestamp();
     if(f_debug) {
         f_debug("%c" + hora + " MSG: " + String(msg), "color:cyan");
@@ -932,7 +958,7 @@ function kw_get_str(gobj, kw, path, default_value, flag)
 
     if(!is_string(v)) {
         if(required) {
-            log_error(`path value MUST BE a string: ${path}`);
+            log_error(`${gobj_short_name(gobj)}: path value MUST BE a string: ${path}`);
             trace_msg(kw);
         }
         return String(default_value);
