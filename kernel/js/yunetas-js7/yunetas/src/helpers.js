@@ -2224,7 +2224,8 @@ function getPositionRelativeToBody(element)
 /***************************************************************************
  * Create SVG element from string code
  ***************************************************************************/
-function parseSVG(string) {
+function parseSVG(string)
+{
     return ((new DOMParser().parseFromString(string, 'image/svg+xml')).firstChild);
 }
 
