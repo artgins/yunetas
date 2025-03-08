@@ -364,6 +364,36 @@ function is_null(value) {
 }
 
 /************************************************************
+ *  Check if a string is a number
+ *  The function correctly identifies both integer and floating-point numbers.
+ *  It handles special cases like scientific notation (e.g., "1.2e3"),
+ *  positive/negative numbers, and fractional numbers without leading digits.
+ *  It returns false for non-numeric strings, empty strings,
+ *  and strings with only whitespace.
+ ************************************************************/
+function is_pure_number(str)
+{
+    if(is_number(str)) {
+        return true;
+    }
+    if(!is_string(str)) {
+        return false;
+    }
+
+    // Convert the string to a number
+    const num = Number(str);
+
+    // Check if the result is NaN (Not-a-Number)
+    if (isNaN(num)) {
+        return false; // The string is not a number
+    }
+
+    // Optionally, you can check if the input is exactly equal to the parsed number
+    // This ensures that the input is a valid number string
+    return str.trim() !== '' && !isNaN(num);
+}
+
+/************************************************************
  *  Return if a value is a Date object
  ************************************************************/
 function is_date(value) {
@@ -2356,6 +2386,7 @@ export {
     is_number,
     is_boolean,
     is_null,
+    is_pure_number,
     is_date,
     is_function,
     is_gobj,
