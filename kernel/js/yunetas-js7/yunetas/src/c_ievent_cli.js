@@ -946,7 +946,7 @@ function ac_identity_card_ack(gobj, event, kw, src)
     let event_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
     let src_yuno = kw_get_str(gobj, event_id, "src_yuno", "");
     let src_role = kw_get_str(gobj, event_id, "src_role", "");
-    let src_service = kw_get_str(event_id, "src_service", "");
+    let src_service = kw_get_str(gobj, event_id, "src_service", "");
     gobj_write_str_attr(gobj, "remote_yuno_name", src_yuno);
     gobj_write_str_attr(gobj, "remote_yuno_role", src_role);
     gobj_write_str_attr(gobj, "remote_yuno_service", src_service);
@@ -1068,7 +1068,7 @@ function ac_on_message(gobj, event, kw, src)
     /*----------------------------------------*
      *  Check dst role^name
      *----------------------------------------*/
-    let iev_dst_role = kw_get_str(event_id, "dst_role", "");
+    let iev_dst_role = kw_get_str(gobj, event_id, "dst_role", "");
     // Check yuno_name too
 
     if(iev_dst_role !== gobj_yuno_role()) {
@@ -1080,7 +1080,7 @@ function ac_on_message(gobj, event, kw, src)
      *  Check dst service
      *----------------------------------------*/
     let ret = 0;
-    let iev_dst_service = kw_get_str(event_id, "dst_service", "");
+    let iev_dst_service = kw_get_str(gobj, event_id, "dst_service", "");
 
     /*------------------------------------*
      *   Is the event a subscription?

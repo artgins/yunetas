@@ -658,7 +658,7 @@ function _kw_match_simple(kw, jn_filter, level)
              */
             let jn_record_value;
             // Firstly try the key as pointers
-            jn_record_value = kw_get_dict_value(kw, path, 0, 0);
+            jn_record_value = kw_get_dict_value(null, kw, path, 0, 0);
             if(!jn_record_value) {
                 // Secondly try the key with points (.) as full key
                 jn_record_value = kw[path];
@@ -1161,7 +1161,7 @@ function kw_set_subdict_value(gobj, kw, path, key, value)
         return -1;
     }
 
-    let subdict = kw_get_dict(kw, path, {}, true, true);
+    let subdict = kw_get_dict(gobj, kw, path, {}, true, true);
     if(!is_object(subdict)) {
         log_error("subdict is not an object");
         return -1;
@@ -1663,15 +1663,15 @@ function jdb_init(jdb, prefix, duplicate)
     if(duplicate) {
         jdb = json_deep_copy(jdb);
     }
-    let type = kw_get_dict_value(jdb, "type", [], 1);
-    let hook = kw_get_str(jdb, "hook", "data", 1);
-    let schema = kw_get_dict_value(jdb, "schema", {}, 1);
-    let topics = kw_get_dict_value(jdb, "topics", {}, 1);
+    let type = kw_get_dict_value(null, jdb, "type", [], 1);
+    let hook = kw_get_str(null, jdb, "hook", "data", 1);
+    let schema = kw_get_dict_value(null, jdb, "schema", {}, 1);
+    let topics = kw_get_dict_value(null, jdb, "topics", {}, 1);
 
     // Create topics defined in schema
     let walk = function(obj, key, value, full_path) {
         if(key.substring(0, 2) !== "__") {
-            kw_get_dict_value(topics, full_path, json_deep_copy(type), 1);
+            kw_get_dict_value(null, topics, full_path, json_deep_copy(type), 1);
             //trace_msg(sprintf("full_path: '%s', key: %s, value: %j", full_path, key, value));
         }
     };
@@ -1685,8 +1685,8 @@ function jdb_init(jdb, prefix, duplicate)
  ********************************************/
 function jdb_update(jdb, topic_name, path, kw)
 {
-    let topics = kw_get_dict_value(jdb, "topics", null, 0);
-    let topic = kw_get_dict_value(topics, topic_name, null, 0);
+    let topics = kw_get_dict_value(null, jdb, "topics", null, 0);
+    let topic = kw_get_dict_value(null, topics, topic_name, null, 0);
     if(!topic) {
         log_error("jdb_update: topic not found: " + topic_name);
         return null;
@@ -1706,7 +1706,7 @@ function jdb_update(jdb, topic_name, path, kw)
             break;
         }
         if(is_object(v)) {
-            v = kw_get_dict_value(v, jdb.hook, [], 1);
+            v = kw_get_dict_value(null, v, jdb.hook, [], 1);
         }
         v = _jdb_get(v, null, id, false);
     }
@@ -1718,7 +1718,7 @@ function jdb_update(jdb, topic_name, path, kw)
             if(v["id"]===kw["id"]) {
                 Object.assign(v, kw);
             } else {
-                let v_ = kw_get_dict_value(v, jdb.hook, [], 1);
+                let v_ = kw_get_dict_value(null, v, jdb.hook, [], 1);
                 let v__ = _jdb_get(v_, jdb.hook, kw["id"], false);
                 if(v__) {
                     Object.assign(v__, kw);
@@ -1739,8 +1739,8 @@ function jdb_update(jdb, topic_name, path, kw)
  ********************************************/
 function jdb_delete(jdb, topic_name, path, kw)
 {
-    let topics = kw_get_dict_value(jdb, "topics", null, 0);
-    let topic = kw_get_dict_value(topics, topic_name, null, 0);
+    let topics = kw_get_dict_value(null, jdb, "topics", null, 0);
+    let topic = kw_get_dict_value(null, topics, topic_name, null, 0);
     if(!topic) {
         log_error("jdb_delete: topic not found: " + topic_name);
         return null;
@@ -1760,7 +1760,7 @@ function jdb_delete(jdb, topic_name, path, kw)
             break;
         }
         if(is_object(v)) {
-            v = kw_get_dict_value(v, jdb.hook, null, 0);
+            v = kw_get_dict_value(null, v, jdb.hook, null, 0);
         }
         v = _jdb_get(v, null, id, false);
     }
@@ -1772,7 +1772,7 @@ function jdb_delete(jdb, topic_name, path, kw)
                 v.splice(idx, 1);
             }
         } else {
-            let v_ = kw_get_dict_value(v, jdb.hook, null, 0);
+            let v_ = kw_get_dict_value(null, v, jdb.hook, null, 0);
             let idx = id_index_in_obj_list(v_, kw["id"]);
             if(idx >= 0) {
                 v_.splice(idx, 1);
@@ -1790,13 +1790,13 @@ function jdb_delete(jdb, topic_name, path, kw)
  ********************************************/
 function jdb_get_topic(jdb, topic_name)
 {
-    let topics = kw_get_dict_value(jdb, "topics", null, 0, false);
+    let topics = kw_get_dict_value(null, jdb, "topics", null, 0, false);
     if(!topics) {
         log_error("jdb topics section not found");
         trace_msg(jdb);
         return null;
     }
-    let topic = kw_get_dict_value(topics, topic_name, null, 0, false);
+    let topic = kw_get_dict_value(null, topics, topic_name, null, 0, false);
     if(!topic) {
         log_error("jdb topic not found: " + topic_name);
         trace_msg(topics);
@@ -1810,8 +1810,8 @@ function jdb_get_topic(jdb, topic_name)
  ********************************************/
 function jdb_get(jdb, topic_name, id, recursive)
 {
-    let topics = kw_get_dict_value(jdb, "topics", null, 0);
-    let topic = kw_get_dict_value(topics, topic_name, null, 0);
+    let topics = kw_get_dict_value(null, jdb, "topics", null, 0);
+    let topic = kw_get_dict_value(null, topics, topic_name, null, 0);
     if(!topic) {
         log_error("jdb_get: topic not found: " + topic_name);
         return null;
@@ -1827,8 +1827,8 @@ function jdb_get(jdb, topic_name, id, recursive)
  ********************************************/
 function jdb_get_by_idx(jdb, topic_name, idx)
 {
-    let topics = kw_get_dict_value(jdb, "topics", null, 0);
-    let topic = kw_get_dict_value(topics, topic_name, null, 0);
+    let topics = kw_get_dict_value(null, jdb, "topics", null, 0);
+    let topic = kw_get_dict_value(null, topics, topic_name, null, 0);
     if(!topic) {
         log_error("jdb_get_by_idx: topic not found: " + topic_name);
         return null;

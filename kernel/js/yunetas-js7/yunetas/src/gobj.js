@@ -3239,7 +3239,7 @@ function _create_subscription(
 
 // TODO
 //            if(kw_has_key(kw_clone, "__rename_event_name__")) {
-//                const char *renamed_event = kw_get_str(kw_clone, "__rename_event_name__", 0, 0);
+//                const char *renamed_event = kw_get_str(gobj?, kw_clone, "__rename_event_name__", 0, 0);
 //                sdata_write_str(subs, "renamed_event", renamed_event);
 //                json_object_del(kw_clone, "__rename_event_name__");
 //                subs_flag |= __rename_event_name__;
