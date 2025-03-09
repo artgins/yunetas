@@ -2205,7 +2205,8 @@ function createElement2(description, translate_fn) {
             el.appendChild(createOneHtml(content));
         } else {
             if(translate_fn && data_i18next) {
-                el.textContent = translate_fn(data_i18next);
+                let translated = translate_fn(data_i18next);
+                el.textContent = translated?translated:content;
             } else {
                 el.textContent = content;
             }
