@@ -204,7 +204,7 @@ function json_object_update(destination, source) // old __extend_dict__
     if(!source) {
         return destination;
     }
-    for (let property in source) {
+    for (let property of Object.keys(source)) {
         if (source.hasOwnProperty(property)) {
             destination[property] = source[property];
         }
@@ -222,7 +222,7 @@ function json_object_update_existing(destination, source) // old __update_dict__
         return destination;
     }
     for (let property in source) {
-        if (source.hasOwnProperty(property) && destination.hasOwnProperty(property)) {
+        if(source.hasOwnProperty(property) && destination.hasOwnProperty(property)) {
             destination[property] = source[property];
         }
     }
@@ -1312,7 +1312,7 @@ function kw_clone_by_keys(kw, keys)    // old filter_dict
             }
         }
     } else if(is_object(keys)) {
-        for(let key in keys) {
+        for(let key of Object.keys(keys)) {
             if(kw.hasOwnProperty(key)) {
                 new_dict[key] = kw[key];
             }
@@ -1584,7 +1584,7 @@ function _traverse_dict(obj, callback, full_path)
     if(full_path === undefined || !is_string(full_path)) {
         full_path = "";
     }
-    for (let key in obj) {
+    for (let key of Object.keys(obj)) {
         if(!obj.hasOwnProperty(key)) {
             continue;
         }
@@ -2175,7 +2175,7 @@ function createElement2(description) {
     let data_i18next = '';
 
     if(attrs && typeof attrs === 'object') {
-        for (let attr in attrs) {
+        for (let attr of Object.keys(attrs)) {
             if (attr === 'style' && typeof attrs[attr] === 'object') {
                 // Convert the style object to a CSS string
                 let styleString = '';
