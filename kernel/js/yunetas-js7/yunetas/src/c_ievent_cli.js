@@ -953,31 +953,42 @@ function ac_identity_card_ack(gobj, event, kw, src)
 
     // WARNING comprueba result, ahora puede venir negativo
     let result = kw_get_int(gobj, kw, "result", -1, 0);
+    let comment = kw_get_str(gobj, kw, "comment", "", 0);
+    let username_ = kw_get_str(gobj, kw, "username", "", 0);
+    let services_roles = kw_get_dict_value(gobj, kw, "services_roles", {});
     if(result < 0) {
         close_websocket(gobj);
+
+        let kw_nak = {
+            "url": gobj_read_str_attr(gobj, "url"),
+            "result": result,
+            "comment": comment,
+            "username": username_,
+            "remote_yuno_name": src_yuno,
+            "remote_yuno_role": src_role,
+            "remote_yuno_service": src_service
+        };
 
         /*
          *  SERVICE subscription model
          */
         if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), "EV_ON_ID_NAK", kw, gobj);
+            gobj_send_event(gobj_parent(gobj), "EV_ON_ID_NAK", kw_nak, gobj);
         } else {
-            gobj_publish_event(gobj, "EV_ON_ID_NAK", kw);
+            gobj_publish_event(gobj, "EV_ON_ID_NAK", kw_nak);
         }
 
     } else {
-        let data = kw_get_dict_value(gobj, kw, "data", null, 0);
-
         gobj_change_state(gobj, "ST_SESSION");
         priv.inside_on_open = true;
 
         if(!priv.inform_on_close) {
             priv.inform_on_close = true;
             let kw_on_open = {
-                "remote_yuno_name": gobj_read_str_attr(gobj, "remote_yuno_name"),
-                "remote_yuno_role": gobj_read_str_attr(gobj, "remote_yuno_role"),
-                "remote_yuno_service": gobj_read_str_attr(gobj, "remote_yuno_service"),
-                "data": data
+                "remote_yuno_name": src_yuno,
+                "remote_yuno_role": src_role,
+                "remote_yuno_service": src_service,
+                "services_roles": services_roles,
             };
 
             /*
