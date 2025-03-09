@@ -985,6 +985,7 @@ function ac_identity_card_ack(gobj, event, kw, src)
         if(!priv.inform_on_close) {
             priv.inform_on_close = true;
             let kw_on_open = {
+                "username": username_,
                 "remote_yuno_name": src_yuno,
                 "remote_yuno_role": src_role,
                 "remote_yuno_service": src_service,
