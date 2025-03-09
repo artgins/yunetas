@@ -4147,6 +4147,7 @@ export {
     gobj_pause,
     gobj_is_running,
     gobj_is_playing,
+    gobj_is_service,
     gobj_yuno,
     gobj_yuno_name,
     gobj_yuno_role,
