@@ -29,6 +29,5 @@
         "vitest": "^3.0.8"
     },
     "dependencies": {
-        "i18next": "^24.2.2"
     }
 }

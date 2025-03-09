@@ -10,8 +10,6 @@ import {
     gobj_short_name,
 } from "./gobj.js";
 
-import i18next from 'i18next';
-
 const kw_flag_t = Object.freeze({
     KW_REQUIRED     : 0x0001,   // Log error message if not exist.
     KW_CREATE       : 0x0002,   // Create if not exist
@@ -2136,7 +2134,7 @@ function createOneHtml(htmlString)
  *                          content = createOneHtml(string)
  *                  if attrs['i18n'] is not empty then (or 'data-i18n' or 'data_i18next')
 *                          it will be overridden with the translation
- *                          content = i18next.t(attrs['i18n']));
+ *                          content = translate(attrs['i18n']));
  *
  *      events  -> {event: ()}
  *
@@ -2157,7 +2155,7 @@ function createOneHtml(htmlString)
  *      ['span', {style: {position: 'absolute'} }, 'title'],
  *
  ***************************************************************************/
-function createElement2(description) {
+function createElement2(description, translate_fn) {
     let [tag, attrs, content, events] = description;
 
     /*
@@ -2206,8 +2204,8 @@ function createElement2(description) {
         if(content.length > 0 && content[0] === '<') {
             el.appendChild(createOneHtml(content));
         } else {
-            if(data_i18next) {
-                el.textContent = i18next.t(data_i18next);
+            if(translate_fn && data_i18next) {
+                el.textContent = translate_fn(data_i18next);
             } else {
                 el.textContent = content;
             }
