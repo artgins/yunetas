@@ -2213,12 +2213,12 @@ function createElement2(description, translate_fn) {
     } else if(is_array(content)) {
         if(content.length > 0) {
             if(is_string(content[0])) {
-                el.appendChild(createElement2(content));
+                el.appendChild(createElement2(content, translate_fn));
             } else {
                 for (let child of content) {
                     // Check if the child is an array description or an HTMLElement
                     if (Array.isArray(child) && child.length > 0) {
-                        el.appendChild(createElement2(child));
+                        el.appendChild(createElement2(child, translate_fn));
                     } else if (child instanceof HTMLElement) {
                         el.appendChild(child);
                     }
