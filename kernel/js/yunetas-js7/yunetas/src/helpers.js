@@ -2207,7 +2207,7 @@ function createElement2(description) {
             el.appendChild(createOneHtml(content));
         } else {
             if(data_i18next) {
-                el.textContent = i18next.t(data_i18next, content);
+                el.textContent = i18next.t(data_i18next);
             } else {
                 el.textContent = content;
             }
