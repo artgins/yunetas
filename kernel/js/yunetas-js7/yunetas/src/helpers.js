@@ -2385,6 +2385,14 @@ function node_uuid()
     return uuid;
 }
 
+/************************************************************
+ *   Build a cleaned name
+ ************************************************************/
+function clean_name(name)
+{
+    return name.replace(/[?# ^:]/g, '_');
+}
+
 
 export {
     kw_flag_t,
@@ -2491,4 +2499,5 @@ export {
     get_now,
     index_in_list,
     node_uuid,
+    clean_name,
 };
