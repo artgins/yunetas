@@ -1173,7 +1173,7 @@ function _remove_child(parent, child)
 {
     let index = index_in_list(parent.dl_childs, child);
     if (index >= 0) {
-        parent.dl_childs.remove(index);
+        json_array_remove(parent.dl_childs, index);
         child.parent = null;
     }
 }
