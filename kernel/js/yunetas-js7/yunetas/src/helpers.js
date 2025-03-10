@@ -455,6 +455,32 @@ function empty_string(value) {
     return !is_string(value) || value.length === 0;
 }
 
+/*
+ * Converts a string to a bool.
+ *
+ * This conversion will:
+ *
+ *  - match 'true', 'on', or '1' as true.
+ *  - ignore all white-space padding
+ *  - ignore capitalization (case).
+ *
+ * '  tRue  ','ON', and '1   ' will all evaluate as true.
+ *
+ */
+function parseBoolean(s)
+{
+    if(is_number(s)) {
+        return Boolean(s);
+    }
+
+    // will match one and only one of the string 'true','1', or 'on' rerardless
+    // of capitalization and regardless off surrounding white-space.
+    //
+    let regex=/^\s*(true|1|on)\s*$/i;
+
+    return regex.test(s);
+}
+
 /************************************************************
  *      Like C functions
  ************************************************************/
@@ -1452,6 +1478,110 @@ function kw_remove_local_storage_value(key)
 
 /*************************************************************
     Utility for databases.
+    Return TRUE if `id` is in the list/dict/str `ids`
+ *************************************************************/
+function kwid_match_id(ids, id)
+{
+    if(is_null(ids) || is_null(id)) {
+        // Si no hay filtro pasan todos.
+        return true;
+    }
+
+    if(is_array(ids)) {
+        if(ids.length===0) {
+            // A empty object at first level evaluate as true.
+            return true;
+        }
+        for(let i=0; i<ids.length; i++) {
+            let value = ids[i];
+            if(value === id) {
+                return true;
+            }
+        }
+
+    } else if(is_object(ids)) {
+        if(Object.keys(ids).length===0) {
+            // A empty object at first level evaluate as true.
+            return true;
+        }
+        for(let key in ids) {
+            if(key === id) {
+                return true;
+            }
+        }
+
+    } else if(is_string(ids)) {
+        if(ids === id) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/*************************************************************
+    Utility for databases.
+    Being `kw` a:
+        - list of strings [s,...]
+        - list of dicts [{},...]
+        - dict of dicts {id:{},...}
+    return a **NEW** list of incref (clone) kw filtering the rows by `jn_filter` (where),
+    and matching the ids.
+    If match_fn is 0 then kw_match_simple is used.
+    NOTE Using JSON_INCREF/JSON_DECREF HACK
+ *************************************************************/
+function kwid_collect(gobj, kw, ids, jn_filter, match_fn)
+{
+    if(!kw) {
+        return null;
+    }
+    if(!match_fn) {
+        match_fn = kw_match_simple;
+    }
+    let kw_new = [];
+
+    if(is_array(kw)) {
+        for(let i=0; i<kw.length; i++) {
+            let jn_value = kw[i];
+
+            let id;
+            if(is_object(jn_value)) {
+                id = kw_get_str(jn_value, "id", "", false);
+            } else if(is_string(jn_value)) {
+                id = jn_value;
+            } else {
+                continue;
+            }
+
+            if(!kwid_match_id(ids, id)) {
+                continue;
+            }
+            if(match_fn(jn_value, jn_filter)) {
+                kw_new.push(jn_value);
+            }
+        }
+    } else if(is_object(kw)) {
+        for(let id of Object.keys(kw)) {
+            let jn_value = kw[id];
+
+            if(!kwid_match_id(ids, id)) {
+                continue;
+            }
+            if(match_fn(jn_value, jn_filter)) {
+                kw_new.push(jn_value);
+            }
+        }
+
+    } else  {
+        log_error("kw_collect() BAD kw parameter");
+        return null;
+    }
+
+    return kw_new;
+}
+
+/*************************************************************
+    Utility for databases.
     Return a new dict from a "dict of records" or "list of records"
     WARNING the "id" of a dict's record is hardcorded to their key.
     Convention:
@@ -1478,10 +1608,174 @@ function kwid_new_dict(gobj, kw, path)
         }
 
     } else {
-        log_error("kwid_new_dict: data type unknown");
+        log_error(`${gobj_short_name(gobj)} kwid_new_dict: data type unknown`);
     }
 
     return new_dict;
+}
+
+/*************************************************************
+ *  Utility for databases. See kwid_collect parameters
+ *************************************************************/
+function kwid_find_one_record(gobj, kw, ids, jn_filter, match_fn)
+{
+    let list = kwid_collect(gobj, kw, ids, jn_filter, match_fn);
+    if(list.length > 0) {
+        return list[0];
+    } else {
+        return null;
+    }
+}
+
+/*************************************************************
+    Utility for databases.
+    Being `ids` a:
+
+        "$id"
+
+        {
+            "$id": {
+                "id": "$id",
+                ...
+            }
+            ...
+        }
+
+        ["$id", ...]
+
+        [
+            "$id",
+            {
+                "id":$id,
+                ...
+            },
+            ...
+        ]
+
+    return a list of all ids
+*************************************************************/
+function kwid_get_ids(gobj, ids)
+{
+    if(!ids) {
+        return [];
+    }
+
+    let new_ids = [];
+
+    if(is_string(ids)) {
+        /*
+            "$id"
+        */
+        new_ids.push(ids);
+    } else if(is_object(ids)) {
+        /*
+            {
+                "$id": {
+                    "id": "$id",
+                    ...
+                }
+                ...
+            }
+        */
+        for(let id in ids) {
+            if (ids.hasOwnProperty(id)) {
+                new_ids.push(id);
+            }
+        }
+    } else if(is_array(ids)) {
+        ids.forEach(function(item) {
+            if(is_string(item)) {
+                /*
+                    ["$id", ...]
+                 */
+                if(!empty_string(item)) {
+                    new_ids.push(item);
+                }
+            } else if(is_object(item)) {
+                /*
+                    [
+                        {
+                            "id":$id,
+                            ...
+                        },
+                        ...
+                    ]
+                 */
+                let id = kw_get_str(gobj, item, "id", 0, 0);
+                if(id) {
+                    new_ids.push(id);
+                }
+            }
+        });
+    }
+
+    return new_ids;
+}
+
+/********************************************************
+ *  Convert [s] or [{}] or {}
+ *  in a webix list options:
+ *      [{id:"", value:""}, ...]
+ ********************************************************/
+function list2options(list, field_id, field_value)
+{
+    field_id = field_id?field_id:"id";
+    field_value = field_value?field_value:"value";
+
+    let options = [];
+
+    if(is_array(list)) {
+        for(let i=0; i<list.length; i++) {
+            let v = list[i];
+            if(is_string(v)) {
+                options.push({
+                    id: list[i],
+                    value: list[i]
+                });
+            } else if(is_object(v)) {
+                let vv = {};
+                if(!kw_has_key(v, field_id)) {
+                    /* If not exist, then get the first entry */
+                    if(json_size(v)>0) {
+                        field_id = Object.keys(v)[0];
+                    } else {
+                        log_error("list2options(): object without field id: " + field_id);
+                        continue;
+                    }
+                    vv["id"] = field_id;
+                    vv["value"] = v[field_id];
+                } else {
+                    if(!kw_has_key(v, field_value)) {
+                        /* If not exist, then get the first entry */
+                        if(json_size(v)>0) {
+                            field_value = Object.keys(v)[0];
+                        } else {
+                            log_error("list2options(): object without field value: " + field_value);
+                            continue;
+                        }
+
+                    }
+                    vv["id"] = v[field_id];
+                    vv["value"] = v[field_value];
+                }
+                options.push(vv);
+
+            } else {
+                log_error("list2options(): case1 not implemented");
+            }
+        }
+    } else if(is_object(list)) {
+        for(let k of Object.keys(list)) {
+            options.push({
+                id: k,
+                value: k
+            });
+        }
+    } else {
+        log_error("list2options(): case2 not implemented");
+    }
+
+    return options;
 }
 
 /************************************************************
@@ -2543,6 +2837,7 @@ export {
     is_function,
     is_gobj,
 
+    parseBoolean,
     empty_string,
     strncmp,
     strcmp,
@@ -2576,7 +2871,12 @@ export {
     kw_set_local_storage_value,
     kw_remove_local_storage_value,
 
+    kwid_match_id,
+    kwid_collect,
     kwid_new_dict,
+    kwid_find_one_record,
+    kwid_get_ids,
+    list2options,
 
     id_index_in_obj_list,
     elm_in_list,
