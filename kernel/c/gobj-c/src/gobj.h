@@ -1435,7 +1435,7 @@ PUBLIC int gobj_write_attr(
 PUBLIC int gobj_write_attrs(
     hgobj gobj,
     json_t *kw,  // owned
-    sdata_flag_t flag,
+    sdata_flag_t include_flag,
     hgobj src
 );
 PUBLIC int gobj_write_user_data(

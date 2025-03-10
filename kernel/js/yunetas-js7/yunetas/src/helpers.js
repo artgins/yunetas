@@ -266,6 +266,14 @@ function json_object_del(o, k)
 /************************************************************
  *  Simulate jansson function
  ************************************************************/
+function json_object_set(o, k, v)
+{
+    o[k] = v;
+}
+
+/************************************************************
+ *  Simulate jansson function
+ ************************************************************/
 function json_object_set_new(o, k, v)
 {
     o[k] = v;
@@ -2403,6 +2411,7 @@ export {
     json_object_update_existing,
     json_object_update_missing,
     json_object_get,
+    json_object_set,
     json_object_set_new,
     json_object_del,
     json_array_append,

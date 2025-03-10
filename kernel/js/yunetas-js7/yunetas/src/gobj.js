@@ -12,7 +12,6 @@ import {
     is_string,
     is_object,
     is_array,
-    is_boolean,
     is_number,
     log_error,
     log_warning,
@@ -21,6 +20,7 @@ import {
     json_object_update,
     json_object_get,
     json_object_del,
+    json_object_set,
     json_object_set_new,
     index_in_list,
     json_array_size,
@@ -638,6 +638,13 @@ function json2item(gobj, sdata, it, jn_value_)
 
     sdata[it.name] = jn_value2;
 
+    if(gobj.gclass.gmt.mt_writing) {
+        if((gobj.obflag & obflag_t.obflag_created) && !(gobj.obflag & obflag_t.obflag_destroyed)) {
+            // Avoid call to mt_writing before mt_create!
+            gobj.gclass.gmt.mt_writing(gobj, it.name);
+        }
+    }
+
     return 0;
 }
 
@@ -671,7 +678,7 @@ function gobj_hsdata2(gobj, name, verbose)
  ***************************************************************************/
 function gclass_attr_desc(gclass, attr, verbose)
 {
-    if(!gclass) {
+    if(!gclass || !(gclass instanceof GClass)) {
         if(verbose) {
             log_error(`gclass NULL`);
         }
@@ -1218,7 +1225,7 @@ function gobj_get_gclass_config(gclass_name, verbose)
  ************************************************************/
 function gobj_load_persistent_attrs(
     gobj,
-    jn_attrs  // // str, list or dict.
+    jn_attrs  // str, list or dict.
 ) {
     if(!gobj_is_service(gobj)) {
         log_error(`${gobj_short_name(gobj)}: Only gobj services can load/save writable-persistent`);
@@ -1235,7 +1242,7 @@ function gobj_load_persistent_attrs(
  ************************************************************/
 function gobj_save_persistent_attrs(
     gobj,
-    jn_attrs  // // str, list or dict.
+    jn_attrs  // str, list or dict.
 ) {
     if(!gobj_is_service(gobj)) {
         log_error(`${gobj_short_name(gobj)}: Only gobj services can load/save writable-persistent`);
@@ -1252,7 +1259,7 @@ function gobj_save_persistent_attrs(
  ************************************************************/
 function gobj_remove_persistent_attrs(
     gobj,
-    jn_attrs  // // str, list or dict.
+    jn_attrs  // str, list or dict.
 ) {
 
     if(!gobj_is_service(gobj)) {
@@ -1273,7 +1280,7 @@ function gobj_list_persistent_attrs(gobj)
     if(!__global_list_persistent_attrs_fn__) {
         return null;
     }
-    return __global_list_persistent_attrs_fn__();
+    return __global_list_persistent_attrs_fn__(gobj);
 }
 
 /************************************************************
@@ -1474,21 +1481,6 @@ function gobj_create2(
         ));
     }
 
-    /*--------------------------------*
-     *  Write configuration
-     *--------------------------------*/
-    write_json_parameters(gobj, kw, __jn_global_settings__);
-
-    /*--------------------------------------*
-     *  Load writable and persistent attrs
-     *  of services and __root__
-     *--------------------------------------*/
-    if(gobj.gobj_flag & (gobj_flag_t.gobj_flag_service)) {
-        if(__global_load_persistent_attrs_fn__) {
-            __global_load_persistent_attrs_fn__(gobj, 0);
-        }
-    }
-
     /*--------------------------*
      *  Register service
      *--------------------------*/
@@ -1510,11 +1502,29 @@ function gobj_create2(
     }
 
     /*--------------------------------*
-     *      Exec mt_create
+     *     Mark as created
      *--------------------------------*/
     gobj.obflag |= obflag_t.obflag_created;
     gobj.gclass.instances++;
 
+    /*--------------------------------*
+     *  Write configuration
+     *--------------------------------*/
+    write_json_parameters(gobj, kw, __jn_global_settings__);
+
+    /*--------------------------------------*
+     *  Load writable and persistent attrs
+     *  of services and __root__
+     *--------------------------------------*/
+    if(gobj.gobj_flag & (gobj_flag_t.gobj_flag_service)) {
+        if(__global_load_persistent_attrs_fn__) {
+            __global_load_persistent_attrs_fn__(gobj, null);
+        }
+    }
+
+    /*--------------------------------*
+     *      Exec mt_create
+     *--------------------------------*/
     if(gobj.gclass.gmt.mt_create2) {
         gobj.gclass.gmt.mt_create2(gobj, kw);
     } else if(gobj.gclass.gmt.mt_create) {
@@ -2276,6 +2286,24 @@ function gobj_set_bottom_gobj(gobj, bottom_gobj)
 }
 
 /***************************************************************************
+ *  Return the data description of the attribute `attr`
+ *  If `attr` is null returns full attr's table
+ ***************************************************************************/
+function gobj_attr_desc(gobj, attr, verbose)
+{
+    if(!gobj || !(gobj instanceof GObj)) {
+        log_error(`gobj NULL of bad type`);
+        return null;
+    }
+
+    if(!attr) {
+        return gobj.gclass.attrs_table;
+    }
+
+    return gclass_attr_desc(gobj.gclass, attr, verbose);
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 function gobj_walk_gobj_childs(
@@ -2666,6 +2694,7 @@ function gobj_read_attr(gobj, name, src)
     // TODO if attribute not found then find in bottom gobj
     if(name in jn_attrs) {
         if(jn_attrs.hasOwnProperty(name)) {
+            // TODO must be a item2json, to call mt_reading
             let value = jn_attrs[name];
             if(gobj.gclass.gmt.mt_reading) {
                 return gobj.gclass.gmt.mt_reading(name, value);
@@ -2674,6 +2703,34 @@ function gobj_read_attr(gobj, name, src)
         }
     }
     return null;
+}
+
+/***************************************************************************
+ *  ATTR: read
+ ***************************************************************************/
+function gobj_read_attrs(
+    gobj,
+    include_flag, // sdata_flag_t
+    src
+) {
+    let jn_attrs = {};
+
+    let sdata_desc = gobj.gclass.attrs_table;
+
+    for(let i=0; i < sdata_desc.length; i++) {
+        const it = sdata_desc[i];
+        if(!it.name) {
+            continue;
+        }
+
+        if(include_flag === -1 || (it.flag & include_flag)) {
+            // TODO must be a item2json, to call mt_reading
+            let jn = json_object_get(gobj.jn_attrs, it.name);
+            json_object_set(jn_attrs, it.name, jn);
+        }
+    }
+
+    return jn_attrs;
 }
 
 /************************************************************
@@ -2739,6 +2796,33 @@ function gobj_write_attr(
 
     log_error(sprintf("gobj_write_attr(%s): attr not found '%s'", gobj_short_name(gobj), key));
     return -1;
+}
+
+/***************************************************************************
+ *  ATTR: write
+ ***************************************************************************/
+function gobj_write_attrs(
+    gobj,
+    kw,
+    include_flag,  // sdata_flag_t
+    src
+) {
+    let hs = gobj_hsdata(gobj);
+
+    let ret = 0;
+
+    for (const [attr, jn_value] of Object.entries(kw)) {
+        let it = gobj_attr_desc(gobj, attr, true);
+        if(!it) {
+            continue;
+        }
+        if(!(include_flag === -1 || (it.flag & include_flag))) {
+            continue;
+        }
+        ret += json2item(gobj, hs, it, jn_value);
+    }
+
+    return ret;
 }
 
 /***************************************************************************
@@ -3054,7 +3138,7 @@ function gobj_send_event(dst, event, kw, src)
 
     let state = dst.current_state;
     if(!state) {
-        log_error(`${gobj_short_name(gobj)}: current_state NULL`);
+        log_error(`${gobj_short_name(dst)}: current_state NULL`);
         return -1;
     }
 
@@ -4170,7 +4254,9 @@ export {
     gobj_search_path,
     gobj_has_attr,
     gobj_read_attr,
+    gobj_read_attrs,
     gobj_write_attr,
+    gobj_write_attrs,
     gobj_read_bool_attr,
     gobj_read_integer_attr,
     gobj_read_str_attr,

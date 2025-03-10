@@ -1797,21 +1797,6 @@ PUBLIC hgobj gobj_create2(
         return NULL;
     }
 
-    /*--------------------------------*
-     *  Write configuration
-     *--------------------------------*/
-    write_json_parameters(gobj, kw, __jn_global_settings__);
-
-    /*--------------------------------------*
-     *  Load writable and persistent attrs
-     *  of services and __root__
-     *--------------------------------------*/
-    if(gobj->gobj_flag & (gobj_flag_service)) {
-        if(__global_load_persistent_attrs_fn__) {
-            __global_load_persistent_attrs_fn__(gobj, 0);
-        }
-    }
-
     /*--------------------------*
      *  Register service
      *--------------------------*/
@@ -1833,11 +1818,29 @@ PUBLIC hgobj gobj_create2(
     }
 
     /*--------------------------------*
-     *      Exec mt_create
+     *     Mark as created
      *--------------------------------*/
     gobj->obflag |= obflag_created;
     gobj->gclass->instances++;
 
+    /*--------------------------------*
+     *  Write configuration
+     *--------------------------------*/
+    write_json_parameters(gobj, kw, __jn_global_settings__);
+
+    /*--------------------------------------*
+     *  Load writable and persistent attrs
+     *  of services and __root__
+     *--------------------------------------*/
+    if(gobj->gobj_flag & (gobj_flag_service)) {
+        if(__global_load_persistent_attrs_fn__) {
+            __global_load_persistent_attrs_fn__(gobj, 0);
+        }
+    }
+
+    /*--------------------------------*
+     *      Exec mt_create
+     *--------------------------------*/
     if(gobj->gclass->gmt->mt_create2) {
         JSON_INCREF(kw)
         gobj->gclass->gmt->mt_create2(gobj, kw);
@@ -2817,7 +2820,9 @@ PRIVATE int sdata_write_default_values(
 
             if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
                 // Avoid call to mt_writing before mt_create!
-                gobj->gclass->gmt->mt_writing(gobj, it->name);
+                if(gobj->gclass->gmt->mt_writing) {
+                    gobj->gclass->gmt->mt_writing(gobj, it->name);
+                }
             }
         }
         it++;
@@ -3065,6 +3070,23 @@ PRIVATE int json2item(
         return -1;
     }
 
+    if(gobj->gclass->gmt->mt_writing) {
+        if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
+            // Avoid call to mt_writing before mt_create!
+            gobj->gclass->gmt->mt_writing(gobj, it->name);
+        }
+    }
+
+    // { TODO
+    //     SDATA_METADATA_TYPE *p = item_metadata_pointer(sdata, it);
+    //     SDATA_METADATA_TYPE m = *p;
+    //     if((it->flag & (SDF_STATS|SDF_RSTATS|SDF_PSTATS))) {
+    //         if(sdata->post_write_stats_cb) {
+    //             sdata->post_write_stats_cb(sdata->user_data, it->name, it->type, old_value, value);
+    //         }
+    //     }
+    // }
+
     return 0;
 }
 
@@ -3252,6 +3274,7 @@ PUBLIC json_t *gobj_read_attr(
 
     json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
+        // TODO must be a item2json, to call mt_reading
         json_t *jn_value = json_object_get(hs, name);
         return jn_value;
     }
@@ -3283,6 +3306,7 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
     const sdata_desc_t *it = gobj->gclass->attrs_table;
     while(it->name) {
         if(include_flag == (sdata_flag_t)-1 || (it->flag & include_flag)) {
+            // TODO must be a item2json, to call mt_reading
             json_t *jn = json_object_get(gobj->jn_attrs, it->name);
             json_object_set(jn_attrs, it->name, jn);
         }
@@ -3351,7 +3375,7 @@ PUBLIC int gobj_write_attr(
 PUBLIC int gobj_write_attrs(
     hgobj gobj,
     json_t *kw,  // owned
-    sdata_flag_t flag,
+    sdata_flag_t include_flag,
     hgobj src
 ) {
     json_t *hs = gobj_hsdata(gobj);
@@ -3364,7 +3388,7 @@ PUBLIC int gobj_write_attrs(
         if(!it) {
             continue;
         }
-        if(!(flag == (sdata_flag_t)-1 || (it->flag & flag))) {
+        if(!(include_flag == (sdata_flag_t)-1 || (it->flag & include_flag))) {
             continue;
         }
         ret += json2item(gobj, hs, it, jn_value);

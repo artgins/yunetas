@@ -30,7 +30,10 @@ function _get_persistent_path(gobj)
 /************************************************************
  *
  ************************************************************/
-function db_load_persistent_attrs(gobj)
+function db_load_persistent_attrs(
+    gobj,
+    jn_attrs  // str, list or dict.
+)
 {
     let attrs = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
     if(attrs && is_object(attrs)) {
@@ -44,7 +47,10 @@ function db_load_persistent_attrs(gobj)
 /************************************************************
  *
  ************************************************************/
-function db_save_persistent_attrs(gobj)
+function db_save_persistent_attrs(
+    gobj,
+    jn_attrs  // str, list or dict.
+)
 {
     kw_set_local_storage_value(
         _get_persistent_path(gobj),
@@ -55,7 +61,10 @@ function db_save_persistent_attrs(gobj)
 /************************************************************
  *
  ************************************************************/
-function db_remove_persistent_attrs(gobj)
+function db_remove_persistent_attrs(
+    gobj,
+    jn_attrs  // str, list or dict.
+)
 {
     kw_remove_local_storage_value(_get_persistent_path(gobj));
 }
@@ -63,7 +72,7 @@ function db_remove_persistent_attrs(gobj)
 /************************************************************
  *
  ************************************************************/
-function db_list_persistent_attrs()
+function db_list_persistent_attrs(gobj)
 {
     // TODO
 }

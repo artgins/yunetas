@@ -31,6 +31,8 @@ Change API
     open_exclusive  - parameter name changed
     mkrdir          - parameter name changed
 
+    gobj_write_attrs - parameter name changed
+
     typedef struct states_s:
         ev_action_t *state; => ev_action_t *ev_action_list;
 
