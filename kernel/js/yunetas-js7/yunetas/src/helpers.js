@@ -1450,6 +1450,40 @@ function kw_remove_local_storage_value(key)
     }
 }
 
+/*************************************************************
+    Utility for databases.
+    Return a new dict from a "dict of records" or "list of records"
+    WARNING the "id" of a dict's record is hardcorded to their key.
+    Convention:
+        - all arrays are list of records (dicts) with "id" field as primary key
+        - delimiter is '`' and '.'
+    If path is empty then use kw
+ *************************************************************/
+function kwid_new_dict(gobj, kw, path)
+{
+    let new_dict = {};
+    if(!empty_string(path)) {
+        kw = kw_find_path(gobj, kw, path);
+    }
+    if(is_object(kw)) {
+        new_dict = kw;
+
+    } else if(is_array(kw)) {
+        for(let i=0; i<kw.length; i++) {
+            let kv = kw[i];
+            let id = kw_get_str(kv, "id", null, false);
+            if(!empty_string(id)) {
+                new_dict[id] = kv;
+            }
+        }
+
+    } else {
+        log_error("kwid_new_dict: data type unknown");
+    }
+
+    return new_dict;
+}
+
 /************************************************************
  *
  ************************************************************/
@@ -2541,6 +2575,8 @@ export {
     kw_get_local_storage_value,
     kw_set_local_storage_value,
     kw_remove_local_storage_value,
+
+    kwid_new_dict,
 
     id_index_in_obj_list,
     elm_in_list,
