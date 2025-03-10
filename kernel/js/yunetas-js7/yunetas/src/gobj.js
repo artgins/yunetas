@@ -1885,7 +1885,7 @@ function gobj_stop(gobj)
     }
     if(gobj.playing) {
         // It's auto-stopping but display error (magic but warn!).
-        log_warning("GObj stopping without previous pause");
+        log_warning(`${gobj_short_name(gobj)}: GObj stopping without previous pause`);
         gobj_pause(gobj);
     }
 
@@ -1971,7 +1971,7 @@ function gobj_play(gobj)
     if(!gobj_is_running(gobj)) {
         if(!(gobj.gclass.gclass_flag & gclass_flag_t.gcflag_required_start_to_play)) {
             // Default: It's auto-starting but display error (magic but warn!).
-            log_warning(`GObj playing without previous start: ${gobj_short_name(gobj)}`);
+            log_warning(`${gobj_short_name(gobj)}: GObj playing without previous start`);
             gobj_start(gobj);
         } else {
             log_error(`${gobj_short_name(gobj)}: Cannot play, start not done`);
@@ -3540,7 +3540,7 @@ function gobj_subscribe_event(
         true
     );
     if(json_array_size(dl_subs) > 0) {
-        log_warning(`subscription(s) REPEATED, will be deleted and override`);
+        log_warning(`${gobj_short_name(publisher)}: subscription(s) REPEATED, will be deleted and override`);
         gobj_unsubscribe_list(dl_subs, false);
     }
 
@@ -4078,7 +4078,7 @@ function gobj_publish_event(
 
     if(!sent_count) {
         if(!ev || !(ev.event_flag & event_flag_t.EVF_NO_WARN_SUBS)) {
-            log_warning(`Publish event WITHOUT subscribers: ${gobj_short_name(publisher)}, ev ${event}`);
+            log_warning(`${gobj_short_name(publisher)}: Publish event WITHOUT subscribers, ev ${event}`);
             // if(__trace_gobj_ev_kw__(publisher)) {
             //     if(json_object_size(kw)) {
             //         gobj_trace_json(publisher, kw, "Publish event WITHOUT subscribers");
