@@ -13,6 +13,8 @@ import {
     is_object,
     kw_clone_by_keys,
     json_object_update_missing,
+    kw_clone_by_not_keys,
+    json_object_size,
 } from "./helpers.js";
 
 import {
@@ -95,10 +97,14 @@ function db_remove_persistent_attrs(
         false
     );
 
-    kw_set_local_storage_value(
-        _get_persistent_path(gobj),
-        attrs
-    );
+    if(json_object_size(attrs)===0) {
+        kw_remove_local_storage_value(_get_persistent_path(gobj));
+    } else {
+        kw_set_local_storage_value(
+            _get_persistent_path(gobj),
+            attrs
+        );
+    }
 }
 
 /************************************************************
