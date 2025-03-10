@@ -10,13 +10,16 @@ import {
     kw_get_local_storage_value,
     kw_remove_local_storage_value,
     kw_set_local_storage_value,
-    json_object_update_existing,
     is_object,
     kw_clone_by_keys,
+    json_object_update_missing,
 } from "./helpers.js";
 
 import {
-    gobj_short_name
+    sdata_flag_t,
+    gobj_read_attrs,
+    gobj_short_name,
+    gobj_write_attrs,
 } from "./gobj.js";
 
 /************************************************************
@@ -32,15 +35,19 @@ function _get_persistent_path(gobj)
  ************************************************************/
 function db_load_persistent_attrs(
     gobj,
-    jn_attrs  // str, list or dict.
+    keys  // str, list or dict.
 )
 {
-    let attrs = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
-    if(attrs && is_object(attrs)) {
-        json_object_update_existing(
-            gobj.config,
-            kw_clone_by_keys(attrs, gobj.gobj_get_writable_attrs())
+    let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+    if(jn_file && is_object(jn_file)) {
+        let attrs = kw_clone_by_keys(
+            gobj,
+            jn_file,    // owned
+            keys,       // owned
+            false
         );
+
+        gobj_write_attrs(gobj, attrs, sdata_flag_t.SDF_PERSIST, 0);
     }
 }
 
@@ -49,12 +56,25 @@ function db_load_persistent_attrs(
  ************************************************************/
 function db_save_persistent_attrs(
     gobj,
-    jn_attrs  // str, list or dict.
+    keys  // str, list or dict.
 )
 {
+    let jn_attrs = gobj_read_attrs(gobj, sdata_flag_t.SDF_PERSIST, 0);
+    let attrs = kw_clone_by_keys(
+        gobj,
+        jn_attrs,   // owned
+        keys,       // owned
+        false
+    );
+
+    let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+    if(jn_file && is_object(jn_file)) {
+        json_object_update_missing(attrs, jn_file);
+    }
+
     kw_set_local_storage_value(
         _get_persistent_path(gobj),
-        kw_clone_by_keys(gobj.config, gobj.gobj_get_writable_attrs())
+        attrs
     );
 }
 
@@ -63,10 +83,22 @@ function db_save_persistent_attrs(
  ************************************************************/
 function db_remove_persistent_attrs(
     gobj,
-    jn_attrs  // str, list or dict.
+    keys  // str, list or dict.
 )
 {
-    kw_remove_local_storage_value(_get_persistent_path(gobj));
+    let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+
+    let attrs = kw_clone_by_not_keys(
+        gobj,
+        jn_file,
+        keys,
+        false
+    );
+
+    kw_set_local_storage_value(
+        _get_persistent_path(gobj),
+        attrs
+    );
 }
 
 /************************************************************

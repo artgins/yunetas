@@ -260,7 +260,9 @@ function json_object_get(o, key)
  ************************************************************/
 function json_object_del(o, k)
 {
-    delete o[k];
+    if (o.hasOwnProperty(k)) {
+        delete o[k];
+    }
 }
 
 /************************************************************
@@ -1231,7 +1233,7 @@ function kw_find_json_in_list(
     return a new list of **duplicated** kw filtering the rows by `jn_filter` (where),
     If match_fn is 0 then kw_match_simple is used.
  *************************************************************/
-function kw_select(kw, jn_filter, match_fn)
+function kw_select(gobj, kw, jn_filter, match_fn)
 {
     if(!kw) {
         return null;
@@ -1265,7 +1267,7 @@ function kw_select(kw, jn_filter, match_fn)
     return a new list of incref (clone) kw filtering the rows by `jn_filter` (where)
     If match_fn is 0 then kw_match_simple is used.
  *************************************************************/
-function kw_collect(kw, jn_filter, match_fn)
+function kw_collect(gobj, kw, jn_filter, match_fn)
 {
     if(!kw) {
         return null;
@@ -1295,36 +1297,110 @@ function kw_collect(kw, jn_filter, match_fn)
 }
 
 /*************************************************************
- *  From a dict,
- *  get a new dict with the same objects with only attributes in keys
- *  keys can be
- *          "$key"
- *         ["$key1", "$key2", ...]
- *         {"$key1":*, "$key2":*, ...}
+    Return a new kw only with the keys got by dict's keys or list's keys (strings).
+    Keys:
+        "$key"
+        ["$key1", "$key2", ...]
+        {"$key1":*, "$key2":*, ...}
+
+    It's not a deep copy, new keys are the paths.
+    If paths are empty return kw
  *************************************************************/
-function kw_clone_by_keys(kw, keys)    // old filter_dict
+function kw_clone_by_keys(gobj, kw, keys, verbose)    // old filter_dict
 {
-    let new_dict = {};
-    if(is_string(keys)) {
+    let kw_clone = {};
+    if(is_string(keys) && !empty_string(keys)) {
         let key = keys;
         if(kw.hasOwnProperty(key)) {
-            new_dict[key] = kw[key];
+            kw_clone[key] = kw[key];
+        } else {
+            if(verbose) {
+                log_error(`${gobj_short_name(gobj)}: key not found: ${key}`);
+            }
         }
-    } else if(is_array(keys)) {
+    } else if(is_object(keys) && json_object_size(keys)>0) {
+        for(let key of Object.keys(keys)) {
+            if(kw.hasOwnProperty(key)) {
+                kw_clone[key] = kw[key];
+            } else {
+                if(verbose) {
+                    log_error(`${gobj_short_name(gobj)}: key not found: ${key}`);
+                }
+            }
+        }
+    } else if(is_array(keys) && json_array_size(keys)>0) {
         for(let j=0; j<keys.length; j++) {
             let key = keys[j];
             if(kw.hasOwnProperty(key)) {
-                new_dict[key] = kw[key];
+                kw_clone[key] = kw[key];
+            } else {
+                if(verbose) {
+                    log_error(`${gobj_short_name(gobj)}: key not found: ${key}`);
+                }
             }
         }
-    } else if(is_object(keys)) {
+    } else {
+        return kw;
+    }
+    return kw_clone;
+}
+
+/***************************************************************************
+    Return a new kw except the keys got by dict's keys or list's keys (strings).
+    Keys:
+        "$key"
+        ["$key1", "$key2", ...]
+        {"$key1":*, "$key2":*, ...}
+
+    It's not a deep copy, new keys are the paths.
+    If paths are empty return empty
+ ***************************************************************************/
+function kw_clone_by_not_keys(
+    gobj,
+    kw,
+    keys,
+    verbose
+)
+{
+    let kw_clone = {};
+    json_object_update(kw_clone, kw);
+
+    if(is_string(keys) && !empty_string(keys)) {
+        let key = keys;
+        let jn_value = kw_get_dict_value(gobj, kw, key, 0, 0);
+        if(jn_value) {
+            json_object_del(kw_clone, key);
+        } else {
+            if(verbose) {
+                log_error(`${gobj_short_name(gobj)}: key not found: ${key}`);
+            }
+        }
+    } else if(is_object(keys) && json_object_size(keys)>0) {
         for(let key of Object.keys(keys)) {
             if(kw.hasOwnProperty(key)) {
-                new_dict[key] = kw[key];
+                json_object_del(kw_clone, key);
+            } else {
+                if(verbose) {
+                    log_error(`${gobj_short_name(gobj)}: key not found: ${key}`);
+                }
             }
         }
+    } else if(is_array(keys) && json_array_size(keys)>0) {
+        for(let j=0; j<keys.length; j++) {
+            let key = keys[j];
+            if(kw.hasOwnProperty(key)) {
+                json_object_del(kw_clone, key);
+            } else {
+                if(verbose) {
+                    log_error(`${gobj_short_name(gobj)}: key not found: ${key}`);
+                }
+            }
+        }
+    } else {
+        return {};
     }
-    return new_dict;
+
+    return kw_clone;
 }
 
 /********************************************
@@ -2460,6 +2536,7 @@ export {
     kw_select,
     kw_collect,
     kw_clone_by_keys,
+    kw_clone_by_not_keys,
 
     kw_get_local_storage_value,
     kw_set_local_storage_value,
