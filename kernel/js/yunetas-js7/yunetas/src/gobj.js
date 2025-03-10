@@ -1637,7 +1637,7 @@ function gobj_destroy(gobj)
      *      Check parameters
      *--------------------------------*/
     if(gobj.__refs__ > 0) {
-        log_error(`gobj DESTROYING with references: ${gobj.__refs__}`);
+        log_error(`${gobj_short_name(gobj)}: gobj DESTROYING with references: ${gobj.__refs__}`);
     }
     gobj.obflag |= obflag_t.obflag_destroying;
 
@@ -1762,11 +1762,11 @@ function gobj_start(gobj)
         return -1;
     }
     if(gobj.running) {
-        log_error("GObj ALREADY RUNNING");
+        log_error(`${gobj_short_name(gobj)}: GObj ALREADY RUNNING`);
         return -1;
     }
     if(gobj.disabled) {
-        log_error("GObj DISABLED");
+        log_error(`${gobj_short_name(gobj)}: GObj DISABLED`);
         return -1;
     }
 
@@ -1880,7 +1880,7 @@ function gobj_stop(gobj)
         return -1;
     }
     if(!gobj.running) {
-        log_error("GObj NOT RUNNING");
+        log_error(`${gobj_short_name(gobj)}: GObj NOT RUNNING`);
         return -1;
     }
     if(gobj.playing) {
@@ -1961,11 +1961,11 @@ function gobj_play(gobj)
         return -1;
     }
     if(gobj.playing) {
-        log_error(`GObj ALREADY PLAYING: ${gobj_short_name(gobj)}`);
+        log_error(`${gobj_short_name(gobj)}: GObj ALREADY PLAYING`);
         return -1;
     }
     if(gobj.disabled) {
-        log_error(`GObj DISABLED: ${gobj_short_name(gobj)}`);
+        log_error(`${gobj_short_name(gobj)}: GObj DISABLED`);
         return -1;
     }
     if(!gobj_is_running(gobj)) {
@@ -1974,7 +1974,7 @@ function gobj_play(gobj)
             log_warning(`GObj playing without previous start: ${gobj_short_name(gobj)}`);
             gobj_start(gobj);
         } else {
-            log_error(`Cannot play, start not done: ${gobj_short_name(gobj)}`);
+            log_error(`${gobj_short_name(gobj)}: Cannot play, start not done`);
             return -1;
         }
     }
@@ -2009,7 +2009,7 @@ function gobj_pause(gobj)
         return -1;
     }
     if(!gobj.playing) {
-        log_error("GObj NOT PLAYING");
+        log_error(`${gobj_short_name(gobj)}: GObj NOT PLAYING`);
         return -1;
     }
 
@@ -2270,7 +2270,7 @@ function gobj_set_bottom_gobj(gobj, bottom_gobj)
     }
 
     if(gobj.bottom_gobj) {
-        log_warning(`"bottom_gobj already set: ${gobj_short_name(gobj)}`);
+        log_warning(`${gobj_short_name(gobj)}: bottom_gobj already set`);
     }
     gobj.bottom_gobj = bottom_gobj;
 }
@@ -2768,7 +2768,7 @@ function gobj_read_bool_attr(gobj, name)
         return json_object_get(hs, name);
     }
 
-    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`${gobj_short_name(gobj)}: GClass Attribute NOT FOUND, attr ${name}`);
     return 0;
 }
 
@@ -2791,7 +2791,7 @@ function gobj_read_integer_attr(gobj, name)
         return json_object_get(hs, name);
     }
 
-    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`${gobj_short_name(gobj)}: GClass Attribute NOT FOUND, attr ${name}`);
     return 0;
 }
 
@@ -2814,7 +2814,7 @@ function gobj_read_str_attr(gobj, name)
         return json_object_get(hs, name);
     }
 
-    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`${gobj_short_name(gobj)}: GClass Attribute NOT FOUND, attr ${name}`);
     return 0;
 }
 
@@ -2833,7 +2833,7 @@ function gobj_read_pointer_attr(gobj, name)
         return json_object_get(hs, name);
     }
 
-    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`${gobj_short_name(gobj)}: GClass Attribute NOT FOUND, attr ${name}`);
     return 0;
 }
 
@@ -2854,7 +2854,7 @@ function gobj_write_bool_attr(gobj, name, value)
         return 0;
     }
 
-    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`${gobj_short_name(gobj)}: GClass Attribute NOT FOUND, attr ${name}`);
     return -1;
 }
 
@@ -2875,7 +2875,7 @@ function gobj_write_integer_attr(gobj, name, value)
         return 0;
     }
 
-    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`${gobj_short_name(gobj)}: GClass Attribute NOT FOUND, attr ${name}`);
     return -1;
 }
 
@@ -2896,7 +2896,7 @@ function gobj_write_str_attr(gobj, name, value)
         return 0;
     }
 
-    log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
+    log_error(`${gobj_short_name(gobj)}: GClass Attribute NOT FOUND, attr ${name}`);
     return -1;
 }
 
@@ -2915,7 +2915,7 @@ function gobj_change_state(gobj, state_name)
     }
     let new_state = _find_state(gobj.gclass, state_name);
     if(!new_state) {
-        log_error(`state unknown: ${gobj_short_name(gobj)}, ${state_name}`);
+        log_error(`${gobj_short_name(gobj)}: state unknown, state ${state_name}`);
         return false;
     }
     gobj.last_state = gobj.current_state;
@@ -3054,7 +3054,7 @@ function gobj_send_event(dst, event, kw, src)
 
     let state = dst.current_state;
     if(!state) {
-        log_error(`current_state NULL: ${gobj_short_name(dst)}`);
+        log_error(`${gobj_short_name(gobj)}: current_state NULL`);
         return -1;
     }
 
@@ -3468,7 +3468,7 @@ function _delete_subscription(
     if(idx >= 0) {
         json_array_remove(publisher.dl_subscriptions, idx);
     } else {
-        log_error(`subscription in publisher not found`);
+        log_error(`${gobj_short_name(gobj)}: subscription in publisher not found`);
         trace_json(subs);
     }
 
@@ -3476,7 +3476,7 @@ function _delete_subscription(
     if(idx >= 0) {
         json_array_remove(subscriber.dl_subscribings, idx);
     } else {
-        log_error(`subscription in subscriber not found`);
+        log_error(`${gobj_short_name(gobj)}: subscription in subscriber not found`);
         trace_json(subs);
     }
 
@@ -3554,7 +3554,7 @@ function gobj_subscribe_event(
         subscriber
     );
     if(!subs) {
-        log_error(`_create_subscription() FAILED`);
+        log_error(`${gobj_short_name(publisher)}: _create_subscription() FAILED`);
         return 0;
     }
 
@@ -3652,7 +3652,7 @@ function gobj_unsubscribe_event(
     }
 
     if(!deleted) {
-        log_error(`No subscription found`);
+        log_error(`${gobj_short_name(publisher)}: No subscription found`);
         trace_json(kw);
     }
 
@@ -3842,7 +3842,7 @@ function gobj_publish_event(
         return -1;
     }
     if(empty_string(event)) {
-        log_error("event EMPTY");
+        log_error(`${gobj_short_name(publisher)}: event EMPTY`);
         return -1;
     }
 
