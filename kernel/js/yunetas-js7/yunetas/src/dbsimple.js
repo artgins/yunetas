@@ -110,9 +110,19 @@ function db_remove_persistent_attrs(
 /************************************************************
  *
  ************************************************************/
-function db_list_persistent_attrs(gobj)
+function db_list_persistent_attrs(gobj, keys)
 {
-    // TODO
+    let jn_file = kw_get_local_storage_value(_get_persistent_path(gobj), null, false);
+    let attrs = {};
+    if(jn_file && is_object(jn_file)) {
+        attrs = kw_clone_by_keys(
+            gobj,
+            jn_file,    // owned
+            keys,       // owned
+            false
+        );
+    }
+    return attrs;
 }
 
 //=======================================================================

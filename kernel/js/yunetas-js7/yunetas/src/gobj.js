@@ -1225,14 +1225,14 @@ function gobj_get_gclass_config(gclass_name, verbose)
  ************************************************************/
 function gobj_load_persistent_attrs(
     gobj,
-    jn_attrs  // str, list or dict.
+    keys  // str, list or dict.
 ) {
     if(!gobj_is_service(gobj)) {
         log_error(`${gobj_short_name(gobj)}: Only gobj services can load/save writable-persistent`);
         return -1;
     }
     if(__global_load_persistent_attrs_fn__) {
-        return __global_load_persistent_attrs_fn__(gobj, jn_attrs);
+        return __global_load_persistent_attrs_fn__(gobj, keys);
     }
     return -1;
 }
@@ -1242,14 +1242,14 @@ function gobj_load_persistent_attrs(
  ************************************************************/
 function gobj_save_persistent_attrs(
     gobj,
-    jn_attrs  // str, list or dict.
+    keys  // str, list or dict.
 ) {
     if(!gobj_is_service(gobj)) {
         log_error(`${gobj_short_name(gobj)}: Only gobj services can load/save writable-persistent`);
         return -1;
     }
     if(__global_save_persistent_attrs_fn__) {
-        return __global_save_persistent_attrs_fn__(gobj, jn_attrs);
+        return __global_save_persistent_attrs_fn__(gobj, keys);
     }
     return -1;
 }
@@ -1259,7 +1259,7 @@ function gobj_save_persistent_attrs(
  ************************************************************/
 function gobj_remove_persistent_attrs(
     gobj,
-    jn_attrs  // str, list or dict.
+    keys  // str, list or dict.
 ) {
 
     if(!gobj_is_service(gobj)) {
@@ -1269,18 +1269,18 @@ function gobj_remove_persistent_attrs(
     if(!__global_remove_persistent_attrs_fn__) {
         return -1;
     }
-    return __global_remove_persistent_attrs_fn__(gobj, jn_attrs);
+    return __global_remove_persistent_attrs_fn__(gobj, keys);
 }
 
 /************************************************************
  *
  ************************************************************/
-function gobj_list_persistent_attrs(gobj)
+function gobj_list_persistent_attrs(gobj, keys)
 {
     if(!__global_list_persistent_attrs_fn__) {
         return null;
     }
-    return __global_list_persistent_attrs_fn__(gobj);
+    return __global_list_persistent_attrs_fn__(gobj, keys);
 }
 
 /************************************************************
