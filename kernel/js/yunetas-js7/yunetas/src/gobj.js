@@ -3340,8 +3340,8 @@ function _find_subscription(
         }
 
         if(event) {
-            let event_ = kw_get_int(null, subs, "event", null);
-            if(!event_ || event !== event_) {
+            let event_ = kw_get_int(null, subs, "event", "");
+            if(empty_string(event_) || event !== event_) {
                 match = false;
             }
         }
@@ -3419,7 +3419,7 @@ function _delete_subscription(
 ) {
     let publisher = kw_get_pointer(gobj, subs, "publisher", null, kw_flag_t.KW_REQUIRED);
     let subscriber = kw_get_pointer(gobj, subs, "subscriber", null, kw_flag_t.KW_REQUIRED);
-    let event = kw_get_int(gobj, subs, "event", null, kw_flag_t.KW_REQUIRED);
+    let event = kw_get_str(gobj, subs, "event", "", kw_flag_t.KW_REQUIRED);
     let subs_flag = kw_get_int(gobj, subs, "subs_flag", null, kw_flag_t.KW_REQUIRED);
     let hard_subscription = (subs_flag & subs_flag_t.__hard_subscription__)?1:0;
 
