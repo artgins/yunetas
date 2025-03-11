@@ -1,7 +1,7 @@
 /****************************************************************************
- *          command_parser.js
+ *          stats_parser.js
  *
- *          Command parser
+ *          Stats parser
  *
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved. ****************************************************************************/
@@ -9,9 +9,9 @@
 /***************************************************************
  *
  ***************************************************************/
-function command_parser(
+function stats_parser(
     gobj,
-    command,
+    stats,
     kw,
     src
 ) {
@@ -21,7 +21,7 @@ function command_parser(
 /***************************************************************
  *
  ***************************************************************/
-function build_command_response(
+function build_stats_response(
     gobj,
     result,
     comment,
@@ -37,6 +37,6 @@ function build_command_response(
 }
 
 export {
-    command_parser,
-    build_command_response,
+    stats_parser,
+    build_stats_response,
 };

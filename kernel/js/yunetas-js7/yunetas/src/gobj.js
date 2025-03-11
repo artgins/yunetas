@@ -45,6 +45,7 @@ import {
 } from "./helpers.js";
 
 import {sprintf} from "./sprintf.js";
+import {build_command_response} from "./command_parser.js";
 
 /**************************************************************************
  *        Constants
@@ -4214,6 +4215,101 @@ function gobj_publish_event(
     return ret;
 }
 
+/************************************************************
+ *  Exec gobj command. Return a webix
+ ************************************************************/
+function gobj_command(gobj, command, kw, src)
+{
+    if(gobj_is_destroying(gobj)) {
+        log_error("gobj NULL or DESTROYED");
+        return -1;
+    }
+
+    /*-----------------------------------------------*
+     *  Trace
+     *-----------------------------------------------*/
+    let tracea = __yuno__ && gobj_read_integer_attr(__yuno__, "tracing");
+    if(tracea) {
+        trace_machine("🌀🌀 mach(%s%s), cmd: %s, src: %s",
+            (!gobj_is_running(gobj))?"!!":"",
+            gobj_short_name(gobj),
+            command,
+            gobj_short_name(src)
+        );
+        if(tracea > 1) {
+            trace_json(kw);
+        }
+    }
+
+    /*-----------------------------------------------*
+     *  The local mt_command_parser has preference
+     *-----------------------------------------------*/
+    if(gobj.gclass.gmt.mt_command_parser) {
+        return gobj.gclass.gmt.mt_command_parser(gobj, command, kw, src);
+    }
+
+    /*-----------------------------------------------*
+     *  If it has command_table
+     *  then use the global command parser
+     *-----------------------------------------------*/
+    if(gobj.gclass.command_table) {
+        if(__global_command_parser_fn__) {
+            return __global_command_parser_fn__(gobj, command, kw, src);
+        } else {
+            return build_command_response(
+                gobj,
+                -1,     // result
+                sprintf("%s: global command parser not available", gobj_short_name(gobj)), // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+        }
+    } else {
+        return build_command_response(
+            gobj,
+            -1,     // result
+            sprintf("%s: command table not available",gobj_short_name(gobj)), // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+    }
+}
+
+/************************************************************
+ *  Exec gobj stats. Return a webix
+ ************************************************************/
+function gobj_stats(gobj, stats, kw, src)
+{
+    if(gobj_is_destroying(gobj)) {
+        log_error("gobj NULL or DESTROYED");
+        return -1;
+    }
+
+    /*--------------------------------------*
+     *  The local mt_stats has preference
+     *--------------------------------------*/
+    if(gobj.gclass.gmt.mt_stats) {
+        return gobj.gclass.gmt.mt_stats(gobj, stats, kw, src);
+    }
+
+    /*-----------------------------------------------*
+     *  Then use the global stats parser
+     *-----------------------------------------------*/
+    if(__global_stats_parser_fn__) {
+        return __global_stats_parser_fn__(gobj, stats, kw, src);
+    } else {
+        return build_stats_response(
+            gobj,
+            -1,     // result
+            sprintf("%s, stats parser not available", gobj_short_name(gobj)),// jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        KW_DECREF(kw)
+        return kw_response;
+    }
+}
+
 
 //=======================================================================
 //      Expose the class via the global object
@@ -4320,4 +4416,6 @@ export {
     gobj_list_subscriptions,
     gobj_find_subscribings,
     gobj_publish_event,
+    gobj_command,
+    gobj_stats,
 };
