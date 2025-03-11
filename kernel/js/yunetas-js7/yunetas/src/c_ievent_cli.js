@@ -1138,7 +1138,7 @@ function ac_on_message(gobj, event, kw, src)
         if(gobj_has_event(gobj_service, iev_event, event_flag_t.EVF_PUBLIC_EVENT)) {
             gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
         } else {
-            log_error(`${gobj_short_name(gobj)}: Service found but no event or not public, ${gobj_short_name(gobj_service)}, ev ${iev_event}`);
+            log_error(`${gobj_short_name(gobj)}: Service found but no event or not public, service '${gobj_short_name(gobj_service)}', ev '${iev_event}'`);
             return -1;
         }
     } else {
