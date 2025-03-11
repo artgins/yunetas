@@ -1825,6 +1825,8 @@ PUBLIC hgobj gobj_create2(
 
     /*--------------------------------*
      *  Write configuration
+     *  WARNING collateral damage:
+     *      write_json_parameters was before Mark as created!
      *--------------------------------*/
     write_json_parameters(gobj, kw, __jn_global_settings__);
 
