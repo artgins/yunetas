@@ -3152,6 +3152,16 @@ function gobj_has_output_event(gobj, event, event_flag)
 }
 
 /************************************************************
+ *      post_event, by now only in js
+ ************************************************************/
+function gobj_post_event(gobj, event, kw, src)
+{
+    setTimeout(() => {
+        gobj_send_event(gobj, event, kw, src);
+    }, 10);
+}
+
+/************************************************************
  *      send_event
  ************************************************************/
 function gobj_send_event(dst, event, kw, src)
@@ -4300,6 +4310,7 @@ export {
 
     gobj_has_event,
     gobj_has_output_event,
+    gobj_post_event,
     gobj_send_event,
 
     gobj_subscribe_event,
