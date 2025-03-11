@@ -6003,13 +6003,7 @@ PUBLIC BOOL gobj_is_destroying(hgobj gobj_)
 PUBLIC BOOL gobj_is_running(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
-    if(!gobj_ || gobj->obflag & (obflag_destroyed|obflag_destroying)) {
-        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
-          "function",     "%s", __FUNCTION__,
-          "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-          "msg",          "%s", "hgobj NULL or DESTROYED",
-          NULL
-        );
+    if(gobj_is_destroying(gobj)) {
         return FALSE;
     }
     return gobj->running;
@@ -6022,13 +6016,7 @@ PUBLIC BOOL gobj_is_playing(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
 
-    if(!gobj_ || gobj->obflag & (obflag_destroyed|obflag_destroying)) {
-        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "hgobj NULL or DESTROYED",
-            NULL
-        );
+    if(gobj_is_destroying(gobj)) {
         return FALSE;
     }
     return gobj->playing;
@@ -6053,6 +6041,9 @@ PUBLIC BOOL gobj_is_service(hgobj gobj_)
  ***************************************************************************/
 PUBLIC BOOL gobj_is_disabled(hgobj gobj)
 {
+    if(gobj_is_destroying(gobj)) {
+        return true;
+    }
     return ((gobj_t *)gobj)->disabled;
 }
 

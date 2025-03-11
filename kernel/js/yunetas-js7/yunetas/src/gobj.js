@@ -2052,7 +2052,6 @@ function gobj_pause(gobj)
 function gobj_is_running(gobj)
 {
     if(gobj_is_destroying(gobj)) {
-        log_error("gobj NULL or DESTROYED");
         return false;
     }
     return gobj.running;
@@ -2064,8 +2063,7 @@ function gobj_is_running(gobj)
 function gobj_is_disabled(gobj)
 {
     if(gobj_is_destroying(gobj)) {
-        log_error("gobj NULL or DESTROYED");
-        return false;
+        return true;
     }
     return gobj.disabled;
 }
