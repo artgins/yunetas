@@ -1144,7 +1144,7 @@ function ac_on_message(gobj, event, kw, src)
     } else {
         /*
          *  SERVICE subscription model
-         *  TODO will not be reject the event?
+         *  TODO Shouldn't this event be rejected? It may make sense in routing task.
          */
         if(gobj_is_pure_child(gobj)) {
             gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
