@@ -2622,6 +2622,34 @@ function gobj_find_child(gobj, jn_filter)
     return null;
 }
 
+/************************************************************
+ *  Returns the first matched child searching in the tree.
+ *  TODO not exist in C
+ ************************************************************/
+function gobj_find_child_by_tree(gobj, jn_filter)
+{
+    jn_filter = jn_filter || {};
+
+    function _walk_child_tree(d, o)
+    {
+        let dl_childs = o.dl_childs;
+        for (let i=0; i < dl_childs.length; i++) {
+            let child = dl_childs[i];
+            if(gobj_match_gobj(child, jn_filter)) {
+                d.push(child);
+            }
+            _walk_child_tree(d, child);
+        }
+    }
+
+    let list = [];
+    _walk_child_tree(list, gobj);
+    if(list.length > 0) {
+        return list[0];
+    }
+    return null;
+}
+
 /***************************************************************************
  *  Return the object searched by path.
  *  The separator of tree's gobj must be '`'
@@ -4251,6 +4279,7 @@ export {
     gobj_find_gobj,
     gobj_match_gobj,
     gobj_find_child,
+    gobj_find_child_by_tree,
     gobj_search_path,
     gobj_has_attr,
     gobj_read_attr,
