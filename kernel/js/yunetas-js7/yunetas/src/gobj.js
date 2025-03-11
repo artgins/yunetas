@@ -46,6 +46,7 @@ import {
 
 import {sprintf} from "./sprintf.js";
 import {build_command_response} from "./command_parser.js";
+import {build_stats_response} from "./stats_parser.js";
 
 /**************************************************************************
  *        Constants
@@ -4305,8 +4306,6 @@ function gobj_stats(gobj, stats, kw, src)
             0,      // jn_schema
             0       // jn_data
         );
-        KW_DECREF(kw)
-        return kw_response;
     }
 }
 
