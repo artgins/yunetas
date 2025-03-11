@@ -343,7 +343,7 @@ function mt_inject_event(gobj, event, kw, src)
     /*
      *      __MESSAGE__
      */
-    let jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
+    let jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID);
     if(!jn_request) {
         /*
          * Put the ievent if it doesn't come with it,
@@ -436,6 +436,7 @@ function mt_subscription_deleted(gobj, subs)
         __service__
     );
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
@@ -822,6 +823,7 @@ function send_remote_subscription(gobj, subs)
         __service__
     );
     msg_iev_push_stack(
+        gobj,
         kw,         // not owned
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
@@ -1075,7 +1077,7 @@ function ac_on_message(gobj, event, kw, src)
     /*----------------------------------------*
      *  Get inter-event routing information.
      *----------------------------------------*/
-    let event_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID);
+    let event_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_MESSAGE_AREA_ID);
 
     /*----------------------------------------*
      *  Check dst role^name
