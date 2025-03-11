@@ -1886,6 +1886,10 @@ function msg_iev_write_key(kw, key, value)
  ************************************************************/
 function msg_iev_push_stack(gobj, kw, stack, jn_data)
 {
+    if(!is_gobj(gobj)) {
+        log_error(`gobj is not a GObj`);
+        return null;
+    }
     if(!kw) {
         return;
     }
@@ -1910,6 +1914,10 @@ function msg_iev_push_stack(gobj, kw, stack, jn_data)
  ************************************************************/
 function msg_iev_get_stack(gobj, kw, stack, verbose)
 {
+    if(!is_gobj(gobj)) {
+        log_error(`gobj is not a GObj`);
+        return null;
+    }
     if(!is_object(kw)) {
         log_error(`kw is not a dict`);
         return null;
