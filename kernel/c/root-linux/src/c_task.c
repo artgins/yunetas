@@ -237,7 +237,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     } else if(json_is_string(jn_gobj_results)) {
         const char *sdst = json_string_value(jn_gobj_results);
-        priv->gobj_results = gobj_find_service(sdst, TRUE);
+        priv->gobj_results = gobj_find_service(sdst, true);
 
     } else {
         gobj_log_error(gobj, 0,
@@ -266,7 +266,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     } else if(json_is_string(jn_gobj_jobs)) {
         const char *sdst = json_string_value(jn_gobj_jobs);
-        priv->gobj_jobs = gobj_find_service(sdst, TRUE);
+        priv->gobj_jobs = gobj_find_service(sdst, true);
 
     } else {
         gobj_log_error(gobj, 0,

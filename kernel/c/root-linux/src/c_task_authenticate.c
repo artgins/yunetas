@@ -283,7 +283,7 @@ PRIVATE int mt_start(hgobj gobj)
         priv->port, sizeof(priv->port),
         priv->path, sizeof(priv->path),
         priv->query, sizeof(priv->query),
-        FALSE
+        false
     );
     if(r < 0) {
         gobj_log_error(gobj, 0,
@@ -298,10 +298,10 @@ PRIVATE int mt_start(hgobj gobj)
     if(strlen(priv->path) > 0 && priv->path[strlen(priv->path)-1]=='/') {
         priv->path[strlen(priv->path)-1] = 0;
     }
-    //BOOL secure = FALSE;
+    //BOOL secure = false;
     json_t *jn_crypto = json_null();
     if(strcasecmp(priv->schema, "https")==0 || strcasecmp(priv->schema, "wss")==0) {
-        //secure = TRUE;
+        //secure = true;
         jn_crypto = gobj_read_json_attr(gobj, "crypto");
     }
 
@@ -354,7 +354,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
     gobj_subscribe_event(gobj_task, EV_END_TASK, 0, gobj);
-    gobj_set_volatil(gobj_task, TRUE); // auto-destroy
+    gobj_set_volatil(gobj_task, true); // auto-destroy
 
     /*-----------------------*
      *      Start task

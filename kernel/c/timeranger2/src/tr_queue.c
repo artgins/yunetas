@@ -316,7 +316,7 @@ PUBLIC int trq_load(tr_queue trq_)
         match_cond,  // owned
         jn_extra,    // owned
         NULL,   // rt_id    TODO
-        FALSE,
+        false,
         NULL   // creator TODO
     );
     if(!tr_list) {
@@ -374,7 +374,7 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
         match_cond,  // owned
         jn_extra,    // owned
         NULL,   // rt_id    TODO
-        FALSE,
+        false,
         NULL    // creator TODO
     );
     tranger2_close_list(trq->tranger, tr_list);
@@ -619,7 +619,7 @@ PUBLIC BOOL trq_test_retries(q_msg msg)
         // No retries no test true
         return 0;
     }
-    return (((q_msg_t *)msg)->retries >= ((q_msg_t *)msg)->trq->maximum_retries)?TRUE:FALSE;
+    return (((q_msg_t *)msg)->retries >= ((q_msg_t *)msg)->trq->maximum_retries)?true:false;
 }
 
 /***************************************************************************
@@ -705,11 +705,11 @@ PUBLIC const char *trq_msg_key(q_msg msg_)
 
 //PUBLIC BOOL trq_msg_is_t_ms(q_msg msg)
 //{
-//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?TRUE:FALSE;
+//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?true:false;
 //}
 //PUBLIC BOOL trq_msg_is_tm_ms(q_msg msg)
 //{
-//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_tm_ms)?TRUE:FALSE;
+//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_tm_ms)?true:false;
 //}
 
 
@@ -784,7 +784,7 @@ PUBLIC int trq_check_backup(tr_queue trq_)
                     topic_name,
                     0,
                     0,
-                    TRUE,
+                    true,
                     0
                 );
                 trq_set_first_rowid(trq, 0);

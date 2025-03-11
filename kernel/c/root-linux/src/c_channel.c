@@ -187,7 +187,7 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
  ***************************************************************************/
 PRIVATE BOOL all_childs_closed(hgobj gobj)
 {
-    BOOL all_closed = TRUE;
+    BOOL all_closed = true;
 
     hgobj child = gobj_first_child(gobj);
 
@@ -198,7 +198,7 @@ PRIVATE BOOL all_childs_closed(hgobj gobj)
         }
         BOOL connected = gobj_read_bool_attr(child, "connected");
         if(connected) {
-            return FALSE;
+            return false;
         }
 
         child = gobj_next_child(child);
@@ -237,7 +237,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             NULL
         );
     }
-    gobj_write_bool_attr(gobj, "opened", TRUE);
+    gobj_write_bool_attr(gobj, "opened", true);
 
     set_timeout_periodic(priv->timer,gobj_read_integer_attr(gobj, "timeout"));
 
@@ -271,7 +271,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             );
         }
         gobj_change_state(gobj, ST_CLOSED);
-        gobj_write_bool_attr(gobj, "opened", FALSE);
+        gobj_write_bool_attr(gobj, "opened", false);
 
         /*
          *  CHILD subscription model

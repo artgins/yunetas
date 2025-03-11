@@ -490,7 +490,7 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_trace_on(hgobj gobj, const char *level, json_t *kw)
 {
-    treedb_set_trace(TRUE);
+    treedb_set_trace(true);
     KW_DECREF(kw)
     return 0;
 }
@@ -500,7 +500,7 @@ PRIVATE int mt_trace_on(hgobj gobj, const char *level, json_t *kw)
  ***************************************************************************/
 PRIVATE int mt_trace_off(hgobj gobj, const char *level, json_t *kw)
 {
-    treedb_set_trace(FALSE);
+    treedb_set_trace(false);
     KW_DECREF(kw)
     return 0;
 }
@@ -860,12 +860,12 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
                 priv->tranger,
                 node,
                 json_incref(kw),
-                autolink?FALSE:TRUE
+                autolink?false:true
             );
         }
         if(autolink) {
-            treedb_clean_node(priv->tranger, node, FALSE);  // remove current links
-            treedb_autolink(priv->tranger, node, json_incref(kw), FALSE);
+            treedb_clean_node(priv->tranger, node, false);  // remove current links
+            treedb_autolink(priv->tranger, node, json_incref(kw), false);
             treedb_save_node(priv->tranger, node);
         }
     }
@@ -1864,7 +1864,7 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
          *  Get content in base64 and decode
          */
         gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
-        jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
+        jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), true);
         GBUFFER_DECREF(gbuf_content);
         if(!jn_content) {
             return msg_iev_build_response(
@@ -1963,7 +1963,7 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
          *  Get content in base64 and decode
          */
         gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
-        jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), TRUE);
+        jn_content = legalstring2json(gbuffer_cur_rd_pointer(gbuf_content), true);
         GBUFFER_DECREF(gbuf_content)
         if(!jn_content) {
             return msg_iev_build_response(
@@ -2629,9 +2629,9 @@ PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     BOOL set = kw_get_bool(gobj, kw, "set", 0, KW_WILD_NUMBER);
 
     if(set) {
-        treedb_set_trace(TRUE);
+        treedb_set_trace(true);
     } else {
-        treedb_set_trace(FALSE);
+        treedb_set_trace(false);
     }
     return msg_iev_build_response(
         gobj,
@@ -3247,14 +3247,14 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj s
         snprintf(name, sizeof(name), "%s.trdb.json", filename);
     }
 
-    yuneta_realm_file(path, sizeof(path), "temp", "", TRUE);
+    yuneta_realm_file(path, sizeof(path), "temp", "", true);
 
     json_t *jn_data = json_pack("{s:s, s:s}",
         "path", path,
         "filename", name
     );
 
-    yuneta_realm_file(path, sizeof(path), "temp", name, TRUE);
+    yuneta_realm_file(path, sizeof(path), "temp", name, true);
 
     if(access(path, 0)==0) {
         if(!overwrite) {
@@ -3354,7 +3354,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     // TODO Chequear permisos
 
-    BOOL fin = FALSE;
+    BOOL fin = false;
     const char *topic_name;
     json_t *topic_records;
     json_object_foreach(jn_db, topic_name, topic_records) {
@@ -3422,7 +3422,7 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 } else {
                     // abort
                     abort++;
-                    fin = TRUE;
+                    fin = true;
                     gobj_trace_json(gobj, record, "%s", gobj_log_last_message());
                     break;
                 }
@@ -3486,8 +3486,8 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 // {
 //     do {
 //         if(!fichajes_roles ||
-//                 !(json_str_in_list(fichajes_roles, "admin", FALSE) ||
-//                 json_str_in_list(fichajes_roles, "gestor", FALSE))) {
+//                 !(json_str_in_list(fichajes_roles, "admin", false) ||
+//                 json_str_in_list(fichajes_roles, "gestor", false))) {
 //             jn_comment = json_string("User has not 'admin' or 'gestor' role");
 //             result = -1;
 //             break;

@@ -96,7 +96,7 @@ PRIVATE void mt_create(hgobj gobj)
             NULL,                   // on_header_event
             NULL,                   // on_body_event
             EV_ON_MESSAGE,          // on_message_event ==> publish the full message in a gbuffer
-            gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+            gobj_is_service(gobj)?false:true // true: use gobj_send_event, false: use gobj_publish_event
         );
     } else {
         priv->parsing_response = ghttp_parser_create(
@@ -105,7 +105,7 @@ PRIVATE void mt_create(hgobj gobj)
             EV_ON_HEADER,           // on_header_event
             EV_ON_MESSAGE,          // on_body_event  ==> publish the partial message with original buffer pointer
             NULL,                   // on_message_event
-            gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+            gobj_is_service(gobj)?false:true // true: use gobj_send_event, false: use gobj_publish_event
         );
     }
 

@@ -176,7 +176,7 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
+    priv->gobj_input_side = gobj_find_service("__input_side__", true);
 
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 

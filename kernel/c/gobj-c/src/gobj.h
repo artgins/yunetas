@@ -184,9 +184,9 @@ static inline BOOL empty_json(const json_t *jn)
     if((json_is_array(jn) && json_array_size(jn)==0) ||
         (json_is_object(jn) && json_object_size(jn)==0) ||
         json_is_null(jn)) {
-        return TRUE;
+        return true;
     } else {
-        return FALSE;
+        return false;
     }
 }
 

@@ -57,8 +57,8 @@ hsskt sskt_server;
 hytls ytls_client;
 hsskt sskt_client;
 
-BOOL server_secure_connected = FALSE;
-BOOL client_secure_connected = FALSE;
+BOOL server_secure_connected = false;
+BOOL client_secure_connected = false;
 
 /***************************************************************************
  *              Test
@@ -93,11 +93,11 @@ int ytls_server_on_handshake_done_callback(void *user_data, int error)
 {
     // int fd = (int)user_data;
 
-    server_secure_connected = TRUE;
+    server_secure_connected = true;
     gobj_info_msg(0, "Server: secure connected");
 
-//    priv->inform_disconnection = TRUE;
-//    priv->secure_connected = TRUE;
+//    priv->inform_disconnection = true;
+//    priv->secure_connected = true;
 //
 //    gobj_change_state(gobj, "ST_CONNECTED");
 //
@@ -116,11 +116,11 @@ int ytls_client_on_handshake_done_callback(void *user_data, int error)
 {
     // int fd = (int)user_data;
 
-    client_secure_connected = TRUE;
+    client_secure_connected = true;
     gobj_info_msg(0, "Client: secure connected");
 
-//    priv->inform_disconnection = TRUE;
-//    priv->secure_connected = TRUE;
+//    priv->inform_disconnection = true;
+//    priv->secure_connected = true;
 //
 //    gobj_change_state(gobj, "ST_CONNECTED");
 //
@@ -192,7 +192,7 @@ int ytls_client_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
     /*---------------------------------------------------------*
      *  The client matchs the received message with the sent.
      *---------------------------------------------------------*/
-    json_t *msg = gbuf2json(gbuffer_incref(gbuf), TRUE);
+    json_t *msg = gbuf2json(gbuffer_incref(gbuf), true);
     const char *text = json_string_value(msg);
 
     if(strcmp(text, MESSAGE)!=0) {
@@ -544,7 +544,7 @@ int do_test(void)
     ytls_server = ytls_init(
         0,
         jn_crypto_s, // not owned
-        TRUE
+        true
     );
     JSON_DECREF(jn_crypto_s)
 
@@ -558,7 +558,7 @@ int do_test(void)
     ytls_client = ytls_init(
         0,
         jn_crypto_c, // not owned
-        FALSE
+        false
     );
     JSON_DECREF(jn_crypto_c)
 
@@ -585,7 +585,7 @@ int do_test(void)
         yev_event_accept,
         server_url, // listen_url,
         0, //backlog,
-        FALSE, // shared
+        false, // shared
         AF_INET,  // ai_family AF_UNSPEC
         AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
@@ -702,14 +702,14 @@ int main(int argc, char *argv[])
         NULL,   // global_authenticate_parser
         0,      // max_block, largest memory block
         0,      // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );
 
     yuno_catch_signals();
 
-    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    gobj_set_gobj_trace(0, "liburing", true, 0);
 
     /*--------------------------------*
      *      Log handlers
@@ -752,7 +752,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
     time_measure_t time_measure;

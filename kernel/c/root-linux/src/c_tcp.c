@@ -279,7 +279,7 @@ PRIVATE int mt_start(hgobj gobj)
             port, sizeof(port),
             0, 0,
             0, 0,
-            FALSE
+            false
         )<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -418,7 +418,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "connected", TRUE);
+    gobj_write_bool_attr(gobj, "connected", true);
     get_peer_and_sock_name(gobj, fd);
 
     /*
@@ -486,7 +486,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
          **---------------------------*/
         gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
 
-        priv->inform_disconnection = FALSE;
+        priv->inform_disconnection = false;
 
         priv->sskt = ytls_new_secure_filter(
             priv->ytls,
@@ -502,7 +502,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             return;
         }
 
-        ytls_set_trace(priv->ytls, priv->sskt, (gobj_trace_level(gobj) & TRACE_TLS)?TRUE:FALSE);
+        ytls_set_trace(priv->ytls, priv->sskt, (gobj_trace_level(gobj) & TRACE_TLS)?true:false);
 
     } else {
         /*---------------------------*
@@ -510,7 +510,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
          **---------------------------*/
         gobj_change_state(gobj, ST_CONNECTED);
 
-        priv->inform_disconnection = TRUE;
+        priv->inform_disconnection = true;
 
         /*
          *  Publish
@@ -539,8 +539,8 @@ PRIVATE void set_secure_connected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "secure_connected", TRUE);
-    priv->inform_disconnection = TRUE;
+    gobj_write_bool_attr(gobj, "secure_connected", true);
+    priv->inform_disconnection = true;
 
     gobj_change_state(gobj, ST_CONNECTED);
 
@@ -573,8 +573,8 @@ PRIVATE void set_disconnected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "connected", FALSE);
-    gobj_write_bool_attr(gobj, "secure_connected", FALSE);
+    gobj_write_bool_attr(gobj, "connected", false);
+    gobj_write_bool_attr(gobj, "secure_connected", false);
 
     if(gobj_trace_level(gobj) & (TRACE_CONNECT_DISCONNECT) || 1) {
         if(IS_CLI) {
@@ -648,7 +648,7 @@ PRIVATE void set_disconnected(hgobj gobj)
      *  Info of "disconnected"
      */
     if(priv->inform_disconnection) {
-        priv->inform_disconnection = FALSE;
+        priv->inform_disconnection = false;
         /*
          *  CHILD subscription model
          */
@@ -838,7 +838,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL to_wait_stopped = FALSE;
+    BOOL to_wait_stopped = false;
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
         return;
@@ -880,7 +880,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_client_connect)) {
             yev_stop_event(priv->yev_client_connect);
             if(!yev_event_is_stopped(priv->yev_client_connect)) {
-                to_wait_stopped = TRUE;
+                to_wait_stopped = true;
             }
         }
     }
@@ -889,13 +889,13 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_client_rx)) {
             yev_stop_event(priv->yev_client_rx);
             if(!yev_event_is_stopped(priv->yev_client_rx)) {
-                to_wait_stopped = TRUE;
+                to_wait_stopped = true;
             }
         }
     }
 
     if(priv->tx_in_progress > 0) {
-        to_wait_stopped = TRUE;
+        to_wait_stopped = true;
     }
 
     if(!to_wait_stopped) {
@@ -1276,14 +1276,14 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(yev_get_flag(priv->yev_client_connect) & YEV_FLAG_USE_TLS) {
-        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
+        gobj_write_bool_attr(gobj, "use_ssl", true);
     } else {
-        gobj_write_bool_attr(gobj, "use_ssl", FALSE);
+        gobj_write_bool_attr(gobj, "use_ssl", false);
     }
     if(priv->use_ssl) {
         if(!priv->ytls) {
             json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-            priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
+            priv->ytls = ytls_init(gobj, jn_crypto, false);
 
             // TODO connection with certificate
             //  const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");

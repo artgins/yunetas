@@ -114,7 +114,7 @@ PRIVATE int load_files(
             json_dumpf(jn_file, stdout, flags);
             printf("\n");
         }
-        json_dict_recursive_update(jn_variable_config, jn_file, TRUE, quit);
+        json_dict_recursive_update(jn_variable_config, jn_file, true, quit);
         json_decref(jn_file);
 
     } else if(json_is_array(jn_files)) {
@@ -135,7 +135,7 @@ PRIVATE int load_files(
                     json_dumpf(jn_file, stdout, flags);
                     printf("\n");
                 }
-                json_dict_recursive_update(jn_variable_config, jn_file, TRUE, quit);
+                json_dict_recursive_update(jn_variable_config, jn_file, true, quit);
                 json_decref(jn_file);
             }
         }
@@ -362,7 +362,7 @@ PRIVATE json_t *load_json_file(dl_list_t* dl_op, const char* path, pe_flag_t qui
 
 /***************************************************************************
  *  Update keys and values, recursive through all objects
- *  If overwrite is FALSE then not update existing keys (protected write)
+ *  If overwrite is false then not update existing keys (protected write)
  ***************************************************************************/
 PRIVATE int json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite, pe_flag_t quit)
 {
@@ -386,7 +386,7 @@ PRIVATE int json_dict_recursive_update(json_t *object, json_t *other, BOOL overw
                  *  WARNING
                  *  In configuration consider the lists as set (no repeated items).
                  */
-                json_list_update(dvalue, value, TRUE, quit);
+                json_list_update(dvalue, value, true, quit);
             }
         } else {
             if(overwrite) {
@@ -432,7 +432,7 @@ PRIVATE int json_list_find(json_t *list, json_t *value)
 
 /***************************************************************************
  *  Extend array values.
- *  If as_set is TRUE then not repeated values
+ *  If as_set is true then not repeated values
  ***************************************************************************/
 PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set, pe_flag_t quit)
 {
@@ -490,11 +490,11 @@ PRIVATE json_t *json_listsrange2set(json_t *listsrange, pe_flag_t quit)
             if(json_is_range(value)) {
                 json_t *range = json_range_list(value);
                 if(range) {
-                    json_list_update(ln_list, range, TRUE, quit);
+                    json_list_update(ln_list, range, true, quit);
                     json_decref(range);
                 }
             } else {
-                json_list_update(ln_list, value, TRUE, quit);
+                json_list_update(ln_list, value, true, quit);
             }
         } else {
             // ignore the rest
@@ -512,14 +512,14 @@ PRIVATE json_t *json_listsrange2set(json_t *listsrange, pe_flag_t quit)
 PRIVATE BOOL json_is_range(json_t *list)
 {
     if(json_array_size(list) != 2)
-        return FALSE;
+        return false;
 
     json_int_t first = json_integer_value(json_array_get(list, 0));
     json_int_t second = json_integer_value(json_array_get(list, 1));
     if(first <= second)
-        return TRUE;
+        return true;
     else
-        return FALSE;
+        return false;
 }
 
 /***************************************************************************
@@ -648,7 +648,7 @@ PRIVATE int expand_dict_matched_group_key(
     }
     json_decref(jn_to_expand);
 
-    return FALSE;
+    return false;
 }
 
 /***************************************************************************
@@ -794,7 +794,7 @@ PRIVATE int expand_list_matched_group_key(
     }
     json_decref(jn_to_expand);
 
-    return FALSE;
+    return false;
 }
 
 /***************************************************************************
@@ -877,7 +877,7 @@ PRIVATE char * replace_vars(json_t *jn_dict, json_t *jn_vars, pe_flag_t quit)
      */
     pcre2_match_data_8 *match_data = pcre2_match_data_create_from_pattern_8(re, NULL);
 
-    BOOL fin = FALSE;
+    BOOL fin = false;
     while(!fin) {
         int rc = pcre2_match_8(
             re,                 /* the compiled pattern */
@@ -1042,14 +1042,14 @@ PUBLIC char *json_config(
             json_dumpf(jn_parameter_config, stdout, flags);
             printf("\n");
         }
-        json_dict_recursive_update(jn_variable_config, jn_parameter_config, TRUE, quit);
+        json_dict_recursive_update(jn_variable_config, jn_parameter_config, true, quit);
         json_decref(jn_parameter_config);
     }
 
     /*------------------------------*
      *      Merge the config
      *------------------------------*/
-    json_dict_recursive_update(jn_config, jn_variable_config, FALSE, quit);
+    json_dict_recursive_update(jn_config, jn_variable_config, false, quit);
     json_decref(jn_variable_config);
     if(print_verbose_config) {
         printf("Merged configuration ===>\n");

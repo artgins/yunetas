@@ -245,7 +245,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_add_allowed_ip[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "ip",           0,              "",         "ip"),
-SDATAPM (DTP_BOOLEAN,   "allowed",      0,              0,          "TRUE allowed, FALSE denied"),
+SDATAPM (DTP_BOOLEAN,   "allowed",      0,              0,          "true allowed, false denied"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_remove_allowed_ip[] = {
@@ -256,7 +256,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_add_denied_ip[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "ip",           0,              "",         "ip"),
-SDATAPM (DTP_BOOLEAN,   "denied",       0,              0,          "TRUE denied, FALSE denied"),
+SDATAPM (DTP_BOOLEAN,   "denied",       0,              0,          "true denied, false denied"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_remove_denied_ip[] = {
@@ -583,12 +583,12 @@ PRIVATE void mt_create(hgobj gobj)
     /*--------------------------*
      *     Yuneta user
      *--------------------------*/
-    BOOL is_yuneta = FALSE;
+    BOOL is_yuneta = false;
 #ifdef __linux__
     struct passwd *pw = getpwuid(getuid());
     if(strcmp(pw->pw_name, "yuneta")==0) {
         gobj_write_str_attr(gobj, "__username__", "yuneta");
-        is_yuneta = TRUE;
+        is_yuneta = true;
     } else {
         struct group *grp = getgrnam("yuneta");
         if(grp && grp->gr_mem) {
@@ -596,7 +596,7 @@ PRIVATE void mt_create(hgobj gobj)
             while(*gr_mem) {
                 if(strcmp(*gr_mem, pw->pw_name)==0) {
                     gobj_write_str_attr(gobj, "__username__", "yuneta");
-                    is_yuneta = TRUE;
+                    is_yuneta = true;
                     break;
                 }
                 gr_mem++;
@@ -606,7 +606,7 @@ PRIVATE void mt_create(hgobj gobj)
 #endif
 #ifdef ESP_PLATFORM
     gobj_write_str_attr(gobj, "__username__", "yuneta");
-    is_yuneta = TRUE;
+    is_yuneta = true;
 #endif
     if(!is_yuneta) {
         gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
@@ -876,7 +876,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return kw_response;
     }
 
-    hgobj gobj2write = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2write = gobj_find_service(gobj_name_, false);
     if(!gobj2write) {
         gobj2write = gobj_find_gobj(gobj_name_);
         if (!gobj2write) {
@@ -975,7 +975,7 @@ PRIVATE json_t *cmd_write_attr(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
         case DTP_JSON:
             {
-                json_t *jn_value = anystring2json(svalue, strlen(svalue), FALSE);
+                json_t *jn_value = anystring2json(svalue, strlen(svalue), false);
                 if(!jn_value) {
                     json_t *kw_response = build_command_response(
                         gobj,
@@ -1074,7 +1074,7 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -1142,7 +1142,7 @@ PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -1281,7 +1281,7 @@ PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -1334,7 +1334,7 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -1388,7 +1388,7 @@ PRIVATE json_t *cmd_enable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -1441,7 +1441,7 @@ PRIVATE json_t *cmd_disable_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -1483,7 +1483,7 @@ PRIVATE json_t *cmd_list_persistent_attrs(hgobj gobj, const char* cmd, json_t* k
         0
     );
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
     }
@@ -1530,7 +1530,7 @@ PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -1581,7 +1581,7 @@ PRIVATE json_t *cmd_remove_persistent_attrs(hgobj gobj, const char* cmd, json_t*
  ***************************************************************************/
 PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name)
 {
-    hgobj gobj2view = gobj_find_service(gobj_name, FALSE);
+    hgobj gobj2view = gobj_find_service(gobj_name, false);
     if(!gobj2view) {
         gobj2view = gobj_find_gobj(gobj_name);
         if(!gobj2view) {
@@ -1621,7 +1621,7 @@ PRIVATE int save_global_trace(
             /*
              *  Delete level
              */
-            int idx = json_list_str_index(jn_levels, level, FALSE);
+            int idx = json_list_str_index(jn_levels, level, false);
             if(idx != -1) {
                 json_array_remove(jn_levels, idx);
             }
@@ -1629,7 +1629,7 @@ PRIVATE int save_global_trace(
             /*
              *  Add level
              */
-            int idx = json_list_str_index(jn_levels, level, FALSE);
+            int idx = json_list_str_index(jn_levels, level, false);
             if(idx == -1) {
                 json_array_append_new(jn_levels, json_string(level));
             }
@@ -1702,7 +1702,7 @@ PRIVATE int save_user_trace(
             /*
              *  Delete level
              */
-            int idx = json_list_str_index(jn_levels, level, FALSE);
+            int idx = json_list_str_index(jn_levels, level, false);
             if(idx != -1) {
                 json_array_remove(jn_levels, idx);
             }
@@ -1710,7 +1710,7 @@ PRIVATE int save_user_trace(
             /*
              *  Add level
              */
-            int idx = json_list_str_index(jn_levels, level, FALSE);
+            int idx = json_list_str_index(jn_levels, level, false);
             if(idx == -1) {
                 json_array_append_new(jn_levels, json_string(level));
             }
@@ -1755,7 +1755,7 @@ PRIVATE int save_user_no_trace(
             /*
              *  Delete no-level
              */
-            int idx = json_list_str_index(jn_no_levels, level, FALSE);
+            int idx = json_list_str_index(jn_no_levels, level, false);
             if(idx != -1) {
                 json_array_remove(jn_no_levels, idx);
             }
@@ -1763,7 +1763,7 @@ PRIVATE int save_user_no_trace(
             /*
              *  Add no-level
              */
-            int idx = json_list_str_index(jn_no_levels, level, FALSE);
+            int idx = json_list_str_index(jn_no_levels, level, false);
             if(idx == -1) {
                 json_array_append_new(jn_no_levels, json_string(level));
             }
@@ -1861,7 +1861,7 @@ PRIVATE json_t *cmd_set_global_trace(hgobj gobj, const char *cmd, json_t *kw, hg
 
     int ret = gobj_set_global_trace(level, trace);
     if(ret==0) {
-        save_global_trace(gobj, level, trace?1:0, TRUE);
+        save_global_trace(gobj, level, trace?1:0, true);
     }
 
     json_t *jn_data = gobj_get_global_trace_level();
@@ -2085,7 +2085,7 @@ PRIVATE json_t *cmd_set_gclass_trace(hgobj gobj, const char *cmd, json_t *kw, hg
 
     int ret = gobj_set_gclass_trace(gclass, level, trace);
     if(ret == 0 || trace == 0) {
-        save_user_trace(gobj, gclass_name_, level, trace?1:0, TRUE);
+        save_user_trace(gobj, gclass_name_, level, trace?1:0, true);
     }
 
     json_t *jn_data = gobj_get_gclass_trace_level(gclass);
@@ -2170,7 +2170,7 @@ PRIVATE json_t *cmd_set_no_gclass_trace(hgobj gobj, const char *cmd, json_t *kw,
 
     int ret = gobj_set_gclass_no_trace(gclass, level, trace);
     if(ret == 0 || trace == 0) {
-        save_user_no_trace(gobj, gclass_name_, level, trace?1:0, TRUE);
+        save_user_no_trace(gobj, gclass_name_, level, trace?1:0, true);
     }
 
     json_t *jn_data = gobj_get_gclass_trace_no_level(gclass);
@@ -2209,7 +2209,7 @@ PRIVATE json_t *cmd_get_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -2264,7 +2264,7 @@ PRIVATE json_t *cmd_get_gobj_no_trace(hgobj gobj, const char *cmd, json_t *kw, h
         return kw_response;
     }
 
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -2307,7 +2307,7 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -2365,7 +2365,7 @@ PRIVATE json_t *cmd_set_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, hgob
     KW_INCREF(kw);
     int ret = gobj_set_gobj_trace(gobj2read, level, trace?1:0, kw);
     if(ret == 0 || trace == 0) {
-        save_user_trace(gobj, gobj_name_, level, trace?1:0, TRUE);
+        save_user_trace(gobj, gobj_name_, level, trace?1:0, true);
     }
 
     json_t *jn_data = gobj_get_gobj_trace_level(gobj2read);
@@ -2392,7 +2392,7 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2read = gobj_find_service(gobj_name_, false);
     if(!gobj2read) {
         gobj2read = gobj_find_gobj(gobj_name_);
         if (!gobj2read) {
@@ -2449,7 +2449,7 @@ PRIVATE json_t *cmd_set_no_gobj_trace(hgobj gobj, const char *cmd, json_t *kw, h
 
     int ret = gobj_set_gobj_no_trace(gobj2read, level, trace);
     if(ret == 0 || trace == 0) {
-        save_user_no_trace(gobj, gobj_name_, level, trace?1:0, TRUE);
+        save_user_no_trace(gobj, gobj_name_, level, trace?1:0, true);
     }
 
     json_t *jn_data = gobj_get_gobj_trace_no_level(gobj2read);
@@ -2639,7 +2639,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
         json_array_foreach(levels, idx, jn_level) {
             const char *level = json_string_value(jn_level);
             gobj_set_gclass_trace(gclass, level, 0);
-            save_user_trace(gobj, gclass_name_, level, 0, FALSE);
+            save_user_trace(gobj, gclass_name_, level, 0, false);
         }
         json_decref(levels);
 
@@ -2658,7 +2658,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
     }
 
     if(!empty_string(gobj_name_)) {
-        hgobj gobj2read = gobj_find_service(gobj_name_, FALSE);
+        hgobj gobj2read = gobj_find_service(gobj_name_, false);
         if(!gobj2read) {
             gobj2read = gobj_find_gobj(gobj_name_);
             if (!gobj2read) {
@@ -2679,7 +2679,7 @@ PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hg
             const char *level = json_string_value(jn_level);
             gobj_set_gobj_trace(gobj2read, level, 0, 0);
             gobj_set_gclass_trace(gobj_gclass(gobj2read), level, 0);
-            save_user_trace(gobj, gobj_name_, level, 0, FALSE);
+            save_user_trace(gobj, gobj_name_, level, 0, false);
         }
         json_decref(levels);
 
@@ -2923,7 +2923,7 @@ PRIVATE json_t *cmd_add_log_handler(hgobj gobj, const char* cmd, json_t* kw, hgo
             bf_size,
             udp_frame_size,
             output_format,
-            TRUE    // exit on failure
+            true    // exit on failure
         );
         if(udpc) {
             if(gobj_log_add_handler(handler_name, handler_type, handler_options, udpc)==0) {
@@ -3497,7 +3497,7 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
     BOOL recursive = kw_get_bool(gobj, kw, "recursive", 0, KW_WILD_NUMBER);
     BOOL full_names = kw_get_bool(gobj, kw, "full-names", 0, KW_WILD_NUMBER);
 
-    hgobj gobj2view = gobj_find_service(gobj_name_, FALSE);
+    hgobj gobj2view = gobj_find_service(gobj_name_, false);
     if(!gobj2view) {
         gobj2view = gobj_find_gobj(gobj_name_);
         if(!gobj2view) {
@@ -3577,7 +3577,7 @@ PRIVATE int save_pid_in_file(hgobj gobj)
      *  Let it create the bin_path. Can exist some zombi yuno.
      */
     unsigned int pid = getpid();
-    yuneta_bin_file(pidfile, sizeof(pidfile), "yuno.pid", TRUE);
+    yuneta_bin_file(pidfile, sizeof(pidfile), "yuno.pid", true);
     FILE *file = fopen(pidfile, "w");
     fprintf(file, "%d\n", pid);
     fclose(file);
@@ -3602,7 +3602,7 @@ PRIVATE int set_user_gclass_traces(hgobj gobj)
         json_t *jn_level;
         json_array_foreach(jn_global, idx, jn_level) {
             const char *level = json_string_value(jn_level);
-            gobj_set_global_trace(level, TRUE);
+            gobj_set_global_trace(level, true);
         }
     }
 
@@ -3629,7 +3629,7 @@ PRIVATE int set_user_gclass_traces(hgobj gobj)
         json_t *jn_level;
         json_array_foreach(jn_name, idx, jn_level) {
             const char *level = json_string_value(jn_level);
-            gobj_set_gclass_trace(gclass, level, TRUE);
+            gobj_set_gclass_trace(gclass, level, true);
         }
     }
 
@@ -3670,7 +3670,7 @@ PRIVATE int set_user_gclass_no_traces(hgobj gobj)
         json_t *jn_level;
         json_array_foreach(jn_name, idx, jn_level) {
             const char *level = json_string_value(jn_level);
-            gobj_set_gclass_no_trace(gclass, level, TRUE);
+            gobj_set_gclass_no_trace(gclass, level, true);
         }
     }
 
@@ -3737,11 +3737,11 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
         json_t *jn_level;
         json_array_foreach(jn_global, idx, jn_level) {
             const char *level = json_string_value(jn_level);
-            gobj_set_global_trace(level, TRUE);
+            gobj_set_global_trace(level, true);
         }
     }
 
-    BOOL save = FALSE;
+    BOOL save = false;
     const char *key;
     json_t *jn_name;
     void *n;
@@ -3767,7 +3767,7 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
         hgobj namedgobj = 0;
         gclass = gclass_find_by_name(name);
         if(!gclass) { // Check gclass to check if no gclass and no gobj
-            namedgobj = gobj_find_service(name, FALSE);
+            namedgobj = gobj_find_service(name, false);
             if(!namedgobj) {
                 char temp[80];
                 snprintf(temp, sizeof(temp), "%s NOT FOUND: %s",
@@ -3782,7 +3782,7 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
                     NULL
                 );
                 json_object_del(jn_trace_levels, name);
-                save = TRUE;
+                save = true;
                 continue;
             }
         }
@@ -3807,7 +3807,7 @@ PRIVATE int set_user_gobj_traces(hgobj gobj)
         json_array_foreach(jn_name, idx, jn_level) {
             const char *level = json_string_value(jn_level);
             if(namedgobj) {
-                gobj_set_gobj_trace(namedgobj, level, TRUE, 0); // Se pierden los "channel_name"!!!
+                gobj_set_gobj_trace(namedgobj, level, true, 0); // Se pierden los "channel_name"!!!
             }
         }
     }
@@ -3831,7 +3831,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
         json_decref(jn_trace_no_levels);
     }
 
-    BOOL save = FALSE;
+    BOOL save = false;
     const char *key;
     json_t *jn_name;
     void *n;
@@ -3857,7 +3857,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
         hgobj namedgobj = 0;
         gclass = gclass_find_by_name(name);
         if(!gclass) { // Check gclass to check if no gclass and no gobj
-            namedgobj = gobj_find_service(name, FALSE);
+            namedgobj = gobj_find_service(name, false);
             if(!namedgobj) {
                 char temp[80];
                 snprintf(temp, sizeof(temp), "%s NOT FOUND: %s",
@@ -3872,7 +3872,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
                     NULL
                 );
                 json_object_del(jn_trace_no_levels, name);
-                save = TRUE;
+                save = true;
                 continue;
             }
         }
@@ -3896,7 +3896,7 @@ PRIVATE int set_user_gobj_no_traces(hgobj gobj)
         json_array_foreach(jn_name, idx, jn_level) {
             const char *level = json_string_value(jn_level);
             if(namedgobj) {
-                gobj_set_gobj_no_trace(namedgobj, level, TRUE);
+                gobj_set_gobj_no_trace(namedgobj, level, true);
             }
         }
     }
@@ -4356,11 +4356,11 @@ PUBLIC BOOL is_ip_allowed(const char *peername)
         *p = 0;
     }
     json_t *b = json_object_get(gobj_read_json_attr(gobj_yuno(), "allowed_ips"), ip);
-    return json_is_true(b)?TRUE:FALSE;
+    return json_is_true(b)?true:false;
 }
 
 /***************************************************************************
- * allowed: TRUE to allow, FALSE to deny
+ * allowed: true to allow, false to deny
  ***************************************************************************/
 PUBLIC int add_allowed_ip(const char *ip, BOOL allowed)
 {
@@ -4399,11 +4399,11 @@ PUBLIC BOOL is_ip_denied(const char *peername)
         *p = 0;
     }
     json_t *b = json_object_get(gobj_read_json_attr(gobj_yuno(), "denied_ips"), ip);
-    return json_is_true(b)?TRUE:FALSE;
+    return json_is_true(b)?true:false;
 }
 
 /***************************************************************************
- * denied: TRUE to deny, FALSE to deny
+ * denied: true to deny, false to deny
  ***************************************************************************/
 PUBLIC int add_denied_ip(const char *ip, BOOL denied)
 {

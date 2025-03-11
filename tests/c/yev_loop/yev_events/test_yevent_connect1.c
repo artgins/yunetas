@@ -151,7 +151,7 @@ int do_test(void)
         yev_event_accept,
         server_url, // listen_url,
         0, //backlog,
-        FALSE, // shared
+        false, // shared
         AF_INET,  // ai_family AF_UNSPEC
         AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
@@ -239,14 +239,14 @@ int main(int argc, char *argv[])
         NULL,   // global_authenticate_parser
         0,      // max_block, largest memory block
         0,      // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );
 
     yuno_catch_signals();
 
-    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    gobj_set_gobj_trace(0, "liburing", true, 0);
 
     /*--------------------------------*
      *      Log handlers
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
     time_measure_t time_measure;

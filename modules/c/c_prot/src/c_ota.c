@@ -149,7 +149,7 @@ PRIVATE void mt_create(hgobj gobj)
      *      Http client
      *------------------------------*/
     json_t *kw = json_pack("{s:b, s:s, s:I}",
-        "raw_body_data", TRUE,
+        "raw_body_data", true,
         "url", "",
         "subscriber", (json_int_t)(size_t)gobj
     );
@@ -175,7 +175,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*------------------------------*
      *      Periodic timeout
      *------------------------------*/
-    priv->gobj_controlcenter_c = gobj_find_service("controlcenter_c", TRUE);
+    priv->gobj_controlcenter_c = gobj_find_service("controlcenter_c", true);
     gobj_subscribe_event(priv->gobj_controlcenter_c, EV_ON_OPEN, NULL, gobj);
 }
 
@@ -398,7 +398,7 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
         port, sizeof(port),
         priv->binary_file, sizeof(priv->binary_file),
         0, 0,
-        FALSE
+        false
     )<0) {
         json_t *kw_response = build_command_response(
             gobj,
@@ -512,7 +512,7 @@ PRIVATE int get_binary_file(
 #ifdef ESP_PLATFORM
 PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
 {
-    BOOL image_checked = FALSE;
+    BOOL image_checked = false;
 
     esp_app_desc_t new_app_info;
     if (data_read < sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
@@ -523,7 +523,7 @@ PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
             "msg2",         "%s", "🌀👎file message data TOO SHORT",
             NULL
         );
-        return FALSE;
+        return false;
     }
 
     // check current version with downloading
@@ -545,7 +545,7 @@ PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
             "other",        "%s", new_app_info.project_name,
             NULL
         );
-        return FALSE;
+        return false;
     }
 
     gobj_log_info(gobj, 0,
@@ -653,7 +653,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
         priv->update_partition = NULL;
         priv->update_handle = 0;
-        priv->image_header_was_checked = FALSE;
+        priv->image_header_was_checked = false;
 #endif
         gobj_change_state(gobj, ST_DISCONNECTED);
         gobj_stop(priv->gobj_http_cli_ota);
@@ -710,7 +710,7 @@ PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 #ifdef __linux__
         const char *filename = basename(priv->binary_file);
-        priv->fp = newfile(filename, 02770, TRUE);
+        priv->fp = newfile(filename, 02770, true);
 #endif
     } else {
         gobj_log_error(gobj, 0,

@@ -167,8 +167,8 @@ PRIVATE volatile char __inside_log__ = 0;
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE char trace_with_short_name = FALSE; // TODO functions to set this variables
-PRIVATE char trace_with_full_name = TRUE;  // TODO functions to set this variables
+PRIVATE char trace_with_short_name = false; // TODO functions to set this variables
+PRIVATE char trace_with_full_name = true;  // TODO functions to set this variables
 
 PRIVATE show_backtrace_fn_t show_backtrace_fn = 0;
 PRIVATE dl_list_t dl_log_handlers = {0};
@@ -193,7 +193,7 @@ PUBLIC void glog_init(void)
     if(__initialized__) {
         return;
     }
-    __initialized__ = TRUE;
+    __initialized__ = true;
 
     dl_init(&dl_log_handlers, 0);
 
@@ -241,7 +241,7 @@ PUBLIC void glog_end(void)
 
     ul_buffer_finish();
 
-    __initialized__ = FALSE;
+    __initialized__ = false;
 }
 
 /*****************************************************************
@@ -278,20 +278,20 @@ PUBLIC BOOL gobj_log_exist_handler(const char *handler_name)
         glog_init();
     }
     if(empty_string(handler_name)) {
-        return FALSE;
+        return false;
     }
     log_handler_t *lh = dl_first(&dl_log_handlers);
     while(lh) {
         log_handler_t *next = dl_next(lh);
         if(strcmp(lh->handler_name, handler_name)==0) {
-            return TRUE;
+            return true;
         }
         /*
          *  Next
          */
         lh = next;
     }
-    return FALSE;
+    return false;
 }
 
 /*****************************************************************
@@ -370,13 +370,13 @@ PUBLIC int gobj_log_del_handler(const char *handler_name)
      *  HACK use system memory,
      *  need log handler until the end
      *-------------------------------------*/
-    BOOL found = FALSE;
+    BOOL found = false;
 
     log_handler_t *lh = dl_first(&dl_log_handlers);
     while(lh) {
         log_handler_t *next = dl_next(lh);
         if(empty_string(handler_name) || strcmp(lh->handler_name, handler_name)==0) {
-            found = TRUE;
+            found = true;
             dl_delete(&dl_log_handlers, lh, 0);
             if(lh->h && lh->hr->close_fn) {
                 lh->hr->close_fn(lh->h);
@@ -451,42 +451,42 @@ PUBLIC int gobj_log_set_global_handler_option(
  *****************************************************************/
 PRIVATE BOOL must_ignore(log_handler_t *lh, int priority)
 {
-    BOOL ignore = TRUE;
+    BOOL ignore = true;
     log_handler_opt_t handler_options = lh->handler_options;
 
     switch(priority) {
     case LOG_ALERT:
         if(handler_options & LOG_HND_OPT_ALERT)
-            ignore = FALSE;
+            ignore = false;
         break;
     case LOG_CRIT:
         if(handler_options & LOG_HND_OPT_CRITICAL)
-            ignore = FALSE;
+            ignore = false;
         break;
     case LOG_ERR:
         if(handler_options & LOG_HND_OPT_ERROR)
-            ignore = FALSE;
+            ignore = false;
         break;
     case LOG_WARNING:
         if(handler_options & LOG_HND_OPT_WARNING)
-            ignore = FALSE;
+            ignore = false;
         break;
     case LOG_INFO:
         if(handler_options & LOG_HND_OPT_INFO)
-            ignore = FALSE;
+            ignore = false;
         break;
     case LOG_DEBUG:
         if(handler_options & LOG_HND_OPT_DEBUG)
-            ignore = FALSE;
+            ignore = false;
         break;
 
 //    case LOG_AUDIT:
 //        if(handler_options & LOG_HND_OPT_XXXX)
-//            ignore = FALSE;
+//            ignore = false;
 //        break;
 //    case LOG_MONITOR:
 //        if(handler_options & LOG_HND_OPT_XXXXX)
-//            ignore = FALSE;
+//            ignore = false;
 //        break;
 
     default:
@@ -991,9 +991,9 @@ PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap)
         }
 
         if(lh->hr->write_fn) {
-            BOOL json_beautiful = (lh->handler_options & LOG_HND_OPT_BEAUTIFUL_JSON)?TRUE:FALSE;
+            BOOL json_beautiful = (lh->handler_options & LOG_HND_OPT_BEAUTIFUL_JSON)?true:false;
             if(global_handler_option & LOG_HND_OPT_BEAUTIFUL_JSON) {
-                json_beautiful = TRUE;
+                json_beautiful = true;
             }
             ul_buffer_reset(0, json_beautiful);
 

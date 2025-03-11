@@ -1132,7 +1132,7 @@ function ac_on_message(gobj, event, kw, src)
     /*-------------------------*
      *  Dispatch the event
      *-------------------------*/
-    let gobj_service = gobj_find_service(iev_dst_service,true);
+    let gobj_service = gobj_find_service(iev_dst_service, true);
 
     if(gobj_service && gobj_has_event(gobj_service, iev_event, event_flag_t.EVF_PUBLIC_EVENT)) {
         gobj_send_event(gobj_service, iev_event, iev_kw, gobj);

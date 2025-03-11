@@ -130,7 +130,7 @@ int do_test(void)
     /*--------------------------------*
      *      Start timer 1 second
      *--------------------------------*/
-    yev_start_timer_event(yev_event_once, 1*1000, FALSE);
+    yev_start_timer_event(yev_event_once, 1*1000, false);
 
     /*--------------------------------*
      *  Process ring queue
@@ -195,14 +195,14 @@ int main(int argc, char *argv[])
         NULL,   // global_authenticate_parser
         0,      // max_block, largest memory block
         0,      // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );
 
     yuno_catch_signals();
 
-    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    gobj_set_gobj_trace(0, "liburing", true, 0);
 
     /*--------------------------------*
      *      Log handlers
@@ -234,7 +234,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
     time_measure_t time_measure;

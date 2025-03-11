@@ -196,7 +196,7 @@ PRIVATE int mt_start(hgobj gobj)
         port, sizeof(port),
         0, 0,
         0, 0,
-        FALSE
+        false
     )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -264,12 +264,12 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     if(yev_get_flag(priv->yev_server_accept) & YEV_FLAG_USE_TLS) {
-        priv->use_ssl = TRUE;
-        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
+        priv->use_ssl = true;
+        gobj_write_bool_attr(gobj, "use_ssl", true);
 
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
         json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace_tls));
-        priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
+        priv->ytls = ytls_init(gobj, jn_crypto, true);
     }
 
     yev_start_event(priv->yev_server_accept);

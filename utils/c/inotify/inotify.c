@@ -177,7 +177,7 @@ void handle_inotify_event(struct inotify_event *event)
 
     if(event->mask & (IN_DELETE_SELF)) {
         // The directory is removed or moved
-        if((path=get_path(event->wd, TRUE)) != NULL) {
+        if((path=get_path(event->wd, true)) != NULL) {
             printf("  %s-> Directory deleted:%s %d %s\n", On_Green BWhite, Color_Off, event->wd, path);
 
             remove_watch(event->wd);
@@ -188,7 +188,7 @@ void handle_inotify_event(struct inotify_event *event)
 
     if(event->mask & (IN_IGNORED)) {
         // The Watch was removed
-        if((path=get_path(event->wd, FALSE)) != NULL) {
+        if((path=get_path(event->wd, false)) != NULL) {
             printf("%sERROR%s wd yet found %d %s '%s'\n", On_Red BWhite, Color_Off,
                 event->wd,
                 event->len? event->name:"",
@@ -198,7 +198,7 @@ void handle_inotify_event(struct inotify_event *event)
         return;
     }
 
-    path = get_path(event->wd, TRUE);
+    path = get_path(event->wd, true);
 
     if(event->mask & (IN_ISDIR)) {
         /*
@@ -218,7 +218,7 @@ void handle_inotify_event(struct inotify_event *event)
         /*
          *  File
          */
-        path = get_path(event->wd, TRUE);
+        path = get_path(event->wd, true);
         snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
         if (event->mask & (IN_CREATE)) {
             printf("  %s-> File created:%s %s\n", On_Green BWhite, Color_Off, full_path);
@@ -246,7 +246,7 @@ PRIVATE BOOL search_by_paths_cb(
 )
 {
     add_watch(fullpath);
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 void add_watch_recursive(const char *path)

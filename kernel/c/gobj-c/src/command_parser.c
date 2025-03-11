@@ -144,9 +144,9 @@ PRIVATE const sdata_desc_t *command_get_cmd_desc(const sdata_desc_t *command_tab
          *  Alias have precedence if there is no json_fn command function.
          *  It's the combination to redirect the command as `name` event,
          */
-        BOOL alias_checked = FALSE;
+        BOOL alias_checked = false;
         if(!pcmd->json_fn && pcmd->alias) {
-            alias_checked = TRUE;
+            alias_checked = true;
             const char **alias = pcmd->alias;
             while(alias && *alias) {
                 if(strcasecmp(*alias, cmd)==0) {
@@ -188,7 +188,7 @@ PRIVATE json_t *expand_command(
     if(cmd_desc) {
         *cmd_desc = 0; // It's error
     }
-    const sdata_desc_t *cmd_table = gobj_command_desc(gobj, NULL, FALSE);
+    const sdata_desc_t *cmd_table = gobj_command_desc(gobj, NULL, false);
     if(!cmd_table) {
         return json_sprintf("%s: No command table", gobj_short_name(gobj));
     }
@@ -271,7 +271,7 @@ PRIVATE json_t *parameter2json(
         return json_real(atof(s));
 
     } else if(DTP_IS_JSON(type)) {
-        return anystring2json(s, strlen(s), TRUE);
+        return anystring2json(s, strlen(s), true);
     } else {
         *result = -1;
         json_t *jn_data = json_sprintf(
@@ -348,7 +348,7 @@ PRIVATE void add_command_help(gbuffer_t *gbuf, const sdata_desc_t *pcmds, BOOL e
     } else {
         gbuffer_printf(gbuf, "- %-28s", pcmds->name);
     }
-    BOOL add_point = FALSE;
+    BOOL add_point = false;
     const sdata_desc_t *pparam = pcmds->schema;
     while(pparam && pparam->name) {
         if((pparam->flag & SDF_REQUIRED) && !(pparam->flag & SDF_PERSIST)) { // TODO PERSITS? why?
@@ -359,7 +359,7 @@ PRIVATE void add_command_help(gbuffer_t *gbuf, const sdata_desc_t *pcmds, BOOL e
                 pparam->name, pparam->default_value?(char *)pparam->default_value:"?"
             );
         }
-        add_point = TRUE;
+        add_point = true;
         pparam++;
     }
     if(add_point) {
@@ -495,7 +495,7 @@ PRIVATE json_t *build_cmd_kw(
             json_t *value = kw_get_dict_value(0, kw, ip->name, 0, 0);
             if(!DTP_IS_STRING(ip->type) && json_is_string(value)) {
                 const char *s = json_string_value(value);
-                json_t *new_value = anystring2json(s, strlen(s), TRUE);
+                json_t *new_value = anystring2json(s, strlen(s), true);
                 json_object_set_new(kw_cmd, ip->name, new_value);
             } else {
                 json_object_set(kw_cmd, ip->name, value);
@@ -597,8 +597,8 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
     const char *cmd = kw_get_str(gobj, kw, "cmd", 0, 0);
     if(!empty_string(cmd)) {
         const sdata_desc_t *cnf_cmd;
-        if(gobj_command_desc(gobj, NULL, FALSE)) {
-            cnf_cmd = command_get_cmd_desc(gobj_command_desc(gobj, NULL, FALSE), cmd);
+        if(gobj_command_desc(gobj, NULL, false)) {
+            cnf_cmd = command_get_cmd_desc(gobj_command_desc(gobj, NULL, false), cmd);
             if(cnf_cmd) {
                 gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
                 gbuffer_printf(gbuf, "%s\n", cmd);
@@ -611,7 +611,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                 if(!empty_string(cnf_cmd->description)) {
                     gbuffer_printf(gbuf, "%s\n", cnf_cmd->description);
                 }
-                add_command_help(gbuf, cnf_cmd, TRUE);
+                add_command_help(gbuf, cnf_cmd, true);
                 gbuffer_printf(gbuf, "\n");
                 json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
                 gbuffer_decref(gbuf);
@@ -626,8 +626,8 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         if(level) {
             hgobj child = gobj_first_child(gobj);
             while(child) {
-                if(gobj_command_desc(child, NULL, FALSE)) {
-                    cnf_cmd = command_get_cmd_desc(gobj_command_desc(child, NULL, FALSE), cmd);
+                if(gobj_command_desc(child, NULL, false)) {
+                    cnf_cmd = command_get_cmd_desc(gobj_command_desc(child, NULL, false), cmd);
                     if(cnf_cmd) {
                         gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
                         gbuffer_printf(gbuf, "%s\n", cmd);
@@ -640,7 +640,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
                         if(!empty_string(cnf_cmd->description)) {
                             gbuffer_printf(gbuf, "%s\n", cnf_cmd->description);
                         }
-                        add_command_help(gbuf, cnf_cmd, TRUE);
+                        add_command_help(gbuf, cnf_cmd, true);
                         gbuffer_printf(gbuf, "\n");
                         json_t *jn_resp = json_string(gbuffer_cur_rd_pointer(gbuf));
                         gbuffer_decref(gbuf);
@@ -667,12 +667,12 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
     /*
      *  GObj commands
      */
-    if(gobj_command_desc(gobj, NULL, FALSE)) {
+    if(gobj_command_desc(gobj, NULL, false)) {
         gbuffer_printf(gbuf, "\n> %s\n", gobj_short_name(gobj));
-        const sdata_desc_t *pcmds = gobj_command_desc(gobj, NULL, FALSE);
+        const sdata_desc_t *pcmds = gobj_command_desc(gobj, NULL, false);
         while(pcmds->name) {
             if(!empty_string(pcmds->name)) {
-                add_command_help(gbuf, pcmds, FALSE);
+                add_command_help(gbuf, pcmds, false);
             } else {
                 /*
                 *  Empty command (not null) is for print a blank line or a title is desc is not empty
@@ -693,12 +693,12 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
     if(level) {
         hgobj child = gobj_first_child(gobj);
         while(child) {
-            if(gobj_command_desc(child, NULL, FALSE)) {
+            if(gobj_command_desc(child, NULL, false)) {
                 gbuffer_printf(gbuf, "\n> %s\n", gobj_short_name(child));
-                const sdata_desc_t *pcmds = gobj_command_desc(child, NULL, FALSE);
+                const sdata_desc_t *pcmds = gobj_command_desc(child, NULL, false);
                 while(pcmds->name) {
                     if(!empty_string(pcmds->name)) {
-                        add_command_help(gbuf, pcmds, FALSE);
+                        add_command_help(gbuf, pcmds, false);
                     } else {
                         /*
                         *  Empty command (not null) is for print a blank line or a title is desc is not empty
@@ -933,9 +933,9 @@ PUBLIC const sdata_desc_t *authz_get_level_desc(
          *  Alias have precedence if there is no json_fn authz function.
          *  It's the combination to redirect the authz as `name` event,
          */
-        BOOL alias_checked = FALSE;
+        BOOL alias_checked = false;
         if(!pcmd->json_fn && pcmd->alias) {
-            alias_checked = TRUE;
+            alias_checked = true;
             const char **alias = pcmd->alias;
             while(alias && *alias) {
                 if(strcasecmp(*alias, auth)==0) {
@@ -975,7 +975,7 @@ PUBLIC json_t *gobj_build_authzs_doc(
     const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
     if(!empty_string(service)) {
-        hgobj service_gobj = gobj_find_service(service, FALSE);
+        hgobj service_gobj = gobj_find_service(service, false);
         if(!service_gobj) {
             return json_sprintf("Service not found: '%s'", service);
         }
@@ -999,7 +999,7 @@ PUBLIC json_t *gobj_build_authzs_doc(
     int idx; json_t *jn_service;
     json_array_foreach(jn_services, idx, jn_service) {
         const char *service_ = json_string_value(jn_service);
-        hgobj gobj_service = gobj_find_service(service_, TRUE);
+        hgobj gobj_service = gobj_find_service(service_, true);
         if(gobj_service) {
             if(gclass_authz_desc(gobj_gclass(gobj_service))) {
                 json_t *l = authzs_list(gobj_service, authz);

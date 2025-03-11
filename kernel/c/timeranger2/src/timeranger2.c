@@ -390,8 +390,8 @@ PUBLIC json_t *tranger2_startup(
             "__timeranger2__.json",
             on_critical_error,
             &fd,
-            master? TRUE:FALSE, //exclusive
-            TRUE // silence
+            master? true:false, //exclusive
+            true // silence
         );
         if(!jn_disk_tranger) {
             // If can't open in exclusive mode then be a not master
@@ -401,8 +401,8 @@ PUBLIC json_t *tranger2_startup(
                 "__timeranger2__.json",
                 on_critical_error,
                 &fd,
-                FALSE, // exclusive
-                TRUE // silence
+                false, // exclusive
+                true // silence
             );
             if(jn_disk_tranger) {
                 gobj_log_warning(gobj, 0,
@@ -423,7 +423,7 @@ PUBLIC json_t *tranger2_startup(
                 json_decref(tranger);
                 return 0;
             }
-            master = FALSE;
+            master = false;
             json_object_set_new(tranger, "master", json_false());
         }
         json_object_update_existing(tranger, jn_disk_tranger);
@@ -459,8 +459,8 @@ PUBLIC json_t *tranger2_startup(
             xpermission,
             rpermission,
             on_critical_error,
-            TRUE,   //create
-            TRUE,  //only_read
+            true,   //create
+            true,  //only_read
             jn_tranger_  // owned
         );
         // Re-open
@@ -470,8 +470,8 @@ PUBLIC json_t *tranger2_startup(
             "__timeranger2__.json",
             on_critical_error,
             &fd,
-            TRUE, //exclusive
-            TRUE // silence
+            true, //exclusive
+            true // silence
         );
         if(!jn_disk_tranger) {
             gobj_log_error(gobj, 0,
@@ -562,7 +562,7 @@ PUBLIC system_flag2_t tranger2_str2system_flag(const char *system_flag)
     const char **names = split2(system_flag, "|, ", &list_size);
 
     for(int i=0; i<list_size; i++) {
-        int idx = idx_in_list(sf_names, *(names +i), TRUE);
+        int idx = idx_in_list(sf_names, *(names +i), true);
         if(idx > 0) {
             bitmask |= 1 << (idx-1);
         }
@@ -723,8 +723,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
             (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
             kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-            master? TRUE:FALSE, //create
-            TRUE,  //only_read
+            master? true:false, //create
+            true,  //only_read
             topic_desc  // owned
         );
 
@@ -886,7 +886,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
     JSON_DECREF(jn_var)
     JSON_DECREF(jn_topic_ext)
 
-    return tranger2_open_topic(tranger, topic_name, TRUE);
+    return tranger2_open_topic(tranger, topic_name, true);
 }
 
 /***************************************************************************
@@ -956,8 +956,8 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
         "topic_desc.json",
         kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
         0,
-        FALSE, // exclusive
-        FALSE // silence
+        false, // exclusive
+        false // silence
     );
 
     /*
@@ -1063,7 +1063,7 @@ PUBLIC json_t *tranger2_topic( // WARNING returned JSON IS NOT YOURS
     json_t *topic = json_object_get(json_object_get(tranger, "topics"), topic_name);
     if(!topic) {
         hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-        topic = tranger2_open_topic(tranger, topic_name, FALSE);
+        topic = tranger2_open_topic(tranger, topic_name, false);
         if(!topic) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1368,7 +1368,7 @@ PUBLIC json_t *tranger2_backup_topic(
                 "path",         "%s", backup_directory,
                 NULL
             );
-            BOOL notmain = FALSE;
+            BOOL notmain = false;
             if(tranger_backup_deleting_callback) {
                 notmain = tranger_backup_deleting_callback(tranger, topic_name, backup_directory);
             }
@@ -1399,8 +1399,8 @@ PUBLIC json_t *tranger2_backup_topic(
         "topic_desc.json",
         0,
         0,
-        FALSE, // exclusive
-        FALSE // silence
+        false, // exclusive
+        false // silence
     );
     if(!topic_desc) {
         gobj_log_error(gobj, 0,
@@ -1553,8 +1553,8 @@ PUBLIC int tranger2_write_topic_var(
         (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
         (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
         0,
-        master? TRUE:FALSE, //create
-        FALSE,  //only_read
+        master? true:false, //create
+        false,  //only_read
         topic_var  // owned
     );
 
@@ -1628,8 +1628,8 @@ PUBLIC int tranger2_write_topic_cols(
         (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
         (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
         0,
-        master? TRUE:FALSE, //create
-        FALSE,  //only_read
+        master? true:false, //create
+        false,  //only_read
         jn_topic_cols  // owned
     );
 
@@ -1753,7 +1753,7 @@ PRIVATE char *get_t_filename(
     int bfsize,
     json_t *tranger,
     json_t *topic,
-    BOOL for_data,  // TRUE for data, FALSE for md2
+    BOOL for_data,  // true for data, false for md2
     uint64_t __t__ // WARNING must be in seconds!
 )
 {
@@ -1845,7 +1845,7 @@ PRIVATE int create_file(
         close_fd_wr_files(gobj, topic, key);
     }
 
-    int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+    int fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), false);
     if(fp < 0) {
         if(errno == EMFILE) {
             struct rlimit rl = {0};
@@ -1862,7 +1862,7 @@ PRIVATE int create_file(
             );
             close_fd_wr_files(gobj, topic, "");
 
-            fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), FALSE);
+            fp = newfile(full_path, (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED), false);
             if(fp < 0) {
                 gobj_log_critical(gobj, kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
                     "function",     "%s", __FUNCTION__,
@@ -2366,7 +2366,7 @@ PUBLIC int tranger2_append_record(
     /*------------------------------------------------------*
      *  Save content, to file
      *------------------------------------------------------*/
-    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, TRUE, __t__);
+    int content_fp = get_topic_wr_fd(gobj, tranger, topic, key_value, true, __t__);
 
     // TEST performance 475000
 
@@ -2468,7 +2468,7 @@ PUBLIC int tranger2_append_record(
 
     json_int_t g_rowid = 0;
     json_int_t i_rowid = 0;
-    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, FALSE, __t__);
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, false, __t__);
     if(md2_fd >= 0) {
         off_t offset = lseek(md2_fd, 0, SEEK_END);
         if(offset < 0) {
@@ -2678,7 +2678,7 @@ PRIVATE int get_md_record_for_wr(
         return -1;
     }
 
-    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, FALSE, __t__);
+    int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key, false, __t__);
     if(md2_fd < 0) {
         // Error already logged
         return -1;
@@ -3559,7 +3559,7 @@ PRIVATE BOOL find_rt_disk_cb(
             "filename",     "%s", filename,
             NULL
         );
-        return TRUE; // continue
+        return true; // continue
     }
 
     json_t *rt = tranger2_open_rt_mem(
@@ -3578,7 +3578,7 @@ PRIVATE BOOL find_rt_disk_cb(
     json_object_set_new(rt, "disk_path", json_string(full_path2));
     json_object_set_new(rt, "master_to_update_client", json_true());
 
-    return TRUE; // to continue
+    return true; // to continue
 }
 PRIVATE void find_rt_disk(json_t *tranger, const char *path)
 {
@@ -3850,7 +3850,7 @@ PRIVATE int master_to_update_client_load_record_callback(
         sizeof(filename),
         tranger,
         topic,
-        FALSE,
+        false,
         (system_flag & sf_t_ms)? md_record_ex->__t__/1000 : md_record_ex->__t__
     );
     snprintf(full_path_dest, sizeof(full_path_dest), "%s/%s/%s", disk_path, key, filename);
@@ -4094,7 +4094,7 @@ PRIVATE BOOL find_rt_disk_keys_cb(
 
     update_key_by_hard_link(gobj, tranger, full_path); // full_path modified */
 
-    return TRUE; // to continue
+    return true; // to continue
 }
 PRIVATE int scan_disks_key_for_new_file(
     hgobj gobj,
@@ -5059,7 +5059,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
         &realtime
     );
     if(!load_record_callback) {
-        realtime = FALSE;
+        realtime = false;
     }
 
     json_t *iterator = json_object();
@@ -5116,7 +5116,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
 
         json_int_t total_rows = get_topic_key_rows(gobj, topic, key);
 
-        BOOL end = FALSE;
+        BOOL end = false;
         while(!end && cur_segment >= 0) {
             json_t *segment = json_array_get(segments, cur_segment);
             /*
@@ -5410,7 +5410,7 @@ PUBLIC json_t *tranger2_iterator_get_page( // return must be owned
     json_t *data = json_array();
     md2_record_ex_t md_record_ex;
 
-    BOOL end = FALSE;
+    BOOL end = false;
     while(!end && cur_segment >= 0) {
         json_t *segment = json_array_get(segments, cur_segment);
         /*
@@ -5521,7 +5521,7 @@ PRIVATE json_t *get_segments(
 )
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
-    BOOL realtime = FALSE;
+    BOOL realtime = false;
     *prealtime = realtime;
 
     json_t *jn_segments = json_array();
@@ -5602,7 +5602,7 @@ PRIVATE json_t *get_segments(
     }
 
     if(to_rowid == 0) {
-        realtime = TRUE;
+        realtime = true;
         to_rowid = total_rows;
     } else if(to_rowid > 0) {
         // positive offset
@@ -5684,7 +5684,7 @@ PRIVATE json_t *get_segments(
         to_t = total_to_t;
     } else {
         if(realtime) {
-            realtime = FALSE;
+            realtime = false;
         }
         if(to_t > total_to_t) {
             // out of range, begin at the end
@@ -5754,7 +5754,7 @@ PRIVATE json_t *get_segments(
         to_tm = total_to_tm;
     } else {
         if(realtime) {
-            realtime = FALSE;
+            realtime = false;
         }
         if (to_tm > total_to_tm) {
             // out of range, begin at the end
@@ -5869,7 +5869,7 @@ PRIVATE BOOL tranger2_match_metadata(
 )
 {
     BOOL backward = json_boolean_value(json_object_get(match_cond, "backward"));
-    *end = FALSE;
+    *end = false;
 
     /*--------------------------*
      *      Rowid
@@ -5884,8 +5884,8 @@ PRIVATE BOOL tranger2_match_metadata(
         // positive offset
         if(from_rowid > total_rows) {
             // not exist
-            *end = TRUE;
-            return FALSE;
+            *end = true;
+            return false;
         }
     } else {
         // negative offset
@@ -5909,8 +5909,8 @@ PRIVATE BOOL tranger2_match_metadata(
         // negative offset
         if(to_rowid < -total_rows) {
             // not exist
-            *end = TRUE;
-            return FALSE;
+            *end = true;
+            return false;
         } else {
             to_rowid = total_rows + to_rowid + 1;
         }
@@ -5919,18 +5919,18 @@ PRIVATE BOOL tranger2_match_metadata(
     if(from_rowid != 0) {
         if(rowid < from_rowid) {
             if(backward) {
-                *end = TRUE;
+                *end = true;
             }
-            return FALSE;
+            return false;
         }
     }
 
     if(to_rowid != 0) {
         if(rowid > to_rowid) {
             if(!backward) {
-                *end = TRUE;
+                *end = true;
             }
-            return FALSE;
+            return false;
         }
     }
 
@@ -5943,18 +5943,18 @@ PRIVATE BOOL tranger2_match_metadata(
     if(from_t != 0) {
         if(md_record_ex->__t__ < from_t) {
             if(backward) {
-                *end = TRUE;
+                *end = true;
             }
-            return FALSE;
+            return false;
         }
     }
 
     if(to_t != 0) {
         if(md_record_ex->__t__ > to_t) {
             if(!backward) {
-                *end = TRUE;
+                *end = true;
             }
-            return FALSE;
+            return false;
         }
     }
 
@@ -5967,18 +5967,18 @@ PRIVATE BOOL tranger2_match_metadata(
     if(from_tm != 0) {
         if(md_record_ex->__tm__ < from_tm) {
             if(backward) {
-                *end = TRUE;
+                *end = true;
             }
-            return FALSE;
+            return false;
         }
     }
 
     if(to_tm != 0) {
         if(md_record_ex->__tm__ > to_tm) {
             if(!backward) {
-                *end = TRUE;
+                *end = true;
             }
-            return FALSE;
+            return false;
         }
     }
 
@@ -5993,7 +5993,7 @@ PRIVATE BOOL tranger2_match_metadata(
     );
     if(user_flag) {
         if((md_record_ex->user_flag != user_flag)) {
-            return FALSE;
+            return false;
         }
     }
 
@@ -6002,7 +6002,7 @@ PRIVATE BOOL tranger2_match_metadata(
     );
     if(not_user_flag) {
         if((md_record_ex->user_flag == not_user_flag)) {
-            return FALSE;
+            return false;
         }
     }
 
@@ -6011,7 +6011,7 @@ PRIVATE BOOL tranger2_match_metadata(
     );
     if(user_flag_mask_set) {
         if((md_record_ex->user_flag & user_flag_mask_set) != user_flag_mask_set) {
-            return FALSE;
+            return false;
         }
     }
 
@@ -6020,11 +6020,11 @@ PRIVATE BOOL tranger2_match_metadata(
     );
     if(user_flag_mask_notset) {
         if((md_record_ex->user_flag | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
-            return FALSE;
+            return false;
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 /***************************************************************************
@@ -7234,7 +7234,7 @@ PRIVATE int read_md(
         topic,
         key,
         file_id,
-        FALSE
+        false
     );
     if(fd<0) {
         return -1;
@@ -7391,7 +7391,7 @@ PRIVATE json_t *read_record_content(
         topic,
         key,
         file_id,
-        TRUE
+        true
     );
     if(fd<0) {
         return NULL;
@@ -7476,7 +7476,7 @@ PRIVATE json_t *read_record_content(
         jn_record = json_object();
         gbuffer_decref(gbuf);
     } else {
-        jn_record = anystring2json(p, strlen(p), FALSE);
+        jn_record = anystring2json(p, strlen(p), false);
         gbuffer_decref(gbuf);
         if(!jn_record) {
             gobj_log_critical(gobj, 0, // Let continue, will be a message lost
@@ -7562,10 +7562,10 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         return NULL;
     }
 
-    BOOL realtime = FALSE;
+    BOOL realtime = false;
     json_int_t to_rowid = kw_get_int(gobj, match_cond, "to_rowid", 0, KW_WILD_NUMBER);
     if(to_rowid == 0) {
-        realtime = TRUE;
+        realtime = true;
     }
 
     const char *key = kw_get_str(gobj, match_cond, "key", "", 0);
@@ -7999,7 +7999,7 @@ PUBLIC void tranger2_print_md2_record(
         sizeof(filename),
         tranger,
         topic,
-        TRUE,   // TRUE for data, FALSE for md2
+        true,   // true for data, false for md2
         (system_flag & sf_t_ms)? t/1000:t  // WARNING must be in seconds!
     );
 
@@ -8042,7 +8042,7 @@ PUBLIC void tranger2_print_record_filename(
         bfsize,
         tranger,
         topic,
-        TRUE,   // TRUE for data, FALSE for md2
+        true,   // true for data, false for md2
         (system_flag & sf_t_ms)? t/1000:t  // WARNING must be in seconds!
     );
 }

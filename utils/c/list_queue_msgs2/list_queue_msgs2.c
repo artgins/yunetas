@@ -339,7 +339,7 @@ int main(int argc, char *argv[])
         NULL, // global_authenticate_parser
         MEM_MAX_BLOCK,  // max_block, largest memory block
         MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );

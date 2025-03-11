@@ -286,7 +286,7 @@ PRIVATE BOOL list_db_cb(
     printf("TimeRanger ==> '%s'\n", fullpath);
     list_topics(topic_path);
 
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 PRIVATE int list_databases(const char *path)
@@ -323,7 +323,7 @@ PRIVATE BOOL list_topic_cb(
     } else {
         printf("        %s\n", directory);
     }
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 PRIVATE int list_topics(const char *path)
@@ -373,7 +373,7 @@ PRIVATE int list_messages(void)
     json_t *topic = tranger2_open_topic(
         tranger,
         arguments.topic,
-        FALSE
+        false
     );
     if(!topic) {
         fprintf(stderr, "Can't open topic %s\n\n", arguments.topic);
@@ -454,7 +454,7 @@ PRIVATE BOOL list_recursive_topic_cb(
         );
     }
 
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 PRIVATE int list_recursive_topics(void)
@@ -510,7 +510,7 @@ PRIVATE BOOL search_topic_cb(
         }
     }
 
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 PRIVATE int search_topics(void)
@@ -543,7 +543,7 @@ PRIVATE BOOL search_by_databases_cb(
 
     search_topics();
 
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 PRIVATE int search_by_databases()
@@ -577,7 +577,7 @@ PRIVATE BOOL search_by_paths_cb(
 
     search_by_databases();
 
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 PRIVATE int search_by_paths(void)
@@ -711,7 +711,7 @@ int main(int argc, char *argv[])
         NULL, // global_authenticate_parser
         MEM_MAX_BLOCK,  // max_block, largest memory block
         MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );
@@ -801,7 +801,7 @@ int main(int argc, char *argv[])
         json_object_set_new(
             match_cond,
             "filter",
-            legalstring2json(arguments.filter, TRUE)
+            legalstring2json(arguments.filter, true)
         );
     }
 

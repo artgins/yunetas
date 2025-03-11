@@ -133,7 +133,7 @@ PRIVATE int yev_callback_periodic(yev_event_h yev_event)
 
     if(times_counter_periodic == 1) {
         gobj_trace_msg(0, "re-start timer once");
-        yev_start_timer_event(yev_event_once, 1*1000, FALSE);
+        yev_start_timer_event(yev_event_once, 1*1000, false);
     }
 
     if(times_counter_periodic < 3) {
@@ -184,10 +184,10 @@ int do_test(void)
     yev_event_periodic = yev_create_timer_event(yev_loop, yev_callback_periodic, NULL);
 
     gobj_trace_msg(0, "start time once %d seconds", 4);
-    yev_start_timer_event(yev_event_once, 4*1000, FALSE);
+    yev_start_timer_event(yev_event_once, 4*1000, false);
 
     gobj_trace_msg(0, "start time periodic %d seconds", 1);
-    yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
+    yev_start_timer_event(yev_event_periodic, 1*1000, true);
 
     yev_loop_run(yev_loop, -1);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
@@ -240,14 +240,14 @@ int main(int argc, char *argv[])
         NULL,   // global_authenticate_parser
         0,      // max_block, largest memory block
         0,      // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );
 
     yuno_catch_signals();
 
-    gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    gobj_set_gobj_trace(0, "liburing", true, 0);
 
     /*--------------------------------*
      *      Log handlers
@@ -280,7 +280,7 @@ int main(int argc, char *argv[])
         error_list, // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
     time_measure_t time_measure;

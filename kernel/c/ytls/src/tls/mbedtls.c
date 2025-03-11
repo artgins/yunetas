@@ -468,7 +468,7 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
 {
     sskt_t *sskt = (sskt_t *)sskt_;
     ytls_t *ytls = sskt->ytls;
-    ytls->trace = set ? TRUE : FALSE;
+    ytls->trace = set ? true : false;
 
     if (ytls->trace) {
         // Enable debug callback
@@ -534,7 +534,7 @@ PRIVATE int do_handshake(hsskt sskt_)
     flush_encrypted_data(sskt);
 
     if (!sskt->handshake_informed) {
-        sskt->handshake_informed = TRUE;
+        sskt->handshake_informed = true;
         sskt->on_handshake_done_cb(sskt->user_data, 0); // Indicate success
     }
 

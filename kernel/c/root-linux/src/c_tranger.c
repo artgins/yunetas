@@ -442,7 +442,7 @@ PRIVATE json_t *cmd_print_tranger(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *value = priv->tranger;
 
     if(!empty_string(path)) {
-        value = kw_find_path(gobj, value, path, FALSE);
+        value = kw_find_path(gobj, value, path, false);
         if(!value) {
             return msg_iev_build_response(gobj,
                 -1,

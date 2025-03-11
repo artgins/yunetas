@@ -2015,7 +2015,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
         }
     }
 
-    frame->header_complete = TRUE;
+    frame->header_complete = true;
 
     if(priv->iamServer) {
         switch(frame->command) {
@@ -3630,7 +3630,7 @@ PRIVATE int send_disconnect(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "send_disconnect", FALSE);
+    gobj_write_bool_attr(gobj, "send_disconnect", false);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         if(priv->iamServer) {
@@ -5463,10 +5463,10 @@ PRIVATE int connect_on_authorised(
         kw_set_dict_value(gobj,
             client, "_gobj_bottom", json_integer((json_int_t)(size_t)gobj_bottom_gobj(gobj))
         );
-        gobj_write_bool_attr(gobj, "in_session", TRUE);
+        gobj_write_bool_attr(gobj, "in_session", true);
         gobj_write_json_attr(gobj, "client", client);
-        gobj_write_bool_attr(gobj, "send_disconnect", TRUE);
-        priv->must_broadcast_on_close = TRUE;
+        gobj_write_bool_attr(gobj, "send_disconnect", true);
+        priv->must_broadcast_on_close = true;
         priv->client = client;
         save_client(gobj);
 
@@ -5514,7 +5514,7 @@ PRIVATE int handle_connect(hgobj gobj, gbuffer_t *gbuf)
      *-------------------------------------------*/
     char protocol_name[7];
     mosquitto_protocol_t protocol_version;
-    BOOL is_bridge = FALSE;
+    BOOL is_bridge = false;
     uint8_t version_byte;
 
     uint16_t ll;
@@ -5742,7 +5742,7 @@ PRIVATE int handle_connect(hgobj gobj, gbuffer_t *gbuf)
      *-------------------------------------------*/
     char uuid[60];
     char *client_id = NULL;
-    BOOL assigned_id = FALSE;
+    BOOL assigned_id = false;
     uint16_t client_id_len;
 
     if(mqtt_read_string(gobj, gbuf, &client_id, &client_id_len)<0) {
@@ -7158,7 +7158,7 @@ PRIVATE int handle_publish(hgobj gobj, gbuffer_t *gbuf)
             {
                 json_t *jn_subscribers = sub_get_subscribers(gobj, stored->topic);
 
-                BOOL has_subscribers = json_array_size(jn_subscribers)?TRUE:FALSE;
+                BOOL has_subscribers = json_array_size(jn_subscribers)?true:false;
                 //util__decrement_receive_quota(context);
                 XXX_sub__messages_queue(
                     gobj,
@@ -7706,8 +7706,8 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     gobj_reset_volatil_attrs(gobj);
     start_wait_frame_header(gobj);
-    priv->send_disconnect = FALSE;
-    gobj_write_bool_attr(gobj, "connected", TRUE);
+    priv->send_disconnect = false;
+    gobj_write_bool_attr(gobj, "connected", true);
     GBUFFER_DECREF(priv->gbuf_will_payload);
     priv->jn_alias_list = json_object();
 
@@ -7752,7 +7752,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         priv->istream_payload = 0;
     }
     if (priv->must_broadcast_on_close) {
-        priv->must_broadcast_on_close = FALSE;
+        priv->must_broadcast_on_close = false;
 
         json_t *kw = json_pack("s:s",
             "client_id", priv->client_id
@@ -7767,7 +7767,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     gobj_write_str_attr(gobj, "client_id", "");
     gobj_write_str_attr(gobj, "username", "");
-    gobj_write_bool_attr(gobj, "connected", FALSE);
+    gobj_write_bool_attr(gobj, "connected", false);
 
     dl_flush(&priv->dl_msgs_in, db_free_client_msg);
     dl_flush(&priv->dl_msgs_out, db_free_client_msg);
@@ -7810,7 +7810,7 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
     FRAME_HEAD *frame = &priv->frame_head;
     istream_h istream = priv->istream_frame;
 
@@ -7899,7 +7899,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 
             } else {
                 if(frame_completed(gobj)<0) {
-                    //priv->send_disconnect = TRUE;
+                    //priv->send_disconnect = true;
                     ws_close(gobj, MQTT_RC_PROTOCOL_ERROR);
                     break;
                 }
@@ -7933,7 +7933,7 @@ PRIVATE int ac_timeout_waiting_frame_header(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
 
     if(gobj_trace_level(gobj) & TRAFFIC_PAYLOAD) {
         gobj_trace_dump_gbuf(gobj, gbuf, "PAYLOAD %s <== %s (accumulated %lu)",
@@ -8012,7 +8012,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     int payloadlen = (int)gbuffer_leftbytes(gbuf);
     // These parameters are fixed by now
     int qos = 0; // Only let 0
-    BOOL retain = FALSE;
+    BOOL retain = false;
     json_t * properties = 0;
 
     // Local variables

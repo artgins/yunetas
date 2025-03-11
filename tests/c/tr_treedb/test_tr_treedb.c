@@ -87,7 +87,7 @@ PRIVATE int test_treedb_schema(
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -132,7 +132,7 @@ PRIVATE int test_treedb_schema(
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -177,7 +177,7 @@ PRIVATE int test_treedb_schema(
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -228,7 +228,7 @@ PRIVATE int test_treedb_schema(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -280,7 +280,7 @@ PRIVATE int test_treedb_schema(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -321,7 +321,7 @@ PRIVATE int test_schema(
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -375,7 +375,7 @@ PRIVATE int do_test(void)
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -443,13 +443,13 @@ PRIVATE int do_test(void)
             error_list,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
         helper_quote2doublequote(schema_sample);
-        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
+        json_t *jn_schema_sample = legalstring2json(schema_sample, true);
         if(!jn_schema_sample) {
             printf("Can't decode schema_sample json\n");
             exit(-1);
@@ -499,7 +499,7 @@ PRIVATE int do_test(void)
         show_oks,
         verbose
     );
-    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
+    result += debug_json("tranger", tranger, result<0? true:false);
 
     /*------------------------------*
      *  Execute user test
@@ -517,7 +517,7 @@ PRIVATE int do_test(void)
      *  Check refcounts
      */
     json_check_refcounts(tranger, 1000, &result);
-    result += debug_json("tranger", tranger, result<0? TRUE:FALSE);
+    result += debug_json("tranger", tranger, result<0? true:false);
 
     if(1) {
         /*
@@ -573,7 +573,7 @@ PRIVATE int do_test(void)
             "t",
             NULL
         };
-        json_t *expected = string2json(helper_quote2doublequote(foto_final1), TRUE);
+        json_t *expected = string2json(helper_quote2doublequote(foto_final1), true);
         set_expected_results( // Check that no logs happen
             test,   // test name
             json_pack("[{s:s}]",  // error_list
@@ -581,12 +581,12 @@ PRIVATE int do_test(void)
             ),
             expected,  // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
-        json_t *jn_schema_sample = legalstring2json(schema_sample, TRUE);
+        json_t *jn_schema_sample = legalstring2json(schema_sample, true);
 
         treedb_open_db(
             tranger,  // owned
@@ -685,7 +685,7 @@ PRIVATE int do_test(void)
             NULL,   // error_list
             expected, // expected
             ignore_keys,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
 
         time_measure_t time_measure;
@@ -693,7 +693,7 @@ PRIVATE int do_test(void)
 
         json_t *data = json_array();
         json_t *match_cond = json_pack("{s:b, s:i}",  // owned
-            "backward", TRUE,
+            "backward", true,
             "from_rowid", -1
         );
         json_t *it = tranger2_open_iterator(
@@ -779,7 +779,7 @@ PRIVATE int do_test(void)
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -812,7 +812,7 @@ PRIVATE int do_test(void)
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -856,7 +856,7 @@ PRIVATE int do_test(void)
             NULL,   // error_list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            TRUE    // verbose
+            true    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -908,7 +908,7 @@ int main(int argc, char *argv[])
     );
 
 //    gobj_set_deep_tracing(2);           // TODO TEST
-//    gobj_set_global_trace(0, TRUE);     // TODO TEST
+//    gobj_set_global_trace(0, true);     // TODO TEST
 
     unsigned long memory_check_list[] = {0, 0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);
@@ -927,7 +927,7 @@ int main(int argc, char *argv[])
         NULL,   // global_authenticate_parser
         0,      // max_block, largest memory block
         0,      // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );

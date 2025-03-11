@@ -436,7 +436,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
     if(event->mask & (IN_DELETE_SELF)) {
         // The directory is removed or moved
-        path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+        path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, true);
         if(path != NULL) {
             char path_[PATH_MAX];
             snprintf(path_, sizeof(path_), "%s", path);
@@ -453,7 +453,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
     if(event->mask & (IN_IGNORED)) {
         // The Watch was removed
-        if((path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, FALSE)) != NULL) {
+        if((path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, false)) != NULL) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -468,7 +468,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         return;
     }
 
-    path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+    path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, true);
 
     if(event->mask & (IN_ISDIR)) {
         /*
@@ -487,7 +487,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         }
         if (event->mask & (IN_DELETE)) {
             char *filename = event->len? event->name:"";
-            path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+            path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, true);
             if(path != NULL) {
                 fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
                 fs_event->directory = (volatile char *)path;
@@ -499,7 +499,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         /*
          *  File
          */
-        path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+        path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, true);
         char *filename = event->len? event->name:"";
         if (event->mask & (IN_CREATE)) {
             fs_event->fs_type = FS_FILE_CREATED_TYPE;
@@ -659,7 +659,7 @@ PRIVATE BOOL search_by_paths_cb(
 {
     fs_event_t *fs_event = user_data;
     add_watch(fs_event, fullpath);
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path)

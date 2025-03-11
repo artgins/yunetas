@@ -82,7 +82,7 @@ PRIVATE const char *yev_flag_s[] = {
     0
 };
 
-PRIVATE volatile char __inside_loop__ = FALSE;
+PRIVATE volatile char __inside_loop__ = false;
 
 PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
     const char *schema,
@@ -199,7 +199,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         );
         return -1;
     }
-    __inside_loop__ = TRUE;
+    __inside_loop__ = true;
 
     /*------------------------------------------*
      *      Infinite loop
@@ -218,7 +218,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
     struct io_uring_cqe *cqe;
 
     struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
-    yev_loop->running = TRUE;
+    yev_loop->running = true;
     while(yev_loop->running) {
         int err;
         if(timeout_in_seconds > 0) {
@@ -237,7 +237,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             if(err == -ETIME) {
                 // Timeout
                 if(callback_cqe(yev_loop, NULL)<0) {
-                    yev_loop->running = FALSE;
+                    yev_loop->running = false;
                 }
 
                 /* Mark this request as processed */
@@ -258,7 +258,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         }
 
         if(callback_cqe(yev_loop, cqe)<0) {
-            yev_loop->running = FALSE;
+            yev_loop->running = false;
         }
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
@@ -275,7 +275,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         );
     }
 
-    __inside_loop__ = FALSE;
+    __inside_loop__ = false;
 
     return 0;
 }
@@ -297,7 +297,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         );
         return -1;
     }
-    __inside_loop__ = TRUE;
+    __inside_loop__ = true;
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         gobj_log_debug(0, 0,
@@ -329,7 +329,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         );
     }
 
-    __inside_loop__ = FALSE;
+    __inside_loop__ = false;
 
     return 0;
 }
@@ -342,7 +342,7 @@ PUBLIC int yev_loop_stop(yev_loop_h yev_loop_)
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
 
     if(!yev_loop->stopping) {
-        yev_loop->stopping = TRUE;
+        yev_loop->stopping = true;
         if(gobj_trace_level(0) & TRACE_URING) {
             gobj_log_debug(0, 0,
                 "function",     "%s", __FUNCTION__,
@@ -399,7 +399,7 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
         ICASES("ws")
             hints->ai_socktype = SOCK_STREAM; /* TCP socket */
             hints->ai_protocol = IPPROTO_TCP;
-            *secure = FALSE;
+            *secure = false;
             break;
 
         ICASES("tcps")
@@ -409,18 +409,18 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
         ICASES("wss")
             hints->ai_socktype = SOCK_STREAM; /* TCP socket */
             hints->ai_protocol = IPPROTO_TCP;
-            *secure = TRUE;
+            *secure = true;
             break;
 
         ICASES("udps")
             hints->ai_socktype = SOCK_DGRAM; /* UDP socket */
             hints->ai_protocol = IPPROTO_UDP;
-            *secure = TRUE;
+            *secure = true;
             break;
         ICASES("udp")
             hints->ai_socktype = SOCK_DGRAM; /* UDP socket */
             hints->ai_protocol = IPPROTO_UDP;
-            *secure = FALSE;
+            *secure = false;
             break;
 
         DEFAULTS
@@ -433,7 +433,7 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
             );
             hints->ai_socktype = SOCK_STREAM; /* TCP socket */
             hints->ai_protocol = IPPROTO_TCP;
-            *secure = FALSE;
+            *secure = false;
             return -1;
     } SWITCHS_END
 
@@ -658,9 +658,9 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             {
                 if(cur_state == YEV_ST_IDLE) {
                     // HACK res == 0 when connected
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, TRUE);
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, true);
                 } else {
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, false);
                     if(yev_event->fd > 0) {
                         if(gobj_trace_level(0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
                             gobj_log_debug(gobj, 0,
@@ -1105,7 +1105,7 @@ PUBLIC int yev_start_event(
                 );
                 io_uring_submit(&yev_loop->ring);
                 yev_set_state(yev_event, YEV_ST_RUNNING);
-                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
+                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, false);
             }
             break;
         case YEV_ACCEPT_TYPE: // Summit sqe
@@ -1579,7 +1579,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
         case YEV_ST_IDLE:
             yev_set_state(yev_event, YEV_ST_STOPPED);
             if(yev_event->type == YEV_CONNECT_TYPE) {
-                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
+                yev_set_flag(yev_event, YEV_FLAG_CONNECTED, false);
             }
 
             if(yev_event->type == YEV_TIMER_TYPE) {
@@ -1628,7 +1628,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
  ***************************************************************************/
 PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event)
 {
-    return (((yev_event_t *)yev_event)->state==YEV_ST_STOPPED)?TRUE:FALSE;
+    return (((yev_event_t *)yev_event)->state==YEV_ST_STOPPED)?true:false;
 }
 
 /***************************************************************************
@@ -1636,7 +1636,7 @@ PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event)
  ***************************************************************************/
 PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event)
 {
-    return (((yev_event_t *)yev_event)->state==YEV_ST_CANCELING)?TRUE:FALSE;
+    return (((yev_event_t *)yev_event)->state==YEV_ST_CANCELING)?true:false;
 }
 
 /***************************************************************************
@@ -1644,7 +1644,7 @@ PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event)
  ***************************************************************************/
 PUBLIC BOOL yev_event_is_running(yev_event_h yev_event)
 {
-    return (((yev_event_t *)yev_event)->state==YEV_ST_RUNNING)?TRUE:FALSE;
+    return (((yev_event_t *)yev_event)->state==YEV_ST_RUNNING)?true:false;
 }
 
 /***************************************************************************
@@ -1916,7 +1916,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
         dst_port, sizeof(dst_port),
         0, 0,
         0, 0,
-        FALSE
+        false
     );
     if(ret < 0) {
         // Error already logged
@@ -2010,7 +2010,7 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
                     src_port, sizeof(src_port),
                     0, 0,
                     0, 0,
-                    TRUE
+                    true
                 );
                 if(ret < 0) {
                     close(fd);
@@ -2243,7 +2243,7 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
         port, sizeof(port),
         0, 0,
         0, 0,
-        FALSE
+        false
     );
     if(ret < 0) {
         // Error already logged
@@ -2613,12 +2613,12 @@ PUBLIC BOOL is_tcp_socket(int fd)
     socklen_t optionLen = sizeof(type);
 
     if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &optionLen)<0) {
-        return FALSE;
+        return false;
     }
     if (type == SOCK_STREAM) {
-        return TRUE;
+        return true;
     }
-    return FALSE;
+    return false;
 }
 
 /***************************************************************************
@@ -2630,12 +2630,12 @@ PUBLIC BOOL is_udp_socket(int fd)
     socklen_t optionLen = sizeof(type);
 
     if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &optionLen)<0) {
-        return FALSE;
+        return false;
     }
     if (type == SOCK_DGRAM) {
-        return TRUE;
+        return true;
     }
-    return FALSE;
+    return false;
 }
 
 /***************************************************************************

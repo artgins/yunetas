@@ -32,7 +32,7 @@
 #define DATABASE    "tr_topic_pkey_integer"
 #define TOPIC_NAME  "topic_pkey_integer_ping_pong"
 
-BOOL dump = FALSE;
+BOOL dump = false;
 int time2exit = 5;
 
 const char *server_url = "tcp://localhost:2222";
@@ -179,11 +179,11 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                     }
 
                     char nice[64];
-                    nice_size(nice, sizeof(nice), msg_per_second, FALSE);
+                    nice_size(nice, sizeof(nice), msg_per_second, false);
                     printf("\n" Erase_Whole_Line Move_Horizontal, 1);
                     printf("Msg/sec    : %s\n", nice);
                     printf(Erase_Whole_Line Move_Horizontal, 1);
-                    nice_size(nice, sizeof(nice), bytes_per_second, FALSE);
+                    nice_size(nice, sizeof(nice), bytes_per_second, false);
                     printf("Bytes/sec  : %s\n", nice);
                     printf(Cursor_Up, 3);
                     printf(Move_Horizontal, 1);
@@ -344,7 +344,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
                     gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "Client receiving");
                 }
 
-                json_t *jn_record = gbuf2json(gbuffer_incref(yev_get_gbuf(yev_event)), TRUE);
+                json_t *jn_record = gbuf2json(gbuffer_incref(yev_get_gbuf(yev_event)), true);
                 gbuffer_reset_rd(yev_get_gbuf(yev_event));
                 md2_record_ex_t md_record;
                 tranger2_append_record(tranger2, TOPIC_NAME, 0, 0, &md_record, jn_record);
@@ -488,7 +488,7 @@ PRIVATE json_t *open_tranger(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -527,7 +527,7 @@ PRIVATE json_t *open_tranger(void)
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
     tranger2_create_topic(
@@ -557,7 +557,7 @@ PRIVATE json_t *open_tranger(void)
         match_cond,             // match_cond, owned
         NULL,                   // extra
         "",                     // rt_id
-        FALSE,                  // rt_by_disk
+        false,                  // rt_by_disk
         NULL                    // creator
     );
 
@@ -579,7 +579,7 @@ PRIVATE int close_tranger(json_t *tranger)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
     tranger2_close_list(tranger, list);
@@ -593,10 +593,10 @@ PRIVATE int close_tranger(json_t *tranger)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
-    result += debug_json("tranger", tranger, FALSE);
+    result += debug_json("tranger", tranger, false);
 
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -634,7 +634,7 @@ int do_test(void)
         yev_server_accept,
         server_url,     // server_url,
         0,              // backlog, default 512
-        FALSE,          // shared
+        false,          // shared
         AF_INET,        // ai_family AF_UNSPEC
         AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
@@ -762,10 +762,10 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
     //gobj_set_deep_tracing(2);
-    //gobj_set_global_trace(0, TRUE);
+    //gobj_set_global_trace(0, true);
 
-    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
-    // gobj_set_gobj_trace(0, "fs", TRUE, 0);
+    // gobj_set_gobj_trace(0, "liburing", true, 0);
+    // gobj_set_gobj_trace(0, "fs", true, 0);
 
     /*--------------------------------*
      *      Startup gobj
@@ -781,14 +781,14 @@ int main(int argc, char *argv[])
         NULL,   // global_authenticate_parser
         0,      // max_block, largest memory block
         0,      // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );
 
     yuno_catch_signals();
 
-    //gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    //gobj_set_gobj_trace(0, "liburing", true, 0);
 
     /*--------------------------------*
      *      Test
@@ -802,7 +802,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
     result += do_test();

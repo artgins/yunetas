@@ -299,12 +299,12 @@ PUBLIC json_t *kw_decref(json_t* kw)
 PUBLIC BOOL kw_has_key(json_t *kw, const char *key)
 {
     if(!json_is_object(kw)) {
-        return FALSE;
+        return false;
     }
     if(json_object_get(kw, key)) {
-        return TRUE;
+        return true;
     }
-    return FALSE;
+    return false;
 }
 
 /***************************************************************************
@@ -359,7 +359,7 @@ PUBLIC json_t *kw_find_path_(hgobj gobj, json_t *kw, const char *path, BOOL verb
     const char **segments = split2(path, delimiter, &list_size);
 
     json_t *v = kw;
-    BOOL fin = FALSE;
+    BOOL fin = false;
     int i;
     json_t *next = 0;
     const char *segment = 0;
@@ -383,7 +383,7 @@ PUBLIC json_t *kw_find_path_(hgobj gobj, json_t *kw, const char *path, BOOL verb
         case JSON_OBJECT:
             next = json_object_get(v, segment);
             if(!next) {
-                fin = TRUE;
+                fin = true;
                 if(verbose) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
@@ -403,7 +403,7 @@ PUBLIC json_t *kw_find_path_(hgobj gobj, json_t *kw, const char *path, BOOL verb
                 int idx = atoi(segment);
                 next = json_array_get(v, (size_t)idx);
                 if(!next) {
-                    fin = TRUE;
+                    fin = true;
                     if(verbose) {
                         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                             "function",     "%s", __FUNCTION__,
@@ -421,7 +421,7 @@ PUBLIC json_t *kw_find_path_(hgobj gobj, json_t *kw, const char *path, BOOL verb
             }
             break;
         default:
-            fin = TRUE;
+            fin = true;
             break;
         }
     }
@@ -613,7 +613,7 @@ PUBLIC int kw_set_dict_value(
     const char **segments = split2(path, delimiter, &list_size);
 
     json_t *v = kw;
-    BOOL fin = FALSE;
+    BOOL fin = false;
     int i;
     const char *segment = 0;
     json_t *next = 0;
@@ -650,7 +650,7 @@ PUBLIC int kw_set_dict_value(
                 int idx = atoi(segment);
                 next = json_array_get(v, (size_t)idx);
                 if(!next) {
-                    fin = TRUE;
+                    fin = true;
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -666,7 +666,7 @@ PUBLIC int kw_set_dict_value(
             }
             break;
         default:
-            fin = TRUE;
+            fin = true;
             break;
         }
     }
@@ -731,7 +731,7 @@ PUBLIC int kw_delete(
     if(k) {
         *k = 0;
         k++;
-        json_t *v = kw_find_path(gobj, kw, s, TRUE);
+        json_t *v = kw_find_path(gobj, kw, s, true);
         json_t *jn_item = json_object_get(v, k);
         if(jn_item) {
             json_object_del(v, k);
@@ -1040,7 +1040,7 @@ PUBLIC BOOL kwid_compare_records(
     BOOL verbose
 )
 {
-    BOOL ret = TRUE;
+    BOOL ret = true;
     json_t *record = json_deep_copy(record_);
     json_t *expected = json_deep_copy(expected_);
     if(!record) {
@@ -1054,7 +1054,7 @@ PUBLIC BOOL kwid_compare_records(
         }
         JSON_DECREF(record);
         JSON_DECREF(expected);
-        return FALSE;
+        return false;
     }
     if(!expected) {
         if(verbose) {
@@ -1067,11 +1067,11 @@ PUBLIC BOOL kwid_compare_records(
         }
         JSON_DECREF(record);
         JSON_DECREF(expected);
-        return FALSE;
+        return false;
     }
 
     if(json_typeof(record) != json_typeof(expected)) { // json_typeof CONTROLADO
-        ret = FALSE;
+        ret = false;
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1093,7 +1093,7 @@ PUBLIC BOOL kwid_compare_records(
                             without_metadata,
                             without_private,
                             verbose)) {
-                        ret = FALSE;
+                        ret = false;
                         if(verbose) {
                             gobj_log_error(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
@@ -1122,7 +1122,7 @@ PUBLIC BOOL kwid_compare_records(
                     void *n; const char *key; json_t *value;
                     json_object_foreach_safe(record, n, key, value) {
                         if(!kw_has_key(expected, key)) {
-                            ret = FALSE;
+                            ret = false;
                             if(verbose) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
@@ -1145,7 +1145,7 @@ PUBLIC BOOL kwid_compare_records(
                                     without_private,
                                     verbose
                                 )) {
-                                ret = FALSE;
+                                ret = false;
                                 if(verbose) {
                                     gobj_log_error(gobj, 0,
                                         "function",     "%s", __FUNCTION__,
@@ -1157,7 +1157,7 @@ PUBLIC BOOL kwid_compare_records(
                                     );
                                 }
                             }
-                            if(ret == FALSE) {
+                            if(ret == false) {
                                 break;
                             }
 
@@ -1173,7 +1173,7 @@ PUBLIC BOOL kwid_compare_records(
                                     without_private,
                                     verbose
                                 )) {
-                                ret = FALSE;
+                                ret = false;
                                 if(verbose) {
                                     gobj_log_error(gobj, 0,
                                         "function",     "%s", __FUNCTION__,
@@ -1185,7 +1185,7 @@ PUBLIC BOOL kwid_compare_records(
                                     );
                                 }
                             }
-                            if(ret == FALSE) {
+                            if(ret == false) {
                                 break;
                             }
 
@@ -1194,7 +1194,7 @@ PUBLIC BOOL kwid_compare_records(
 
                         } else {
                             if(cmp_two_simple_json(value, value2)!=0) {
-                                ret = FALSE;
+                                ret = false;
                                 if(verbose) {
                                     gobj_log_error(gobj, 0,
                                         "function",     "%s", __FUNCTION__,
@@ -1213,9 +1213,9 @@ PUBLIC BOOL kwid_compare_records(
                         }
                     }
 
-                    if(ret == TRUE) {
+                    if(ret == true) {
                         if(json_object_size(record)>0) {
-                            ret = FALSE;
+                            ret = false;
                             if(verbose) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
@@ -1227,7 +1227,7 @@ PUBLIC BOOL kwid_compare_records(
                             }
                         }
                         if(json_object_size(expected)>0) {
-                            ret = FALSE;
+                            ret = false;
                             if(verbose) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
@@ -1242,7 +1242,7 @@ PUBLIC BOOL kwid_compare_records(
                 }
                 break;
             default:
-                ret = FALSE;
+                ret = false;
                 if(verbose) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -1273,7 +1273,7 @@ PUBLIC BOOL kwid_compare_lists(
     BOOL verbose
 )
 {
-    BOOL ret = TRUE;
+    BOOL ret = true;
     json_t *list = json_deep_copy(list_);
     json_t *expected = json_deep_copy(expected_);
     if(!list) {
@@ -1287,7 +1287,7 @@ PUBLIC BOOL kwid_compare_lists(
                 NULL
             );
         }
-        return FALSE;
+        return false;
     }
     if(!expected) {
         JSON_DECREF(list);
@@ -1300,11 +1300,11 @@ PUBLIC BOOL kwid_compare_lists(
                 NULL
             );
         }
-        return FALSE;
+        return false;
     }
 
     if(json_typeof(list) != json_typeof(expected)) { // json_typeof CONTROLADO
-        ret = FALSE;
+        ret = false;
         if(verbose) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1328,7 +1328,7 @@ PUBLIC BOOL kwid_compare_lists(
                     if(id1) {
                         size_t idx2 = kwid_find_record_in_list(gobj, expected, id1, 0);
                         if(idx2 < 0) {
-                            ret = FALSE;
+                            ret = false;
                             if(verbose) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
@@ -1351,7 +1351,7 @@ PUBLIC BOOL kwid_compare_lists(
                             without_private,
                             verbose)
                         ) {
-                            ret = FALSE;
+                            ret = false;
                             if(verbose) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
@@ -1363,7 +1363,7 @@ PUBLIC BOOL kwid_compare_lists(
                                 );
                             }
                         }
-                        if(ret == FALSE) {
+                        if(ret == false) {
                             break;
                         }
 
@@ -1377,7 +1377,7 @@ PUBLIC BOOL kwid_compare_lists(
                          *--------------------------------*/
                         int idx2 = kw_find_json_in_list(gobj, expected, r1, 0);
                         if(idx2 < 0) {
-                            ret = FALSE;
+                            ret = false;
                             if(verbose) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
@@ -1397,7 +1397,7 @@ PUBLIC BOOL kwid_compare_lists(
                     }
                 }
 
-                if(ret == TRUE) {
+                if(ret == true) {
                     if(json_array_size(list)>0) {
                         if(verbose) {
                             gobj_log_error(gobj, 0,
@@ -1408,7 +1408,7 @@ PUBLIC BOOL kwid_compare_lists(
                                 NULL
                             );
                         }
-                        ret = FALSE;
+                        ret = false;
                     }
                     if(json_array_size(expected)>0) {
                         if(verbose) {
@@ -1420,7 +1420,7 @@ PUBLIC BOOL kwid_compare_lists(
                                 NULL
                             );
                         }
-                        ret = FALSE;
+                        ret = false;
                     }
                 }
             }
@@ -1436,7 +1436,7 @@ PUBLIC BOOL kwid_compare_lists(
                     without_private,
                     verbose)
                 ) {
-                    ret = FALSE;
+                    ret = false;
                     if(verbose) {
                         gobj_trace_msg(gobj, "ERROR: object not match");
                     }
@@ -1445,7 +1445,7 @@ PUBLIC BOOL kwid_compare_lists(
             break;
         default:
             {
-                ret = FALSE;
+                ret = false;
                 if(verbose) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -1475,7 +1475,7 @@ PUBLIC json_t *kw_get_dict(
     json_t *default_value,
     kw_flag_t flag)
 {
-    json_t *jn_dict = kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_dict = kw_find_path(gobj, kw, path, false);
     if(!jn_dict) {
         if((flag & KW_CREATE) && default_value && kw) {
             kw_set_dict_value(gobj, kw, path, default_value);
@@ -1526,7 +1526,7 @@ PUBLIC json_t *kw_get_list(
     json_t *default_value,
     kw_flag_t flag)
 {
-    json_t *jn_list = kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_list = kw_find_path(gobj, kw, path, false);
     if(!jn_list) {
         if((flag & KW_CREATE) && default_value && kw) {
             kw_set_dict_value(gobj, kw, path, default_value);
@@ -1617,7 +1617,7 @@ PUBLIC json_int_t kw_get_int(
     json_int_t default_value,
     kw_flag_t flag)
 {
-    json_t *jn_int = kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_int = kw_find_path(gobj, kw, path, false);
     if(!jn_int) {
         if((flag & KW_CREATE) && kw) {
             json_t *jn_new = json_integer(default_value);
@@ -1696,7 +1696,7 @@ PUBLIC double kw_get_real(
     double default_value,
     kw_flag_t flag)
 {
-    json_t *jn_real = kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_real = kw_find_path(gobj, kw, path, false);
     if(!jn_real) {
         if((flag & KW_CREATE) && kw) {
             json_t *jn_new = json_real(default_value);
@@ -1767,7 +1767,7 @@ PUBLIC BOOL kw_get_bool(
     BOOL default_value,
     kw_flag_t flag)
 {
-    json_t *jn_bool = kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_bool = kw_find_path(gobj, kw, path, false);
     if(!jn_bool) {
         if((flag & KW_CREATE) && kw) {
             json_t *jn_new = json_boolean(default_value);
@@ -1845,7 +1845,7 @@ PUBLIC const char *kw_get_str(
     const char *default_value,
     kw_flag_t flag)
 {
-    json_t *jn_str = kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_str = kw_find_path(gobj, kw, path, false);
     if(!jn_str) {
         if((flag & KW_CREATE) && kw) {
             json_t *jn_new;
@@ -1907,7 +1907,7 @@ PUBLIC json_t *kw_get_dict_value(
     json_t *default_value,  // owned
     kw_flag_t flag)
 {
-    json_t *jn_value = kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_value = kw_find_path(gobj, kw, path, false);
     if(!jn_value) {
         if((flag & KW_CREATE) && default_value && kw) {
             kw_set_dict_value(gobj, kw, path, default_value);
@@ -1945,7 +1945,7 @@ PUBLIC json_t *kw_get_subdict_value(
     json_t *default_value,  // owned
     kw_flag_t flag)
 {
-    json_t *jn_subdict = kw_find_path(gobj, kw, path, FALSE);
+    json_t *jn_subdict = kw_find_path(gobj, kw, path, false);
     if(!jn_subdict) {
         if((flag & KW_CREATE) && kw) {
             jn_subdict = json_object();
@@ -1996,7 +1996,7 @@ PUBLIC void kw_update_except(
     const char *key;
     json_t *jn_value;
     json_object_foreach(other, key, jn_value) {
-        if(str_in_list(except_keys, key, FALSE)) {
+        if(str_in_list(except_keys, key, false)) {
             continue;
         }
         json_object_set(kw, key, jn_value);
@@ -2088,7 +2088,7 @@ PRIVATE json_t * _duplicate_object(json_t *kw, const char **keys, int underscore
                 continue;
             }
         }
-        if(keys && !str_in_list(keys, key, FALSE)) {
+        if(keys && !str_in_list(keys, key, false)) {
             continue;
         }
         json_t *new_value;
@@ -2144,9 +2144,9 @@ PUBLIC json_t *kw_duplicate(
 )
 {
     if(json_is_object(kw)) {
-        return _duplicate_object(kw, 0, 0, TRUE);
+        return _duplicate_object(kw, 0, 0, true);
     } else if(json_is_array(kw)) {
-        return _duplicate_array(kw, 0, 0, TRUE);
+        return _duplicate_array(kw, 0, 0, true);
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -2392,13 +2392,13 @@ PRIVATE BOOL _kw_match_simple(
     int level
 )
 {
-    BOOL matched = FALSE;
+    BOOL matched = false;
 
     level++;
 
     if(json_is_array(jn_filter)) {
         // Empty array evaluates as false, until a match condition occurs.
-        matched = FALSE;
+        matched = false;
         size_t idx;
         json_t *jn_filter_value;
         json_array_foreach(jn_filter, idx, jn_filter_value) {
@@ -2416,10 +2416,10 @@ PRIVATE BOOL _kw_match_simple(
     } else if(json_is_object(jn_filter)) {
         if(json_object_size(jn_filter)==0) {
             // Empty object evaluate as false.
-            matched = FALSE;
+            matched = false;
         } else {
             // Not Empty object evaluates as true, until a NOT match condition occurs.
-            matched = TRUE;
+            matched = true;
         }
 
         const char *filter_path;
@@ -2458,7 +2458,7 @@ PRIVATE BOOL _kw_match_simple(
                 jn_record_value = json_object_get(kw, path);
             }
             if(!jn_record_value) {
-                matched = FALSE;
+                matched = false;
                 break;
             }
 
@@ -2468,7 +2468,7 @@ PRIVATE BOOL _kw_match_simple(
             if(strcasecmp(op, "__equal__")==0) { // TODO __equal__ by default
                 int cmp = cmp_two_simple_json(jn_record_value, jn_filter_value);
                 if(cmp!=0) {
-                    matched = FALSE;
+                    matched = false;
                     break;
                 }
             } else {
@@ -2491,12 +2491,12 @@ PUBLIC BOOL kw_match_simple(
 {
     if(!jn_filter) {
         // Si no hay filtro pasan todos.
-        return TRUE;
+        return true;
     }
     if(json_is_object(jn_filter) && json_object_size(jn_filter)==0) {
         // An empty object at first level evaluates as true.
         json_decref(jn_filter);
-        return TRUE;
+        return true;
     }
 
     return _kw_match_simple(kw, jn_filter, 0);
@@ -2766,7 +2766,7 @@ PRIVATE json_t *_kwid_get(
     const char **segments = split2(path, "`.", &list_size);
 
     json_t *v = kw;
-    BOOL fin = FALSE;
+    BOOL fin = false;
     for(int i=0; i<list_size && !fin; i++) {
         const char *segment = *(segments +i);
 
@@ -2788,45 +2788,45 @@ PRIVATE json_t *_kwid_get(
         case JSON_OBJECT:
             v = json_object_get(v, segment);
             if(!v) {
-                fin = TRUE;
+                fin = true;
             }
             break;
         case JSON_ARRAY:
             {
                 int idx; json_t *v_;
-                BOOL found = FALSE;
+                BOOL found = false;
                 if(!backward) {
                     json_array_foreach(v, idx, v_) {
                         const char *id = json_string_value(json_object_get(v_, "id"));
                         if(id && strcmp(id, segment)==0) {
                             v = v_;
-                            found = TRUE;
+                            found = true;
                             break;
                         }
                     }
                     if(!found) {
                         v = 0;
-                        fin = TRUE;
+                        fin = true;
                     }
                 } else {
                     json_array_backward(v, idx, v_) {
                         const char *id = json_string_value(json_object_get(v_, "id"));
                         if(id && strcmp(id, segment)==0) {
                             v = v_;
-                            found = TRUE;
+                            found = true;
                             break;
                         }
                     }
                     if(!found) {
                         v = 0;
-                        fin = TRUE;
+                        fin = true;
                     }
                 }
 
             }
             break;
         default:
-            fin = TRUE;
+            fin = true;
             break;
         }
     }
@@ -3024,9 +3024,9 @@ PUBLIC json_t *kw_filter_private(
 {
     json_t *new_kw = 0;
     if(json_is_object(kw)) {
-        new_kw =  _duplicate_object(kw, 0, 1, TRUE);
+        new_kw =  _duplicate_object(kw, 0, 1, true);
     } else if(json_is_array(kw)) {
-        new_kw = _duplicate_array(kw, 0, 1, TRUE);
+        new_kw = _duplicate_array(kw, 0, 1, true);
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -3050,9 +3050,9 @@ PUBLIC json_t *kw_filter_metadata(
 {
     json_t *new_kw = 0;
     if(json_is_object(kw)) {
-        new_kw =  _duplicate_object(kw, 0, 2, TRUE);
+        new_kw =  _duplicate_object(kw, 0, 2, true);
     } else if(json_is_array(kw)) {
-        new_kw = _duplicate_array(kw, 0, 2, TRUE);
+        new_kw = _duplicate_array(kw, 0, 2, true);
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -3379,15 +3379,15 @@ PUBLIC BOOL kw_has_word(
                 NULL
             );
         }
-        return FALSE;
+        return false;
     }
 
     switch(json_typeof(kw)) {
     case JSON_OBJECT:
         if(kw_has_key(kw, word)) {
-            return json_is_true(json_object_get(kw, word))?TRUE:FALSE;
+            return json_is_true(json_object_get(kw, word))?true:false;
         } else {
-            return FALSE;
+            return false;
         }
     case JSON_ARRAY:
         {
@@ -3395,21 +3395,21 @@ PUBLIC BOOL kw_has_word(
             json_array_foreach(kw, idx, jn_value) {
                 if(json_is_string(jn_value)) {
                     if(strstr(json_string_value(jn_value), word)) {
-                        return TRUE;
+                        return true;
                     }
                 } else if(flag & KW_REQUIRED) {
                     if(kw_has_word(gobj, jn_value, word, flag)) {
-                        return TRUE;
+                        return true;
                     }
                 }
             }
-            return FALSE;
+            return false;
         }
     case JSON_STRING:
         if(strstr(json_string_value(kw), word)) {
-            return TRUE;
+            return true;
         } else {
-            return FALSE;
+            return false;
         }
     default:
         if(flag & KW_VERBOSE) {
@@ -3422,27 +3422,27 @@ PUBLIC BOOL kw_has_word(
             );
             gobj_trace_json(gobj, kw, "Searching word needs object,array,string");
         }
-        return FALSE;
+        return false;
     }
 }
 
 /***************************************************************************
     Utility for databases.
-    Return TRUE if `id` is in the list/dict/str `ids`
+    Return true if `id` is in the list/dict/str `ids`
  ***************************************************************************/
 PUBLIC BOOL kwid_match_id(hgobj gobj, json_t *ids, const char *id)
 {
     if(!ids || !id) {
         // Si no hay filtro pasan todos.
-        return TRUE;
+        return true;
     }
     if(json_is_object(ids) && json_object_size(ids)==0) {
         // A empty object at first level evaluate as true.
-        return TRUE;
+        return true;
     }
     if(json_is_array(ids) && json_array_size(ids)==0) {
         // A empty object at first level evaluate as true.
-        return TRUE;
+        return true;
     }
 
     switch(json_typeof(ids)) {
@@ -3453,12 +3453,12 @@ PUBLIC BOOL kwid_match_id(hgobj gobj, json_t *ids, const char *id)
                 if(json_is_string(jn_value)) {
                     const char *value = json_string_value(jn_value);
                     if(value && strcmp(id, value)==0)  {
-                        return TRUE;
+                        return true;
                     }
                 } else if(json_is_object(jn_value)) {
                     const char *value = kw_get_str(gobj, jn_value, "id", 0, 0);
                     if(value && strcmp(id, value)==0)  {
-                        return TRUE;
+                        return true;
                     }
                 }
             }
@@ -3469,7 +3469,7 @@ PUBLIC BOOL kwid_match_id(hgobj gobj, json_t *ids, const char *id)
             const char *key; json_t *jn_value;
             json_object_foreach(ids, key, jn_value) {
                 if(strcmp(id, key)==0)  {
-                    return TRUE;
+                    return true;
                 }
             }
         }
@@ -3477,33 +3477,33 @@ PUBLIC BOOL kwid_match_id(hgobj gobj, json_t *ids, const char *id)
 
     case JSON_STRING:
         if(strcmp(id, json_string_value(ids))==0) {
-            return TRUE;
+            return true;
         }
         break;
 
     default:
         break;
     }
-    return FALSE;
+    return false;
 }
 
 /***************************************************************************
     Utility for databases.
-    Return TRUE if `id` WITH LIMITED SIZE is in the list/dict/str `ids`
+    Return true if `id` WITH LIMITED SIZE is in the list/dict/str `ids`
  ***************************************************************************/
 PUBLIC BOOL kwid_match_nid(hgobj gobj, json_t *ids, const char *id, int max_id_size)
 {
     if(!ids || !id) {
         // Si no hay filtro pasan todos.
-        return TRUE;
+        return true;
     }
     if(json_is_object(ids) && json_object_size(ids)==0) {
         // A empty object at first level evaluate as true.
-        return TRUE;
+        return true;
     }
     if(json_is_array(ids) && json_array_size(ids)==0) {
         // A empty object at first level evaluate as true.
-        return TRUE;
+        return true;
     }
 
     switch(json_typeof(ids)) {
@@ -3514,12 +3514,12 @@ PUBLIC BOOL kwid_match_nid(hgobj gobj, json_t *ids, const char *id, int max_id_s
                 if(json_is_string(jn_value)) {
                     const char *value = json_string_value(jn_value);
                     if(value && strncmp(id, value, max_id_size)==0)  {
-                        return TRUE;
+                        return true;
                     }
                 } else if(json_is_object(jn_value)) {
                     const char *value = kw_get_str(gobj, jn_value, "id", 0, 0);
                     if(value && strncmp(id, value, max_id_size)==0)  {
-                        return TRUE;
+                        return true;
                     }
                 }
             }
@@ -3530,7 +3530,7 @@ PUBLIC BOOL kwid_match_nid(hgobj gobj, json_t *ids, const char *id, int max_id_s
             const char *key; json_t *jn_value;
             json_object_foreach(ids, key, jn_value) {
                 if(strncmp(id, key, max_id_size)==0)  {
-                    return TRUE;
+                    return true;
                 }
             }
         }
@@ -3538,12 +3538,12 @@ PUBLIC BOOL kwid_match_nid(hgobj gobj, json_t *ids, const char *id, int max_id_s
 
     case JSON_STRING:
         if(strncmp(id, json_string_value(ids), max_id_size)==0) {
-            return TRUE;
+            return true;
         }
         break;
 
     default:
         break;
     }
-    return FALSE;
+    return false;
 }

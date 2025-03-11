@@ -221,7 +221,7 @@ PRIVATE int _walk_tree(
 /*****************************************************************
  *     Data
  *****************************************************************/
-static BOOL umask_cleared = FALSE;
+static BOOL umask_cleared = false;
 static char _node_uuid[64] = {0}; // uuid of the node
 
 
@@ -243,7 +243,7 @@ PUBLIC int newdir(const char *path, int xpermission)
 {
     if(!umask_cleared) {
         umask(0);
-        umask_cleared = TRUE;
+        umask_cleared = true;
     }
     return mkdir(path, xpermission);
 }
@@ -259,7 +259,7 @@ PUBLIC int newfile(const char *path, int rpermission, BOOL overwrite)
 
     if(!umask_cleared) {
         umask(0);
-        umask_cleared = TRUE;
+        umask_cleared = true;
     }
 
     if(overwrite)
@@ -357,9 +357,9 @@ PUBLIC BOOL is_regular_file(const char *path)
     struct stat buf;
     int ret = stat(path, &buf);
     if(ret < 0) {
-        return FALSE;
+        return false;
     }
-    return S_ISREG(buf.st_mode)?TRUE:FALSE;
+    return S_ISREG(buf.st_mode)?true:false;
 }
 
 /***************************************************************************
@@ -370,9 +370,9 @@ PUBLIC BOOL is_directory(const char *path)
     struct stat buf;
     int ret = stat(path, &buf);
     if(ret < 0) {
-        return FALSE;
+        return false;
     }
-    return S_ISDIR(buf.st_mode)?TRUE:FALSE;
+    return S_ISDIR(buf.st_mode)?true:false;
 }
 
 /***************************************************************************
@@ -411,9 +411,9 @@ PUBLIC BOOL file_exists(const char *directory, const char *filename)
     build_path(full_path, sizeof(full_path), directory, filename, NULL);
 
     if(is_regular_file(full_path)) {
-        return TRUE;
+        return true;
     } else {
-        return FALSE;
+        return false;
     }
 }
 
@@ -426,9 +426,9 @@ PUBLIC BOOL subdir_exists(const char *directory, const char *subdir)
     build_path(full_path, sizeof(full_path), directory, subdir, NULL);
 
     if(is_directory(full_path)) {
-        return TRUE;
+        return true;
     } else {
-        return FALSE;
+        return false;
     }
 }
 
@@ -827,11 +827,11 @@ PUBLIC BOOL all_numbers(const char* s)
     const unsigned char* p = (unsigned char *)s;
     while(*p != '\0') {
         if(!isdigit(*p)) {
-            return FALSE;
+            return false;
         }
         p++;
     }
-    return TRUE;
+    return true;
 }
 
 /***************************************************************************
@@ -1432,7 +1432,7 @@ PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case)
 }
 
 /***************************************************************************
- *  Return TRUE if str is in string list.
+ *  Return true if str is in string list.
  ***************************************************************************/
 PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)
 {
@@ -1445,11 +1445,11 @@ PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case)
 
     while(*list) {
         if(cmp_fn(str, *list)==0) {
-            return TRUE;
+            return true;
         }
         list++;
     }
-    return FALSE;
+    return false;
 }
 
 /***************************************************************************
@@ -1581,7 +1581,7 @@ PUBLIC json_t *load_persistent_json(
     log_opt_t on_critical_error,
     int *pfd,
     BOOL exclusive,
-    BOOL silence  // HACK to silence TRUE you MUST set on_critical_error=LOG_NONE
+    BOOL silence  // HACK to silence true you MUST set on_critical_error=LOG_NONE
 )
 {
     if(pfd) {
@@ -1889,9 +1889,9 @@ PUBLIC json_t *create_json_record(
             CASES("dict")
                 char desc_name[80+1];
                 if(sscanf(defaults, "{%80s}", desc_name)==1) {
-                    //get_fields(db_tranger_desc, desc_name, TRUE); // only to test fields
+                    //get_fields(db_tranger_desc, desc_name, true); // only to test fields
                 } else if(!empty_string(defaults)) {
-                    //get_fields(db_tranger_desc, defaults, TRUE); // only to test fields
+                    //get_fields(db_tranger_desc, defaults, true); // only to test fields
                 }
                 json_object_set_new(jn, name, json_object());
                 break;
@@ -1899,7 +1899,7 @@ PUBLIC json_t *create_json_record(
             CASES("list")
                 char desc_name[80+1];
                 if(sscanf(defaults, "{%80s}", desc_name)==1) {
-                    //get_fields(db_tranger_desc, desc_name, TRUE); // only to test fields
+                    //get_fields(db_tranger_desc, desc_name, true); // only to test fields
                 }
                 json_object_set_new(jn, name, json_array());
                 break;
@@ -2001,7 +2001,7 @@ PUBLIC gbuffer_t *bits2gbuffer(
     if(!gbuf) {
         return 0;
     }
-    BOOL add_sep = FALSE;
+    BOOL add_sep = false;
 
     for(uint64_t i=0; strings_table[i]!=NULL && i<sizeof(i); i++) {
         uint64_t bitmask = 1 << i;
@@ -2010,7 +2010,7 @@ PUBLIC gbuffer_t *bits2gbuffer(
                 gbuffer_append(gbuf, "|", 1);
             }
             gbuffer_append_string(gbuf, strings_table[i]);
-            add_sep = TRUE;
+            add_sep = true;
         }
     }
 
@@ -2037,7 +2037,7 @@ PUBLIC uint64_t strings2bits(
     const char **names = split2(str, separators, &list_size);
 
     for(int i=0; i<list_size; i++) {
-        int idx = idx_in_list(strings_table, *(names +i), TRUE);
+        int idx = idx_in_list(strings_table, *(names +i), true);
         if(idx >= 0 && idx < (int)sizeof(uint64_t)) {
             bitmask |= 1 << (idx);
         }
@@ -2261,7 +2261,7 @@ PUBLIC int cmp_two_simple_json(
 }
 
 /***************************************************************************
-    Compare two json and return TRUE if they are identical.
+    Compare two json and return true if they are identical.
  ***************************************************************************/
 PUBLIC BOOL json_is_identical(
     json_t *kw1,    // not owned
@@ -2269,14 +2269,14 @@ PUBLIC BOOL json_is_identical(
 )
 {
     if(!kw1 || !kw2) {
-        return FALSE;
+        return false;
     }
     char *kw1_ = json2uglystr(kw1);
     char *kw2_ = json2uglystr(kw2);
     int ret = strcmp(kw1_, kw2_);
     GBMEM_FREE(kw1_)
     GBMEM_FREE(kw2_)
-    return ret==0?TRUE:FALSE;
+    return ret==0?true:false;
 }
 
 /***************************************************************************
@@ -2658,7 +2658,7 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
             NULL
         );
         gobj_trace_json(gobj, jn_list, "list MUST BE a json array");
-        return FALSE;
+        return false;
     }
     if(!str) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -2667,7 +2667,7 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
             "msg",          "%s", "str NULL",
             NULL
         );
-        return FALSE;
+        return false;
     }
 
     json_array_foreach(jn_list, idx, jn_str) {
@@ -2677,14 +2677,14 @@ PUBLIC BOOL json_str_in_list(hgobj gobj, json_t *jn_list, const char *str, BOOL 
         const char *_str = json_string_value(jn_str);
         if(ignore_case) {
             if(strcasecmp(_str, str)==0)
-                return TRUE;
+                return true;
         } else {
             if(strcmp(_str, str)==0)
-                return TRUE;
+                return true;
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -2793,7 +2793,7 @@ PRIVATE int _walk_tree(
         if(type) {
             if (regexec(reg, dname, 0, 0, 0)==0) {
                 if(!(cb)(gobj, user_data, type, path, root_dir, dname, level, opt)) {
-                    // returning FALSE: don't want to continue traversing
+                    // returning false: don't want to continue traversing
                     break;
                 }
             }
@@ -2869,7 +2869,7 @@ PRIVATE BOOL _nfiles_cb(
 {
     int *nfiles = user_data;
     (*nfiles)++;
-    return TRUE; // continue traverse tree
+    return true; // continue traverse tree
 }
 
 PUBLIC int get_number_of_files(
@@ -2955,7 +2955,7 @@ PRIVATE BOOL _fill_array_cb(
                 "strerror",     "%s", strerror(errno),
                NULL
             );
-            return FALSE; // don't continue traverse tree
+            return false; // don't continue traverse tree
         }
         memcpy(ptr, filename, ln);
         ptr[ln] = 0;
@@ -2972,7 +2972,7 @@ PRIVATE BOOL _fill_array_cb(
                 "strerror",     "%s", strerror(errno),
                NULL
             );
-            return FALSE; // don't continue traverse tree
+            return false; // don't continue traverse tree
         }
         memcpy(ptr, fullpath, ln);
         ptr[ln] = 0;
@@ -2980,7 +2980,7 @@ PRIVATE BOOL _fill_array_cb(
 
     *(files+idx) = ptr;
     (*myfiles->idx)++;
-    return TRUE; // continue traversing tree
+    return true; // continue traversing tree
 }
 PUBLIC char **get_ordered_filename_array(
     hgobj gobj,
@@ -4877,7 +4877,7 @@ PUBLIC time_t start_sectimer(time_t seconds)
 }
 
 /****************************************************************************
- *   Retorna TRUE si ha cumplido el timer 'value', FALSE si no.
+ *   Retorna true si ha cumplido el timer 'value', false si no.
  ****************************************************************************/
 PUBLIC BOOL test_sectimer(time_t value)
 {
@@ -4885,10 +4885,10 @@ PUBLIC BOOL test_sectimer(time_t value)
 
     if(value <= 0) {
         // No value no test true
-        return FALSE;
+        return false;
     }
     time(&timer_actual);
-    return (timer_actual>=value)? TRUE:FALSE;
+    return (timer_actual>=value)? true:false;
 }
 
 /****************************************************************************
@@ -4904,18 +4904,18 @@ PUBLIC uint64_t start_msectimer(uint64_t miliseconds)
 }
 
 /****************************************************************************
- *   Retorna TRUE si ha cumplido el timer 'value', FALSE si no.
+ *   Retorna true si ha cumplido el timer 'value', false si no.
  ****************************************************************************/
 PUBLIC BOOL test_msectimer(uint64_t value)
 {
     if(value == 0) {
         // No value no test true
-        return FALSE;
+        return false;
     }
 
     uint64_t ms = time_in_miliseconds_monotonic();
 
-    return (ms>=value)? TRUE:FALSE;
+    return (ms>=value)? true:false;
 }
 
 /****************************************************************************
@@ -5179,8 +5179,8 @@ PRIVATE void save_node_uuid(void)
         02770,
         0660,
         0,
-        TRUE,   //create
-        FALSE,  //only_read
+        true,   //create
+        false,  //only_read
         jn_uuid // owned
     );
 }
@@ -5277,7 +5277,7 @@ typedef struct {
     const char *schema;
 } comm_prot_t;
 
-PRIVATE volatile char __comm_prot_initialized__ = FALSE;
+PRIVATE volatile char __comm_prot_initialized__ = false;
 PRIVATE dl_list_t dl_comm_prot;
 
 /***************************************************************************
@@ -5286,7 +5286,7 @@ PRIVATE dl_list_t dl_comm_prot;
 PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)
 {
     if(!__comm_prot_initialized__) {
-        __comm_prot_initialized__ = TRUE;
+        __comm_prot_initialized__ = true;
         dl_init(&dl_comm_prot, 0);
     }
 
@@ -5348,7 +5348,7 @@ PUBLIC void comm_prot_free(void)
         GBMEM_FREE(lh)
     }
 
-    __comm_prot_initialized__ = FALSE;
+    __comm_prot_initialized__ = false;
 }
 
 
@@ -5687,7 +5687,7 @@ PUBLIC int get_url_schema(
 
     if(schema) schema[0] = 0;
 
-    int result = http_parser_parse_url(uri, strlen(uri), FALSE, &u);
+    int result = http_parser_parse_url(uri, strlen(uri), false, &u);
     if (result != 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -5741,7 +5741,7 @@ struct pass_data {
     void *h;
 };
 
-PRIVATE char backtrace_initialized = FALSE;
+PRIVATE char backtrace_initialized = false;
 PRIVATE char program_name[1024];
 
 PRIVATE struct backtrace_state *state = NULL;
@@ -5821,7 +5821,7 @@ PUBLIC int init_backtrace_with_backtrace(const char *program)
             return -1;
         }
 
-        backtrace_initialized = TRUE;
+        backtrace_initialized = true;
     }
     snprintf(program_name, sizeof(program_name), "%s", program?program:"");
 #endif
@@ -5866,7 +5866,7 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
     gobj_event_t on_header_event,       // Event to publish or send when the header is completed
     gobj_event_t on_body_event,         // Event to publish or send when the body is receiving
     gobj_event_t on_message_event,      // Event to publish or send when the message is completed
-    BOOL send_event  // TRUE: use gobj_send_event(), FALSE: use gobj_publish_event()
+    BOOL send_event  // true: use gobj_send_event(), false: use gobj_publish_event()
 )
 {
     GHTTP_PARSER *parser;
@@ -6135,7 +6135,7 @@ PRIVATE int on_message_complete(http_parser* http_parser)
                 );
             }
             if(strcasestr(content_type, "application/json")) {
-                json_t *jn_body = anystring2json(body, body_len, TRUE);
+                json_t *jn_body = anystring2json(body, body_len, true);
                 json_object_set_new(kw_http, "body", jn_body);
             } else {
                 json_object_set_new(kw_http, "gbuffer", json_integer((json_int_t)(size_t)parser->gbuf_body));
@@ -6439,7 +6439,7 @@ PUBLIC int istream_read_until_delimiter(
     memcpy((void *)ist->delimiter, delimiter, delimiter_size);
 
     ist->event_name = event;
-    ist->completed = FALSE;
+    ist->completed = false;
 
     ist->num_bytes = 0;
 
@@ -6459,7 +6459,7 @@ PUBLIC int istream_read_until_num_bytes(
 
     ist->num_bytes = num_bytes;
     ist->event_name = event;
-    ist->completed = FALSE;
+    ist->completed = false;
 
     ist->delimiter = 0;
 
@@ -6497,7 +6497,7 @@ PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len)
             gbuffer_append(ist->gbuf, bf, needed);
             consumed = needed;
         }
-        ist->completed = TRUE;
+        ist->completed = true;
 
     } else if(ist->delimiter) {
         for(size_t i=0; i<len; i++) {
@@ -6516,7 +6516,7 @@ PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len)
                 char *p = gbuffer_cur_wr_pointer(ist->gbuf);
                 p -= ist->delimiter_size;
                 if(memcmp(ist->delimiter, p, ist->delimiter_size) == 0) {
-                    ist->completed = TRUE;
+                    ist->completed = true;
                     break;
                 }
             }
@@ -6690,7 +6690,7 @@ PUBLIC char *istream_extract_matched_data(istream_h istream, size_t *len)
     p = gbuffer_get(ist->gbuf, ln);
     if(len)
         *len = ln;
-    ist->completed = FALSE;
+    ist->completed = false;
     return p;
 }
 
@@ -6758,7 +6758,7 @@ PUBLIC BOOL istream_is_completed(istream_h istream)
             "msg",          "%s", "ist NULL",
             NULL
         );
-        return FALSE;
+        return false;
     }
     return ist->completed;
 }

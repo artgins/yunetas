@@ -144,7 +144,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
     if(priv->persistent) {
         yuneta_store_dir(
-            priv->path_database, sizeof(priv->path_database), "resources", path_service, TRUE
+            priv->path_database, sizeof(priv->path_database), "resources", path_service, true
         );
     }
 }
@@ -457,7 +457,7 @@ PRIVATE void *mt_list_resource(
                         gobj,
                         json_incref(record),     // owned
                         json_incref(jn_options),   // owned
-                        FALSE
+                        false
                     );
                     json_array_append_new(list, new_record);
                 } else {
@@ -470,7 +470,7 @@ PRIVATE void *mt_list_resource(
                     gobj,
                     json_incref(record),     // owned
                     json_incref(jn_options),   // owned
-                    FALSE
+                    false
                 );
                 json_array_append_new(list, new_record);
             } else {
@@ -570,7 +570,7 @@ PRIVATE BOOL load_resource_cb(
             NULL
         );
     }
-    return TRUE; // to continue
+    return true; // to continue
 }
 
 PRIVATE int load_persistent_resources(hgobj gobj)

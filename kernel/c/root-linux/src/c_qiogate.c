@@ -463,7 +463,7 @@ PRIVATE int send_alert(hgobj gobj, const char *subject, const char *message)
     }
     const char *from = gobj_read_str_attr(gobj, "alert_from");
     const char *to = gobj_read_str_attr(gobj, "alert_to");
-    hgobj gobj_emailsender = gobj_find_service("emailsender", FALSE);
+    hgobj gobj_emailsender = gobj_find_service("emailsender", false);
     if(!gobj_emailsender) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -708,7 +708,7 @@ PRIVATE int reset_soft_queue(hgobj gobj)
 
     q_msg msg;
     qmsg_foreach_forward(priv->trq_msgs, msg) {
-        trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
+        trq_set_soft_mark(msg, MARK_PENDING_ACK, false);
         trq_set_ack_timer(msg, 0);
     }
 
@@ -802,7 +802,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
             int ret = send_message_to_bottom_side(gobj, msg);
             if(ret == 0) {
                 priv->pending_acks++;
-                trq_set_soft_mark(msg, MARK_PENDING_ACK, TRUE);
+                trq_set_soft_mark(msg, MARK_PENDING_ACK, true);
                 trq_set_ack_timer(msg, priv->timeout_ack);
                 return 1; // Sent one message
 
@@ -922,7 +922,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
                 if(ret == 0) {
                     sent++;
                     priv->pending_acks++;
-                    trq_set_soft_mark(msg, MARK_PENDING_ACK, TRUE);
+                    trq_set_soft_mark(msg, MARK_PENDING_ACK, true);
                     trq_set_ack_timer(msg, priv->timeout_ack);
                 } else {
                     if(discard_message) {
@@ -986,7 +986,7 @@ PRIVATE int dequeue_msg(
         // gobj_set_qs(QS_MEDIUM_RESPONSE_TIME, t);
 
         if((trq_get_soft_mark(msg) & MARK_PENDING_ACK)) {
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
+            trq_set_soft_mark(msg, MARK_PENDING_ACK, false);
 
             if (priv->pending_acks > 0) {
                 priv->pending_acks--;
@@ -1088,7 +1088,7 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
     KW_DECREF(kw)
 
     if(priv->bottom_side_opened) {
-        send_batch_messages(gobj, 0, FALSE); // try to send more messages after receiving ack
+        send_batch_messages(gobj, 0, false); // try to send more messages after receiving ack
     }
     return 0;
 }
@@ -1111,8 +1111,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->gobj_bottom_side) {
-        priv->bottom_side_opened = TRUE;
-        send_batch_messages(gobj, 0, TRUE);  // On open send or resend
+        priv->bottom_side_opened = true;
+        send_batch_messages(gobj, 0, true);  // On open send or resend
         set_timeout_periodic(priv->timer, priv->timeout_poll);
     } else {
         gobj_log_error(gobj, 0,
@@ -1138,7 +1138,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_int_t channels_opened = kw_get_int(gobj, kw, "__temp__`channels_opened", 0, KW_REQUIRED);
         if(channels_opened==0) {
             clear_timeout(priv->timer);     // Active only when bottom side is open
-            priv->bottom_side_opened = FALSE;
+            priv->bottom_side_opened = false;
             reset_soft_queue(gobj); // Resetea los timeout_ack y los MARK_PENDING_ACK
         }
     } else {
@@ -1191,7 +1191,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     if(msg) {
         if(priv->bottom_side_opened) {
-            send_batch_messages(gobj, msg, FALSE); // Send the received msg
+            send_batch_messages(gobj, msg, false); // Send the received msg
         }
     }
 
@@ -1208,7 +1208,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->bottom_side_opened) {
-        int ret = send_batch_messages(gobj, 0, TRUE); // Resend by periodic timeout
+        int ret = send_batch_messages(gobj, 0, true); // Resend by periodic timeout
         if(ret < 0) {
             if(priv->drop_on_timeout_ack) {
                 if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_QUEUE_PROT)) {

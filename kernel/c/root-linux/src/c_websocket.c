@@ -222,7 +222,7 @@ PRIVATE void mt_create(hgobj gobj)
         NULL,           // on_header_event
         NULL,           // on_body_event
         NULL,           // on_message_event
-        !gobj_is_service(gobj) // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
+        !gobj_is_service(gobj) // true use gobj_send_event(), false: use gobj_publish_event()
     );
 
     /*
@@ -234,7 +234,7 @@ PRIVATE void mt_create(hgobj gobj)
         NULL,           // on_header_event
         NULL,           // on_body_event
         NULL,           // on_message_event ==> publish the full message in a gbuffer
-        !gobj_is_service(gobj) // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
+        !gobj_is_service(gobj) // true use gobj_send_event(), false: use gobj_publish_event()
     );
 
 
@@ -398,8 +398,8 @@ PRIVATE void start_wait_frame_header(hgobj gobj)
         set_timeout(priv->timer, priv->pingT);
     }
     istream_reset_wr(priv->istream_frame);  // Reset buffer for next frame
-    priv->frame_head.busy = FALSE;
-    priv->frame_head.header_complete = FALSE;
+    priv->frame_head.busy = false;
+    priv->frame_head.header_complete = false;
 }
 
 /***************************************************************************
@@ -542,7 +542,7 @@ PRIVATE void send_close_frame(hgobj gobj, int status, const char *reason)
     if(status_code < STATUS_NORMAL || status_code >= STATUS_MAXIMUM)
         status_code = STATUS_NORMAL;
     status_code = htons(status_code);
-    _write_control_frame(gobj, TRUE, OPCODE_CONTROL_CLOSE, (char *)&status_code, 2);
+    _write_control_frame(gobj, true, OPCODE_CONTROL_CLOSE, (char *)&status_code, 2);
 }
 
 /***************************************************************************
@@ -556,7 +556,7 @@ PRIVATE void ws_close(hgobj gobj, int code, const char *reason)
     gobj_change_state(gobj, ST_DISCONNECTED);
 
     if(!priv->close_frame_sent) {
-        priv->close_frame_sent = TRUE;
+        priv->close_frame_sent = true;
         send_close_frame(gobj, code, reason);
     }
 
@@ -574,7 +574,7 @@ PRIVATE void ws_close(hgobj gobj, int code, const char *reason)
  ***************************************************************************/
 PRIVATE void ping(hgobj gobj)
 {
-    _write_control_frame(gobj, TRUE, OPCODE_CONTROL_PING, 0, 0);
+    _write_control_frame(gobj, true, OPCODE_CONTROL_PING, 0, 0);
 }
 
 /***************************************************************************
@@ -582,7 +582,7 @@ PRIVATE void ping(hgobj gobj)
  ***************************************************************************/
 PRIVATE void pong(hgobj gobj, char *bf, size_t ln)
 {
-    _write_control_frame(gobj, TRUE, OPCODE_CONTROL_PONG, bf, ln);
+    _write_control_frame(gobj, true, OPCODE_CONTROL_PONG, bf, ln);
 }
 
 /***************************************************************************
@@ -644,7 +644,7 @@ PRIVATE int decode_head(FRAME_HEAD *frame, char *data)
         /*
          *  must read 4 bytes of masking key
          */
-        frame->must_read_masking_key = TRUE;
+        frame->must_read_masking_key = true;
     }
 
     int ln = frame->h_payload_len;
@@ -653,7 +653,7 @@ PRIVATE int decode_head(FRAME_HEAD *frame, char *data)
          * no data to read
          */
     } else {
-        frame->must_read_payload_data = TRUE;
+        frame->must_read_payload_data = true;
         if (ln < 126) {
             /*
              *  Got all we need to read data
@@ -663,12 +663,12 @@ PRIVATE int decode_head(FRAME_HEAD *frame, char *data)
             /*
              *  must read 2 bytes of extended payload length
              */
-            frame->must_read_2_extended_payload_length = TRUE;
+            frame->must_read_2_extended_payload_length = true;
         } else {/* ln == 127 */
             /*
              *  must read 8 bytes of extended payload length
              */
-            frame->must_read_8_extended_payload_length = TRUE;
+            frame->must_read_8_extended_payload_length = true;
         }
     }
 
@@ -729,7 +729,7 @@ PRIVATE int framehead_consume(FRAME_HEAD *frame, istream_h istream, char *bf, si
         uint16_t word;
         memcpy((char *)&word, data, 2);
         frame->frame_length = ntohs(word);
-        frame->must_read_2_extended_payload_length = FALSE;
+        frame->must_read_2_extended_payload_length = false;
     }
 
     if (frame->must_read_8_extended_payload_length) {
@@ -749,7 +749,7 @@ PRIVATE int framehead_consume(FRAME_HEAD *frame, istream_h istream, char *bf, si
         uint64_t ddword;
         memcpy((char *)&ddword, data, 8);
         frame->frame_length = be64toh(ddword);
-        frame->must_read_8_extended_payload_length = FALSE;
+        frame->must_read_8_extended_payload_length = false;
     }
 
     if (frame->must_read_masking_key) {
@@ -767,10 +767,10 @@ PRIVATE int framehead_consume(FRAME_HEAD *frame, istream_h istream, char *bf, si
          */
         data = istream_extract_matched_data(istream, 0);
         memcpy(frame->masking_key, data, 4);
-        frame->must_read_masking_key = FALSE;
+        frame->must_read_masking_key = false;
     }
 
-    frame->header_complete = TRUE;
+    frame->header_complete = true;
     return total_consumed;
 }
 
@@ -1295,7 +1295,7 @@ PRIVATE BOOL do_request(
             "msg",          "%s", "gbuffer_create() FAILED",
             NULL
         );
-        return FALSE;
+        return false;
     }
     gbuffer_printf(gbuf, "GET %s HTTP/1.1\r\n", resource);
     gbuffer_printf(gbuf, "User-Agent: yuneta-%s\r\n",  YUNETA_VERSION);
@@ -1316,7 +1316,7 @@ PRIVATE BOOL do_request(
         "gbuffer", (json_int_t)(size_t)gbuf
     );
     gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);
-    return TRUE;
+    return true;
 }
 
 /***************************************************************************
@@ -1334,7 +1334,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
             "Connection: Close\r\n"
             "\r\n";
         send_http_message(gobj, data);
-        return FALSE;
+        return false;
     }
 
 //     if hasattr(self.request, 'environ'):
@@ -1359,7 +1359,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
             "\r\n"
             "Can \"Upgrade\" only to \"WebSocket\".";
         send_http_message(gobj, data);
-        return FALSE;
+        return false;
     }
 
     /*
@@ -1384,7 +1384,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
             "\r\n"
             "\"Connection\" must be \"Upgrade\".";
         send_http_message(gobj, data);
-        return FALSE;
+        return false;
     }
 
     /*
@@ -1398,7 +1398,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
             "HTTP/1.1 426 Upgrade Required\r\n"
             "Sec-WebSocket-Version: 13\r\n\r\n";
         send_http_message(gobj, data);
-        return FALSE;
+        return false;
     }
 
     const char *host = kw_get_str(gobj, request->jn_headers, "HOST", 0, 0);
@@ -1409,7 +1409,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
             "\r\n"
             "Missing Host header.";
         send_http_message(gobj, data);
-        return FALSE;
+        return false;
     }
 
     const char *sec_websocket_key = kw_get_str(
@@ -1426,7 +1426,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
             "\r\n"
             "Sec-Websocket-Key is missing or an invalid key.";
         send_http_message(gobj, data);
-        return FALSE;
+        return false;
     }
 
 //     key = environ.get("HTTP_SEC_WEBSOCKET_KEY", None)
@@ -1502,7 +1502,7 @@ PRIVATE BOOL do_response(hgobj gobj, GHTTP_PARSER *request)
                 subprotocol_header
         );
     }
-    return TRUE;
+    return true;
 }
 
 /***************************************************************************
@@ -1564,7 +1564,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->connected = 1;
-    priv->close_frame_sent = FALSE;
+    priv->close_frame_sent = false;
 
     ghttp_parser_reset(priv->parsing_request);
     ghttp_parser_reset(priv->parsing_response);
@@ -1606,7 +1606,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     priv->connected = 0;
-    gobj_write_bool_attr(gobj, "connected", FALSE);
+    gobj_write_bool_attr(gobj, "connected", false);
 
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
@@ -1620,7 +1620,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
         priv->istream_payload = 0;
     }
     if (!priv->on_close_broadcasted) {
-        priv->on_close_broadcasted = TRUE;
+        priv->on_close_broadcasted = true;
 
         /*
          *  CHILD subscription model
@@ -1655,7 +1655,7 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
 
     if(priv->timer) {
         clear_timeout(priv->timer);
@@ -1683,15 +1683,15 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 /*
                  *  CHILD subscription model
                  */
-                gobj_write_bool_attr(gobj, "connected", TRUE);
+                gobj_write_bool_attr(gobj, "connected", true);
                 if(gobj_is_service(gobj)) {
                     gobj_publish_event(gobj, EV_ON_OPEN, 0);
                 } else {
                     gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, 0, gobj);
                 }
 
-                priv->on_open_broadcasted = TRUE;
-                priv->on_close_broadcasted = FALSE;
+                priv->on_open_broadcasted = true;
+                priv->on_close_broadcasted = false;
             }
         }
     } else {
@@ -1711,15 +1711,15 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 /*
                  *  CHILD subscription model
                  */
-                gobj_write_bool_attr(gobj, "connected", TRUE);
+                gobj_write_bool_attr(gobj, "connected", true);
                 if(gobj_is_service(gobj)) {
                     gobj_publish_event(gobj, EV_ON_OPEN, 0);
                 } else {
                     gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, 0, gobj);
                 }
 
-                priv->on_open_broadcasted = TRUE;
-                priv->on_close_broadcasted = FALSE;
+                priv->on_open_broadcasted = true;
+                priv->on_close_broadcasted = false;
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -1732,8 +1732,8 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
                 char *bf = gbuffer_cur_rd_pointer(gbuf);
                 gobj_trace_dump(gobj, bf, ln, "NO 101 HTTP Response");
 
-                priv->close_frame_sent = TRUE;
-                priv->on_close_broadcasted = TRUE;
+                priv->close_frame_sent = true;
+                priv->on_close_broadcasted = true;
                 ws_close(gobj, STATUS_PROTOCOL_ERROR, 0);
                 gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
             }
@@ -1756,8 +1756,8 @@ PRIVATE int ac_timeout_waiting_handshake(hgobj gobj, const char *event, json_t *
         NULL
     );
 
-    priv->on_close_broadcasted = TRUE;  // no on_open was broadcasted
-    priv->close_frame_sent = TRUE;
+    priv->on_close_broadcasted = true;  // no on_open was broadcasted
+    priv->close_frame_sent = true;
     ws_close(gobj, STATUS_PROTOCOL_ERROR, 0);
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
     KW_DECREF(kw)
@@ -1786,7 +1786,7 @@ PRIVATE int ac_timeout_waiting_disconnected(hgobj gobj, const char *event, json_
 PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
     FRAME_HEAD *frame = &priv->frame_head;
     istream_h istream = priv->istream_frame;
     int ret = 0;
@@ -1905,7 +1905,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
 
     size_t bf_len = gbuffer_leftbytes(gbuf);
     char *bf = gbuffer_cur_rd_pointer(gbuf);
@@ -1947,7 +1947,7 @@ PRIVATE int ac_timeout_waiting_payload_data(hgobj gobj, const char *event, json_
 PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf_data = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf_data = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
     if(!gbuf_data) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1971,7 +1971,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             14,
             14
         );
-        _add_frame_header(gobj, gbuf_header, TRUE, h_opcode, ln);
+        _add_frame_header(gobj, gbuf_header, true, h_opcode, ln);
 
         json_t *kww = json_pack("{s:I}",
             "gbuffer", (json_int_t)(size_t)gbuf_header
@@ -1988,7 +1988,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         14+ln,
         14+ln
     );
-    _add_frame_header(gobj, gbuf, TRUE, h_opcode, ln);
+    _add_frame_header(gobj, gbuf, true, h_opcode, ln);
 
     /*
      *  write the mask

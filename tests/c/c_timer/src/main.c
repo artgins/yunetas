@@ -19,8 +19,8 @@
 #define APP_SUPPORT     "<support@artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 
-#define USE_OWN_SYSTEM_MEMORY   FALSE
-#define DEBUG_MEMORY            FALSE
+#define USE_OWN_SYSTEM_MEMORY   false
+#define DEBUG_MEMORY            false
 #define MEM_MIN_BLOCK           0       // use default
 #define MEM_MAX_BLOCK           0       // use default
 #define MEM_SUPERBLOCK          0       // use default
@@ -97,27 +97,27 @@ static int register_yuno_and_more(void)
      *          Traces
      *------------------------------------------------*/
     // Avoid timer trace, too much information
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
-    gobj_set_global_no_trace("timer_periodic", TRUE);
-    gobj_set_global_no_trace("timer", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", true);
+    gobj_set_global_no_trace("timer_periodic", true);
+    gobj_set_global_no_trace("timer", true);
 
     // Samples of traces
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", true);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", true);
 
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST_TIMER), "messages", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST_TIMER), "messages", true);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", true);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", true);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", true);
 
     // Samples of global traces
-    // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
-    // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
-    // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
-    // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-    // gobj_set_gobj_trace(0, "machine", TRUE, 0);
-    // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    // gobj_set_gobj_trace(0, "create_delete", true, 0);
+    // gobj_set_gobj_trace(0, "create_delete2", true, 0);
+    // gobj_set_gobj_trace(0, "start_stop", true, 0);
+    // gobj_set_gobj_trace(0, "subscriptions", true, 0);
+    // gobj_set_gobj_trace(0, "machine", true, 0);
+    // gobj_set_gobj_trace(0, "ev_kw", true, 0);
+    // gobj_set_gobj_trace(0, "liburing", true, 0);
 
     /*------------------------------*
      *  Start test
@@ -137,7 +137,7 @@ static int register_yuno_and_more(void)
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        TRUE    // verbose
+        true    // verbose
     );
 
     MT_START_TIME(time_measure)

@@ -136,7 +136,7 @@ int main(int argc, char *argv[])
     );
 
 //    gobj_set_deep_tracing(2);           // TODO TEST
-//    gobj_set_global_trace(0, TRUE);     // TODO TEST
+//    gobj_set_global_trace(0, true);     // TODO TEST
 
 #ifdef DEBUG
     init_backtrace_with_backtrace(argv[0]);
@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
         NULL, // global_authenticate_parser
         0,      // max_block, largest memory block
         0,      // max_system_memory, maximum system memory
-        FALSE,
+        false,
         0,
         0
     );

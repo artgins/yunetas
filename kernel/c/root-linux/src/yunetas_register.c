@@ -43,7 +43,7 @@
  ***************************************************************************/
 PUBLIC int yunetas_register_c_core(void)
 {
-    static BOOL initialized = FALSE;
+    static BOOL initialized = false;
     if(initialized) {
         return -1;
     }
@@ -76,7 +76,7 @@ PUBLIC int yunetas_register_c_core(void)
     result += register_c_resource2();
     result += register_c_websocket();
 
-    initialized = TRUE;
+    initialized = true;
 
     return result;
 }

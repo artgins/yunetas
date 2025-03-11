@@ -321,7 +321,7 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
         );
     }
 
-    gobj_write_bool_attr(gobj, "periodic", FALSE);
+    gobj_write_bool_attr(gobj, "periodic", false);
     gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
 }
 
@@ -356,7 +356,7 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
         );
     }
 
-    gobj_write_bool_attr(gobj, "periodic", TRUE);
+    gobj_write_bool_attr(gobj, "periodic", true);
     gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
 }
 
