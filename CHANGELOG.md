@@ -45,6 +45,9 @@ New API
     kw_collect
     gobj_load_persistent_attrs
 
+    gobj_change_parent(hgobj gobj, hgobj gobj_new_parent); // TODO already implemented in js
+    gobj_find_child_by_tree() // TODO already implemented in js
+
 
 Delete API
 

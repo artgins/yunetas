@@ -1570,6 +1570,11 @@ PUBLIC hgobj gobj_find_child( // returns the first matched child
     json_t *jn_filter // owned
 );
 
+PUBLIC hgobj gobj_find_child_by_tree( // TODO already implemented in js
+    hgobj gobj,
+    json_t *jn_filter // owned
+);
+
 PUBLIC json_t *gobj_match_childs( // return an iter of first level matching jn_filter
     hgobj gobj,
     json_t *jn_filter   // owned

@@ -3078,6 +3078,46 @@ function gobj_current_state(gobj)
     return gobj.current_state.state_name;
 }
 
+/************************************************************
+ *        Change parent
+ ************************************************************/
+function gobj_change_parent(gobj, parent)
+{
+    if (!(parent instanceof GObj)) {
+        log_error("Yuno.gobj_change_parent() BAD TYPE of parent: " + parent);
+        return -1;
+    }
+
+    /*--------------------------------------*
+     *      Remove from current parent
+     *--------------------------------------*/
+    if (gobj.parent && gobj.parent.mt_child_removed) {
+        gobj.parent.mt_child_removed(gobj);
+    }
+    if (gobj.parent) {
+        gobj.parent._remove_child(gobj);
+        gobj.parent = null;
+    }
+
+    /*--------------------------------------*
+     *      Add to new parent
+     *--------------------------------------*/
+    parent._add_child(gobj);
+
+    /*--------------------------------------*
+     *  Inform to parent
+     *-------------------------------------*/
+    if(parent.mt_child_added) {
+        let trace_creation = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_creation");
+        if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
+            log_debug(sprintf("👦👦🔵 child_added(%s): %s", parent.gobj_full_name(), gobj.gobj_short_name()));
+        }
+        parent.mt_child_added(gobj);
+    }
+
+    return 0;
+}
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -4402,6 +4442,7 @@ export {
     gobj_write_str_attr,
     gobj_change_state,
     gobj_current_state,
+    gobj_change_parent,
 
     gobj_has_event,
     gobj_has_output_event,
