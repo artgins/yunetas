@@ -4027,8 +4027,6 @@ function gobj_publish_event(
         }
     }
 
-    event = ev.event_name;
-
     let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_subscriptions");
     // let tracea = __trace_gobj_subscriptions__(publisher) &&
     //     !is_machine_not_tracing(publisher, event);

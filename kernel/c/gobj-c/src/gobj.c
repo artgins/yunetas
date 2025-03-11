@@ -7945,8 +7945,6 @@ PUBLIC int gobj_publish_event(
         }
     }
 
-    event = ev->event_name;
-
     BOOL tracea = __trace_gobj_subscriptions__(publisher) &&
         !is_machine_not_tracing(publisher, event);
     if(tracea) {
