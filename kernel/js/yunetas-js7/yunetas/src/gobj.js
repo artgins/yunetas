@@ -2086,7 +2086,6 @@ function gobj_is_service(gobj)
 function gobj_is_playing(gobj)
 {
     if(gobj_is_destroying(gobj)) {
-        log_error("gobj NULL or DESTROYED");
         return false;
     }
     return gobj.playing;
