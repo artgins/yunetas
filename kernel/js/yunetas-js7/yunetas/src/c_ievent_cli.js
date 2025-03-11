@@ -1104,7 +1104,7 @@ function ac_on_message(gobj, event, kw, src)
          *  it's a external subscription
          */
         // TODO subscription
-        return 0;
+        return -1;
     }
 
     /*---------------------------------------*
@@ -1115,7 +1115,7 @@ function ac_on_message(gobj, event, kw, src)
          *  it's a external unsubscription
          */
         // TODO unsubscription
-        return 0;
+        return -1;
     }
 
     /*-------------------------------------------------------*
@@ -1134,11 +1134,17 @@ function ac_on_message(gobj, event, kw, src)
      *-------------------------*/
     let gobj_service = gobj_find_service(iev_dst_service, true);
 
-    if(gobj_service && gobj_has_event(gobj_service, iev_event, event_flag_t.EVF_PUBLIC_EVENT)) {
-        gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
+    if(gobj_service) {
+        if(gobj_has_event(gobj_service, iev_event, event_flag_t.EVF_PUBLIC_EVENT)) {
+            gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
+        } else {
+            log_error(`${gobj_short_name(gobj)}: Service found but no event or not public, ${gobj_short_name(gobj_service)}, ev ${iev_event}`);
+            return -1;
+        }
     } else {
         /*
          *  SERVICE subscription model
+         *  TODO will not be reject the event?
          */
         if(gobj_is_pure_child(gobj)) {
             gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);

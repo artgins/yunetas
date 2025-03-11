@@ -1043,12 +1043,26 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *  Dispatch the event
      *-------------------------*/
     hgobj gobj_service = gobj_find_service(iev_dst_service, true);
-
-    if(gobj_service && gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-        gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
+    if(gobj_service) {
+        if(gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
+            gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Service found but no event or not public",
+                "service",      "%s", gobj_short_name(gobj_service),
+                "event",        "%s", iev_event,
+                NULL
+            );
+            KW_DECREF(iev_kw)
+            KW_DECREF(kw)
+            return -1;
+        }
     } else {
         /*
          *  SERVICE subscription model
+         *  TODO will not be reject the event?
          */
         if(gobj_is_pure_child(gobj)) {
             gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
