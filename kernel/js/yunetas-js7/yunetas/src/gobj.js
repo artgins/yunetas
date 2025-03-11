@@ -42,6 +42,7 @@ import {
     json_object_size,
     log_debug,
     json_array_append_new,
+    parseBoolean,
 } from "./helpers.js";
 
 import {sprintf} from "./sprintf.js";
@@ -499,41 +500,45 @@ function set_default(gobj, sdata, it)
             jn_value = String(svalue);
             break;
         case data_type_t.DTP_BOOLEAN:
-            jn_value = Boolean(svalue);
-            if(is_string(svalue)) {
-                svalue = svalue.toLowerCase();
-                if(svalue === "true") {
-                    jn_value = true;
-                } else if(svalue === "false") {
-                    jn_value = false;
-                } else {
-                    jn_value = !!parseInt(svalue, 10);
-                }
-            }
+            jn_value = parseBoolean(svalue);
             break;
         case data_type_t.DTP_INTEGER:
             jn_value = parseInt(svalue);
+            if(isNaN(jn_value)) {
+                log_error(`${gobj_short_name(gobj)}: attr NaN: ${it.name}`);
+            }
             break;
         case data_type_t.DTP_REAL:
             jn_value = Number(svalue);
+            if(isNaN(jn_value)) {
+                log_error(`${gobj_short_name(gobj)}: attr NaN: ${it.name}`);
+            }
             break;
         case data_type_t.DTP_LIST:
-            jn_value = JSON.parse(svalue);
+            if(is_string(svalue)) {
+                jn_value = JSON.parse(svalue);
+            } else {
+                jn_value = svalue;
+            }
             if(!is_array(jn_value)) {
                 jn_value = [];
             }
             break;
         case data_type_t.DTP_DICT:
-            jn_value = JSON.parse(svalue);
+            if(is_string(svalue)) {
+                jn_value = JSON.parse(svalue);
+            } else {
+                jn_value = svalue;
+            }
             if(!is_object(jn_value)) {
                 jn_value = {};
             }
             break;
         case data_type_t.DTP_JSON:
-            if(!empty_string(svalue)) {
+            if(is_string(svalue)) {
                 jn_value = JSON.parse(svalue);
             } else {
-                jn_value = null;
+                jn_value = svalue;
             }
             break;
         case data_type_t.DTP_POINTER:
@@ -572,20 +577,7 @@ function json2item(gobj, sdata, it, jn_value_)
             }
             break;
         case data_type_t.DTP_BOOLEAN:
-            if(is_string(jn_value_)) {
-                let s = jn_value_.toLowerCase();
-                if(s) {
-                    if(s === "true") {
-                        jn_value2 = true;
-                    } else if(s === "false") {
-                        jn_value2 = false;
-                    } else {
-                        jn_value2 = !!parseInt(s, 10);
-                    }
-                }
-            } else {
-                jn_value2 = Boolean(jn_value_);
-            }
+            jn_value2 = parseBoolean(jn_value_);
             break;
         case data_type_t.DTP_INTEGER:
             jn_value2 = parseInt(jn_value_);
@@ -600,12 +592,11 @@ function json2item(gobj, sdata, it, jn_value_)
             }
             break;
         case data_type_t.DTP_LIST:
-            if(is_array(jn_value_)) {
-                jn_value2 = jn_value_;
-            } else if(is_string(jn_value_)) {
+            if(is_string(jn_value_)) {
                 jn_value2 = JSON.parse(jn_value_);
+            } else {
+                jn_value2 = jn_value_;
             }
-
             if(!is_array(jn_value2)) {
                 log_error(`attr must be an array: ${it.name}`);
                 return -1;
@@ -613,12 +604,15 @@ function json2item(gobj, sdata, it, jn_value_)
             break;
 
         case data_type_t.DTP_DICT:
-            if(is_object(jn_value_)) {
-                jn_value2 = jn_value_;
-            } else if(is_string(jn_value_)) {
+            if(is_string(jn_value_)) {
                 jn_value2 = JSON.parse(jn_value_);
+            } else {
+                jn_value2 = jn_value_;
             }
-
+            if(!is_array(jn_value2)) {
+                log_error(`attr must be an array: ${it.name}`);
+                return -1;
+            }
             if(!is_object(jn_value2)) {
                 log_error(`attr must be an object: ${it.name}`);
                 return -1;
@@ -626,7 +620,15 @@ function json2item(gobj, sdata, it, jn_value_)
             break;
 
         case data_type_t.DTP_JSON:
-            jn_value2 = jn_value_;
+            if(is_string(jn_value_)) {
+                jn_value2 = JSON.parse(jn_value_);
+            } else {
+                jn_value2 = jn_value_;
+            }
+            if(!is_array(jn_value2) && !is_object(jn_value2)) {
+                log_error(`attr must be a json dict/list: ${it.name}`);
+                return -1;
+            }
             break;
 
         case data_type_t.DTP_POINTER:
