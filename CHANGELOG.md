@@ -47,7 +47,8 @@ New API
 
     gobj_change_parent(hgobj gobj, hgobj gobj_new_parent); // TODO already implemented in js
     gobj_find_child_by_tree() // TODO already implemented in js
-
+    is_metadata_key
+    is_private_key
 
 Delete API
 

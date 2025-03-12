@@ -251,8 +251,38 @@ PUBLIC json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev_build_
     json_t *kw_request  // owned, used to get ONLY __md_iev__.
 );
 
+/*
+ *  Clean next metadata
+ *      __md_iev__
+ *      __temp__
+ *      __md_tranger__
+ *      __md_yuno__
+ *  TODO shouldn't everything "__" be deleted?
+ */
 PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
     json_t *kw // not owned
+);
+
+/*
+    msg_type_list = [
+        "__command__",
+        "__publishing__",
+        "__subscribing__",
+        "__unsubscribing__",
+        "__query__",
+        "__response__",
+        "__order__",
+        "__first_shot__",
+    ];
+*/
+PUBLIC int msg_iev_set_msg_type( // Write "__md_iev__`__msg_type__" value
+    hgobj gobj,
+    json_t *kw,
+    const char *msg_type // empty string to delete the key
+);
+PUBLIC const char *msg_iev_get_msg_type( // Read "__md_iev__`__msg_type__" value
+    hgobj gobj,
+    json_t *kw
 );
 
 /*

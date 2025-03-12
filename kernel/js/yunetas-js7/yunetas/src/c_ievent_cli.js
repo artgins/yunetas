@@ -442,7 +442,7 @@ function mt_subscription_deleted(gobj, subs)
         jn_ievent_id   // owned
     );
 
-    msg_set_msg_type(kw, "__unsubscribing__");
+    msg_iev_set_msg_type(gobj, kw, "__unsubscribing__");
     // in C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__unsubscribing__"));
 
     return send_static_iev(gobj, subs.event, kw, gobj);
@@ -636,7 +636,11 @@ let msg_type_list = [
     "__first_shot__"
 ];
 
-function msg_set_msg_type(kw, msg_type)
+function msg_iev_set_msg_type(
+    gobj,
+    kw,
+    msg_type // empty string to delete the key
+)
 {
     if(!empty_string(msg_type)) {
         if(is_metadata_key(msg_type) && !elm_in_list(msg_type, msg_type_list)) {
@@ -650,7 +654,7 @@ function msg_set_msg_type(kw, msg_type)
 /************************************************************
  *
  ************************************************************/
-function msg_get_msg_type(kw)
+function msg_iev_get_msg_type(kw)
 {
     return msg_iev_read_key(kw, "__msg_type__");
 }
@@ -829,7 +833,7 @@ function send_remote_subscription(gobj, subs)
         jn_ievent_id   // owned
     );
 
-    msg_set_msg_type(kw, "__subscribing__");
+    msg_iev_set_msg_type(gobj, kw, "__subscribing__");
     // in C: kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__subscribing__"));
 
     return send_static_iev(gobj, subs.event, kw, gobj);
@@ -1071,7 +1075,7 @@ function ac_on_message(gobj, event, kw, src)
     /*------------------------------------*
      *   Analyze inter_event
      *------------------------------------*/
-    let msg_type = msg_get_msg_type(iev_kw);
+    let msg_type = msg_iev_get_msg_type(iev_kw);
     // in C, const char *msg_type = kw_get_str(gobj, iev_kw, "__md_iev__`__msg_type__", "", 0);
 
     /*----------------------------------------*

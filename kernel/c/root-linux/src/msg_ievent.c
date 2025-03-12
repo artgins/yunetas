@@ -482,7 +482,12 @@ PUBLIC json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev_build_
 }
 
 /***************************************************************************
- *
+ *  Clean next metadata
+ *      __md_iev__
+ *      __temp__
+ *      __md_tranger__
+ *      __md_yuno__
+ *  TODO shouldn't everything "__" be deleted?
  ***************************************************************************/
 PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
     json_t *kw // not owned
@@ -491,6 +496,48 @@ PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
     json_object_del((kw), "__temp__");
     json_object_del((kw), "__md_tranger__");
     json_object_del((kw), "__md_yuno__");
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE const char *msg_type_list[] = {
+    "__command__",
+    "__publishing__",
+    "__subscribing__",
+    "__unsubscribing__",
+    "__query__",
+    "__response__",
+    "__order__",
+    "__first_shot__",
+    0
+};
+
+PUBLIC int msg_iev_set_msg_type(
+    hgobj gobj,
+    json_t *kw,
+    const char *msg_type // empty string to delete the key
+)
+{
+    if(!empty_string(msg_type)) {
+        if(is_metadata_key(msg_type) && !str_in_list(msg_type_list, msg_type, TRUE)) {
+            // HACK If it's a metadata key then only admit our message inter-event msg_type_list
+            return kw_delete(kw, "__md_iev__`__msg_type__");
+        }
+        return kw_set_subdict_value(kw, "__md_iev__", "__msg_type__", json_string(msg_type));
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC const char *msg_iev_get_msg_type(
+    hgobj gobj,
+    json_t *kw
+)
+{
+    return kw_get_str(kw, "__md_iev__`__msg_type__", "", 0);
 }
 
 /***************************************************************************

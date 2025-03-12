@@ -5260,6 +5260,46 @@ PUBLIC const char *node_uuid(void)
     return _node_uuid;
 }
 
+/***************************************************************************
+ *  Metadata key (variable) has a prefix of 2 underscore
+ ***************************************************************************/
+PUBLIC BOOL is_metadata_key(const char *key)
+{
+    if(!key) {
+        return FALSE;
+    }
+    int i;
+    for(i = 0; i < strlen(key); i++) {
+        if (key[i] != '_') {
+            break;
+        }
+        if(i > 2) {
+            break;
+        }
+    }
+    return (i == 2)?true:false;
+}
+
+/***************************************************************************
+ *  Private key (variable) has a prefix of 1 underscore
+ ***************************************************************************/
+PUBLIC BOOL is_private_key(const char *key)
+{
+    if(!key) {
+        return FALSE;
+    }
+    int i;
+    for(i = 0; i < strlen(key); i++) {
+        if (key[i] != '_') {
+            break;
+        }
+        if(i > 2) {
+            break;
+        }
+    }
+    return (i == 1)?true:false;
+}
+
 
 
 
