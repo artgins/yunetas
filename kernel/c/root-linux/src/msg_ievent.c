@@ -374,41 +374,6 @@ PUBLIC json_t * msg_iev_pop_stack( // Pop a record from stack. Return is YOURS, 
 /***************************************************************************
  *
  ***************************************************************************/
-//PUBLIC int append_yuno_metadata(hgobj gobj, json_t *kw, const char *source)
-//{
-//    if(!kw) {
-//        return -1;
-//    }
-//
-//    time_t t;
-//    time(&t);
-//
-//    if(!source) {
-//        source = "";
-//    }
-//    json_t *jn_metadatos = json_object();
-//    json_object_set_new(jn_metadatos, "__t__", json_integer(t));
-//    json_object_set_new(jn_metadatos, "__origin__", json_string(source));
-//    json_object_set_new(jn_metadatos, "hostname", json_string(hostname));
-//    json_object_set_new(jn_metadatos, "node_owner", json_string(__node_owner__));
-//    json_object_set_new(jn_metadatos, "realm_id", json_string(__realm_id__));
-//    json_object_set_new(jn_metadatos, "realm_owner", json_string(__realm_owner__));
-//    json_object_set_new(jn_metadatos, "realm_role", json_string(__realm_role__));
-//    json_object_set_new(jn_metadatos, "realm_name", json_string(__realm_name__));
-//    json_object_set_new(jn_metadatos, "realm_env", json_string(__realm_env__));
-//    json_object_set_new(jn_metadatos, "yuno_id", json_string(__yuno_id__));
-//    json_object_set_new(jn_metadatos, "yuno_role", json_string(__yuno_role__));
-//    json_object_set_new(jn_metadatos, "yuno_name", json_string(__yuno_name__));
-//    json_object_set_new(jn_metadatos, "gobj_name", json_string(gobj_short_name(gobj)));
-//    json_object_set_new(jn_metadatos, "pid", json_integer(getpid()));
-//    json_object_set_new(kw, "__md_yuno__", jn_metadatos);
-//
-//    return 0;
-//}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int msg_iev_reverse_dst( // Put in destining the source, and in the source the gobj
     hgobj gobj,
     json_t* jn_stack_record
