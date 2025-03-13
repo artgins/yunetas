@@ -481,11 +481,12 @@ PRIVATE json_t *build_ievent_request(
         "dst_yuno", gobj_read_str_attr(gobj, "wanted_yuno_name"),
         "dst_role", gobj_read_str_attr(gobj, "wanted_yuno_role"),
         "dst_service", dst_service,
+
         "src_yuno", gobj_yuno_name(),
         "src_role", gobj_yuno_role(),
         "src_service", src_service,
         "user", gobj_read_str_attr(gobj_yuno(), "__username__"),
-        "host", gobj_read_str_attr(gobj_yuno(), "hostname")
+        "host", get_hostname()
     );
     return jn_ievent_chain;
 }

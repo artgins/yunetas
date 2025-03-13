@@ -36,7 +36,8 @@ PRIVATE int send_static_iev(
 );
 PRIVATE json_t *build_ievent_request(
     hgobj gobj,
-    const char *src_service
+    const char *src_service,
+    const char *dst_service
 );
 
 
@@ -221,7 +222,8 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
      */
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
-        gobj_name(src)
+        gobj_name(src),
+        ""
     );
     msg_iev_push_stack(
         gobj,
@@ -270,7 +272,8 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
      */
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
-        gobj_name(src)
+        gobj_name(src),
+        ""
     );
     msg_iev_push_stack(
         gobj,
@@ -318,7 +321,8 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
      */
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
-        gobj_name(src)
+        gobj_name(src),
+        ""
     );
     msg_iev_push_stack(
         gobj,
@@ -359,29 +363,26 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
 
 /***************************************************************************
  *  __MESSAGE__
-    Rellena:
-        - forzado: src_yuno_role, src_yuno_role,
-    Opcional:
-        - if src_yuno_service is empty
-            - pon como service el src gobj.
-        - if *dst_yuno_role* || *dst_yuno_name* || dst_yuno_service are empty
-            - pon el yuno_role|yuno_name|yuno_service interno
-                (remote_? in ievent_srv y client_? en ivent_srv)
-            ** No debo dejar modificar dst_yuno_role|dst_yuno_name, a no ser que sea un gate de routing,
-              que de momento no hay.
  ***************************************************************************/
 PRIVATE json_t *build_ievent_request(
     hgobj gobj,
-    const char *src_service)
-{
+    const char *src_service,
+    const char *dst_service
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    json_t *jn_ievent_chain = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+    if(empty_string(dst_service)) {
+        dst_service = priv->client_yuno_service;
+    }
+    json_t *jn_ievent_chain = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "dst_yuno", priv->client_yuno_name,
         "dst_role", priv->client_yuno_role,
-        "dst_service", priv->client_yuno_service,
+        "dst_service", dst_service,
+
         "src_yuno", gobj_yuno_name(),
         "src_role", gobj_yuno_role(),
-        "src_service", src_service
+        "src_service", src_service,
+
+        "host", get_hostname()
     );
     return jn_ievent_chain;
 }
