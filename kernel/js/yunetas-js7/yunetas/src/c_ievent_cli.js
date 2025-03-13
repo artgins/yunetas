@@ -1048,7 +1048,7 @@ function ac_on_message(gobj, event, kw, src)
             }
             // iev_kw consumed
         } else {
-            log_error(`event UNKNOWN in not-session state ${iev_event}`);
+            log_error(`${gobj_short_name(gobj)}: event UNKNOWN in not-session state ${iev_event}`);
         }
         close_websocket(gobj);
         return -1;

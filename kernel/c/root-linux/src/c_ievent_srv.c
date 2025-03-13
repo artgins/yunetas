@@ -941,14 +941,21 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             kw_incref(iev_kw);
             ret = gobj_send_event(gobj, iev_event, iev_kw, gobj);
             if(ret==0) {
-                kw_decref(iev_kw);
-                kw_decref(kw);
+                KW_DECREF(iev_kw)
+                KW_DECREF(kw)
                 return 0;
             }
         }
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "event UNKNOWN in not-session state",
+            "event",        "%s", iev_event,
+            NULL
+        );
         drop(gobj);
-        kw_decref(iev_kw);
-        kw_decref(kw);
+        KW_DECREF(iev_kw)
+        KW_DECREF(kw)
         return ret;
     }
 
