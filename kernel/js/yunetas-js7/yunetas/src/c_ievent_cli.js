@@ -57,6 +57,8 @@ import {
     msg_iev_push_stack,
     msg_iev_get_stack,
     kw_get_str,
+    kw_delete,
+    kw_set_subdict_value,
     json_object_del,
     kw_get_int,
     kw_get_dict_value,
@@ -643,20 +645,25 @@ function msg_iev_set_msg_type(
 )
 {
     if(!empty_string(msg_type)) {
-        if(is_metadata_key(msg_type) && !elm_in_list(msg_type, msg_type_list)) {
+        if(is_metadata_key(msg_type) && !elm_in_list(msg_type, msg_type_list, false)) {
             // HACK If it's a metadata key then only admit our message inter-event msg_type_list
-            return;
+            return -1;
         }
-        msg_iev_write_key(kw, "__msg_type__", msg_type);
+        // msg_iev_write_key(kw, "__msg_type__", msg_type);
+        kw_set_subdict_value(gobj, kw, "__md_iev__", "__msg_type__", msg_type);
+    } else {
+        kw_delete(gobj, kw, "__md_iev__`__msg_type__"); // TODO ` not implemented
     }
+    return 0;
 }
 
 /************************************************************
  *
  ************************************************************/
-function msg_iev_get_msg_type(kw)
+function msg_iev_get_msg_type(gobj, kw)
 {
-    return msg_iev_read_key(kw, "__msg_type__");
+    // return msg_iev_read_key(kw, "__msg_type__");
+    return kw_get_str(gobj, kw, "__md_iev__`__msg_type__", "", 0);
 }
 
 /***************************************************************
@@ -706,8 +713,8 @@ function send_identity_card(gobj)
         "launch_id": 0,
         "yuno_startdate": gobj_read_str_attr(gobj_yuno(), "start_date"),
         "id": node_uuid(),
-        "user_agent": window.navigator.userAgent,
-        "language": window.navigator.language,
+        "user_agent": window?window.navigator.userAgent:"",
+        "language": window?window.navigator.language:"",
         "required_services": gobj_read_attr(gobj_yuno(), "required_services")
     };
 

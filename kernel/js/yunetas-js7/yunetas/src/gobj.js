@@ -2143,8 +2143,11 @@ function gobj_yuno_id()
  ***************************************************************************/
 function gobj_name(gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
-        log_error(`gobj NULL of bad type`);
+    if(gobj == null) {
+        return null;
+    }
+    if(!(gobj instanceof GObj)) {
+        log_error(`gobj bad type`);
         return null;
     }
 
@@ -2169,8 +2172,11 @@ function gobj_gclass_name(gobj)
  ************************************************************/
 function gobj_short_name(gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
-        log_error(`gobj NULL of bad type`);
+    if(gobj == null) {
+        return null;
+    }
+    if(!(gobj instanceof GObj)) {
+        log_error(`gobj bad type`);
         return null;
     }
 

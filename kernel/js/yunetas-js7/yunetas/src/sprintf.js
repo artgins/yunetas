@@ -2,7 +2,6 @@
     https://github.com/alexei/sprintf.js/blob/master/src/sprintf.js
     Copyright (c) 2007-present, Alexandru Mărășteanu <hello@alexei.ro>
  */
-/* global window, exports, define */
 
 let re = {
     not_string: /[^s]/,

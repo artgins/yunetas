@@ -29,10 +29,11 @@ const kw_flag_t = Object.freeze({
 /********************************************
  *  Log functions
  ********************************************/
-let f_error = window.console.error;
-let f_warning = window.console.warn;
-let f_info = window.console.info;
-let f_debug = window.console.debug;
+/* jshint node: true */
+let f_error = console.error;
+let f_warning = console.warn;
+let f_info = console.info;
+let f_debug = console.debug;
 
 function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
 {
@@ -133,18 +134,16 @@ function trace_msg(msg)
 
 function trace_json(jn)
 {
-    if(window) {
-        window.console.dir(jn);
-    }
+    console.dir(jn);
 }
 
 /************************************************************
  *  Duplicate an object (new references)
- *  using the modern structuredClone
+ *  using the modern structuredClone (Deep copy of a single object)
  ************************************************************/
 function json_deep_copy(obj) // old __duplicate__,duplicate_objects
 {
-    return structuredClone(obj); // Deep copy of a single object
+    return structuredClone(obj); // jshint ignore:line
 }
 
 /************************************************************
@@ -155,7 +154,7 @@ function duplicate_objects(...sourceObjects)
 {
     const result = {};
     for (const obj of sourceObjects) {
-        const clonedObj = structuredClone(obj); // Deep copy using structuredClone
+        const clonedObj = structuredClone(obj); // jshint ignore:line
         Object.assign(result, clonedObj); // Merge into the result object
     }
     return result;
@@ -249,7 +248,7 @@ function json_object_update_missing(destination, source)
  ************************************************************/
 function json_object_get(o, key)
 {
-    if (o.hasOwnProperty(key)) {
+    if(o && o.hasOwnProperty(key)) {
         return o[key];
     }
     return undefined;
@@ -260,7 +259,7 @@ function json_object_get(o, key)
  ************************************************************/
 function json_object_del(o, k)
 {
-    if (o.hasOwnProperty(k)) {
+    if(o && o.hasOwnProperty(k)) {
         delete o[k];
     }
 }
@@ -805,17 +804,17 @@ function kw_find_path(gobj, kw, path, verbose)
     if(!is_object(kw)) {
         // silence
         if(verbose) {
-            log_error("kw must be list or dict");
+            log_error(`${gobj_short_name(gobj)}: kw must be list or dict`);
         }
         return 0;
     }
     if(!is_string(path)) {
         if(verbose) {
-            log_error("path must be a string: " + String(path));
+            log_error(`${gobj_short_name(gobj)}: path must be a string: ${String(path)}`);
         }
         return 0;
     }
-    let ss = path.split("`");
+    let ss = path.split('`');
     if(ss.length<=1) {
         return kw[path];
     }
@@ -825,7 +824,7 @@ function kw_find_path(gobj, kw, path, verbose)
         kw = kw[key];
         if(kw === undefined) {
             if(verbose) {
-                log_error(`path not found: ${String(path)}`);
+                log_error(`${gobj_short_name(gobj)}: path not found: ${String(path)}`);
             }
             return undefined;
         }
@@ -836,10 +835,27 @@ function kw_find_path(gobj, kw, path, verbose)
 /************************************************************
  *
  ************************************************************/
+function strrchr_split(str, char)
+{
+    let index = str.lastIndexOf(char);
+    if(index === -1) {
+        return [str, ""]; // If char is not found, return whole string as first part and empty second part
+    }
+    return [str.substring(0, index), str.substring(index + 1)];
+}
+
+/************************************************************
+ *
+ ************************************************************/
 function kw_delete(gobj, kw, path)
 {
-    // TODO use delimiter `
-    json_object_del(kw, path);
+    let [path_, k] = strrchr_split(path, '`');
+    if(!empty_string(k)) {
+        let v = kw_find_path(gobj, kw, path_, true);
+        json_object_del(v, k);
+    } else {
+        json_object_del(kw, path);
+    }
     return 0;
 }
 
@@ -1163,7 +1179,7 @@ function kw_set_dict_value(gobj, kw, path, value)
         return -1;
     }
 
-    let ss = path.split("`");
+    let ss = path.split('`');
     if(ss.length<=1) {
         kw[path] = value;
         return 0;
@@ -1432,26 +1448,27 @@ function kw_clone_by_not_keys(
 /********************************************
  *  Get a local attribute
  ********************************************/
-function kw_get_local_storage_value(key, default_value, create)
+function kw_get_local_storage_value(key, default_value, create = false)
 {
-    if(!(key && window && window.JSON && window.localStorage)) {
-        return undefined;
-    }
-
-    let value = window.localStorage.getItem(key);
-    if(value === null || value===undefined) {
-        if(create) {
-            kw_set_local_storage_value(key, default_value);
-        }
-        return default_value;
+    if (typeof window === "undefined" || !window.localStorage) {
+        return undefined; // Avoid errors in Node.js
     }
 
     try {
-        value = JSON.parse(value);
-    } catch (e) {
-    }
+        let value = window.localStorage.getItem(key);
 
-    return value;
+        if (value === null) { // `null` means key doesn't exist
+            if (create) {
+                kw_set_local_storage_value(key, default_value);
+            }
+            return default_value;
+        }
+
+        return JSON.parse(value); // Try parsing JSON
+    } catch (e) {
+        console.warn(`Error reading localStorage key "${key}":`, e);
+        return default_value;
+    }
 }
 
 /********************************************
@@ -1459,10 +1476,18 @@ function kw_get_local_storage_value(key, default_value, create)
  ********************************************/
 function kw_set_local_storage_value(key, value)
 {
-    if(key && window && window.JSON && window.localStorage) {
-        if(value !== undefined) {
-            window.localStorage.setItem(key, JSON.stringify(value));
-        }
+    if (typeof window === "undefined" || !window.localStorage) {
+        return; // Prevents errors in Node.js
+    }
+    if (!key || value === undefined) {
+        console.warn(`Invalid key or value for localStorage: key=${key}, value=${value}`);
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(key, JSON.stringify(value));
+    } catch (e) {
+        console.warn(`Error saving localStorage key "${key}":`, e);
     }
 }
 
@@ -1471,8 +1496,18 @@ function kw_set_local_storage_value(key, value)
  ********************************************/
 function kw_remove_local_storage_value(key)
 {
-    if(key && window && window.localStorage) {
+    if (typeof window === "undefined" || !window.localStorage) {
+        return; // Prevents errors in Node.js
+    }
+    if (!key) {
+        console.warn(`Invalid key for localStorage removal: ${key}`);
+        return;
+    }
+
+    try {
         window.localStorage.removeItem(key);
+    } catch (e) {
+        console.warn(`Error removing localStorage key "${key}":`, e);
     }
 }
 
@@ -2006,7 +2041,7 @@ function _traverse_dict(obj, callback, full_path)
         if(!obj.hasOwnProperty(key)) {
             continue;
         }
-        let sufix = (full_path.length? "`":"") + key;
+        let sufix = (full_path.length? '`':'') + key;
         full_path += sufix;
 
         callback.apply(this, [obj, key, obj[key], full_path]);
@@ -2117,7 +2152,7 @@ function jdb_update(jdb, topic_name, path, kw)
         return null;
     }
 
-    let ids = path.split("`");
+    let ids = path.split('`');
 
     let id;
     let v = topic;
@@ -2171,7 +2206,7 @@ function jdb_delete(jdb, topic_name, path, kw)
         return null;
     }
 
-    let ids = path.split("`");
+    let ids = path.split('`');
 
     let id;
     let v = topic;
@@ -2673,26 +2708,29 @@ function createElement2(description, translate_fn) {
 /***************************************************************************
  *  Code written by ChatGPT
     // Usage example:
-    var element = document.getElementById("myElement");
-    var position = getPositionRelativeToBody(element);
-    console.log("Top: " + position.top + ", Left: " + position.left + ", Right: " + position.right + ", Bottom: " + position.bottom);
  ***************************************************************************/
 function getPositionRelativeToBody(element)
 {
-    let rect = element.getBoundingClientRect();
-    let scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop;
-    let scrollLeft = window.pageXOffset || document.documentElement.scrollLeft || document.body.scrollLeft;
+    if (!element) {
+        return {
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
+        };
+    }
 
-    let top = rect.top + scrollTop;
-    let left = rect.left + scrollLeft;
-    let right = left + rect.width;
-    let bottom = top + rect.height;
+    const { top, left, width, height } = element.getBoundingClientRect?.() || { top: 0, left: 0, width: 0, height: 0 };
+
+    const isBrowser = typeof window !== "undefined";
+    const scrollTop = isBrowser ? window.scrollY || document.documentElement?.scrollTop || document.body?.scrollTop || 0 : 0;
+    const scrollLeft = isBrowser ? window.scrollX || document.documentElement?.scrollLeft || document.body?.scrollLeft || 0 : 0;
 
     return {
-        top: top,
-        left: left,
-        right: right,
-        bottom: bottom
+        top: top + scrollTop,
+        left: left + scrollLeft,
+        right: left + scrollLeft + width,
+        bottom: top + scrollTop + height
     };
 }
 
@@ -2795,13 +2833,18 @@ function node_uuid()
 {
     let uuid = "";
 
-    if(window) {
+    if (typeof window !== "undefined" && window.localStorage) {
         uuid = window.localStorage.getItem("host_uuid");
-        if (!uuid) {
+        if (!uuid && window.crypto?.randomUUID) {
             uuid = window.crypto.randomUUID();  // Generate a new UUID
             window.localStorage.setItem("host_uuid", uuid);
         }
+    } else if (typeof globalThis !== "undefined" && globalThis.crypto?.randomUUID) {
+        uuid = globalThis.crypto.randomUUID();  // Node.js environment (if available)
+    } else {
+        uuid = "00000000-0000-0000-0000-000000000000"; // Fallback UUID (if crypto is unavailable)
     }
+
     return uuid;
 }
 
@@ -2858,6 +2901,7 @@ export {
     kw_pop,
     kw_has_key,
     kw_find_path,
+    kw_delete,
     kw_get_bool,
     kw_get_int,
     kw_get_real,
