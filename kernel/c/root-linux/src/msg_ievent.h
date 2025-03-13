@@ -264,15 +264,19 @@ PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
 );
 
 /*
-    msg_type_list = [
+    msg_type_list = [ // suggesting types
         "__command__",
+        "__stats__",
         "__publishing__",
         "__subscribing__",
         "__unsubscribing__",
         "__query__",
+        "__answer__",
+        "__request__",
         "__response__",
         "__order__",
-        "__first_shot__",
+        "__poll__",
+        "__first_shot__"
     ];
 */
 PUBLIC int msg_iev_set_msg_type( // Write "__md_iev__`__msg_type__" value

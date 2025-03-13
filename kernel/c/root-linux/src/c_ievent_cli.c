@@ -439,7 +439,7 @@ PRIVATE int mt_subscription_deleted(
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
     );
-    kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__unsubscribing__"));
+    msg_iev_set_msg_type(gobj, kw, "__unsubscribing__");
 
     return send_static_iev(gobj, event, kw, gobj);
 }
@@ -654,7 +654,7 @@ PRIVATE int send_remote_subscription(
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
     );
-    kw_set_dict_value(gobj, kw, "__md_iev__`__msg_type__", json_string("__subscribing__"));
+    msg_iev_set_msg_type(gobj, kw, "__subscribing__");
 
     return send_static_iev(gobj, event, kw, gobj);
 }
@@ -922,7 +922,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*------------------------------------*
      *   Analyze inter_event
      *------------------------------------*/
-    const char *msg_type = kw_get_str(gobj, iev_kw, "__md_iev__`__msg_type__", "", 0);
+    const char *msg_type = msg_iev_get_msg_type(gobj, iev_kw);
 
     /*----------------------------------------*
      *  Get inter-event routing information.

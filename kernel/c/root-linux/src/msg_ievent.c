@@ -8,6 +8,7 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include <unistd.h>
+#include <helpers.h>
 #include "msg_ievent.h"
 
 /****************************************************************
@@ -420,9 +421,8 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     }
 
     json_t *__md_iev_dst__ = json_deep_copy(__md_iev_src__);
-    json_object_set_new(__md_iev_dst__, "__msg_type__", json_string(msg_type?msg_type:""));
-
     json_object_set_new(kw_response, "__md_iev__", __md_iev_dst__);
+    msg_iev_set_msg_type(gobj, kw_response, msg_type);
 
     time_t t;
     time(&t);
@@ -500,19 +500,21 @@ PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
 
 /***************************************************************************
  *
+    msg_type_list = [ // suggesting types
+        "__command__",
+        "__stats__",
+        "__publishing__",
+        "__subscribing__",
+        "__unsubscribing__",
+        "__query__",
+        "__answer__",
+        "__request__",
+        "__response__",
+        "__order__",
+        "__poll__",
+        "__first_shot__"
+    ];
  ***************************************************************************/
-PRIVATE const char *msg_type_list[] = {
-    "__command__",
-    "__publishing__",
-    "__subscribing__",
-    "__unsubscribing__",
-    "__query__",
-    "__response__",
-    "__order__",
-    "__first_shot__",
-    0
-};
-
 PUBLIC int msg_iev_set_msg_type(
     hgobj gobj,
     json_t *kw,
@@ -520,11 +522,9 @@ PUBLIC int msg_iev_set_msg_type(
 )
 {
     if(!empty_string(msg_type)) {
-        if(is_metadata_key(msg_type) && !str_in_list(msg_type_list, msg_type, TRUE)) {
-            // HACK If it's a metadata key then only admit our message inter-event msg_type_list
-            return kw_delete(kw, "__md_iev__`__msg_type__");
-        }
-        return kw_set_subdict_value(kw, "__md_iev__", "__msg_type__", json_string(msg_type));
+        kw_set_subdict_value(gobj, kw, "__md_iev__", "__msg_type__", json_string(msg_type));
+    } else {
+        kw_delete(gobj, kw, "__md_iev__`__msg_type__");
     }
     return 0;
 }
@@ -537,7 +537,7 @@ PUBLIC const char *msg_iev_get_msg_type(
     json_t *kw
 )
 {
-    return kw_get_str(kw, "__md_iev__`__msg_type__", "", 0);
+    return kw_get_str(gobj, kw, "__md_iev__`__msg_type__", "", 0);
 }
 
 /***************************************************************************

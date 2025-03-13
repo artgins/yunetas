@@ -1167,7 +1167,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*------------------------------------*
      *   Analyze inter_event
      *------------------------------------*/
-    const char *msg_type = kw_get_str(gobj, iev_kw, "__md_iev__`__msg_type__", "", 0);
+    const char *msg_type = msg_iev_get_msg_type(gobj, iev_kw);
 
     /*-----------------------------------------------------------*
      *  Get inter-event routing information.

@@ -1976,6 +1976,46 @@ function msg_iev_get_stack(gobj, kw, stack, verbose)
 }
 
 /************************************************************
+ *
+    msg_type_list = [ // suggesting types
+        "__command__",
+        "__stats__",
+        "__publishing__",
+        "__subscribing__",
+        "__unsubscribing__",
+        "__query__",
+        "__answer__",
+        "__request__",
+        "__response__",
+        "__order__",
+        "__poll__",
+        "__first_shot__"
+    ];
+
+ ************************************************************/
+function msg_iev_set_msg_type(
+    gobj,
+    kw,
+    msg_type // empty string to delete the key
+)
+{
+    if(!empty_string(msg_type)) {
+        kw_set_subdict_value(gobj, kw, "__md_iev__", "__msg_type__", msg_type);
+    } else {
+        kw_delete(gobj, kw, "__md_iev__`__msg_type__");
+    }
+    return 0;
+}
+
+/************************************************************
+ *
+ ************************************************************/
+function msg_iev_get_msg_type(gobj, kw)
+{
+    return kw_get_str(gobj, kw, "__md_iev__`__msg_type__", "", 0);
+}
+
+/************************************************************
  *          Load json file from server
  ************************************************************/
 function _fileLoaded(xhr) {
@@ -2935,10 +2975,10 @@ export {
     elms_in_list,
     delete_from_list,
 
-    msg_iev_read_key,
-    msg_iev_write_key,
     msg_iev_push_stack,
     msg_iev_get_stack,
+    msg_iev_set_msg_type,
+    msg_iev_get_msg_type,
 
     load_json_file,
     send_http_json_post,
