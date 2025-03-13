@@ -265,10 +265,10 @@ PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
 
 /*
     msg_type_list = [ // suggesting types
-        "__command__",
-        "__stats__",
-        "__publishing__",
-        "__subscribing__",
+        "__command__",          // Used in commands
+        "__stats__",            // Used in stats
+        "__publishing__",       // Used in subscribing events
+        "__subscribing__",      // Used in unsubscribing events
         "__unsubscribing__",
         "__query__",
         "__answer__",
