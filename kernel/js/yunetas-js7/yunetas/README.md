@@ -29,9 +29,22 @@ To publish a new version of yunetas:
 
     npm publish --access public
 
+To test:
+
+    npm test
+
 To test
 
     npm test
+
+or
+
+    npx vitest
+
+or
+
+    npx vitest --watch  # automatically re-run tests when files change,
+
 or
 
     npm run test:coverage
