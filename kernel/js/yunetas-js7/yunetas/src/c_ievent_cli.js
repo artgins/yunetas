@@ -837,6 +837,19 @@ function resend_subscriptions(gobj)
 /***************************************************************
  *
  ***************************************************************/
+function ac_timeout_disconnected(gobj, event, kw, src)
+{
+    let priv = gobj.priv;
+
+    if(gobj_is_running(gobj)) {
+        priv.websocket = setup_websocket(gobj);
+    }
+    return 0;
+}
+
+/***************************************************************
+ *
+ ***************************************************************/
 function ac_on_open(gobj, event, kw, src)
 {
     log_debug('Websocket opened: ' + gobj.priv.url);
@@ -886,16 +899,12 @@ function ac_on_close(gobj, event, kw, src)
     return 0;
 }
 
-/***************************************************************
+/********************************************
  *
- ***************************************************************/
-function ac_timeout_disconnected(gobj, event, kw, src)
+ ********************************************/
+function ac_timeout_wait_idAck(gobj, event, kw, src)
 {
-    let priv = gobj.priv;
-
-    if(gobj_is_running(gobj)) {
-        priv.websocket = setup_websocket(gobj);
-    }
+    send_identity_card(gobj);
     return 0;
 }
 
@@ -1150,13 +1159,22 @@ function ac_mt_command(gobj, event, kw, src)
     return null;
 }
 
-/********************************************
- *
- ********************************************/
-function ac_timeout_wait_idAck(gobj, event, kw, src)
+/***************************************************************************
+ *  remote asking for play yuno
+ ***************************************************************************/
+function ac_play_yuno(gobj, event, kw, src)
 {
-    send_identity_card(gobj);
-    return 0;
+    // TODO
+    return -1;
+}
+
+/***************************************************************************
+ *  remote asking for pause yuno
+ ***************************************************************************/
+function ac_pause_yuno(gobj, event, kw, src)
+{
+    // TODO
+    return -1;
 }
 
 

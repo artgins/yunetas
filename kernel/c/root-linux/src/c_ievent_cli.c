@@ -1089,56 +1089,6 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  Play yuno
- ***************************************************************************/
-PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    int ret = gobj_play(gobj_yuno());
-    json_t *jn_result = json_pack("{s:i}",
-        "result",
-        ret
-    );
-    json_t *kw2resp = msg_iev_set_back_metadata(
-        gobj,
-        kw,             // owned, kw request, used to extract ONLY __md_iev__
-        jn_result,      // like owned, is returned!, created if null, the body of answer message
-        "",             // msg_type
-        true            // reverse_dst
-    );
-
-    return send_static_iev(gobj,
-        EV_PLAY_YUNO_ACK,
-        kw2resp,
-        src
-    );
-}
-
-/***************************************************************************
- *  Pause yuno
- ***************************************************************************/
-PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    int ret = gobj_pause(gobj_yuno());
-    json_t *jn_result = json_pack("{s:i}",
-        "result",
-        ret
-    );
-    json_t *kw2resp = msg_iev_set_back_metadata(
-        gobj,
-        kw,
-        jn_result,
-        "",  // msg_type
-        true            // reverse_dst
-    );
-
-    return send_static_iev(gobj,
-        EV_PAUSE_YUNO_ACK,
-        kw2resp,
-        src
-    );
-}
-
-/***************************************************************************
  *  remote asking for stats
  ***************************************************************************/
 PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -1274,6 +1224,56 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     KW_DECREF(kw)
     return 0;
+}
+
+/***************************************************************************
+ *  remote asking for play yuno
+ ***************************************************************************/
+PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    int ret = gobj_play(gobj_yuno());
+    json_t *jn_result = json_pack("{s:i}",
+        "result",
+        ret
+    );
+    json_t *kw2resp = msg_iev_set_back_metadata(
+        gobj,
+        kw,             // owned, kw request, used to extract ONLY __md_iev__
+        jn_result,      // like owned, is returned!, created if null, the body of answer message
+        "",             // msg_type
+        true            // reverse_dst
+    );
+
+    return send_static_iev(gobj,
+        EV_PLAY_YUNO_ACK,
+        kw2resp,
+        src
+    );
+}
+
+/***************************************************************************
+ *  remote asking for pause yuno
+ ***************************************************************************/
+PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    int ret = gobj_pause(gobj_yuno());
+    json_t *jn_result = json_pack("{s:i}",
+        "result",
+        ret
+    );
+    json_t *kw2resp = msg_iev_set_back_metadata(
+        gobj,
+        kw,
+        jn_result,
+        "",  // msg_type
+        true            // reverse_dst
+    );
+
+    return send_static_iev(gobj,
+        EV_PAUSE_YUNO_ACK,
+        kw2resp,
+        src
+    );
 }
 
 /***************************************************************************

@@ -857,225 +857,6 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *  remote ask
- *  Somebody wants exit
- ***************************************************************************/
-PRIVATE int ac_goodbye(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    const char *cause = kw_get_str(gobj, kw, "cause", "", 0);
-
-    uint32_t trace_level = gobj_trace_level(gobj);
-    if((trace_level & TRACE_IDENTITY_CARD)) {
-        char prefix[256];
-        snprintf(prefix, sizeof(prefix),
-            "INTRA-EVENT(%s^%s) %s <== %s (cause: %s)",
-            gobj_yuno_role(),
-            gobj_yuno_name(),
-            gobj_short_name(gobj),
-            gobj_short_name(src),
-            cause
-        );
-        trace_inter_event2(gobj, prefix, event, kw);
-    }
-    drop(gobj);
-
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  remote ask for stats
- ***************************************************************************/
-PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!gobj_read_bool_attr(gobj, "authenticated")) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Only authenticated users can request stats",
-            NULL
-        );
-        return send_static_iev(gobj,
-            EV_MT_STATS_ANSWER,
-            msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("Only authenticated users can request stats"),
-                0,
-                0,
-                "",  // msg_type
-                kw
-            ),
-            src
-        );
-    }
-
-    const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0);
-    const char *service = kw_get_str(gobj, kw, "service", "", 0);
-
-    hgobj service_gobj;
-    if(empty_string(service)) {
-        service_gobj = priv->gobj_service;
-    } else {
-        service_gobj = gobj_find_service(service, false);
-        if(!service_gobj) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Service not found",
-                "stats",        "%s", service?service:"",
-                NULL
-            );
-            return send_static_iev(gobj,
-                EV_MT_STATS_ANSWER,
-                msg_iev_build_response(
-                    gobj,
-                    -1,
-                    json_sprintf("Service not found: '%s'", service),
-                    0,
-                    0,
-                    "",  // msg_type
-                    kw
-                ),
-                src
-            );
-        }
-    }
-
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__", "__username__",
-        json_string(gobj_read_str_attr(gobj, "__username__"))
-    );
-
-    KW_INCREF(kw)
-    json_t *webix = gobj_stats(
-        service_gobj,
-        stats,
-        kw,
-        src
-    );
-    if(!webix) {
-        // Asynchronous response
-    } else {
-        json_t *kw2 = msg_iev_set_back_metadata(
-            gobj,
-            kw,
-            webix,
-            "",  // msg_type
-            true
-        );
-        return send_static_iev(gobj,
-            EV_MT_STATS_ANSWER,
-            kw2,
-            src
-        );
-    }
-
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *  remote ask for command
- ***************************************************************************/
-PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
-    const char *service = kw_get_str(gobj, kw, "service", "", 0);
-
-    if(!gobj_read_bool_attr(gobj, "authenticated")) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Only authenticated users can request commands",
-            NULL
-        );
-        return send_static_iev(gobj,
-            EV_MT_COMMAND_ANSWER,
-            msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("Only authenticated users can request commands"),
-                0,
-                0,
-                "",  // msg_type
-                kw
-            ),
-            src
-        );
-    }
-
-    hgobj service_gobj;
-    if(empty_string(service)) {
-        service_gobj = priv->gobj_service;
-    } else {
-        service_gobj = gobj_find_service(service, false);
-        if(!service_gobj) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Service not found",
-                "stats",        "%s", service?service:"",
-                NULL
-            );
-            return send_static_iev(gobj,
-                EV_MT_COMMAND_ANSWER,
-                msg_iev_build_response(
-                    gobj,
-                    -1,
-                    json_sprintf("Service not found: '%s'", service),
-                    0,
-                    0,
-                    "",  // msg_type
-                    kw
-                ),
-                src
-            );
-        }
-    }
-
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__", "__username__",
-        json_string(gobj_read_str_attr(gobj, "__username__"))
-    );
-
-    KW_INCREF(kw)
-    json_t *webix = gobj_command(
-        service_gobj,
-        command,
-        kw,
-        src
-    );
-    if(!webix) {
-        // Asynchronous response
-    } else {
-        json_t *kw2 = msg_iev_set_back_metadata(
-            gobj,
-            kw,
-            webix,
-            "",  // msg_type
-            true
-        );
-        return send_static_iev(gobj,
-            EV_MT_COMMAND_ANSWER,
-            kw2,
-            src
-        );
-    }
-
-    KW_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -1486,6 +1267,225 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             );
         }
     }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  remote ask for stats
+ ***************************************************************************/
+PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!gobj_read_bool_attr(gobj, "authenticated")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Only authenticated users can request stats",
+            NULL
+        );
+        return send_static_iev(gobj,
+            EV_MT_STATS_ANSWER,
+            msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Only authenticated users can request stats"),
+                0,
+                0,
+                "",  // msg_type
+                kw
+            ),
+            src
+        );
+    }
+
+    const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0);
+    const char *service = kw_get_str(gobj, kw, "service", "", 0);
+
+    hgobj service_gobj;
+    if(empty_string(service)) {
+        service_gobj = priv->gobj_service;
+    } else {
+        service_gobj = gobj_find_service(service, false);
+        if(!service_gobj) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "Service not found",
+                "stats",        "%s", service?service:"",
+                NULL
+            );
+            return send_static_iev(gobj,
+                EV_MT_STATS_ANSWER,
+                msg_iev_build_response(
+                    gobj,
+                    -1,
+                    json_sprintf("Service not found: '%s'", service),
+                    0,
+                    0,
+                    "",  // msg_type
+                    kw
+                ),
+                src
+            );
+        }
+    }
+
+    kw_set_subdict_value(
+        gobj,
+        kw,
+        "__temp__", "__username__",
+        json_string(gobj_read_str_attr(gobj, "__username__"))
+    );
+
+    KW_INCREF(kw)
+    json_t *webix = gobj_stats(
+        service_gobj,
+        stats,
+        kw,
+        src
+    );
+    if(!webix) {
+        // Asynchronous response
+    } else {
+        json_t *kw2 = msg_iev_set_back_metadata(
+            gobj,
+            kw,
+            webix,
+            "",  // msg_type
+            true
+        );
+        return send_static_iev(gobj,
+            EV_MT_STATS_ANSWER,
+            kw2,
+            src
+        );
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  remote ask for command
+ ***************************************************************************/
+PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
+    const char *service = kw_get_str(gobj, kw, "service", "", 0);
+
+    if(!gobj_read_bool_attr(gobj, "authenticated")) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Only authenticated users can request commands",
+            NULL
+        );
+        return send_static_iev(gobj,
+            EV_MT_COMMAND_ANSWER,
+            msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Only authenticated users can request commands"),
+                0,
+                0,
+                "",  // msg_type
+                kw
+            ),
+            src
+        );
+    }
+
+    hgobj service_gobj;
+    if(empty_string(service)) {
+        service_gobj = priv->gobj_service;
+    } else {
+        service_gobj = gobj_find_service(service, false);
+        if(!service_gobj) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "Service not found",
+                "stats",        "%s", service?service:"",
+                NULL
+            );
+            return send_static_iev(gobj,
+                EV_MT_COMMAND_ANSWER,
+                msg_iev_build_response(
+                    gobj,
+                    -1,
+                    json_sprintf("Service not found: '%s'", service),
+                    0,
+                    0,
+                    "",  // msg_type
+                    kw
+                ),
+                src
+            );
+        }
+    }
+
+    kw_set_subdict_value(
+        gobj,
+        kw,
+        "__temp__", "__username__",
+        json_string(gobj_read_str_attr(gobj, "__username__"))
+    );
+
+    KW_INCREF(kw)
+    json_t *webix = gobj_command(
+        service_gobj,
+        command,
+        kw,
+        src
+    );
+    if(!webix) {
+        // Asynchronous response
+    } else {
+        json_t *kw2 = msg_iev_set_back_metadata(
+            gobj,
+            kw,
+            webix,
+            "",  // msg_type
+            true
+        );
+        return send_static_iev(gobj,
+            EV_MT_COMMAND_ANSWER,
+            kw2,
+            src
+        );
+    }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  remote ask
+ *  Somebody wants exit
+ ***************************************************************************/
+PRIVATE int ac_goodbye(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    const char *cause = kw_get_str(gobj, kw, "cause", "", 0);
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if((trace_level & TRACE_IDENTITY_CARD)) {
+        char prefix[256];
+        snprintf(prefix, sizeof(prefix),
+            "INTRA-EVENT(%s^%s) %s <== %s (cause: %s)",
+            gobj_yuno_role(),
+            gobj_yuno_name(),
+            gobj_short_name(gobj),
+            gobj_short_name(src),
+            cause
+        );
+        trace_inter_event2(gobj, prefix, event, kw);
+    }
+    drop(gobj);
 
     KW_DECREF(kw)
     return 0;
