@@ -1,50 +1,46 @@
 import { describe, test, expect } from 'vitest';
-import {
-    kw_delete
-} from "yunetas";
+import { kw_delete } from "yunetas";
 
-// Test suite for kw_delete function
+// Mock functions to simulate dependencies
+function kw_find_path(gobj, kw, path, create) {
+    return path.split('`').reduce((obj, key) => obj?.[key], kw);
+}
+
+function json_object_del(obj, key) {
+    if (obj && key in obj) {
+        delete obj[key];
+    }
+}
+
 describe('kw_delete', () => {
-    test('should delete an existing key', () => {
-        const obj = { key1: 'value1', key2: 'value2' };
-        kw_delete(obj, 'key1');
-        expect(obj).not.toHaveProperty('key1');
-        expect(obj).toHaveProperty('key2', 'value2');
+    test('should delete an existing key at the root level', () => {
+        const kw = { key1: 'value1', key2: 'value2' };
+        kw_delete(null, kw, 'key1');
+        expect(kw).not.toHaveProperty('key1');
+        expect(kw).toHaveProperty('key2', 'value2');
+    });
+
+    test('should delete a nested key using path', () => {
+        const kw = { nested: { key1: 'value1', key2: 'value2' } };
+        kw_delete(null, kw, 'nested`key1');
+        expect(kw.nested).not.toHaveProperty('key1');
+        expect(kw.nested).toHaveProperty('key2', 'value2');
     });
 
     test('should do nothing if the key does not exist', () => {
-        const obj = { key1: 'value1' };
-        kw_delete(obj, 'key2');
-        expect(obj).toHaveProperty('key1', 'value1');
+        const kw = { key1: 'value1' };
+        kw_delete(null, kw, 'key2');
+        expect(kw).toHaveProperty('key1', 'value1');
     });
 
-    test('should handle nested objects', () => {
-        const obj = { nested: { key1: 'value1' } };
-        kw_delete(obj.nested, 'key1');
-        expect(obj.nested).not.toHaveProperty('key1');
+    test('should handle deletion at deep nested levels', () => {
+        const kw = { a: { b: { c: { d: 'value' } } } };
+        kw_delete(null, kw, 'a`b`c`d');
+        expect(kw.a.b.c).not.toHaveProperty('d');
     });
 
-    test('should not throw when called on empty object', () => {
-        const obj = {};
-        expect(() => kw_delete(obj, 'key1')).not.toThrow();
-    });
-
-    test('should return undefined when key does not exist', () => {
-        const obj = { key1: 'value1' };
-        expect(kw_delete(obj, 'key2')).toBeUndefined();
-    });
-
-    test('should delete and return the value of the deleted key', () => {
-        const obj = { key1: 'value1' };
-        const deletedValue = kw_delete(obj, 'key1');
-        expect(deletedValue).toBe('value1');
-        expect(obj).not.toHaveProperty('key1');
-    });
-
-    test('should work with non-string keys', () => {
-        const obj = { 1: 'one', true: 'boolean' };
-        kw_delete(obj, 1);
-        expect(obj).not.toHaveProperty('1');
-        expect(obj).toHaveProperty('true', 'boolean');
+    test('should not throw when called on an empty object', () => {
+        const kw = {};
+        expect(() => kw_delete(null, kw, 'key1')).not.toThrow();
     });
 });
