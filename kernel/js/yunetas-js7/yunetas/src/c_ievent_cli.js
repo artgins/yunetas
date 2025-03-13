@@ -284,7 +284,7 @@ function mt_stats(gobj, stats, kw, src)
  *          Framework Method: Command
  *  Ask for command to remote `kw.service` (or wanted_yuno_service)
  ***************************************************************/
-function mt_command_parser(gobj, command, kw, src)
+function mt_command(gobj, command, kw, src)
 {
     if(gobj_current_state(gobj) !== "ST_SESSION") {
         log_error(`Not in session`);
@@ -1165,7 +1165,7 @@ const gmt = {
     mt_stop:                mt_stop,
     mt_destroy:             mt_destroy,
     mt_stats:               mt_stats,
-    mt_command_parser:      mt_command_parser,
+    mt_command_parser:      mt_command,
     mt_inject_event:        mt_inject_event,
     mt_subscription_added:  mt_subscription_added,
     mt_subscription_deleted: mt_subscription_deleted,
