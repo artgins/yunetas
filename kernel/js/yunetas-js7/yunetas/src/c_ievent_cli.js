@@ -43,7 +43,7 @@ import {
     gobj_find_service,
     gobj_change_state,
     gobj_start,
-    gobj_stop,
+    gobj_stop, gobj_read_bool_attr,
 
 } from "./gobj.js";
 
@@ -552,7 +552,7 @@ function close_websocket(gobj, code = 1000, reason = "")
 /***************************************************************
  *      Trace intra event
  ***************************************************************/
-function trace_inter_event(self, prefix, iev)
+function trace_inter_event(gobj, prefix, iev)
 {
     let hora = current_timestamp();
     try {
@@ -598,16 +598,17 @@ function send_iev(gobj, iev)
 
     let msg = JSON.stringify(iev);
 
-    // if (self.yuno.config.trace_inter_event) {
-    //     var url = self.config.urls[self.config.idx_url];
-    //     var prefix = self.yuno.yuno_name + ' ==> ' + url;
-    //     if(self.yuno.config.trace_ievent_callback) {
-    //         var size = msg.length;
-    //         self.yuno.config.trace_ievent_callback(prefix, iev, 1, size);
-    //     } else {
-    //         trace_inter_event(self, prefix, iev);
-    //     }
-    // }
+    if(gobj_read_bool_attr(gobj_yuno(), "trace_inter_event")) {
+        let url = gobj_read_str_attr(gobj, "url");
+        let prefix = gobj_name(gobj_yuno()) + ' ==> ' + url;
+        let trace_ievent_callback = gobj_read_attr(gobj_yuno(), "trace_ievent_callback");
+        if(trace_ievent_callback) {
+            let size = msg.length;
+            trace_ievent_callback(prefix, iev, 1, size);
+        } else {
+            trace_inter_event(gobj, prefix, iev);
+        }
+    }
 
     try {
         priv.websocket.send(msg);
@@ -709,7 +710,7 @@ function send_identity_card(gobj)
  *  Create iev from data received
  *  on websocket connection
  ********************************************/
-function iev_create_from_json(self, data)
+function iev_create_from_json(gobj, data)
 {
     let x;
     try {
@@ -1018,15 +1019,16 @@ function ac_on_message(gobj, event, kw, src)
     /*---------------------------------------*
      *          trace inter_event
      *---------------------------------------*/
-    // if (self.yuno.config.trace_inter_event) {
-    //     let prefix = self.yuno.yuno_name + ' <== ' + url;
-    //     let size = kw.data.length;
-    //     if(self.yuno.config.trace_ievent_callback) {
-    //         self.yuno.config.trace_ievent_callback(prefix, iev_msg, 2, size);
-    //     } else {
-    //         trace_inter_event(self, prefix, iev_msg);
-    //     }
-    // }
+    if(gobj_read_bool_attr(gobj_yuno(), "trace_inter_event")) {
+        let prefix = gobj_name(gobj_yuno()) + ' <== ' + url;
+        let size = kw.data.length;
+        let trace_ievent_callback = gobj_read_attr(gobj_yuno(), "trace_ievent_callback");
+        if(trace_ievent_callback) {
+            trace_ievent_callback(prefix, iev_msg, 2, size);
+        } else {
+            trace_inter_event(gobj, prefix, iev_msg);
+        }
+    }
 
     /*----------------------------------------*
      *
