@@ -230,7 +230,8 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         jn_ievent_id   // owned
     );
 
-    json_object_set_new(kw, "__stats__", json_string(stats));
+    json_object_set_new(kw, "__stats__", json_string(stats)); // TODO deprecated
+
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
@@ -278,7 +279,8 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         jn_ievent_id   // owned
     );
 
-    json_object_set_new(kw, "__command__", json_string(command));
+    json_object_set_new(kw, "__command__", json_string(command)); // TODO deprecated
+
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
@@ -314,23 +316,27 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*
      *      __MESSAGE__
      */
-    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
-    if(!jn_request) {
-        /*
-         *  Pon el ievent si no viene con él,
-         *  si lo trae es que será alguna redirección
-         */
-        json_t *jn_ievent_id = build_ievent_request(
-            gobj,
-            gobj_name(src)
-        );
-        msg_iev_push_stack(
-            gobj,
-            kw,         // not owned
-            IEVENT_MESSAGE_AREA_ID,
-            jn_ievent_id   // owned
-        );
-    }
+    json_t *jn_ievent_id = build_ievent_request(
+        gobj,
+        gobj_name(src)
+    );
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id   // owned
+    );
+
+    // json_object_set_new(kw, "__message__", json_string(event)); // TODO deprecated
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        "__message__",
+        json_string(event)   // owned
+    );
+
+
     return send_static_iev(gobj, event, kw, src);
 }
 

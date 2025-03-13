@@ -243,8 +243,10 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(gobj, kw, "service", 0, 0)
+        kw_get_str(gobj, kw, "__service__", 0, 0)
     );
+    json_object_del(kw, "__service__");
+
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
@@ -252,7 +254,8 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         jn_ievent_id   // owned
     );
 
-    json_object_set_new(kw, "__stats__", json_string(stats));
+    json_object_set_new(kw, "__stats__", json_string(stats)); // TODO deprecated
+
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
@@ -285,14 +288,17 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     if(!kw) {
         kw = json_object();
     }
+
     /*
      *      __REQUEST__ __MESSAGE__
      */
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(gobj, kw, "service", 0, 0)
+        kw_get_str(gobj, kw, "__service__", 0, 0)
     );
+    json_object_del(kw, "__service__");
+
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
@@ -300,7 +306,8 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         jn_ievent_id   // owned
     );
 
-    json_object_set_new(kw, "__command__", json_string(command));
+    json_object_set_new(kw, "__command__", json_string(command)); // TODO deprecated
+
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
@@ -336,26 +343,29 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     /*
      *      __MESSAGE__
      */
-    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
-    if(!jn_request) {
-        /*
-         * Put the ievent if it doesn't come with it,
-         * if it does come with it, it's because it will be some kind of response/redirect
-         */
-        json_t *jn_ievent_id = build_ievent_request(
-            gobj,
-            gobj_name(src),
-            kw_get_str(gobj, kw, "__service__", 0, 0)
-        );
-        json_object_del(kw, "__service__");
+    json_t *jn_ievent_id = build_ievent_request(
+        gobj,
+        gobj_name(src),
+        kw_get_str(gobj, kw, "__service__", 0, 0)
+    );
+    json_object_del(kw, "__service__");
 
-        msg_iev_push_stack(
-            gobj,
-            kw,         // not owned
-            IEVENT_MESSAGE_AREA_ID,
-            jn_ievent_id   // owned
-        );
-    }
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id   // owned
+    );
+
+    // json_object_set_new(kw, "__message__", json_string(event)); // TODO deprecated
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        "__message__",
+        json_string(event)   // owned
+    );
+
     return send_static_iev(gobj, event, kw, src);
 }
 
@@ -439,6 +449,7 @@ PRIVATE int mt_subscription_deleted(
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
     );
+
     msg_iev_set_msg_type(gobj, kw, "__unsubscribing__");
 
     return send_static_iev(gobj, event, kw, gobj);
@@ -654,6 +665,7 @@ PRIVATE int send_remote_subscription(
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
     );
+
     msg_iev_set_msg_type(gobj, kw, "__subscribing__");
 
     return send_static_iev(gobj, event, kw, gobj);

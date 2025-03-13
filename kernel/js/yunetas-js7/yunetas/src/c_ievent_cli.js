@@ -267,8 +267,9 @@ function mt_stats(gobj, stats, kw, src)
         jn_ievent_id
     );
 
-    kw["__stats__"] = stats;
-    msg_iev_push_stack( // TODO review, before was msg_iev_write_key
+    kw["__stats__"] = stats; // TODO deprecated
+
+    msg_iev_push_stack(
         gobj,
         kw,
         "__stats__",
@@ -310,8 +311,9 @@ function mt_command(gobj, command, kw, src)
         jn_ievent_id
     );
 
-    kw["__command__"] = command;
-    msg_iev_push_stack( // TODO review, before was msg_iev_write_key
+    kw["__command__"] = command; // TODO deprecated
+
+    msg_iev_push_stack(
         gobj,
         kw,         // not owned
         "__command__",
@@ -325,7 +327,7 @@ function mt_command(gobj, command, kw, src)
 
 /***************************************************************
  *          Framework Method: inject_event
- *  Send event to remote `kw.service` (or wanted_yuno_service)
+ *  Send event to remote `kw.__service__` (or wanted_yuno_service)
  ***************************************************************/
 function mt_inject_event(gobj, event, kw, src)
 {
@@ -360,6 +362,16 @@ function mt_inject_event(gobj, event, kw, src)
             IEVENT_MESSAGE_AREA_ID,
             jn_ievent_id
         );
+
+        // json_object_set_new(kw, "__message__", json_string(event)); // TODO deprecated
+
+        msg_iev_push_stack(
+            gobj,
+            kw,
+            "__message__",
+            event
+        );
+
     }
 
     return send_static_iev(gobj, event, kw, src);
