@@ -372,6 +372,7 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             json_string(event)   // owned
         );
     // }
+
     return send_static_iev(gobj, event, kw, src);
 }
 
@@ -561,6 +562,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     );
 
     set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_idack"));
+
     return send_static_iev(
         gobj,
         EV_IDENTITY_CARD,
@@ -1127,6 +1129,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "",  // msg_type
                     true            // reverse_dst
                 );
+
                 return send_static_iev(gobj,
                     EV_MT_STATS_ANSWER,
                     kw_response,
@@ -1152,6 +1155,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "",  // msg_type
             true            // reverse_dst
         );
+
         return send_static_iev(gobj,
             EV_MT_STATS_ANSWER,
             kw_response,
@@ -1196,6 +1200,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     "",  // msg_type
                     true            // reverse_dst
                 );
+
                 return send_static_iev(gobj,
                     EV_MT_COMMAND_ANSWER,
                     kw_response,
@@ -1221,6 +1226,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "",  // msg_type
             true            // reverse_dst
         );
+
         return send_static_iev(gobj,
             EV_MT_COMMAND_ANSWER,
             kw_response,

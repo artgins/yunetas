@@ -1305,6 +1305,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "msg",          "%s", "Only authenticated users can request stats",
             NULL
         );
+
         return send_static_iev(gobj,
             EV_MT_STATS_ANSWER,
             msg_iev_build_response(
@@ -1336,6 +1337,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 "stats",        "%s", service?service:"",
                 NULL
             );
+
             return send_static_iev(gobj,
                 EV_MT_STATS_ANSWER,
                 msg_iev_build_response(
@@ -1376,6 +1378,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "",  // msg_type
             true
         );
+
         return send_static_iev(gobj,
             EV_MT_STATS_ANSWER,
             kw2,
@@ -1404,6 +1407,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "msg",          "%s", "Only authenticated users can request commands",
             NULL
         );
+
         return send_static_iev(gobj,
             EV_MT_COMMAND_ANSWER,
             msg_iev_build_response(
@@ -1432,6 +1436,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 "stats",        "%s", service?service:"",
                 NULL
             );
+
             return send_static_iev(gobj,
                 EV_MT_COMMAND_ANSWER,
                 msg_iev_build_response(
@@ -1472,6 +1477,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "",  // msg_type
             true
         );
+
         return send_static_iev(gobj,
             EV_MT_COMMAND_ANSWER,
             kw2,
