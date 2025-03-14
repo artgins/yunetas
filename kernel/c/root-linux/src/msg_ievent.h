@@ -10,12 +10,8 @@
             }
         }
 
-    Inside of "kw", all fields beginning with "__" are considered metadata and
-    all fields beginning with one "_"  are considered private data
-    (the will be **removed** before to send iev)
-
     There is a special field "__temp__" that can be used inside the yuno to transport internal information,
-    but it will be delete when the iev go out the yuno
+    but "__temp__" will be delete when the iev go out the yuno
 
     They add "__md_iev__" metadata to provide data of the services interchanging the event:
     HACK: In a request/response pattern the "__md_iev__" metadata is returned in the response

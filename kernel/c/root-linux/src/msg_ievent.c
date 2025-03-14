@@ -421,7 +421,7 @@ PUBLIC json_t *msg_iev_set_back_metadata(
         "yuno_id", gobj_yuno_id(),
         "__t__", t
     );
-    json_object_set_new(__md_iev_dst__, "__md_yuno__", jn_metadata);
+    json_object_set_new(kw_response, "__md_yuno__", jn_metadata);
 
     if(reverse_dst) {
         json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw_response, IEVENT_MESSAGE_AREA_ID, true);
