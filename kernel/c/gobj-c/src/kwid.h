@@ -469,7 +469,7 @@ PUBLIC int kw_pop(
 
 /**rst**
     Match a json dict with a json filter
-    Only compare str/int/real/bool items
+    If jn_filter is null or empty the match is true
 **rst**/
 PUBLIC BOOL kw_match_simple(
     json_t *kw,         // NOT owned

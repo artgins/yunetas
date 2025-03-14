@@ -7129,111 +7129,107 @@ PRIVATE json_t * _create_subscription(
 }
 
 /***************************************************************************
- *  Return a iter of subscriptions (sdata),
- *  filtering by matching:
- *      event,kw (__config__, __global__, __local__, __filter__),subscriber
+ *  Match subscription
  ***************************************************************************/
-PRIVATE json_t * _find_subscription(
-    json_t *dl_subs,
+PRIVATE BOOL _match_subscription(
+    json_t *subs,
     gobj_t *publisher,
     gobj_event_t event,
-    json_t *kw, // owned
-    gobj_t *subscriber,
-    BOOL strict
+    json_t *kw, // NOT owned
+    gobj_t *subscriber
 ) {
-    BOOL (*_match)(json_t *, json_t *) = 0;
-    if(strict) {
-        _match = kw_is_identical; // WARNING don't decref anything
-    } else {
-        _match = kw_match_simple; // WARNING decref second parameter
-    }
-
     json_t *__config__ = kw_get_dict(publisher, kw, "__config__", 0, 0);
     json_t *__global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
     json_t *__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
     json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
 
+    BOOL match = true;
+
+    gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
+    if(publisher != publisher_) {
+        match = false;
+    }
+
+    gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
+    if(subscriber != subscriber_) {
+        match = false;
+    }
+
+    gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
+    if(event != event_) {
+        match = false;
+    }
+
+    if(__config__) {
+        json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
+        if(kw_config) {
+            if(!kw_match_simple(kw_config, json_incref(__config__))) {
+                match = false;
+            }
+        } else {
+            match = false;
+        }
+    }
+    if(__global__) {
+        json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
+        if(kw_global) {
+            if(!kw_match_simple(kw_global, json_incref(__global__))) {
+                match = false;
+            }
+        } else {
+            match = false;
+        }
+    }
+    if(__local__) {
+        json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
+        if(kw_local) {
+            if(!kw_match_simple(kw_local, json_incref(__local__))) {
+                match = false;
+            }
+        } else {
+            match = false;
+        }
+    }
+    if(__filter__) {
+        json_t *kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
+        if(kw_filter) {
+            if(!kw_match_simple(kw_filter, json_incref(__filter__))) {
+                match = false;
+            }
+        } else {
+            match = false;
+        }
+    }
+
+    return match;
+}
+
+/***************************************************************************
+ *  Return a list of subscriptions in the list dl_subs
+ *  filtering by matching:
+ *      publisher
+ *      event,
+ *      kw (__config__, __global__, __local__, __filter__),
+ *      subscriber
+ ***************************************************************************/
+PRIVATE json_t * _find_subscriptions(
+    json_t *dl_subs,
+    gobj_t *publisher,
+    gobj_event_t event,
+    json_t *kw, // owned
+    gobj_t *subscriber
+) {
     json_t *iter = json_array();
 
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {
-        BOOL match = true;
-
-        if(publisher) {
-            gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
-            if(publisher != publisher_) {
-                match = false;
-            }
-        }
-
-        if(subscriber) {
-            gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
-            if(subscriber != subscriber_) {
-                match = false;
-            }
-        }
-
-        if(event) {
-            gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
-            if(!event_ || event != event_) {
-                match = false;
-            }
-        }
-
-        if(__config__) {
-            json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
-            if(kw_config) {
-                if(!strict) { // HACK decref when calling _match (kw_match_simple)
-                    KW_INCREF(__config__);
-                }
-                if(!_match(kw_config, __config__)) {
-                    match = false;
-                }
-            } else {
-                match = false;
-            }
-        }
-        if(__global__) {
-            json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
-            if(kw_global) {
-                if(!strict) { // HACK decref when calling _match (kw_match_simple)
-                    KW_INCREF(__global__);
-                }
-                if(!_match(kw_global, __global__)) {
-                    match = false;
-                }
-            } else {
-                match = false;
-            }
-        }
-        if(__local__) {
-            json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
-            if(kw_local) {
-                if(!strict) { // HACK decref when calling _match (kw_match_simple)
-                    KW_INCREF(__local__);
-                }
-                if(!_match(kw_local, __local__)) {
-                    match = false;
-                }
-            } else {
-                match = false;
-            }
-        }
-        if(__filter__) {
-            json_t *kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
-            if(kw_filter) {
-                if(!strict) { // HACK decref when calling _match (kw_match_simple)
-                    KW_INCREF(__filter__);
-                }
-                if(!_match(kw_filter, __filter__)) {
-                    match = false;
-                }
-            } else {
-                match = false;
-            }
-        }
-
-        if(match) {
+        if(_match_subscription(
+            subs,
+            publisher,
+            event,
+            kw, // NOT owned
+            subscriber
+        )) {
             json_array_append(iter, subs);
         }
     }
@@ -7243,7 +7239,34 @@ PRIVATE json_t * _find_subscription(
 }
 
 /***************************************************************************
- *  Delete subscription
+ *  Find idx of subscription in dl_subs, -1 not found
+ ***************************************************************************/
+PRIVATE int _get_subs_idx(
+    json_t *dl_subs,
+    gobj_t *publisher,
+    gobj_event_t event,
+    json_t *kw, // owned
+    gobj_t *subscriber
+) {
+    size_t idx; json_t *subs;
+    json_array_foreach(dl_subs, idx, subs) {
+        if(_match_subscription(
+            subs,
+            publisher,
+            event,
+            kw, // NOT owned
+            subscriber
+        )) {
+            return (int)idx;
+        }
+    }
+
+    return -1;
+}
+
+
+/***************************************************************************
+ *  Delete subscription in publisher and subscriber
  ***************************************************************************/
 PRIVATE int _delete_subscription(
     gobj_t * gobj,
@@ -7304,7 +7327,14 @@ PRIVATE int _delete_subscription(
     /*--------------------------------*
      *      Delete subscription
      *--------------------------------*/
-    int idx = kw_find_json_in_list(gobj, publisher->dl_subscriptions, subs, 0);
+    int idx = _get_subs_idx(
+        publisher->dl_subscriptions,
+        publisher,
+        event,
+        subs,
+        subscriber
+    );
+
     if(idx >= 0) {
         if(json_array_remove(publisher->dl_subscriptions, (size_t)idx)<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -7324,7 +7354,13 @@ PRIVATE int _delete_subscription(
         gobj_trace_json(gobj, subs, "subscription in publisher not found");
     }
 
-    idx = kw_find_json_in_list(gobj, subscriber->dl_subscribings, subs, 0);
+    idx = _get_subs_idx(
+        subscriber->dl_subscribings,
+        publisher,
+        event,
+        subs,
+        subscriber
+    );
     if(idx >= 0) {
         if(json_array_remove(subscriber->dl_subscribings, (size_t)idx)<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -7420,13 +7456,12 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     /*------------------------------*
      *  Find repeated subscription
      *------------------------------*/
-    json_t *dl_subs = _find_subscription(
+    json_t *dl_subs = _find_subscriptions(
         publisher->dl_subscriptions,
         publisher,
         event,
         json_incref(kw),
-        subscriber,
-        true
+        subscriber
     );
     if(json_array_size(dl_subs) > 0) {
         gobj_log_warning(publisher, 0,
@@ -7598,14 +7633,12 @@ PUBLIC int gobj_unsubscribe_event(
     /*-----------------------------*
      *      Find subscription
      *-----------------------------*/
-    KW_INCREF(kw)
-    json_t *dl_subs = _find_subscription(
+    json_t *dl_subs = _find_subscriptions(
         publisher->dl_subscriptions,
         publisher,
         event,
-        kw,
-        subscriber,
-        true
+        json_incref(kw),
+        subscriber
     );
     int deleted = 0;
 
@@ -7653,77 +7686,25 @@ PUBLIC int gobj_unsubscribe_list(
 }
 
 /***************************************************************************
- *  Return a iter of subscriptions (sdata) in the publisher gobj,
- *  filtering by matching: event,kw (__config__, __global__, __local__, __filter__),subscriber
- *  Free return with rc_free_iter(iter, true, false);
-
-
- *  gobj_find_subscriptions()
- *  Return the list of subscriptions of the publisher gobj,
- *  filtering by matching: event,kw (__config__, __global__, __local__, __filter__),subscriber
-
-    USO
-    ---
-    TO resend subscriptions in ac_identity_card_ack() in c_ievent_cli.c
-
-        PRIVATE int resend_subscriptions(hgobj gobj)
-        {
-            dl_list_t *dl_subs = gobj_find_subscriptions(gobj, 0, 0, 0);
-
-            rc_instance_t *i_subs; hsdata subs;
-            i_subs = rc_first_instance(dl_subs, (rc_resource_t **)&subs);
-            while(i_subs) {
-                send_remote_subscription(gobj, subs);
-                i_subs = rc_next_instance(i_subs, (rc_resource_t **)&subs);
-            }
-            rc_free_iter(dl_subs, true, false);
-            return 0;
-        }
-
-        que son capturadas en:
-
-             PRIVATE int mt_subscription_added(
-                hgobj gobj,
-                hsdata subs)
-            {
-                if(!gobj_in_this_state(gobj, ST_SESSION)) {
-                    // on_open will send all subscriptions
-                    return 0;
-                }
-                return send_remote_subscription(gobj, subs);
-            }
-
-
-    EN mt_stop de c_counter.c (???)
-
-        PRIVATE int mt_stop(hgobj gobj)
-        {
-            PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-            gobj_unsubscribe_list(gobj_find_subscriptions(gobj, 0, 0, 0), true, false);
-
-            clear_timeout(priv->timer);
-            if(gobj_is_running(priv->timer))
-                gobj_stop(priv->timer);
-            return 0;
-        }
-
-
+ *  Return list of subscriptions in the publisher gobj,
+ *  filtering by matching:
+ *      event,
+ *      kw (__config__, __global__, __local__, __filter__),
+ *      subscriber
  ***************************************************************************/
-PUBLIC json_t * gobj_find_subscriptions(
+PUBLIC json_t *gobj_find_subscriptions(
     hgobj publisher_,
     gobj_event_t event,
     json_t *kw,
     hgobj subscriber)
 {
     gobj_t * publisher = publisher_;
-    return _find_subscription(
+    return _find_subscriptions(
         publisher->dl_subscriptions,
         publisher_,
         event,
         kw,
-        subscriber,
-        false
+        subscriber
     );
 }
 
@@ -7775,86 +7756,11 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
 }
 
 /***************************************************************************
- *  Return a iter of subscribings (sdata) of the subcriber gobj,
- *  filtering by matching: event,kw (__config__, __global__, __local__, __filter__), publisher
- *  Free return with rc_free_iter(iter, true, false);
- *
- *  gobj_find_subscribings()
- *  Return a list of subscribings of the subscriber gobj,
- *  filtering by matching: event,kw (__config__, __global__, __local__, __filter__), publisher
- *
- *
-
-    USO
-    ----
-     TO  Delete external subscriptions in c_ievent_src en ac_on_close()
-        PRIVATE int ac_on_close(hgobj gobj,  gobj_event_t event, json_t *kw, hgobj src)
-            json_t *kw2match = json_object();
-            kw_set_dict_value(
-                kw2match,
-                "__local__`__subscription_reference__",
-                json_integer((json_int_t)(size_t)gobj)
-            );
-
-            dl_list_t * dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
-            gobj_unsubscribe_list(dl_s, true, false);
-
-        que son creadas en ac_on_message() en
-             *   Dispatch event
-            if(strcasecmp(msg_type, "__subscribing__")==0) {
-                 *  It's a external subscription
-
-                 *   Protect: only public events
-                if(!gobj_event_in_output_event_list(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-                    char temp[256];
-                    snprintf(temp, sizeof(temp),
-                        "SUBSCRIBING event ignored, not in output_event_list or not PUBLIC event, check service '%s'",
-                        iev_dst_service
-                    );
-                    log_error(0,
-                        "gobj",         "%s", gobj_full_name(gobj),
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", temp,
-                        "service",      "%s", iev_dst_service,
-                        "gobj_service", "%s", gobj_short_name(gobj_service),
-                        "event",        "%s", iev_event,
-                        NULL
-                    );
-                    KW_DECREF(iev_kw);
-                    KW_DECREF(kw);
-                    return -1;
-                }
-
-                // Set locals to remove on publishing
-                kw_set_subdict_value(
-                    iev_kw,
-                    "__local__", "__subscription_reference__",
-                    json_integer((json_int_t)(size_t)gobj)
-                );
-                kw_set_subdict_value(iev_kw, "__local__", "__temp__", json_null());
-
-                // Prepare the return of response
-                json_t *__md_iev__ = kw_get_dict(iev_kw, "__md_iev__", 0, 0);
-                if(__md_iev__) {
-                    KW_INCREF(iev_kw);
-                    json_t *kw3 = msg_iev_answer(
-                        gobj,
-                        iev_kw,
-                        0,
-                        "__publishing__"
-                    );
-                    json_object_del(iev_kw, "__md_iev__");
-                    json_t *__global__ = kw_get_dict(iev_kw, "__global__", 0, 0);
-                    if(__global__) {
-                        json_object_update_new(__global__, kw3);
-                    } else {
-                        json_object_set_new(iev_kw, "__global__", kw3);
-                    }
-                }
-
-                gobj_subscribe_event(gobj_service, iev_event, iev_kw, gobj);
-
+ *  Return a list of subscribings
+ *  filtering by matching:
+ *      event,
+ *      kw (__config__, __global__, __local__, __filter__),
+ *      subscriber
  ***************************************************************************/
 PUBLIC json_t *gobj_find_subscribings(
     hgobj subscriber_,
@@ -7864,13 +7770,12 @@ PUBLIC json_t *gobj_find_subscribings(
 )
 {
     gobj_t * subscriber = subscriber_;
-    return _find_subscription(
+    return _find_subscriptions(
         subscriber->dl_subscribings,
         publisher,
         event,
         kw,
-        subscriber,
-        false
+        subscriber
     );
 }
 

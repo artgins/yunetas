@@ -2482,7 +2482,8 @@ PRIVATE BOOL _kw_match_simple(
 }
 
 /***************************************************************************
-    Match a json dict with a json filter (only compare str/number)
+    Match a json dict with a json filter
+    If jn_filter is null or empty the match is true
  ***************************************************************************/
 PUBLIC BOOL kw_match_simple(
     json_t *kw,         // not owned
