@@ -522,14 +522,18 @@ function setup_websocket(gobj)
     // };
 
     websocket.onclose = (e) => {
-        gobj_send_event(
-            gobj,
-            "EV_ON_CLOSE",
-            {
-                url, e: e
-            },
-            gobj
-        );
+        if(!gobj_read_bool_attr(gobj_yuno(), "browser_beforeunload")) {
+            gobj_send_event(
+                gobj,
+                "EV_ON_CLOSE",
+                {
+                    url, e: e
+                },
+                gobj
+            );
+        } else {
+            log_warning('Close websocket by unload page');
+        }
     };
 
     return websocket; // Return the WebSocket instance

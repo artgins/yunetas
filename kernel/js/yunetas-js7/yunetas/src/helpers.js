@@ -163,33 +163,11 @@ function duplicate_objects(...sourceObjects)
 /************************************************************
  *
  ************************************************************/
-function json_is_identical(json1, json2)
+function json_is_identical(kw1, kw2)
 {
-    if (json1 === json2) {
-        return true;  // If both references are the same, they are identical
-    }
-
-    if (typeof json1 !== "object" || typeof json2 !== "object" || json1 === null || json2 === null) {
-        return false; // If not objects or one is null, they are not identical
-    }
-
-    const keys1 = Object.keys(json1);
-    const keys2 = Object.keys(json2);
-
-    if (keys1.length !== keys2.length) {
-        return false; // Different number of keys → not identical
-    }
-
-    for (const key of keys1) {
-        if (!json2.hasOwnProperty(key)) {
-            return false; // Key missing in json2 → not identical
-        }
-        if (!json_is_identical(json1[key], json2[key])) {
-            return false; // Recursively check nested values
-        }
-    }
-
-    return true;
+    let kw1_ = JSON.stringify(kw1);
+    let kw2_ = JSON.stringify(kw2);
+    return (kw1_ === kw2_);
 }
 
 /************************************************************

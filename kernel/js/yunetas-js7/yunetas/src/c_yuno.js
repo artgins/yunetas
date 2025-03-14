@@ -48,8 +48,8 @@ const GCLASS_NAME = "C_YUNO";
  *          Attributes
  *---------------------------------------------*/
 const attrs_table = [
-SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",          0,  false,  "Set true to warn about leaving page."),
-
+SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",          0,  false,  "Set true to warn about leaving page"),
+SDATA(data_type_t.DTP_BOOLEAN,  "browser_beforeunload", 0,  false,  "Set true to refreshing browser"),
 SDATA(data_type_t.DTP_STRING,   "__username__",         0,  "",     "Username"),
 SDATA(data_type_t.DTP_STRING,   "start_date",           0,  "",     "Yuno starting date"),
 SDATA(data_type_t.DTP_STRING,   "yuno_name",            0,  "",     "Yuno name"),
