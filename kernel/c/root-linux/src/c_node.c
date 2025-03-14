@@ -1810,7 +1810,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -1828,7 +1827,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -1849,7 +1847,6 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -1873,7 +1870,6 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 json_sprintf("Can't decode json content64"),
                 0,
                 0,
-                "",  // msg_type
                 kw  // owned
             );
         }
@@ -1893,7 +1889,6 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What record?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -1910,7 +1905,6 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -1927,7 +1921,6 @@ PRIVATE json_t *cmd_create_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_sprintf("%s", node?"Node created!":gobj_log_last_message()),
         gobj_topic_desc(gobj, topic_name),
         node,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -1948,7 +1941,6 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -1972,7 +1964,6 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
                 json_sprintf("Can't decode json content64"),
                 0,
                 0,
-                "",  // msg_type
                 kw  // owned
             );
         }
@@ -1992,7 +1983,6 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What record?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2009,7 +1999,6 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2027,7 +2016,6 @@ PRIVATE json_t *cmd_update_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_sprintf("%s", node?"Node update!":gobj_log_last_message()),
         gobj_topic_desc(gobj, topic_name),
         node,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2048,7 +2036,6 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2060,7 +2047,6 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("field 'id' is required to delete nodes"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2076,7 +2062,6 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2098,7 +2083,6 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("Node not found"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2118,7 +2102,6 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("%s", gobj_log_last_message()),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2129,7 +2112,6 @@ PRIVATE json_t *cmd_delete_node(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_sprintf("Node deleted"),
         gobj_topic_desc(gobj, topic_name),
         node,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2150,7 +2132,6 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("What parent ref?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2161,7 +2142,6 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("What child ref?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2185,7 +2165,6 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("Wrong parent ref"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2205,7 +2184,6 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("Wrong child ref"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2224,7 +2202,6 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("Parent not found"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2243,7 +2220,6 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("Parent not found"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2271,7 +2247,6 @@ PRIVATE json_t *cmd_link_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         result<0?json_sprintf("%s", gobj_log_last_message()):json_sprintf("Nodes linked!"),
         gobj_topic_desc(gobj, child_topic_name),
         child_node,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2292,7 +2267,6 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("What parent ref?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2303,7 +2277,6 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("What child ref?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2327,7 +2300,6 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("Wrong parent ref"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2347,7 +2319,6 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("Wrong child ref"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2366,7 +2337,6 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("Parent not found"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2385,7 +2355,6 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("Parent not found"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2413,7 +2382,6 @@ PRIVATE json_t *cmd_unlink_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         result<0?json_sprintf("%s", gobj_log_last_message()):json_sprintf("Nodes unlinked!"),
         gobj_topic_desc(gobj, child_topic_name),
         child_node,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2431,7 +2399,6 @@ PRIVATE json_t *cmd_treedbs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,
         0,
         treedbs,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2456,7 +2423,6 @@ PRIVATE json_t *cmd_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         topics?0:json_string(gobj_log_last_message()),
         0,
         topics,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2486,7 +2452,6 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2497,7 +2462,6 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What hook?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2544,7 +2508,6 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 json_sprintf("What node_id?"),
                 0,
                 0,
-                "",  // msg_type
                 kw  // owned
             );
         }
@@ -2566,7 +2529,6 @@ PRIVATE json_t *cmd_jtree(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jtree?0:json_string(gobj_log_last_message()),
         0,
         jtree,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2585,7 +2547,6 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 json_sprintf("What topic_name?"),
                 0,
                 0,
-                "",  // msg_type
                 kw  // owned
             );
         }
@@ -2598,7 +2559,6 @@ PRIVATE json_t *cmd_desc(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         desc?0:json_string(gobj_log_last_message()),
         0,
         desc,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2616,7 +2576,6 @@ PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw,
         0,
         0,
         _treedb_create_topic_cols_desc(),
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2639,7 +2598,6 @@ PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         json_sprintf("Set trace %s", set?"on":"false"),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2661,7 +2619,6 @@ PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         links?0:json_string(gobj_log_last_message()),
         0,
         links,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2683,7 +2640,6 @@ PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         hooks?0:json_string(gobj_log_last_message()),
         0,
         hooks,
-        "",  // msg_type
         kw  // owned
     );
 
@@ -2706,7 +2662,6 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2717,7 +2672,6 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What node id?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2737,7 +2691,6 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         parents?0:json_string(gobj_log_last_message()),
         0,
         parents,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2760,7 +2713,6 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2771,7 +2723,6 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What hook?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2782,7 +2733,6 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What node id?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2803,7 +2753,6 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         childs?0:json_string(gobj_log_last_message()),
         0,
         childs,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2825,7 +2774,6 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2841,7 +2789,6 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2862,7 +2809,6 @@ PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_string(gobj_log_last_message()),
         nodes?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
         nodes,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2885,7 +2831,6 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2896,7 +2841,6 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             json_sprintf("What node id?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2915,7 +2859,6 @@ PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         node?0:json_sprintf("Node not found"),
         node?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
         node,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2940,7 +2883,6 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -2969,7 +2911,6 @@ PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgob
             json_string(gobj_log_last_message()),
         instances?tranger2_list_topic_desc_cols(priv->tranger, topic_name):0,
         instances,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -2989,7 +2930,6 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What topic_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -3005,7 +2945,6 @@ PRIVATE json_t *cmd_node_pkey2s(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_sprintf("%d pkey2s", (int)json_array_size(pkey2s)),
         0,
         pkey2s,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -3021,7 +2960,6 @@ PRIVATE json_t *cmd_snap_content(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_sprintf("TODO"),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 //    PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -3110,7 +3048,6 @@ PRIVATE json_t *cmd_list_snaps(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         0,
         tranger2_list_topic_desc_cols(priv->tranger, "__snaps__"),
         jn_data,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -3131,7 +3068,6 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             ),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -3155,7 +3091,6 @@ PRIVATE json_t *cmd_shoot_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         ret==0?json_sprintf("Snap '%s' shot", name):json_string(gobj_log_last_message()),
         ret==0?tranger2_list_topic_desc_cols(priv->tranger, "__snaps__"):0,
         jn_data,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -3174,7 +3109,6 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
             ),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -3189,7 +3123,6 @@ PRIVATE json_t *cmd_activate_snap(hgobj gobj, const char *cmd, json_t *kw, hgobj
         ret>=0?json_sprintf("Snap activated: '%s'", name):json_string(gobj_log_last_message()),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -3210,7 +3143,6 @@ PRIVATE json_t *cmd_deactivate_snap(hgobj gobj, const char *cmd, json_t *kw, hgo
         ret==0?json_sprintf("Snap deactivated"):json_string(gobj_log_last_message()),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -3264,7 +3196,6 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj s
                 json_sprintf("File '%s' already exists. Use overwrite option", name),
                 0,
                 0,
-                "",  // msg_type
                 kw  // owned
             );
         }
@@ -3280,7 +3211,6 @@ PRIVATE json_t *cmd_export_db(hgobj gobj, const char *event, json_t *kw, hgobj s
         json_sprintf("Treedb exported %s", ret==0?"ok":"failed"),
         0,
         jn_data, // owned
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -3312,7 +3242,6 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             json_sprintf("What content64?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -3329,7 +3258,6 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             json_sprintf("Bad json in content64"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -3474,7 +3402,6 @@ PRIVATE json_t *cmd_import_db(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         0,
         0,
         jn_data,
-        "",  // msg_type
         kw  // owned
     );
 }

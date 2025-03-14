@@ -295,7 +295,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",
         kw  // owned
     );
 }
@@ -314,7 +313,6 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
             json_sprintf("you must PAUSE the yuno before executing this command."),
             0,
             0,
-            "",
             kw  // owned
         );
     }
@@ -329,7 +327,6 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
             json_sprintf("Please, specify some from-rowid."),
             0,
             0,
-            "",
             kw  // owned
         );
     }
@@ -362,7 +359,6 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
         json_sprintf("%d messages marked as PENDING", count),
         0,
         0,
-        "",
         kw  // owned
     );
     return 0;
@@ -382,7 +378,6 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
             json_sprintf("you must PAUSE the yuno before executing this command."),
             0,
             0,
-            "",
             kw  // owned
         );
     }
@@ -397,7 +392,6 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
             json_sprintf("Please, specify some from-rowid."),
             0,
             0,
-            "",
             kw  // owned
         );
     }
@@ -430,7 +424,6 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
         json_sprintf("%d messages marked as NOT-PENDING", count),
         0,
         0,
-        "",
         kw  // owned
     );
     return 0;

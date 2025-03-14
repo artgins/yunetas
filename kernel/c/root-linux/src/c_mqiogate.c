@@ -255,7 +255,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",
         kw  // owned
     );
 }
@@ -292,7 +291,6 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0,
         0,
         jn_resp,
-        "",
         kw  // owned
     );
 }

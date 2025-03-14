@@ -227,7 +227,6 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     hgobj gobj,
     json_t *kw_request,     // owned, kw request, used to get ONLY __md_iev__
     json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message
-    const char *msg_type,
     BOOL reverse_dst
 );
 
@@ -237,7 +236,6 @@ PUBLIC json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
     json_t *jn_comment, // owned
     json_t *jn_schema,  // owned
     json_t *jn_data,    // owned
-    const char *msg_type,
     json_t *kw_request  // owned, used to get ONLY __md_iev__.
 );
 
@@ -247,7 +245,6 @@ PUBLIC json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev_build_
     json_t *jn_comment, // owned
     json_t *jn_schema,  // owned
     json_t *jn_data,    // owned
-    const char *msg_type,
     json_t *kw_request  // owned, used to get ONLY __md_iev__.
 );
 

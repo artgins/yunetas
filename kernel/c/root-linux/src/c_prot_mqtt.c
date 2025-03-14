@@ -999,7 +999,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",
         kw  // owned
     );
 }
@@ -1019,7 +1018,6 @@ PRIVATE json_t *cmd_list_topics(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         jn_resp,
         0,
         0,
-        "",
         kw  // owned
     );
 }
@@ -1039,7 +1037,6 @@ PRIVATE json_t *cmd_list_clients(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         jn_resp,
         0,
         0,
-        "",
         kw  // owned
     );
 }
@@ -1059,7 +1056,6 @@ PRIVATE json_t *cmd_list_users(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         jn_resp,
         0,
         0,
-        "",
         kw  // owned
     );
 }
@@ -1080,7 +1076,6 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What username?"),
             0,
             0,
-            "",
             kw  // owned
         );
     }
@@ -1090,7 +1085,6 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What password?"),
             0,
             0,
-            "",
             kw  // owned
         );
     }
@@ -1109,7 +1103,6 @@ PRIVATE json_t *cmd_create_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         jn_resp,
         0,
         0,
-        "",
         kw  // owned
     );
 }

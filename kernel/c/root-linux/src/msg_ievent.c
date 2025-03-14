@@ -396,7 +396,6 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     hgobj gobj,
     json_t *kw_request,     // owned, kw request, used to get ONLY __md_iev__.
     json_t *kw_response,    // like owned, is returned!, created if null, the body of answer message.
-    const char *msg_type,
     BOOL reverse_dst
 ) {
     if(!kw_response) {
@@ -411,8 +410,6 @@ PUBLIC json_t *msg_iev_set_back_metadata(
 
     json_t *__md_iev_dst__ = json_deep_copy(__md_iev_src__);
     json_object_set_new(kw_response, "__md_iev__", __md_iev_dst__);
-
-    msg_iev_set_msg_type(gobj, kw_response, msg_type);
 
     time_t t;
     time(&t);
@@ -446,11 +443,10 @@ PUBLIC json_t *msg_iev_build_response( // OLD msg_iev_build_webix()
     json_t *jn_comment, // owned
     json_t *jn_schema,  // owned
     json_t *jn_data,    // owned
-    const char *msg_type,
     json_t *kw_request  // owned, used to get ONLY __md_iev__.
 ) {
     json_t *jn_response = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
-    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_response, msg_type, true);
+    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_response, true);
     return jn_answer;
 }
 
@@ -463,11 +459,10 @@ PUBLIC json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev_build_
     json_t *jn_comment, // owned
     json_t *jn_schema,  // owned
     json_t *jn_data,    // owned
-    const char *msg_type,
     json_t *kw_request  // owned, used to get ONLY __md_iev__.
 ) {
     json_t *jn_response = build_command_response(gobj, result, jn_comment, jn_schema, jn_data);
-    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_response, msg_type, false);
+    json_t *jn_answer = msg_iev_set_back_metadata(gobj, kw_request, jn_response, false);
     return jn_answer;
 }
 

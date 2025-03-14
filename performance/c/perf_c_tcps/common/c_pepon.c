@@ -219,7 +219,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -237,7 +236,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }

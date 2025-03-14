@@ -389,7 +389,6 @@ PRIVATE json_t *mt_treedbs(
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -423,7 +422,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -441,7 +439,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         jn_resp,
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -468,7 +465,6 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -483,7 +479,6 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What treedb_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -494,7 +489,6 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("What filename_mask?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -515,7 +509,6 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("treedb_schema not found: '%s'", treedb_name),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -570,7 +563,6 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
             json_sprintf("Internal error, tranger client NULL"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -605,7 +597,6 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         json_sprintf("%s", gobj_client_node?"Treedb opened!":gobj_log_last_message()),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -628,7 +619,6 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -643,7 +633,6 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("What treedb_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -659,7 +648,6 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("Treedb_name not found: '%s'", treedb_name),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -677,7 +665,6 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_sprintf("Treedb closed!"),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -701,7 +688,6 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -716,7 +702,6 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
             json_sprintf("What treedb_name?"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -727,7 +712,6 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
             json_sprintf("This command must be use with force"),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -739,7 +723,6 @@ PRIVATE json_t *cmd_delete_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj
         json_sprintf("%s", ret<0?gobj_log_last_message():"Treedb deleted!"),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -767,7 +750,6 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -780,7 +762,6 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("Treedb_name not found: '%s'", treedb_name),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -804,7 +785,6 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         topic?json_sprintf("Topic created!"):json_sprintf("Cannot create new topic"),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }
@@ -828,7 +808,6 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("No permission to '%s'", permission),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -841,7 +820,6 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf("Treedb_name not found: '%s'", treedb_name),
             0,
             0,
-            "",  // msg_type
             kw  // owned
         );
     }
@@ -857,7 +835,6 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         ret<0?json_sprintf("Cannot delete topic"):json_sprintf("Topic deleted!"),
         0,
         0,
-        "",  // msg_type
         kw  // owned
     );
 }

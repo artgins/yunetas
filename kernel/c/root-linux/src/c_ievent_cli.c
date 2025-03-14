@@ -567,6 +567,8 @@ PRIVATE int send_identity_card(hgobj gobj)
         jn_ievent_id   // owned
     );
 
+    msg_iev_set_msg_type(gobj, kw_identity_card, "__identity__");
+
     set_timeout(priv->gobj_timer, gobj_read_integer_attr(gobj, "timeout_idack"));
 
     return send_static_iev(
@@ -1132,7 +1134,6 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     gobj,
                     kw,             // owned, kw request, used to extract ONLY __md_iev__
                     kw_response,    // like owned, is returned!, created if null, the body of answer message
-                    "",  // msg_type
                     true            // reverse_dst
                 );
 
@@ -1158,7 +1159,6 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj,
             kw,             // owned, kw request, used to extract ONLY __md_iev__
             kw_response,    // like owned, is returned!, created if null, the body of answer message
-            "",  // msg_type
             true            // reverse_dst
         );
 
@@ -1203,7 +1203,6 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     gobj,
                     kw,             // owned, kw request, used to extract ONLY __md_iev__
                     kw_response,    // like owned, is returned!, created if null, the body of answer message
-                    "",  // msg_type
                     true            // reverse_dst
                 );
 
@@ -1229,7 +1228,6 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj,
             kw,             // owned, kw request, used to extract ONLY __md_iev__
             kw_response,    // like owned, is returned!, created if null, the body of answer message
-            "",  // msg_type
             true            // reverse_dst
         );
 
@@ -1258,7 +1256,6 @@ PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj,
         kw,             // owned, kw request, used to extract ONLY __md_iev__
         jn_result,      // like owned, is returned!, created if null, the body of answer message
-        "",             // msg_type
         true            // reverse_dst
     );
 
@@ -1283,7 +1280,6 @@ PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         gobj,
         kw,
         jn_result,
-        "",  // msg_type
         true            // reverse_dst
     );
 
