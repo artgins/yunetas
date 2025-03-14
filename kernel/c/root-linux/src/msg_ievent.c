@@ -411,15 +411,11 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     json_t *__md_iev_dst__ = json_deep_copy(__md_iev_src__);
     json_object_set_new(kw_response, "__md_iev__", __md_iev_dst__);
 
-    time_t t;
-    time(&t);
-
-    json_t *jn_metadata = json_pack("{s:s, s:s, s:s, s:s, s:I}",
+    json_t *jn_metadata = json_pack("{s:s, s:s, s:s, s:s}",
         "realm_name", gobj_yuno_realm_name(),
         "yuno_role", gobj_yuno_role(),
         "yuno_name", gobj_name(gobj_yuno()),
-        "yuno_id", gobj_yuno_id(),
-        "__t__", t
+        "yuno_id", gobj_yuno_id()
     );
     json_object_set_new(kw_response, "__md_yuno__", jn_metadata);
 
