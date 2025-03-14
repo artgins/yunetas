@@ -1110,15 +1110,10 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
          *   Protect: only public events
          */
          if(!gobj_has_output_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
-            char temp[256];
-            snprintf(temp, sizeof(temp),
-                "SUBSCRIBING event ignored, not in output_event_list or not PUBLIC event, check service '%s'",
-                iev_dst_service
-            );
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", temp,
+                "msg",          "%s", "SUBSCRIBING event ignored, not in output_event_list or not PUBLIC event",
                 "service",      "%s", iev_dst_service,
                 "gobj_service", "%s", gobj_short_name(gobj_service),
                 "event",        "%s", iev_event,
