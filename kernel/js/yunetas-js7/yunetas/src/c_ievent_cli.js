@@ -43,7 +43,8 @@ import {
     gobj_find_service,
     gobj_change_state,
     gobj_start,
-    gobj_stop, gobj_read_bool_attr,
+    gobj_stop,
+    gobj_read_bool_attr,
 
 } from "./gobj.js";
 
@@ -269,7 +270,9 @@ function mt_stats(gobj, stats, kw, src)
         jn_ievent_id
     );
 
-    // kw["__stats__"] = stats; // TODO deprecated
+    kw["__stats__"] = stats; // TODO deprecated
+
+    msg_iev_write_key(gobj, kw, "__stats__");
 
     msg_iev_push_stack(
         gobj,
@@ -317,7 +320,7 @@ function mt_command(gobj, command, kw, src)
         jn_ievent_id
     );
 
-    // kw["__command__"] = command; // TODO deprecated
+    kw["__command__"] = command; // TODO deprecated
 
     msg_iev_push_stack(
         gobj,
