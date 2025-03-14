@@ -2632,10 +2632,33 @@ function gobj_find_child(gobj, jn_filter)
 }
 
 /************************************************************
- *  Returns the first matched child searching in the tree.
- *  TODO not exist in C
+ *  Return child's list matched with kw attributes
  ************************************************************/
-function gobj_find_child_by_tree(gobj, jn_filter)
+function gobj_match_childs(gobj, jn_filter)
+{
+    if(gobj_is_destroying(gobj)) {
+        log_error("gobj NULL or DESTROYED");
+        return null;
+    }
+
+    jn_filter = jn_filter || {};
+    let childs = [];
+
+    const dl_childs = gobj.dl_childs;
+    for(let i=0; i < dl_childs.length; i++) {
+        const child = dl_childs[i];
+        if(gobj_match_gobj(child, jn_filter)) {
+            childs.push(child);
+        }
+    }
+
+    return childs;
+}
+
+/************************************************************
+ *  Returns the matched childs searching in the tree.
+ ************************************************************/
+function gobj_match_childs_tree(gobj, jn_filter)
 {
     jn_filter = jn_filter || {};
 
@@ -2653,10 +2676,7 @@ function gobj_find_child_by_tree(gobj, jn_filter)
 
     let list = [];
     _walk_child_tree(list, gobj);
-    if(list.length > 0) {
-        return list[0];
-    }
-    return null;
+    return list;
 }
 
 /***************************************************************************
@@ -4429,7 +4449,8 @@ export {
     gobj_find_gobj,
     gobj_match_gobj,
     gobj_find_child,
-    gobj_find_child_by_tree,
+    gobj_match_childs,
+    gobj_match_childs_tree,
     gobj_search_path,
     gobj_has_attr,
     gobj_read_attr,
