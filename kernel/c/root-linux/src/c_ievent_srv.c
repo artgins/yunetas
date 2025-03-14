@@ -223,8 +223,10 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        ""
+        kw_get_str(gobj, kw, "__service__", 0, 0)
     );
+    json_object_del(kw, "__service__");
+
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
@@ -243,7 +245,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     send_static_iev(gobj, EV_MT_STATS, kw, src);
 
-    return 0;   // return 0 on asynchronous response.
+    return NULL;   // return NULL on asynchronous response.
 }
 
 /***************************************************************************
@@ -273,8 +275,10 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     json_t *jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        ""
+        kw_get_str(gobj, kw, "__service__", 0, 0)
     );
+    json_object_del(kw, "__service__");
+
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
@@ -293,7 +297,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
 
     send_static_iev(gobj, EV_MT_COMMAND, kw, src);
 
-    return 0;   // return 0 on asynchronous response.
+    return NULL;   // return NULL on asynchronous response.
 }
 
 /***************************************************************************
@@ -328,8 +332,10 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
         json_t *jn_ievent_id = build_ievent_request(
             gobj,
             gobj_name(src),
-            ""
+            kw_get_str(gobj, kw, "__service__", 0, 0)
         );
+        json_object_del(kw, "__service__");
+
         msg_iev_push_stack(
             gobj,
             kw,         // not owned

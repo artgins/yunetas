@@ -258,8 +258,10 @@ function mt_stats(gobj, stats, kw, src)
     let jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(gobj, kw, "service", null, 0)
+        kw_get_str(gobj, kw, "__service__", null, 0)
     );
+    json_object_del(kw, "__service__");
+
     msg_iev_push_stack(
         gobj,
         kw,
@@ -302,8 +304,10 @@ function mt_command(gobj, command, kw, src)
     let jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(gobj, kw, "service", null, 0)
+        kw_get_str(gobj, kw, "__service__", null, 0)
     );
+    json_object_del(kw, "__service__");
+
     msg_iev_push_stack(
         gobj,
         kw,
