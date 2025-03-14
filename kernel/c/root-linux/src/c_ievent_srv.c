@@ -327,11 +327,11 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*
      *      __MESSAGE__
      */
-    // json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
-    // if(!jn_request) {
+    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
+    if(!jn_request) {
         /*
-         *  Pon el ievent si no viene con él,
-         *  si lo trae es que será alguna redirección
+         *  Put the ievent if it doesn't come with it,
+         *  if it does come with it, it's because it will be a response
          */
         json_t *jn_ievent_id = build_ievent_request(
             gobj,
@@ -355,7 +355,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
             "__message__",
             json_string(event)   // owned
         );
-    // }
+    }
 
     msg_iev_set_msg_type(gobj, kw, "__message__");
 
