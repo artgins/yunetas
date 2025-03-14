@@ -264,12 +264,15 @@ PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
 );
 
 /*
-    msg_type_list = [ // suggesting types
+    msg_type_list = [
         "__command__",          // Used in commands
         "__stats__",            // Used in stats
-        "__publishing__",       // Used in subscribing events
-        "__subscribing__",      // Used in unsubscribing events
-        "__unsubscribing__",
+        "__subscribing__",      // Used in subscribing events
+        "__unsubscribing__",    // Used in unsubscribing events
+        "__identity__",         // Used in identity card
+        "__message__",          // Used in messages
+
+        "__publishing__",
         "__query__",
         "__answer__",
         "__request__",

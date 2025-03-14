@@ -278,6 +278,8 @@ function mt_stats(gobj, stats, kw, src)
         stats
     );
 
+    msg_iev_set_msg_type(gobj, kw, "__stats__");
+
     send_static_iev(gobj, "EV_MT_STATS", kw, src);
 
     return null;   // return null on asynchronous response.
@@ -323,6 +325,8 @@ function mt_command(gobj, command, kw, src)
         "__command__",
         command   // owned
     );
+
+    msg_iev_set_msg_type(gobj, kw, "__command__");
 
     send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
 
@@ -377,6 +381,8 @@ function mt_inject_event(gobj, event, kw, src)
         );
 
     // }
+
+    msg_iev_set_msg_type(gobj, kw, "__message__");
 
     return send_static_iev(gobj, event, kw, src);
 }
@@ -704,6 +710,8 @@ function send_identity_card(gobj)
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id   // owned
     );
+
+    msg_iev_set_msg_type(gobj, kw, "__identity__");
 
     set_timeout(priv.gobj_timer, gobj_read_integer_attr(gobj, "timeout_idack"));
 

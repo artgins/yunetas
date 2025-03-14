@@ -1977,12 +1977,15 @@ function msg_iev_get_stack(gobj, kw, stack, verbose)
 
 /************************************************************
  *
-    msg_type_list = [ // suggesting types
-        "__command__",
-        "__stats__",
+    msg_type_list = [
+        "__command__",          // Used in commands
+        "__stats__",            // Used in stats
+        "__subscribing__",      // Used in subscribing events
+        "__unsubscribing__",    // Used in unsubscribing events
+        "__identity__",         // Used in identity card
+        "__message__",          // Used in messages
+
         "__publishing__",
-        "__subscribing__",
-        "__unsubscribing__",
         "__query__",
         "__answer__",
         "__request__",

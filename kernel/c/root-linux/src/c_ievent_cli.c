@@ -263,6 +263,8 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         json_string(stats)   // owned
     );
 
+    msg_iev_set_msg_type(gobj, kw, "__stats__");
+
     send_static_iev(gobj, EV_MT_STATS, kw, src);
 
     return NULL;   // return NULL on asynchronous response.
@@ -314,6 +316,8 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         "__command__",
         json_string(command)   // owned
     );
+
+    msg_iev_set_msg_type(gobj, kw, "__command__");
 
     send_static_iev(gobj, EV_MT_COMMAND, kw, src);
 
@@ -372,6 +376,8 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             json_string(event)   // owned
         );
     // }
+
+    msg_iev_set_msg_type(gobj, kw, "__message__");
 
     return send_static_iev(gobj, event, kw, src);
 }
