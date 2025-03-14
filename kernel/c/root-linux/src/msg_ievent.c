@@ -411,6 +411,7 @@ PUBLIC json_t *msg_iev_set_back_metadata(
 
     json_t *__md_iev_dst__ = json_deep_copy(__md_iev_src__);
     json_object_set_new(kw_response, "__md_iev__", __md_iev_dst__);
+
     msg_iev_set_msg_type(gobj, kw_response, msg_type);
 
     time_t t;
