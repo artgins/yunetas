@@ -343,29 +343,35 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     /*
      *      __MESSAGE__
      */
-    json_t *jn_ievent_id = build_ievent_request(
-        gobj,
-        gobj_name(src),
-        kw_get_str(gobj, kw, "__service__", 0, 0)
-    );
-    json_object_del(kw, "__service__");
+    // json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
+    // if(!jn_request) {
+        /*
+         * Put the ievent if it doesn't come with it,
+         * if it does come with it, it's because it will be some kind of response/redirect
+         */
+        json_t *jn_ievent_id = build_ievent_request(
+            gobj,
+            gobj_name(src),
+            kw_get_str(gobj, kw, "__service__", 0, 0)
+        );
+        json_object_del(kw, "__service__");
 
-    msg_iev_push_stack(
-        gobj,
-        kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id   // owned
-    );
+        msg_iev_push_stack(
+            gobj,
+            kw,         // not owned
+            IEVENT_MESSAGE_AREA_ID,
+            jn_ievent_id   // owned
+        );
 
-    // json_object_set_new(kw, "__message__", json_string(event)); // TODO deprecated
+        // json_object_set_new(kw, "__message__", json_string(event)); // TODO deprecated
 
-    msg_iev_push_stack(
-        gobj,
-        kw,         // not owned
-        "__message__",
-        json_string(event)   // owned
-    );
-
+        msg_iev_push_stack(
+            gobj,
+            kw,         // not owned
+            "__message__",
+            json_string(event)   // owned
+        );
+    // }
     return send_static_iev(gobj, event, kw, src);
 }
 

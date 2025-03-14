@@ -343,8 +343,8 @@ function mt_inject_event(gobj, event, kw, src)
     /*
      *      __MESSAGE__
      */
-    let jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID);
-    if(!jn_request) {
+    // let jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID);
+    // if(!jn_request) {
         /*
          * Put the ievent if it doesn't come with it,
          * if it does come with it, it's because it will be some kind of response/redirect
@@ -372,7 +372,7 @@ function mt_inject_event(gobj, event, kw, src)
             event
         );
 
-    }
+    // }
 
     return send_static_iev(gobj, event, kw, src);
 }
