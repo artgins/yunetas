@@ -234,7 +234,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         jn_ievent_id   // owned
     );
 
-    json_object_set_new(kw, "__stats__", json_string(stats)); // TODO deprecated
+    // json_object_set_new(kw, "__stats__", json_string(stats)); // TODO deprecated
 
     msg_iev_push_stack(
         gobj,
@@ -288,7 +288,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         jn_ievent_id   // owned
     );
 
-    json_object_set_new(kw, "__command__", json_string(command)); // TODO deprecated
+    // json_object_set_new(kw, "__command__", json_string(command)); // TODO deprecated
 
     msg_iev_push_stack(
         gobj,
