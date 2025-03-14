@@ -7145,19 +7145,25 @@ PRIVATE BOOL _match_subscription(
 
     BOOL match = true;
 
-    gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
-    if(publisher != publisher_) {
-        match = false;
+    if(publisher) {
+        gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
+        if(publisher != publisher_) {
+            match = false;
+        }
     }
 
-    gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
-    if(subscriber != subscriber_) {
-        match = false;
+    if(subscriber) {
+        gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
+        if(subscriber != subscriber_) {
+            match = false;
+        }
     }
 
-    gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
-    if(event != event_) {
-        match = false;
+    if(event) {
+        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
+        if(event != event_) {
+            match = false;
+        }
     }
 
     if(__config__) {
