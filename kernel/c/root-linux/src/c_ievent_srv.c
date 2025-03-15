@@ -230,22 +230,22 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id   // owned
-    );
-
-    json_object_set_new(kw, "__stats__", json_string(stats)); // TODO deprecated, used by v6
-    msg_iev_set_msg_type(gobj, kw, "__stats__");
-
-    msg_iev_push_stack(
-        gobj,
-        kw,         // not owned
         "__stats__",
         json_pack("{s:s, s:O}",   // owned
             "stats", stats,
             "kw", kw
         )
     );
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id   // owned
+    );
+
+    json_object_set_new(kw, "__stats__", json_string(stats)); // TODO deprecated, used by v6
+    msg_iev_set_msg_type(gobj, kw, "__stats__");
 
     send_static_iev(gobj, EV_MT_STATS, kw, src);
 
@@ -286,22 +286,22 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id   // owned
-    );
-
-    json_object_set_new(kw, "__command__", json_string(command)); // TODO deprecated, used by v6
-    msg_iev_set_msg_type(gobj, kw, "__command__");
-
-    msg_iev_push_stack(
-        gobj,
-        kw,         // not owned
         "__command__",
         json_pack("{s:s, s:O}",   // owned
             "command", command,
             "kw", kw
         )
     );
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id   // owned
+    );
+
+    json_object_set_new(kw, "__command__", json_string(command)); // TODO deprecated, used by v6
+    msg_iev_set_msg_type(gobj, kw, "__command__");
 
     send_static_iev(gobj, EV_MT_COMMAND, kw, src);
 

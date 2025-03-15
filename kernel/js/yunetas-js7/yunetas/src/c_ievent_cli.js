@@ -267,22 +267,22 @@ function mt_stats(gobj, stats, kw, src)
     msg_iev_push_stack(
         gobj,
         kw,
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id
-    );
-
-    // kw["__stats__"] = stats; // TODO deprecated, used by v6
-    msg_iev_set_msg_type(gobj, kw, "__stats__");
-
-    msg_iev_push_stack(
-        gobj,
-        kw,
         "__stats__",
         {
             "stats": stats,
             "kw": kw
         }
     );
+
+    msg_iev_push_stack(
+        gobj,
+        kw,
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id
+    );
+
+    // kw["__stats__"] = stats; // TODO deprecated, used by v6
+    msg_iev_set_msg_type(gobj, kw, "__stats__");
 
     send_static_iev(gobj, "EV_MT_STATS", kw, src);
 
@@ -316,16 +316,6 @@ function mt_command(gobj, command, kw, src)
 
     msg_iev_push_stack(
         gobj,
-        kw,
-        IEVENT_MESSAGE_AREA_ID,
-        jn_ievent_id
-    );
-
-    // kw["__command__"] = command; // TODO deprecated, used by v6
-    msg_iev_set_msg_type(gobj, kw, "__command__");
-
-    msg_iev_push_stack(
-        gobj,
         kw,         // not owned
         "__command__",
         {
@@ -333,6 +323,16 @@ function mt_command(gobj, command, kw, src)
             "kw": kw
         }
     );
+
+    msg_iev_push_stack(
+        gobj,
+        kw,
+        IEVENT_MESSAGE_AREA_ID,
+        jn_ievent_id
+    );
+
+    // kw["__command__"] = command; // TODO deprecated, used by v6
+    msg_iev_set_msg_type(gobj, kw, "__command__");
 
     send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
 
@@ -373,15 +373,15 @@ function mt_inject_event(gobj, event, kw, src)
         msg_iev_push_stack(
             gobj,
             kw,
-            IEVENT_MESSAGE_AREA_ID,
-            jn_ievent_id
+            "__message__",
+            event
         );
 
         msg_iev_push_stack(
             gobj,
             kw,
-            "__message__",
-            event
+            IEVENT_MESSAGE_AREA_ID,
+            jn_ievent_id
         );
 
     // }
