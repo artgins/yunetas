@@ -1379,7 +1379,12 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*------------------------------------*
      *   Dispatch stats
      *------------------------------------*/
-    const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0);
+    const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0); // v6
+    if(!stats) {
+        // v7
+        json_t *__stats__ = msg_iev_get_stack(gobj, kw, "__stats__", true);
+        stats = kw_get_str(gobj, __stats__, "stats", "", KW_REQUIRED);
+    }
 
     kw_set_subdict_value(
         gobj,
@@ -1511,7 +1516,12 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*------------------------------------*
      *   Dispatch command
      *------------------------------------*/
-    const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
+    const char *command = kw_get_str(gobj, kw, "__command__", 0, 0); // v6
+    if(!command) {
+        // v7
+        json_t *__command__ = msg_iev_get_stack(gobj, kw, "__command__", true);
+        command = kw_get_str(gobj, __command__, "command", "", KW_REQUIRED);
+    }
 
     kw_set_subdict_value(
         gobj,
