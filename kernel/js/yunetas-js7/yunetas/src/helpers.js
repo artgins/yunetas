@@ -779,6 +779,10 @@ function kw_has_key(kw, key)
  ************************************************************/
 function kw_find_path(gobj, kw, path, verbose)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(!is_object(kw)) {
         // silence
         if(verbose) {
@@ -827,6 +831,10 @@ function strrchr_split(str, char)
  ************************************************************/
 function kw_delete(gobj, kw, path)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     let [path_, k] = strrchr_split(path, '`');
     if(!empty_string(k)) {
         let v = kw_find_path(gobj, kw, path_, true);
@@ -842,6 +850,9 @@ function kw_delete(gobj, kw, path)
  ************************************************************/
 function kw_get_bool(gobj, kw, path, default_value, flag)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
     if(kw !== Object(kw)) {
         return Boolean(default_value);
     }
@@ -874,6 +885,10 @@ function kw_get_bool(gobj, kw, path, default_value, flag)
  ************************************************************/
 function kw_get_int(gobj, kw, path, default_value, flag)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(kw !== Object(kw)) {
         return parseInt(default_value);
     }
@@ -916,6 +931,10 @@ function kw_get_int(gobj, kw, path, default_value, flag)
  ************************************************************/
 function kw_get_real(gobj, kw, path, default_value, flag)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(kw !== Object(kw)) {
         return Number(default_value);
     }
@@ -958,6 +977,10 @@ function kw_get_real(gobj, kw, path, default_value, flag)
  ************************************************************/
 function kw_get_str(gobj, kw, path, default_value, flag)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(kw !== Object(kw)) {
         return String(default_value);
     }
@@ -1000,6 +1023,10 @@ function kw_get_str(gobj, kw, path, default_value, flag)
  ************************************************************/
 function kw_get_pointer(gobj, kw, path, default_value, flag)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(kw !== Object(kw)) {
         return default_value;
     }
@@ -1034,6 +1061,10 @@ function kw_get_pointer(gobj, kw, path, default_value, flag)
  ************************************************************/
 function kw_get_dict(gobj, kw, path, default_value, flag)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(kw !== Object(kw)) {
         return Object(default_value);
     }
@@ -1076,6 +1107,10 @@ function kw_get_dict(gobj, kw, path, default_value, flag)
  ************************************************************/
 function kw_get_dict_value(gobj, kw, path, default_value, flag)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(kw !== Object(kw)) {
         return default_value;
     }
@@ -1110,6 +1145,10 @@ function kw_get_dict_value(gobj, kw, path, default_value, flag)
  ************************************************************/
 function kw_get_list(gobj, kw, path, default_value, flag)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(kw !== Object(kw)) {
         return Array(default_value);
     }
@@ -1152,6 +1191,10 @@ function kw_get_list(gobj, kw, path, default_value, flag)
  ************************************************************/
 function kw_set_dict_value(gobj, kw, path, value)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(!is_object(kw)) {
         log_error("kw is not an object");
         return -1;
@@ -1186,6 +1229,10 @@ function kw_set_dict_value(gobj, kw, path, value)
  ************************************************************/
 function kw_set_subdict_value(gobj, kw, path, key, value)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
+
     if(!is_object(kw)) {
         log_error("kw is not an object");
         return -1;
@@ -1255,6 +1302,9 @@ function kw_find_json_in_list(
  *************************************************************/
 function kw_select(gobj, kw, jn_filter, match_fn)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
     if(!kw) {
         return null;
     }
@@ -1289,6 +1339,9 @@ function kw_select(gobj, kw, jn_filter, match_fn)
  *************************************************************/
 function kw_collect(gobj, kw, jn_filter, match_fn)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
     if(!kw) {
         return null;
     }
@@ -1328,6 +1381,9 @@ function kw_collect(gobj, kw, jn_filter, match_fn)
  *************************************************************/
 function kw_clone_by_keys(gobj, kw, keys, verbose)    // old filter_dict
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
     let kw_clone = {};
     if(is_string(keys) && !empty_string(keys)) {
         let key = keys;
@@ -1545,6 +1601,9 @@ function kwid_match_id(ids, id)
  *************************************************************/
 function kwid_collect(gobj, kw, ids, jn_filter, match_fn)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
     if(!kw) {
         return null;
     }
@@ -1604,6 +1663,9 @@ function kwid_collect(gobj, kw, ids, jn_filter, match_fn)
  *************************************************************/
 function kwid_new_dict(gobj, kw, path)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
     let new_dict = {};
     if(!empty_string(path)) {
         kw = kw_find_path(gobj, kw, path);
@@ -1632,6 +1694,9 @@ function kwid_new_dict(gobj, kw, path)
  *************************************************************/
 function kwid_find_one_record(gobj, kw, ids, jn_filter, match_fn)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
     let list = kwid_collect(gobj, kw, ids, jn_filter, match_fn);
     if(list.length > 0) {
         return list[0];
@@ -1669,6 +1734,9 @@ function kwid_find_one_record(gobj, kw, ids, jn_filter, match_fn)
 *************************************************************/
 function kwid_get_ids(gobj, ids)
 {
+    if(gobj && !is_gobj(gobj)) {
+        log_error(`GObj bad instanceof`);
+    }
     if(!ids) {
         return [];
     }

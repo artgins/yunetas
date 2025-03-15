@@ -1079,7 +1079,7 @@ function ac_on_message(gobj, event, kw, src)
     /*------------------------------------*
      *   Analyze inter_event
      *------------------------------------*/
-    let msg_type = msg_iev_get_msg_type(iev_kw);
+    let msg_type = msg_iev_get_msg_type(gobj, iev_kw);
 
     /*----------------------------------------*
      *  Get inter-event routing information.

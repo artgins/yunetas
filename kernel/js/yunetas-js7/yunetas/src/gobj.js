@@ -41,6 +41,7 @@ import {
     log_debug,
     json_array_append_new,
     parseBoolean,
+    is_gobj,
 } from "./helpers.js";
 
 import {sprintf} from "./sprintf.js";
@@ -2141,10 +2142,7 @@ function gobj_yuno_id()
  ***************************************************************************/
 function gobj_name(gobj)
 {
-    if(gobj == null) {
-        return null;
-    }
-    if(!(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj bad type`);
         return null;
     }
@@ -2157,7 +2155,7 @@ function gobj_name(gobj)
  ***************************************************************************/
 function gobj_gclass_name(gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
@@ -2170,10 +2168,7 @@ function gobj_gclass_name(gobj)
  ************************************************************/
 function gobj_short_name(gobj)
 {
-    if(gobj == null) {
-        return null;
-    }
-    if(!(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj bad type`);
         return null;
     }
@@ -2186,7 +2181,7 @@ function gobj_short_name(gobj)
  ************************************************************/
 function gobj_full_name(gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
@@ -2206,7 +2201,7 @@ function gobj_full_name(gobj)
  ************************************************************/
 function gobj_parent(gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
@@ -2219,7 +2214,7 @@ function gobj_parent(gobj)
  ************************************************************/
 function gobj_is_volatil(gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
@@ -2235,7 +2230,7 @@ function gobj_is_volatil(gobj)
  ***************************************************************************/
 function gobj_is_pure_child(gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
@@ -2251,10 +2246,7 @@ function gobj_is_pure_child(gobj)
  ************************************************************/
 function gobj_is_destroying(gobj)
 {
-    if(!gobj) {
-        return true;
-    }
-    if(!(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         return true;
     }
 
@@ -2269,7 +2261,7 @@ function gobj_is_destroying(gobj)
  ************************************************************/
 function gobj_bottom_gobj(gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
@@ -2281,7 +2273,7 @@ function gobj_bottom_gobj(gobj)
  ************************************************************/
 function gobj_set_bottom_gobj(gobj, bottom_gobj)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
@@ -2298,7 +2290,7 @@ function gobj_set_bottom_gobj(gobj, bottom_gobj)
  ***************************************************************************/
 function gobj_attr_desc(gobj, attr, verbose)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
@@ -2551,7 +2543,7 @@ function gobj_find_gobj(gobj, path)
  ***************************************************************************/
 function gobj_match_gobj(gobj, jn_filter)
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return false;
     }
@@ -3150,7 +3142,7 @@ function gobj_event_type( // silent function
     include_system_events
 )
 {
-    if(!gobj || !(gobj instanceof GObj)) {
+    if(!is_gobj(gobj)) {
         log_error(`gobj NULL of bad type`);
         return null;
     }
