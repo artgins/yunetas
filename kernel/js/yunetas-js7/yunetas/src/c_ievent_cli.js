@@ -64,7 +64,7 @@ import {
     node_uuid,
     msg_iev_set_msg_type,
     msg_iev_get_msg_type,
-    trace_json,
+    trace_json, json_deep_copy,
 } from "./helpers.js";
 
 import {
@@ -260,13 +260,14 @@ function mt_stats(gobj, stats, kw, src)
     let jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(gobj, kw, "__service__", null, 0)
+        kw_get_str(gobj, kw, "service", null, 0)
     );
-    json_object_del(kw, "__service__");
+
+    let kw_request = json_deep_copy(kw);
 
     msg_iev_push_stack(
         gobj,
-        kw,
+        kw_request,
         "__stats__",
         {
             "stats": stats,
@@ -276,15 +277,15 @@ function mt_stats(gobj, stats, kw, src)
 
     msg_iev_push_stack(
         gobj,
-        kw,
+        kw_request,
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id
     );
 
     // kw["__stats__"] = stats; // TODO deprecated, used by v6
-    msg_iev_set_msg_type(gobj, kw, "__stats__");
+    msg_iev_set_msg_type(gobj, kw_request, "__stats__");
 
-    send_static_iev(gobj, "EV_MT_STATS", kw, src);
+    send_static_iev(gobj, "EV_MT_STATS", kw_request, src);
 
     return null;   // return null on asynchronous response.
 }
@@ -310,38 +311,39 @@ function mt_command(gobj, command, kw, src)
     let jn_ievent_id = build_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(gobj, kw, "__service__", null, 0)
+        kw_get_str(gobj, kw, "service", null, 0)
     );
-    json_object_del(kw, "__service__");
+
+    let kw_request = json_deep_copy(kw);
 
     msg_iev_push_stack(
         gobj,
-        kw,         // not owned
+        kw_request,         // not owned
         "__command__",
         {
-            "stats": command,
+            "command": command,
             "kw": kw
         }
     );
 
     msg_iev_push_stack(
         gobj,
-        kw,
+        kw_request,
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id
     );
 
     // kw["__command__"] = command; // TODO deprecated, used by v6
-    msg_iev_set_msg_type(gobj, kw, "__command__");
+    msg_iev_set_msg_type(gobj, kw_request, "__command__");
 
-    send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
+    send_static_iev(gobj, "EV_MT_COMMAND", kw_request, src);
 
     return null;   // return null on asynchronous response.
 }
 
 /***************************************************************
  *          Framework Method: inject_event
- *  Send event to remote `kw.__service__` (or wanted_yuno_service)
+ *  Send event to remote `kw.service` (or wanted_yuno_service)
  ***************************************************************/
 function mt_inject_event(gobj, event, kw, src)
 {
@@ -366,9 +368,8 @@ function mt_inject_event(gobj, event, kw, src)
         let jn_ievent_id = build_ievent_request(
             gobj,
             gobj_name(src),
-            kw_get_str(gobj, kw, "__service__", 0, 0)
+            kw_get_str(gobj, kw, "service", 0, 0)
         );
-        json_object_del(kw, "__service__");
 
         msg_iev_push_stack(
             gobj,
