@@ -254,16 +254,18 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         jn_ievent_id   // owned
     );
 
-    json_object_set_new(kw, "__stats__", json_string(stats)); // TODO deprecated
+    json_object_set_new(kw, "__stats__", json_string(stats)); // TODO deprecated, used by v6
+    msg_iev_set_msg_type(gobj, kw, "__stats__");
 
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
         "__stats__",
-        json_string(stats)   // owned
+        json_pack("{s:s, s:O}",   // owned
+            "stats", stats,
+            "kw", kw
+        )
     );
-
-    msg_iev_set_msg_type(gobj, kw, "__stats__");
 
     send_static_iev(gobj, EV_MT_STATS, kw, src);
 
@@ -308,16 +310,18 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         jn_ievent_id   // owned
     );
 
-    json_object_set_new(kw, "__command__", json_string(command)); // TODO deprecated
+    json_object_set_new(kw, "__command__", json_string(command)); // TODO deprecated, used by v6
+    msg_iev_set_msg_type(gobj, kw, "__command__");
 
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
         "__command__",
-        json_string(command)   // owned
+        json_pack("{s:s, s:O}",   // owned
+            "command", command,
+            "kw", kw
+        )
     );
-
-    msg_iev_set_msg_type(gobj, kw, "__command__");
 
     send_static_iev(gobj, EV_MT_COMMAND, kw, src);
 
@@ -366,8 +370,6 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             IEVENT_MESSAGE_AREA_ID,
             jn_ievent_id   // owned
         );
-
-        // json_object_set_new(kw, "__message__", json_string(event)); // TODO deprecated
 
         msg_iev_push_stack(
             gobj,
@@ -1109,45 +1111,64 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    /*
-     *      __MESSAGE__
-     */
-    const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0);
-    const char *service = kw_get_str(gobj, kw, "service", "", 0);
+    /*----------------------------------*
+     *  Check AUTHZ
+     *----------------------------------*/
+    /*------------------------------------*
+     *   Analyze inter_event
+     *------------------------------------*/
+    /*-----------------------------------------------------------*
+     *  Get inter-event routing information.
+     *-----------------------------------------------------------*/
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
 
-    hgobj service_gobj;
-    if(empty_string(service)) {
-        service_gobj = gobj_default_service();
-    } else {
-        service_gobj = gobj_find_service(service, false);
-        if(!service_gobj) {
-            service_gobj = gobj_find_gobj(service);
-            if(!service_gobj) {
-                json_t *kw_response = build_command_response(
-                    gobj,
-                    -1,     // result
-                    json_sprintf("Service not found: '%s'", service),   // jn_comment
-                    0,      // jn_schema
-                    0       // jn_data
-                );
-                kw_response = msg_iev_set_back_metadata(
-                    gobj,
-                    kw,             // owned, kw request, used to extract ONLY __md_iev__
-                    kw_response,    // like owned, is returned!, created if null, the body of answer message
-                    true            // reverse_dst
-                );
+    /*----------------------------------------*
+     *  Check dst role^name
+     *----------------------------------------*/
+    /*----------------------------------------*
+     *  Check dst service
+     *----------------------------------------*/
+    const char *iev_dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+    hgobj gobj_service = gobj_find_service(iev_dst_service, false);
+    if(!gobj_service) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "stats ignored, service not found",
+            "service",      "%s", iev_dst_service,
+            "event",        "%s", event,
+            NULL
+        );
 
-                return send_static_iev(gobj,
-                    EV_MT_STATS_ANSWER,
-                    kw_response,
-                    src
-                );
-            }
-        }
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Service not found: '%s'", iev_dst_service),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        kw_response = msg_iev_set_back_metadata(
+            gobj,
+            kw,             // owned, kw request, used to extract ONLY __md_iev__
+            kw_response,    // like owned, is returned!, created if null, the body of answer message
+            true            // reverse_dst
+        );
+
+        return send_static_iev(gobj,
+            EV_MT_STATS_ANSWER,
+            kw_response,
+            src
+        );
     }
+
+    /*------------------------------------*
+     *   Dispatch stats
+     *------------------------------------*/
+    const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0);
+
     KW_INCREF(kw);
     json_t *kw_response = gobj_stats(
-        service_gobj,
+        gobj_service,
         stats,
         kw,
         src
@@ -1178,45 +1199,64 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    /*
-     *      __MESSAGE__
-     */
-    const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
-    const char *service = kw_get_str(gobj, kw, "service", "", 0);
+    /*----------------------------------*
+     *  Check AUTHZ
+     *----------------------------------*/
+    /*------------------------------------*
+     *   Analyze inter_event
+     *------------------------------------*/
+    /*-----------------------------------------------------------*
+     *  Get inter-event routing information.
+     *-----------------------------------------------------------*/
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
 
-    hgobj service_gobj;
-    if(empty_string(service)) {
-        service_gobj = gobj_default_service();
-    } else {
-        service_gobj = gobj_find_service(service, false);
-        if(!service_gobj) {
-            service_gobj = gobj_find_gobj(service);
-            if(!service_gobj) {
-                json_t *kw_response = build_command_response(
-                    gobj,
-                    -1,     // result
-                    json_sprintf("Service not found: '%s'", service),   // jn_comment
-                    0,      // jn_schema
-                    0       // jn_data
-                );
-                kw_response = msg_iev_set_back_metadata(
-                    gobj,
-                    kw,             // owned, kw request, used to extract ONLY __md_iev__
-                    kw_response,    // like owned, is returned!, created if null, the body of answer message
-                    true            // reverse_dst
-                );
+    /*----------------------------------------*
+     *  Check dst role^name
+     *----------------------------------------*/
+    /*----------------------------------------*
+     *  Check dst service
+     *----------------------------------------*/
+    const char *iev_dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
+    hgobj gobj_service = gobj_find_service(iev_dst_service, false);
+    if(!gobj_service) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "command ignored, service not found",
+            "service",      "%s", iev_dst_service,
+            "event",        "%s", event,
+            NULL
+        );
 
-                return send_static_iev(gobj,
-                    EV_MT_COMMAND_ANSWER,
-                    kw_response,
-                    src
-                );
-            }
-        }
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("Service not found: '%s'", iev_dst_service),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        kw_response = msg_iev_set_back_metadata(
+            gobj,
+            kw,             // owned, kw request, used to extract ONLY __md_iev__
+            kw_response,    // like owned, is returned!, created if null, the body of answer message
+            true            // reverse_dst
+        );
+
+        return send_static_iev(gobj,
+            EV_MT_COMMAND_ANSWER,
+            kw_response,
+            src
+        );
     }
+
+    /*------------------------------------*
+     *   Dispatch command
+     *------------------------------------*/
+    const char *command = kw_get_str(gobj, kw, "__command__", 0, 0);
+
     KW_INCREF(kw);
     json_t *kw_response = gobj_command(
-        service_gobj,
+        gobj_service,
         command,
         kw,
         src

@@ -271,18 +271,18 @@ function mt_stats(gobj, stats, kw, src)
         jn_ievent_id
     );
 
-    kw["__stats__"] = stats; // TODO deprecated
-
-    msg_iev_write_key(gobj, kw, "__stats__");
+    // kw["__stats__"] = stats; // TODO deprecated, used by v6
+    msg_iev_set_msg_type(gobj, kw, "__stats__");
 
     msg_iev_push_stack(
         gobj,
         kw,
         "__stats__",
-        stats
+        {
+            "stats": stats,
+            "kw": kw
+        }
     );
-
-    msg_iev_set_msg_type(gobj, kw, "__stats__");
 
     send_static_iev(gobj, "EV_MT_STATS", kw, src);
 
@@ -321,16 +321,18 @@ function mt_command(gobj, command, kw, src)
         jn_ievent_id
     );
 
-    kw["__command__"] = command; // TODO deprecated
+    // kw["__command__"] = command; // TODO deprecated, used by v6
+    msg_iev_set_msg_type(gobj, kw, "__command__");
 
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
         "__command__",
-        command   // owned
+        {
+            "stats": command,
+            "kw": kw
+        }
     );
-
-    msg_iev_set_msg_type(gobj, kw, "__command__");
 
     send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
 
@@ -374,8 +376,6 @@ function mt_inject_event(gobj, event, kw, src)
             IEVENT_MESSAGE_AREA_ID,
             jn_ievent_id
         );
-
-        // json_object_set_new(kw, "__message__", json_string(event)); // TODO deprecated
 
         msg_iev_push_stack(
             gobj,
