@@ -1792,20 +1792,30 @@ PUBLIC int gobj_unsubscribe_list(
 );
 
 PUBLIC json_t *gobj_find_subscriptions( // Return is YOURS
-    hgobj publisher,
+    hgobj gobj,
     gobj_event_t event,
     json_t *kw,             // kw (__config__, __global__, __local__)
     hgobj subscriber
 );
 
 PUBLIC json_t *gobj_find_subscribings( // Return is YOURS
-    hgobj subscriber,
+    hgobj gobj,
     gobj_event_t event,
     json_t *kw,             // kw (__config__, __global__, __local__)
     hgobj publisher
 );
-PUBLIC json_t *gobj_list_subscriptions(hgobj gobj);
-PUBLIC json_t *gobj_list_subscribings(hgobj gobj);
+PUBLIC json_t *gobj_list_subscriptions(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,             // kw (__config__, __global__, __local__)
+    hgobj subscriber
+);
+PUBLIC json_t *gobj_list_subscribings(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,             // kw (__config__, __global__, __local__)
+    hgobj subscriber
+);
 
 /*
  *  In general the meaning of returns are:

@@ -7686,15 +7686,15 @@ PUBLIC int gobj_unsubscribe_list(
  *      subscriber
  ***************************************************************************/
 PUBLIC json_t *gobj_find_subscriptions(
-    hgobj publisher_,
+    hgobj gobj_,
     gobj_event_t event,
     json_t *kw,
     hgobj subscriber)
 {
-    gobj_t * publisher = publisher_;
+    gobj_t * publisher = gobj_;
     return _find_subscriptions(
         publisher->dl_subscriptions,
-        publisher_,
+        gobj_,
         event,
         kw,
         subscriber
@@ -7709,19 +7709,19 @@ PUBLIC json_t *gobj_find_subscriptions(
  *      subscriber
  ***************************************************************************/
 PUBLIC json_t *gobj_find_subscribings(
-    hgobj subscriber_,
+    hgobj gobj_,
     gobj_event_t event,
     json_t *kw,             // kw (__config__, __global__, __local__, __filter__)
     hgobj publisher
 )
 {
-    gobj_t * subscriber = subscriber_;
+    gobj_t * gobj = gobj_;
     return _find_subscriptions(
-        subscriber->dl_subscribings,
+        gobj->dl_subscribings,
         publisher,
         event,
         kw,
-        subscriber
+        gobj
     );
 }
 
@@ -7762,15 +7762,19 @@ PRIVATE json_t *get_subs_info(hgobj gobj, json_t *sub)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_list_subscriptions(hgobj gobj)
-{
+PUBLIC json_t *gobj_list_subscriptions(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,             // kw (__config__, __global__, __local__)
+    hgobj subscriber
+) {
     json_t *jn_subscriptions = json_array();
 
     json_t *subscriptions = gobj_find_subscriptions( // Return is YOURS
         gobj,
-        0,      // event,
-        NULL,   // kw (__config__, __global__, __local__)
-        0       // subscriber
+        event,      // event,
+        kw,         // kw (__config__, __global__, __local__)
+        subscriber  // subscriber
     );
     int idx; json_t *sub;
     json_array_foreach(subscriptions, idx, sub) {
@@ -7785,15 +7789,19 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_list_subscribings(hgobj gobj)
-{
+PUBLIC json_t *gobj_list_subscribings(
+    hgobj gobj,
+    gobj_event_t event,
+    json_t *kw,             // kw (__config__, __global__, __local__)
+    hgobj subscriber
+) {
     json_t *jn_subscribings = json_array();
 
     json_t *subscribings = gobj_find_subscribings( // Return is YOURS
         gobj,
-        0,      // event,
-        NULL,   // kw (__config__, __global__, __local__)
-        0       // subscriber
+        event,      // event,
+        kw,         // kw (__config__, __global__, __local__)
+        subscriber  // subscriber
     );
     int idx; json_t *sub;
     json_array_foreach(subscribings, idx, sub) {

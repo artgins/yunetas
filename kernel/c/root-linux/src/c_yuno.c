@@ -270,6 +270,7 @@ PRIVATE sdata_desc_t pm_list_subscriptions[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj name"),
+SDATAPM (DTP_STRING,    "event",        0,              0,          "Event"),
 SDATA_END()
 };
 
@@ -3491,6 +3492,9 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
+    gobj_event_t event = NULL;
+    json_t *kw_subs = NULL;
+    hgobj subscriber = NULL;
 
     hgobj gobj2view = gobj_find_service(gobj_name_, false);
     if(!gobj2view) {
@@ -3510,6 +3514,16 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
         }
     }
 
+    const char *event_name = kw_get_str(gobj, kw, "event", 0, 0);
+    if(!empty_string(event_name)) {
+        event_type_t *event_type = gobj_event_type_by_name(gobj2view, event_name);
+        if(event_type) {
+            event = event_type->event_name;
+        }
+    }
+
+    json_t *jn_data = gobj_list_subscriptions(gobj2view, event, kw_subs, subscriber);
+
     /*
      *  Inform
      */
@@ -3518,7 +3532,7 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
         0,
         0,
         json_desc_to_schema(subs_desc),
-        gobj_list_subscriptions(gobj2view)
+        jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
@@ -3536,6 +3550,9 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
+    gobj_event_t event = NULL;
+    json_t *kw_subs = NULL;
+    hgobj subscriber = NULL;
 
     hgobj gobj2view = gobj_find_service(gobj_name_, false);
     if(!gobj2view) {
@@ -3555,6 +3572,16 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
         }
     }
 
+    const char *event_name = kw_get_str(gobj, kw, "event", 0, 0);
+    if(!empty_string(event_name)) {
+        event_type_t *event_type = gobj_event_type_by_name(gobj2view, event_name);
+        if(event_type) {
+            event = event_type->event_name;
+        }
+    }
+
+    json_t *jn_data = gobj_list_subscribings(gobj2view, event, kw_subs, subscriber);
+
     /*
      *  Inform
      */
@@ -3563,7 +3590,7 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
         0,
         0,
         json_desc_to_schema(subs_desc),
-        gobj_list_subscribings(gobj2view)
+        jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
