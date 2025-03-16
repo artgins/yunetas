@@ -7747,8 +7747,8 @@ PRIVATE json_t *get_subs_info(hgobj gobj, json_t *sub)
     json_object_set_new(jn_sub, "event", event?json_string(event):json_null());
     json_object_set_new(jn_sub, "publisher", json_string(gobj_short_name(publisher)));
     json_object_set_new(jn_sub, "subscriber", json_string(gobj_short_name(subscriber)));
-    json_object_set_new(jn_sub, "renamed_event", event?json_string(renamed_event):json_null());
-    json_object_set_new(jn_sub, "subs_flag", json_integer(subs_flag));
+    json_object_set_new(jn_sub, "renamed_ev", renamed_event?json_string(renamed_event):json_null());
+    json_object_set_new(jn_sub, "flag", json_integer(subs_flag));
 
     json_object_set(jn_sub, "__config__", __config__?__config__:json_null());
     json_object_set(jn_sub, "__global__", __global__?__global__:json_null());
