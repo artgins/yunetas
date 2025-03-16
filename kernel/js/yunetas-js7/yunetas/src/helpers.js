@@ -317,7 +317,7 @@ function json_array_size(a)
 }
 
 /************************************************************
- *
+ *  String element = 1 if not empty string
  ************************************************************/
 function json_size(a)
 {
@@ -325,7 +325,7 @@ function json_size(a)
         return Object.keys(a).length;
     } else if(is_array(a)) {
         return a.length;
-    } else if(is_string(a)) {
+    } else if(is_string(a) && a.length > 0) {
         return 1;
     } else {
         return 0;

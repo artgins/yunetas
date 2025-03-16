@@ -7052,11 +7052,11 @@ PRIVATE json_t * _create_subscription(
         json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
         const char *__service__ = kw_get_str(publisher, kw, "__service__", 0, 0);
 
-        if(__global__) {
+        if(json_size(__global__)>0) {
             json_t *kw_clone = json_deep_copy(__global__);
             json_object_set_new(subs, "__global__", kw_clone);
         }
-        if(__config__) {
+        if(json_size(__config__)>0) {
             json_t *kw_clone = json_deep_copy(__config__);
             json_object_set_new(subs, "__config__", kw_clone);
 
@@ -7098,11 +7098,11 @@ PRIVATE json_t * _create_subscription(
                 }
             }
         }
-        if(__local__) {
+        if(json_size(__local__)>0) {
             json_t *kw_clone = json_deep_copy(__local__);
             json_object_set_new(subs, "__local__", kw_clone);
         }
-        if(__filter__) {
+        if(json_size(__filter__)>0) {
             json_t *kw_clone = json_deep_copy(__filter__);
             json_object_set_new(subs, "__filter__", kw_clone);
         }

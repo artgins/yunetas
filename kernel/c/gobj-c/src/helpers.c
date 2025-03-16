@@ -2390,7 +2390,7 @@ PUBLIC char *json2uglystr(const json_t *jn) // jn not owned
 }
 
 /***************************************************************************
- *
+ *  String element = 1 if not empty string
  ***************************************************************************/
 PUBLIC size_t json_size(json_t *value)
 {
@@ -2403,7 +2403,8 @@ PUBLIC size_t json_size(json_t *value)
     case JSON_OBJECT:
         return json_object_size(value);
     case JSON_STRING:
-        return 1;
+        const char *s = json_string_value(value);
+        return strlen(s)?1:0;
     default:
         return 0;
     }
