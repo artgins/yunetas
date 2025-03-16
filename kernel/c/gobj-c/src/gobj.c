@@ -7729,46 +7729,74 @@ PUBLIC json_t *gobj_find_subscribings(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
+PRIVATE json_t *get_subs_info(hgobj gobj, json_t *sub)
 {
+    json_t *jn_sub = json_object();
+
+    hgobj publisher = (hgobj)(size_t)kw_get_int(gobj, sub, "publisher", 0, 0);
+    hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj, sub, "subscriber", 0, 0);
+    gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, sub, "event", 0, 0);
+    gobj_event_t renamed_event = (gobj_event_t)(size_t)kw_get_int(gobj, sub, "renamed_event", 0, 0);
+    json_int_t subs_flag = kw_get_int(gobj, sub, "subs_flag", 0, 0);
+    json_t *__config__ = kw_get_dict(gobj, sub, "__config__", 0, 0);
+    json_t *__global__ = kw_get_dict(gobj, sub, "__global__", 0, 0);
+    json_t *__local__ = kw_get_dict(gobj, sub, "__local__", 0, 0);
+    json_t *__filter__ = kw_get_dict_value(gobj, sub, "__filter__", 0, 0);
+    const char *__service__ = kw_get_str(gobj, sub, "__service__", "", 0);
+
+    json_object_set_new(jn_sub, "event", event?json_string(event):json_null());
+    json_object_set_new(jn_sub, "publisher", json_string(gobj_short_name(publisher)));
+    json_object_set_new(jn_sub, "subscriber", json_string(gobj_short_name(subscriber)));
+    json_object_set_new(jn_sub, "renamed_event", event?json_string(renamed_event):json_null());
+    json_object_set_new(jn_sub, "subs_flag", json_integer(subs_flag));
+
+    json_object_set(jn_sub, "__config__", __config__?__config__:json_null());
+    json_object_set(jn_sub, "__global__", __global__?__global__:json_null());
+    json_object_set(jn_sub, "__local__", __local__?__local__:json_null());
+    json_object_set(jn_sub, "__filter__", __filter__?__filter__:json_null());
+
+    json_object_set_new(jn_sub, "__service__", json_string(__service__));
+
+    return jn_sub;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_list_subscriptions(hgobj gobj)
+{
+    json_t *jn_subscriptions = json_array();
+
     json_t *subscriptions = gobj_find_subscriptions( // Return is YOURS
-        gobj2view,
+        gobj,
         0,      // event,
         NULL,   // kw (__config__, __global__, __local__)
         0       // subscriber
     );
     int idx; json_t *sub;
     json_array_foreach(subscriptions, idx, sub) {
-        hgobj publisher = (hgobj)(size_t)kw_get_int(gobj2view, sub, "publisher", 0, KW_REQUIRED);
-        hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj2view, sub, "subscriber", 0, KW_REQUIRED);
-        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, sub, "event", 0, KW_REQUIRED);
-
-        json_object_set_new(sub, "s_event", json_string(event_));
-        json_object_set_new(sub, "s_publisher", json_string(gobj_short_name(publisher)));
-        json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
+      	json_t *jn_sub = get_subs_info(gobj, sub);
+        json_array_append_new(jn_subscriptions, jn_sub);
     }
+    JSON_DECREF(subscriptions)
+
+    json_t *jn_subscribings = json_array();
 
     json_t *subscribings = gobj_find_subscribings( // Return is YOURS
-        gobj2view,
+        gobj,
         0,      // event,
         NULL,   // kw (__config__, __global__, __local__)
         0       // subscriber
     );
     json_array_foreach(subscribings, idx, sub) {
-        hgobj publisher = (hgobj)(size_t)kw_get_int(gobj2view, sub, "publisher", 0, KW_REQUIRED);
-        hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj2view, sub, "subscriber", 0, KW_REQUIRED);
-        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, sub, "event", 0, KW_REQUIRED);
-
-        json_object_set_new(sub, "s_event", json_string(event_));
-        json_object_set_new(sub, "s_publisher", json_string(gobj_short_name(publisher)));
-        json_object_set_new(sub, "s_subscriber", json_string(gobj_short_name(subscriber)));
+      	json_t *jn_sub = get_subs_info(gobj, sub);
+        json_array_append_new(jn_subscribings, jn_sub);
     }
+    JSON_DECREF(subscribings)
 
-    json_t *jn_data2 = json_pack("{s:o, s:o, s:i, s:i}",
-        "subscriptions", subscriptions,
-        "subscribings", subscribings,
-        "total subscriptions", json_array_size(subscriptions),
-        "total_subscribings", json_array_size(subscribings)
+    json_t *jn_data2 = json_pack("{s:o, s:o}",
+        "subscriptions", jn_subscriptions,
+        "subscribings", jn_subscribings
     );
     return jn_data2;
 }
