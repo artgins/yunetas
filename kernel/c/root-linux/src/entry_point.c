@@ -319,12 +319,14 @@ PUBLIC int yuneta_setup(
     size_t                      mem_superblock
 )
 {
-    __startup_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->startup:NULL;
-    __end_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->end:NULL;
-    __load_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->load:NULL;
-    __save_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->save:NULL;
-    __remove_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->remove:NULL;
-    __list_persistent_attrs_fn__ = persistent_attrs?persistent_attrs->list:NULL;
+    if(persistent_attrs) {
+        __startup_persistent_attrs_fn__ = persistent_attrs->startup;
+        __end_persistent_attrs_fn__ = persistent_attrs->end;
+        __load_persistent_attrs_fn__ = persistent_attrs->load;
+        __save_persistent_attrs_fn__ = persistent_attrs->save;
+        __remove_persistent_attrs_fn__ = persistent_attrs->remove;
+        __list_persistent_attrs_fn__ = persistent_attrs->list;
+    }
 
     if(command_parser) {
         __command_parser_fn__ = command_parser;
