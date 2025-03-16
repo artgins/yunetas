@@ -79,8 +79,6 @@ PRIVATE json_t * treedb_get_activated_snap_tag(
     uint32_t *user_flag
 );
 
-PRIVATE json_int_t json_size(json_t *value);
-
 PRIVATE json_t *apply_parent_ref_options(
     hgobj gobj,
     json_t *refs,  // NOT owned
