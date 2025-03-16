@@ -348,12 +348,17 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 
     /*
      *      __MESSAGE__
+     *  Put the ievent if it doesn't come with it,
+     *  if it does come with it, it's because it will be a response
      */
     json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
-    if(!jn_request) {
+    if(jn_request) {
         /*
-         *  Put the ievent if it doesn't come with it,
-         *  if it does come with it, it's because it will be a response
+         *      __RESPONSE__
+         */
+    } else {
+        /*
+         *      __REQUEST__
          */
         json_t *jn_ievent_id = build_cli_ievent_request(
             gobj,
@@ -791,7 +796,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
      *  the event can be publishing to more users.
      */
     /*
-     *      __ANSWER__ __MESSAGE__
+     *      __RESPONSE__ __MESSAGE__
      */
     json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
     const char *src_yuno = kw_get_str(gobj, jn_ievent_id, "src_yuno", "", 0);
@@ -1109,6 +1114,10 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
+
     /*----------------------------------*
      *  Check AUTHZ
      *----------------------------------*/
@@ -1207,6 +1216,10 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
+
     /*----------------------------------*
      *  Check AUTHZ
      *----------------------------------*/
@@ -1305,6 +1318,10 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
+
     int ret = gobj_play(gobj_yuno());
     json_t *jn_result = json_pack("{s:i}",
         "result",
@@ -1329,6 +1346,10 @@ PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
+
     int ret = gobj_pause(gobj_yuno());
     json_t *jn_result = json_pack("{s:i}",
         "result",
@@ -1353,6 +1374,9 @@ PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_send_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
     return send_static_iev(gobj,
         EV_MT_COMMAND_ANSWER,
         kw,

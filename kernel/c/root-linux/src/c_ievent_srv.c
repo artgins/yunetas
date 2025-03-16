@@ -328,12 +328,17 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     /*
      *      __MESSAGE__
+     *  Put the ievent if it doesn't come with it,
+     *  if it does come with it, it's because it will be a response
      */
     json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
-    if(!jn_request) {
+    if(jn_request) {
         /*
-         *  Put the ievent if it doesn't come with it,
-         *  if it does come with it, it's because it will be a response
+         *      __RESPONSE__
+         */
+    } else {
+        /*
+         *      __REQUEST__
          */
         json_t *jn_ievent_id = build_srv_ievent_request(
             gobj,
@@ -763,7 +768,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
         );
 
         /*
-         *      __ANSWER__ __MESSAGE__
+         *      __RESPONSE__ __MESSAGE__
          */
         JSON_INCREF(kw)
         json_t *kw_answer = msg_iev_set_back_metadata(
@@ -827,7 +832,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
     gobj_change_state(gobj, ST_SESSION);
 
     /*
-     *      __ANSWER__ __MESSAGE__
+     *      __RESPONSE__ __MESSAGE__
      */
     JSON_INCREF(kw)
     json_t *kw_answer = msg_iev_set_back_metadata(
@@ -1290,6 +1295,10 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
+
     /*----------------------------------*
      *  Check AUTHZ
      *----------------------------------*/
@@ -1424,6 +1433,10 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
 
     /*----------------------------------*
      *  Check AUTHZ
