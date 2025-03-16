@@ -34,7 +34,7 @@ PRIVATE int send_static_iev(
     json_t *kw, // owned and serialized,
     hgobj src
 );
-PRIVATE json_t *build_ievent_request(
+PRIVATE json_t *build_srv_ievent_request(
     hgobj gobj,
     const char *src_service,
     const char *dst_service
@@ -220,7 +220,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    json_t *jn_ievent_id = build_ievent_request(
+    json_t *jn_ievent_id = build_srv_ievent_request(
         gobj,
         gobj_name(src),
         kw_get_str(gobj, kw, "service", 0, 0)
@@ -275,7 +275,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    json_t *jn_ievent_id = build_ievent_request(
+    json_t *jn_ievent_id = build_srv_ievent_request(
         gobj,
         gobj_name(src),
         kw_get_str(gobj, kw, "service", 0, 0)
@@ -335,7 +335,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
          *  Put the ievent if it doesn't come with it,
          *  if it does come with it, it's because it will be a response
          */
-        json_t *jn_ievent_id = build_ievent_request(
+        json_t *jn_ievent_id = build_srv_ievent_request(
             gobj,
             gobj_name(src),
             kw_get_str(gobj, kw, "__service__", 0, 0)
@@ -382,7 +382,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
 /***************************************************************************
  *  __MESSAGE__
  ***************************************************************************/
-PRIVATE json_t *build_ievent_request(
+PRIVATE json_t *build_srv_ievent_request(
     hgobj gobj,
     const char *src_service,
     const char *dst_service

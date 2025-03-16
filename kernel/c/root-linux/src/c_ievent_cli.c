@@ -34,7 +34,7 @@ PRIVATE int send_static_iev(
     json_t *kw, // owned and serialized,
     hgobj src
 );
-PRIVATE json_t *build_ievent_request(
+PRIVATE json_t *build_cli_ievent_request(
     hgobj gobj,
     const char *src_service,
     const char *dst_service
@@ -240,7 +240,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    json_t *jn_ievent_id = build_ievent_request(
+    json_t *jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(src),
         kw_get_str(gobj, kw, "service", 0, 0)
@@ -295,7 +295,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    json_t *jn_ievent_id = build_ievent_request(
+    json_t *jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(src),
         kw_get_str(gobj, kw, "service", 0, 0)
@@ -355,7 +355,7 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
          *  Put the ievent if it doesn't come with it,
          *  if it does come with it, it's because it will be a response
          */
-        json_t *jn_ievent_id = build_ievent_request(
+        json_t *jn_ievent_id = build_cli_ievent_request(
             gobj,
             gobj_name(src),
             kw_get_str(gobj, kw, "__service__", 0, 0)
@@ -450,7 +450,7 @@ PRIVATE int mt_subscription_deleted(
     if(__filter__) {
         json_object_set(kw, "__filter__", __filter__);
     }
-    json_t *jn_ievent_id = build_ievent_request(
+    json_t *jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(subscriber),
         __service__
@@ -481,7 +481,7 @@ PRIVATE int mt_subscription_deleted(
 /***************************************************************************
  *  __MESSAGE__
  ***************************************************************************/
-PRIVATE json_t *build_ievent_request(
+PRIVATE json_t *build_cli_ievent_request(
     hgobj gobj,
     const char *src_service,
     const char *dst_service
@@ -555,7 +555,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    json_t *jn_ievent_id = build_ievent_request(
+    json_t *jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(gobj),
         0
@@ -670,7 +670,7 @@ PRIVATE int send_remote_subscription(
     if(__filter__) {
         json_object_set(kw, "__filter__", __filter__);
     }
-    json_t *jn_ievent_id = build_ievent_request(
+    json_t *jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(subscriber),
         __service__

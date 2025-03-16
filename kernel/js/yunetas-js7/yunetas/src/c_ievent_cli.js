@@ -58,7 +58,6 @@ import {
     msg_iev_push_stack,
     msg_iev_get_stack,
     kw_get_str,
-    json_object_del,
     kw_get_int,
     kw_get_dict_value,
     node_uuid,
@@ -257,7 +256,7 @@ function mt_stats(gobj, stats, kw, src)
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    let jn_ievent_id = build_ievent_request(
+    let jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(src),
         kw_get_str(gobj, kw, "service", null, 0)
@@ -308,7 +307,7 @@ function mt_command(gobj, command, kw, src)
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    let jn_ievent_id = build_ievent_request(
+    let jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(src),
         kw_get_str(gobj, kw, "service", null, 0)
@@ -365,7 +364,7 @@ function mt_inject_event(gobj, event, kw, src)
          * Put the ievent if it doesn't come with it,
          * if it does come with it, it's because it will be some kind of response/redirect
          */
-        let jn_ievent_id = build_ievent_request(
+        let jn_ievent_id = build_cli_ievent_request(
             gobj,
             gobj_name(src),
             kw_get_str(gobj, kw, "service", 0, 0)
@@ -455,7 +454,7 @@ function mt_subscription_deleted(gobj, subs)
     /*
      *      __MESSAGE__
      */
-    let jn_ievent_id = build_ievent_request(
+    let jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(subscriber),
         __service__
@@ -654,7 +653,7 @@ function send_static_iev(gobj, event, kw, src)
 /***************************************************************
  *  __MESSAGE__
  ***************************************************************/
-function build_ievent_request(gobj, src_service, dst_service)
+function build_cli_ievent_request(gobj, src_service, dst_service)
 {
     if(empty_string(dst_service)) {
         dst_service = gobj_read_str_attr(gobj, "wanted_yuno_service");
@@ -708,7 +707,7 @@ function send_identity_card(gobj)
     /*
      *      __REQUEST__ __MESSAGE__
      */
-    let jn_ievent_id = build_ievent_request(
+    let jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(gobj_parent(gobj)), // TODO ??? in C is gobj_name(gobj),
         null
@@ -817,7 +816,7 @@ function send_remote_subscription(gobj, subs)
     /*
      *      __MESSAGE__
      */
-    let jn_ievent_id = build_ievent_request(
+    let jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(subscriber),
         __service__
