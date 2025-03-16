@@ -557,7 +557,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
 
     json_t *dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
-    gobj_unsubscribe_list(dl_s, false);
+    gobj_unsubscribe_list(gobj, dl_s, false);
 
     /*
      *  Route (channel) close.
