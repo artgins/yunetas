@@ -1,6 +1,6 @@
 <!-- ============================================================== -->
-(json_record_to_schema())=
-# `json_record_to_schema()`
+(json_desc_to_schema())=
+# `json_desc_to_schema()`
 <!-- ============================================================== -->
 
 Converts a JSON record descriptor into a topic schema, mapping field definitions to a structured format.
@@ -20,7 +20,7 @@ Converts a JSON record descriptor into a topic schema, mapping field definitions
 **Prototype**
 
 ```C
-json_t *json_record_to_schema(
+json_t *json_desc_to_schema(
     const json_desc_t *json_desc
 );
 ```

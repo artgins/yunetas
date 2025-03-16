@@ -27,7 +27,7 @@ json-helper/json_config
 json-helper/json_is_identical
 json-helper/json_list_str_index
 json-helper/json_print_refcounts
-json-helper/json_record_to_schema
+json-helper/json_desc_to_schema
 json-helper/json_str_in_list
 json-helper/legalstring2json
 json-helper/load_json_from_file
