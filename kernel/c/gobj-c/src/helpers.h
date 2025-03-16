@@ -341,7 +341,7 @@ PUBLIC json_t *create_json_record(
  *
  *  Convert a json record desc to a topic schema
  *
-    json_record
+    json_desc
     {
         name: string
         type: string
@@ -358,7 +358,7 @@ PUBLIC json_t *create_json_record(
     }
 
  ***************************************************************************/
-PUBLIC json_t *json_record_to_schema(const json_desc_t *json_desc);
+PUBLIC json_t *json_desc_to_schema(const json_desc_t *json_desc);
 
 /***
  *  Utilities to manage strict ascendant string tables representing bit values of maximum 64 bits.

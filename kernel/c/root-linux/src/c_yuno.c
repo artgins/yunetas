@@ -839,7 +839,7 @@ static const json_desc_t services_desc[] = {
 };
 PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *jn_schema = json_record_to_schema(services_desc);
+    json_t *jn_schema = json_desc_to_schema(services_desc);
     json_t *jn_response = build_command_response(
         gobj,
         0,

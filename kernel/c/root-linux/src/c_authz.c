@@ -1025,7 +1025,7 @@ PRIVATE json_t *cmd_list_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
-    json_t *jn_schema = json_record_to_schema(oauth_iss_desc);
+    json_t *jn_schema = json_desc_to_schema(oauth_iss_desc);
 
     return msg_iev_build_response(
         gobj,
@@ -1147,7 +1147,7 @@ PRIVATE json_t *cmd_add_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         0,
         0,
-        json_record_to_schema(oauth_iss_desc),
+        json_desc_to_schema(oauth_iss_desc),
         json_incref(jn_record_),
         kw  // owned
     );
@@ -1235,7 +1235,7 @@ PRIVATE json_t *cmd_remove_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         gobj,
         0,
         json_sprintf("Issuer '%s' deleted", iss),
-        json_record_to_schema(oauth_iss_desc),
+        json_desc_to_schema(oauth_iss_desc),
         jn_record_,
         kw  // owned
     );
@@ -1313,7 +1313,7 @@ PRIVATE json_t *cmd_disable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj,
         0,
         json_sprintf("Issuer '%s' disabled", iss),
-        json_record_to_schema(oauth_iss_desc),
+        json_desc_to_schema(oauth_iss_desc),
         json_incref(jn_record_),
         kw  // owned
     );
@@ -1391,7 +1391,7 @@ PRIVATE json_t *cmd_enable_iss(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         gobj,
         0,
         json_sprintf("Issuer '%s' enabled", iss),
-        json_record_to_schema(oauth_iss_desc),
+        json_desc_to_schema(oauth_iss_desc),
         json_incref(jn_record_),
         kw  // owned
     );

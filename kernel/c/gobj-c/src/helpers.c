@@ -1941,7 +1941,7 @@ PUBLIC json_t *create_json_record(
     }
 
  ***************************************************************************/
-PUBLIC json_t *json_record_to_schema(const json_desc_t *json_desc)
+PUBLIC json_t *json_desc_to_schema(const json_desc_t *json_desc)
 {
     json_t *jn_schema = json_array();
 
