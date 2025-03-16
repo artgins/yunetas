@@ -7020,8 +7020,9 @@ Schema of subs (subscription)
  */
 
 typedef enum {
-    __hard_subscription__   = 0x00000001,
-    __own_event__           = 0x00000002,   // If gobj_send_event return -1 don't continue publishing
+    __rename_event_name__   = 0x00000001,
+    __hard_subscription__   = 0x00000002,
+    __own_event__           = 0x00000004,   // If gobj_send_event return -1 don't continue publishing
 } subs_flag_t;
 
 
