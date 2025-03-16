@@ -51,7 +51,6 @@ import {
 import {
     log_error,
     log_debug,
-    trace_msg,
     log_warning,
     current_timestamp,
     empty_string,
@@ -63,7 +62,9 @@ import {
     node_uuid,
     msg_iev_set_msg_type,
     msg_iev_get_msg_type,
-    trace_json, json_deep_copy,
+    trace_json,
+    json_deep_copy,
+    json_object_del,
 } from "./helpers.js";
 
 import {
@@ -372,8 +373,9 @@ function mt_inject_event(gobj, event, kw, src)
         let jn_ievent_id = build_cli_ievent_request(
             gobj,
             gobj_name(src),
-            kw_get_str(gobj, kw, "service", 0, 0)
+            kw_get_str(gobj, kw, "__service__", 0, 0)
         );
+        json_object_del(kw, "__service__");
 
         msg_iev_push_stack(
             gobj,
@@ -775,21 +777,6 @@ function iev_create_from_json(gobj, data)
 }
 
 /************************************************
- *      Framework Method subscription_added
- *
- *  SCHEMA subs
- *  ===========
- *
-    publisher           gobj
-    subscriber          gobj
-    event               str
-    renamed_event       str
-    hard_subscription   bool
-    __config__          json (dict)
-    __global__          json (dict)
-    __filter__          json (dict)
-    __service__         json (str)
-
  *
  ************************************************/
 function send_remote_subscription(gobj, subs)
