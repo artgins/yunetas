@@ -50,6 +50,7 @@ New API
     gobj_change_parent(hgobj gobj, hgobj gobj_new_parent); // TODO already implemented in js
     is_metadata_key
     is_private_key
+    PUBLIC size_t json_size(json_t *value);
 
 Delete API
 

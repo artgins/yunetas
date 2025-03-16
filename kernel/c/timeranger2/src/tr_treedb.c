@@ -7544,26 +7544,6 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
 
 /***************************************************************************
  *
- ***************************************************************************/
-PRIVATE json_int_t json_size(json_t *value)
-{
-    if(!value) {
-        return 0;
-    }
-    switch(json_typeof(value)) {
-    case JSON_ARRAY:
-        return json_array_size(value);
-    case JSON_OBJECT:
-        return json_object_size(value);
-    case JSON_STRING:
-        return 1;
-    default:
-        return 0;
-    }
-}
-
-/***************************************************************************
- *
     fkey options
     -------------
     "refs"

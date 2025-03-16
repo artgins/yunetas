@@ -478,6 +478,8 @@ PUBLIC char *json2str(const json_t *jn); // jn not owned
 **rst**/
 PUBLIC char *json2uglystr(const json_t *jn); // jn not owned
 
+PUBLIC size_t json_size(json_t *value);
+
 /**rst**
     Check all refcounts
 **rst**/

@@ -326,7 +326,7 @@ function json_size(a)
     } else if(is_array(a)) {
         return a.length;
     } else if(is_string(a)) {
-        return 0;
+        return 1;
     } else {
         return 0;
     }
