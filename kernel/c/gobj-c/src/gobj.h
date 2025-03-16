@@ -1730,6 +1730,8 @@ PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj, const char *event_name)
 /*--------------------------------------------*
  *          Publication/Subscriptions
  *--------------------------------------------*/
+PUBLIC const sdata_desc_t *gobj_subs_desc(void);
+
 /*
 Sub-dictionaries to use in gobj_subscribe_event() kw
 ====================================================
