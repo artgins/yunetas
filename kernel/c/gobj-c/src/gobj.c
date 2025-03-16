@@ -7138,26 +7138,24 @@ PRIVATE BOOL _match_subscription(
     json_t *__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
     json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
 
-    BOOL match = true;
-
     if(publisher) {
         gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
         if(publisher != publisher_) {
-            match = false;
+            return false;
         }
     }
 
     if(subscriber) {
         gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
         if(subscriber != subscriber_) {
-            match = false;
+            return false;
         }
     }
 
     if(event) {
         gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
         if(event != event_) {
-            match = false;
+            return false;
         }
     }
 
@@ -7165,44 +7163,44 @@ PRIVATE BOOL _match_subscription(
         json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
         if(json_size(kw_config)>0) {
             if(!kw_match_simple(kw_config, json_incref(__config__))) {
-                match = false;
+                return false;
             }
         } else {
-            match = false;
+            return false;
         }
     }
     if(json_size(__global__)>0) {
         json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
         if(json_size(kw_global)>0) {
             if(!kw_match_simple(kw_global, json_incref(__global__))) {
-                match = false;
+                return false;
             }
         } else {
-            match = false;
+            return false;
         }
     }
     if(json_size(__local__)>0) {
         json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
         if(json_size(kw_local)>0) {
             if(!kw_match_simple(kw_local, json_incref(__local__))) {
-                match = false;
+                return false;
             }
         } else {
-            match = false;
+            return false;
         }
     }
     if(json_size(__filter__)>0) {
         json_t *kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
         if(json_size(kw_filter)>0) {
             if(!kw_match_simple(kw_filter, json_incref(__filter__))) {
-                match = false;
+                return false;
             }
         } else {
-            match = false;
+            return false;
         }
     }
 
-    return match;
+    return true;
 }
 
 /***************************************************************************
@@ -7246,7 +7244,7 @@ PRIVATE int _get_subs_idx(
     json_t *dl_subs,
     gobj_t *publisher,
     gobj_event_t event,
-    json_t *kw, // owned
+    json_t *kw, // NOT owned
     gobj_t *subscriber
 ) {
     size_t idx; json_t *subs;
@@ -7444,7 +7442,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
             }
         }
     } else {
-        event = NULL;
+        event = NULL;  // In C use NULL, in JS or others use ""
     }
 
     /*-------------------------------------------------*

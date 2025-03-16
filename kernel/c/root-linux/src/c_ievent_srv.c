@@ -557,6 +557,8 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
 
     json_t *dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
+print_json2("dl_s", dl_s); // TODO TEST
+
     gobj_unsubscribe_list(gobj, dl_s, false);
 
     /*

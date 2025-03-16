@@ -21,6 +21,16 @@ const kw_flag_t = Object.freeze({
     KW_RECURSIVE    : 0x0080,   //
 });
 
+const json_type = Object.freeze({
+    JSON_OBJECT:    1,
+    JSON_ARRAY:     2,
+    JSON_STRING:    3,
+    JSON_INTEGER:   4,
+    JSON_REAL:      5,
+    JSON_TRUE:      6,
+    JSON_FALSE:     7,
+    JSON_NULL:      8
+});
 
 /************************************************************
  *          log function
@@ -261,6 +271,17 @@ function json_object_set_new(o, k, v)
 /************************************************************
  *  Simulate jansson function
  ************************************************************/
+function json_array_get(a, i)
+{
+    if(!is_array(a)) {
+        return undefined;
+    }
+    return a[i];
+}
+
+/************************************************************
+ *  Simulate jansson function
+ ************************************************************/
 function json_array_append(a, v)
 {
     a.push(v);
@@ -330,6 +351,127 @@ function json_size(a)
     } else {
         return 0;
     }
+}
+
+/************************************************************
+ *  json_equal (like jansson library)
+ *  Returns 1 if value1 and value2 are equal.
+ *  Returns 0 if they are unequal
+ ************************************************************/
+function json_equal(json1, json2)
+{
+    if (!json1 || !json2) {
+        return 0;
+    }
+
+    if (json_typeof(json1) !== json_typeof(json2)) {
+        return 0;
+    }
+
+    /* this covers true, false and null as they are singletons */
+    if (json1 === json2) {
+        return 1;
+    }
+
+    switch (json_typeof(json1)) {
+        case json_type.JSON_OBJECT:
+            return json_object_equal(json1, json2);
+        case json_type.JSON_ARRAY:
+            return json_array_equal(json1, json2);
+        case json_type.JSON_STRING:
+            return json_string_equal(json1, json2);
+        case json_type.JSON_INTEGER:
+            return json_integer_equal(json1, json2);
+        case json_type.JSON_REAL:
+            return json_real_equal(json1, json2);
+        default:
+            return 0;
+    }
+}
+
+function json_object_equal(object1, object2) {
+    let value2;
+
+    if (json_object_size(object1) !== json_object_size(object2)) {
+        return 0;
+    }
+
+    //json_object_foreach((json_t *)object1, key, value1) {
+    for (const [key, value1] of Object.entries(object1)) {
+        value2 = json_object_get(object2, key);
+
+        if (!json_equal(value1, value2)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+function json_array_equal(array1, array2) {
+    let i, size;
+
+    size = json_array_size(array1);
+    if (size !== json_array_size(array2)) {
+        return 0;
+    }
+
+    for (i = 0; i < size; i++) {
+        let value1, value2;
+
+        value1 = json_array_get(array1, i);
+        value2 = json_array_get(array2, i);
+
+        if (!json_equal(value1, value2)) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+function json_string_equal(string1, string2) {
+    return string1 === string2?1:0;
+}
+
+function json_integer_equal(integer1, integer2) {
+    return integer1 === integer2?1:0;
+}
+
+function json_real_equal(real1, real2) {
+    return real1 === real2?1:0;
+}
+
+function json_typeof(jn)
+{
+    if(is_object(jn)) {
+        return json_type.JSON_OBJECT;
+    }
+    if(is_array(jn)) {
+        return json_type.JSON_ARRAY;
+    }
+    if(is_string(jn)) {
+        return json_type.JSON_STRING;
+    }
+    if(is_pure_number(jn)) {
+        return json_type.JSON_INTEGER;
+    }
+    if(is_number(jn)) {
+        return json_type.JSON_REAL;
+    }
+    if(is_boolean(jn)) {
+        if(Boolean(jn)===true) {
+            return json_type.JSON_TRUE;
+        } else {
+            return json_type.JSON_FALSE;
+        }
+    }
+    if(is_null(jn)) {
+        return json_type.JSON_NULL;
+    }
+
+    log_error(`Not a json type`);
+    return 0;
 }
 
 /************************************************************
@@ -608,95 +750,6 @@ function strstr(haystack, needle, bool)
             return haystack.slice(pos);
         }
     }
-}
-
-/************************************************************
- *
- ************************************************************/
-function _kw_match_simple(kw, jn_filter, level)
-{
-    let matched = false;
-
-    level++;
-
-    if(is_array(jn_filter)) {
-        // Empty array evaluate as false, until a match condition occurs.
-        matched = false;
-        for(let idx = 0; idx < jn_filter.length; idx++) {
-            let jn_filter_value = jn_filter[idx];
-            matched = _kw_match_simple(
-                kw,                 // not owned
-                jn_filter_value,    // owned
-                level
-            );
-            if(matched) {
-                break;
-            }
-        }
-
-    } else if(is_object(jn_filter)) {
-        if(json_object_size(jn_filter)===0) {
-            // Empty object evaluate as false.
-            matched = false;
-        } else {
-            // Not Empty object evaluate as true, until a NOT match condition occurs.
-            matched = true;
-        }
-
-        for(const filter_path of Object.keys(jn_filter)) {
-            let jn_filter_value = jn_filter[filter_path];
-            /*
-             *  Variable compleja, recursivo
-             */
-            if(is_array(jn_filter_value) || is_object(jn_filter_value)) {
-                matched = _kw_match_simple(
-                    kw,
-                    jn_filter_value,
-                    level
-                );
-                break;
-            }
-
-            /*
-             *  Variable sencilla
-             */
-            /*
-             * TODO get the name and op.
-             */
-            let path = filter_path; // TODO
-            let op = "__equal__";
-
-            /*
-             *  Get the record value, firstly by path else by name
-             */
-            let jn_record_value;
-            // Firstly try the key as pointers
-            jn_record_value = kw_get_dict_value(null, kw, path, 0, 0);
-            if(!jn_record_value) {
-                // Secondly try the key with points (.) as full key
-                jn_record_value = kw[path];
-            }
-            if(!jn_record_value) {
-                matched = false;
-                break;
-            }
-
-            /*
-             *  Do simple operation
-             */
-            if(op === "__equal__") { // TODO __equal__ by default
-                let cmp = cmp_two_simple_json(jn_record_value, jn_filter_value);
-                if(cmp!==0) {
-                    matched = false;
-                    break;
-                }
-            } else {
-                // TODO op: __lower__ __higher__ __re__ __equal__
-            }
-        }
-    }
-
-    return matched;
 }
 
 /***************************************************************************
@@ -1254,14 +1307,30 @@ function kw_set_subdict_value(gobj, kw, path, key, value)
 function kw_match_simple(kw, jn_filter)
 {
     if(json_size(jn_filter)===0) {
-     // Si no hay filtro pasan todos.
-       return true;
-    }
-    if(is_object(jn_filter) && Object.keys(jn_filter).length===0) {
-        // A empty object at first level evaluate as true.
+        // No filter, or an empty object or empty array evaluates as true.
         return true;
     }
-    return _kw_match_simple(kw, jn_filter, 0);
+
+    let matched = false;
+
+    if(is_array(jn_filter)) {
+        // Empty array evaluates as false, until a match condition occurs.
+        matched = false;
+
+        for(let idx=0; idx<jn_filter.length; idx++) {
+            let v = jn_filter[idx];
+            if(json_equal(kw, v)) {
+                matched = true;
+                break;
+            }
+        }
+
+    } else if(is_object(jn_filter)) {
+        matched = json_equal(kw, jn_filter);
+    }
+
+    return matched;
+
 }
 
 /***************************************************************************

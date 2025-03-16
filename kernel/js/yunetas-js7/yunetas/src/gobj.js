@@ -3737,8 +3737,6 @@ function gobj_subscribe_event(
                 return 0;
             }
         }
-    } else {
-        event = null;
     }
 
     /*-------------------------------------------------*
