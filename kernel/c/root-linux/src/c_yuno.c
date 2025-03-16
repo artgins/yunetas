@@ -3466,7 +3466,7 @@ PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hg
  ***************************************************************************/
 static const json_desc_t subs_desc[] = {
 // Name             Type        Defaults    Fillspace
-{"event",           "string",   "",         "20"},  // First item is the pkey
+{"event",           "string",   "",         "25"},  // First item is the pkey
 {"publisher",       "string",   "",         "30"},
 {"subscriber",      "string",   "",         "30"},
 {"__service__",     "string",   "",         "20"},
