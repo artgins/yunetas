@@ -42,6 +42,7 @@ import {
     json_array_append_new,
     parseBoolean,
     is_gobj,
+    json_size,
 } from "./helpers.js";
 
 import {sprintf} from "./sprintf.js";
@@ -3403,11 +3404,11 @@ function _create_subscription(
         let __filter__ = kw_get_dict_value(publisher, kw, "__filter__", null);
         let __service__ = kw_get_str(publisher, kw, "__service__", null);
 
-        if(__global__) {
+        if(json_size(__global__)>0) {
             let kw_clone = json_deep_copy(__global__);
             json_object_set_new(subs, "__global__", kw_clone);
         }
-        if(__config__) {
+        if(json_size(__config__)>0) {
             let kw_clone = json_deep_copy(__config__);
             json_object_set_new(subs, "__config__", kw_clone);
 
@@ -3451,11 +3452,11 @@ function _create_subscription(
                 }
             }
         }
-        if(__local__) {
+        if(json_size(__local__)>0) {
             let kw_clone = json_deep_copy(__local__);
             json_object_set_new(subs, "__local__", kw_clone);
         }
-        if(__filter__) {
+        if(json_size(__filter__)>0) {
             let kw_clone = json_deep_copy(__filter__);
             json_object_set_new(subs, "__filter__", kw_clone);
         }
@@ -3506,9 +3507,9 @@ function _match_subscription(
         }
     }
 
-    if(__config__) {
+    if(json_size(__config__)>0) {
         let kw_config = kw_get_dict(null, subs, "__config__", null);
-        if(kw_config) {
+        if(json_size(kw_config)>0) {
             if(!kw_match_simple(kw_config, __config__)) {
                 match = false;
             }
@@ -3516,9 +3517,9 @@ function _match_subscription(
             match = false;
         }
     }
-    if(__global__) {
+    if(json_size(__global__)>0) {
         let kw_global = kw_get_dict(null, subs, "__global__", null);
-        if(kw_global) {
+        if(json_size(kw_global)>0) {
             if(!kw_match_simple(kw_global, __global__)) {
                 match = false;
             }
@@ -3526,9 +3527,9 @@ function _match_subscription(
             match = false;
         }
     }
-    if(__local__) {
+    if(json_size(__local__)>0) {
         let kw_local = kw_get_dict(null, subs, "__local__", null);
-        if(kw_local) {
+        if(json_size(kw_local)>0) {
             if(!kw_match_simple(kw_local, __local__)) {
                 match = false;
             }
@@ -3536,9 +3537,9 @@ function _match_subscription(
             match = false;
         }
     }
-    if(__filter__) {
+    if(json_size(__filter__)>0) {
         let kw_filter = kw_get_dict_value(null, subs, "__filter__", null);
-        if(kw_filter) {
+        if(json_size(kw_filter)>0) {
             if(!kw_match_simple(kw_filter, __filter__)) {
                 match = false;
             }

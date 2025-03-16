@@ -1253,7 +1253,7 @@ function kw_set_subdict_value(gobj, kw, path, key, value)
  ************************************************************/
 function kw_match_simple(kw, jn_filter)
 {
-    if(!jn_filter) {
+    if(json_size(jn_filter)===0) {
      // Si no hay filtro pasan todos.
        return true;
     }

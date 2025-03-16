@@ -7153,9 +7153,9 @@ PRIVATE BOOL _match_subscription(
         }
     }
 
-    if(__config__) {
+    if(json_size(__config__)>0) {
         json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
-        if(kw_config) {
+        if(json_size(kw_config)>0) {
             if(!kw_match_simple(kw_config, json_incref(__config__))) {
                 match = false;
             }
@@ -7163,9 +7163,9 @@ PRIVATE BOOL _match_subscription(
             match = false;
         }
     }
-    if(__global__) {
+    if(json_size(__global__)>0) {
         json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
-        if(kw_global) {
+        if(json_size(kw_global)>0) {
             if(!kw_match_simple(kw_global, json_incref(__global__))) {
                 match = false;
             }
@@ -7173,9 +7173,9 @@ PRIVATE BOOL _match_subscription(
             match = false;
         }
     }
-    if(__local__) {
+    if(json_size(__local__)>0) {
         json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
-        if(kw_local) {
+        if(json_size(kw_local)>0) {
             if(!kw_match_simple(kw_local, json_incref(__local__))) {
                 match = false;
             }
@@ -7183,9 +7183,9 @@ PRIVATE BOOL _match_subscription(
             match = false;
         }
     }
-    if(__filter__) {
+    if(json_size(__filter__)>0) {
         json_t *kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
-        if(kw_filter) {
+        if(json_size(kw_filter)>0) {
             if(!kw_match_simple(kw_filter, json_incref(__filter__))) {
                 match = false;
             }
@@ -7953,7 +7953,7 @@ PUBLIC int gobj_publish_event(
                     kw2publish,  // not owned
                     subscriber
                 );
-            } else if(__filter__) {
+            } else if(json_size(__filter__)>0) {
                 if(__publish_event_match__) {
                     KW_INCREF(__filter__)
                     topublish = __publish_event_match__(kw2publish , __filter__);
@@ -8006,7 +8006,7 @@ PUBLIC int gobj_publish_event(
             /*
              *  Remove local keys
              */
-            if(__local__) {
+            if(json_size(__local__)>0) {
                 kw_pop(kw2publish,
                     __local__ // not owned
                 );
@@ -8016,7 +8016,7 @@ PUBLIC int gobj_publish_event(
              *  Apply transformation filters
              *   TODO review, I think it was used only from c_agent
              */
-            if(__config__) {
+            if(json_size(__config__)>0) {
 //                json_t *jn_trans_filters = kw_get_dict_value(
 //                    publisher, __config__, "__trans_filter__", 0, 0
 //                );
@@ -8028,7 +8028,7 @@ PUBLIC int gobj_publish_event(
             /*
              *  Add global keys
              */
-            if(__global__) {
+            if(json_size(__global__)>0) {
                 json_object_update(kw2publish, __global__);
             }
 

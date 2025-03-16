@@ -2490,7 +2490,7 @@ PUBLIC BOOL kw_match_simple(
     json_t *jn_filter   // owned
 )
 {
-    if(!jn_filter) {
+    if(json_size(jn_filter)==0) {
         // Si no hay filtro pasan todos.
         return true;
     }
