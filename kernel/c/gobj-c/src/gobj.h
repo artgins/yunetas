@@ -1786,6 +1786,7 @@ PUBLIC int gobj_unsubscribe_event(
     hgobj subscriber
 );
 PUBLIC int gobj_unsubscribe_list(
+    hgobj gobj,
     json_t *dl_subs, // owned
     BOOL force  // delete hard_subscription subs too
 );

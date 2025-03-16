@@ -39,6 +39,7 @@ Change API
     gclass_add_event_type()
 
     json_record_to_schema -> json_desc_to_schema
+    gobj_unsubscribe_list
 
 New API
 

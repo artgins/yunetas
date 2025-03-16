@@ -2260,8 +2260,8 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     /*--------------------------------*
      *      Delete subscriptions
      *--------------------------------*/
-    gobj_unsubscribe_list(json_incref(gobj->dl_subscriptions), true);
-    gobj_unsubscribe_list(json_incref(gobj->dl_subscribings), true);
+    gobj_unsubscribe_list(gobj, json_incref(gobj->dl_subscriptions), true);
+    gobj_unsubscribe_list(gobj, json_incref(gobj->dl_subscribings), true);
 
     /*--------------------------------*
      *      Delete from parent
@@ -7472,7 +7472,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
             "subscriber",   "%s", gobj_full_name(subscriber),
             NULL
         );
-        gobj_unsubscribe_list(json_incref(dl_subs), false);
+        gobj_unsubscribe_list(publisher, json_incref(dl_subs), false);
     }
     JSON_DECREF(dl_subs)
 
@@ -7664,6 +7664,7 @@ PUBLIC int gobj_unsubscribe_event(
  *  Unsubscribe a list of subscription hsdata
  ***************************************************************************/
 PUBLIC int gobj_unsubscribe_list(
+    hgobj gobj,
     json_t *dl_subs, // owned
     BOOL force  // delete hard_subscription subs too
 )
@@ -7672,7 +7673,7 @@ PUBLIC int gobj_unsubscribe_list(
 
     size_t idx; json_t *subs=0;
     json_array_foreach(dl, idx, subs) {
-        _delete_subscription(0, subs, force, false);
+        _delete_subscription(gobj, subs, force, false);
     }
     JSON_DECREF(dl_subs)
     JSON_DECREF(dl)

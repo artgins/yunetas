@@ -1703,8 +1703,8 @@ function gobj_destroy(gobj)
     /*--------------------------------*
      *      Delete subscriptions
      *--------------------------------*/
-    gobj_unsubscribe_list(gobj.dl_subscriptions, true);
-    gobj_unsubscribe_list(gobj.dl_subscribings, true);
+    gobj_unsubscribe_list(gobj, gobj.dl_subscriptions, true);
+    gobj_unsubscribe_list(gobj, gobj.dl_subscribings, true);
 
     /*--------------------------------*
      *      Delete from parent
@@ -3757,7 +3757,7 @@ function gobj_subscribe_event(
     );
     if(json_array_size(dl_subs) > 0) {
         log_warning(`${gobj_short_name(publisher)}: subscription(s) REPEATED, will be deleted and override`);
-        gobj_unsubscribe_list(dl_subs, false);
+        gobj_unsubscribe_list(publisher, dl_subs, false);
     }
 
     /*-----------------------------*
@@ -3878,6 +3878,7 @@ function gobj_unsubscribe_event(
  *  Unsubscribe a list of subscription hsdata
  ***************************************************************************/
 function gobj_unsubscribe_list(
+    gobj,
     dl_subs,
     force // delete hard_subscription subs too
 )
@@ -3885,7 +3886,7 @@ function gobj_unsubscribe_list(
     let dl = [...dl_subs];
     for(let i=0; i<dl.length; i++) {
         let subs = dl[i];
-        _delete_subscription(0, subs, force, false);
+        _delete_subscription(gobj, subs, force, false);
     }
     return 0;
 }
