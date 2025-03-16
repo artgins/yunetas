@@ -418,7 +418,6 @@ PRIVATE int mt_subscription_deleted(
     json_t *subs)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // return 0; // TODO hay algo mal, las subscripciones locales se interpretan como remotas
 
     if(gobj_current_state(gobj) != ST_SESSION) {
         // Nothing to do. On open this subscription will be not sent.
@@ -443,7 +442,7 @@ PRIVATE int mt_subscription_deleted(
     hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
 
     /*
-     *      __MESSAGE__
+     *      __REQUEST__ __MESSAGE__
      */
     json_t *kw = json_object();
     if(__config__) {
@@ -663,7 +662,7 @@ PRIVATE int send_remote_subscription(
     hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
 
     /*
-     *      __MESSAGE__
+     *      __REQUEST__ __MESSAGE__
      */
     json_t *kw = json_object();
     if(__config__) {
