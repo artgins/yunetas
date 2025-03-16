@@ -270,8 +270,6 @@ PRIVATE sdata_desc_t pm_list_subscriptions[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj name"),
-SDATAPM (DTP_BOOLEAN,   "recursive",    0,              0,          "Walk over childs"),
-SDATAPM (DTP_BOOLEAN,   "full-names",   0,              0,          "Show full names"),
 SDATA_END()
 };
 
@@ -335,7 +333,7 @@ SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent
 
 SDATACM (DTP_SCHEMA,    "list-subscriptions",       0,      pm_list_subscriptions,cmd_list_subscriptions,          "List subscriptions [of __default_service__]"),
 
-SDATACM (DTP_SCHEMA,    "list-subscribins",         0,      pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
+SDATACM (DTP_SCHEMA,    "list-subscribings",         0,      pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
 
 SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0,              cmd_info_global_trace,  "Info of global trace levels"),
 SDATACM (DTP_SCHEMA,    "info-gclass-trace",        0,      pm_gclass_name, cmd_info_gclass_trace,  "Info of class's trace levels"),
@@ -3464,46 +3462,22 @@ PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hg
 }
 
 /***************************************************************************
- *  list subscriptions
+ *  subs schema
  ***************************************************************************/
-PRIVATE int cb_list_subscriptions(
-    hgobj child,
-    void *user_data,
-    void *user_data2
-)
-{
-    json_t *jn_data = user_data;
-    //BOOL full_names = (BOOL)(size_t)user_data;
-
-    json_object_set_new(
-        jn_data,
-        gobj_full_name(child),
-        gobj_list_subscriptions(child)
-    );
-
-    return 0;
-}
-
-/***************************************************************************
- *  list subscribings
- ***************************************************************************/
-PRIVATE int cb_list_subscribings(
-    hgobj child,
-    void *user_data,
-    void *user_data2
-)
-{
-    json_t *jn_data = user_data;
-    //BOOL full_names = (BOOL)(size_t)user_data;
-
-    json_object_set_new(
-        jn_data,
-        gobj_full_name(child),
-        gobj_list_subscribings(child)
-    );
-
-    return 0;
-}
+static const json_desc_t subs_desc[] = {
+// Name             Type        Defaults    Fillspace
+{"event",           "string",   "",         "20"},  // First item is the pkey
+{"publisher",       "string",   "",         "20"},
+{"subscriber",      "string",   "",         "30"},
+{"renamed_event",   "string",   "",         "10"},
+{"subs_flag",       "int",      "",         "8"},
+{"__config__",      "json",     "",         "10"},
+{"__global__",      "json",     "",         "10"},
+{"__local__",       "json",     "",         "10"},
+{"__filter__",      "json",     "",         "10"},
+{"__service__",     "string",   "",         "10"},
+{0}
+};
 
 /***************************************************************************
  *  list subscriptions
@@ -3517,8 +3491,6 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    BOOL recursive = kw_get_bool(gobj, kw, "recursive", 0, KW_WILD_NUMBER);
-    BOOL full_names = kw_get_bool(gobj, kw, "full-names", 0, KW_WILD_NUMBER);
 
     hgobj gobj2view = gobj_find_service(gobj_name_, false);
     if(!gobj2view) {
@@ -3541,30 +3513,12 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
     /*
      *  Inform
      */
-    json_t *jn_data = json_object();
-
-    json_object_set_new(
-        jn_data,
-        gobj_full_name(gobj2view),
-        gobj_list_subscriptions(gobj2view)
-    );
-
-    if(recursive) {
-        gobj_walk_gobj_childs_tree(
-            gobj2view,
-            WALK_TOP2BOTTOM,
-            cb_list_subscriptions,
-            jn_data,
-            (void *)(size_t)full_names
-        );
-    }
-
     json_t *kw_response = build_command_response(
         gobj,
         0,
         0,
-        0,
-        jn_data
+        json_desc_to_schema(subs_desc),
+        gobj_list_subscriptions(gobj2view)
     );
     JSON_DECREF(kw)
     return kw_response;
@@ -3582,8 +3536,6 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
         kw_get_str(gobj, kw, "gobj", "", 0),
         0
     );
-    BOOL recursive = kw_get_bool(gobj, kw, "recursive", 0, KW_WILD_NUMBER);
-    BOOL full_names = kw_get_bool(gobj, kw, "full-names", 0, KW_WILD_NUMBER);
 
     hgobj gobj2view = gobj_find_service(gobj_name_, false);
     if(!gobj2view) {
@@ -3606,30 +3558,12 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
     /*
      *  Inform
      */
-    json_t *jn_data = json_object();
-
-    json_object_set_new(
-        jn_data,
-        gobj_full_name(gobj2view),
-        gobj_list_subscribings(gobj2view)
-    );
-
-    if(recursive) {
-        gobj_walk_gobj_childs_tree(
-            gobj2view,
-            WALK_TOP2BOTTOM,
-            cb_list_subscribings,
-            jn_data,
-            (void *)(size_t)full_names
-        );
-    }
-
     json_t *kw_response = build_command_response(
         gobj,
         0,
         0,
-        0,
-        jn_data
+        json_desc_to_schema(subs_desc),
+        gobj_list_subscribings(gobj2view)
     );
     JSON_DECREF(kw)
     return kw_response;
