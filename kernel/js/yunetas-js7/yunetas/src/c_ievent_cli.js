@@ -357,12 +357,17 @@ function mt_inject_event(gobj, event, kw, src)
 
     /*
      *      __MESSAGE__
+     *  Put the ievent if it doesn't come with it,
+     *  if it does come with it, it's because it will be a response
      */
-    // let jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID);
-    // if(!jn_request) {
+    let jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID);
+    if(jn_request) {
         /*
-         * Put the ievent if it doesn't come with it,
-         * if it does come with it, it's because it will be some kind of response/redirect
+         *      __RESPONSE__
+         */
+    } else {
+        /*
+         *      __REQUEST__
          */
         let jn_ievent_id = build_cli_ievent_request(
             gobj,
@@ -383,8 +388,7 @@ function mt_inject_event(gobj, event, kw, src)
             IEVENT_MESSAGE_AREA_ID,
             jn_ievent_id
         );
-
-    // }
+    }
 
     msg_iev_set_msg_type(gobj, kw, "__message__");
 
@@ -814,7 +818,7 @@ function send_remote_subscription(gobj, subs)
     }
 
     /*
-     *      __MESSAGE__
+     *      __REQUEST__ __MESSAGE__
      */
     let jn_ievent_id = build_cli_ievent_request(
         gobj,
@@ -950,7 +954,7 @@ function ac_identity_card_ack(gobj, event, kw, src)
      *  the event can be publishing to more users.
      */
     /*
-     *      __ANSWER__ __MESSAGE__
+     *      __RESPONSE__ __MESSAGE__
      */
     let event_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
     let src_yuno = kw_get_str(gobj, event_id, "src_yuno", "");
@@ -1168,6 +1172,9 @@ function ac_on_message(gobj, event, kw, src)
  ***************************************************************************/
 function ac_mt_stats(gobj, event, kw, src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
     // TODO
     return null;
 }
@@ -1177,6 +1184,9 @@ function ac_mt_stats(gobj, event, kw, src)
  ***************************************************************************/
 function ac_mt_command(gobj, event, kw, src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
     // TODO
     return null;
 }
@@ -1186,6 +1196,9 @@ function ac_mt_command(gobj, event, kw, src)
  ***************************************************************************/
 function ac_play_yuno(gobj, event, kw, src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
     // TODO
     return -1;
 }
@@ -1195,6 +1208,9 @@ function ac_play_yuno(gobj, event, kw, src)
  ***************************************************************************/
 function ac_pause_yuno(gobj, event, kw, src)
 {
+    /*
+     *      __RESPONSE__ __MESSAGE__
+     */
     // TODO
     return -1;
 }
