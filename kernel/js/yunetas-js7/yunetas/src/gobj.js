@@ -3357,19 +3357,6 @@ function gobj_send_event(dst, event, kw, src)
     return ret;
 }
 
-/*
-Schema of subs (subscription)
-=============================
-"publisher":            (pointer)int    // publisher gobj
-"subscriber:            (pointer)int    // subscriber gobj
-"event":                (pointer)str    // event name subscribed
-"subs_flag":            int             // subscription flag. See subs_flag_t
-"__config__":           json            // subscription config.
-"__global__":           json            // global event kw. This json is extended with publishing kw.
-"__local__":            json            // local event kw. The keys in this json are removed from publishing kw.
-
- */
-
 const subs_flag_t = Object.freeze({
 __hard_subscription__   : 0x00000001,
 __own_event__           : 0x00000002,   // If gobj_send_event return -1 don't continue publishing
@@ -3385,6 +3372,11 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "subscriber gobj"),
 SDATA(data_type_t.DTP_STRING,   "event",        0,  "",     "event name subscribed"),
 SDATA(data_type_t.DTP_STRING,   "renamed_event",0,  "",     "rename event name"),
 SDATA(data_type_t.DTP_INTEGER,  "subs_flag",    0,  0,      "subscription flag"),
+SDATA(data_type_t.DTP_JSON,     "__config__",   0,  0,      "subscription config"),
+SDATA(data_type_t.DTP_JSON,     "__global__",   0,  0,      "global kw, merge in publishing"),
+SDATA(data_type_t.DTP_JSON,     "__local__",    0,  0,      "local kw, remove in publishing"),
+SDATA(data_type_t.DTP_JSON,     "__filter__",   0,  0,      "filter kw, filter in publishing"),
+SDATA(data_type_t.DTP_STRING,   "__service__",  0,  0,      "subscription service"),
 SDATA_END()
 ];
 
@@ -3409,6 +3401,7 @@ function _create_subscription(
         let __global__ = kw_get_dict(publisher, kw, "__global__", null);
         let __local__ = kw_get_dict(publisher, kw, "__local__", null);
         let __filter__ = kw_get_dict_value(publisher, kw, "__filter__", null);
+        let __service__ = kw_get_str(publisher, kw, "__service__", null);
 
         if(__global__) {
             let kw_clone = json_deep_copy(__global__);
@@ -3466,9 +3459,9 @@ function _create_subscription(
             let kw_clone = json_deep_copy(__filter__);
             json_object_set_new(subs, "__filter__", kw_clone);
         }
-        //if(__service__) {
-        //    json_object_set_new(subs, "__service__", json_string(__service__));
-        //}
+        if(!empty_string(__service__)) {
+           json_object_set_new(subs, "__service__", __service__);
+        }
     }
     json_object_set_new(subs, "subs_flag", subs_flag);
 
@@ -3743,6 +3736,8 @@ function gobj_subscribe_event(
                 return 0;
             }
         }
+    } else {
+        event = null;
     }
 
     /*-------------------------------------------------*

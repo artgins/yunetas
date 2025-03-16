@@ -7006,25 +7006,11 @@ PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name
 
 
 
-/*
-Schema of subs (subscription)
-=============================
-"publisher":            (pointer)int    // publisher gobj
-"subscriber:            (pointer)int    // subscriber gobj
-"event":                (pointer)str    // event name subscribed
-"subs_flag":            int             // subscription flag. See subs_flag_t
-"__config__":           json            // subscription config.
-"__global__":           json            // global event kw. This json is extended with publishing kw.
-"__local__":            json            // local event kw. The keys in this json are removed from publishing kw.
-
- */
-
 typedef enum {
     __rename_event_name__   = 0x00000001,
     __hard_subscription__   = 0x00000002,
     __own_event__           = 0x00000004,   // If gobj_send_event return -1 don't continue publishing
 } subs_flag_t;
-
 
 /*
  *
@@ -7033,14 +7019,14 @@ PRIVATE sdata_desc_t subscription_desc[] = {
 /*-ATTR-type--------name----------------flag--------default-----description---------- */
 SDATA (DTP_POINTER, "publisher",        0,          0,          "publisher gobj"),
 SDATA (DTP_POINTER, "subscriber",       0,          0,          "subscriber gobj"),
-SDATA (DTP_STRING,  "event",            0,          "",         "event name subscribed"),
-SDATA (DTP_STRING,  "renamed_event",    0,          "",         "rename event name"),
-SDATA (DTP_INTEGER, "subs_flag",        0,          0,          "subscription flag"),
-//SDATA (DTP_JSON,    "__config__",       0,          0,          "subscription config kw"),
-//SDATA (DTP_JSON,    "__global__",       0,          0,          "global event kw"),
-//SDATA (DTP_JSON,    "__local__",        0,          0,          "local event kw"),
-//SDATA (DTP_JSON,    "__filter__",       0,          0,          "filter event kw"),
-//SDATA (DTP_STRING,  "__service__",      0,          0,          "subscription service"),
+SDATA (DTP_POINTER, "event",            0,          0,          "event name subscribed"),
+SDATA (DTP_POINTER, "renamed_event",    0,          0,          "rename event name"),
+SDATA (DTP_INTEGER, "subs_flag",        0,          0,          "subscription flag. See subs_flag_t"),
+SDATA (DTP_JSON,    "__config__",       0,          0,          "subscription config"),
+SDATA (DTP_JSON,    "__global__",       0,          0,          "global kw, merge in publishing"),
+SDATA (DTP_JSON,    "__local__",        0,          0,          "local kw, remove in publishing"),
+SDATA (DTP_JSON,    "__filter__",       0,          0,          "filter kw, filter in publishing"),
+SDATA (DTP_STRING,  "__service__",      0,          0,          "subscription service"),
 SDATA_END()
 };
 
@@ -7064,7 +7050,7 @@ PRIVATE json_t * _create_subscription(
         json_t *__global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
         json_t *__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
         json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
-        //const char *__service__ = kw_get_str(publisher, kw, "__service__", 0, 0);
+        const char *__service__ = kw_get_str(publisher, kw, "__service__", 0, 0);
 
         if(__global__) {
             json_t *kw_clone = json_deep_copy(__global__);
@@ -7120,9 +7106,9 @@ PRIVATE json_t * _create_subscription(
             json_t *kw_clone = json_deep_copy(__filter__);
             json_object_set_new(subs, "__filter__", kw_clone);
         }
-        //if(__service__) {
-        //    json_object_set_new(subs, "__service__", json_string(__service__));
-        //}
+        if(!empty_string(__service__)) {
+            json_object_set_new(subs, "__service__", json_string(__service__));
+        }
     }
     json_object_set_new(subs, "subs_flag", json_integer((json_int_t)subs_flag));
 
@@ -7270,7 +7256,6 @@ PRIVATE int _get_subs_idx(
 
     return -1;
 }
-
 
 /***************************************************************************
  *  Delete subscription in publisher and subscriber
@@ -7449,11 +7434,9 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
                 KW_DECREF(kw)
                 return 0;
             }
-        } else {
-            // WARNING see collateral damages
-            event_type_t *event_type = gobj_event_type(publisher, event, true);
-            event = event_type->event_name;
         }
+    } else {
+        event = NULL;
     }
 
     /*-------------------------------------------------*
@@ -7630,10 +7613,6 @@ PUBLIC int gobj_unsubscribe_event(
                 KW_DECREF(kw)
                 return 0;
             }
-        } else {
-            // WARNING see collateral damages
-            event_type_t *event_type = gobj_event_type(publisher, event, true);
-            event = event_type->event_name;
         }
     }
 
@@ -7716,6 +7695,30 @@ PUBLIC json_t *gobj_find_subscriptions(
 }
 
 /***************************************************************************
+ *  Return a list of subscribings
+ *  filtering by matching:
+ *      event,
+ *      kw (__config__, __global__, __local__, __filter__),
+ *      subscriber
+ ***************************************************************************/
+PUBLIC json_t *gobj_find_subscribings(
+    hgobj subscriber_,
+    gobj_event_t event,
+    json_t *kw,             // kw (__config__, __global__, __local__, __filter__)
+    hgobj publisher
+)
+{
+    gobj_t * subscriber = subscriber_;
+    return _find_subscriptions(
+        subscriber->dl_subscribings,
+        publisher,
+        event,
+        kw,
+        subscriber
+    );
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
@@ -7760,30 +7763,6 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view)
         "total_subscribings", json_array_size(subscribings)
     );
     return jn_data2;
-}
-
-/***************************************************************************
- *  Return a list of subscribings
- *  filtering by matching:
- *      event,
- *      kw (__config__, __global__, __local__, __filter__),
- *      subscriber
- ***************************************************************************/
-PUBLIC json_t *gobj_find_subscribings(
-    hgobj subscriber_,
-    gobj_event_t event,
-    json_t *kw,             // kw (__config__, __global__, __local__, __filter__)
-    hgobj publisher
-)
-{
-    gobj_t * subscriber = subscriber_;
-    return _find_subscriptions(
-        subscriber->dl_subscribings,
-        publisher,
-        event,
-        kw,
-        subscriber
-    );
 }
 
 /***************************************************************************
