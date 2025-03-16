@@ -52,6 +52,7 @@ New API
     is_private_key
     PUBLIC size_t json_size(json_t *value);
     gobj_subs_desc
+    gobj_list_subscribings
 
 Delete API
 

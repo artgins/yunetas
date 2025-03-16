@@ -7780,6 +7780,14 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj)
     }
     JSON_DECREF(subscriptions)
 
+    return jn_subscriptions;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_list_subscribings(hgobj gobj)
+{
     json_t *jn_subscribings = json_array();
 
     json_t *subscribings = gobj_find_subscribings( // Return is YOURS
@@ -7788,17 +7796,14 @@ PUBLIC json_t *gobj_list_subscriptions(hgobj gobj)
         NULL,   // kw (__config__, __global__, __local__)
         0       // subscriber
     );
+    int idx; json_t *sub;
     json_array_foreach(subscribings, idx, sub) {
       	json_t *jn_sub = get_subs_info(gobj, sub);
         json_array_append_new(jn_subscribings, jn_sub);
     }
     JSON_DECREF(subscribings)
 
-    json_t *jn_data2 = json_pack("{s:o, s:o}",
-        "subscriptions", jn_subscriptions,
-        "subscribings", jn_subscribings
-    );
-    return jn_data2;
+    return jn_subscribings;
 }
 
 /***************************************************************************

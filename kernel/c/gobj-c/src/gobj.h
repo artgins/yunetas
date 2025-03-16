@@ -1803,7 +1803,8 @@ PUBLIC json_t *gobj_find_subscribings( // Return is YOURS
     json_t *kw,             // kw (__config__, __global__, __local__)
     hgobj publisher
 );
-PUBLIC json_t *gobj_list_subscriptions(hgobj gobj2view);
+PUBLIC json_t *gobj_list_subscriptions(hgobj gobj);
+PUBLIC json_t *gobj_list_subscribings(hgobj gobj);
 
 /*
  *  In general the meaning of returns are:
