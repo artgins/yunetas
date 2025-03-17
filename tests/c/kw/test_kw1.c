@@ -33,9 +33,10 @@ PRIVATE int global_result = 0;
 /***************************************************************************
  *  Test matching true
  ***************************************************************************/
-static int test1(void)
+static int test1_true(void)
 {
     int result = 0;
+    json_t *jn_filter = 0;
 
     json_t *kw = json_pack("{s:s, s:b, s:i, s:f}",
         "string", "s",
@@ -48,11 +49,149 @@ static int test1(void)
         result += -1;
     }
 
-    json_t *jn_filter = json_pack("{s:s}",
+    jn_filter = json_pack("{s:s}",
         "string", "s"
     );
     matched = kw_match_simple(kw, jn_filter);
     if(!matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:b}",
+        "bool", true
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:i}",
+        "integer", 123
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:f}",
+        "real", 1.5
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:s, s:b, s:i, s:f}",
+        "string", "s",
+        "bool",  true,
+        "integer", 123,
+        "real", 1.5
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("[{s:s, s:b}, {s:i, s:f}]",
+        "string", "s",
+        "bool",  true,
+        "integer", 123,
+        "real", 1.5
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("[{}, {s:i, s:f}]",
+        "integer", 0,
+        "real", 0.0
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    KW_DECREF(kw)
+    return result;
+}
+
+/***************************************************************************
+ *  Test matching false
+ ***************************************************************************/
+static int test1_false(void)
+{
+    int result = 0;
+    json_t *jn_filter = 0;
+    BOOL matched = false;
+
+    json_t *kw = json_pack("{s:s, s:b, s:i, s:f}",
+        "string", "s",
+        "bool",  true,
+        "integer", 123,
+        "real", 1.5
+    );
+
+    jn_filter = json_pack("{s:s}",
+        "string", "sa"
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:b}",
+        "bool", false
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:i}",
+        "integer", 1234
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:f}",
+        "real", 1.55
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:s, s:b, s:i, s:f}",
+        "string", "ss",
+        "bool",  true,
+        "integer", 123,
+        "real", 1.5
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("[{s:s, s:b}, {s:i, s:f}]",
+        "string", "sa",
+        "bool",  true,
+        "integer", 123,
+        "real", 1.55
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("[{s:i, s:f}]",
+        "integer", 0,
+        "real", 0.0
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
         result += -1;
     }
 
@@ -69,7 +208,8 @@ int do_test(void)
 {
     int result = 0;
 
-    result += test1();
+    result += test1_true();
+    result += test1_false();
 
     /*-------------------------------*
      *      Shutdown timeranger
