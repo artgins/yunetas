@@ -1427,14 +1427,14 @@ function gobj_create2(
 
     if(gobj_flag & (gobj_flag_t.gobj_flag_service)) {
         if(gobj_find_service(gobj_name, false)) {
-            log_error(`service ALREADY registered: ${gclass_name}`);
+            log_error(`service ALREADY registered: ${gclass_name}^${gobj_name}`);
             return null;
         }
     }
 
     if(gobj_flag & (gobj_flag_t.gobj_flag_default_service)) {
         if(__default_service__) {
-            log_error(`default service ALREADY registered: ${gclass_name}`);
+            log_error(`default service ALREADY registered: ${gclass_name}^${gobj_name}`);
             return null;
         }
         gobj_flag |= gobj_flag_t.gobj_flag_service;
@@ -1446,11 +1446,11 @@ function gobj_create2(
     }
     let gclass = gclass_find_by_name(gclass_name, false);
     if(!gclass) {
-        log_error(`GClass not registered: ${gclass_name}`);
+        log_error(`GClass not registered: ${gclass_name}^${gobj_name}`);
         return null;
     }
     if(!is_string(gobj_name)) {
-        log_error(`gobj_name must be a string`);
+        log_error(`gobj_name must be a string: ${gclass_name}`);
         return null;
     }
 
@@ -1459,14 +1459,14 @@ function gobj_create2(
          *  Check that the gobj_name: cannot contain `
          */
         if(gobj_name.includes('`')) {
-            log_error(`gobj_name cannot contain char \': ${gobj_name}`);
+            log_error(`gobj_name cannot contain char \': ${gclass_name}^${gobj_name}`);
             return null;
         }
         /*
          *  Check that the gobj_name: cannot contain ^
          */
         if(gobj_name.includes('^')) {
-            log_error(`gobj_name cannot contain char ^: ${gobj_name}`);
+            log_error(`gobj_name cannot contain char ^: ${gclass_name}^${gobj_name}`);
             return null;
         }
     }
