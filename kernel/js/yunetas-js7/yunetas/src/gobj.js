@@ -515,7 +515,11 @@ function set_default(gobj, sdata, it)
             break;
         case data_type_t.DTP_LIST:
             if(is_string(svalue)) {
-                jn_value = JSON.parse(svalue);
+                try {
+                    jn_value = JSON.parse(svalue);
+                } catch (error) {
+                    log_error(`JSON parse error: ${error.message}`);
+                }
             } else {
                 jn_value = svalue;
             }
@@ -525,7 +529,11 @@ function set_default(gobj, sdata, it)
             break;
         case data_type_t.DTP_DICT:
             if(is_string(svalue)) {
-                jn_value = JSON.parse(svalue);
+                try {
+                    jn_value = JSON.parse(svalue);
+                } catch (error) {
+                    log_error(`JSON parse error: ${error.message}`);
+                }
             } else {
                 jn_value = svalue;
             }
@@ -535,7 +543,11 @@ function set_default(gobj, sdata, it)
             break;
         case data_type_t.DTP_JSON:
             if(is_string(svalue)) {
-                jn_value = JSON.parse(svalue);
+                try {
+                    jn_value = JSON.parse(svalue);
+                } catch (error) {
+                    log_error(`JSON parse error: ${error.message}`);
+                }
             } else {
                 jn_value = svalue;
             }
@@ -592,7 +604,11 @@ function json2item(gobj, sdata, it, jn_value_)
             break;
         case data_type_t.DTP_LIST:
             if(is_string(jn_value_)) {
-                jn_value2 = JSON.parse(jn_value_);
+                try {
+                    jn_value2 = JSON.parse(jn_value_);
+                } catch (error) {
+                    log_error(`JSON parse error: ${error.message}`);
+                }
             } else {
                 jn_value2 = jn_value_;
             }
@@ -604,7 +620,11 @@ function json2item(gobj, sdata, it, jn_value_)
 
         case data_type_t.DTP_DICT:
             if(is_string(jn_value_)) {
-                jn_value2 = JSON.parse(jn_value_);
+                try {
+                    jn_value2 = JSON.parse(jn_value_);
+                } catch (error) {
+                    log_error(`JSON parse error: ${error.message}`);
+                }
             } else {
                 jn_value2 = jn_value_;
             }
@@ -620,7 +640,11 @@ function json2item(gobj, sdata, it, jn_value_)
 
         case data_type_t.DTP_JSON:
             if(is_string(jn_value_)) {
-                jn_value2 = JSON.parse(jn_value_);
+                try {
+                    jn_value2 = JSON.parse(jn_value_);
+                } catch (error) {
+                    log_error(`JSON parse error: ${error.message}`);
+                }
             } else {
                 jn_value2 = jn_value_;
             }
@@ -1395,7 +1419,7 @@ function gobj_create2(
     /*
      *  gobj_name to lower, make case-insensitive
      */
-    gobj_name = gobj_name.toLowerCase();
+    // gobj_name = gobj_name.toLowerCase();
 
     if(gobj_flag & (gobj_flag_t.gobj_flag_yuno)) {
         if(__yuno__) {

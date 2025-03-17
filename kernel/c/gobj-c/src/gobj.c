@@ -1609,8 +1609,8 @@ PUBLIC hgobj gobj_create2(
     /*
      *  gobj_name to lower, make case-insensitive
      */
-    snprintf(gobj_name, sizeof(gobj_name), "%s", gobj_name_?gobj_name_:"");
-    strntolower(gobj_name, strlen(gobj_name));
+    // snprintf(gobj_name, sizeof(gobj_name), "%s", gobj_name_?gobj_name_:"");
+    // strntolower(gobj_name, strlen(gobj_name));
 
     if(gobj_flag & (gobj_flag_yuno)) {
         if(__yuno__) {
