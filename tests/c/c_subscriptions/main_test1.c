@@ -108,7 +108,7 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", true);
 
     //gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "messages", true);
-    gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "machine", true);
+    //gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "machine", true);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", true);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", true);
@@ -120,7 +120,7 @@ static int register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "create_delete", true, 0);
     // gobj_set_gobj_trace(0, "create_delete2", true, 0);
     // gobj_set_gobj_trace(0, "start_stop", true, 0);
-     gobj_set_gobj_trace(0, "subscriptions", true, 0);
+    // gobj_set_gobj_trace(0, "subscriptions", true, 0);
     // gobj_set_gobj_trace(0, "machine", true, 0);
     // gobj_set_gobj_trace(0, "ev_kw", true, 0);
     // gobj_set_gobj_trace(0, "liburing", true, 0);
@@ -129,32 +129,19 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-//    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
-//        "msg", "Starting yuno",
-//        "msg", "addrinfo on listen",
-//        "msg", "Listening...",
-//        "msg", "Playing yuno",
-//        "msg", "Connected To",
-//        "msg", "Clisrv accepted",
-//        "msg", "Connected From",
-//        "msg", "Disconnected To",
-//        "msg", "Disconnected From",
-//        "msg", "Connected To",
-//        "msg", "Clisrv accepted",
-//        "msg", "Connected From",
-//        "msg", "Disconnected To",
-//        "msg", "Disconnected From",
-//        "msg", "Connected To",
-//        "msg", "Clisrv accepted",
-//        "msg", "Connected From",
-//        "msg", "Disconnected To",
-//        "msg", "Disconnected From",
-//        "msg", "Pausing yuno",
-//        "msg", "Yuno stopped, gobj end"
-//    );
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+        "msg", "Starting yuno",
+        "msg", "Playing yuno",
+        "msg", "on_message",
+        "msg", "on_message",
+        "msg", "on_message",
+        "msg", "on_message",
+        "msg", "Pausing yuno",
+        "msg", "Yuno stopped, gobj end"
+    );
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
-0,//        errors_list, // errors_list,
+        errors_list, // errors_list,
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
         true    // verbose

@@ -183,11 +183,7 @@ PRIVATE int ac_timeout_idle(hgobj gobj, const char *event, json_t *kw, hgobj src
     json_t *kw_subs = json_pack("{s:s}",
         "id", "Xxx1"
     );
-    if(priv->counter % 2) {
-        gobj_subscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);
-    } else {
-        gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);
-    }
+    gobj_subscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);
 
     JSON_DECREF(kw)
     return 0;
@@ -230,7 +226,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "gclass",       "%s", gobj_gclass_name(gobj),
             NULL
         );
+        json_t *kw_subs = json_pack("{s:s}",
+            "id", "Xxx1"
+        );
+        gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);
     }
+
     JSON_DECREF(kw)
     return 0;
 }
