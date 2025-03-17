@@ -43,6 +43,7 @@ import {
     parseBoolean,
     is_gobj,
     json_size,
+    json_is_identical,
 } from "./helpers.js";
 
 import {sprintf} from "./sprintf.js";

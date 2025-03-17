@@ -7161,7 +7161,7 @@ PRIVATE BOOL _match_subscription(
     if(json_size(__config__)>0) {
         json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
         if(json_size(kw_config)>0) {
-            if(!json_is_identical(kw_config, json_incref(__config__))) {
+            if(!json_is_identical(kw_config, __config__)) {
                 return false;
             }
         } else {
@@ -7171,7 +7171,7 @@ PRIVATE BOOL _match_subscription(
     if(json_size(__global__)>0) {
         json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
         if(json_size(kw_global)>0) {
-            if(!json_is_identical(kw_global, json_incref(__global__))) {
+            if(!json_is_identical(kw_global, __global__)) {
                 return false;
             }
         } else {
@@ -7181,7 +7181,7 @@ PRIVATE BOOL _match_subscription(
     if(json_size(__local__)>0) {
         json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
         if(json_size(kw_local)>0) {
-            if(!json_is_identical(kw_local, json_incref(__local__))) {
+            if(!json_is_identical(kw_local, __local__)) {
                 return false;
             }
         } else {
@@ -7191,7 +7191,7 @@ PRIVATE BOOL _match_subscription(
     if(json_size(__filter__)>0) {
         json_t *kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
         if(json_size(kw_filter)>0) {
-            if(!json_is_identical(kw_filter, json_incref(__filter__))) {
+            if(!json_is_identical(kw_filter, __filter__)) {
                 return false;
             }
         } else {
@@ -7386,6 +7386,7 @@ PRIVATE int _delete_subscription(
  *  event is only one event (not a string list like ginsfsm).
  *
  *  See .h
+
  ***************************************************************************/
 PUBLIC json_t *gobj_subscribe_event( // return not yours
     hgobj publisher_,

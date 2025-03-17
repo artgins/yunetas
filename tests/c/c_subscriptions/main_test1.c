@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {2566, 3260, 0}; // WARNING: the list ended with 0
+    unsigned long memory_check_list[] = {0, 0, 0}; // WARNING: the list ended with 0
     set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
