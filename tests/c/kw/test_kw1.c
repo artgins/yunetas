@@ -238,18 +238,109 @@ static int test2_true(void)
         result += -1;
     }
 
-    // jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
-    //     "object",
-    //         "string1", "string1",
-    //         "true",  true,
-    //     "list",
-    //         "integer", 1235,
-    //         "real", 1.55
-    // );
-    // matched = kw_match_simple(kw, jn_filter);
-    // if(!matched) {
-    //     result += -1;
-    // }
+    jn_filter = json_pack("{s:{s:s, s:b}, s:[{}, {s:i, s:f}]}",
+        "object",
+            "string1", "string1",
+            "true",  true,
+        "list",
+            "integer", 1235,
+            "real", 1.55
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    KW_DECREF(kw)
+    return result;
+}
+
+/***************************************************************************
+ *  Test complex
+ ***************************************************************************/
+static int test2_false(void)
+{
+    int result = 0;
+    json_t *jn_filter = 0;
+
+    json_t *kw = json_pack("{s:{s:s, s:b, s:i, s:f}, s:[{s:s, s:b, s:i, s:f}]}",
+        "object",
+            "string1", "string1",
+            "true",  true,
+            "integer", 123,
+            "real", 1.5,
+        "list",
+            "string", "string2",
+            "false",  false,
+            "integer", 456,
+            "real", 2.6
+    );
+
+    jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
+        "object",
+            "string1", "string1",
+            "true",  true,
+        "list",
+            "integer", 456,
+            "real", 2.6
+    );
+    BOOL matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
+        "object",
+            "string1", "string2",
+            "true",  true,
+        "list",
+            "integer", 456,
+            "real", 2.6
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
+        "object",
+            "string1", "string1",
+            "true",  false,
+        "list",
+            "integer", 456,
+            "real", 2.6
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
+        "object",
+            "string1", "string1",
+            "true",  true,
+        "list",
+            "integer", 4566,
+            "real", 2.6
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
+    jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
+        "object",
+            "string1", "string1",
+            "true",  true,
+        "list",
+            "integer", 456,
+            "real", 2.66
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(matched) {
+        result += -1;
+    }
+
 
     KW_DECREF(kw)
     return result;
@@ -267,6 +358,7 @@ int do_test(void)
     result += test1_true();
     result += test1_false();
     result += test2_true();
+    result += test2_false();
 
     /*-------------------------------*
      *      Shutdown timeranger
