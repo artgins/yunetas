@@ -10,8 +10,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include "helpers.h"
 #include "kwid.h"
+
 
 /***************************************************************
  *              Constants
@@ -2384,8 +2386,88 @@ PUBLIC int kw_pop(
 }
 
 /***************************************************************************
-    Match a json dict with a json filter
-    If jn_filter is null or empty the match is true
+    Match a json dict with a json filter (only compare str/number)
+ ***************************************************************************/
+PRIVATE BOOL _kw_match_simple(
+    json_t *kw,         // not owned
+    json_t *jn_filter,  // owned
+    char *prefix_path
+)
+{
+    BOOL matched = FALSE;
+
+    if(json_is_array(jn_filter)) {
+        // Empty array evaluate as false, until a match condition occurs.
+        matched = FALSE;
+        size_t idx;
+        json_t *jn_filter_value;
+        json_array_foreach(jn_filter, idx, jn_filter_value) {
+            JSON_INCREF(jn_filter_value);
+            matched = _kw_match_simple(
+                kw,                 // not owned
+                jn_filter_value,    // owned
+                prefix_path
+            );
+            if(matched) {
+                break;
+            }
+        }
+
+    } else if(json_is_object(jn_filter)) {
+        // Object evaluate as true, until a NOT match condition occurs.
+        matched = TRUE;
+        const char *key;
+        json_t *jn_filter_value;
+        json_object_foreach(jn_filter, key, jn_filter_value) {
+            /*
+             *  Variable compleja, recursivo
+             */
+            char path[NAME_MAX];
+            snprintf(path, sizeof(path), "%s`%s", prefix_path, key);
+
+            if(json_is_array(jn_filter_value) || json_is_object(jn_filter_value)) {
+                matched = _kw_match_simple(
+                    kw, // not owned
+                    json_incref(jn_filter_value),  // owned
+                    path
+                );
+                if(!matched) {
+                    break;
+                }
+                continue;
+            }
+
+            /*
+             *  Get the record value, firstly by path else by name
+             */
+            // Firstly try the key as pointers
+            json_t *jn_record_value = kw_get_dict_value(0, kw, path, 0, 0);
+            if(!jn_record_value) {
+                // Secondly try the key with points (.) as full key
+                jn_record_value = json_object_get(kw, path);
+            }
+            if(!jn_record_value) {
+                matched = FALSE;
+                break;
+            }
+
+            /*
+             *  Do simple operation
+             */
+            int cmp = cmp_two_simple_json(jn_record_value, jn_filter_value);
+            if(cmp!=0) {
+                matched = FALSE;
+                break;
+            }
+        }
+    }
+
+    JSON_DECREF(jn_filter);
+    return matched;
+}
+
+/***************************************************************************
+    Match a json dict with a json filter (only compare str/number)
  ***************************************************************************/
 PUBLIC BOOL kw_match_simple(
     json_t *kw,         // not owned
@@ -2398,26 +2480,7 @@ PUBLIC BOOL kw_match_simple(
         return true;
     }
 
-    BOOL matched = false;
-
-    if(json_is_array(jn_filter)) {
-        // Empty array evaluates as false, until a match condition occurs.
-        matched = false;
-
-        int idx; json_t *v;
-        json_array_foreach(jn_filter, idx, v) {
-            if(json_equal(kw, v)) {
-                matched = true;
-                break;
-            }
-        }
-
-    } else if(json_is_object(jn_filter)) {
-        matched = json_equal(kw, jn_filter);
-    }
-
-    json_decref(jn_filter);
-    return matched;
+    return _kw_match_simple(kw, jn_filter, "");
 }
 
 /***************************************************************************
