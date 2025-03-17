@@ -172,7 +172,7 @@ PRIVATE int ac_timeout_idle(hgobj gobj, const char *event, json_t *kw, hgobj src
     set_timeout(priv->timer, 1000);
 
     json_t *kw_subs = json_pack("{s:{s:s}}",
-        "__filter__",
+        "__filter__X",
             "id", "Xxx1"
     );
     gobj_subscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);

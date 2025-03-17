@@ -56,7 +56,7 @@ PRIVATE char variable_config[]= "\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
         'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
-            'C_TEST1': []       \n\
+            'C_TEST2': []       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
@@ -129,16 +129,30 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "Playing yuno",
+        "msg", "key ignored in subscription",
         "msg", "on_message",
+        "msg", "No subscription found",
+        "msg", "key ignored in subscription",
+        "msg", "subscription(s) REPEATED, will be deleted and override",
         "msg", "on_message",
+        "msg", "No subscription found",
+        "msg", "key ignored in subscription",
+        "msg", "subscription(s) REPEATED, will be deleted and override",
         "msg", "on_message",
+        "msg", "No subscription found",
+        "msg", "key ignored in subscription",
+        "msg", "subscription(s) REPEATED, will be deleted and override",
         "msg", "on_message",
+        "msg", "No subscription found",
+        "msg", "key ignored in subscription",
+        "msg", "subscription(s) REPEATED, will be deleted and override",
         "msg", "Pausing yuno",
         "msg", "Yuno stopped, gobj end"
     );
+
     set_expected_results( // Check that no logs happen
         APP_NAME, // test name
         errors_list, // errors_list,
