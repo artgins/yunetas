@@ -3510,7 +3510,7 @@ function _match_subscription(
     if(json_size(__config__)>0) {
         let kw_config = kw_get_dict(null, subs, "__config__", null);
         if(json_size(kw_config)>0) {
-            if(!kw_match_simple(kw_config, __config__)) {
+            if(!json_is_identical(kw_config, __config__)) {
                 match = false;
             }
         } else {
@@ -3520,7 +3520,7 @@ function _match_subscription(
     if(json_size(__global__)>0) {
         let kw_global = kw_get_dict(null, subs, "__global__", null);
         if(json_size(kw_global)>0) {
-            if(!kw_match_simple(kw_global, __global__)) {
+            if(!json_is_identical(kw_global, __global__)) {
                 match = false;
             }
         } else {
@@ -3530,7 +3530,7 @@ function _match_subscription(
     if(json_size(__local__)>0) {
         let kw_local = kw_get_dict(null, subs, "__local__", null);
         if(json_size(kw_local)>0) {
-            if(!kw_match_simple(kw_local, __local__)) {
+            if(!json_is_identical(kw_local, __local__)) {
                 match = false;
             }
         } else {
@@ -3540,7 +3540,7 @@ function _match_subscription(
     if(json_size(__filter__)>0) {
         let kw_filter = kw_get_dict_value(null, subs, "__filter__", null);
         if(json_size(kw_filter)>0) {
-            if(!kw_match_simple(kw_filter, __filter__)) {
+            if(!json_is_identical(kw_filter, __filter__)) {
                 match = false;
             }
         } else {
@@ -3722,9 +3722,13 @@ function gobj_subscribe_event(
         log_error(`subscriber NULL: ev ${event}`);
         return 0;
     }
-    if(event == null) {
-        event = "";
-    }
+
+    const ignoredKeys = new Set(["__config__", "__global__", "__local__", "__filter__"]);
+    Object.entries(kw).forEach(([key, value]) => {
+        if (!ignoredKeys.has(key)) {
+            log_warning(`${gobj_short_name(publisher)}: key ignored in subscription: key ${key}, event ${event}`);
+        }
+    });
 
     /*--------------------------------------------------------------*
      *  Event must be in output event list
@@ -3737,6 +3741,8 @@ function gobj_subscribe_event(
                 return 0;
             }
         }
+    } else {
+        event = "";  // In C use NULL, in JS or others use ""
     }
 
     /*-------------------------------------------------*
@@ -3829,9 +3835,13 @@ function gobj_unsubscribe_event(
         log_error(`subscriber NULL: ev ${event}`);
         return 0;
     }
-    if(event == null) {
-        event = "";
-    }
+
+    const ignoredKeys = new Set(["__config__", "__global__", "__local__", "__filter__"]);
+    Object.entries(kw).forEach(([key, value]) => {
+        if (!ignoredKeys.has(key)) {
+            log_warning(`${gobj_short_name(publisher)}: key ignored in subscription: key ${key}, event ${event}`);
+        }
+    });
 
     /*--------------------------------------------------------------*
      *  Event must be in output event list
@@ -3844,6 +3854,8 @@ function gobj_unsubscribe_event(
                 return 0;
             }
         }
+    } else {
+        event = "";  // In C use NULL, in JS or others use ""
     }
 
     /*-----------------------------*

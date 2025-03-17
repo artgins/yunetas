@@ -2395,11 +2395,11 @@ PRIVATE BOOL _kw_match_simple(
 )
 {
     char path[NAME_MAX];
-    BOOL matched = FALSE;
+    BOOL matched = false;
 
     if(json_is_array(jn_filter)) {
         // Empty array evaluate as false, until a match condition occurs.
-        matched = FALSE;
+        matched = false;
         size_t idx;
         json_t *jn_filter_value;
         json_array_foreach(jn_filter, idx, jn_filter_value) {
@@ -2424,7 +2424,7 @@ PRIVATE BOOL _kw_match_simple(
 
     } else if(json_is_object(jn_filter)) {
         // Object evaluate as true, until a NOT match condition occurs.
-        matched = TRUE;
+        matched = true;
         const char *key;
         json_t *jn_filter_value;
         json_object_foreach(jn_filter, key, jn_filter_value) {
@@ -2459,7 +2459,7 @@ PRIVATE BOOL _kw_match_simple(
                 jn_record_value = json_object_get(kw, path);
             }
             if(!jn_record_value) {
-                matched = FALSE;
+                matched = false;
                 break;
             }
 
@@ -2468,7 +2468,7 @@ PRIVATE BOOL _kw_match_simple(
              */
             int cmp = cmp_two_simple_json(jn_record_value, jn_filter_value);
             if(cmp!=0) {
-                matched = FALSE;
+                matched = false;
                 break;
             }
         }

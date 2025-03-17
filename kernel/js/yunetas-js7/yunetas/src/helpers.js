@@ -10,6 +10,8 @@ import {
     gobj_short_name,
 } from "./gobj.js";
 
+import {sprintf} from "./sprintf.js";
+
 const kw_flag_t = Object.freeze({
     KW_REQUIRED     : 0x0001,   // Log error message if not exist.
     KW_CREATE       : 0x0002,   // Create if not exist
@@ -1301,36 +1303,112 @@ function kw_set_subdict_value(gobj, kw, path, key, value)
     return 0;
 }
 
-/************************************************************
- *
- ************************************************************/
-function kw_match_simple(kw, jn_filter)
+/***************************************************************************
+    Match a json dict with a json filter (only compare str/number)
+ ***************************************************************************/
+function _kw_match_simple(
+    kw,         // not owned
+    jn_filter,  // owned
+    prefix_path
+)
+{
+    let path = "";
+    let matched = false;
+
+    if(is_array(jn_filter)) {
+        // Empty array evaluate as false, until a match condition occurs.
+        matched = false;
+        for(let idx = 0; idx < jn_filter.length; idx++) {
+            let jn_filter_value = jn_filter[idx];
+            /*
+             *  Complex variable, recursive
+             */
+            if(empty_string(prefix_path)) {
+                path = sprintf("%s", prefix_path);
+            } else {
+                path = sprintf("%s`%d", prefix_path, idx);
+            }
+
+            matched = _kw_match_simple(
+                kw,                 // not owned
+                jn_filter_value,    // owned
+                path
+            );
+            if(matched) {
+                break;
+            }
+        }
+
+    } else if(is_object(jn_filter)) {
+        // Object evaluate as true, until a NOT match condition occurs.
+        matched = true;
+        let keys = Object.keys(jn_filter);
+        for(let i=0; i<keys.length; i++) {
+            let key = keys[i];
+            let jn_filter_value = jn_filter[key];
+            if(empty_string(prefix_path)) {
+                path = sprintf("%s", key);
+            } else {
+                path = sprintf("%s`%s", prefix_path, key);
+            }
+
+            if(is_array(jn_filter_value) || is_object(jn_filter_value)) {
+                /*
+                 *  Complex variable, recursive
+                 */
+                matched = _kw_match_simple(
+                    kw, // not owned
+                    jn_filter_value,  // owned
+                    path
+                );
+                if(!matched) {
+                    break;
+                }
+                continue;
+            }
+
+            /*
+             *  Get the record value, firstly by path else by name
+             */
+            // Firstly try the key as pointers
+            let jn_record_value = kw_get_dict_value(0, kw, path, 0, 0);
+            if(!jn_record_value) {
+                // Secondly try the key with points (.) as full key
+                jn_record_value = json_object_get(kw, path);
+            }
+            if(!jn_record_value) {
+                matched = false;
+                break;
+            }
+
+            /*
+             *  Do simple operation
+             */
+            let cmp = cmp_two_simple_json(jn_record_value, jn_filter_value);
+            if(cmp!==0) {
+                matched = false;
+                break;
+            }
+        }
+    }
+
+    return matched;
+}
+
+/***************************************************************************
+    Match a json dict with a json filter (only compare str/number)
+ ***************************************************************************/
+function kw_match_simple(
+    kw,         // not owned
+    jn_filter   // owned
+)
 {
     if(json_size(jn_filter)===0) {
         // No filter, or an empty object or empty array evaluates as true.
         return true;
     }
 
-    let matched = false;
-
-    if(is_array(jn_filter)) {
-        // Empty array evaluates as false, until a match condition occurs.
-        matched = false;
-
-        for(let idx=0; idx<jn_filter.length; idx++) {
-            let v = jn_filter[idx];
-            if(json_equal(kw, v)) {
-                matched = true;
-                break;
-            }
-        }
-
-    } else if(is_object(jn_filter)) {
-        matched = json_equal(kw, jn_filter);
-    }
-
-    return matched;
-
+    return _kw_match_simple(kw, jn_filter, "");
 }
 
 /***************************************************************************
@@ -1616,7 +1694,7 @@ function kw_remove_local_storage_value(key)
 
 /*************************************************************
     Utility for databases.
-    Return TRUE if `id` is in the list/dict/str `ids`
+    Return true if `id` is in the list/dict/str `ids`
  *************************************************************/
 function kwid_match_id(ids, id)
 {
