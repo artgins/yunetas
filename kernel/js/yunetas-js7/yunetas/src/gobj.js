@@ -3500,7 +3500,7 @@ function _match_subscription(
     }
 
     if(event) {
-        let event_ = kw_get_int(null, subs, "event", "");
+        let event_ = kw_get_str(null, subs, "event", "");
         if(event !== event_) {
             match = false;
         }
