@@ -7428,7 +7428,8 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         if(!(strcmp(key, "__config__")==0 ||
             strcmp(key, "__global__")==0 ||
             strcmp(key, "__local__")==0 ||
-            strcmp(key, "__filter__")==0
+            strcmp(key, "__filter__")==0 ||
+            strcmp(key, "__service__")==0
         )) {
             gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -7625,7 +7626,8 @@ PUBLIC int gobj_unsubscribe_event(
         if(!(strcmp(key, "__config__")==0 ||
             strcmp(key, "__global__")==0 ||
             strcmp(key, "__local__")==0 ||
-            strcmp(key, "__filter__")==0
+            strcmp(key, "__filter__")==0 ||
+            strcmp(key, "__service__")==0
         )) {
             gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,

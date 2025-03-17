@@ -3722,10 +3722,12 @@ function gobj_subscribe_event(
         return 0;
     }
 
-    const ignoredKeys = new Set(["__config__", "__global__", "__local__", "__filter__"]);
-    Object.entries(kw).forEach(([key, value]) => {
-        if (!ignoredKeys.has(key)) {
-            log_warning(`${gobj_short_name(publisher)}: key ignored in subscription: key ${key}, event ${event}`);
+    const IGNORED_KEYS = new Set(
+        ["__config__", "__global__", "__local__", "__filter__", "__service__"]
+    );
+    Object.keys(kw).forEach(key => {
+        if (!IGNORED_KEYS.has(key)) {
+            log_error(`${gobj_short_name(publisher)}: key ignored in subscription (key: ${key}, event: ${event})`);
         }
     });
 
@@ -3835,10 +3837,12 @@ function gobj_unsubscribe_event(
         return 0;
     }
 
-    const ignoredKeys = new Set(["__config__", "__global__", "__local__", "__filter__"]);
-    Object.entries(kw).forEach(([key, value]) => {
-        if (!ignoredKeys.has(key)) {
-            log_warning(`${gobj_short_name(publisher)}: key ignored in subscription: key ${key}, event ${event}`);
+    const IGNORED_KEYS = new Set(
+        ["__config__", "__global__", "__local__", "__filter__", "__service__"]
+    );
+    Object.keys(kw).forEach(key => {
+        if (!IGNORED_KEYS.has(key)) {
+            log_error(`${gobj_short_name(publisher)}: key ignored in subscription (key: ${key}, event: ${event})`);
         }
     });
 
