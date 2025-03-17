@@ -66,8 +66,6 @@ let __global_list_persistent_attrs_fn__ = null;
 let __global_command_parser_fn__ = null;
 let __global_stats_parser_fn__ = null;
 
-let __publish_event_match__ = kw_match_simple;
-
 /*
  *  System (gobj) output events
  */
@@ -4141,10 +4139,8 @@ function gobj_publish_event(
                     kw2publish,  // not owned
                     subscriber
                 );
-            } else if(__filter__) {
-                if(__publish_event_match__) {
-                    topublish = __publish_event_match__(kw2publish , __filter__);
-                }
+            } else if(json_size(__filter__)>0) {
+                topublish = kw_match_simple(kw2publish , __filter__);
                 if(tracea) {
                     trace_machine(sprintf(
                         "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",

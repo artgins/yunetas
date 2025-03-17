@@ -372,7 +372,6 @@ PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *keys) =
 PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 
 PRIVATE dl_list_t dl_gclass = {0};
-PRIVATE kw_match_fn __publish_event_match__ = kw_match_simple;
 PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(size_t)gobj
 PRIVATE dl_list_t dl_trans_filter = {0};
 
@@ -8040,10 +8039,7 @@ PUBLIC int gobj_publish_event(
                     subscriber
                 );
             } else if(json_size(__filter__)>0) {
-                if(__publish_event_match__) {
-                    KW_INCREF(__filter__)
-                    topublish = __publish_event_match__(kw2publish , __filter__);
-                }
+                topublish = kw_match_simple(kw2publish , json_incref(__filter__));
                 if(tracea) {
                     trace_machine(
                         "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
