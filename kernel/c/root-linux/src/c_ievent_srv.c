@@ -549,15 +549,15 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Delete external subscriptions
      */
     json_t *kw2match = json_object();
-    kw_set_dict_value(
+
+    kw_set_subdict_value(
         gobj,
         kw2match,
-        "__local__`__subscription_reference__",
+        "__local__", "__subscription_reference__",
         json_integer((json_int_t)(size_t)gobj)
     );
 
     json_t *dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
-print_json2("dl_s", dl_s); // TODO TEST
 
     gobj_unsubscribe_list(gobj, dl_s, false);
 
@@ -1132,7 +1132,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "__local__", "__subscription_reference__",
             json_integer((json_int_t)(size_t)gobj)
         );
-        kw_set_subdict_value(gobj, iev_kw, "__local__", "__temp__", json_null());
 
         // Prepare the return of response
         json_t *__md_iev__ = kw_get_dict(gobj, iev_kw, "__md_iev__", 0, 0);
