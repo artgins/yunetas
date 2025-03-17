@@ -7423,6 +7423,24 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         return 0;
     }
 
+    const char *key; json_t *v;
+    json_object_foreach(kw, key, v) {
+        if(!(strcmp(key, "__config__")==0 ||
+            strcmp(key, "__global__")==0 ||
+            strcmp(key, "__local__")==0 ||
+            strcmp(key, "__filter__")==0
+        )) {
+            gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "key ignored in subscription",
+                "key",          "%s", key,
+                "event",        "%s", event,
+                NULL
+            );
+        }
+    }
+
     /*--------------------------------------------------------------*
      *  Event must be in output event list
      *  You can avoid this with gcflag_no_check_output_events flag
@@ -7600,6 +7618,24 @@ PUBLIC int gobj_unsubscribe_event(
         );
         KW_DECREF(kw)
         return -1;
+    }
+
+    const char *key; json_t *v;
+    json_object_foreach(kw, key, v) {
+        if(!(strcmp(key, "__config__")==0 ||
+            strcmp(key, "__global__")==0 ||
+            strcmp(key, "__local__")==0 ||
+            strcmp(key, "__filter__")==0
+        )) {
+            gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "key ignored in subscription",
+                "key",          "%s", key,
+                "event",        "%s", event,
+                NULL
+            );
+        }
     }
 
     /*--------------------------------------------------------------*

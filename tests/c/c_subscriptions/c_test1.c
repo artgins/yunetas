@@ -180,8 +180,9 @@ PRIVATE int ac_timeout_idle(hgobj gobj, const char *event, json_t *kw, hgobj src
     gobj_change_state(gobj, ST_SESSION);
     set_timeout(priv->timer, 1000);
 
-    json_t *kw_subs = json_pack("{s:s}",
-        "id", "Xxx1"
+    json_t *kw_subs = json_pack("{s:{s:s}}",
+        "__filter__",
+            "id", "Xxx1"
     );
     gobj_subscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);
 
@@ -196,7 +197,9 @@ PRIVATE int ac_timeout_session(hgobj gobj, const char *event, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *kw_publish = json_object();
+    json_t *kw_publish = json_pack("{s:s}",
+        "id", "Xxx1"
+    );
 
     gobj_publish_event(gobj, EV_ON_MESSAGE, kw_publish);
 
@@ -226,8 +229,9 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "gclass",       "%s", gobj_gclass_name(gobj),
             NULL
         );
-        json_t *kw_subs = json_pack("{s:s}",
-            "id", "Xxx1"
+        json_t *kw_subs = json_pack("{s:{s:s}}",
+            "__filter__",
+                "id", "Xxx1"
         );
         gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);
     }
