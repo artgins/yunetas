@@ -2268,15 +2268,16 @@ PUBLIC BOOL json_is_identical(
     json_t *kw2     // not owned
 )
 {
-    if(!kw1 || !kw2) {
-        return false;
-    }
-    char *kw1_ = json2uglystr(kw1);
-    char *kw2_ = json2uglystr(kw2);
-    int ret = strcmp(kw1_, kw2_);
-    GBMEM_FREE(kw1_)
-    GBMEM_FREE(kw2_)
-    return ret==0?true:false;
+    return json_equal(kw1, kw2);
+    // if(!kw1 || !kw2) {
+    //     return false;
+    // }
+    // char *kw1_ = json2uglystr(kw1);
+    // char *kw2_ = json2uglystr(kw2);
+    // int ret = strcmp(kw1_, kw2_);
+    // GBMEM_FREE(kw1_)
+    // GBMEM_FREE(kw2_)
+    // return ret==0?true:false;
 }
 
 /***************************************************************************
