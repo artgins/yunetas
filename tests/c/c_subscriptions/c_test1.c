@@ -180,6 +180,15 @@ PRIVATE int ac_timeout_idle(hgobj gobj, const char *event, json_t *kw, hgobj src
     gobj_change_state(gobj, ST_SESSION);
     set_timeout(priv->timer, 1000);
 
+    json_t *kw_subs = json_pack("{s:s}",
+        "id", "Xxx1"
+    );
+    if(priv->counter % 2) {
+        gobj_subscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);
+    } else {
+        gobj_unsubscribe_event(gobj, EV_ON_MESSAGE, kw_subs, gobj);
+    }
+
     JSON_DECREF(kw)
     return 0;
 }
@@ -191,15 +200,37 @@ PRIVATE int ac_timeout_session(hgobj gobj, const char *event, json_t *kw, hgobj 
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    json_t *kw_publish = json_object();
+
+    gobj_publish_event(gobj, EV_ON_MESSAGE, kw_publish);
+
+    gobj_change_state(gobj, ST_IDLE);
+    set_timeout(priv->timer, 1000);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     priv->counter++;
 
     if(priv->counter > 4) {
         gobj_set_yuno_must_die();
     } else {
-        gobj_change_state(gobj, ST_IDLE);
-        set_timeout(priv->timer, 1000);
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "on_message",
+            "gclass",       "%s", gobj_gclass_name(gobj),
+            NULL
+        );
     }
-
     JSON_DECREF(kw)
     return 0;
 }
@@ -251,11 +282,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_TIMEOUT,             	ac_timeout_idle,         	0},
+        {EV_TIMEOUT,             	ac_timeout_idle,           0},
         {0,0,0}
     };
     ev_action_t st_session[] = {
-        {EV_TIMEOUT,                ac_timeout_session,      	0},
+        {EV_TIMEOUT,                ac_timeout_session,        0},
+        {EV_ON_MESSAGE,             ac_on_message,             0},
         {0,0,0}
     };
     states_t states[] = {
@@ -265,7 +297,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_TIMEOUT,                0},
+        {EV_TIMEOUT,               0},
+        {EV_ON_MESSAGE,            EVF_OUTPUT_EVENT},
         {0, 0}
     };
 
