@@ -2394,6 +2394,7 @@ PRIVATE BOOL _kw_match_simple(
     char *prefix_path
 )
 {
+    char path[NAME_MAX];
     BOOL matched = FALSE;
 
     if(json_is_array(jn_filter)) {
@@ -2402,11 +2403,17 @@ PRIVATE BOOL _kw_match_simple(
         size_t idx;
         json_t *jn_filter_value;
         json_array_foreach(jn_filter, idx, jn_filter_value) {
-            JSON_INCREF(jn_filter_value);
+            /*
+             *  Complex variable, recursive
+             */
+            if(!empty_string(prefix_path)) {
+                snprintf(path, sizeof(path), "%s`%d", prefix_path, (int)idx);
+            }
+
             matched = _kw_match_simple(
                 kw,                 // not owned
-                jn_filter_value,    // owned
-                prefix_path
+                json_incref(jn_filter_value),    // owned
+                path
             );
             if(matched) {
                 break;
@@ -2419,10 +2426,6 @@ PRIVATE BOOL _kw_match_simple(
         const char *key;
         json_t *jn_filter_value;
         json_object_foreach(jn_filter, key, jn_filter_value) {
-            /*
-             *  Variable compleja, recursivo
-             */
-            char path[NAME_MAX];
             if(empty_string(prefix_path)) {
                 snprintf(path, sizeof(path), "%s", key);
             } else {
@@ -2430,6 +2433,9 @@ PRIVATE BOOL _kw_match_simple(
             }
 
             if(json_is_array(jn_filter_value) || json_is_object(jn_filter_value)) {
+                /*
+                 *  Complex variable, recursive
+                 */
                 matched = _kw_match_simple(
                     kw, // not owned
                     json_incref(jn_filter_value),  // owned

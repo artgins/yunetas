@@ -2195,13 +2195,13 @@ PUBLIC int cmp_two_simple_json(
 )
 {
     /*
-     *  Discard complex types, done as matched
+     *  Discard complex types, done as NOT matched (DANGER change 17-Mar-2025)
      */
     if(json_is_object(jn_var1) ||
             json_is_object(jn_var2) ||
             json_is_array(jn_var1) ||
             json_is_array(jn_var2)) {
-        return 0;
+        return -1;
     }
 
     /*
