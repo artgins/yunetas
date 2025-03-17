@@ -672,7 +672,7 @@ function gobj_hsdata2(gobj, name, verbose)
     if(verbose) {
         log_error(`GClass Attribute NOT FOUND: ${gobj_short_name(gobj)}, attr ${name}`);
     }
-    return 0;
+    return null;
 }
 
 /***************************************************************************
@@ -2721,9 +2721,6 @@ function gobj_search_path(gobj, path)
  ***************************************************************************/
 function gobj_has_attr(gobj, name)
 {
-    if(gobj_is_destroying(gobj)) {
-        return false; // WARNING must be a silence function!
-    }
     if(empty_string(name)) {
         return false; // WARNING must be a silence function!
     }

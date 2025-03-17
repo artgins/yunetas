@@ -3441,16 +3441,6 @@ PUBLIC json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
         return 0;
     }
 
-    if(gobj_is_destroying(gobj)) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj destroying",
-            NULL
-        );
-        return 0;
-    }
-
     if(gobj_has_attr(gobj, name)) {
         return gobj_hsdata(gobj);
     } else if(gobj && gobj->bottom_gobj) {
@@ -3466,7 +3456,7 @@ PUBLIC json_t *gobj_hsdata2(hgobj gobj_, const char *name, BOOL verbose)
             NULL
         );
     }
-    return 0;
+    return NULL;
 }
 
 /***************************************************************************
