@@ -22,6 +22,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 SET(SRCS
     test1
+    test2
 )
 
 SET(COMMON

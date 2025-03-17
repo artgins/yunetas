@@ -1,5 +1,5 @@
 /****************************************************************************
- *          C_TEST1.H
+ *          C_TEST2.H
  *
  *          Copyright (c) 2025, Artgins.
  *          All Rights Reserved.
@@ -18,7 +18,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_TEST1);
+GOBJ_DECLARE_GCLASS(C_TEST2);
 
 /*------------------------*
  *      States
@@ -31,7 +31,7 @@ GOBJ_DECLARE_GCLASS(C_TEST1);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_test1(void);
+PUBLIC int register_c_test2(void);
 
 
 #ifdef __cplusplus
