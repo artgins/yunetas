@@ -2406,7 +2406,9 @@ PRIVATE BOOL _kw_match_simple(
             /*
              *  Complex variable, recursive
              */
-            if(!empty_string(prefix_path)) {
+            if(empty_string(prefix_path)) {
+                snprintf(path, sizeof(path), "%s", prefix_path);
+            } else {
                 snprintf(path, sizeof(path), "%s`%d", prefix_path, (int)idx);
             }
 
