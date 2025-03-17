@@ -7057,7 +7057,7 @@ PRIVATE json_t * _create_subscription(
         json_t *__global__ = kw_get_dict(publisher, kw, "__global__", 0, 0);
         json_t *__local__ = kw_get_dict(publisher, kw, "__local__", 0, 0);
         json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
-        const char *__service__ = kw_get_str(publisher, kw, "__service__", 0, 0);
+        const char *__service__ = kw_get_str(publisher, kw, "__service__", "", 0);
 
         if(json_size(__global__)>0) {
             json_t *kw_clone = json_deep_copy(__global__);

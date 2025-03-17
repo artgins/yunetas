@@ -3401,7 +3401,7 @@ function _create_subscription(
         let __global__ = kw_get_dict(publisher, kw, "__global__", null);
         let __local__ = kw_get_dict(publisher, kw, "__local__", null);
         let __filter__ = kw_get_dict_value(publisher, kw, "__filter__", null);
-        let __service__ = kw_get_str(publisher, kw, "__service__", null);
+        let __service__ = kw_get_str(publisher, kw, "__service__", "");
 
         if(json_size(__global__)>0) {
             let kw_clone = json_deep_copy(__global__);
