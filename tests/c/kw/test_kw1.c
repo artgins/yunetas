@@ -31,12 +31,32 @@ PRIVATE yev_loop_h yev_loop;
 PRIVATE int global_result = 0;
 
 /***************************************************************************
- *
+ *  Test matching true
  ***************************************************************************/
-static int test(void)
+static int test1(void)
 {
     int result = 0;
 
+    json_t *kw = json_pack("{s:s, s:b, s:i, s:f}",
+        "string", "s",
+        "bool",  true,
+        "integer", 123,
+        "real", 1.5
+    );
+    BOOL matched = kw_match_simple(kw, NULL);
+    if(!matched) {
+        result += -1;
+    }
+
+    json_t *jn_filter = json_pack("{s:s}",
+        "string", "s"
+    );
+    matched = kw_match_simple(kw, jn_filter);
+    if(!matched) {
+        result += -1;
+    }
+
+    KW_DECREF(kw)
     return result;
 }
 
@@ -49,7 +69,7 @@ int do_test(void)
 {
     int result = 0;
 
-    result += test();
+    result += test1();
 
     /*-------------------------------*
      *      Shutdown timeranger

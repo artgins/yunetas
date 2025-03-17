@@ -2423,7 +2423,11 @@ PRIVATE BOOL _kw_match_simple(
              *  Variable compleja, recursivo
              */
             char path[NAME_MAX];
-            snprintf(path, sizeof(path), "%s`%s", prefix_path, key);
+            if(empty_string(prefix_path)) {
+                snprintf(path, sizeof(path), "%s", key);
+            } else {
+                snprintf(path, sizeof(path), "%s`%s", prefix_path, key);
+            }
 
             if(json_is_array(jn_filter_value) || json_is_object(jn_filter_value)) {
                 matched = _kw_match_simple(
