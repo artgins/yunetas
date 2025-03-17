@@ -1,15 +1,11 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Test: Use pepon as server and test the tcp client in c_test1
- *          No interchange of messages, only connections
+ *          Test: subscribe and unsusbcribe
  *
  *          Tasks
- *          - In 1 second, connecting to pepon
- *          - In 1 seconds after connected ,dropping the connection.
- *          - After 3 disconnections, shutdown
 
- *          Copyright (c) 2024 by ArtGins.
+ *          Copyright (c) 2025 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
@@ -112,7 +108,7 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", true);
 
     //gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "messages", true);
-    //gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "machine", true);
+    gobj_set_gclass_trace(gclass_find_by_name(C_TEST1), "machine", true);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", true);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", true);
@@ -124,7 +120,7 @@ static int register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "create_delete", true, 0);
     // gobj_set_gobj_trace(0, "create_delete2", true, 0);
     // gobj_set_gobj_trace(0, "start_stop", true, 0);
-    // gobj_set_gobj_trace(0, "subscriptions", true, 0);
+     gobj_set_gobj_trace(0, "subscriptions", true, 0);
     // gobj_set_gobj_trace(0, "machine", true, 0);
     // gobj_set_gobj_trace(0, "ev_kw", true, 0);
     // gobj_set_gobj_trace(0, "liburing", true, 0);

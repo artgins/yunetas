@@ -64,6 +64,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
 
+    int counter;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -172,8 +173,32 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_timeout_idle(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_change_state(gobj, ST_SESSION);
+    set_timeout(priv->timer, 1000);
+
+    JSON_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_timeout_session(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    priv->counter++;
+
+    if(priv->counter > 4) {
+        gobj_set_yuno_must_die();
+    } else {
+        gobj_change_state(gobj, ST_IDLE);
+        set_timeout(priv->timer, 1000);
+    }
 
     JSON_DECREF(kw)
     return 0;
@@ -226,11 +251,16 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_TIMEOUT,                ac_timeout,            0},
+        {EV_TIMEOUT,             	ac_timeout_idle,         	0},
+        {0,0,0}
+    };
+    ev_action_t st_session[] = {
+        {EV_TIMEOUT,                ac_timeout_session,      	0},
         {0,0,0}
     };
     states_t states[] = {
         {ST_IDLE,                   st_idle},
+        {ST_SESSION,                st_session},
         {0, 0}
     };
 
