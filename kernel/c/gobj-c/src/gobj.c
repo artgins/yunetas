@@ -7015,17 +7015,17 @@ typedef enum {
  *
  */
 PRIVATE sdata_desc_t subscription_desc[] = {
-/*-ATTR-type--------name----------------flag--------default-----description---------- */
-SDATA (DTP_POINTER, "publisher",        0,          0,          "publisher gobj"),
-SDATA (DTP_POINTER, "subscriber",       0,          0,          "subscriber gobj"),
-SDATA (DTP_POINTER, "event",            0,          0,          "event name subscribed"),
-SDATA (DTP_POINTER, "renamed_event",    0,          0,          "rename event name"),
-SDATA (DTP_INTEGER, "subs_flag",        0,          0,          "subscription flag. See subs_flag_t"),
-SDATA (DTP_JSON,    "__config__",       0,          0,          "subscription config"),
-SDATA (DTP_JSON,    "__global__",       0,          0,          "global kw, merge in publishing"),
-SDATA (DTP_JSON,    "__local__",        0,          0,          "local kw, remove in publishing"),
-SDATA (DTP_JSON,    "__filter__",       0,          0,          "filter kw, filter in publishing"),
-SDATA (DTP_STRING,  "__service__",      0,          0,          "subscription service"),
+/*-ATTR-type--------name----------------flag----default-----description---------- */
+SDATA (DTP_POINTER, "publisher",        0,      NULL,       "publisher gobj"),
+SDATA (DTP_POINTER, "subscriber",       0,      NULL,       "subscriber gobj"),
+SDATA (DTP_POINTER, "event",            0,      NULL,       "event name subscribed"),
+SDATA (DTP_POINTER, "renamed_event",    0,      NULL,       "rename event name"),
+SDATA (DTP_INTEGER, "subs_flag",        0,      0,          "subscription flag. See subs_flag_t"),
+SDATA (DTP_JSON,    "__config__",       0,      NULL,       "subscription config"),
+SDATA (DTP_JSON,    "__global__",       0,      NULL,       "global kw, merge in publishing"),
+SDATA (DTP_JSON,    "__local__",        0,      NULL,       "local kw, remove in publishing"),
+SDATA (DTP_JSON,    "__filter__",       0,      NULL,       "filter kw, filter in publishing"),
+SDATA (DTP_STRING,  "__service__",      0,      "",         "subscription service"),
 SDATA_END()
 };
 

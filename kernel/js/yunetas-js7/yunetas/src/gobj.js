@@ -3372,11 +3372,11 @@ SDATA(data_type_t.DTP_POINTER,  "subscriber",   0,  null,   "subscriber gobj"),
 SDATA(data_type_t.DTP_STRING,   "event",        0,  "",     "event name subscribed"),
 SDATA(data_type_t.DTP_STRING,   "renamed_event",0,  "",     "rename event name"),
 SDATA(data_type_t.DTP_INTEGER,  "subs_flag",    0,  0,      "subscription flag"),
-SDATA(data_type_t.DTP_JSON,     "__config__",   0,  0,      "subscription config"),
-SDATA(data_type_t.DTP_JSON,     "__global__",   0,  0,      "global kw, merge in publishing"),
-SDATA(data_type_t.DTP_JSON,     "__local__",    0,  0,      "local kw, remove in publishing"),
-SDATA(data_type_t.DTP_JSON,     "__filter__",   0,  0,      "filter kw, filter in publishing"),
-SDATA(data_type_t.DTP_STRING,   "__service__",  0,  0,      "subscription service"),
+SDATA(data_type_t.DTP_JSON,     "__config__",   0,  null,   "subscription config"),
+SDATA(data_type_t.DTP_JSON,     "__global__",   0,  null,   "global kw, merge in publishing"),
+SDATA(data_type_t.DTP_JSON,     "__local__",    0,  null,   "local kw, remove in publishing"),
+SDATA(data_type_t.DTP_JSON,     "__filter__",   0,  null,   "filter kw, filter in publishing"),
+SDATA(data_type_t.DTP_STRING,   "__service__",  0,  "",      "subscription service"),
 SDATA_END()
 ];
 
