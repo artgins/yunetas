@@ -1765,7 +1765,7 @@ function kwid_collect(gobj, kw, ids, jn_filter, match_fn)
 
             let id;
             if(is_object(jn_value)) {
-                id = kw_get_str(jn_value, "id", "", false);
+                id = kw_get_str(gobj, jn_value, "id", "", 0);
             } else if(is_string(jn_value)) {
                 id = jn_value;
             } else {
