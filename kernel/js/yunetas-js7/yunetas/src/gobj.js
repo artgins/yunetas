@@ -1153,6 +1153,7 @@ function gobj_find_service(
     verbose
 )
 {
+    service_name = service_name.toLowerCase();
     let service_gobj = __jn_services__[service_name];
     if(!service_gobj && verbose) {
         log_warning(`gobj service not found: ${service_name}`);
@@ -1167,6 +1168,7 @@ function gobj_find_service(
 function _register_service(gobj)
 {
     let service_name = gobj_name(gobj);
+    service_name = service_name.toLowerCase();
     if(__jn_services__[service_name]) {
         log_error(`service ALREADY REGISTERED: ${service_name}. Will be UPDATED`);
     }
@@ -1180,6 +1182,7 @@ function _register_service(gobj)
 function _deregister_service(gobj)
 {
     let service_name = gobj_name(gobj);
+    service_name = service_name.toLowerCase();
     if(!__jn_services__[service_name]) {
         log_error(`"service NOT found in register": ${service_name}`);
         return -1;
@@ -1416,11 +1419,6 @@ function gobj_create2(
     /*--------------------------------*
      *      Check parameters
      *--------------------------------*/
-    /*
-     *  gobj_name to lower, make case-insensitive
-     */
-    // gobj_name = gobj_name.toLowerCase();
-
     if(gobj_flag & (gobj_flag_t.gobj_flag_yuno)) {
         if(__yuno__) {
             log_error(`__yuno__ already created`);

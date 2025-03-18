@@ -36,6 +36,12 @@ extern void jsonp_free(void *ptr);
  ***************************************************************/
 #define CONFIG_TRACK_MEMORY  // TODO move to menuconfig
 
+#ifdef ESP_PLATFORM
+    #define GOBJ_NAME_MAX 15
+#else
+    #define GOBJ_NAME_MAX 255
+#endif
+
 /***************************************************************
  *              GClass/GObj Structures
  ***************************************************************/
@@ -1583,7 +1589,7 @@ PUBLIC hgobj gobj_service_factory(
  *
  ***************************************************************************/
 PUBLIC hgobj gobj_create2(
-    const char *gobj_name_,
+    const char *gobj_name,
     gclass_name_t gclass_name,
     json_t *kw, // owned
     hgobj parent_,
@@ -1594,23 +1600,22 @@ PUBLIC hgobj gobj_create2(
     /*--------------------------------*
      *      Check parameters
      *--------------------------------*/
-    char gobj_name[256];
-    if(strlen(gobj_name_)>sizeof(gobj_name)-1) {
+    if(strlen(gobj_name) > GOBJ_NAME_MAX) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj_name too long",
+            "msg",          "%s", "gobj_name name TOO LONG",
+            "gobj_name",    "%s", gobj_name,
+            "len",          "%d", (int)strlen(gobj_name),
             NULL
         );
+#ifdef ESP_PLATFORM
+        abort();
+#else
         JSON_DECREF(kw)
         return NULL;
+#endif
     }
-
-    /*
-     *  gobj_name to lower, make case-insensitive
-     */
-    // snprintf(gobj_name, sizeof(gobj_name), "%s", gobj_name_?gobj_name_:"");
-    // strntolower(gobj_name, strlen(gobj_name));
 
     if(gobj_flag & (gobj_flag_yuno)) {
         if(__yuno__) {
@@ -1670,20 +1675,6 @@ PUBLIC hgobj gobj_create2(
         }
         gobj_flag |= gobj_flag_service;
     }
-
-#ifdef ESP_PLATFORM
-    if(strlen(gobj_name) > 15) {
-        gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gobj_name name TOO LONG for ESP32",
-            "gobj_name",    "%s", gobj_name,
-            "len",          "%d", (int)strlen(gobj_name),
-            NULL
-        );
-        abort();
-    }
-#endif
 
     if(empty_string(gclass_name)) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
@@ -2362,9 +2353,16 @@ PUBLIC void gobj_destroy_childs(hgobj gobj_)
  ***************************************************************************/
 PRIVATE int _register_service(gobj_t *gobj)
 {
-    if(json_object_get(__jn_services__, gobj->gobj_name)) {
+    /*
+     *  gobj_name to lower, make case-insensitive
+     */
+    char service_name[GOBJ_NAME_MAX+1];
+    snprintf(service_name, sizeof(service_name), "%s", gobj->gobj_name?gobj->gobj_name:"");
+    strntolower(service_name, strlen(service_name));
+
+    if(json_object_get(__jn_services__, service_name)) {
         gobj_t *prev_gobj = (hgobj)(size_t)json_integer_value(
-            json_object_get(__jn_services__, gobj->gobj_name)
+            json_object_get(__jn_services__, service_name)
         );
 
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -2373,14 +2371,15 @@ PRIVATE int _register_service(gobj_t *gobj)
             "msg",          "%s", "service ALREADY REGISTERED. Will be UPDATED",
             "prev gclass",  "%s", gobj_gclass_name(prev_gobj),
             "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
+            "gobj_name",    "%s", gobj->gobj_name,
+            "service",      "%s", service_name,
             NULL
         );
     }
 
     int ret = json_object_set_new(
         __jn_services__,
-        gobj->gobj_name,
+        service_name,
         json_integer((json_int_t)(size_t)gobj)
     );
     if(ret == -1) {
@@ -2389,7 +2388,8 @@ PRIVATE int _register_service(gobj_t *gobj)
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "json_object_set_new() FAILED",
             "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
+            "gobj_name",    "%s", gobj->gobj_name,
+            "service",      "%s", service_name,
             NULL
         );
     }
@@ -2402,19 +2402,27 @@ PRIVATE int _register_service(gobj_t *gobj)
  ***************************************************************************/
 PRIVATE int _deregister_service(gobj_t *gobj)
 {
-    json_t *jn_obj = json_object_get(__jn_services__, gobj->gobj_name);
+    /*
+     *  gobj_name to lower, make case-insensitive
+     */
+    char service_name[GOBJ_NAME_MAX+1];
+    snprintf(service_name, sizeof(service_name), "%s", gobj->gobj_name?gobj->gobj_name:"");
+    strntolower(service_name, strlen(service_name));
+
+    json_t *jn_obj = json_object_get(__jn_services__, service_name);
     if(!jn_obj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "service NOT found in register",
             "gclass",       "%s", gobj_gclass_name(gobj),
-            "name",         "%s", gobj_name(gobj),
+            "gobj_name",    "%s", gobj->gobj_name,
+            "service",      "%s", service_name,
             NULL
         );
         return -1;
     }
-    json_object_del(__jn_services__, gobj->gobj_name);
+    json_object_del(__jn_services__, service_name);
 
     return 0;
 }
@@ -4904,7 +4912,7 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
         }
         return NULL;
     }
-    char service_name[256];
+    char service_name[GOBJ_NAME_MAX+1];
     snprintf(service_name, sizeof(service_name), "%s", service);
     strntolower(service_name, sizeof(service_name));
 
