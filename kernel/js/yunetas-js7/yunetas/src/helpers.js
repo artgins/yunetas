@@ -3092,6 +3092,21 @@ function clean_name(name)
     return name.replace(/[?# ^:]/g, '_');
 }
 
+/************************************************************
+ *
+ ************************************************************/
+function get_function_name(func)
+{
+    let fName = null;
+    if (typeof func === "function" || typeof func === "object") {
+        fName = ("" + func).match(/function\s*([\w\$]*)\s*\(/);
+    }
+    if (fName !== null) {
+        return fName[1] + "()";
+    }
+    return "";
+}
+
 
 export {
     kw_flag_t,
@@ -3209,4 +3224,5 @@ export {
     index_in_list,
     node_uuid,
     clean_name,
+    get_function_name,
 };

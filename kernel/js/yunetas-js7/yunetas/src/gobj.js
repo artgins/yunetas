@@ -44,6 +44,7 @@ import {
     is_gobj,
     json_size,
     json_is_identical,
+    get_function_name,
 } from "./helpers.js";
 
 import {sprintf} from "./sprintf.js";
@@ -3322,13 +3323,18 @@ function gobj_send_event(dst, event, kw, src)
      *      Exec the event
      *----------------------------------*/
     if(tracea) {
-        trace_machine(sprintf("🔄 mach(%s%s^%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
+        let action_name = "";
+        if(event_action.action) {
+            action_name = get_function_name(event_action.action);
+        }
+        trace_machine(sprintf("🔄 mach(%s%s^%s), st: %s, ev: %s%s%s, ac: %s, from(%s%s^%s)",
             (!dst.running)?"!!":"",
             gobj_gclass_name(dst), gobj_name(dst),
             state.state_name,
             "", //On_Black RBlue,
             event?event:"",
             "", //Color_Off,
+            action_name,
             (src && !src.running)?"!!":"",
             gobj_gclass_name(src), gobj_name(src)
         ));
@@ -3367,7 +3373,7 @@ function gobj_send_event(dst, event, kw, src)
             gobj_gclass_name(dst), gobj_name(dst),
             dst.current_state.state_name,
             event?event:"",
-            ret
+            is_number(ret)?ret:0
         ));
     }
 
