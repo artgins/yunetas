@@ -1157,7 +1157,7 @@ function gobj_find_service(
     service_name = service_name.toLowerCase();
     let service_gobj = __jn_services__[service_name];
     if(!service_gobj && verbose) {
-        log_warning(`gobj service not found: ${service_name}`);
+        log_error(`gobj service not found: ${service_name}`);
         return null;
     }
     return service_gobj;
