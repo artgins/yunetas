@@ -153,7 +153,7 @@ function trace_json(jn)
  *  Duplicate an object (new references)
  *  using the modern structuredClone (Deep copy of a single object)
  ************************************************************/
-function json_deep_copy(obj) // old __duplicate__,duplicate_objects
+function json_deep_copy(obj) // old __duplicate__,
 {
     return structuredClone(obj); // jshint ignore:line
 }
