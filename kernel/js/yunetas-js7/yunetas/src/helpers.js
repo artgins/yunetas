@@ -2923,7 +2923,7 @@ function createElement2(description, translate_fn) {
     {
         el.appendChild(content);
     } else {
-        if(content !== undefined) {
+        if(content != null) {
             log_error("content ignored");
             trace_json(content);
         }

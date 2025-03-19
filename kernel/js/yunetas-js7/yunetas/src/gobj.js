@@ -3118,8 +3118,12 @@ function gobj_current_state(gobj)
  ************************************************************/
 function gobj_change_parent(gobj, parent)
 {
-    if (!(parent instanceof GObj)) {
-        log_error("Yuno.gobj_change_parent() BAD TYPE of parent: " + parent);
+    if(gobj_is_destroying(gobj)) {
+        log_error("gobj NULL or DESTROYED");
+        return null;
+    }
+    if(!(parent instanceof GObj)) {
+        log_error(`${gobj_short_name(gobj)}: gobj_change_parent() BAD TYPE of parent`);
         return -1;
     }
 
@@ -3130,14 +3134,14 @@ function gobj_change_parent(gobj, parent)
         gobj.parent.mt_child_removed(gobj);
     }
     if (gobj.parent) {
-        gobj.parent._remove_child(gobj);
+        _remove_child(gobj.parent, gobj);
         gobj.parent = null;
     }
 
     /*--------------------------------------*
      *      Add to new parent
      *--------------------------------------*/
-    parent._add_child(gobj);
+    _add_child(parent, gobj);
 
     /*--------------------------------------*
      *  Inform to parent
@@ -3145,7 +3149,7 @@ function gobj_change_parent(gobj, parent)
     if(parent.mt_child_added) {
         let trace_creation = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_creation");
         if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
-            log_debug(sprintf("👦👦🔵 child_added(%s): %s", parent.gobj_full_name(), gobj.gobj_short_name()));
+            log_debug(sprintf("👦👦🔵 child_added(%s): %s", gobj_full_name(parent), gobj_short_name(gobj)));
         }
         parent.mt_child_added(gobj);
     }
