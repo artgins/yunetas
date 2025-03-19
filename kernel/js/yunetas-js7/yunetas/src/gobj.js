@@ -1745,6 +1745,7 @@ function gobj_destroy(gobj)
     /*--------------------------------*
      *      Delete childs
      *--------------------------------*/
+    gobj_stop_childs(gobj);
     gobj_destroy_childs(gobj);
 
     /*-------------------------------------------------*

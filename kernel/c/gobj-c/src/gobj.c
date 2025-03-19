@@ -2268,6 +2268,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     /*--------------------------------*
      *      Delete childs
      *--------------------------------*/
+    gobj_stop_childs(gobj);
     gobj_destroy_childs(gobj);
 
     /*-------------------------------------------------*
