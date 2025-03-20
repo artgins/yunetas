@@ -3190,6 +3190,8 @@ export {
     msg_iev_get_stack,
     msg_iev_set_msg_type,
     msg_iev_get_msg_type,
+    msg_iev_write_key,
+    msg_iev_read_key,
     load_json_file,
     send_http_json_post,
 
