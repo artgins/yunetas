@@ -52,22 +52,22 @@ Flags control the behavior and characteristics of gobjs during their creation. T
 
 GObj hierarchies can be defined using JSON structures, making it easy to specify attributes, children, and behavioral flags. A typical JSON tree structure includes:
 
-| **Key**          | **Description**                                                                                  |
+| **Key**           | **Description**                                                                                  |
 |-------------------|--------------------------------------------------------------------------------------------------|
-| `gclass`         | The name of the GClass for the GObj.                                                             |
-| `name`           | The name of the GObj.                                                                            |
+| `gclass`          | The name of the GClass for the GObj.                                                             |
+| `name`            | The name of the GObj.                                                                            |
 | `default_service` | Boolean indicating if the GObj is the default service.                                           |
 | `as_service`      | Boolean indicating if the GObj should act as a service.                                          |
 | `autostart`       | Boolean indicating if the GObj should start automatically.                                       |
 | `autoplay`        | Boolean indicating if the GObj should play automatically.                                        |
 | `disable`         | Boolean indicating if the GObj should be disabled.                                               |
 | `pure_child`      | Boolean indicating if the GObj is a pure child.                                                  |
-| `kw`             | A dictionary of attributes to configure the GObj.                                                |
-| `zchilds`        | A list of child GObjs with their respective configurations.                                       |
+| `kw`              | A dictionary of attributes to configure the GObj.                                                |
+| `children`        | A list of child GObjs with their respective configurations.                                       |
 
 ### Hierarchy Rules:
 1. If a `subscriber` is not specified, it defaults to the parent GObj.
-2. If there is only one child in `zchilds`, it is automatically set as the "bottom" GObj.
+2. If there is only one child in `children`, it is automatically set as the "bottom" GObj.
 
 ---
 

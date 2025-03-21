@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_match_childs_tree())=
-# `gobj_match_childs_tree()`
+(gobj_node_children())=
+# `gobj_node_children()`
 <!-- ============================================================== -->
 
-Returns an iterator (JSON list of `hgobj`) containing all matched child objects, including deep levels of children. It traverses the entire tree of child objects and applies the given filter.
+Returns a list of child nodes for a given topic in a hierarchical tree structure. The function retrieves child nodes based on the specified hook and applies optional filters and options.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,9 +20,14 @@ Returns an iterator (JSON list of `hgobj`) containing all matched child objects,
 **Prototype**
 
 ```C
-json_t *gobj_match_childs_tree(
-    hgobj gobj,
-    json_t *jn_filter   // owned
+json_t *gobj_node_children(
+    hgobj gobj_,
+    const char *topic_name,
+    json_t *kw,
+    const char *hook,
+    json_t *jn_filter,
+    json_t *jn_options,
+    hgobj src
 );
 ```
 
@@ -36,24 +41,44 @@ json_t *gobj_match_childs_tree(
   - Type
   - Description
 
-* - `gobj`
+* - `gobj_`
   - `hgobj`
-  - The parent object whose child tree will be searched.
+  - The gobj instance representing the tree database.
+
+* - `topic_name`
+  - `const char *`
+  - The name of the topic whose child nodes are to be retrieved.
+
+* - `kw`
+  - `json_t *`
+  - A JSON object containing the 'id' and primary key fields used to locate the node. Owned by the caller.
+
+* - `hook`
+  - `const char *`
+  - The hook name that defines the relationship between parent and child nodes. If NULL, all hooks are considered.
 
 * - `jn_filter`
   - `json_t *`
-  - A JSON object containing filter criteria. Only child objects matching this filter will be included in the result.
+  - A JSON object specifying filters to apply to the child nodes. Owned by the caller.
+
+* - `jn_options`
+  - `json_t *`
+  - A JSON object containing options such as fkey, hook options, and recursion settings. Owned by the caller.
+
+* - `src`
+  - `hgobj`
+  - The source gobj making the request.
 :::
 
 ---
 
 **Return Value**
 
-A JSON array containing matched child objects. The returned list must be freed using `gobj_free_iter()`.
+Returns a JSON object containing the list of child nodes. The caller must decrement the reference count of the returned JSON object.
 
 **Notes**
 
-This function performs a deep search, checking all levels of child objects. The filter is applied recursively to all descendants.
+If `gobj_` is NULL or destroyed, an error is logged, and NULL is returned. If the method `mt_node_children` is not defined in the gclass, an error is logged, and NULL is returned.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

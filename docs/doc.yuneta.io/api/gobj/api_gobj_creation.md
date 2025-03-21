@@ -17,7 +17,7 @@ creation/gobj_create_tree0
 creation/gobj_create_tree
 creation/gobj_create_volatil
 creation/gobj_create_yuno
-creation/gobj_destroy_childs
+creation/gobj_destroy_children
 creation/gobj_destroy
 creation/gobj_service_factory
 creation/gobj_service_register

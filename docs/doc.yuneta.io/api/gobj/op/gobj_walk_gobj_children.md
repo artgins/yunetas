@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(treedb_node_childs())=
-# `treedb_node_childs()`
+(gobj_walk_gobj_children())=
+# `gobj_walk_gobj_children()`
 <!-- ============================================================== -->
 
-`treedb_node_childs()` returns a list of child nodes linked to a given node through a specified hook, optionally applying filters and recursive traversal.
+Traverses the direct child objects of the given [`hgobj`](#hgobj) using the specified traversal method and applies a callback function to each child.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,12 +20,12 @@
 **Prototype**
 
 ```C
-json_t *treedb_node_childs(
-    json_t       *tranger,
-    const char   *hook,
-    json_t       *node,       // NOT owned, pure node
-    json_t       *jn_filter,  // filter to childs tree
-    json_t       *jn_options  // fkey,hook options, "recursive"
+int gobj_walk_gobj_children(
+    hgobj         gobj,
+    walk_type_t   walk_type,
+    cb_walking_t  cb_walking,
+    void         *user_data,
+    void         *user_data2
 );
 ```
 
@@ -39,36 +39,36 @@ json_t *treedb_node_childs(
   - Type
   - Description
 
-* - `tranger`
-  - `json_t *`
-  - Pointer to the tranger database instance.
+* - `gobj`
+  - `hgobj`
+  - The parent [`hgobj`](#hgobj) whose direct children will be traversed.
 
-* - `hook`
-  - `const char *`
-  - The hook name used to retrieve child nodes.
+* - `walk_type`
+  - `walk_type_t`
+  - The traversal method, which determines the order in which child objects are visited.
 
-* - `node`
-  - `json_t *`
-  - The parent node from which child nodes are retrieved. This parameter is not owned.
+* - `cb_walking`
+  - `cb_walking_t`
+  - A callback function that is applied to each child [`hgobj`](#hgobj).
 
-* - `jn_filter`
-  - `json_t *`
-  - Optional filter criteria to apply to the child nodes. This parameter is owned.
+* - `user_data`
+  - `void *`
+  - User-defined data passed to the callback function.
 
-* - `jn_options`
-  - `json_t *`
-  - Options for controlling the retrieval, including fkey and hook options, and whether to perform recursive traversal.
+* - `user_data2`
+  - `void *`
+  - Additional user-defined data passed to the callback function.
 :::
 
 ---
 
 **Return Value**
 
-Returns a JSON array containing the child nodes that match the specified criteria. The caller must decrement the reference count when done.
+Returns 0 on success, or a negative value if an error occurs.
 
 **Notes**
 
-If the `recursive` option is enabled in `jn_options`, [`treedb_node_childs()`](#treedb_node_childs()) will traverse the hierarchy recursively.
+This function only traverses the direct children of the given [`hgobj`](#hgobj). To traverse the entire hierarchy, use [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

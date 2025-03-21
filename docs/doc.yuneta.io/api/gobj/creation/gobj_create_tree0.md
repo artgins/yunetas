@@ -53,7 +53,7 @@ Returns the root `gobj` of the created tree, or `NULL` if creation fails.
 
 **Notes**
 
-['The `jn_tree` parameter must contain a valid JSON structure with `gclass`, `name`, and optionally `kw` for attributes.', 'If `jn_tree` contains a `zchilds` array, child `gobj` instances will be recursively created and linked to the parent.', 'If only one child is present in `zchilds`, it is set as the bottom `gobj` of the parent.', 'This function is used internally by [`gobj_create_tree()`](#gobj_create_tree) to parse JSON configurations.']
+['The `jn_tree` parameter must contain a valid JSON structure with `gclass`, `name`, and optionally `kw` for attributes.', 'If `jn_tree` contains a `zchildren` array, child `gobj` instances will be recursively created and linked to the parent.', 'If only one child is present in `zchildren`, it is set as the bottom `gobj` of the parent.', 'This function is used internally by [`gobj_create_tree()`](#gobj_create_tree) to parse JSON configurations.']
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

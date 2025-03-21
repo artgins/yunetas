@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_walk_gobj_childs_tree())=
-# `gobj_walk_gobj_childs_tree()`
+(gobj_match_children())=
+# `gobj_match_children()`
 <!-- ============================================================== -->
 
-Traverses the child objects of a given [`hgobj`](#hgobj) in a specified order and applies a callback function to each child.
+Returns a list of child objects that match the specified filter criteria.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,12 +20,9 @@ Traverses the child objects of a given [`hgobj`](#hgobj) in a specified order an
 **Prototype**
 
 ```C
-int gobj_walk_gobj_childs_tree(
-    hgobj         gobj,
-    walk_type_t   walk_type,
-    cb_walking_t  cb_walking,
-    void         *user_data,
-    void         *user_data2
+json_t *gobj_match_children(
+    hgobj gobj,
+    json_t *jn_filter   // owned
 );
 ```
 
@@ -41,34 +38,22 @@ int gobj_walk_gobj_childs_tree(
 
 * - `gobj`
   - `hgobj`
-  - The parent [`hgobj`](#hgobj) whose child objects will be traversed.
+  - The parent object whose children will be searched.
 
-* - `walk_type`
-  - `walk_type_t`
-  - Specifies the traversal order, such as `WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP`, or `WALK_BYLEVEL`.
-
-* - `cb_walking`
-  - `cb_walking_t`
-  - A callback function that is applied to each child [`hgobj`](#hgobj).
-
-* - `user_data`
-  - `void *`
-  - User-defined data passed to the callback function.
-
-* - `user_data2`
-  - `void *`
-  - Additional user-defined data passed to the callback function.
+* - `jn_filter`
+  - `json_t *`
+  - A JSON object containing filter criteria. The function takes ownership of this parameter.
 :::
 
 ---
 
 **Return Value**
 
-Returns 0 on success or a negative value if an error occurs.
+A JSON array containing matching child objects. The caller is responsible for freeing the returned JSON object.
 
 **Notes**
 
-The callback function should return 0 to continue traversal, a negative value to stop traversal, or a positive value to skip the current branch when using `WALK_TOP2BOTTOM`.
+Use [`gobj_free_iter()`](#gobj_free_iter) to free the returned JSON array when it is no longer needed.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

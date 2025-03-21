@@ -50,7 +50,7 @@ Returns 0 on success, or -1 if an error occurs (e.g., `gobj` is NULL or being de
 
 If the `gobj` is already being destroyed, an error is logged and the function returns -1.
 This function first stops the given `gobj` and then recursively stops all its child objects.
-Uses [`gobj_walk_gobj_childs_tree()`](#gobj_walk_gobj_childs_tree) to traverse the child objects.
+Uses [`gobj_walk_gobj_children_tree()`](#gobj_walk_gobj_children_tree) to traverse the child objects.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

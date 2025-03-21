@@ -31,8 +31,8 @@ op/gobj_free_iter
 op/gobj_last_bottom_gobj
 op/gobj_last_child
 op/gobj_local_method
-op/gobj_match_childs
-op/gobj_match_childs_tree
+op/gobj_match_children
+op/gobj_match_children_tree
 op/gobj_match_gobj
 op/gobj_next_child
 op/gobj_pause_autoplay_services
@@ -42,15 +42,15 @@ op/gobj_prev_child
 op/gobj_search_path
 op/gobj_services
 op/gobj_set_bottom_gobj
-op/gobj_start_childs
+op/gobj_start_children
 op/gobj_start
 op/gobj_start_tree
 op/gobj_stats
 op/gobj_stop_autostart_services
-op/gobj_stop_childs
+op/gobj_stop_children
 op/gobj_stop
 op/gobj_stop_tree
-op/gobj_walk_gobj_childs
-op/gobj_walk_gobj_childs_tree
+op/gobj_walk_gobj_children
+op/gobj_walk_gobj_children_tree
 
 ```

@@ -16,7 +16,7 @@ node/gobj_link_nodes
 node/gobj_list_instances
 node/gobj_list_nodes
 node/gobj_list_snaps
-node/gobj_node_childs
+node/gobj_node_children
 node/gobj_node_parents
 node/gobj_node_tree
 node/gobj_shoot_snap

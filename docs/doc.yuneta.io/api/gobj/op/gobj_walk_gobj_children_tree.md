@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_stop_childs())=
-# `gobj_stop_childs()`
+(gobj_walk_gobj_children_tree())=
+# `gobj_walk_gobj_children_tree()`
 <!-- ============================================================== -->
 
-Stops all direct child objects of the given [`hgobj`](#hgobj) instance by invoking [`gobj_stop()`](#gobj_stop) on each child.
+Traverses the child objects of a given [`hgobj`](#hgobj) in a specified order and applies a callback function to each child.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,8 +20,12 @@ Stops all direct child objects of the given [`hgobj`](#hgobj) instance by invoki
 **Prototype**
 
 ```C
-int gobj_stop_childs(
-    hgobj gobj
+int gobj_walk_gobj_children_tree(
+    hgobj         gobj,
+    walk_type_t   walk_type,
+    cb_walking_t  cb_walking,
+    void         *user_data,
+    void         *user_data2
 );
 ```
 
@@ -37,18 +41,34 @@ int gobj_stop_childs(
 
 * - `gobj`
   - `hgobj`
-  - The parent [`hgobj`](#hgobj) whose direct child objects will be stopped.
+  - The parent [`hgobj`](#hgobj) whose child objects will be traversed.
+
+* - `walk_type`
+  - `walk_type_t`
+  - Specifies the traversal order, such as `WALK_TOP2BOTTOM`, `WALK_BOTTOM2TOP`, or `WALK_BYLEVEL`.
+
+* - `cb_walking`
+  - `cb_walking_t`
+  - A callback function that is applied to each child [`hgobj`](#hgobj).
+
+* - `user_data`
+  - `void *`
+  - User-defined data passed to the callback function.
+
+* - `user_data2`
+  - `void *`
+  - Additional user-defined data passed to the callback function.
 :::
 
 ---
 
 **Return Value**
 
-Returns 0 on success, or -1 if an error occurs (e.g., if `gobj` is `NULL` or being destroyed).
+Returns 0 on success or a negative value if an error occurs.
 
 **Notes**
 
-This function only stops the direct children of `gobj`, not the entire hierarchy. To stop all descendants, use [`gobj_stop_tree()`](#gobj_stop_tree).
+The callback function should return 0 to continue traversal, a negative value to stop traversal, or a positive value to skip the current branch when using `WALK_TOP2BOTTOM`.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

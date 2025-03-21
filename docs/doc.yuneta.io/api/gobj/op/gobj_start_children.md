@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_node_childs())=
-# `gobj_node_childs()`
+(gobj_start_children())=
+# `gobj_start_children()`
 <!-- ============================================================== -->
 
-Returns a list of child nodes for a given topic in a hierarchical tree structure. The function retrieves child nodes based on the specified hook and applies optional filters and options.
+Starts all direct child objects of the given [`hgobj`](#hgobj) instance by invoking [`gobj_start()`](#gobj_start) on each child that is not already running and not disabled.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,14 +20,8 @@ Returns a list of child nodes for a given topic in a hierarchical tree structure
 **Prototype**
 
 ```C
-json_t *gobj_node_childs(
-    hgobj gobj_,
-    const char *topic_name,
-    json_t *kw,
-    const char *hook,
-    json_t *jn_filter,
-    json_t *jn_options,
-    hgobj src
+int gobj_start_children(
+    hgobj gobj
 );
 ```
 
@@ -41,44 +35,20 @@ json_t *gobj_node_childs(
   - Type
   - Description
 
-* - `gobj_`
+* - `gobj`
   - `hgobj`
-  - The gobj instance representing the tree database.
-
-* - `topic_name`
-  - `const char *`
-  - The name of the topic whose child nodes are to be retrieved.
-
-* - `kw`
-  - `json_t *`
-  - A JSON object containing the 'id' and primary key fields used to locate the node. Owned by the caller.
-
-* - `hook`
-  - `const char *`
-  - The hook name that defines the relationship between parent and child nodes. If NULL, all hooks are considered.
-
-* - `jn_filter`
-  - `json_t *`
-  - A JSON object specifying filters to apply to the child nodes. Owned by the caller.
-
-* - `jn_options`
-  - `json_t *`
-  - A JSON object containing options such as fkey, hook options, and recursion settings. Owned by the caller.
-
-* - `src`
-  - `hgobj`
-  - The source gobj making the request.
+  - The parent object whose direct child objects will be started.
 :::
 
 ---
 
 **Return Value**
 
-Returns a JSON object containing the list of child nodes. The caller must decrement the reference count of the returned JSON object.
+Returns 0 on success.
 
 **Notes**
 
-If `gobj_` is NULL or destroyed, an error is logged, and NULL is returned. If the method `mt_node_childs` is not defined in the gclass, an error is logged, and NULL is returned.
+This function only starts the direct children of [`gobj`](#gobj). It does not recursively start the entire tree of child objects. To start all descendants, use [`gobj_start_tree()`](#gobj_start_tree).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

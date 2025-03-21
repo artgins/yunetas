@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_start_childs())=
-# `gobj_start_childs()`
+(gobj_destroy_children())=
+# `gobj_destroy_children()`
 <!-- ============================================================== -->
 
-Starts all direct child objects of the given [`hgobj`](#hgobj) instance by invoking [`gobj_start()`](#gobj_start) on each child that is not already running and not disabled.
+Destroys all child objects of the given [`hgobj`](#hgobj), ensuring proper cleanup and deallocation.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,8 +20,8 @@ Starts all direct child objects of the given [`hgobj`](#hgobj) instance by invok
 **Prototype**
 
 ```C
-int gobj_start_childs(
-    hgobj gobj
+void gobj_destroy_children(
+    hgobj   gobj
 );
 ```
 
@@ -37,18 +37,18 @@ int gobj_start_childs(
 
 * - `gobj`
   - `hgobj`
-  - The parent object whose direct child objects will be started.
+  - The parent object whose child objects will be destroyed.
 :::
 
 ---
 
 **Return Value**
 
-Returns 0 on success.
+This function does not return a value.
 
 **Notes**
 
-This function only starts the direct children of [`gobj`](#gobj). It does not recursively start the entire tree of child objects. To start all descendants, use [`gobj_start_tree()`](#gobj_start_tree).
+Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a child is already destroyed or in the process of being destroyed, an error is logged.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

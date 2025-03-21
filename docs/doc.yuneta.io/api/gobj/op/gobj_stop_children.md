@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_destroy_childs())=
-# `gobj_destroy_childs()`
+(gobj_stop_children())=
+# `gobj_stop_children()`
 <!-- ============================================================== -->
 
-Destroys all child objects of the given [`hgobj`](#hgobj), ensuring proper cleanup and deallocation.
+Stops all direct child objects of the given [`hgobj`](#hgobj) instance by invoking [`gobj_stop()`](#gobj_stop) on each child.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,8 +20,8 @@ Destroys all child objects of the given [`hgobj`](#hgobj), ensuring proper clean
 **Prototype**
 
 ```C
-void gobj_destroy_childs(
-    hgobj   gobj
+int gobj_stop_children(
+    hgobj gobj
 );
 ```
 
@@ -37,18 +37,18 @@ void gobj_destroy_childs(
 
 * - `gobj`
   - `hgobj`
-  - The parent object whose child objects will be destroyed.
+  - The parent [`hgobj`](#hgobj) whose direct child objects will be stopped.
 :::
 
 ---
 
 **Return Value**
 
-This function does not return a value.
+Returns 0 on success, or -1 if an error occurs (e.g., if `gobj` is `NULL` or being destroyed).
 
 **Notes**
 
-Each child object is destroyed using [`gobj_destroy()`](#gobj_destroy). If a child is already destroyed or in the process of being destroyed, an error is logged.
+This function only stops the direct children of `gobj`, not the entire hierarchy. To stop all descendants, use [`gobj_stop_tree()`](#gobj_stop_tree).
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

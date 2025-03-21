@@ -1,9 +1,9 @@
 <!-- ============================================================== -->
-(gobj_match_childs())=
-# `gobj_match_childs()`
+(gobj_match_children_tree())=
+# `gobj_match_children_tree()`
 <!-- ============================================================== -->
 
-Returns a list of child objects that match the specified filter criteria.
+Returns an iterator (JSON list of `hgobj`) containing all matched child objects, including deep levels of children. It traverses the entire tree of child objects and applies the given filter.
 
 <!------------------------------------------------------------>
 <!--                    Prototypes                          -->
@@ -20,7 +20,7 @@ Returns a list of child objects that match the specified filter criteria.
 **Prototype**
 
 ```C
-json_t *gobj_match_childs(
+json_t *gobj_match_children_tree(
     hgobj gobj,
     json_t *jn_filter   // owned
 );
@@ -38,22 +38,22 @@ json_t *gobj_match_childs(
 
 * - `gobj`
   - `hgobj`
-  - The parent object whose children will be searched.
+  - The parent object whose child tree will be searched.
 
 * - `jn_filter`
   - `json_t *`
-  - A JSON object containing filter criteria. The function takes ownership of this parameter.
+  - A JSON object containing filter criteria. Only child objects matching this filter will be included in the result.
 :::
 
 ---
 
 **Return Value**
 
-A JSON array containing matching child objects. The caller is responsible for freeing the returned JSON object.
+A JSON array containing matched child objects. The returned list must be freed using `gobj_free_iter()`.
 
 **Notes**
 
-Use [`gobj_free_iter()`](#gobj_free_iter) to free the returned JSON array when it is no longer needed.
+This function performs a deep search, checking all levels of child objects. The filter is applied recursively to all descendants.
 
 <!--====================================================-->
 <!--                    End Tab C                       -->

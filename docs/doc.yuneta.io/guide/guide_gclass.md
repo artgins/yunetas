@@ -417,8 +417,8 @@ Refer to the [](mapping_gmethods) section for details.
    - Purpose: Authenticates users or services.
    - Example: Verifying credentials or tokens.
 
-(mt_list_childs)=
-- `mt_list_childs`:
+(mt_list_children)=
+- `mt_list_children`:
    - Purpose: Lists the child GObjects of the current GObject.
    - Example: Returning hierarchical information.
 
@@ -660,8 +660,8 @@ This mapping provides a detailed and structured view of how `GMETHODS` are utili
     - `mt_list_instances`: Lists instances of nodes.
 - `gobj_node_parents()`:
     - `mt_node_parents`: Lists the parent nodes of a specific node.
-- `gobj_node_childs()`:
-    - `mt_node_childs`: Lists the child nodes of a specific node.
+- `gobj_node_children()`:
+    - `mt_node_children`: Lists the child nodes of a specific node.
 - `gobj_topic_jtree()`:
     - `mt_topic_jtree`: Retrieves the JSON representation of a topic's tree structure.
 - `gobj_node_tree()`:

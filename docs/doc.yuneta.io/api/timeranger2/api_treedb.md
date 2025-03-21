@@ -42,7 +42,7 @@ tr_treedb/treedb_list_nodes.md
 tr_treedb/treedb_list_parents.md
 tr_treedb/treedb_list_snaps.md
 tr_treedb/treedb_list_treedb.md
-tr_treedb/treedb_node_childs.md
+tr_treedb/treedb_node_children.md
 tr_treedb/treedb_node_jtree.md
 tr_treedb/treedb_open_db.md
 tr_treedb/treedb_parent_refs.md
