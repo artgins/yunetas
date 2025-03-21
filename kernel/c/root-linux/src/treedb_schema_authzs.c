@@ -2,8 +2,8 @@
 
 /*
  *
-    {}  dict hook   (N unique childs)
-    []  list hook   (n not-unique childs)
+    {}  dict hook   (N unique children)
+    []  list hook   (n not-unique children)
     (↖) 1 fkey      (1 parent)
     [↖] n fkeys     (n parents)
     {↖} N fkeys     (N parents) ???

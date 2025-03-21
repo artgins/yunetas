@@ -81,7 +81,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
-            'zchilds': [                                            \n\
+            'children': [                                            \n\
             ]                                                       \n\
         },                                                          \n\
         {                                                           \n\
@@ -91,7 +91,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
-            'zchilds': [                                            \n\
+            'children': [                                            \n\
                 {                                                   \n\
                     'name': 'server_port',                          \n\
                     'gclass': 'C_TCP_S',                            \n\
@@ -115,14 +115,14 @@ PRIVATE char variable_config[]= "\
                     }                                               \n\
                 }                                                   \n\
             ],                                                      \n\
-            '[^^zchilds^^]': {                                      \n\
+            '[^^children^^]': {                                      \n\
                 '__range__': [[1,1]],                               \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
                     'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
                     'gclass': 'C_CHANNEL',                          \n\
-                    'zchilds': [                                    \n\
+                    'children': [                                    \n\
                         {                                           \n\
                             'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
                             'gclass': 'C_PROT_TCP4H',               \n\
@@ -138,17 +138,17 @@ PRIVATE char variable_config[]= "\
             'gclass': 'C_IOGATE',                                   \n\
             'autostart': false,                                     \n\
             'autoplay': false,                                      \n\
-            'zchilds': [                                            \n\
+            'children': [                                            \n\
                 {                                                   \n\
                     'name': 'output',                               \n\
                     'gclass': 'C_CHANNEL',                          \n\
-                    'zchilds': [                                    \n\
+                    'children': [                                    \n\
                         {                                           \n\
                             'name': 'output',                       \n\
                             'gclass': 'C_PROT_TCP4H',               \n\
                             'kw': {                                 \n\
                             },                                      \n\
-                            'zchilds': [                            \n\
+                            'children': [                            \n\
                                 {                                   \n\
                                     'name': 'output',               \n\
                                     'gclass': 'C_TCP',              \n\

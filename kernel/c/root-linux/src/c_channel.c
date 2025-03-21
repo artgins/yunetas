@@ -185,7 +185,7 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL all_childs_closed(hgobj gobj)
+PRIVATE BOOL all_children_closed(hgobj gobj)
 {
     BOOL all_closed = true;
 
@@ -260,7 +260,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     clear_timeout(priv->timer);
 
-    if(all_childs_closed(gobj)) {
+    if(all_children_closed(gobj)) {
         if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
             gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,

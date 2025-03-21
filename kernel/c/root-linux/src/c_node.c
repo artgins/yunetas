@@ -77,7 +77,7 @@ PRIVATE json_t *cmd_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_hooks(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_links(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_list_nodes(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_get_node(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_node_instances(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -94,7 +94,7 @@ PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw,
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
-SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in children"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
@@ -110,7 +110,7 @@ SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"
 SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node id"),
 SDATAPM (DTP_STRING,    "hook",         0,              0,          "Hook to build the tree"),
 SDATAPM (DTP_STRING,    "rename_hook",  0,              0,          "Rename the hook field in the response"),
-SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter to childs"),
+SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter to children"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, hook_refs, fkey_refs, only_id, hook_only_id, fkey_only_id, list_dict, hook_list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
@@ -172,11 +172,11 @@ SDATAPM (DTP_STRING,    "link",         0,              0,          "Link port (
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: refs, fkey_refs, only_id, fkey_only_id, list_dict, fkey_list_dict"),
 SDATA_END()
 };
-PRIVATE sdata_desc_t pm_childs[] = {
+PRIVATE sdata_desc_t pm_children[] = {
 SDATAPM (DTP_STRING,    "topic_name",   0,              0,          "Topic name"),
 SDATAPM (DTP_STRING,    "node_id",      0,              0,          "Node id"),
-SDATAPM (DTP_STRING,    "hook",         0,              0,          "Hook port to childs"),
-SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter to childs"),
+SDATAPM (DTP_STRING,    "hook",         0,              0,          "Hook port to children"),
+SDATAPM (DTP_JSON,      "filter",       0,              0,          "Filter to children"),
 SDATAPM (DTP_JSON,      "options",      0,              0,          "Options: recursive, refs, hook_refs, only_id, hook_only_id, list_dict, fkey_list_dict, size, hook_size"),
 SDATA_END()
 };
@@ -269,7 +269,7 @@ SDATACM2 (DTP_SCHEMA,   "unlink-nodes", SDF_AUTHZ_X,    0,  pm_link_nodes,  cmd_
 SDATACM2 (DTP_SCHEMA,   "hooks",        SDF_AUTHZ_X,    0,  pm_hooks,       cmd_hooks,          "Hooks of node"),
 SDATACM2 (DTP_SCHEMA,   "links",        SDF_AUTHZ_X,    0,  pm_links,       cmd_links,          "Links of node"),
 SDATACM2 (DTP_SCHEMA,   "parents",      SDF_AUTHZ_X,    0,  pm_parents,     cmd_parents,        "Parent Refs of node"),
-SDATACM2 (DTP_SCHEMA,   "childs",       SDF_AUTHZ_X,    0,  pm_childs,      cmd_childs,         "Childs of node"),
+SDATACM2 (DTP_SCHEMA,   "children",       SDF_AUTHZ_X,    0,  pm_children,      cmd_children,         "Childs of node"),
 SDATACM2 (DTP_SCHEMA,   "snaps",        SDF_AUTHZ_X,    0,  0,              cmd_list_snaps,     "List snaps"),
 SDATACM2 (DTP_SCHEMA,   "snap-content", SDF_AUTHZ_X,    0,  pm_snap_content,cmd_snap_content,   "Show snap content"),
 SDATACM2 (DTP_SCHEMA,   "shoot-snap",   SDF_AUTHZ_X,    0,  pm_shoot_snap,  cmd_shoot_snap,     "Shoot snap"),
@@ -1494,12 +1494,12 @@ PRIVATE json_t *mt_node_parents(
 /***************************************************************************
  *      Framework Method
  ***************************************************************************/
-PRIVATE json_t *mt_node_childs(
+PRIVATE json_t *mt_node_children(
     hgobj gobj,
     const char *topic_name,
     json_t *kw,         // 'id' and pkey2s fields are used to find the node
     const char *hook,
-    json_t *jn_filter,  // filter to childs tree
+    json_t *jn_filter,  // filter to children tree
     json_t *jn_options, // fkey,hook options, "recursive"
     hgobj src
 )
@@ -1548,7 +1548,7 @@ PRIVATE json_t *mt_node_childs(
     /*
      *  Return a list of child nodes of the hook
      */
-    json_t *iter = treedb_node_childs( // Return MUST be decref
+    json_t *iter = treedb_node_children( // Return MUST be decref
         priv->tranger,
         hook, // must be a hook field
         node, // not owned
@@ -1564,12 +1564,12 @@ PRIVATE json_t *mt_node_childs(
         return 0;
     }
 
-    json_t *childs = json_array();
+    json_t *children = json_array();
 
     int idx; json_t *child;
     json_array_foreach(iter, idx, child) {
         json_array_append_new(
-            childs,
+            children,
             node_collapsed_view(
                 priv->tranger,
                 child,
@@ -1582,7 +1582,7 @@ PRIVATE json_t *mt_node_childs(
     JSON_DECREF(jn_filter);
     JSON_DECREF(jn_options)
     JSON_DECREF(kw)
-    return childs;
+    return children;
 }
 
 /***************************************************************************
@@ -2698,7 +2698,7 @@ PRIVATE json_t *cmd_parents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_children(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", 0);
     const char *node_id = kw_get_str(gobj, kw, "node_id", "", 0);
@@ -2737,7 +2737,7 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
-    json_t *childs = gobj_node_childs( // Return MUST be decref
+    json_t *children = gobj_node_children( // Return MUST be decref
         gobj,
         topic_name,
         json_pack("{s:s}", "id", node_id),
@@ -2749,10 +2749,10 @@ PRIVATE json_t *cmd_childs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     return msg_iev_build_response(
         gobj,
-        childs?0:-1,
-        childs?0:json_string(gobj_log_last_message()),
+        children?0:-1,
+        children?0:json_string(gobj_log_last_message()),
         0,
-        childs,
+        children,
         kw  // owned
     );
 }
@@ -3699,7 +3699,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_topic_links=   mt_topic_links,
     .mt_topic_hooks=   mt_topic_hooks,
     .mt_node_parents=  mt_node_parents,
-    .mt_node_childs=   mt_node_childs,
+    .mt_node_children=   mt_node_children,
     .mt_list_instances=mt_list_instances,
     .mt_node_tree=     mt_node_tree,
     .mt_topic_size=    mt_topic_size,

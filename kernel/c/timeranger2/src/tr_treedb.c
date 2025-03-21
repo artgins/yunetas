@@ -89,7 +89,7 @@ PRIVATE json_t *apply_child_list_options(
     json_t *child_list,  // NOT owned
     json_t *jn_options // NOT owned
 );
-PRIVATE json_t *_list_childs(
+PRIVATE json_t *_list_children(
     hgobj gobj,
     json_t *tranger,
     const char *hook,
@@ -3770,7 +3770,7 @@ PRIVATE int load_links(
 }
 
 /***************************************************************************
- *  Load links from childs to parents  (child's fkeys to parent's hooks)
+ *  Load links from children to parents  (child's fkeys to parent's hooks)
  ***************************************************************************/
 PRIVATE int load_all_links(
     hgobj gobj,
@@ -4945,17 +4945,17 @@ PUBLIC int treedb_delete_node(
             int idx2; json_t *jn_hook;
             json_array_foreach(jn_hooks, idx2, jn_hook) {
                 const char *hook = json_string_value(jn_hook);
-                json_t *childs = _list_childs(
+                json_t *children = _list_children(
                     gobj,
                     tranger,
                     hook,
                     node
                 );
                 int idx3; json_t *child;
-                json_array_foreach(childs, idx3, child) {
+                json_array_foreach(children, idx3, child) {
                     _unlink_nodes(gobj, tranger, hook, node, child);
                 }
-                JSON_DECREF(childs)
+                JSON_DECREF(children)
             }
             JSON_DECREF(jn_hooks)
 
@@ -5250,17 +5250,17 @@ PUBLIC int treedb_delete_instance(
             int idx2; json_t *jn_hook;
             json_array_foreach(jn_hooks, idx2, jn_hook) {
                 const char *hook = json_string_value(jn_hook);
-                json_t *childs = _list_childs(
+                json_t *children = _list_children(
                     gobj,
                     tranger,
                     hook,
                     node
                 );
                 int idx3; json_t *child;
-                json_array_foreach(childs, idx3, child) {
+                json_array_foreach(children, idx3, child) {
                     _unlink_nodes(gobj, tranger, hook, node, child);
                 }
-                JSON_DECREF(childs)
+                JSON_DECREF(children)
             }
             JSON_DECREF(jn_hooks)
 
@@ -6718,7 +6718,7 @@ PUBLIC int treedb_link_nodes(
 
     /*----------------------------*
      *      Save persistent
-     *  Only childs are saved
+     *  Only children are saved
      *----------------------------*/
     return treedb_save_node(tranger, child_node);
 }
@@ -6748,7 +6748,7 @@ PUBLIC int treedb_unlink_nodes(
 
     /*----------------------------*
      *      Save persistents
-     *  Only childs are saved
+     *  Only children are saved
      *----------------------------*/
     return treedb_save_node(tranger, child_node);
 }
@@ -7197,9 +7197,9 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
             );
             json_t *child_list = get_hook_list(gobj, field_data);
 
-            json_t *childs = apply_child_list_options(gobj, child_list, jn_options);
-            json_array_extend(list, childs);
-            json_decref(childs);
+            json_t *children = apply_child_list_options(gobj, child_list, jn_options);
+            json_array_extend(list, children);
+            json_decref(children);
 
             json_decref(child_list);
 
@@ -7683,7 +7683,7 @@ PRIVATE json_t *apply_child_list_options(
     json_t *jn_options // NOT owned
 )
 {
-    json_t *childs = json_array();
+    json_t *children = json_array();
 
     if(kw_get_bool(gobj, jn_options, "size", 0, KW_WILD_NUMBER) ||
         kw_get_bool(gobj, jn_options, "hook_size", 0, KW_WILD_NUMBER)
@@ -7693,12 +7693,12 @@ PRIVATE json_t *apply_child_list_options(
                 [{"size": size}]
          */
         json_array_append_new(
-            childs,
+            children,
             json_pack("{s:I}",
                 "size", json_size(child_list)
             )
         );
-        return childs;
+        return children;
     }
 
     int idx; json_t *child;
@@ -7711,7 +7711,7 @@ PRIVATE json_t *apply_child_list_options(
                     ["$id",...]
              */
             const char *id = kw_get_str(gobj, child, "id", 0, KW_REQUIRED);
-            json_array_append_new(childs, json_string(id));
+            json_array_append_new(children, json_string(id));
 
         } else if(kw_get_bool(gobj, jn_options, "list_dict", 0, KW_WILD_NUMBER) ||
             kw_get_bool(gobj, jn_options, "hook_list_dict", 0, KW_WILD_NUMBER)
@@ -7724,7 +7724,7 @@ PRIVATE json_t *apply_child_list_options(
             const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
 
             json_array_append_new(
-                childs,
+                children,
                 json_pack("{s:s, s:s}",
                     "id", id,
                     "topic_name", topic_name
@@ -7743,7 +7743,7 @@ PRIVATE json_t *apply_child_list_options(
             const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
             char ref[NAME_MAX];
             snprintf(ref, sizeof(ref), "%s^%s", topic_name, id);
-            json_array_append_new(childs, json_string(ref));
+            json_array_append_new(children, json_string(ref));
 
         } else {
             /*
@@ -7756,7 +7756,7 @@ PRIVATE json_t *apply_child_list_options(
             const char *topic_name = kw_get_str(gobj, child, "__md_treedb__`topic_name", 0, 0);
 
             json_array_append_new(
-                childs,
+                children,
                 json_pack("{s:s, s:s}",
                     "id", id,
                     "topic_name", topic_name
@@ -7766,7 +7766,7 @@ PRIVATE json_t *apply_child_list_options(
         }
     }
 
-    return childs;
+    return children;
 }
 
 /***************************************************************************
@@ -7938,9 +7938,9 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
 }
 
 /***************************************************************************
- *  Return a list of childs of the hook
+ *  Return a list of children of the hook
  ***************************************************************************/
-PRIVATE json_t *_list_childs(
+PRIVATE json_t *_list_children(
     hgobj gobj,
     json_t *tranger,
     const char *hook,
@@ -8019,9 +8019,9 @@ PRIVATE json_t *_list_childs(
 }
 
 /***************************************************************************
- *  Return a list of childs of the hook in the tree
+ *  Return a list of children of the hook in the tree
  ***************************************************************************/
-PRIVATE json_t *add_tree_childs(
+PRIVATE json_t *add_tree_children(
     hgobj gobj,
     json_t *tranger,
     json_t *list,       // not owned
@@ -8031,7 +8031,7 @@ PRIVATE json_t *add_tree_childs(
     json_t *jn_filter   // not owned
 )
 {
-    json_t *child_list = _list_childs(gobj, tranger, hook, node);
+    json_t *child_list = _list_children(gobj, tranger, hook, node);
     if(!child_list) {
         // Error already logged
         return 0;
@@ -8045,7 +8045,7 @@ PRIVATE json_t *add_tree_childs(
         )){
             json_array_append(list, child);
             if(recursive) {
-                add_tree_childs(gobj, tranger, list, hook, child, recursive, jn_filter);
+                add_tree_children(gobj, tranger, list, hook, child, recursive, jn_filter);
             }
         }
     }
@@ -8055,13 +8055,13 @@ PRIVATE json_t *add_tree_childs(
 }
 
 /***************************************************************************
- *  Return a list of childs of the hook
+ *  Return a list of children of the hook
  ***************************************************************************/
-PUBLIC json_t *treedb_node_childs(
+PUBLIC json_t *treedb_node_children(
     json_t *tranger,
     const char *hook,
     json_t *node,       // NOT owned, pure node
-    json_t *jn_filter,  // filter to childs
+    json_t *jn_filter,  // filter to children
     json_t *jn_options  // fkey,hook options, "recursive"
 )
 {
@@ -8099,7 +8099,7 @@ PUBLIC json_t *treedb_node_childs(
 
     BOOL recursive = kw_get_bool(gobj, jn_options, "recursive", 0, KW_WILD_NUMBER);
     json_t *list = json_array();
-    add_tree_childs(gobj, tranger, list, hook, node, recursive, jn_filter);
+    add_tree_children(gobj, tranger, list, hook, node, recursive, jn_filter);
 
     JSON_DECREF(jn_filter)
     JSON_DECREF(jn_options)
@@ -8161,9 +8161,9 @@ PRIVATE json_t *create_jchild(
 }
 
 /***************************************************************************
- *  Return a list of hierarchical childs of the hook in the tree
+ *  Return a list of hierarchical children of the hook in the tree
  ***************************************************************************/
-PRIVATE json_t *add_jtree_childs(
+PRIVATE json_t *add_jtree_children(
     hgobj gobj,
     json_t *tranger,
     json_t *tree,       // not owned
@@ -8175,7 +8175,7 @@ PRIVATE json_t *add_jtree_childs(
     json_t *jn_options  // not owned
 )
 {
-    json_t *child_list = _list_childs(gobj, tranger, hook, node);
+    json_t *child_list = _list_children(gobj, tranger, hook, node);
     if(!child_list) {
         // Error already logged
         return 0;
@@ -8197,7 +8197,7 @@ PRIVATE json_t *add_jtree_childs(
         json_array_append_new(list, _child);
 
         // recursive
-        add_jtree_childs(
+        add_jtree_children(
             gobj,
             tranger,
             tree,
@@ -8215,14 +8215,14 @@ PRIVATE json_t *add_jtree_childs(
 }
 
 /***************************************************************************
- *  Return a list of childs of the hook
+ *  Return a list of children of the hook
  ***************************************************************************/
 PUBLIC json_t *treedb_node_jtree(
     json_t *tranger,
     const char *hook,   // hook to build the hierarchical tree
     const char *rename_hook, // change the hook name in the tree response
     json_t *node,       // NOT owned, pure node
-    json_t *jn_filter,  // filter to childs tree
+    json_t *jn_filter,  // filter to children tree
     json_t *jn_options  // fkey,hook options
 )
 {
@@ -8268,7 +8268,7 @@ PUBLIC json_t *treedb_node_jtree(
     json_t *tree = root;
 
     // recursive
-    add_jtree_childs(gobj, tranger, tree, hook, rename_hook, node, root, jn_filter, jn_options);
+    add_jtree_children(gobj, tranger, tree, hook, rename_hook, node, root, jn_filter, jn_options);
 
     JSON_DECREF(jn_filter)
     JSON_DECREF(jn_options)

@@ -156,7 +156,7 @@ function mt_create(gobj)
     let priv = gobj.priv;
 
     /*
-     *  Create childs
+     *  Create children
      */
     priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
 

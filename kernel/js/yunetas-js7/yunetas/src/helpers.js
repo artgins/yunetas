@@ -2294,7 +2294,7 @@ function _traverse_dict(obj, callback, full_path)
 /************************************************************
  *   Init json database
  *      Hierarchical tree. To use in webix style.
- *      If a record has childs,
+ *      If a record has children,
  *      the own record has the key 'data' with the array of child records
  *
  *      Initialization

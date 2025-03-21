@@ -20,7 +20,7 @@ import {
     gobj_is_playing,
     gobj_is_running,
     gobj_default_service,
-    gobj_stop_childs,
+    gobj_stop_children,
     gobj_name,
     gobj_read_attr,
     gobj_publish_event,
@@ -103,7 +103,7 @@ function mt_create(gobj)
     gobj_write_str_attr(gobj, "start_date", date);
 
     /*
-     *  Create childs
+     *  Create children
      */
     gobj.priv.gobj_timer = gobj_create_pure_child(gobj_name(gobj), "C_TIMER", {}, gobj);
 
@@ -136,7 +136,7 @@ function mt_stop(gobj)
      *  When yuno stops, it's the death of the app
      */
     gobj_stop(gobj.priv.gobj_timer);
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
     return 0;
 }
 

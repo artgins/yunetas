@@ -110,7 +110,7 @@ typedef struct gobj_s {
     int __refs__;
     gclass_t *gclass;
     struct gobj_s *parent;
-    dl_list_t dl_childs;
+    dl_list_t dl_children;
 
     state_t *current_state;
     state_t *last_state;
@@ -1745,7 +1745,7 @@ PUBLIC hgobj gobj_create2(
      *--------------------------------*/
     gobj->gclass = gclass;
     gobj->parent = parent;
-    dl_init(&gobj->dl_childs, gobj);
+    dl_init(&gobj->dl_children, gobj);
     gobj->dl_subscribings = json_array();
     gobj->dl_subscriptions = json_array();
     gobj->current_state = dl_first(&gclass->dl_states);
@@ -1804,7 +1804,7 @@ PUBLIC hgobj gobj_create2(
      *      Add to parent
      *--------------------------------------*/
     if(!(gobj->gobj_flag & (gobj_flag_yuno))) {
-        dl_add(&parent->dl_childs, gobj);
+        dl_add(&parent->dl_children, gobj);
     }
 
     /*--------------------------------*
@@ -2070,10 +2070,10 @@ PUBLIC hgobj gobj_create_tree0(
     }
 
     hgobj last_child = 0;
-    json_t *jn_childs = kw_get_list(parent_, jn_tree, "zchilds", 0, 0);
+    json_t *jn_children = kw_get_list(parent_, jn_tree, "children", 0, 0);
     size_t index;
     json_t *jn_child;
-    json_array_foreach(jn_childs, index, jn_child) {
+    json_array_foreach(jn_children, index, jn_child) {
         if(!json_is_object(jn_child)) {
             continue;
         }
@@ -2094,7 +2094,7 @@ PUBLIC hgobj gobj_create_tree0(
             return 0;
         }
     }
-    if(json_array_size(jn_childs) == 1) {
+    if(json_array_size(jn_children) == 1) {
         gobj_set_bottom_gobj(first_child, last_child);
     }
 
@@ -2257,7 +2257,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
      *      Delete from parent
      *--------------------------------*/
     if(parent) {
-        dl_delete(&gobj->parent->dl_childs, gobj, 0);
+        dl_delete(&gobj->parent->dl_children, gobj, 0);
         if(gobj_is_volatil(gobj)) {
             if (gobj_bottom_gobj(gobj->parent) == gobj && !gobj_is_destroying(gobj->parent)) {
                 gobj_set_bottom_gobj(gobj->parent, NULL);
@@ -2266,14 +2266,14 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     }
 
     /*--------------------------------*
-     *      Delete childs
+     *      Delete children
      *--------------------------------*/
-    gobj_destroy_childs(gobj);
+    gobj_destroy_children(gobj);
 
     /*-------------------------------------------------*
      *  Exec mt_destroy
-     *  Call this after all childs are destroyed.
-     *  Then you can delete resources used by childs
+     *  Call this after all children are destroyed.
+     *  Then you can delete resources used by children
      *  (example: event_loop in main/threads)
      *-------------------------------------------------*/
     if(gobj->obflag & obflag_created) {
@@ -2313,9 +2313,9 @@ PUBLIC void gobj_destroy(hgobj hgobj)
 }
 
 /***************************************************************************
- *  Destroy childs
+ *  Destroy children
  ***************************************************************************/
-PUBLIC void gobj_destroy_childs(hgobj gobj_)
+PUBLIC void gobj_destroy_children(hgobj gobj_)
 {
     gobj_t * gobj = gobj_;
     if(!gobj) {
@@ -2328,7 +2328,7 @@ PUBLIC void gobj_destroy_childs(hgobj gobj_)
         return;
     }
 
-    gobj_t *child = dl_first(&gobj->dl_childs);
+    gobj_t *child = dl_first(&gobj->dl_children);
     while(child) {
         gobj_t *next = dl_next(child);
         if(!(child->obflag & (obflag_destroyed|obflag_destroying))) {
@@ -4125,7 +4125,7 @@ PUBLIC int gobj_start(hgobj gobj_)
 }
 
 /***************************************************************************
- *  Start all childs of the gobj.
+ *  Start all children of the gobj.
  ***************************************************************************/
 PRIVATE int cb_start_child(hgobj child_, void *user_data, void *user_data2)
 {
@@ -4138,7 +4138,7 @@ PRIVATE int cb_start_child(hgobj child_, void *user_data, void *user_data2)
     }
     return 0;
 }
-PUBLIC int gobj_start_childs(hgobj gobj)
+PUBLIC int gobj_start_children(hgobj gobj)
 {
     if(!gobj) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -4150,11 +4150,11 @@ PUBLIC int gobj_start_childs(hgobj gobj)
         return -1;
     }
 
-    return gobj_walk_gobj_childs(gobj, WALK_FIRST2LAST, cb_start_child, 0, 0);
+    return gobj_walk_gobj_children(gobj, WALK_FIRST2LAST, cb_start_child, 0, 0);
 }
 
 /***************************************************************************
- *  Start this gobj and all childs tree of the gobj.
+ *  Start this gobj and all children tree of the gobj.
  ***************************************************************************/
 PRIVATE int cb_start_child_tree(hgobj child_, void *user_data, void *user_data2)
 {
@@ -4197,7 +4197,7 @@ PUBLIC int gobj_start_tree(hgobj gobj_)
             gobj_start(gobj);
         }
     }
-    return gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0);
+    return gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0);
 }
 
 /***************************************************************************
@@ -4270,7 +4270,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
 }
 
 /***************************************************************************
- *  Stop all childs of the gobj.
+ *  Stop all children of the gobj.
  ***************************************************************************/
 PRIVATE int cb_stop_child(hgobj child, void *user_data, void *user_data2)
 {
@@ -4279,7 +4279,7 @@ PRIVATE int cb_stop_child(hgobj child, void *user_data, void *user_data2)
     }
     return 0;
 }
-PUBLIC int gobj_stop_childs(hgobj gobj_)
+PUBLIC int gobj_stop_children(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     if(!gobj) {
@@ -4300,11 +4300,11 @@ PUBLIC int gobj_stop_childs(hgobj gobj_)
         );
         return -1;
     }
-    return gobj_walk_gobj_childs(gobj, WALK_FIRST2LAST, cb_stop_child, 0, 0);
+    return gobj_walk_gobj_children(gobj, WALK_FIRST2LAST, cb_stop_child, 0, 0);
 }
 
 /***************************************************************************
- *  Stop this gobj and all childs tree of the gobj.
+ *  Stop this gobj and all children tree of the gobj.
  ***************************************************************************/
 PUBLIC int gobj_stop_tree(hgobj gobj_)
 {
@@ -4336,7 +4336,7 @@ PUBLIC int gobj_stop_tree(hgobj gobj_)
     if(gobj_is_running(gobj)) {
         gobj_stop(gobj);
     }
-    return gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_stop_child, 0, 0);
+    return gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_stop_child, 0, 0);
 }
 
 /***************************************************************************
@@ -5009,7 +5009,7 @@ PUBLIC hgobj gobj_first_child(hgobj gobj_)
         return 0;
     }
 
-    return dl_first(&gobj->dl_childs);
+    return dl_first(&gobj->dl_children);
 }
 
 /***************************************************************************
@@ -5027,7 +5027,7 @@ PUBLIC hgobj gobj_last_child(hgobj gobj_)
         );
         return 0;
     }
-    return dl_last(&gobj->dl_childs);
+    return dl_last(&gobj->dl_children);
 }
 
 
@@ -5093,7 +5093,7 @@ PUBLIC hgobj gobj_child_by_name(hgobj gobj_, const char *name)
         return 0;
     }
 
-    gobj_t *child = dl_first(&gobj->dl_childs);
+    gobj_t *child = dl_first(&gobj->dl_children);
     while(child) {
         if(!(child->obflag & (obflag_destroyed|obflag_destroying))) {
             const char *name_ = gobj_name(child);
@@ -5126,7 +5126,7 @@ PUBLIC hgobj gobj_child_by_index(hgobj gobj_, size_t idx) // relative to 1
     }
 
     size_t idx_ = 0;
-    gobj_t *child = dl_first(&gobj->dl_childs);
+    gobj_t *child = dl_first(&gobj->dl_children);
     while(child) {
         idx_++;    // relative to 1
         if(idx_ == idx) {
@@ -5143,17 +5143,17 @@ PUBLIC hgobj gobj_child_by_index(hgobj gobj_, size_t idx) // relative to 1
 }
 
 /***************************************************************************
- *  Return the size of childs of gobj
+ *  Return the size of children of gobj
  ***************************************************************************/
 PUBLIC size_t gobj_child_size(hgobj gobj_)
 {
     gobj_t * gobj = gobj_;
 
-    return dl_size(&gobj->dl_childs);
+    return dl_size(&gobj->dl_children);
 }
 
 /***************************************************************************
- *  Return the size of matched childs of gobj
+ *  Return the size of matched children of gobj
  ***************************************************************************/
 PUBLIC size_t gobj_child_size2(
     hgobj gobj_,
@@ -5318,7 +5318,7 @@ PUBLIC hgobj gobj_find_child(
 /***************************************************************************
  *  Callback building an iter
  ***************************************************************************/
-PRIVATE int cb_match_childs(
+PRIVATE int cb_match_children(
     hgobj child_,
     void *user_data,
     void *user_data2
@@ -5336,12 +5336,12 @@ PRIVATE int cb_match_childs(
 }
 
 /***************************************************************************
- *  Returns an iter (json list of hgobj) with all matched childs.
- *  Check ONLY first level of childs.
+ *  Returns an iter (json list of hgobj) with all matched children.
+ *  Check ONLY first level of children.
  *
  *  WARNING the returned list must be free with gobj_free_iter(json_t *iter)
  ***************************************************************************/
-PUBLIC json_t *gobj_match_childs(
+PUBLIC json_t *gobj_match_children(
     hgobj gobj,
     json_t *jn_filter   // owned
 )
@@ -5359,10 +5359,10 @@ PUBLIC json_t *gobj_match_childs(
 
     json_t *iter = json_array();
 
-    gobj_walk_gobj_childs(
+    gobj_walk_gobj_children(
         gobj,
         WALK_FIRST2LAST,
-        cb_match_childs,
+        cb_match_children,
         iter,
         jn_filter
     );
@@ -5371,13 +5371,13 @@ PUBLIC json_t *gobj_match_childs(
 }
 
 /***************************************************************************
- *  Returns an iter (json list of hgobj) with all matched childs.
- *  Check deep levels of childs
- *  Check in the full tree of childs.
+ *  Returns an iter (json list of hgobj) with all matched children.
+ *  Check deep levels of children
+ *  Check in the full tree of children.
  *
  *  WARNING the returned list must be free with gobj_free_iter(json_t *iter)
  ***************************************************************************/
-PUBLIC json_t *gobj_match_childs_tree(
+PUBLIC json_t *gobj_match_children_tree(
     hgobj gobj,
     json_t *jn_filter   // owned
 )
@@ -5394,10 +5394,10 @@ PUBLIC json_t *gobj_match_childs_tree(
     }
     json_t *iter = json_array();
 
-    gobj_walk_gobj_childs_tree(
+    gobj_walk_gobj_children_tree(
         gobj,
         WALK_TOP2BOTTOM,
-        cb_match_childs,
+        cb_match_children,
         iter,
         jn_filter
     );
@@ -5508,7 +5508,7 @@ PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int gobj_walk_gobj_childs(
+PUBLIC int gobj_walk_gobj_children(
     hgobj gobj_,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
@@ -5526,13 +5526,13 @@ PUBLIC int gobj_walk_gobj_childs(
         return 0;
     }
 
-    return rc_walk_by_list(&gobj->dl_childs, walk_type, cb_walking, user_data, user_data2);
+    return rc_walk_by_list(&gobj->dl_children, walk_type, cb_walking, user_data, user_data2);
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int gobj_walk_gobj_childs_tree(
+PUBLIC int gobj_walk_gobj_children_tree(
     hgobj gobj_,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
@@ -5550,7 +5550,7 @@ PUBLIC int gobj_walk_gobj_childs_tree(
         return 0;
     }
 
-    return rc_walk_by_tree(&gobj->dl_childs, walk_type, cb_walking, user_data, user_data2);
+    return rc_walk_by_tree(&gobj->dl_children, walk_type, cb_walking, user_data, user_data2);
 }
 
 /***************************************************************
@@ -5611,7 +5611,7 @@ PRIVATE int rc_walk_by_level(
     void *user_data2
 ) {
     /*
-     *  First my childs
+     *  First my children
      */
     int ret = rc_walk_by_list(iter, walk_type, cb_walking, user_data, user_data2);
     if(ret < 0) {
@@ -5619,7 +5619,7 @@ PRIVATE int rc_walk_by_level(
     }
 
     /*
-     *  Now child's childs
+     *  Now child's children
      */
     gobj_t *child;
     if(walk_type & WALK_LAST2FIRST) {
@@ -5641,7 +5641,7 @@ PRIVATE int rc_walk_by_level(
             next = dl_next(child);
         }
 
-        dl_list_t *dl_child_list = &child->dl_childs;
+        dl_list_t *dl_child_list = &child->dl_children;
         ret = rc_walk_by_level(dl_child_list, walk_type, cb_walking, user_data, user_data2);
         if(ret < 0) {
             return ret;
@@ -5700,7 +5700,7 @@ PUBLIC int rc_walk_by_tree(
         }
 
         if(walk_type & WALK_BOTTOM2TOP) {
-            dl_list_t *dl_child_list = &child->dl_childs;
+            dl_list_t *dl_child_list = &child->dl_children;
             int ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data, user_data2);
             if(ret < 0) {
                 return ret;
@@ -5715,7 +5715,7 @@ PUBLIC int rc_walk_by_tree(
             if(ret < 0) {
                 return ret;
             } else if(ret == 0) {
-                dl_list_t *dl_child_list = &child->dl_childs;
+                dl_list_t *dl_child_list = &child->dl_children;
                 ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data, user_data2);
                 if(ret < 0) {
                     return ret;
@@ -6523,7 +6523,7 @@ PRIVATE int _add_gobj_tree(
 
     if(gobj_child_size(gobj)>0) {
         json_t *jn_data = json_object();
-        json_object_set_new(jn_gobj, "childs", jn_data);
+        json_object_set_new(jn_gobj, "children", jn_data);
 
         gobj_t *child = gobj_first_child(gobj);
 
@@ -9253,12 +9253,12 @@ PUBLIC json_t *gobj_node_parents( // Return MUST be decref
  *  Return a list of child nodes of the hook
  *  If no hook return all hooks
  ***************************************************************************/
-PUBLIC json_t *gobj_node_childs( // Return MUST be decref
+PUBLIC json_t *gobj_node_children( // Return MUST be decref
     hgobj gobj_,
     const char *topic_name,
     json_t *kw,         // 'id' and pkey2s fields are used to find the node
     const char *hook,
-    json_t *jn_filter,  // filter to childs
+    json_t *jn_filter,  // filter to children
     json_t *jn_options, // fkey,hook options, "recursive"
     hgobj src
 )
@@ -9276,19 +9276,19 @@ PUBLIC json_t *gobj_node_childs( // Return MUST be decref
         JSON_DECREF(kw)
         return 0;
     }
-    if(!gobj->gclass->gmt->mt_node_childs) {
+    if(!gobj->gclass->gmt->mt_node_children) {
         gobj_log_error(gobj, 0,
             "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "mt_node_childs not defined",
+            "msg",          "%s", "mt_node_children not defined",
             NULL
         );
         JSON_DECREF(jn_options)
         JSON_DECREF(kw)
         return 0;
     }
-    return gobj->gclass->gmt->mt_node_childs(gobj, topic_name, kw, hook, jn_filter, jn_options, src);
+    return gobj->gclass->gmt->mt_node_children(gobj, topic_name, kw, hook, jn_filter, jn_options, src);
 }
 
 /***************************************************************************
@@ -9807,7 +9807,7 @@ PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass_)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int cb_set_xxx_childs(hgobj child, void *user_data, void *user_data2)
+PRIVATE int cb_set_xxx_children(hgobj child, void *user_data, void *user_data2)
 {
     json_t *jn_list = user_data;
     json_t *jn_level = gobj_get_gobj_trace_level(child);
@@ -9833,15 +9833,15 @@ PRIVATE int cb_set_xxx_childs(hgobj child, void *user_data, void *user_data2)
 PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj)
 {
     json_t *jn_list = json_array();
-    cb_set_xxx_childs(gobj, jn_list,0);
-    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_xxx_childs, jn_list, 0);
+    cb_set_xxx_children(gobj, jn_list,0);
+    gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_set_xxx_children, jn_list, 0);
     return jn_list;
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int cb_set_no_xxx_childs(hgobj child, void *user_data, void *user_data2)
+PRIVATE int cb_set_no_xxx_children(hgobj child, void *user_data, void *user_data2)
 {
     json_t *jn_list = user_data;
     json_t *jn_level = gobj_get_gobj_trace_no_level(child);
@@ -9867,8 +9867,8 @@ PRIVATE int cb_set_no_xxx_childs(hgobj child, void *user_data, void *user_data2)
 PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)
 {
     json_t *jn_list = json_array();
-    cb_set_no_xxx_childs(gobj, jn_list, 0);
-    gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_set_no_xxx_childs, jn_list, 0);
+    cb_set_no_xxx_children(gobj, jn_list, 0);
+    gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_set_no_xxx_children, jn_list, 0);
     return jn_list;
 }
 

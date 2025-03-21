@@ -70,7 +70,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
-            'zchilds': [                                            \n\
+            'children': [                                            \n\
             ]                                                       \n\
         }                                                          \n\
     ]                                                               \n\

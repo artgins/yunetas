@@ -853,7 +853,7 @@ typedef json_t *(*mt_node_parents_fn)(
     json_t *options,
     hgobj src
 );
-typedef json_t *(*mt_node_childs_fn)(
+typedef json_t *(*mt_node_children_fn)(
     hgobj gobj,
     const char *topic_name,
     json_t *kw,
@@ -887,7 +887,7 @@ typedef json_t *(*mt_authenticate_fn)(
     json_t *kw,
     hgobj src
 );
-typedef json_t *(*mt_list_childs_fn)(
+typedef json_t *(*mt_list_children_fn)(
     hgobj gobj,
     const char *child_gclass,
     const char **attributes
@@ -980,7 +980,7 @@ typedef struct { // GClass methods (Yuneta framework methods)
     mt_get_resource_fn mt_get_resource;
     mt_state_changed_fn mt_state_changed; // If this method is defined then the EV_STATE_CHANGED will not published
     mt_authenticate_fn mt_authenticate; // Return webix
-    mt_list_childs_fn mt_list_childs;
+    mt_list_children_fn mt_list_children;
     mt_stats_updated_fn mt_stats_updated;       // Return 0 if own the stats, or -1 if not.
     mt_disable_fn mt_disable;
     mt_enable_fn mt_enable;
@@ -1012,7 +1012,7 @@ typedef struct { // GClass methods (Yuneta framework methods)
     mt_topic_links_fn mt_topic_links;
     mt_topic_hooks_fn mt_topic_hooks;
     mt_node_parents_fn mt_node_parents;
-    mt_node_childs_fn mt_node_childs;
+    mt_node_children_fn mt_node_children;
     mt_list_instances_fn mt_list_instances;
     mt_node_tree_fn mt_node_tree;
     mt_topic_size_fn mt_topic_size;
@@ -1317,7 +1317,7 @@ PUBLIC hgobj gobj_create_pure_child(
 
         // Children of the gobj
 
-        'zchilds': [
+        'children': [
             {
                 'gclass': 'Xx',
                 'name': 'xx',
@@ -1326,7 +1326,7 @@ PUBLIC hgobj gobj_create_pure_child(
 
                 'kw': {
                 }
-                'zchilds': [
+                'children': [
                 ]
             }
         ]
@@ -1334,7 +1334,7 @@ PUBLIC hgobj gobj_create_pure_child(
 
     HACK: It 'subscriber' is not set, the subscriber will be the parent
 
-    HACK: If there is only one child in zchilds, this will be set as gobj_set_bottom_gobj
+    HACK: If there is only one child in children, this will be set as gobj_set_bottom_gobj
 
     HACK: Rules for proper object usage
         - Inherently CHILD objects will ask if they are services to use gobj_publish_event()
@@ -1357,7 +1357,7 @@ PUBLIC hgobj gobj_create_tree( // Parse tree_config and call gobj_create_tree0()
 
 PUBLIC void gobj_destroy(hgobj gobj);
 
-PUBLIC void gobj_destroy_childs(hgobj gobj);
+PUBLIC void gobj_destroy_children(hgobj gobj);
 
 
 /*---------------------------------*
@@ -1487,11 +1487,11 @@ PUBLIC json_t *gobj_local_method(
 );
 
 PUBLIC int gobj_start(hgobj gobj);
-PUBLIC int gobj_start_childs(hgobj gobj);   // only direct childs
-PUBLIC int gobj_start_tree(hgobj gobj);     // childs with gcflag_manual_start flag are not started.
+PUBLIC int gobj_start_children(hgobj gobj);   // only direct children
+PUBLIC int gobj_start_tree(hgobj gobj);     // children with gcflag_manual_start flag are not started.
 PUBLIC int gobj_stop(hgobj gobj);
-PUBLIC int gobj_stop_childs(hgobj gobj);    // only direct childs
-PUBLIC int gobj_stop_tree(hgobj gobj);      // all tree of childs
+PUBLIC int gobj_stop_children(hgobj gobj);    // only direct children
+PUBLIC int gobj_stop_tree(hgobj gobj);      // all tree of children
 PUBLIC int gobj_play(hgobj gobj);
 PUBLIC int gobj_pause(hgobj gobj);
 PUBLIC int gobj_enable(hgobj gobj); // exec own mt_enable() or gobj_start_tree()
@@ -1575,12 +1575,12 @@ PUBLIC hgobj gobj_find_child_by_tree( // TODO already implemented in js
     json_t *jn_filter // owned
 );
 
-PUBLIC json_t *gobj_match_childs( // return an iter of first level matching jn_filter
+PUBLIC json_t *gobj_match_children( // return an iter of first level matching jn_filter
     hgobj gobj,
     json_t *jn_filter   // owned
 );
 
-PUBLIC json_t *gobj_match_childs_tree( // return an iter of any level matching jn_filter
+PUBLIC json_t *gobj_match_children_tree( // return an iter of any level matching jn_filter
     hgobj gobj,
     json_t *jn_filter   // owned
 );
@@ -1608,14 +1608,14 @@ typedef int (*cb_walking_t)(
     void *user_data2
 );
 
-PUBLIC int gobj_walk_gobj_childs(
+PUBLIC int gobj_walk_gobj_children(
     hgobj gobj,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
     void *user_data,
     void *user_data2
 );
-PUBLIC int gobj_walk_gobj_childs_tree(
+PUBLIC int gobj_walk_gobj_children_tree(
     hgobj gobj,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
@@ -2170,12 +2170,12 @@ PUBLIC json_t *gobj_node_parents( // Return MUST be decref
  *  Return a list of child nodes of the hook
  *  If no hook return all hooks
  */
-PUBLIC json_t *gobj_node_childs( // Return MUST be decref
+PUBLIC json_t *gobj_node_children( // Return MUST be decref
     hgobj gobj,
     const char *topic_name,
     json_t *kw,         // 'id' and pkey2s fields are used to find the node
     const char *hook,
-    json_t *jn_filter,  // filter to childs
+    json_t *jn_filter,  // filter to children
     json_t *jn_options, // fkey,hook options, "recursive"
     hgobj src
 );

@@ -55,7 +55,7 @@ SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_RD,             0,          
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_RD,             0,              "Share the port"),
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,             "1",            "Exit if Listen failed"),
-SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of childs to create on new accept"),
+SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of children to create on new accept"),
 
 SDATA (DTP_DICT,        "clisrv_kw",            SDF_RD,             0,              "kw of clisrv gobj"),
 SDATA (DTP_POINTER,     "user_data",            0,                  0,              "user data"),

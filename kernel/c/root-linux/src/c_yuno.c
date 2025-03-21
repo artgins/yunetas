@@ -277,7 +277,7 @@ SDATA_END()
 PRIVATE const sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
-SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in children"),
 SDATA_END()
 };
 
@@ -347,9 +347,9 @@ SDATACM (DTP_SCHEMA,    "set-gclass-trace",         0,      pm_set_gclass_tr,cmd
 SDATACM (DTP_SCHEMA,    "get-gclass-no-trace",      0,      pm_gclass_name, cmd_get_gclass_no_trace,"Get no gclass' trace"),
 SDATACM (DTP_SCHEMA,    "set-gclass-no-trace",      0,      pm_set_gclass_tr,cmd_set_no_gclass_trace,"Set no-trace of a gclass)"),
 
-SDATACM (DTP_SCHEMA,    "get-gobj-trace",           0,      pm_gobj_root_name, cmd_get_gobj_trace,   "Get gobj's trace and his childs"),
+SDATACM (DTP_SCHEMA,    "get-gobj-trace",           0,      pm_gobj_root_name, cmd_get_gobj_trace,   "Get gobj's trace and his children"),
 SDATACM (DTP_SCHEMA,    "set-gobj-trace",           0,      pm_set_gobj_tr, cmd_set_gobj_trace,      "Set trace of a named-gobj"),
-SDATACM (DTP_SCHEMA,    "get-gobj-no-trace",        0,      pm_gobj_root_name, cmd_get_gobj_no_trace,"Get no gobj's trace  and his childs"),
+SDATACM (DTP_SCHEMA,    "get-gobj-no-trace",        0,      pm_gobj_root_name, cmd_get_gobj_no_trace,"Get no gobj's trace  and his children"),
 SDATACM (DTP_SCHEMA,    "set-gobj-no-trace",        0,      pm_set_gobj_tr, cmd_set_no_gobj_trace,   "Set no-trace of a named-gobj"),
 
 SDATACM (DTP_SCHEMA,    "set-trace-filter",         0,      pm_set_trace_filter, cmd_set_trace_filter,"Set a gclass trace filter"),
@@ -632,7 +632,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
 
     /*------------------------*
-     *  Create childs
+     *  Create children
      *------------------------*/
     priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER0, 0, gobj);
 
@@ -715,7 +715,7 @@ PRIVATE int mt_stop(hgobj gobj)
      *  When yuno stops, it's the death of the app
      */
     gobj_stop(priv->gobj_timer);
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
     return 0;
 }
 

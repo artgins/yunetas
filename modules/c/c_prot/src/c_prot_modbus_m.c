@@ -351,7 +351,7 @@ PRIVATE json_t *cmd_set_poll_timeout(hgobj gobj, const char *cmd, json_t *kw, hg
 PRIVATE const sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
-SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in children"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_dump_data[] = {

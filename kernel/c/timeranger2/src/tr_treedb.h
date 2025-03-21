@@ -500,13 +500,13 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
 );
 
 /*
- *  Return a list of childs through the hook
+ *  Return a list of children through the hook
  */
-PUBLIC json_t *treedb_node_childs(
+PUBLIC json_t *treedb_node_children(
     json_t *tranger,
     const char *hook,
     json_t *node,       // NOT owned, pure node
-    json_t *jn_filter,  // filter to childs tree
+    json_t *jn_filter,  // filter to children tree
     json_t *jn_options  // fkey,hook options, "recursive"
 );
 
@@ -516,14 +516,14 @@ PUBLIC int add_jtree_path( // Add path to child
 );
 
 /*
- *  Return a tree of childs through the hook
+ *  Return a tree of children through the hook
  */
 PUBLIC json_t *treedb_node_jtree(
     json_t *tranger,
     const char *hook,   // hook to build the hierarchical tree
     const char *rename_hook, // change the hook name in the tree response
     json_t *node,       // NOT owned, pure node
-    json_t *jn_filter,  // filter to childs tree
+    json_t *jn_filter,  // filter to children tree
     json_t *jn_options  // fkey,hook options
 );
 

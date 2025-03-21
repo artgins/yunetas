@@ -41,6 +41,21 @@ Change API
     json_record_to_schema -> json_desc_to_schema
     gobj_unsubscribe_list
 
+    rename childs -> children
+
+        gobj.h:PUBLIC void gobj_destroy_childs(hgobj gobj);
+        gobj.h:PUBLIC int gobj_start_childs(hgobj gobj);   // only direct childs
+        gobj.h:PUBLIC int gobj_start_tree(hgobj gobj);     // childs with gcflag_manual_start flag are not started.
+        gobj.h:PUBLIC int gobj_stop_childs(hgobj gobj);    // only direct childs
+        gobj.h:PUBLIC int gobj_stop_tree(hgobj gobj);      // all tree of childs
+        gobj.h:PUBLIC json_t *gobj_match_childs( // return an iter of first level matching jn_filter
+        gobj.h:PUBLIC json_t *gobj_match_childs_tree( // return an iter of any level matching jn_filter
+        gobj.h:PUBLIC int gobj_walk_gobj_childs(
+        gobj.h:PUBLIC int gobj_walk_gobj_childs_tree(
+        gobj.h:PUBLIC json_t *gobj_node_childs( // Return MUST be decref
+        tr_treedb.h:PUBLIC json_t *treedb_node_childs(
+
+
 New API
 
     build_stats_response

@@ -40,7 +40,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
-SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in children"),
 SDATA_END()
 };
 
@@ -70,7 +70,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "method",           SDF_RD,                     "lastdigits", "Method to select the child to send the message ('lastdigits', ). Default 'lastdigits', numeric value with the 'digits' last digits used to select the child. Digits can be decimal or hexadecimal ONLY, automatically detected."),
 SDATA (DTP_INTEGER,     "digits",           SDF_RD|SDF_STATS,           "1",              "Digits to calculate output"),
 
-SDATA (DTP_STRING,      "key",              SDF_RD,                     "id",           "field of kw to obtain the index to child to send message. It must be a numeric value, and the last digit is used to index the child, so you can have until 10 childs with the default method."),
+SDATA (DTP_STRING,      "key",              SDF_RD,                     "id",           "field of kw to obtain the index to child to send message. It must be a numeric value, and the last digit is used to index the child, so you can have until 10 children with the default method."),
 SDATA (DTP_POINTER,     "user_data",        0,                          0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                          0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                          0,              "subscriber of output-events. Not a child gobj."),
@@ -96,7 +96,7 @@ typedef struct _PRIVATE_DATA {
     const char *method;
     const char *key;
     unsigned digits;
-    int n_childs;
+    int n_children;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -160,11 +160,11 @@ PRIVATE int mt_start(hgobj gobj)
     json_t *jn_filter = json_pack("{s:s}",
         "__gclass_name__", C_QIOGATE
     );
-    json_t *dl_childs = gobj_match_childs(gobj, jn_filter);
-    priv->n_childs = json_array_size(dl_childs);
-    gobj_free_iter(dl_childs);
+    json_t *dl_children = gobj_match_children(gobj, jn_filter);
+    priv->n_children = json_array_size(dl_children);
+    gobj_free_iter(dl_children);
 
-    if(!priv->n_childs) {
+    if(!priv->n_children) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
@@ -205,10 +205,10 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     json_t *jn_filter = json_pack("{s:s}",
         "__gclass_name__", C_QIOGATE
     );
-    json_t *dl_childs = gobj_match_childs(gobj, jn_filter);
+    json_t *dl_children = gobj_match_children(gobj, jn_filter);
 
     int idx; json_t *jn_child;
-    json_array_foreach(dl_childs, idx, jn_child) {
+    json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         KW_INCREF(kw)
         json_t *jn_stats_child = build_stats(
@@ -220,7 +220,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         json_object_set_new(jn_stats, gobj_name(child), jn_stats_child);
     }
 
-    gobj_free_iter(dl_childs);
+    gobj_free_iter(dl_children);
     KW_DECREF(kw)
 
     return build_command_response(
@@ -271,10 +271,10 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *jn_filter = json_pack("{s:s}",
         "__gclass_name__", C_IOGATE
     );
-    json_t *dl_childs = gobj_match_childs_tree(gobj, jn_filter);
+    json_t *dl_children = gobj_match_children_tree(gobj, jn_filter);
 
     int idx; json_t *jn_child;
-    json_array_foreach(dl_childs, idx, jn_child) {
+    json_array_foreach(dl_children, idx, jn_child) {
         hgobj child = (hgobj)(size_t)json_integer_value(jn_child);
         json_t *r = gobj_command(child, "view-channels", json_incref(kw), gobj);
         json_t *data = kw_get_dict_value(gobj, r, "data", 0, 0);
@@ -283,7 +283,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
         }
         json_decref(r);
     }
-    gobj_free_iter(dl_childs);
+    gobj_free_iter(dl_children);
 
     return msg_iev_build_response(
         gobj,
@@ -324,7 +324,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     const char *id = "";
     int idx = 0;
 
-    if(priv->n_childs <= 0) {
+    if(priv->n_children <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -361,7 +361,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
                     NULL
                 );
             }
-            idx = idx % priv->n_childs;
+            idx = idx % priv->n_children;
             if(idx < 0) {
                 idx = 0;
             }

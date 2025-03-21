@@ -205,7 +205,7 @@ class GObj {
         this.__refs__ = 0;
         this.gclass = gclass;
         this.parent = null;     // assign in _add_child()
-        this.dl_childs = [];
+        this.dl_children = [];
         this.dl_subscriptions = []; // subscriptions of this gobj to events of others gobj.
         this.dl_subscribings = [];  // subscribed events
         this.current_state = gclass.dl_states[0];
@@ -1200,7 +1200,7 @@ function _add_child(parent, child)
     if(child.parent) {
         log_error(`_add_child() ALREADY HAS PARENT: ${child.gobj_name}`);
     }
-    parent.dl_childs.push(child);
+    parent.dl_children.push(child);
     child.parent = parent;
 }
 
@@ -1209,9 +1209,9 @@ function _add_child(parent, child)
  ************************************************************/
 function _remove_child(parent, child)
 {
-    let index = index_in_list(parent.dl_childs, child);
+    let index = index_in_list(parent.dl_children, child);
     if (index >= 0) {
-        json_array_remove(parent.dl_childs, index);
+        json_array_remove(parent.dl_children, index);
         child.parent = null;
     }
 }
@@ -1743,14 +1743,14 @@ function gobj_destroy(gobj)
     }
 
     /*--------------------------------*
-     *      Delete childs
+     *      Delete children
      *--------------------------------*/
-    gobj_destroy_childs(gobj);
+    gobj_destroy_children(gobj);
 
     /*-------------------------------------------------*
      *  Exec mt_destroy
-     *  Call this after all childs are destroyed.
-     *  Then you can delete resources used by childs
+     *  Call this after all children are destroyed.
+     *  Then you can delete resources used by children
      *  (example: event_loop in main/threads)
      *-------------------------------------------------*/
     if(gobj.obflag & obflag_t.obflag_created) {
@@ -1778,12 +1778,12 @@ function gobj_destroy(gobj)
 /************************************************************
  *
  ************************************************************/
-function gobj_destroy_childs(gobj)
+function gobj_destroy_children(gobj)
 {
-    let dl_childs = gobj.dl_childs.slice();
+    let dl_children = gobj.dl_children.slice();
 
-    for(let i=0; i < dl_childs.length; i++) {
-        let child = dl_childs[i];
+    for(let i=0; i < dl_children.length; i++) {
+        let child = dl_children[i];
         if (!gobj_is_destroying(child)) {
             gobj_destroy(child);
         }
@@ -1843,7 +1843,7 @@ function gobj_start(gobj)
 }
 
 /***************************************************************************
- *  Start all childs of the gobj.
+ *  Start all children of the gobj.
  ***************************************************************************/
 function cb_start_child(child, user_data, user_data2)
 {
@@ -1855,18 +1855,18 @@ function cb_start_child(child, user_data, user_data2)
     }
     return 0;
 }
-function gobj_start_childs(gobj)
+function gobj_start_children(gobj)
 {
     if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return -1;
     }
 
-    return gobj_walk_gobj_childs(gobj, walk_type_t.WALK_FIRST2LAST, cb_start_child, 0, 0);
+    return gobj_walk_gobj_children(gobj, walk_type_t.WALK_FIRST2LAST, cb_start_child, 0, 0);
 }
 
 /***************************************************************************
- *  Start this gobj and all childs tree of the gobj.
+ *  Start this gobj and all children tree of the gobj.
  ***************************************************************************/
 function cb_start_child_tree(child, user_data, user_data2)
 {
@@ -1905,7 +1905,7 @@ function gobj_start_tree(gobj)
             gobj_start(gobj);
         }
     }
-    return gobj_walk_gobj_childs_tree(gobj, walk_type_t.WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0);
+    return gobj_walk_gobj_children_tree(gobj, walk_type_t.WALK_TOP2BOTTOM, cb_start_child_tree, 0, 0);
 }
 
 /************************************************************
@@ -1946,7 +1946,7 @@ function gobj_stop(gobj)
 }
 
 /***************************************************************************
- *  Stop all childs of the gobj.
+ *  Stop all children of the gobj.
  ***************************************************************************/
 function cb_stop_child(child, user_data, user_data2)
 {
@@ -1955,18 +1955,18 @@ function cb_stop_child(child, user_data, user_data2)
     }
     return 0;
 }
-function gobj_stop_childs(gobj)
+function gobj_stop_children(gobj)
 {
     if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
         return -1;
     }
 
-    return gobj_walk_gobj_childs(gobj, walk_type_t.WALK_FIRST2LAST, cb_stop_child, 0, 0);
+    return gobj_walk_gobj_children(gobj, walk_type_t.WALK_FIRST2LAST, cb_stop_child, 0, 0);
 }
 
 /***************************************************************************
- *  Stop this gobj and all childs tree of the gobj.
+ *  Stop this gobj and all children tree of the gobj.
  ***************************************************************************/
 function gobj_stop_tree(gobj)
 {
@@ -1986,7 +1986,7 @@ function gobj_stop_tree(gobj)
     if(gobj_is_running(gobj)) {
         gobj_stop(gobj);
     }
-    return gobj_walk_gobj_childs_tree(gobj, walk_type_t.WALK_TOP2BOTTOM, cb_stop_child, 0, 0);
+    return gobj_walk_gobj_children_tree(gobj, walk_type_t.WALK_TOP2BOTTOM, cb_stop_child, 0, 0);
 }
 
 /************************************************************
@@ -2328,7 +2328,7 @@ function gobj_attr_desc(gobj, attr, verbose)
 /***************************************************************************
  *
  ***************************************************************************/
-function gobj_walk_gobj_childs(
+function gobj_walk_gobj_children(
     gobj,
     walk_type,  // walk_type_t
     cb_walking,
@@ -2340,13 +2340,13 @@ function gobj_walk_gobj_childs(
         return 0;
     }
 
-    return rc_walk_by_list(gobj.dl_childs, walk_type, cb_walking, user_data, user_data2);
+    return rc_walk_by_list(gobj.dl_children, walk_type, cb_walking, user_data, user_data2);
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-function gobj_walk_gobj_childs_tree(
+function gobj_walk_gobj_children_tree(
     gobj,
     walk_type,  // walk_type_t
     cb_walking,
@@ -2358,7 +2358,7 @@ function gobj_walk_gobj_childs_tree(
         return 0;
     }
 
-    return rc_walk_by_tree(gobj.dl_childs, walk_type, cb_walking, user_data, user_data2);
+    return rc_walk_by_tree(gobj.dl_children, walk_type, cb_walking, user_data, user_data2);
 }
 
 /***************************************************************
@@ -2415,7 +2415,7 @@ function rc_walk_by_level(
     user_data2
 ) {
     /*
-     *  First my childs
+     *  First my children
      */
     let ret = rc_walk_by_list(iter, walk_type, cb_walking, user_data, user_data2);
     if(ret < 0) {
@@ -2423,14 +2423,14 @@ function rc_walk_by_level(
     }
 
     /*
-     *  Now child's childs
+     *  Now child's children
      */
     let child;
     if(walk_type & walk_type_t.WALK_LAST2FIRST) {
         for(let i=iter.length; i>0; i--) {
             child = iter[i-1];
 
-            let dl_child_list = [...child.dl_childs];
+            let dl_child_list = [...child.dl_children];
             ret = rc_walk_by_level(dl_child_list, walk_type, cb_walking, user_data, user_data2);
             if(ret < 0) {
                 return ret;
@@ -2440,7 +2440,7 @@ function rc_walk_by_level(
         for(let i=0; i<iter.length; i++) {
             child = iter[i];
 
-            let dl_child_list = [...child.dl_childs];
+            let dl_child_list = [...child.dl_children];
             ret = rc_walk_by_level(dl_child_list, walk_type, cb_walking, user_data, user_data2);
             if(ret < 0) {
                 return ret;
@@ -2483,7 +2483,7 @@ function rc_walk_by_tree(
         for(let i=iter.length; i>0; i--) {
             child = iter[i-1];
 
-            let dl_child_list = [...child.dl_childs];
+            let dl_child_list = [...child.dl_children];
             ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data, user_data2);
             if(ret < 0) {
                 return ret;
@@ -2503,7 +2503,7 @@ function rc_walk_by_tree(
             if(ret < 0) {
                 return ret;
             } else if(ret === 0) {
-                let dl_child_list = [...child.dl_childs];
+                let dl_child_list = [...child.dl_children];
                 ret = rc_walk_by_tree(dl_child_list, walk_type, cb_walking, user_data, user_data2);
                 if(ret < 0) {
                     return ret;
@@ -2633,9 +2633,9 @@ function gobj_find_child(gobj, jn_filter)
         return null;
     }
 
-    const dl_childs = gobj.dl_childs;
-    for(let i=0; i < dl_childs.length; i++) {
-        const child = dl_childs[i];
+    const dl_children = gobj.dl_children;
+    for(let i=0; i < dl_children.length; i++) {
+        const child = dl_children[i];
         if(gobj_match_gobj(child, jn_filter)) {
             return child;
         }
@@ -2647,7 +2647,7 @@ function gobj_find_child(gobj, jn_filter)
 /************************************************************
  *  Return child's list matched with kw attributes
  ************************************************************/
-function gobj_match_childs(gobj, jn_filter)
+function gobj_match_children(gobj, jn_filter)
 {
     if(gobj_is_destroying(gobj)) {
         log_error("gobj NULL or DESTROYED");
@@ -2655,31 +2655,31 @@ function gobj_match_childs(gobj, jn_filter)
     }
 
     jn_filter = jn_filter || {};
-    let childs = [];
+    let children = [];
 
-    const dl_childs = gobj.dl_childs;
-    for(let i=0; i < dl_childs.length; i++) {
-        const child = dl_childs[i];
+    const dl_children = gobj.dl_children;
+    for(let i=0; i < dl_children.length; i++) {
+        const child = dl_children[i];
         if(gobj_match_gobj(child, jn_filter)) {
-            childs.push(child);
+            children.push(child);
         }
     }
 
-    return childs;
+    return children;
 }
 
 /************************************************************
- *  Returns the matched childs searching in the tree.
+ *  Returns the matched children searching in the tree.
  ************************************************************/
-function gobj_match_childs_tree(gobj, jn_filter)
+function gobj_match_children_tree(gobj, jn_filter)
 {
     jn_filter = jn_filter || {};
 
     function _walk_child_tree(d, o)
     {
-        let dl_childs = o.dl_childs;
-        for (let i=0; i < dl_childs.length; i++) {
-            let child = dl_childs[i];
+        let dl_children = o.dl_children;
+        for (let i=0; i < dl_children.length; i++) {
+            let child = dl_children[i];
             if(gobj_match_gobj(child, jn_filter)) {
                 d.push(child);
             }
@@ -2715,7 +2715,7 @@ function gobj_search_path(gobj, path)
     }
 
     /*
-     *  Get next node and compare with childs
+     *  Get next node and compare with children
      */
     let n = p[1];
     let nn = n.split("^");
@@ -2728,7 +2728,7 @@ function gobj_search_path(gobj, path)
     }
 
     /*
-     *  Search in childs
+     *  Search in children
      */
     let child = gobj_find_child(gobj, filter);
     if(!child) {
@@ -4430,10 +4430,10 @@ export {
     gobj_create,
     gobj_destroy,
     gobj_start,
-    gobj_start_childs,
+    gobj_start_children,
     gobj_start_tree,
     gobj_stop,
-    gobj_stop_childs,
+    gobj_stop_children,
     gobj_stop_tree,
     gobj_play,
     gobj_pause,
@@ -4454,13 +4454,13 @@ export {
     gobj_is_destroying,
     gobj_bottom_gobj,
     gobj_set_bottom_gobj,
-    gobj_walk_gobj_childs,
-    gobj_walk_gobj_childs_tree,
+    gobj_walk_gobj_children,
+    gobj_walk_gobj_children_tree,
     gobj_find_gobj,
     gobj_match_gobj,
     gobj_find_child,
-    gobj_match_childs,
-    gobj_match_childs_tree,
+    gobj_match_children,
+    gobj_match_children_tree,
     gobj_search_path,
     gobj_has_attr,
     gobj_read_attr,

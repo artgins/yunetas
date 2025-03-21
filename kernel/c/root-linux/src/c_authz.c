@@ -108,7 +108,7 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in children"),
 SDATA_END()
 };
 
@@ -1808,12 +1808,12 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
         json_array_append(services_roles, role);
 
-        json_t *tree_roles = gobj_node_childs(
+        json_t *tree_roles = gobj_node_children(
             priv->gobj_treedb,
             "roles", // topic_name
             role,    // 'id' and pkey2s fields are used to find the node
             "roles",
-            json_pack("{s:b}", // filter to childs tree
+            json_pack("{s:b}", // filter to children tree
                 "disabled", 0
             ),
             json_pack("{s:b, s:b, s:b}",
@@ -2308,12 +2308,12 @@ PRIVATE json_t *get_user_roles(
             }
         }
 
-        json_t *tree_roles = gobj_node_childs(
+        json_t *tree_roles = gobj_node_children(
             priv->gobj_treedb,
             "roles", // topic_name
             json_incref(role),    // 'id' and pkey2s fields are used to find the node
             "roles",
-            json_pack("{s:b}", // filter to childs tree
+            json_pack("{s:b}", // filter to children tree
                 "disabled", 0
             ),
             json_pack("{s:b, s:b, s:b}",
@@ -2478,12 +2478,12 @@ PRIVATE json_t *get_user_permissions(
             }
         }
 
-        json_t *tree_roles = gobj_node_childs(
+        json_t *tree_roles = gobj_node_children(
             priv->gobj_treedb,
             "roles", // topic_name
             json_incref(role),    // 'id' and pkey2s fields are used to find the node
             "roles",
-            json_pack("{s:b}", // filter to childs tree
+            json_pack("{s:b}", // filter to children tree
                 "disabled", 0
             ),
             json_pack("{s:b, s:b, s:b}",
