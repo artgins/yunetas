@@ -2071,6 +2071,11 @@ PUBLIC hgobj gobj_create_tree0(
 
     hgobj last_child = 0;
     json_t *jn_children = kw_get_list(parent_, jn_tree, "children", 0, 0);
+    if(!jn_children) {
+        // TODO remove when agent is migrated to YunetaS
+        jn_children = kw_get_list(parent_, jn_tree, "zchilds", 0, 0);
+    }
+
     size_t index;
     json_t *jn_child;
     json_array_foreach(jn_children, index, jn_child) {
