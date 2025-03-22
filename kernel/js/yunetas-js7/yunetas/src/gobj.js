@@ -215,7 +215,7 @@ class GObj {
 
         // Data allocated
         this.gobj_name = gobj_name;
-        this.jn_attrs =  sdata_create(this, gclass.attrs_table);
+        this.jn_attrs =  null;
         this.jn_stats = {};
         this.jn_user_data = {};
         this.full_name = null;
@@ -1495,6 +1495,7 @@ function gobj_create2(
      *      Initialize variables
      *--------------------------------*/
     let gobj = new GObj(gobj_name, gclass, kw, parent, gobj_flag);
+    gobj.jn_attrs =  sdata_create(gobj, gclass.attrs_table);
 
     let trace_creation = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_creation");
     if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
@@ -2760,11 +2761,12 @@ function gobj_read_attr(gobj, name, src)
             // TODO must be a item2json, to call mt_reading
             let value = jn_attrs[name];
             if(gobj.gclass.gmt.mt_reading) {
-                return gobj.gclass.gmt.mt_reading(name, value);
+                return gobj.gclass.gmt.mt_reading(gobj, name, value);
             }
             return value;
         }
     }
+    log_error(`${gobj_short_name(gobj)}: GClass Attribute NOT FOUND, attr ${name}`);
     return null;
 }
 
@@ -2825,7 +2827,7 @@ function gobj_write_attr(
                 jn_attrs[key] = value;
 
                 if(gobj.gclass.gmt.mt_writing) {
-                    gobj.gclass.gmt.mt_writing(key);
+                    gobj.gclass.gmt.mt_writing(gobj, key);
                 }
                 return 0;
             }
@@ -2849,7 +2851,7 @@ function gobj_write_attr(
                 jn_attrs[key] = value;
 
                 if(gobj.mt_writing) {
-                    gobj.mt_writing(key);
+                    gobj.mt_writing(gobj, key);
                 }
                 return 0;
             }
