@@ -629,10 +629,6 @@ function json2item(gobj, sdata, it, jn_value_)
             } else {
                 jn_value2 = jn_value_;
             }
-            if(!is_array(jn_value2)) {
-                log_error(`attr must be an array: ${it.name}`);
-                return -1;
-            }
             if(!is_object(jn_value2)) {
                 log_error(`attr must be an object: ${it.name}`);
                 return -1;
@@ -3739,6 +3735,10 @@ function gobj_subscribe_event(
     kw,
     subscriber)
 {
+    if(kw == null) {
+        kw = {};
+    }
+
     /*---------------------*
      *  Check something
      *---------------------*/
@@ -3854,6 +3854,10 @@ function gobj_unsubscribe_event(
     kw,
     subscriber)
 {
+    if(kw == null) {
+        kw = {};
+    }
+
     /*---------------------*
      *  Check something
      *---------------------*/

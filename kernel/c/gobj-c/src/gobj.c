@@ -7400,6 +7400,10 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     gobj_t * publisher = publisher_;
     gobj_t * subscriber = subscriber_;
 
+    if(kw == NULL) {
+        kw = json_object();
+    }
+
     /*---------------------*
      *  Check something
      *---------------------*/
@@ -7597,6 +7601,10 @@ PUBLIC int gobj_unsubscribe_event(
 {
     gobj_t *publisher = publisher_;
     gobj_t *subscriber = subscriber_;
+
+    if(kw == NULL) {
+        kw = json_object();
+    }
 
     /*---------------------*
      *  Check something

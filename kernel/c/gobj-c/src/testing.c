@@ -358,7 +358,11 @@ PRIVATE BOOL match_list(
             {
                 int idx1; json_t *r1;
                 json_array_foreach(list, idx1, r1) {
-                    const char *id1 = kw_get_str(gobj, r1, "id", 0, 0);
+                    const char *id1 = NULL;
+                    if(json_is_object(r1)) {
+                        id1 = kw_get_str(gobj, r1, "id", 0, 0);
+                    }
+
                     /*--------------------------------*
                      *  List with id records
                      *--------------------------------*/

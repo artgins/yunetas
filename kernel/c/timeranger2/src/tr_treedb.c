@@ -1659,7 +1659,9 @@ PUBLIC json_t *treedb_topics(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-
+    if(!jn_options) {
+        jn_options = json_object();
+    }
     json_t *treedb = kw_get_subdict_value(gobj, tranger, "treedbs", treedb_name, 0, 0);
     if(!treedb) {
         JSON_DECREF(jn_options)
@@ -4882,6 +4884,9 @@ PUBLIC int treedb_delete_node(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(!jn_options) {
+        jn_options = json_object();
+    }
 
     /*------------------------------*
      *      Check original node

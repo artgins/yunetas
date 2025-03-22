@@ -235,7 +235,7 @@ PRIVATE int ac_timeout_close(hgobj gobj, const char *event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_send_event(priv->gobj_output_side, EV_DROP, 0, gobj);
+    gobj_send_event(priv->gobj_output_side, EV_DROP, json_object(), gobj);
 
     JSON_DECREF(kw)
     return 0;
