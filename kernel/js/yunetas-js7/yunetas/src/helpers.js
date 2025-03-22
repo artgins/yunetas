@@ -838,17 +838,12 @@ function kw_find_path(gobj, kw, path, verbose)
         log_error(`GObj bad instanceof`);
     }
 
-    if(!is_object(kw)) {
-        // silence
-        if(verbose) {
-            log_error(`${gobj_short_name(gobj)}: kw must be list or dict`);
-        }
+    if(!(is_object(kw) || is_array(kw))) {
+        log_error(`${gobj_short_name(gobj)}: kw must be list or dict`);
         return 0;
     }
     if(!is_string(path)) {
-        if(verbose) {
-            log_error(`${gobj_short_name(gobj)}: path must be a string: ${String(path)}`);
-        }
+        log_error(`${gobj_short_name(gobj)}: path must be a string: ${String(path)}`);
         return 0;
     }
     let ss = path.split('`');
