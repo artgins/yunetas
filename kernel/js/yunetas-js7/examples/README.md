@@ -1,5 +1,7 @@
 # README
 
+# Install
+
 This project uses [`vite`](https://vite.dev/) as build tool.
 
 Install the latest `node`:
@@ -36,3 +38,17 @@ To test
 or
 
     npm run test:coverage
+
+## Update
+
+ONLY one time: to update all js packages, install the module::
+
+    npm install -g npm-check-updates
+
+To download new releases::
+
+    ncu -u
+
+And to install the new versions::
+
+    npm install
