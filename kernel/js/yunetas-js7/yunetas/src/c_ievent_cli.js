@@ -829,7 +829,12 @@ function send_remote_subscription(gobj, subs)
  ***************************************************************/
 function resend_subscriptions(gobj)
 {
-    let dl_subs = gobj_find_subscriptions(gobj);
+    let dl_subs = gobj_find_subscriptions(
+        gobj,
+        null,   // event,
+        null,   // kw (__config__, __global__, __local__)
+        null    // subscriber
+    );
     for(let i=0; i<dl_subs.length; i++) {
         let subs = dl_subs[i];
         send_remote_subscription(gobj, subs);

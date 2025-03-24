@@ -3952,6 +3952,9 @@ function gobj_find_subscriptions(
     kw,
     subscriber)
 {
+    if(kw == null) {
+        kw = {};
+    }
     return _find_subscriptions(
         publisher.dl_subscriptions,
         publisher,
@@ -3968,9 +3971,9 @@ function gobj_list_subscriptions(gobj2view)
 {
     let subscriptions = gobj_find_subscriptions(
         gobj2view,
-        0,      // event,
+        null,   // event,
         null,   // kw (__config__, __global__, __local__)
-        0       // subscriber
+        null    // subscriber
     );
     for(let i=0; i<subscriptions.length; i++) {
         let sub = subscriptions[i];

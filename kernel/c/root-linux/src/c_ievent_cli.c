@@ -697,7 +697,7 @@ PRIVATE int send_remote_subscription(
  ***************************************************************************/
 PRIVATE int resend_subscriptions(hgobj gobj)
 {
-    json_t *dl_subs = gobj_find_subscriptions(gobj, 0, 0, 0);
+    json_t *dl_subs = gobj_find_subscriptions(gobj, NULL, NULL, NULL);
 
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {

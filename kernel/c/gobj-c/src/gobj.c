@@ -7743,6 +7743,9 @@ PUBLIC json_t *gobj_find_subscriptions(
     hgobj subscriber)
 {
     gobj_t * publisher = gobj_;
+    if(kw == NULL) {
+        kw = json_object();
+    }
     return _find_subscriptions(
         publisher->dl_subscriptions,
         gobj_,
@@ -7767,6 +7770,9 @@ PUBLIC json_t *gobj_find_subscribings(
 )
 {
     gobj_t * gobj = gobj_;
+    if(kw == NULL) {
+        kw = json_object();
+    }
     return _find_subscriptions(
         gobj->dl_subscribings,
         publisher,
