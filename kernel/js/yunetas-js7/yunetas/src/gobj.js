@@ -3129,7 +3129,7 @@ function gobj_change_parent(gobj, parent)
      *      Remove from current parent
      *--------------------------------------*/
     if (gobj.parent && gobj.parent.mt_child_removed) {
-        gobj.parent.mt_child_removed(gobj);
+        gobj.parent.mt_child_removed(gobj.parent, gobj);
     }
     if (gobj.parent) {
         _remove_child(gobj.parent, gobj);
@@ -3149,7 +3149,7 @@ function gobj_change_parent(gobj, parent)
         if(trace_creation) { // if(__trace_gobj_create_delete__(gobj))
             log_debug(sprintf("👦👦🔵 child_added(%s): %s", gobj_full_name(parent), gobj_short_name(gobj)));
         }
-        parent.mt_child_added(gobj);
+        parent.mt_child_added(parent, gobj);
     }
 
     return 0;
