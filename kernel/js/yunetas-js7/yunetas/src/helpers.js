@@ -903,9 +903,6 @@ function kw_get_bool(gobj, kw, path, default_value, flag)
     if(gobj && !is_gobj(gobj)) {
         log_error(`GObj bad instanceof`);
     }
-    if(kw !== Object(kw)) {
-        return Boolean(default_value);
-    }
     let b = kw_find_path(gobj, kw, path, false);
 
     const required = flag && (flag & kw_flag_t.KW_REQUIRED);
@@ -939,9 +936,6 @@ function kw_get_int(gobj, kw, path, default_value, flag)
         log_error(`GObj bad instanceof`);
     }
 
-    if(kw !== Object(kw)) {
-        return parseInt(default_value);
-    }
     let v = kw_find_path(gobj, kw, path, false);
 
     const required = flag && (flag & kw_flag_t.KW_REQUIRED);
@@ -985,9 +979,6 @@ function kw_get_real(gobj, kw, path, default_value, flag)
         log_error(`GObj bad instanceof`);
     }
 
-    if(kw !== Object(kw)) {
-        return Number(default_value);
-    }
     let v = kw_find_path(gobj, kw, path, false);
 
     const required = flag && (flag & kw_flag_t.KW_REQUIRED);
@@ -1031,9 +1022,6 @@ function kw_get_str(gobj, kw, path, default_value, flag)
         log_error(`GObj bad instanceof`);
     }
 
-    if(kw !== Object(kw)) {
-        return String(default_value);
-    }
     let v = kw_find_path(gobj, kw, path, false);
 
     const required = flag && (flag & kw_flag_t.KW_REQUIRED);
@@ -1077,9 +1065,6 @@ function kw_get_pointer(gobj, kw, path, default_value, flag)
         log_error(`GObj bad instanceof`);
     }
 
-    if(kw !== Object(kw)) {
-        return default_value;
-    }
     let v = kw_find_path(gobj, kw, path, false);
 
     const required = flag && (flag & kw_flag_t.KW_REQUIRED);
@@ -1115,9 +1100,6 @@ function kw_get_dict(gobj, kw, path, default_value, flag)
         log_error(`GObj bad instanceof`);
     }
 
-    if(kw !== Object(kw)) {
-        return Object(default_value);
-    }
     let v = kw_find_path(gobj, kw, path, false);
 
     const required = flag && (flag & kw_flag_t.KW_REQUIRED);
@@ -1161,9 +1143,6 @@ function kw_get_dict_value(gobj, kw, path, default_value, flag)
         log_error(`GObj bad instanceof`);
     }
 
-    if(kw !== Object(kw)) {
-        return default_value;
-    }
     let v = kw_find_path(gobj, kw, path, false);
 
     const required = flag && (flag & kw_flag_t.KW_REQUIRED);
@@ -1199,9 +1178,6 @@ function kw_get_list(gobj, kw, path, default_value, flag)
         log_error(`GObj bad instanceof`);
     }
 
-    if(kw !== Object(kw)) {
-        return Array(default_value);
-    }
     let v = kw_find_path(gobj, kw, path, false);
 
     const required = flag && (flag & kw_flag_t.KW_REQUIRED);
