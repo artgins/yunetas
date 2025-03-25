@@ -2950,6 +2950,42 @@ function parseSVG(string)
 }
 
 /************************************************************
+ *
+ ************************************************************/
+function refresh_language(element, t)
+{
+    if(!is_function(t)) {
+        log_error("You must supply a translation function");
+        return;
+    }
+    if(!element) {
+        element = document;
+    }
+    element.querySelectorAll('[data-i18n]').forEach(function(elem) {
+        let value = elem.getAttribute('data-i18n');
+        for(let node of elem.childNodes) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                if(!value) {
+                    value = node.nodeValue;
+                }
+                node.nodeValue = t(value);
+                break; // Stop after updating the first text node
+            }
+        }
+    });
+
+    // element.querySelectorAll('[data-i18n]').forEach(function(elem) {
+    //     let value = elem.getAttribute('data-i18n');
+    //     if(!value) {
+    //         value = elem.textContent;
+    //     }
+    //     elem.textContent = t(
+    //         value
+    //     );
+    // });
+}
+
+/************************************************************
  * Example Usage
  *     const tracker = timeTracker("Track1");
  *     tracker.mark("Step 1");
@@ -3190,6 +3226,7 @@ export {
     createElement2,
     getPositionRelativeToBody,
     parseSVG,
+    refresh_language,
 
     timeTracker,
     current_timestamp,
