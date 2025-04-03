@@ -29,7 +29,7 @@ import {
 
 import {
     current_timestamp,
-    log_error,
+    log_error, node_uuid,
 } from "./helpers.js";
 
 import {
@@ -52,17 +52,15 @@ SDATA(data_type_t.DTP_BOOLEAN,  "changesLost",          0,  false,  "Set true to
 SDATA(data_type_t.DTP_BOOLEAN,  "browser_beforeunload", 0,  false,  "Set true to refreshing browser"),
 SDATA(data_type_t.DTP_STRING,   "__username__",         0,  "",     "Username"),
 SDATA(data_type_t.DTP_STRING,   "start_date",           0,  "",     "Yuno starting date"),
-SDATA(data_type_t.DTP_STRING,   "yuno_name",            0,  "",     "Yuno name"),
+SDATA(data_type_t.DTP_STRING,   "node_uuid",            0,  "",     "uuid of node"),
 SDATA(data_type_t.DTP_STRING,   "yuno_role",            0,  "",     "Yuno role"),
-SDATA(data_type_t.DTP_STRING,   "yuno_version",         0,  "",     "Yuno version"),
-SDATA(data_type_t.DTP_STRING,   "yuno_release",         0,  "",     "Yuno Release. Set by agent"),
-SDATA(data_type_t.DTP_STRING,   "yuno_tag",             0,  "",     "Tags of yuno. Set by agent"),
 SDATA(data_type_t.DTP_STRING,   "yuno_id",              0,  "",     "Yuno Id. Set by agent"),
-
+SDATA(data_type_t.DTP_STRING,   "yuno_name",            0,  "",     "Yuno name. Set by agent"),
+SDATA(data_type_t.DTP_STRING,   "yuno_tag",             0,  "",     "Tags of yuno. Set by agent"),
+SDATA(data_type_t.DTP_STRING,   "yuno_release",         0,  "",     "Yuno Release. Set by agent"),
+SDATA(data_type_t.DTP_STRING,   "yuno_version",         0,  "",     "Yuno version (APP_VERSION)"),
 SDATA(data_type_t.DTP_STRING,   "yuneta_version",       0,  YUNETA_VERSION, "Yuneta version"),
-
 SDATA(data_type_t.DTP_LIST,     "required_services",    0,  "[]",   "Required services"),
-
 SDATA(data_type_t.DTP_INTEGER,  "tracing",              0,  0,      "Tracing level"),
 SDATA(data_type_t.DTP_BOOLEAN,  "trace_timer",          0,  0,      "Trace timers"),
 SDATA(data_type_t.DTP_BOOLEAN,  "trace_inter_event",    0,  0,      "Trace traffic"),
@@ -101,6 +99,7 @@ function mt_create(gobj)
 
     let date = current_timestamp();
     gobj_write_str_attr(gobj, "start_date", date);
+    gobj_write_str_attr(gobj, "node_uuid", node_uuid());
 
     /*
      *  Create children
