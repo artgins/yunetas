@@ -1995,21 +1995,22 @@ function id_index_in_obj_list(list, id) {
 /************************************************************
  *
  ************************************************************/
-function elm_in_list(elm, list, case_insensitive) {
+function str_in_list(list, str, ignore_case)
+{
     if(!list) {
-        log_error("ERROR: elm_in_list() list empty");
+        log_error("ERROR: str_in_list() list empty");
         return false;
     }
-    if(!elm) {
-        log_error("ERROR: elm_in_list() elm empty");
+    if(!str) {
+        log_error("ERROR: str_in_list() str empty");
         return false;
     }
     for(let i=0; i<list.length; i++) {
-        if(case_insensitive) {
-            if(elm.toLowerCase() === list[i].toLowerCase()) {
+        if(ignore_case) {
+            if(str.toLowerCase() === list[i].toLowerCase()) {
                 return true;
             }
-        } else if(elm === list[i]) {
+        } else if(str === list[i]) {
             return true;
         }
     }
@@ -2019,19 +2020,20 @@ function elm_in_list(elm, list, case_insensitive) {
 /************************************************************
  *
  ************************************************************/
-function elms_in_list(elms, list, case_insensitive) {
+function strs_in_list(list, strs, ignore_case)
+{
     if(!list) {
-        log_error("ERROR: elms_in_list() list empty");
+        log_error("ERROR: strs_in_list() list empty");
         return false;
     }
-    if(!elms) {
-        log_error("ERROR: elms_in_list() elm empty");
+    if(!strs) {
+        log_error("ERROR: strs_in_list() str empty");
         return false;
     }
 
-    for(let i=0; i<elms.length; i++) {
-        let elm = elms[i];
-        if(elm_in_list(elm, list, case_insensitive)) {
+    for(let i=0; i<strs.length; i++) {
+        let str = strs[i];
+        if(str_in_list(list, str, ignore_case)) {
             return true;
         }
     }
@@ -2041,7 +2043,8 @@ function elms_in_list(elms, list, case_insensitive) {
 /************************************************************
  *
  ************************************************************/
-function delete_from_list(list, elm) {
+function delete_from_list(list, elm)
+{
     for(let i=0; i<list.length; i++) {
         if(elm === list[i]) {
             list.splice(i, 1);
@@ -3189,8 +3192,8 @@ export {
     list2options,
 
     id_index_in_obj_list,
-    elm_in_list,
-    elms_in_list,
+    str_in_list,
+    strs_in_list,
     delete_from_list,
 
     msg_iev_push_stack,

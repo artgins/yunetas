@@ -42,7 +42,7 @@ import {
     is_object,
     json_object_size,
     json_size,
-    elm_in_list,
+    str_in_list,
     kwid_new_dict,
 } from "./helpers.js";
 
@@ -370,7 +370,7 @@ function treedb_get_field_desc(col)
     for(let i=0; i<col.flag.length; i++) {
         let f = col.flag[i];
 
-        if(elm_in_list(f, treedb_field_types)) {
+        if(str_in_list(treedb_field_types, f)) {
             switch(f) {
                 case "enum":
                     field_desc.enum_list = col.enum;
@@ -384,7 +384,7 @@ function treedb_get_field_desc(col)
             }
             field_desc.type = f;
 
-        } else if(elm_in_list(f, treedb_field_attributes)) {
+        } else if(str_in_list(treedb_field_attributes, f)) {
             switch(f) {
                 case "writable":
                     field_desc.is_writable = true;
@@ -428,15 +428,15 @@ function template_get_field_desc(key, value)
         for(let i=0; i<values.length; i++) {
             let f = values[i];
 
-            if(elm_in_list(f, treedb_real_types)) {
+            if(str_in_list(treedb_real_types, f)) {
                 if(!field_desc.real_type) {
                     field_desc.real_type = f;
                 }
-            } else if(elm_in_list(f, treedb_field_types)) {
+            } else if(str_in_list(treedb_field_types, f)) {
                 if(!field_desc.type) {
                     field_desc.type = f;
                 }
-            } else if(elm_in_list(f, treedb_field_attributes)) {
+            } else if(str_in_list(treedb_field_attributes, f)) {
                 switch(f) {
                     case "writable":
                         field_desc.is_writable = true;
