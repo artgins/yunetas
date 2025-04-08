@@ -1825,7 +1825,7 @@ PRIVATE int create_file(
                 );
             }
         } else {
-            gobj_log_error(gobj, 0,
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "path",         "%s", path_key,
@@ -2625,7 +2625,7 @@ PUBLIC int tranger2_delete_record(
     );
     if(is_directory(path_key)) {
         if(rmrdir(path_key)<0) {
-            gobj_log_critical(gobj, 0,
+            gobj_log_critical(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "path",         "%s", path_key,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -2633,16 +2633,18 @@ PUBLIC int tranger2_delete_record(
                 "errno",        "%s", strerror(errno),
                 NULL
             );
+            // If cannot remove dir, don't remove from memory
+            return -1;
         }
     } else {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "path",         "%s", path_key,
             "msg",          "%s", "key directory not found",
             NULL
         );
-        return -1;
+        // Don't return -1, if key not exist let remove from memory
     }
 
     return 0;
