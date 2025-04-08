@@ -157,9 +157,9 @@ function treedb_hook_data_size(value)
 /************************************************************
  *  fkey can be:
  *
- *      "$topic_name^$id^$hook_name
+ *      "$id"
  *
- *      or
+ *      "$topic_name^$id^$hook_name
  *
  *      {
  *          topic_name: $topic_name,
@@ -174,21 +174,48 @@ function treedb_hook_data_size(value)
  *          hook_name:
  *      }
  ************************************************************/
-function treedb_decoder_fkey(fkey)
+function treedb_decoder_fkey(col, fkey)
 {
     if(is_string(fkey)) {
-        // "$topic_name^$id^$hook_name
-        let tt = fkey.split("^");
-        if(tt.length !== 3) {
-            log_error("bad fkey 2");
-            log_error(fkey);
-            return null;
+        if(fkey.indexOf("^") === -1) {
+            // "$id"
+            let fkey_desc = col.fkey;
+            if(json_object_size(fkey_desc)!==1) {
+                log_error("bad fkey 1");
+                log_error(col);
+                log_error(fkey);
+                return null;
+            }
+
+            let topic_name;
+            let hook_name;
+            for(const k of Object.keys(fkey_desc)) {
+                topic_name = k;
+                hook_name = fkey_desc[k];
+                break;
+            }
+
+            return {
+                topic_name: topic_name,
+                id: fkey,
+                hook_name: hook_name
+            };
+
+        } else {
+            // "$topic_name^$id^$hook_name
+            let tt = fkey.split("^");
+            if(tt.length !== 3) {
+                log_error("bad fkey 2");
+                log_error(col);
+                log_error(fkey);
+                return null;
+            }
+            return {
+                topic_name: tt[0],
+                id: tt[1],
+                hook_name: tt[2]
+            };
         }
-        return {
-            topic_name: tt[0],
-            id: tt[1],
-            hook_name: tt[2]
-        };
 
     } else if(is_object(fkey)) {
         return {
@@ -199,6 +226,7 @@ function treedb_decoder_fkey(fkey)
 
     } else {
         log_error("bad fkey 3");
+        log_error(col);
         log_error(fkey);
         return null;
     }
