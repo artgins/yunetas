@@ -7140,6 +7140,9 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
+    if(jn_options ==  NULL) {
+        jn_options = json_object();
+    }
 
     /*------------------------------*
      *      Check original node
