@@ -7288,7 +7288,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
     /*-----------------------------------*
      *  Use duplicate, will be modified
      *-----------------------------------*/
-    json_t *jn_filter = jn_filter_?json_deep_copy(jn_filter_):0;
+    json_t *jn_filter = jn_filter_?json_deep_copy(jn_filter_):json_object();
     JSON_DECREF(jn_filter_)
 
     /*-------------------------------*

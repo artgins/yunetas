@@ -539,7 +539,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
     if(json_is_object(kw)) {
         // Dict
         next_json = json_object_get(kw, segment);
-        if(!next_json) {
+        if(!next_json || json_is_null(next_json)) {
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
@@ -556,7 +556,7 @@ PUBLIC json_t *kw_find_path(hgobj gobj, json_t *kw, const char *path, BOOL verbo
         // Array
         int idx = atoi(segment);
         next_json = json_array_get(kw, idx);
-        if(!next_json) {
+        if(!next_json || json_is_null(next_json)) {
             if(verbose) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                     "function",     "%s", __FUNCTION__,
