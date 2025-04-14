@@ -1610,6 +1610,23 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int ac_remote_log(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_APP_ERROR,
+        "msg",          "%s", "Remote Error",
+        NULL
+    );
+    gobj_trace_json(gobj, kw, "Remote Error");
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     /*
@@ -1715,6 +1732,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_GOODBYE,            EVF_PUBLIC_EVENT},
         {EV_MT_STATS,           EVF_PUBLIC_EVENT},
         {EV_MT_COMMAND,         EVF_PUBLIC_EVENT},
+        {EV_REMOTE_LOG,         EVF_PUBLIC_EVENT},
         // internal
         {EV_TIMEOUT,            0},
         {EV_STOPPED,            0},
