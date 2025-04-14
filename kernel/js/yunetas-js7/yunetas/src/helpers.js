@@ -47,30 +47,14 @@ let f_warning = console.warn;
 let f_info = console.info;
 let f_debug = console.debug;
 
-function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
+function set_remote_log_functions(remote_log_fn)
 {
-    if(f_error_) {
-        f_error = f_error_;
+    if(remote_log_fn) {
+        f_error = remote_log_fn;
+        f_warning = remote_log_fn;
     } else {
         f_error = console.error;
-    }
-
-    if(f_warning_) {
-        f_warning = f_warning_;
-    } else {
         f_warning = console.warn;
-    }
-
-    if(f_info_) {
-        f_info = f_info_;
-    } else {
-        f_info = console.info;
-    }
-
-    if(f_debug_) {
-        f_debug = f_debug_;
-    } else {
-        f_debug = console.debug;
     }
 }
 
@@ -3295,7 +3279,7 @@ export {
 
     create_json_record,
 
-    set_log_functions,
+    set_remote_log_functions,
     log_error,
     log_warning,
     log_info,

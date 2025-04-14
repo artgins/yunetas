@@ -65,6 +65,7 @@ import {
     trace_json,
     json_deep_copy,
     json_object_del,
+    set_remote_log_functions,
 } from "./helpers.js";
 
 import {
@@ -348,7 +349,7 @@ function mt_command(gobj, command, kw, src)
 function mt_inject_event(gobj, event, kw, src)
 {
     if(gobj_current_state(gobj) !== "ST_SESSION") {
-        log_error(`Not in session`);
+        window.console.error(`Not in session`); // Don't use log_error
         return -1;
     }
 
@@ -882,6 +883,8 @@ function ac_on_close(gobj, event, kw, src)
     let priv = gobj.priv;
     let e = kw.e;
     let url = kw.url;
+
+    set_remote_log_functions(); // clean remote log
 
     log_warning(`${gobj_short_name(gobj)}: WebSocket closed ${url} (Code: ${e.code}, Reason: "${e.reason}", Clean: ${e.wasClean})`);
 
