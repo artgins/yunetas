@@ -74,16 +74,48 @@ function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
     }
 }
 
-function log_error(msg)
+function format_log(format)
 {
-    try {
-        if(is_object(msg)) {
-            msg = JSON.stringify(msg);
+    const args = Array.prototype.slice.call(arguments);
+    let output = "";
+
+    if (typeof format === 'string') {
+        let i = 1;
+        output = format.replace(/%[sdifoO]/g, match => {
+            const val = args[i++];
+            switch (match) {
+                case '%s': return String(val);
+                case '%d':
+                case '%i': return parseInt(val);
+                case '%f': return parseFloat(val);
+                case '%o':
+                case '%O':
+                    return typeof val === 'object' ? JSON.stringify(val) : String(val);
+                default: return match;
+            }
+        });
+
+        // Append any remaining arguments (e.g. raw objects or extra messages)
+        const rest = args.slice(i).map(arg =>
+            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+        );
+
+        if (rest.length > 0) {
+            output += " " + rest.join(" ");
         }
-    } catch (e) {
-        msg = "???";
+    } else {
+        // If no format string, join all args
+        output = args.map(arg =>
+            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+        ).join(" ");
     }
 
+    return output;
+}
+
+function log_error(format)
+{
+    let msg = format_log(format);
     let hora = current_timestamp();
 
     if(f_error) {
@@ -91,65 +123,41 @@ function log_error(msg)
     }
 }
 
-function log_warning(msg)
+function log_warning(format)
 {
-    try {
-        if(is_object(msg)) {
-            msg = JSON.stringify(msg);
-        }
-    } catch (e) {
-        msg = "???";
-    }
-
+    let msg = format_log(format);
     let hora = current_timestamp();
+
     if(f_warning) {
         f_warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
     }
 }
 
-function log_info(msg)
+function log_info(format)
 {
-    try {
-        if(is_object(msg)) {
-            msg = JSON.stringify(msg);
-        }
-    } catch (e) {
-        msg = "???";
-    }
-
+    let msg = format_log(format);
     let hora = current_timestamp();
+
     if(f_warning) {
         f_warning("%c" + hora + " INFO: " + String(msg), "color:cyan");
     }
 }
 
-function log_debug(msg)
+function log_debug(format)
 {
-    try {
-        if(is_object(msg)) {
-            msg = JSON.stringify(msg);
-        }
-    } catch (e) {
-        msg = "???";
-    }
-
+    let msg = format_log(format);
     let hora = current_timestamp();
+
     if(f_debug) {
         f_debug("%c" + hora + " DEBUG: " + String(msg), "color:silver");
     }
 }
 
-function trace_msg(msg)
+function trace_msg(format)
 {
-    try {
-        if(is_object(msg)) {
-            msg = JSON.stringify(msg);
-        }
-    } catch (e) {
-        msg = "???";
-    }
-
+    let msg = format_log(format);
     let hora = current_timestamp();
+
     if(f_debug) {
         f_debug("%c" + hora + " MSG: " + String(msg), "color:cyan");
     }
