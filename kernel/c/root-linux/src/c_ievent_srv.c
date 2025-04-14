@@ -1693,6 +1693,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_GOODBYE,            ac_goodbye,             0},
         {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
         {EV_DROP,               ac_drop,                0},
+        {EV_REMOTE_LOG,         ac_remote_log,          0}
         {EV_STOPPED,            ac_stopped,             0}, // puede llegar por aquí en un gobj_stop_tree()
         {0,0,0}
     };
