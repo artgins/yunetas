@@ -3117,6 +3117,68 @@ function get_function_name(func)
     return "";
 }
 
+/***************************************************************************
+ *  implement a debounce or throttle mechanism to limit the number
+ *  of times the callback function is executed
+
+    const fn = debounce(() => console.log('Called!'), 1000);
+
+    // Start debounce timer
+    fn();
+
+    // Execute immediately (if pending)
+    fn.flush();
+
+    // Cancel the pending call
+    fn.cancel();
+
+ ***************************************************************************/
+function debounce(func, wait = 0, immediate = false)
+{
+    let timeout = null;
+    let args = null;
+    let context = null;
+
+    const debounced = (..._args) => {
+        context = this;
+        args = _args;
+
+        const later = () => {
+            timeout = null;
+            if (!immediate) {
+                func.apply(context, args);
+            }
+        };
+
+        const callNow = immediate && !timeout;
+
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+
+        if (callNow) {
+            func.apply(context, args);
+        }
+    };
+
+    // Immediately invoke the pending function
+    debounced.flush = () => {
+        if (timeout) {
+            clearTimeout(timeout);
+            timeout = null;
+            func.apply(context, args);
+        }
+    };
+
+    // Cancel the pending execution
+    debounced.cancel = () => {
+        clearTimeout(timeout);
+        timeout = null;
+        args = null;
+        context = null;
+    };
+
+    return debounced;
+}
 
 export {
     kw_flag_t,
@@ -3238,4 +3300,5 @@ export {
     node_uuid,
     clean_name,
     get_function_name,
+    debounce,
 };
