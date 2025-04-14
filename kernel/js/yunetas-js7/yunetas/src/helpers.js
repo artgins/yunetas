@@ -103,7 +103,11 @@ function log_error(format)
     let hora = current_timestamp();
 
     if(f_error) {
-        f_error("%c" + hora + " ERROR: " + String(msg), "color:red");
+        if(f_error === console.error) {
+            f_error("%c" + hora + " ERROR: " + String(msg), "color:red");
+        } else {
+            f_error(`${hora} ERROR: ${String(msg)}`);
+        }
     }
 }
 
@@ -113,7 +117,11 @@ function log_warning(format)
     let hora = current_timestamp();
 
     if(f_warning) {
-        f_warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
+        if(f_warning === console.warning) {
+            f_warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
+        } else {
+            f_warning(`${hora} WARNING: ${String(msg)}`);
+        }
     }
 }
 
