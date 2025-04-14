@@ -51,15 +51,26 @@ function set_log_functions(f_error_, f_warning_, f_info_, f_debug_)
 {
     if(f_error_) {
         f_error = f_error_;
+    } else {
+        f_error = console.error;
     }
+
     if(f_warning_) {
         f_warning = f_warning_;
+    } else {
+        f_warning = console.warn;
     }
+
     if(f_info_) {
         f_info = f_info_;
+    } else {
+        f_info = console.info;
     }
+
     if(f_debug_) {
         f_debug = f_debug_;
+    } else {
+        f_debug = console.debug;
     }
 }
 
