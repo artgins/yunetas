@@ -106,6 +106,7 @@ function log_error(format)
         if(f_error === console.error) {
             f_error("%c" + hora + " ERROR: " + String(msg), "color:red");
         } else {
+            console.error("%c" + hora + " ERROR: " + String(msg), "color:red");
             f_error(`${hora} ERROR: ${String(msg)}`);
         }
     }
@@ -120,6 +121,7 @@ function log_warning(format)
         if(f_warning === console.warning) {
             f_warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
         } else {
+            console.warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
             f_warning(`${hora} WARNING: ${String(msg)}`);
         }
     }
