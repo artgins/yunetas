@@ -202,8 +202,8 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw, json_t *jn_options)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL volatil = kw_get_bool(gobj, jn_options, "volatil", 0, 0);
-    BOOL update = kw_get_bool(gobj, jn_options, "update", 0, 0);
+    BOOL volatil = jn_options?kw_get_bool(gobj, jn_options, "volatil", 0, 0):false;
+    BOOL update = jn_options?kw_get_bool(gobj, jn_options, "update", 0, 0):false;
 
     if(!kw) {
         kw = json_object();
