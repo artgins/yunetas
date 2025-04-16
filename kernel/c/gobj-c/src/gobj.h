@@ -1658,6 +1658,7 @@ PUBLIC BOOL gobj_is_disabled(hgobj gobj);
 PUBLIC BOOL gobj_is_volatil(hgobj gobj);
 PUBLIC int gobj_set_volatil(hgobj gobj, BOOL set);
 PUBLIC BOOL gobj_is_pure_child(hgobj gobj);
+PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj);
 
 PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name);            /* strict same gclass */
 PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name);  /* check inherited (bottom) gclass */
@@ -1690,7 +1691,7 @@ PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema)
             "disabled",
             "gobj_trace_level",
             "gobj_trace_no_level",
-
+            "bottom_gobj",
  */
 PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
     hgobj gobj,

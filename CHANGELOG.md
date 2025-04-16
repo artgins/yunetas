@@ -69,6 +69,7 @@ New API
     PUBLIC size_t json_size(json_t *value);
     gobj_subs_desc
     gobj_list_subscribings
+    gobj_is_bottom_gobj
 
 Delete API
 
