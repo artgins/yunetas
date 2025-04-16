@@ -1688,10 +1688,10 @@ PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema)
             "running",
             "playing",
             "service",
+            "bottom_gobj",
             "disabled",
             "gobj_trace_level",
             "gobj_trace_no_level",
-            "bottom_gobj",
  */
 PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
     hgobj gobj,

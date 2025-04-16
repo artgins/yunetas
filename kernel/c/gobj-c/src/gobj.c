@@ -6095,7 +6095,7 @@ PUBLIC BOOL gobj_is_pure_child(hgobj gobj_)
 PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
-    if(gobj->parent->bottom_gobj == gobj) {
+    if(gobj && gobj->parent && gobj->parent->bottom_gobj == gobj) {
         return true;
     }
     return false;
@@ -6502,6 +6502,13 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
             gobj_is_service(gobj) ? json_true() : json_false()
         );
     }
+    if(kw_find_str_in_list(gobj, jn_filter, "bottom_gobj")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "bottom_gobj",
+            gobj_is_bottom_gobj(gobj)? json_true() : json_false()
+        );
+    }
     if(kw_find_str_in_list(gobj, jn_filter, "disabled")!=-1) {
         json_object_set_new(
             jn_dict,
@@ -6521,13 +6528,6 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
             jn_dict,
             "gobj_trace_no_level",
             gobj_get_gobj_trace_no_level(gobj)
-        );
-    }
-    if(kw_find_str_in_list(gobj, jn_filter, "bottom_gobj")!=-1) {
-        json_object_set_new(
-            jn_dict,
-            "bottom_gobj",
-            gobj_is_bottom_gobj(gobj)? json_true() : json_false()
         );
     }
 
