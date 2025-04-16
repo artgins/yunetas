@@ -42,10 +42,10 @@ const json_type = Object.freeze({
  *  Log functions
  ********************************************/
 /* jshint node: true */
-let f_error = console.error;
-let f_warning = console.warn;
-let f_info = console.info;
-let f_debug = console.debug;
+let f_error = window.console.error;
+let f_warning = window.console.warn;
+let f_info = window.console.info;
+let f_debug = window.console.debug;
 
 function set_remote_log_functions(remote_log_fn)
 {
@@ -53,8 +53,8 @@ function set_remote_log_functions(remote_log_fn)
         f_error = remote_log_fn;
         f_warning = remote_log_fn;
     } else {
-        f_error = console.error;
-        f_warning = console.warn;
+        f_error = window.console.error;
+        f_warning = window.console.warn;
     }
 }
 
@@ -103,10 +103,10 @@ function log_error(format)
     let hora = current_timestamp();
 
     if(f_error) {
-        if(f_error === console.error) {
+        if(f_error === window.console.error) {
             f_error("%c" + hora + " ERROR: " + String(msg), "color:red");
         } else {
-            console.error("%c" + hora + " ERROR: " + String(msg), "color:red");
+            window.console.error("%c" + hora + " ERROR: " + String(msg), "color:red");
             f_error(`${hora} ERROR: ${String(msg)}`);
         }
     }
@@ -118,10 +118,10 @@ function log_warning(format)
     let hora = current_timestamp();
 
     if(f_warning) {
-        if(f_warning === console.warning) {
+        if(f_warning === window.console.warn) {
             f_warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
         } else {
-            console.warning("%c" + hora + " WARNING: " + String(msg), "color:yellow");
+            window.console.warn("%c" + hora + " WARNING: " + String(msg), "color:yellow");
             f_warning(`${hora} WARNING: ${String(msg)}`);
         }
     }
@@ -159,7 +159,7 @@ function trace_msg(format)
 
 function trace_json(jn)
 {
-    console.dir(jn);
+    window.console.dir(jn);
 }
 
 /************************************************************
@@ -1631,7 +1631,7 @@ function kw_get_local_storage_value(key, default_value, create = false)
 
         return JSON.parse(value); // Try parsing JSON
     } catch (e) {
-        console.warn(`Error reading localStorage key "${key}":`, e);
+        window.console.warn(`Error reading localStorage key "${key}":`, e);
         return default_value;
     }
 }
@@ -1645,14 +1645,14 @@ function kw_set_local_storage_value(key, value)
         return; // Prevents errors in Node.js
     }
     if (!key || value === undefined) {
-        console.warn(`Invalid key or value for localStorage: key=${key}, value=${value}`);
+        window.console.warn(`Invalid key or value for localStorage: key=${key}, value=${value}`);
         return;
     }
 
     try {
         window.localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {
-        console.warn(`Error saving localStorage key "${key}":`, e);
+        window.console.warn(`Error saving localStorage key "${key}":`, e);
     }
 }
 
@@ -1665,14 +1665,14 @@ function kw_remove_local_storage_value(key)
         return; // Prevents errors in Node.js
     }
     if (!key) {
-        console.warn(`Invalid key for localStorage removal: ${key}`);
+        window.console.warn(`Invalid key for localStorage removal: ${key}`);
         return;
     }
 
     try {
         window.localStorage.removeItem(key);
     } catch (e) {
-        console.warn(`Error removing localStorage key "${key}":`, e);
+        window.console.warn(`Error removing localStorage key "${key}":`, e);
     }
 }
 
@@ -3134,7 +3134,7 @@ function get_function_name(func)
  *  implement a debounce or throttle mechanism to limit the number
  *  of times the callback function is executed
 
-    const fn = debounce(() => console.log('Called!'), 1000);
+    const fn = debounce(() => window.console.log('Called!'), 1000);
 
     // Start debounce timer
     fn();
