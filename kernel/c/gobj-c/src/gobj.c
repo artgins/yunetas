@@ -6409,9 +6409,10 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
  *  Return a dict with gobj's description.
  ***************************************************************************/
 PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
-    hgobj gobj,
+    hgobj gobj_,
     json_t *jn_filter // owned
 ) {
+    gobj_t * gobj = gobj_;
     json_t *jn_dict = json_object();
 
     if(kw_find_str_in_list(gobj, jn_filter, "fullname")!=-1) {
@@ -6514,6 +6515,13 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
             jn_dict,
             "disabled",
             gobj_is_disabled(gobj) ? json_true() : json_false()
+        );
+    }
+    if(kw_find_str_in_list(gobj, jn_filter, "commands")!=-1) {
+        json_object_set_new(
+            jn_dict,
+            "commands",
+            gobj->gclass->command_table ? json_true() : json_false()
         );
     }
     if(kw_find_str_in_list(gobj, jn_filter, "gobj_trace_level")!=-1) {

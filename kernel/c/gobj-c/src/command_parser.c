@@ -694,7 +694,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         hgobj child = gobj_first_child(gobj);
         while(child) {
             if(gobj_command_desc(child, NULL, false)) {
-                gbuffer_printf(gbuf, "\n> %s\n", gobj_short_name(child));
+                gbuffer_printf(gbuf, "\n>> %s\n", gobj_short_name(child));
                 const sdata_desc_t *pcmds = gobj_command_desc(child, NULL, false);
                 while(pcmds->name) {
                     if(!empty_string(pcmds->name)) {

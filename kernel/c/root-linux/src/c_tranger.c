@@ -78,7 +78,7 @@ PRIVATE json_t *cmd_get_list_data(hgobj gobj, const char *cmd, json_t *kw, hgobj
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (DTP_INTEGER,  "level",        0,              0,          "command search level in children"),
+SDATAPM (DTP_INTEGER,  "level",        0,              0,          "level=1: search in bottoms, level=2: search in all childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
