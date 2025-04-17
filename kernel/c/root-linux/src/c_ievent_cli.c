@@ -1491,23 +1491,23 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_IDENTITY_CARD_ACK,      EVF_PUBLIC_EVENT},
-        {EV_PLAY_YUNO,              EVF_PUBLIC_EVENT},  // Extra events to let agent
-        {EV_PAUSE_YUNO,             EVF_PUBLIC_EVENT},  // request clients
-        {EV_MT_STATS,               EVF_PUBLIC_EVENT},
-        {EV_MT_COMMAND,             EVF_PUBLIC_EVENT},
-        {EV_SEND_COMMAND_ANSWER,    0},
+        {EV_IDENTITY_CARD_ACK,      EVF_PUBLIC_EVENT,   0,  NULL},
+        {EV_PLAY_YUNO,              EVF_PUBLIC_EVENT,   0,  NULL},  // Extra events to let agent
+        {EV_PAUSE_YUNO,             EVF_PUBLIC_EVENT,   0,  NULL},  // request clients
+        {EV_MT_STATS,               EVF_PUBLIC_EVENT,   0,  NULL},
+        {EV_MT_COMMAND,             EVF_PUBLIC_EVENT,   0,  NULL},
+        {EV_SEND_COMMAND_ANSWER,    0,   0,  NULL},
 
-        {EV_ON_OPEN,                EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
+        {EV_ON_OPEN,                EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS,   0,  NULL},
+        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS,   0,  NULL},
+        {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT,   0,  NULL},
 
-        {EV_ON_MESSAGE,             0},
-        {EV_TIMEOUT,                0},
-        {EV_DROP,                   0},
-        {EV_STOPPED,                0},
+        {EV_ON_MESSAGE,             0,   0,  NULL},
+        {EV_TIMEOUT,                0,   0,  NULL},
+        {EV_DROP,                   0,   0,  NULL},
+        {EV_STOPPED,                0,   0,  NULL},
 
-        {0, 0}
+        {0, 0,   0,  NULL}
     };
 
     /*----------------------------------------*

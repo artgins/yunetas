@@ -743,15 +743,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_END_TASK,       EVF_OUTPUT_EVENT},
+        {EV_END_TASK,       EVF_OUTPUT_EVENT,   0,  NULL},
 
-        {EV_ON_MESSAGE,     0},
-        {EV_ON_OPEN,        0},
-        {EV_ON_CLOSE,       0},
-        {EV_TIMEOUT,        0},
-        {EV_STOPPED,        0},
+        {EV_ON_MESSAGE,     0,   0,  NULL},
+        {EV_ON_OPEN,        0,   0,  NULL},
+        {EV_ON_CLOSE,       0,   0,  NULL},
+        {EV_TIMEOUT,        0,   0,  NULL},
+        {EV_STOPPED,        0,   0,  NULL},
 
-        {0, 0}
+        {0, 0,   0,  NULL}
     };
 
     /*----------------------------------------*

@@ -2898,13 +2898,13 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = { // HACK System gclass, not public events
-        {EV_AUTHZ_USER_LOGIN,   EVF_OUTPUT_EVENT},
-        {EV_AUTHZ_USER_LOGOUT,  EVF_OUTPUT_EVENT},
-        {EV_AUTHZ_USER_NEW,     EVF_OUTPUT_EVENT},
-        {EV_ADD_USER,           0},
-        {EV_REJECT_USER,        0},
-        {EV_ON_CLOSE,           0},
-        {0, 0}
+        {EV_AUTHZ_USER_LOGIN,   EVF_OUTPUT_EVENT,   0,  NULL},
+        {EV_AUTHZ_USER_LOGOUT,  EVF_OUTPUT_EVENT,   0,  NULL},
+        {EV_AUTHZ_USER_NEW,     EVF_OUTPUT_EVENT,   0,  NULL},
+        {EV_ADD_USER,           0,                  0,  NULL},
+        {EV_REJECT_USER,        0,                  0,  NULL},
+        {EV_ON_CLOSE,           0,                  0,  NULL},
+        {0, 0,   0,  NULL}
     };
 
     /*----------------------------------------*

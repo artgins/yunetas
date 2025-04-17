@@ -1365,24 +1365,24 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_SEND_MESSAGE,           0},
-        {EV_SEND_IEV,               0},
-        {EV_DROP,                   0},
+        {EV_SEND_MESSAGE,           0,   0,  NULL},
+        {EV_SEND_IEV,               0,   0,  NULL},
+        {EV_DROP,                   0,   0,  NULL},
 
-        {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
-        {EV_ON_ID,                  EVF_OUTPUT_EVENT},
-        {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
-        {EV_ON_OPEN,                EVF_OUTPUT_EVENT},
-        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT},
+        {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT,   0,  NULL},
+        {EV_ON_ID,                  EVF_OUTPUT_EVENT,   0,  NULL},
+        {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT,   0,  NULL},
+        {EV_ON_OPEN,                EVF_OUTPUT_EVENT,   0,  NULL},
+        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT,   0,  NULL},
 
-        {EV_ON_IEV_MESSAGE,         0},
-        {EV_ON_COMMAND,             0},
+        {EV_ON_IEV_MESSAGE,         0,   0,  NULL},
+        {EV_ON_COMMAND,             0,   0,  NULL},
 
         // internal
-        {EV_STOPPED,                0},
-        {EV_TIMEOUT_PERIODIC,       0},
+        {EV_STOPPED,                0,   0,  NULL},
+        {EV_TIMEOUT_PERIODIC,       0,   0,  NULL},
 
-        {0, 0}
+        {0, 0,   0,  NULL}
     };
 
     /*----------------------------------------*
