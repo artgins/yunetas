@@ -590,6 +590,8 @@ PRIVATE json_t *build_cmd_kw(
 
 /***************************************************************************
  *  Return a string json
+ *  level == 1 search in bottom_gobjs
+ *  level == 2 search in all children
  ***************************************************************************/
 PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
 {

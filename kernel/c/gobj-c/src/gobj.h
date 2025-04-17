@@ -1690,7 +1690,7 @@ PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema)
             "service",
             "bottom_gobj",
             "disabled",
-            "commands",
+            "commands", // true if it has commands
             "gobj_trace_level",
             "gobj_trace_no_level",
  */
