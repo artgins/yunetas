@@ -6457,6 +6457,37 @@ PRIVATE json_t *sdatacmd2json(
 }
 
 /***************************************************************************
+ *  Return a json array describing the hsdata for attrs
+ ***************************************************************************/
+PUBLIC json_t *sdatadesc2json2(
+    const sdata_desc_t *items,
+    sdata_flag_t include_flag,
+    sdata_flag_t exclude_flag
+)
+{
+    json_t *jn_items = json_array();
+
+    const sdata_desc_t *it = items;
+    if(!it) {
+        return jn_items;
+    }
+    while(it->name) {
+        if(exclude_flag && (it->flag & exclude_flag)) {
+            it++;
+            continue;
+        }
+        if(include_flag == -1 || (it->flag & include_flag)) {
+            json_t *jn_it = json_object();
+            json_array_append_new(jn_items, jn_it);
+            json_object_set_new(jn_it, "id", json_string(it->name));
+            json_object_update_missing_new(jn_it, itdesc2json(it));
+        }
+        it++;
+    }
+    return jn_items;
+}
+
+/***************************************************************************
  *  Return json object with gclass's description.
  ***************************************************************************/
 PUBLIC json_t *gclass2json(hgclass gclass_)
