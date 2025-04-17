@@ -119,6 +119,7 @@ PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw,
 PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 /***************************************************************
  *              Data
@@ -334,7 +335,9 @@ SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent
 
 SDATACM (DTP_SCHEMA,    "list-subscriptions",       0,      pm_list_subscriptions,cmd_list_subscriptions,          "List subscriptions [of __default_service__]"),
 
-SDATACM (DTP_SCHEMA,    "list-subscribings",         0,      pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
+SDATACM (DTP_SCHEMA,    "list-subscribings",         0,     pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
+
+SDATACM (DTP_SCHEMA,    "list-command",             0,      pm_gclass_name, cmd_list_commands,          "List commands of gclass's"),
 
 SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0,              cmd_info_global_trace,  "Info of global trace levels"),
 SDATACM (DTP_SCHEMA,    "info-gclass-trace",        0,      pm_gclass_name, cmd_info_gclass_trace,  "Info of class's trace levels"),
@@ -3591,6 +3594,51 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
         0,
         json_desc_to_schema(subs_desc),
         jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  list commands
+ ***************************************************************************/
+PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *gclass_name_ = kw_get_str(
+        gobj,
+        kw,
+        "gclass_name",
+        kw_get_str(gobj, kw, "gclass", "", 0),
+        0
+    );
+    if(!empty_string(gclass_name_)) {
+        hgclass gclass_ = gclass_find_by_name(gclass_name_);
+        if(!gclass_) {
+            gclass_ = get_gclass_from_gobj(gclass_name_);
+            if(!gclass_) {
+                json_t *kw_response = build_command_response(
+                    gobj,
+                    -1,     // result
+                    json_sprintf("what gclass is '%s'?", gclass_name_),
+                    0,      // jn_schema
+                    0       // jn_data
+                );
+                JSON_DECREF(kw)
+                return kw_response;
+            }
+            const sdata_desc_t *command_table = gclass_command_desc(gclass_, NULL, false);
+        }
+    }
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,      // result
+        0,      // jn_comment
+        0,      // jn_schema
+        gobj_repr_gclass_trace_levels(gclass_name_)
     );
     JSON_DECREF(kw)
     return kw_response;

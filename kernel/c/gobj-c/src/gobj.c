@@ -6313,6 +6313,150 @@ PUBLIC json_t *get_attrs_schema(hgobj gobj_)
 }
 
 /***************************************************************************
+ *  Return a json object describing the parameter
+ ***************************************************************************/
+PRIVATE json_t *itdesc2json(const sdata_desc_t *it)
+{
+    json_t *jn_it = json_object();
+
+    int type = it->type;
+
+    if(DTP_IS_STRING(type)) {
+        json_object_set_new(jn_it, "type", json_string("string"));
+    } else if(DTP_IS_BOOLEAN(type)) {
+        json_object_set_new(jn_it, "type", json_string("boolean"));
+    } else if(DTP_IS_INTEGER(type)) {
+        json_object_set_new(jn_it, "type", json_string("integer"));
+    } else if(DTP_IS_REAL(type)) {
+        json_object_set_new(jn_it, "type", json_string("real"));
+    } else if(DTP_IS_LIST(type)) {
+        json_object_set_new(jn_it, "type", json_string("list"));
+    } else if(DTP_IS_DICT(type)) {
+        json_object_set_new(jn_it, "type", json_string("dict"));
+    } else if(DTP_IS_JSON(type)) {
+        json_object_set_new(jn_it, "type", json_string("json"));
+    } else if(DTP_IS_POINTER(type)) {
+        json_object_set_new(jn_it, "type", json_string("pointer"));
+    } else if(DTP_IS_SCHEMA(type)) {
+        json_object_set_new(jn_it, "type", json_string("schema"));
+    } else {
+        json_object_set_new(jn_it, "type", json_string("???"));
+    }
+    json_object_set_new(
+        jn_it,
+        "default_value",
+        json_string(it->default_value?it->default_value:"")
+    );
+
+    json_object_set_new(jn_it, "description", json_string(it->description));
+    gbuffer_t *gbuf = get_sdata_flag_desc(it->flag);
+    if(gbuf) {
+        size_t l = gbuffer_leftbytes(gbuf);
+        if(l) {
+            char *pflag = gbuffer_get(gbuf, l);
+            json_object_set_new(jn_it, "flag", json_string(pflag));
+        } else {
+            json_object_set_new(jn_it, "flag", json_string(""));
+        }
+        gbuffer_decref(gbuf);
+    }
+    return jn_it;
+}
+
+/***************************************************************************
+ *  Return a json object describing the hsdata for commands
+ ***************************************************************************/
+PRIVATE json_t *cmddesc2json(const sdata_desc_t *it)
+{
+    int type = it->type;
+
+    if(!DTP_IS_SCHEMA(type)) {
+        return 0; // Only schemas please
+    }
+
+    json_t *jn_it = json_object();
+
+    json_object_set_new(jn_it, "id", json_string(it->name));
+
+    if(it->alias) {
+        json_t *jn_alias = json_array();
+        json_object_set_new(jn_it, "alias", jn_alias);
+        const char **alias = it->alias;
+        while(*alias) {
+            json_array_append_new(jn_alias, json_string(*alias));
+            alias++;
+        }
+    }
+
+    json_object_set_new(jn_it, "description", json_string(it->description));
+    gbuffer_t *gbuf = get_sdata_flag_desc(it->flag);
+    if(gbuf) {
+        size_t l = gbuffer_leftbytes(gbuf);
+        if(l) {
+            char *pflag = gbuffer_get(gbuf, l);
+            json_object_set_new(jn_it, "flag", json_string(pflag));
+        } else {
+            json_object_set_new(jn_it, "flag", json_string(""));
+        }
+        gbuffer_decref(gbuf);
+    }
+
+    gbuf = gbuffer_create(256, 16*1024);
+    gbuffer_printf(gbuf, "%s ", it->name);
+    const sdata_desc_t *pparam = it->schema;
+    while(pparam && pparam->name) {
+        if((pparam->flag & SDF_REQUIRED)) {
+            gbuffer_printf(gbuf, " <%s>", pparam->name);
+        } else {
+            gbuffer_printf(gbuf,
+                " [%s='%s']",
+                pparam->name, pparam->default_value?(char *)pparam->default_value:"?"
+            );
+        }
+        pparam++;
+    }
+    json_t *jn_usage = json_string(gbuffer_cur_rd_pointer(gbuf));
+    json_object_set_new(jn_it, "usage", jn_usage);
+    GBUFFER_DECREF(gbuf);
+
+    json_t *jn_parameters = json_array();
+    json_object_set_new(jn_it, "parameters", jn_parameters);
+
+    pparam = it->schema;
+    while(pparam && pparam->name) {
+        json_t *jn_param = json_object();
+        json_object_set_new(jn_param, "id", json_string(pparam->name));
+        json_object_update_missing_new(jn_param, itdesc2json(pparam));
+        json_array_append_new(jn_parameters, jn_param);
+        pparam++;
+    }
+
+    return jn_it;
+}
+
+/***************************************************************************
+ *  Return a json object describing the hsdata for commands
+ ***************************************************************************/
+PRIVATE json_t *sdatacmd2json(
+    const sdata_desc_t *items
+)
+{
+    json_t *jn_items = json_array();
+    const sdata_desc_t *it = items;
+    if(!it) {
+        return jn_items;
+    }
+    while(it->name) {
+        json_t *jn_it = cmddesc2json(it);
+        if(jn_it) {
+            json_array_append_new(jn_items, jn_it);
+        }
+        it++;
+    }
+    return jn_items;
+}
+
+/***************************************************************************
  *  Return json object with gclass's description.
  ***************************************************************************/
 PUBLIC json_t *gclass2json(hgclass gclass_)
@@ -6341,42 +6485,46 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
         json_integer((json_int_t)gclass->priv_size)
     );
 
-
-    // TODO   json_object_set_new(
-//        jn_dict,
-//        "attrs",
-//        sdatadesc2json2(gclass->attrs_table, -1, 0)
-//    );
-//    json_object_set_new(
-//        jn_dict,
-//        "commands",
-//        sdatacmd2json(gclass->command_table)
-//    );
-//    json_object_set_new(
-//        jn_dict,
-//        "gclass_methods",
-//        yunetamethods2json(&gclass->gmt)
-//    );
-//    json_object_set_new(
-//        jn_dict,
-//        "internal_methods",
-//        internalmethods2json(gclass->lmt)
-//    );
-//    json_object_set_new(
-//        jn_dict,
-//        "FSM",
-//        fsm2json(gclass->fsm)
-//    );
-//    json_object_set_new(
-//        jn_dict,
-//        "Authzs global",
-//        sdataauth2json(global_authz_table)
-//    );
-//    json_object_set_new(
-//        jn_dict,
-//        "Authzs gclass", // Access Control List
-//        sdataauth2json(gclass->authz_table)
-//    );
+    json_object_set_new(
+        jn_dict,
+        "attrs",
+        sdatadesc2json2(gclass->attrs_table, -1, 0)
+    );
+    json_object_set_new(
+        jn_dict,
+        "commands",
+        sdatacmd2json(gclass->command_table)
+    );
+    // json_object_set_new(
+    //     jn_dict,
+    //     "gclass_methods",
+    //     yunetamethods2json(&gclass->gmt)
+    // );
+    // json_object_set_new(
+    //     jn_dict,
+    //     "internal_methods",
+    //     internalmethods2json(gclass->lmt)
+    // );
+    // json_object_set_new(
+    //     jn_dict,
+    //     "states",
+    //     fsm2json(gclass->dl_states)
+    // );
+    // json_object_set_new(
+    //     jn_dict,
+    //     "events",
+    //     fsm2json(gclass->dl_events)
+    // );
+    // json_object_set_new(
+    //     jn_dict,
+    //     "Authzs global",
+    //     sdataauth2json(global_authz_table)
+    // );
+    // json_object_set_new(
+    //     jn_dict,
+    //     "Authzs gclass", // Access Control List
+    //     sdataauth2json(gclass->authz_table)
+    // );
 
     json_object_set_new(
         jn_dict,
