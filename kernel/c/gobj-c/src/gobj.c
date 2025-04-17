@@ -6488,6 +6488,238 @@ PUBLIC json_t *sdatadesc2json2(
 }
 
 /***************************************************************************
+ *  Print yuneta gclass's methods in json
+ ***************************************************************************/
+PRIVATE json_t *yunetamethods2json(const GMETHODS *gmt)
+{
+    json_t *jn_methods = json_array();
+
+    if(gmt->mt_create)
+        json_array_append_new(jn_methods, json_string("mt_create"));
+    if(gmt->mt_create2)
+        json_array_append_new(jn_methods, json_string("mt_create2"));
+    if(gmt->mt_destroy)
+        json_array_append_new(jn_methods, json_string("mt_destroy"));
+    if(gmt->mt_start)
+        json_array_append_new(jn_methods, json_string("mt_start"));
+    if(gmt->mt_stop)
+        json_array_append_new(jn_methods, json_string("mt_stop"));
+    if(gmt->mt_play)
+        json_array_append_new(jn_methods, json_string("mt_play"));
+    if(gmt->mt_pause)
+        json_array_append_new(jn_methods, json_string("mt_pause"));
+    if(gmt->mt_writing)
+        json_array_append_new(jn_methods, json_string("mt_writing"));
+    if(gmt->mt_reading)
+        json_array_append_new(jn_methods, json_string("mt_reading"));
+    if(gmt->mt_subscription_added)
+        json_array_append_new(jn_methods, json_string("mt_subscription_added"));
+    if(gmt->mt_subscription_deleted)
+        json_array_append_new(jn_methods, json_string("mt_subscription_deleted"));
+    if(gmt->mt_child_added)
+        json_array_append_new(jn_methods, json_string("mt_child_added"));
+    if(gmt->mt_child_removed)
+        json_array_append_new(jn_methods, json_string("mt_child_removed"));
+    if(gmt->mt_stats)
+        json_array_append_new(jn_methods, json_string("mt_stats"));
+    if(gmt->mt_command_parser)
+        json_array_append_new(jn_methods, json_string("mt_command_parser"));
+    if(gmt->mt_inject_event)
+        json_array_append_new(jn_methods, json_string("mt_inject_event"));
+    if(gmt->mt_create_resource)
+        json_array_append_new(jn_methods, json_string("mt_create_resource"));
+    if(gmt->mt_list_resource)
+        json_array_append_new(jn_methods, json_string("mt_list_resource"));
+    if(gmt->mt_save_resource)
+        json_array_append_new(jn_methods, json_string("mt_save_resource"));
+    if(gmt->mt_delete_resource)
+        json_array_append_new(jn_methods, json_string("mt_delete_resource"));
+    if(gmt->mt_future21)
+        json_array_append_new(jn_methods, json_string("mt_future21"));
+    if(gmt->mt_future22)
+        json_array_append_new(jn_methods, json_string("mt_future22"));
+    if(gmt->mt_get_resource)
+        json_array_append_new(jn_methods, json_string("mt_get_resource"));
+    if(gmt->mt_state_changed)
+        json_array_append_new(jn_methods, json_string("mt_state_changed"));
+    if(gmt->mt_authenticate)
+        json_array_append_new(jn_methods, json_string("mt_authenticate"));
+    if(gmt->mt_list_children)
+        json_array_append_new(jn_methods, json_string("mt_list_children"));
+    if(gmt->mt_stats_updated)
+        json_array_append_new(jn_methods, json_string("mt_stats_updated"));
+    if(gmt->mt_disable)
+        json_array_append_new(jn_methods, json_string("mt_disable"));
+    if(gmt->mt_enable)
+        json_array_append_new(jn_methods, json_string("mt_enable"));
+    if(gmt->mt_trace_on)
+        json_array_append_new(jn_methods, json_string("mt_trace_on"));
+    if(gmt->mt_trace_off)
+        json_array_append_new(jn_methods, json_string("mt_trace_off"));
+    if(gmt->mt_gobj_created)
+        json_array_append_new(jn_methods, json_string("mt_gobj_created"));
+    if(gmt->mt_future33)
+        json_array_append_new(jn_methods, json_string("mt_future33"));
+    if(gmt->mt_future34)
+        json_array_append_new(jn_methods, json_string("mt_future34"));
+    if(gmt->mt_publish_event)
+        json_array_append_new(jn_methods, json_string("mt_publish_event"));
+    if(gmt->mt_publication_pre_filter)
+        json_array_append_new(jn_methods, json_string("mt_publication_pre_filter"));
+    if(gmt->mt_publication_filter)
+        json_array_append_new(jn_methods, json_string("mt_publication_filter"));
+    if(gmt->mt_authz_checker)
+        json_array_append_new(jn_methods, json_string("mt_authz_checker"));
+    if(gmt->mt_future39)
+        json_array_append_new(jn_methods, json_string("mt_future39"));
+    if(gmt->mt_create_node)
+        json_array_append_new(jn_methods, json_string("mt_create_node"));
+    if(gmt->mt_update_node)
+        json_array_append_new(jn_methods, json_string("mt_update_node"));
+    if(gmt->mt_delete_node)
+        json_array_append_new(jn_methods, json_string("mt_delete_node"));
+    if(gmt->mt_link_nodes)
+        json_array_append_new(jn_methods, json_string("mt_link_nodes"));
+    if(gmt->mt_future44)
+        json_array_append_new(jn_methods, json_string("mt_future44"));
+    if(gmt->mt_unlink_nodes)
+        json_array_append_new(jn_methods, json_string("mt_unlink_nodes"));
+    if(gmt->mt_topic_jtree)
+        json_array_append_new(jn_methods, json_string("mt_topic_jtree"));
+    if(gmt->mt_get_node)
+        json_array_append_new(jn_methods, json_string("mt_get_node"));
+    if(gmt->mt_list_nodes)
+        json_array_append_new(jn_methods, json_string("mt_list_nodes"));
+    if(gmt->mt_shoot_snap)
+        json_array_append_new(jn_methods, json_string("mt_shoot_snap"));
+    if(gmt->mt_activate_snap)
+        json_array_append_new(jn_methods, json_string("mt_activate_snap"));
+    if(gmt->mt_list_snaps)
+        json_array_append_new(jn_methods, json_string("mt_list_snaps"));
+    if(gmt->mt_treedbs)
+        json_array_append_new(jn_methods, json_string("mt_treedbs"));
+    if(gmt->mt_treedb_topics)
+        json_array_append_new(jn_methods, json_string("mt_treedb_topics"));
+    if(gmt->mt_topic_desc)
+        json_array_append_new(jn_methods, json_string("mt_topic_desc"));
+    if(gmt->mt_topic_links)
+        json_array_append_new(jn_methods, json_string("mt_topic_links"));
+    if(gmt->mt_topic_hooks)
+        json_array_append_new(jn_methods, json_string("mt_topic_hooks"));
+    if(gmt->mt_node_parents)
+        json_array_append_new(jn_methods, json_string("mt_node_parents"));
+    if(gmt->mt_node_children)
+        json_array_append_new(jn_methods, json_string("mt_node_children"));
+    if(gmt->mt_list_instances)
+        json_array_append_new(jn_methods, json_string("mt_list_instances"));
+    if(gmt->mt_node_tree)
+        json_array_append_new(jn_methods, json_string("mt_node_tree"));
+    if(gmt->mt_topic_size)
+        json_array_append_new(jn_methods, json_string("mt_topic_size"));
+    if(gmt->mt_future62)
+        json_array_append_new(jn_methods, json_string("mt_future62"));
+    if(gmt->mt_future63)
+        json_array_append_new(jn_methods, json_string("mt_future63"));
+    if(gmt->mt_future64)
+        json_array_append_new(jn_methods, json_string("mt_future64"));
+
+    return jn_methods;
+}
+
+/***************************************************************************
+ *  Print internal gclass's methods in json
+ ***************************************************************************/
+PRIVATE json_t *internalmethods2json(const LMETHOD *lmt)
+{
+    json_t *jn_methods = json_array();
+
+    if(lmt) {
+        while(lmt->lname) {
+            json_array_append_new(jn_methods, json_string(lmt->lname));
+            lmt++;
+        }
+    }
+
+    return jn_methods;
+}
+
+/***************************************************************************
+ *  Return a json object describing the hsdata for commands
+ ***************************************************************************/
+PRIVATE json_t *authdesc2json(const sdata_desc_t *it)
+{
+    int type = it->type;
+
+    if(!DTP_IS_SCHEMA(type)) {
+        return 0; // Only schemas please
+    }
+
+    json_t *jn_it = json_object();
+
+    json_object_set_new(jn_it, "id", json_string(it->name));
+
+    if(it->alias) {
+        json_t *jn_alias = json_array();
+        json_object_set_new(jn_it, "alias", jn_alias);
+        const char **alias = it->alias;
+        while(*alias) {
+            json_array_append_new(jn_alias, json_string(*alias));
+            alias++;
+        }
+    }
+
+    json_object_set_new(jn_it, "description", json_string(it->description));
+
+    gbuffer_t *gbuf = get_sdata_flag_desc(it->flag);
+    if(gbuf) {
+        size_t l = gbuffer_leftbytes(gbuf);
+        if(l) {
+            char *pflag = gbuffer_get(gbuf, l);
+            json_object_set_new(jn_it, "flag", json_string(pflag));
+        } else {
+            json_object_set_new(jn_it, "flag", json_string(""));
+        }
+        gbuffer_decref(gbuf);
+    }
+
+    json_t *jn_parameters = json_array();
+    json_object_set_new(jn_it, "parameters", jn_parameters);
+
+    const sdata_desc_t *pparam = it->schema;
+    while(pparam && pparam->name) {
+        json_t *jn_param = json_object();
+        json_object_set_new(jn_param, "id", json_string(pparam->name));
+        json_object_update_missing_new(jn_param, itdesc2json(pparam));
+        json_array_append_new(jn_parameters, jn_param);
+        pparam++;
+    }
+
+    return jn_it;
+}
+
+/***************************************************************************
+ *  Return a json object describing the hsdata for auths
+ ***************************************************************************/
+PUBLIC json_t *sdataauth2json(
+    const sdata_desc_t *items
+)
+{
+    json_t *jn_items = json_array();
+    const sdata_desc_t *it = items;
+    if(!it) {
+        return jn_items;
+    }
+    while(it->name) {
+        json_t *jn_it = authdesc2json(it);
+        if(jn_it) {
+            json_array_append_new(jn_items, jn_it);
+        }
+        it++;
+    }
+    return jn_items;
+}
+
+/***************************************************************************
  *  Return json object with gclass's description.
  ***************************************************************************/
 PUBLIC json_t *gclass2json(hgclass gclass_)
@@ -6526,16 +6758,16 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
         "commands",
         sdatacmd2json(gclass->command_table)
     );
-    // json_object_set_new(
-    //     jn_dict,
-    //     "gclass_methods",
-    //     yunetamethods2json(&gclass->gmt)
-    // );
-    // json_object_set_new(
-    //     jn_dict,
-    //     "internal_methods",
-    //     internalmethods2json(gclass->lmt)
-    // );
+    json_object_set_new(
+        jn_dict,
+        "gclass_methods",
+        yunetamethods2json(gclass->gmt)
+    );
+    json_object_set_new(
+        jn_dict,
+        "internal_methods",
+        internalmethods2json(gclass->lmt)
+    );
     // json_object_set_new(
     //     jn_dict,
     //     "states",
@@ -6546,16 +6778,16 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
     //     "events",
     //     fsm2json(gclass->dl_events)
     // );
-    // json_object_set_new(
-    //     jn_dict,
-    //     "Authzs global",
-    //     sdataauth2json(global_authz_table)
-    // );
-    // json_object_set_new(
-    //     jn_dict,
-    //     "Authzs gclass", // Access Control List
-    //     sdataauth2json(gclass->authz_table)
-    // );
+     json_object_set_new(
+         jn_dict,
+         "Authzs global",
+         sdataauth2json(global_authz_table)
+     );
+     json_object_set_new(
+         jn_dict,
+         "Authzs gclass", // Access Control List
+         sdataauth2json(gclass->authz_table)
+     );
 
     json_object_set_new(
         jn_dict,
@@ -8476,6 +8708,51 @@ PUBLIC json_t *gobj_authenticate(hgobj gobj_, json_t *kw, hgobj src)
     return __global_authentication_parser_fn__(gobj, kw, src);
 }
 
+/***************************************************************************
+ *  Return list authzs of gobj if authz is empty
+ *  else return authz dict
+ ***************************************************************************/
+PUBLIC json_t *authzs_list(
+    hgobj gobj,
+    const char *authz
+)
+{
+    json_t *jn_list = 0;
+    if(!gobj) { // Can be null
+        jn_list = sdataauth2json(gobj_get_global_authz_table());
+    } else {
+        if(!gclass_authz_desc(gobj_gclass(gobj))) {
+            return 0;
+        }
+        jn_list = sdataauth2json(gclass_authz_desc(gobj_gclass(gobj)));
+    }
+
+    if(empty_string(authz)) {
+        return jn_list;
+    }
+
+    int idx; json_t *jn_authz;
+    json_array_foreach(jn_list, idx, jn_authz) {
+        const char *id = kw_get_str(gobj, jn_authz, "id", "", KW_REQUIRED);
+        if(strcmp(authz, id)==0) {
+            json_incref(jn_authz);
+            json_decref(jn_list);
+            return jn_authz;
+        }
+    }
+
+    gobj_log_error(gobj, 0,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+        "msg",          "%s", "authz not found",
+        "authz",        "%s", authz,
+        NULL
+    );
+
+    json_decref(jn_list);
+    return 0;
+}
+
 /****************************************************************************
  *  list authzs of gobj
  ****************************************************************************/
@@ -8573,6 +8850,99 @@ PUBLIC const sdata_desc_t *gobj_get_global_authz_table(void)
     return global_authz_table;
 }
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC const sdata_desc_t *authz_get_level_desc(
+    const sdata_desc_t *authz_table,
+    const char *auth
+)
+{
+    const sdata_desc_t *pcmd = authz_table;
+    while(pcmd->name) {
+        /*
+         *  Alias have precedence if there is no json_fn authz function.
+         *  It's the combination to redirect the authz as `name` event,
+         */
+        BOOL alias_checked = false;
+        if(!pcmd->json_fn && pcmd->alias) {
+            alias_checked = true;
+            const char **alias = pcmd->alias;
+            while(alias && *alias) {
+                if(strcasecmp(*alias, auth)==0) {
+                    return pcmd;
+                }
+                alias++;
+            }
+        }
+        if(strcasecmp(pcmd->name, auth)==0) {
+            return pcmd;
+        }
+        if(!alias_checked) {
+            const char **alias = pcmd->alias;
+            while(alias && *alias) {
+                if(strcasecmp(*alias, auth)==0) {
+                    return pcmd;
+                }
+                alias++;
+            }
+        }
+
+        pcmd++;
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *gobj_build_authzs_doc(
+    hgobj gobj,
+    const char *cmd,
+    json_t *kw
+)
+{
+    const char *authz = kw_get_str(gobj, kw, "authz", "", 0);
+    const char *service = kw_get_str(gobj, kw, "service", "", 0);
+
+    if(!empty_string(service)) {
+        hgobj service_gobj = gobj_find_service(service, false);
+        if(!service_gobj) {
+            return json_sprintf("Service not found: '%s'", service);
+        }
+
+        json_t *jn_authzs = authzs_list(service_gobj, authz);
+        if(!jn_authzs) {
+            if(empty_string(authz)) {
+                return json_sprintf("Service without authzs table: '%s'", service);
+            } else {
+                return json_sprintf("Authz not found: '%s' in service: '%s'", authz, service);
+            }
+        }
+        return jn_authzs;
+    }
+
+    json_t *jn_authzs = json_object();
+    json_t *jn_global_list = sdataauth2json(gobj_get_global_authz_table());
+    json_object_set_new(jn_authzs, "global authzs", jn_global_list);
+
+    json_t *jn_services = gobj_services();
+    int idx; json_t *jn_service;
+    json_array_foreach(jn_services, idx, jn_service) {
+        const char *service_ = json_string_value(jn_service);
+        hgobj gobj_service = gobj_find_service(service_, true);
+        if(gobj_service) {
+            if(gclass_authz_desc(gobj_gclass(gobj_service))) {
+                json_t *l = authzs_list(gobj_service, authz);
+                json_object_set_new(jn_authzs, service_, l);
+            }
+        }
+    }
+
+    json_decref(jn_services);
+
+    return jn_authzs;
+}
 
 
 

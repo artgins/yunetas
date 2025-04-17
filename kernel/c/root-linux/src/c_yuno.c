@@ -337,7 +337,7 @@ SDATACM (DTP_SCHEMA,    "list-subscriptions",       0,      pm_list_subscription
 
 SDATACM (DTP_SCHEMA,    "list-subscribings",         0,     pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
 
-SDATACM (DTP_SCHEMA,    "list-command",             0,      pm_gclass_name, cmd_list_commands,          "List commands of gclass's"),
+SDATACM (DTP_SCHEMA,    "list-commands",            0,      pm_gclass_name, cmd_list_commands,          "List commands of gclass's"),
 
 SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0,              cmd_info_global_trace,  "Info of global trace levels"),
 SDATACM (DTP_SCHEMA,    "info-gclass-trace",        0,      pm_gclass_name, cmd_info_gclass_trace,  "Info of class's trace levels"),
@@ -1228,24 +1228,36 @@ PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         kw_get_str(gobj, kw, "gclass", "", 0),
         0
     );
+    if(empty_string(gclass_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gclass?"),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
 
     hgclass gclass = 0;
     if(!empty_string(gclass_name_)) {
         gclass = gclass_find_by_name(gclass_name_);
         if(!gclass) {
             gclass = get_gclass_from_gobj(gclass_name_);
-            if(!gclass) {
-                json_t *kw_response = build_command_response(
-                    gobj,
-                    -1,     // result
-                    json_sprintf("what gclass is '%s'?", gclass_name_),
-                    0,      // jn_schema
-                    0       // jn_data
-                );
-                JSON_DECREF(kw)
-                return kw_response;
-            }
         }
+    }
+
+    if(!gclass) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gclass is '%s'?", gclass_name_),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
     }
 
     json_t *jn_data = gclass2json(gclass);
