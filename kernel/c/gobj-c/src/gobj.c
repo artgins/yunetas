@@ -326,6 +326,21 @@ PUBLIC const char *event_flag_names[] = { // Strings of event_flag_t type
     0
 };
 
+/*
+ *  Strings of enum event_authz_t auth
+ */
+PRIVATE const char *event_authz_names[] = {
+    "AUTHZ_INJECT",
+    "AUTHZ_SUBSCRIBE",
+    "AUTHZ_CREATE",
+    "AUTHZ_READ",
+    "AUTHZ_UPDATE",
+    "AUTHZ_DELETE",
+    "AUTHZ_LINK",
+    "AUTHZ_UNLINK",
+    0
+};
+
 PRIVATE const char *gclass_flag_names[] = {
     "gcflag_manual_start",
     "gcflag_no_check_output_events",
@@ -483,21 +498,6 @@ SDATAAUTHZ (DTP_SCHEMA, "__reset_stats__",      0,      0,      pm_reset_stats, 
 SDATA_END()
 };
 
-/*
- *  Strings of enum event_authz_t auth
- */
-//PRIVATE const trace_level_t event_authz_names[] = {
-//{"AUTHZ_INJECT",        "Event needs '__inject_event__' authorization to be injected to machine"},
-//{"AUTHZ_SUBSCRIBE",     "Event needs '__subscribe_event__' authorization to be subscribed"},
-//{"AUTHZ_CREATE",        "Event needs 'create' authorization"},
-//{"AUTHZ_READ",          "Event needs 'read' authorization"},
-//{"AUTHZ_UPDATE",        "Event needs 'update' authorization"},
-//{"AUTHZ_DELETE",        "Event needs 'delete' authorization"},
-//{"AUTHZ_LINK",          "Event needs 'link' authorization"},
-//{"AUTHZ_UNLINK",        "Event needs 'unlink' authorization"},
-//{0, 0}
-//};
-
 
 
 
@@ -616,8 +616,8 @@ PUBLIC int gobj_start_up(
      *          Build Global Events
      *----------------------------------------*/
     event_type_t global_events[] = {
-        {EV_STATE_CHANGED,     EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {0, 0}
+        {EV_STATE_CHANGED,  EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS, 0, NULL},
+        {0, 0, 0, NULL}
     };
     dl_init(&dl_global_event_types, 0);
 
@@ -6720,6 +6720,143 @@ PUBLIC json_t *sdataauth2json(
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *events2json(dl_list_t *dl_events)
+{
+    json_t *jn_events = json_array();
+
+    // while(events->event) {
+    //     json_t *jn_ev = json_object();
+    //     json_object_set_new(jn_ev, "id", json_string(events->event));
+    //     json_object_set_new(jn_ev, "flag", eventflag2json(events->flag));
+    //     json_object_set_new(jn_ev, "authz", eventauth2json(events->authz));
+    //
+    //     json_object_set_new(
+    //         jn_ev,
+    //         "description",
+    //         events->description?json_string(events->description):json_string("")
+    //     );
+    //
+    //     json_array_append_new(jn_events, jn_ev);
+    //     events++;
+    // }
+
+    event_t *event = dl_first(dl_events);
+    while(event) {
+        gobj_event_t event_name = event->event_type.event_name;
+        event_flag_t event_flag = event->event_type.event_flag;
+        event_authz_t event_authz = event->event_type.event_authz;
+        const char *description = event->event_type.description;
+
+        json_t *jn_ev = json_object();
+        json_object_set_new(jn_ev, "id", json_string(event_name));
+
+        json_object_set_new(
+            jn_ev,
+            "event_flag",
+            bits2jn_strlist(event_flag_names, event_flag)
+        );
+        json_object_set_new(
+            jn_ev,
+            "event_authz",
+            bits2jn_strlist(event_authz_names, event_authz)
+        );
+
+        json_object_set_new(
+            jn_ev,
+            "description",
+            json_string(description?description:"")
+        );
+
+        json_array_append_new(jn_events, jn_ev);
+
+        /*
+         *  Next: event
+         */
+        event = dl_next(event);
+    }
+
+    return jn_events;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *states2json(dl_list_t *dl_states)
+{
+    json_t *jn_states = json_object();
+
+    state_t *state = dl_first(dl_states);
+    while(state) {
+        gobj_state_t state_name = state->state_name;
+        dl_list_t *dl_actions = &state->dl_actions;
+
+        json_t *jn_st = json_array();
+
+        event_action_t *event_action = dl_first(dl_actions);
+        while(event_action) {
+            gobj_event_t event_name = event_action->event_name;
+            gobj_action_fn action = event_action->action;
+            gobj_state_t next_state = event_action->next_state;
+
+            json_t *jn_ac = json_array();
+            json_array_append_new(jn_ac, json_string(event_name));
+            if(action) {
+                json_array_append_new(jn_ac, json_string("ac_action"));
+            } else {
+                json_array_append_new(jn_ac, json_integer(0));
+            }
+            if(next_state) {
+                json_array_append_new(jn_ac, json_string(next_state));
+            } else {
+                json_array_append_new(jn_ac, json_integer(0));
+            }
+            json_array_append_new(jn_st, jn_ac);
+
+            /*
+             *  Next: event/action/state
+             */
+            event_action = dl_next(event_action);
+        }
+
+        json_object_set_new(
+            jn_states,
+            state_name,
+            jn_st
+        );
+
+        /*
+         *  Next: state
+         */
+        state = dl_next(state);
+    }
+
+    return jn_states;
+}
+
+/***************************************************************************
+ *  Print gclass's fsm in json
+ ***************************************************************************/
+PRIVATE json_t *fsm2json(gclass_t *gclass)
+{
+    json_t *jn_fsm = json_object();
+
+    json_object_set_new(
+        jn_fsm,
+        "events",
+        events2json(&gclass->dl_events)
+    );
+    json_object_set_new(
+        jn_fsm,
+        "states",
+        states2json(&gclass->dl_states)
+    );
+
+    return jn_fsm;
+}
+
+/***************************************************************************
  *  Return json object with gclass's description.
  ***************************************************************************/
 PUBLIC json_t *gclass2json(hgclass gclass_)
@@ -6768,26 +6905,23 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
         "internal_methods",
         internalmethods2json(gclass->lmt)
     );
-    // json_object_set_new(
-    //     jn_dict,
-    //     "states",
-    //     fsm2json(gclass->dl_states)
-    // );
-    // json_object_set_new(
-    //     jn_dict,
-    //     "events",
-    //     fsm2json(gclass->dl_events)
-    // );
-     json_object_set_new(
-         jn_dict,
-         "Authzs global",
-         sdataauth2json(global_authz_table)
-     );
-     json_object_set_new(
+    json_object_set_new(
+        jn_dict,
+        "FSM",
+        fsm2json(gclass)
+    );
+
+    // json_object_set_new( TODO make a command to see this
+     //     jn_dict,
+     //     "Authzs global",
+     //     sdataauth2json(global_authz_table)
+     // );
+
+    json_object_set_new(
          jn_dict,
          "Authzs gclass", // Access Control List
          sdataauth2json(gclass->authz_table)
-     );
+    );
 
     json_object_set_new(
         jn_dict,
@@ -10111,7 +10245,7 @@ PUBLIC json_t *gobj_list_snaps(
 /***************************************************************************
  *  Debug print global trace levels in json
  ***************************************************************************/
-PUBLIC json_t * gobj_repr_global_trace_levels(void)
+PUBLIC json_t *gobj_repr_global_trace_levels(void)
 {
     json_t *jn_register = json_array();
 

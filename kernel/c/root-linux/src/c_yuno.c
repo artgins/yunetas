@@ -3638,7 +3638,7 @@ PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj
                 JSON_DECREF(kw)
                 return kw_response;
             }
-            const sdata_desc_t *command_table = gclass_command_desc(gclass_, NULL, false);
+            // TODO const sdata_desc_t *command_table = gclass_command_desc(gclass_, NULL, false);
         }
     }
 
@@ -3650,7 +3650,7 @@ PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj
         0,      // result
         0,      // jn_comment
         0,      // jn_schema
-        gobj_repr_gclass_trace_levels(gclass_name_)
+        gobj_repr_gclass_trace_levels(gclass_name_) // TODO
     );
     JSON_DECREF(kw)
     return kw_response;
