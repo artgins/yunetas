@@ -642,8 +642,9 @@ PRIVATE const sdata_desc_t *search_command(
     if(level == 2) {
         hgobj child = gobj_first_child(gobj);
         while(child) {
-            if(gobj_command_desc(child, NULL, false)) {
-                cnf_cmd = command_get_cmd_desc(gobj_command_desc(child, NULL, false), cmd);
+            command_desc = gobj_command_desc(child, NULL, false);
+            if(command_desc) {
+                cnf_cmd = command_get_cmd_desc(command_desc, cmd);
                 if(cnf_cmd) {
                     /*
                      *  Found in child
@@ -673,13 +674,13 @@ PRIVATE int list_commands(
     gbuffer_t *gbuf,
     int level
 ) {
-
     /*
      *  GObj commands
      */
-    if(gobj_command_desc(gobj, NULL, false)) {
+    const sdata_desc_t *command_desc = gobj_command_desc(gobj, NULL, false);
+    if(command_desc) {
         gbuffer_printf(gbuf, "\n> %s\n", gobj_short_name(gobj));
-        const sdata_desc_t *pcmds = gobj_command_desc(gobj, NULL, false);
+        const sdata_desc_t *pcmds = command_desc;
         while(pcmds->name) {
             if(!empty_string(pcmds->name)) {
                 add_command_help(gbuf, pcmds, false);
@@ -694,6 +695,66 @@ PRIVATE int list_commands(
                 }
             }
             pcmds++;
+        }
+    }
+
+    /*
+     *  Search in bottoms
+     */
+    if(level == 1) {
+        hgobj bottom = gobj_bottom_gobj(gobj);
+        while(bottom) {
+            command_desc = gobj_command_desc(bottom, NULL, false);
+            if(command_desc) {
+                gbuffer_printf(gbuf, "\n>> %s\n", gobj_short_name(bottom));
+                const sdata_desc_t *pcmds = command_desc;
+                while(pcmds->name) {
+                    if(!empty_string(pcmds->name)) {
+                        add_command_help(gbuf, pcmds, false);
+                    } else {
+                        /*
+                        *  Empty command (not null) is for print a blank line or a title is desc is not empty
+                        */
+                        if(!empty_string(pcmds->description)) {
+                            gbuffer_printf(gbuf, "%s\n", pcmds->description);
+                        } else {
+                            gbuffer_printf(gbuf, "\n");
+                        }
+                    }
+                    pcmds++;
+                }
+            }
+            bottom = gobj_bottom_gobj(bottom);
+        }
+    }
+
+    /*
+     *  Search in children
+     */
+    if(level == 2) {
+        hgobj child = gobj_first_child(gobj);
+        while(child) {
+            command_desc = gobj_command_desc(child, NULL, false);
+            if(command_desc) {
+                gbuffer_printf(gbuf, "\n>> %s\n", gobj_short_name(child));
+                const sdata_desc_t *pcmds = command_desc;
+                while(pcmds->name) {
+                    if(!empty_string(pcmds->name)) {
+                        add_command_help(gbuf, pcmds, false);
+                    } else {
+                        /*
+                        *  Empty command (not null) is for print a blank line or a title is desc is not empty
+                        */
+                        if(!empty_string(pcmds->description)) {
+                            gbuffer_printf(gbuf, "%s\n", pcmds->description);
+                        } else {
+                            gbuffer_printf(gbuf, "\n");
+                        }
+                    }
+                    pcmds++;
+                }
+            }
+            child = gobj_next_child(child);
         }
     }
 
@@ -746,7 +807,7 @@ PUBLIC json_t *gobj_build_cmds_doc(hgobj gobj, json_t *kw)
         const sdata_desc_t *cnf_cmd = search_command(gobj, cmd, level, &gobj_found);
         if(cnf_cmd) {
             gbuffer_t *gbuf = gbuffer_create(256, 4*1024);
-            gbuffer_printf(gbuf, "%s\n", cmd);
+            gbuffer_printf(gbuf, "%s (%s)\n", cmd, gobj_short_name(gobj_found));
             int len = (int)strlen(cmd);
             while(len > 0) {
                 gbuffer_printf(gbuf, "%c", '=');
