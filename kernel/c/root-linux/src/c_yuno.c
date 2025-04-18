@@ -3630,7 +3630,7 @@ PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj
         kw_get_str(gobj, kw, "gclass", "", 0),
         0
     );
-    int details = kw_get_int(gobj, kw, "details", 0, 0);
+    int details = (int)kw_get_int(gobj, kw, "details", 0, 0);
 
     json_t *jn_data = NULL;
 
