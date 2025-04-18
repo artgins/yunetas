@@ -119,7 +119,8 @@ PRIVATE json_t* cmd_system_topic_schema(hgobj gobj, const char* cmd, json_t* kw,
 PRIVATE json_t* cmd_global_variables(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
-PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_list_gclass_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
+PRIVATE json_t* cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src);
 
 /***************************************************************
  *              Data
@@ -133,11 +134,19 @@ SDATAPM (DTP_STRING,    "gclass_name",  0,              0,          "gclass-name
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
 SDATA_END()
 };
-PRIVATE const sdata_desc_t pm_list_commands[] = {
+PRIVATE const sdata_desc_t pm_list_gclass_commands[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gclass_name",  0,              0,          "gclass-name"),
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
+SDATAPM (DTP_INTEGER,   "details",      0,              0,          "1 show details"),
+SDATA_END()
+};
+PRIVATE const sdata_desc_t pm_list_gobj_commands[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj"),
+SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj"),
 SDATAPM (DTP_INTEGER,   "details",      0,              0,          "0 show only names, 1 show details"),
+SDATAPM (DTP_BOOLEAN,   "bottoms",      0,              0,          "true show bottoms too"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_wr_attr[] = {
@@ -199,7 +208,7 @@ PRIVATE const sdata_desc_t pm_gobj_tree[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__yuno__", "named-gobj or full gobj name"),
-SDATAPM (DTP_JSON,      "options",      0,              "[\"name\",\"state\",\"running\",\"playing\",\"service\", \"disabled\",\"gobj_trace_level\",\"bottom_gobj\",\"commands\"]",       "json list with strings, empty all"),
+SDATAPM (DTP_JSON,      "options",      0,              "[\"name\",\"state\",\"running\",\"playing\",\"service\", \"disabled\",\"gobj_trace_level\",\"bottom_gobj\",\"commands\"]",       "json LIST with strings, empty all"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_set_gobj_tr[] = {
@@ -342,14 +351,16 @@ SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent
 
 SDATACM (DTP_SCHEMA,    "list-subscriptions",       0,      pm_list_subscriptions,cmd_list_subscriptions,          "List subscriptions [of __default_service__]"),
 
-SDATACM (DTP_SCHEMA,    "list-subscribings",         0,     pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
+SDATACM (DTP_SCHEMA,    "list-subscribings",        0,      pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
 
-SDATACM (DTP_SCHEMA,    "list-commands",            0,      pm_list_commands, cmd_list_commands,          "List commands of gclass's"),
+SDATACM (DTP_SCHEMA,    "list-gclass-commands",     0,      pm_list_gclass_commands, cmd_list_gclass_commands,          "List commands of gclass's"),
 
-SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0,              cmd_info_global_trace,  "Info of global trace levels"),
+SDATACM (DTP_SCHEMA,    "list-gobj-commands",       0,      pm_list_gobj_commands, cmd_list_gobj_commands,          "List commands of gobj and bottoms"),
+
+SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0, cmd_info_global_trace,  "Info of global trace levels"),
 SDATACM (DTP_SCHEMA,    "info-gclass-trace",        0,      pm_gclass_name, cmd_info_gclass_trace,  "Info of class's trace levels"),
 
-SDATACM (DTP_SCHEMA,    "get-global-trace",         0,      0,              cmd_get_global_trace,   "Get global trace levels"),
+SDATACM (DTP_SCHEMA,    "get-global-trace",         0,      0, cmd_get_global_trace,   "Get global trace levels"),
 SDATACM (DTP_SCHEMA,    "set-global-trace",         0,      pm_set_global_tr,cmd_set_global_trace,  "Set global trace level"),
 
 SDATACM (DTP_SCHEMA,    "get-gclass-trace",         0,      pm_gclass_name, cmd_get_gclass_trace,   "Get gclass' trace"),
@@ -3653,7 +3664,7 @@ PRIVATE json_t *get_command_info(hgobj gobj, hgclass gclass, BOOL details)
 /***************************************************************************
  *  list commands
  ***************************************************************************/
-PRIVATE json_t *cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+PRIVATE json_t *cmd_list_gclass_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
     const char *gclass_name = kw_get_str(
         gobj,
@@ -3719,6 +3730,93 @@ PRIVATE json_t *cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj
             }
         }
         JSON_DECREF(jn_gclasses)
+    }
+
+    /*
+     *  Inform
+     */
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,      // result
+        0,      // jn_comment
+        0,      // jn_schema
+        jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *  list commands
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    int details = (int)kw_get_int(gobj, kw, "details", 0, 0);
+    BOOL bottoms = kw_get_bool(gobj, kw, "bottoms", 0, 0);
+
+    const char *gobj_name_ = kw_get_str( // __default_service__
+        gobj,
+        kw,
+        "gobj_name",
+        kw_get_str(gobj, kw, "gobj", "", 0),
+        0
+    );
+    if(empty_string(gobj_name_)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf("what gobj?"),   // jn_comment
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    hgobj gobj2cmd = gobj_find_service(gobj_name_, false);
+    if(!gobj2cmd) {
+        gobj2cmd = gobj_find_gobj(gobj_name_);
+        if (!gobj2cmd) {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,     // result
+                json_sprintf("gobj not found: '%s'", gobj_name_),   // jn_comment
+                0,      // jn_schema
+                0       // jn_data
+            );
+            JSON_DECREF(kw)
+            return kw_response;
+        }
+    }
+
+    hgclass gclass = gobj_gclass(gobj2cmd);
+
+    json_t *jn_data = json_array();
+
+    json_t *jn_commands = get_command_info(gobj, gclass, details);
+    json_array_append_new(
+        jn_data,
+        json_pack("{s:s, s:o}",
+            "gclass", gclass_gclass_name(gclass),
+            "commands", jn_commands
+        )
+    );
+
+    if(bottoms) {
+        hgobj gobj_bottom = gobj_bottom_gobj(gobj2cmd);
+        while(gobj_bottom) {
+            gclass = gobj_gclass(gobj_bottom);
+            json_t *jn_commands2 = get_command_info(gobj, gclass, details);
+            json_array_append_new(
+                jn_data,
+                json_pack("{s:s, s:o}",
+                    "gclass", gclass_gclass_name(gclass),
+                    "commands", jn_commands2
+                )
+            );
+
+            gobj_bottom = gobj_bottom_gobj(gobj_bottom);
+        }
     }
 
     /*

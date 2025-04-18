@@ -6925,42 +6925,42 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
     gobj_t * gobj = gobj_;
     json_t *jn_dict = json_object();
 
-    if(kw_find_str_in_list(gobj, jn_filter, "fullname")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "fullname")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "fullname",
             json_string(gobj_full_name(gobj))
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "shortname")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "shortname")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "shortname",
             json_string(gobj_short_name(gobj))
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "gclass")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "gclass")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "gclass",
             json_string(gobj_gclass_name(gobj))
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "name")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "name")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "name",
             json_string(gobj_name(gobj))
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "parent")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "parent")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "parent",
             json_string(gobj_short_name(gobj_parent(gobj)))
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "attrs")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "attrs")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "attrs",
@@ -6968,7 +6968,7 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
         );
     }
 
-    if(kw_find_str_in_list(gobj, jn_filter, "user_data")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "user_data")!=-1 || !json_array_size(jn_filter)) {
         json_object_set(
             jn_dict,
             "user_data",
@@ -6976,7 +6976,7 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
         );
     }
 
-    if(kw_find_str_in_list(gobj, jn_filter, "gobj_flags")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "gobj_flags")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "gobj_flags",
@@ -6984,7 +6984,7 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
         );
     }
 
-    if(kw_find_str_in_list(gobj, jn_filter, "state")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "state")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "state",
@@ -6992,56 +6992,56 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
         );
     }
 
-    if(kw_find_str_in_list(gobj, jn_filter, "running")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "running")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "running",
             gobj_is_running(gobj) ? json_true() : json_false()
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "playing")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "playing")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "playing",
             gobj_is_playing(gobj) ? json_true() : json_false()
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "service")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "service")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "service",
             gobj_is_service(gobj) ? json_true() : json_false()
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "bottom_gobj")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "bottom_gobj")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "bottom_gobj",
             gobj_is_bottom_gobj(gobj)? json_true() : json_false()
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "disabled")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "disabled")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "disabled",
             gobj_is_disabled(gobj) ? json_true() : json_false()
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "commands")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "commands")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "commands",
             gobj->gclass->command_table ? json_true() : json_false()
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "gobj_trace_level")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "gobj_trace_level")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "gobj_trace_level",
             gobj_get_gobj_trace_level(gobj)
         );
     }
-    if(kw_find_str_in_list(gobj, jn_filter, "gobj_trace_no_level")!=-1) {
+    if(kw_find_str_in_list(gobj, jn_filter, "gobj_trace_no_level")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
             "gobj_trace_no_level",
