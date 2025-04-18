@@ -1178,7 +1178,7 @@ BOOL gclass_has_attr(hgclass gclass, const char* name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t * gclass_gclass_register(void)
+PUBLIC json_t *gclass_gclass_register(void)
 {
     json_t *jn_register = json_array();
 
@@ -6361,7 +6361,7 @@ PRIVATE json_t *cmddesc2json(const sdata_desc_t *it)
 
     json_t *jn_it = json_object();
 
-    json_object_set_new(jn_it, "id", json_string(it->name));
+    json_object_set_new(jn_it, "command", json_string(it->name));
 
     if(it->alias) {
         json_t *jn_alias = json_array();
@@ -6410,7 +6410,7 @@ PRIVATE json_t *cmddesc2json(const sdata_desc_t *it)
     pparam = it->schema;
     while(pparam && pparam->name) {
         json_t *jn_param = json_object();
-        json_object_set_new(jn_param, "id", json_string(pparam->name));
+        json_object_set_new(jn_param, "parameter", json_string(pparam->name));
         json_object_update_missing_new(jn_param, itdesc2json(pparam));
         json_array_append_new(jn_parameters, jn_param);
         pparam++;
