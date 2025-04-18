@@ -3621,7 +3621,39 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
 /***************************************************************************
  *  list commands
  ***************************************************************************/
-PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+PRIVATE json_t *get_command_info(hgobj gobj, hgclass gclass, BOOL details)
+{
+    json_t *gclass_desc = gclass2json(gclass);
+
+    json_t *jn_commands = kw_get_dict_value(gobj, gclass_desc, "commands", 0, KW_REQUIRED);
+    if(details) {
+        json_incref(jn_commands);
+        JSON_DECREF(gclass_desc)
+        return jn_commands;
+
+    } else {
+        json_t *jn_data = json_array();
+
+        int idx2; json_t *jn_command;
+        json_array_foreach(jn_commands, idx2, jn_command) {
+            const char *command = kw_get_str(gobj, jn_command, "command", "", KW_REQUIRED);
+            if(empty_string(command)) {
+                continue;
+            }
+            json_array_append_new(
+                jn_data,
+                json_string(command)
+            );
+        }
+        JSON_DECREF(gclass_desc)
+        return jn_data;
+    }
+}
+
+/***************************************************************************
+ *  list commands
+ ***************************************************************************/
+PRIVATE json_t *cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
     const char *gclass_name = kw_get_str(
         gobj,
@@ -3653,41 +3685,11 @@ PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj
                 return kw_response;
             }
         }
-        json_t *gclass_desc = gclass2json(gclass);
-        jn_data = json_array();
-        json_t *jn_commands = kw_get_dict_value(gobj, gclass_desc, "commands", 0, KW_REQUIRED);
-        if(details) {
-            json_array_append_new(
-                jn_data,
-                json_pack("{s:s, s:O}",
-                    "gclass", gclass_name,
-                    "commands", jn_commands
-                )
-            );
-        } else {
-            json_t *jn_data2 = json_array();
-            json_array_append_new(
-                jn_data,
-                json_pack("{s:s, s:o}",
-                    "gclass", gclass_name,
-                    "commands", jn_data2
-                )
-            );
-
-            int idx2; json_t *jn_command;
-            json_array_foreach(jn_commands, idx2, jn_command) {
-                const char *command = kw_get_str(gobj, jn_command, "command", "", KW_REQUIRED);
-                if(empty_string(command)) {
-                    continue;
-                }
-                json_array_append_new(
-                    jn_data2,
-                    json_string(command)
-                );
-            }
-        }
-
-        JSON_DECREF(gclass_desc)
+        json_t *jn_commands = get_command_info(gobj, gclass, details);
+        jn_data = json_pack("{s:s, s:o}",
+            "gclass", gclass_name,
+            "commands", jn_commands
+        );
 
     } else {
         /*
@@ -3701,41 +3703,19 @@ PRIVATE json_t* cmd_list_commands(hgobj gobj, const char* cmd, json_t* kw, hgobj
             gclass_name = kw_get_str(gobj,jn_gclass, "gclass", "", KW_REQUIRED);
             hgclass gclass = gclass_find_by_name(gclass_name);
             if(gclass) {
-                json_t *gclass_desc = gclass2json(gclass);
-                json_t *jn_commands = kw_get_dict_value(gobj, gclass_desc, "commands", 0, KW_REQUIRED);
-                if(jn_commands && json_array_size(jn_commands)) {
-                    if(details) {
-                        json_array_append_new(
-                            jn_data,
-                            json_pack("{s:s, s:O}",
-                                "gclass", gclass_name,
-                                "commands", jn_commands
-                            )
-                        );
-                    } else {
-                        json_t *jn_data2 = json_array();
-                        json_array_append_new(
-                            jn_data,
-                            json_pack("{s:s, s:o}",
-                                "gclass", gclass_name,
-                                "commands", jn_data2
-                            )
-                        );
+                json_t *jn_commands = get_command_info(gobj, gclass, details);
+                if(json_array_size(jn_commands)) {
+                    json_array_append_new(
+                        jn_data,
+                        json_pack("{s:s, s:o}",
+                            "gclass", gclass_name,
+                            "commands", jn_commands
+                        )
+                    );
 
-                        int idx2; json_t *jn_command;
-                        json_array_foreach(jn_commands, idx2, jn_command) {
-                            const char *command = kw_get_str(gobj, jn_command, "command", "", KW_REQUIRED);
-                            if(empty_string(command)) {
-                                continue;
-                            }
-                            json_array_append_new(
-                                jn_data2,
-                                json_string(command)
-                            );
-                        }
-                    }
+                } else {
+                    JSON_DECREF(jn_commands)
                 }
-                JSON_DECREF(gclass_desc)
             }
         }
         JSON_DECREF(jn_gclasses)
