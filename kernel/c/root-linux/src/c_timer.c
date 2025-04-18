@@ -242,10 +242,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_TIMEOUT,            EVF_OUTPUT_EVENT,   0,  NULL},
-        {EV_TIMEOUT_PERIODIC,   EVF_OUTPUT_EVENT,   0,  NULL},
-        {EV_STOPPED,            EVF_OUTPUT_EVENT,   0,  NULL},
-        {0, 0, 0, NULL}
+        {EV_TIMEOUT,            EVF_OUTPUT_EVENT},
+        {EV_TIMEOUT_PERIODIC,   EVF_OUTPUT_EVENT},
+        {EV_STOPPED,            EVF_OUTPUT_EVENT},
+        {0, 0}
     };
 
     /*----------------------------------------*

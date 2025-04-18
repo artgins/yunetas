@@ -1011,16 +1011,16 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_WIFI_STA_START,             0,  0,  NULL},
-        {EV_WIFI_STA_STOP,              0,  0,  NULL},
-        {EV_WIFI_STA_CONNECTED,         0,  0,  NULL},
-        {EV_WIFI_STA_DISCONNECTED,      0,  0,  NULL},
-        {EV_WIFI_SMARTCONFIG_DONE,      0,  0,  NULL},
-        {EV_WIFI_GOT_IP,                0,  0,  NULL},
-        {EV_WIFI_LOST_IP,               0,  0,  NULL},
-        {EV_WIFI_ON_OPEN,               EVF_OUTPUT_EVENT,  0,  NULL},
-        {EV_WIFI_ON_CLOSE,              EVF_OUTPUT_EVENT,  0,  NULL},
-        {0, 0,  0,  NULL}
+        {EV_WIFI_STA_START,             0},
+        {EV_WIFI_STA_STOP,              0},
+        {EV_WIFI_STA_CONNECTED,         0},
+        {EV_WIFI_STA_DISCONNECTED,      0},
+        {EV_WIFI_SMARTCONFIG_DONE,      0},
+        {EV_WIFI_GOT_IP,                0},
+        {EV_WIFI_LOST_IP,               0},
+        {EV_WIFI_ON_OPEN,               EVF_OUTPUT_EVENT},
+        {EV_WIFI_ON_CLOSE,              EVF_OUTPUT_EVENT},
+        {0, 0}
     };
 
     /*----------------------------------------*

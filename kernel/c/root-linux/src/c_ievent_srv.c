@@ -1723,21 +1723,21 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_ON_MESSAGE,         0,   0,  NULL},
-        {EV_ON_OPEN,            EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS,   0,  NULL},
-        {EV_ON_CLOSE,           EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS,   0,  NULL},
-        {EV_DROP,               0,   0,  NULL},
+        {EV_ON_MESSAGE,         0}
+        ,{EV_ON_OPEN,            EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_ON_CLOSE,           EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_DROP,               0},
         // public
-        {EV_IDENTITY_CARD,      EVF_PUBLIC_EVENT,   0,  NULL},
-        {EV_GOODBYE,            EVF_PUBLIC_EVENT,   0,  NULL},
-        {EV_MT_STATS,           EVF_PUBLIC_EVENT,   0,  NULL},
-        {EV_MT_COMMAND,         EVF_PUBLIC_EVENT,   0,  NULL},
-        {EV_REMOTE_LOG,         EVF_PUBLIC_EVENT,   0,  NULL},
+        {EV_IDENTITY_CARD,      EVF_PUBLIC_EVENT},
+        {EV_GOODBYE,            EVF_PUBLIC_EVENT},
+        {EV_MT_STATS,           EVF_PUBLIC_EVENT},
+        {EV_MT_COMMAND,         EVF_PUBLIC_EVENT},
+        {EV_REMOTE_LOG,         EVF_PUBLIC_EVENT},
         // internal
-        {EV_TIMEOUT,            0,   0,  NULL},
-        {EV_STOPPED,            0,   0,  NULL},
+        {EV_TIMEOUT,            0},
+        {EV_STOPPED,            0},
 
-        {0, 0,   0,  NULL}
+        {0, 0}
     };
 
     /*----------------------------------------*

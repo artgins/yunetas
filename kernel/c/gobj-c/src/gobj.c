@@ -326,21 +326,6 @@ PUBLIC const char *event_flag_names[] = { // Strings of event_flag_t type
     0
 };
 
-/*
- *  Strings of enum event_authz_t auth
- */
-PRIVATE const char *event_authz_names[] = {
-    "AUTHZ_INJECT",
-    "AUTHZ_SUBSCRIBE",
-    "AUTHZ_CREATE",
-    "AUTHZ_READ",
-    "AUTHZ_UPDATE",
-    "AUTHZ_DELETE",
-    "AUTHZ_LINK",
-    "AUTHZ_UNLINK",
-    0
-};
-
 PRIVATE const char *gclass_flag_names[] = {
     "gcflag_manual_start",
     "gcflag_no_check_output_events",
@@ -616,8 +601,8 @@ PUBLIC int gobj_start_up(
      *          Build Global Events
      *----------------------------------------*/
     event_type_t global_events[] = {
-        {EV_STATE_CHANGED,  EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS, 0, NULL},
-        {0, 0, 0, NULL}
+        {EV_STATE_CHANGED,  EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {0, 0}
     };
     dl_init(&dl_global_event_types, 0);
 
@@ -6746,8 +6731,6 @@ PRIVATE json_t *events2json(dl_list_t *dl_events)
     while(event) {
         gobj_event_t event_name = event->event_type.event_name;
         event_flag_t event_flag = event->event_type.event_flag;
-        event_authz_t event_authz = event->event_type.event_authz;
-        const char *description = event->event_type.description;
 
         json_t *jn_ev = json_object();
         json_object_set_new(jn_ev, "id", json_string(event_name));
@@ -6756,17 +6739,6 @@ PRIVATE json_t *events2json(dl_list_t *dl_events)
             jn_ev,
             "event_flag",
             bits2jn_strlist(event_flag_names, event_flag)
-        );
-        json_object_set_new(
-            jn_ev,
-            "event_authz",
-            bits2jn_strlist(event_authz_names, event_authz)
-        );
-
-        json_object_set_new(
-            jn_ev,
-            "description",
-            json_string(description?description:"")
         );
 
         json_array_append_new(jn_events, jn_ev);
@@ -8047,6 +8019,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     /*-------------------------------------------------*
      *  Check AUTHZ
      *-------------------------------------------------*/
+    // if(output_event->authz & EV_AUTHZ_SUBSCRIBE) {}
 
     /*------------------------------*
      *  Find repeated subscription

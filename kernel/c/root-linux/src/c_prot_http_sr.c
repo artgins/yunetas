@@ -444,18 +444,18 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = { // HACK System gclass, not public events
-        {EV_RX_DATA,            0,   0,  NULL}, // TODO is necessary to define the internal or input events?
-        {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT,   0,  NULL},
-        {EV_CONNECTED,          0,   0,  NULL},
-        {EV_DISCONNECTED,       0,   0,  NULL},
-        {EV_DROP,               EVF_PUBLIC_EVENT,   0,  NULL},
-        {EV_TIMEOUT,            0,   0,  NULL},
-        {EV_TX_READY,           0,   0,  NULL},
-        {EV_STOPPED,            0,   0,  NULL},
-        {EV_ON_OPEN,            EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT,   0,  NULL},
-        {EV_ON_CLOSE,           EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT,   0,  NULL},
-        {EV_ON_MESSAGE,         EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT,   0,  NULL},
-        {NULL, 0,   0,  NULL}
+        {EV_RX_DATA,            0}, // TODO is necessary to define the internal or input events?
+        {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
+        {EV_CONNECTED,          0},
+        {EV_DISCONNECTED,       0},
+        {EV_DROP,               EVF_PUBLIC_EVENT},
+        {EV_TIMEOUT,            0},
+        {EV_TX_READY,           0},
+        {EV_STOPPED,            0},
+        {EV_ON_OPEN,            EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {EV_ON_CLOSE,           EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {EV_ON_MESSAGE,         EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {NULL, 0}
     };
 
     /*----------------------------------------*

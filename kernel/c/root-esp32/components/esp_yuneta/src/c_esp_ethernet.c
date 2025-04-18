@@ -774,15 +774,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_ETHERNET_START,             0,  0,  NULL},
-        {EV_ETHERNET_STOP,              0,  0,  NULL},
-        {EV_ETHERNET_LINK_UP,           EVF_OUTPUT_EVENT,  0,  NULL},
-        {EV_ETHERNET_LINK_DOWN,         EVF_OUTPUT_EVENT,  0,  NULL},
-        {EV_ETHERNET_GOT_IP,            0,  0,  NULL},
-        {EV_ETHERNET_LOST_IP,           0,  0,  NULL},
-        {EV_ETHERNET_ON_OPEN,           EVF_OUTPUT_EVENT,  0,  NULL},
-        {EV_ETHERNET_ON_CLOSE,          EVF_OUTPUT_EVENT,  0,  NULL},
-        {0, 0,  0,  NULL}
+        {EV_ETHERNET_START,             0},
+        {EV_ETHERNET_STOP,              0},
+        {EV_ETHERNET_LINK_UP,           EVF_OUTPUT_EVENT},
+        {EV_ETHERNET_LINK_DOWN,         EVF_OUTPUT_EVENT},
+        {EV_ETHERNET_GOT_IP,            0},
+        {EV_ETHERNET_LOST_IP,           0},
+        {EV_ETHERNET_ON_OPEN,           EVF_OUTPUT_EVENT},
+        {EV_ETHERNET_ON_CLOSE,          EVF_OUTPUT_EVENT},
+        {0, 0}
     };
 
 

@@ -621,24 +621,13 @@ typedef enum { // HACK strict ascendant value!, strings in event_flag_names[]
     EVF_OUTPUT_EVENT    = 0x0002,   // Output Event
     EVF_SYSTEM_EVENT    = 0x0004,   // System Event
     EVF_PUBLIC_EVENT    = 0x0008,   // You should document a public event, it's the API
+    EVF_AUTHZ_INJECT    = 0x0010,   // Event needs '__inject_event__' authorization to be injected
+    EVF_AUTHZ_SUBSCRIBE = 0x0020,   // Event needs '__subscribe_event__' authorization to be subscribed
 } event_flag_t;
-
-typedef enum { // HACK strict ascendant value!, strings in event_authz_names[]
-    AUTHZ_INJECT    = 0x0001,   // Event needs '__inject_event__' authorization to be injected
-    AUTHZ_SUBSCRIBE = 0x0002,   // Event needs '__subscribe_event__' authorization to be subscribed
-    AUTHZ_CREATE    = 0x0004,   // "create" authorization
-    AUTHZ_READ      = 0x0008,   // "read" authorization
-    AUTHZ_UPDATE    = 0x0010,   // "update" authorization
-    AUTHZ_DELETE    = 0x0020,   // "delete" authorization
-    AUTHZ_LINK      = 0x0040,   // "link" authorization
-    AUTHZ_UNLINK    = 0x0080,   // "unlink" authorization
-} event_authz_t;
 
 typedef struct event_type_s {
     gobj_event_t event_name;
     event_flag_t event_flag;
-    event_authz_t event_authz;
-    const char *description;
 } event_type_t;
 
 /*

@@ -1381,9 +1381,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_OPEN_TREEDB,        EVF_PUBLIC_EVENT,   0,  NULL},
-        {EV_CLOSE_TREEDB,       EVF_PUBLIC_EVENT,   0,  NULL},
-        {0, 0,   0,  NULL}
+        {EV_OPEN_TREEDB,        EVF_PUBLIC_EVENT},
+        {EV_CLOSE_TREEDB,       EVF_PUBLIC_EVENT},
+        {0, 0}
     };
 
     /*----------------------------------------*
