@@ -137,7 +137,7 @@ PRIVATE const sdata_desc_t pm_list_commands[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gclass_name",  0,              0,          "gclass-name"),
 SDATAPM (DTP_STRING,    "gclass",       0,              0,          "gclass-name"),
-SDATAPM (DTP_INTEGER,   "details",      0,              0,          "0 show only names, >0 show details"),
+SDATAPM (DTP_INTEGER,   "details",      0,              0,          "0 show only names, 1 show details"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_wr_attr[] = {
