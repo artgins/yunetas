@@ -6733,7 +6733,7 @@ PRIVATE json_t *events2json(dl_list_t *dl_events)
         event_flag_t event_flag = event->event_type.event_flag;
 
         json_t *jn_ev = json_object();
-        json_object_set_new(jn_ev, "id", json_string(event_name));
+        json_object_set_new(jn_ev, "event_name", json_string(event_name));
 
         json_object_set_new(
             jn_ev,
@@ -6772,18 +6772,11 @@ PRIVATE json_t *states2json(dl_list_t *dl_states)
             gobj_action_fn action = event_action->action;
             gobj_state_t next_state = event_action->next_state;
 
-            json_t *jn_ac = json_array();
-            json_array_append_new(jn_ac, json_string(event_name));
-            if(action) {
-                json_array_append_new(jn_ac, json_string("ac_action"));
-            } else {
-                json_array_append_new(jn_ac, json_integer(0));
-            }
-            if(next_state) {
-                json_array_append_new(jn_ac, json_string(next_state));
-            } else {
-                json_array_append_new(jn_ac, json_integer(0));
-            }
+            json_t *jn_ac = json_object();
+            json_object_set_new(jn_ac, "event_name", json_string(event_name));
+            json_object_set_new(jn_ac, "action", json_string(action?"action":""));
+            json_object_set_new(jn_ac, "next_state", json_string(next_state?next_state:""));
+
             json_array_append_new(jn_st, jn_ac);
 
             /*
