@@ -1612,10 +1612,12 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_remote_log(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    const char *msg = kw_get_str(gobj, kw, "msg", "", 0);
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_APP_ERROR,
         "msg",          "%s", "Remote Error",
+        "remote msg",   "%s", msg,
         NULL
     );
     gobj_trace_json(gobj, kw, "Remote Error");
