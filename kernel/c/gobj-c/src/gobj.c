@@ -6876,7 +6876,7 @@ PUBLIC json_t *gclass2json(hgclass gclass_)
         fsm2json(gclass)
     );
 
-    // json_object_set_new( TODO make a command to see this
+    // json_object_set_new( TODO make a command to see global authz
      //     jn_dict,
      //     "Authzs global",
      //     sdataauth2json(global_authz_table)
