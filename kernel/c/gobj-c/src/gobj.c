@@ -8480,7 +8480,7 @@ PUBLIC int gobj_publish_event(
         }
     }
 
-    BOOL tracea = __trace_gobj_subscriptions__(publisher) &&
+    BOOL tracea = (__trace_gobj_subscriptions__(publisher) || is_machine_tracing(publisher, event)) &&
         !is_machine_not_tracing(publisher, event);
     if(tracea) {
         trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",

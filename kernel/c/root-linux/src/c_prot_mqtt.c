@@ -52,6 +52,7 @@
 #define PROTOCOL_VERSION_v5 5
 
 #define TOPIC_HIERARCHY_LIMIT 200
+#define TOPIC_MAX 4000
 
 #define SAFE_PRINT(A) (A)?(A):""
 
@@ -4045,25 +4046,25 @@ PRIVATE int send_publish(
  * Also returns MOSQ_ERR_INVAL if the topic string is too long.
  * Returns MOSQ_ERR_SUCCESS if everything is fine.
  ***************************************************************************/
-PRIVATE int mosquitto_pub_topic_check(const char *str)
+PRIVATE int mosquitto_pub_topic_check(const char *topic)
 {
     int len = 0;
     int hier_count = 0;
 
-    if(str == NULL) {
+    if(topic == NULL) {
         return -1;
     }
-
-    while(str && str[0]) {
-        if(str[0] == '+' || str[0] == '#') {
+    const char *str = topic;
+    while(str && *str) {
+        if(*str == '+' || *str == '#') {
             return MOSQ_ERR_INVAL;
-        } else if(str[0] == '/') {
+        } else if(*str == '/') {
             hier_count++;
         }
         len++;
-        str = &str[1];
+        str++;
     }
-    if(len > 65535) {
+    if(len > TOPIC_MAX) {
         return -1;
     }
     if(hier_count > TOPIC_HIERARCHY_LIMIT) {
