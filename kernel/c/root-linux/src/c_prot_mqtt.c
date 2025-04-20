@@ -8019,6 +8019,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "msg",          "%s", "Mqtt properties and not mqtt5",
             NULL
         );
+        KW_DECREF(kw)
         return MOSQ_ERR_NOT_SUPPORTED;
     }
 
@@ -8043,6 +8044,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "msg",          "%s", "Mqtt malformed utf8",
             NULL
         );
+        KW_DECREF(kw)
         return MOSQ_ERR_MALFORMED_UTF8;
     }
     if(payloadlen < 0 || payloadlen > (int)MQTT_MAX_PAYLOAD) {
@@ -8052,6 +8054,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "msg",          "%s", "Mqtt payload size",
             NULL
         );
+        KW_DECREF(kw)
         return MOSQ_ERR_PAYLOAD_SIZE;
     }
     if(mosquitto_pub_topic_check(topic_name) != MOSQ_ERR_SUCCESS) {
@@ -8061,6 +8064,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
             "msg",          "%s", "Mqtt topic check failed",
             NULL
         );
+        KW_DECREF(kw)
         return MOSQ_ERR_INVAL;
     }
 
@@ -8077,6 +8081,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
                 "msg",          "%s", "Mqtt oversize packet",
                 NULL
             );
+            KW_DECREF(kw)
             return MOSQ_ERR_OVERSIZE_PACKET;
         }
     }
