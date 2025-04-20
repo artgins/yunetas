@@ -307,77 +307,78 @@ PRIVATE const char *a_pers_attrs[] = {"persistent-attrs", 0};
 PRIVATE const sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------------------alias---items-------json_fn---------------------description*/
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,                   "Command's help"),
-
-SDATACM (DTP_SCHEMA,    "info-cpus",                0,      0,          cmd_info_cpus,              "Info of cpus"),
-SDATACM (DTP_SCHEMA,    "info-ifs",                 0,      0,          cmd_info_ifs,               "Info of ifs"),
-SDATACM (DTP_SCHEMA,    "info-os",                  0,      0,          cmd_info_os,                "Info os"),
-SDATACM (DTP_SCHEMA,    "list-allowed-ips",         0,      0,          cmd_list_allowed_ips,       "List allowed ips"),
-SDATACM (DTP_SCHEMA,    "add-allowed-ip",           0,      pm_add_allowed_ip,  cmd_add_allowed_ip, "Add a ip to allowed list"),
-SDATACM (DTP_SCHEMA,    "remove-allowed-ip",        0,      pm_remove_allowed_ip, cmd_remove_allowed_ip, "Add a ip to allowed list"),
-SDATACM (DTP_SCHEMA,    "list-denied-ips",          0,      0,          cmd_list_denied_ips,        "List denied ips"),
-SDATACM (DTP_SCHEMA,    "add-denied-ip",            0,      pm_add_denied_ip, cmd_add_denied_ip,    "Add a ip to denied list"),
-SDATACM (DTP_SCHEMA,    "remove-denied-ip",         0,      pm_remove_denied_ip, cmd_remove_denied_ip, "Add a ip to denied list"),
-SDATACM (DTP_SCHEMA,    "system-schema",            0,      0, cmd_system_topic_schema,             "Get system topic schema"),
-SDATACM (DTP_SCHEMA,    "global-variables",         0,      0, cmd_global_variables,                "Get global variables"),
-
 SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_authzs,                 "Authorization's help"),
-SDATACM (DTP_SCHEMA,    "trunk-rotatory-file",      0,      0,          cmd_trunk_rotatory_file,    "Trunk rotatory files"),
-SDATACM (DTP_SCHEMA,    "set-autokill",             0,      pm_set_autokill,cmd_set_autokill,       "Set time to autokill, in seconds"),
-SDATACM (DTP_SCHEMA,    "reset-log-counters",       0,      0,          cmd_reset_log_counters,     "Reset log counters"),
-SDATACM (DTP_SCHEMA,    "view-log-counters",        0,      0,          cmd_view_log_counters,      "View log counters"),
-SDATACM (DTP_SCHEMA,    "add-log-handler",          0,      pm_add_log_handler,cmd_add_log_handler, "Add log handler"),
-SDATACM (DTP_SCHEMA,    "delete-log-handler",       0,      pm_del_log_handler,cmd_del_log_handler, "Delete log handler"),
-SDATACM (DTP_SCHEMA,    "list-log-handlers",        0,      0,          cmd_list_log_handlers,      "List log handlers"),
 
-SDATACM (DTP_SCHEMA,    "view-gclass-register",     0,      0,          cmd_view_gclass_register,   "View gclass's register"),
-SDATACM (DTP_SCHEMA,    "view-service-register",    a_services,0,cmd_view_service_register,         "View service's register"),
+/*-CMD2---type----------name------------------------flag---------alias---items-------json_fn-------------description--*/
+SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,          cmd_info_cpus,              "Info of cpus"),
+SDATACM2(DTP_SCHEMA,    "info-ifs",                 SDF_AUTHZ_X, 0,      0,          cmd_info_ifs,               "Info of ifs"),
+SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os"),
+SDATACM2(DTP_SCHEMA,    "list-allowed-ips",         SDF_AUTHZ_X, 0,      0,          cmd_list_allowed_ips,       "List allowed ips"),
+SDATACM2(DTP_SCHEMA,    "add-allowed-ip",           SDF_AUTHZ_X, 0,      pm_add_allowed_ip,  cmd_add_allowed_ip, "Add a ip to allowed list"),
+SDATACM2(DTP_SCHEMA,    "remove-allowed-ip",        SDF_AUTHZ_X, 0,      pm_remove_allowed_ip, cmd_remove_allowed_ip, "Add a ip to allowed list"),
+SDATACM2(DTP_SCHEMA,    "list-denied-ips",          SDF_AUTHZ_X, 0,      0,          cmd_list_denied_ips,        "List denied ips"),
+SDATACM2(DTP_SCHEMA,    "add-denied-ip",            SDF_AUTHZ_X, 0,      pm_add_denied_ip, cmd_add_denied_ip,    "Add a ip to denied list"),
+SDATACM2(DTP_SCHEMA,    "remove-denied-ip",         SDF_AUTHZ_X, 0,      pm_remove_denied_ip, cmd_remove_denied_ip, "Add a ip to denied list"),
+SDATACM2(DTP_SCHEMA,    "system-schema",            SDF_AUTHZ_X, 0,      0, cmd_system_topic_schema,             "Get system topic schema"),
+SDATACM2(DTP_SCHEMA,    "global-variables",         SDF_AUTHZ_X, 0,      0, cmd_global_variables,                "Get global variables"),
 
-SDATACM (DTP_SCHEMA,    "write-attr",               0,      pm_wr_attr, cmd_write_attr,             "Write a writable attribute)"),
-SDATACM (DTP_SCHEMA,    "view-attrs",               a_read_attrs,pm_gobj_def_name, cmd_view_attrs,  "View gobj's attrs"),
-SDATACM (DTP_SCHEMA,    "view-attrs-schema",        a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,"View gobj's attrs schema"),
+SDATACM2(DTP_SCHEMA,    "trunk-rotatory-file",      SDF_AUTHZ_X, 0,      0,          cmd_trunk_rotatory_file,    "Trunk rotatory files"),
+SDATACM2(DTP_SCHEMA,    "set-autokill",             SDF_AUTHZ_X, 0,      pm_set_autokill,cmd_set_autokill,       "Set time to autokill, in seconds"),
+SDATACM2(DTP_SCHEMA,    "reset-log-counters",       SDF_AUTHZ_X, 0,      0,          cmd_reset_log_counters,     "Reset log counters"),
+SDATACM2(DTP_SCHEMA,    "view-log-counters",        SDF_AUTHZ_X, 0,      0,          cmd_view_log_counters,      "View log counters"),
+SDATACM2(DTP_SCHEMA,    "add-log-handler",          SDF_AUTHZ_X, 0,      pm_add_log_handler,cmd_add_log_handler, "Add log handler"),
+SDATACM2(DTP_SCHEMA,    "delete-log-handler",       SDF_AUTHZ_X, 0,      pm_del_log_handler,cmd_del_log_handler, "Delete log handler"),
+SDATACM2(DTP_SCHEMA,    "list-log-handlers",        SDF_AUTHZ_X, 0,      0,          cmd_list_log_handlers,      "List log handlers"),
 
-SDATACM (DTP_SCHEMA,    "view-mem",                 0,      0,          cmd_view_mem,               "View yuno memory"),
+SDATACM2(DTP_SCHEMA,    "view-gclass-register",     SDF_AUTHZ_X, 0,      0,          cmd_view_gclass_register,   "View gclass's register"),
+SDATACM2(DTP_SCHEMA,    "view-service-register",    SDF_AUTHZ_X, a_services,0,cmd_view_service_register,         "View service's register"),
 
-SDATACM (DTP_SCHEMA,    "view-gclass",              0,      pm_gclass_name, cmd_view_gclass,        "View gclass description"),
-SDATACM (DTP_SCHEMA,    "view-gobj",                0,      pm_gobj_def_name, cmd_view_gobj,        "View gobj"),
+SDATACM2(DTP_SCHEMA,    "write-attr",               SDF_AUTHZ_X, 0,      pm_wr_attr, cmd_write_attr,             "Write a writable attribute)"),
+SDATACM2(DTP_SCHEMA,    "view-attrs",               SDF_AUTHZ_X, a_read_attrs,pm_gobj_def_name, cmd_view_attrs,  "View gobj's attrs"),
+SDATACM2(DTP_SCHEMA,    "view-attrs-schema",        SDF_AUTHZ_X, a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,"View gobj's attrs schema"),
 
-SDATACM (DTP_SCHEMA,    "view-gobj-tree",           0,      pm_gobj_tree,cmd_view_gobj_tree,        "View gobj tree"),
+SDATACM2(DTP_SCHEMA,    "view-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_view_mem,               "View yuno memory"),
 
-SDATACM (DTP_SCHEMA,    "enable-gobj",              0,      pm_gobj_def_name,cmd_enable_gobj,       "Enable named-gobj, exec own mt_enable() or gobj_start_tree()"),
-SDATACM (DTP_SCHEMA,    "disable-gobj",             0,      pm_gobj_def_name,cmd_disable_gobj,      "Disable named-gobj, exec own mt_disable() or gobj_stop_tree()"),
+SDATACM2(DTP_SCHEMA,    "view-gclass",              SDF_AUTHZ_X, 0,      pm_gclass_name, cmd_view_gclass,        "View gclass description"),
+SDATACM2(DTP_SCHEMA,    "view-gobj",                SDF_AUTHZ_X, 0,      pm_gobj_def_name, cmd_view_gobj,        "View gobj"),
 
-SDATACM (DTP_SCHEMA,    "list-persistent-attrs",    a_pers_attrs,pm_list_persistent_attrs,cmd_list_persistent_attrs,  "List persistent attributes of yuno"),
-SDATACM (DTP_SCHEMA,    "remove-persistent-attrs",  0,      pm_remove_persistent_attrs,cmd_remove_persistent_attrs,  "List persistent attributes of yuno"),
+SDATACM2(DTP_SCHEMA,    "view-gobj-tree",           SDF_AUTHZ_X, 0,      pm_gobj_tree,cmd_view_gobj_tree,        "View gobj tree"),
 
-SDATACM (DTP_SCHEMA,    "list-subscriptions",       0,      pm_list_subscriptions,cmd_list_subscriptions,          "List subscriptions [of __default_service__]"),
+SDATACM2(DTP_SCHEMA,    "enable-gobj",              SDF_AUTHZ_X, 0,      pm_gobj_def_name,cmd_enable_gobj,       "Enable named-gobj, exec own mt_enable() or gobj_start_tree()"),
+SDATACM2(DTP_SCHEMA,    "disable-gobj",             SDF_AUTHZ_X, 0,      pm_gobj_def_name,cmd_disable_gobj,      "Disable named-gobj, exec own mt_disable() or gobj_stop_tree()"),
 
-SDATACM (DTP_SCHEMA,    "list-subscribings",        0,      pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
+SDATACM2(DTP_SCHEMA,    "list-persistent-attrs",    SDF_AUTHZ_X, a_pers_attrs,pm_list_persistent_attrs,cmd_list_persistent_attrs,  "List persistent attributes of yuno"),
+SDATACM2(DTP_SCHEMA,    "remove-persistent-attrs",  SDF_AUTHZ_X, 0,      pm_remove_persistent_attrs,cmd_remove_persistent_attrs,  "List persistent attributes of yuno"),
 
-SDATACM (DTP_SCHEMA,    "list-gclass-commands",     0,      pm_list_gclass_commands, cmd_list_gclass_commands,          "List commands of gclass's"),
+SDATACM2(DTP_SCHEMA,    "list-subscriptions",       SDF_AUTHZ_X, 0,      pm_list_subscriptions,cmd_list_subscriptions,          "List subscriptions [of __default_service__]"),
 
-SDATACM (DTP_SCHEMA,    "list-gobj-commands",       0,      pm_list_gobj_commands, cmd_list_gobj_commands,          "List commands of gobj and bottoms"),
+SDATACM2(DTP_SCHEMA,    "list-subscribings",        SDF_AUTHZ_X, 0,      pm_list_subscriptions,cmd_list_subscribings,          "List subscribings [of __default_service__]"),
 
-SDATACM (DTP_SCHEMA,    "info-global-trace",        0,      0, cmd_info_global_trace,  "Info of global trace levels"),
-SDATACM (DTP_SCHEMA,    "info-gclass-trace",        0,      pm_gclass_name, cmd_info_gclass_trace,  "Info of class's trace levels"),
+SDATACM2(DTP_SCHEMA,    "list-gclass-commands",     SDF_AUTHZ_X, 0,      pm_list_gclass_commands, cmd_list_gclass_commands,          "List commands of gclass's"),
 
-SDATACM (DTP_SCHEMA,    "get-global-trace",         0,      0, cmd_get_global_trace,   "Get global trace levels"),
-SDATACM (DTP_SCHEMA,    "set-global-trace",         0,      pm_set_global_tr,cmd_set_global_trace,  "Set global trace level"),
+SDATACM2(DTP_SCHEMA,    "list-gobj-commands",       SDF_AUTHZ_X, 0,      pm_list_gobj_commands, cmd_list_gobj_commands,          "List commands of gobj and bottoms"),
 
-SDATACM (DTP_SCHEMA,    "get-gclass-trace",         0,      pm_gclass_name, cmd_get_gclass_trace,   "Get gclass' trace"),
-SDATACM (DTP_SCHEMA,    "set-gclass-trace",         0,      pm_set_gclass_tr,cmd_set_gclass_trace,  "Set trace of a gclass)"),
-SDATACM (DTP_SCHEMA,    "get-gclass-no-trace",      0,      pm_gclass_name, cmd_get_gclass_no_trace,"Get no gclass' trace"),
-SDATACM (DTP_SCHEMA,    "set-gclass-no-trace",      0,      pm_set_gclass_tr,cmd_set_no_gclass_trace,"Set no-trace of a gclass)"),
+SDATACM2(DTP_SCHEMA,    "info-global-trace",        SDF_AUTHZ_X, 0,      0, cmd_info_global_trace,  "Info of global trace levels"),
+SDATACM2(DTP_SCHEMA,    "info-gclass-trace",        SDF_AUTHZ_X, 0,      pm_gclass_name, cmd_info_gclass_trace,  "Info of class's trace levels"),
 
-SDATACM (DTP_SCHEMA,    "get-gobj-trace",           0,      pm_gobj_root_name, cmd_get_gobj_trace,   "Get gobj's trace and his children"),
-SDATACM (DTP_SCHEMA,    "set-gobj-trace",           0,      pm_set_gobj_tr, cmd_set_gobj_trace,      "Set trace of a named-gobj"),
-SDATACM (DTP_SCHEMA,    "get-gobj-no-trace",        0,      pm_gobj_root_name, cmd_get_gobj_no_trace,"Get no gobj's trace  and his children"),
-SDATACM (DTP_SCHEMA,    "set-gobj-no-trace",        0,      pm_set_gobj_tr, cmd_set_no_gobj_trace,   "Set no-trace of a named-gobj"),
+SDATACM2(DTP_SCHEMA,    "get-global-trace",         SDF_AUTHZ_X, 0,      0, cmd_get_global_trace,   "Get global trace levels"),
+SDATACM2(DTP_SCHEMA,    "set-global-trace",         SDF_AUTHZ_X, 0,      pm_set_global_tr,cmd_set_global_trace,  "Set global trace level"),
 
-SDATACM (DTP_SCHEMA,    "set-trace-filter",         0,      pm_set_trace_filter, cmd_set_trace_filter,"Set a gclass trace filter"),
-SDATACM (DTP_SCHEMA,    "get-trace-filter",         0,      0, cmd_get_trace_filter, "Get trace filters"),
+SDATACM2(DTP_SCHEMA,    "get-gclass-trace",         SDF_AUTHZ_X, 0,      pm_gclass_name, cmd_get_gclass_trace,   "Get gclass' trace"),
+SDATACM2(DTP_SCHEMA,    "set-gclass-trace",         SDF_AUTHZ_X, 0,      pm_set_gclass_tr,cmd_set_gclass_trace,  "Set trace of a gclass)"),
+SDATACM2(DTP_SCHEMA,    "get-gclass-no-trace",      SDF_AUTHZ_X, 0,      pm_gclass_name, cmd_get_gclass_no_trace,"Get no gclass' trace"),
+SDATACM2(DTP_SCHEMA,    "set-gclass-no-trace",      SDF_AUTHZ_X, 0,      pm_set_gclass_tr,cmd_set_no_gclass_trace,"Set no-trace of a gclass)"),
 
-SDATACM (DTP_SCHEMA,    "reset-all-traces",         0,      pm_reset_all_tr, cmd_reset_all_traces,    "Reset all traces of a named-gobj of gclass"),
-SDATACM (DTP_SCHEMA,    "set-deep-trace",           0,      pm_set_deep_trace,cmd_set_deep_trace,   "Set deep trace, all traces active"),
+SDATACM2(DTP_SCHEMA,    "get-gobj-trace",           SDF_AUTHZ_X, 0,      pm_gobj_root_name, cmd_get_gobj_trace,   "Get gobj's trace and his children"),
+SDATACM2(DTP_SCHEMA,    "set-gobj-trace",           SDF_AUTHZ_X, 0,      pm_set_gobj_tr, cmd_set_gobj_trace,      "Set trace of a named-gobj"),
+SDATACM2(DTP_SCHEMA,    "get-gobj-no-trace",        SDF_AUTHZ_X, 0,      pm_gobj_root_name, cmd_get_gobj_no_trace,"Get no gobj's trace  and his children"),
+SDATACM2(DTP_SCHEMA,    "set-gobj-no-trace",        SDF_AUTHZ_X, 0,      pm_set_gobj_tr, cmd_set_no_gobj_trace,   "Set no-trace of a named-gobj"),
+
+SDATACM2(DTP_SCHEMA,    "set-trace-filter",         SDF_AUTHZ_X, 0,      pm_set_trace_filter, cmd_set_trace_filter,"Set a gclass trace filter"),
+SDATACM2(DTP_SCHEMA,    "get-trace-filter",         SDF_AUTHZ_X, 0,      0, cmd_get_trace_filter, "Get trace filters"),
+
+SDATACM2(DTP_SCHEMA,    "reset-all-traces",         SDF_AUTHZ_X, 0,      pm_reset_all_tr, cmd_reset_all_traces,    "Reset all traces of a named-gobj of gclass"),
+SDATACM2(DTP_SCHEMA,    "set-deep-trace",           SDF_AUTHZ_X, 0,      pm_set_deep_trace,cmd_set_deep_trace,   "Set deep trace, all traces active"),
 
 SDATA_END()
 };
