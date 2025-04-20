@@ -555,13 +555,12 @@ SDATA_END()
 PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
-/*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM (DTP_SCHEMA,    "list-topics",      0,                  0,              cmd_list_topics, "List topics"),
-SDATACM (DTP_SCHEMA,    "list-clients",     0,                  0,              cmd_list_clients, "List clients"),
-SDATACM (DTP_SCHEMA,    "list-users",       0,                  0,              cmd_list_users, "List users"),
-SDATACM (DTP_SCHEMA,    "create-user",      0,                  pm_create_user, cmd_create_user, "Create user"),
-
+/*-CMD---type-----------name------------flag------------alias---items-----------json_fn---------description---------- */
+SDATACM2(DTP_SCHEMA,    "help",         0,              a_help, pm_help,        cmd_help,       "Command's help"),
+SDATACM2(DTP_SCHEMA,    "list-topics",  SDF_AUTHZ_X,    0,      0,              cmd_list_topics, "List topics"),
+SDATACM2(DTP_SCHEMA,    "list-clients", SDF_AUTHZ_X,    0,      0,              cmd_list_clients, "List clients"),
+SDATACM2(DTP_SCHEMA,    "list-users",   SDF_AUTHZ_X,    0,      0,              cmd_list_users, "List users"),
+SDATACM2(DTP_SCHEMA,    "create-user",  SDF_AUTHZ_X,    0,      pm_create_user, cmd_create_user, "Create user"),
 SDATA_END()
 };
 

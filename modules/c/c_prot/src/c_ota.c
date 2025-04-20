@@ -73,7 +73,7 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE const sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
-SDATACM (DTP_SCHEMA,    "download-firmware",0,          pm_download_firmware,cmd_download_firmware,"Download and install new firmware. When connected to controlcenter will be validated."),
+SDATACM2(DTP_SCHEMA,    "download-firmware",SDF_AUTHZ_X,0, pm_download_firmware,cmd_download_firmware,"Download and install new firmware. When connected to controlcenter will be validated."),
 SDATA_END()
 };
 

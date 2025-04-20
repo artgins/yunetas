@@ -178,22 +178,22 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help, pm_help,        cmd_help,       "Command's help"),
-
-SDATACM (DTP_SCHEMA,    "list-iss",         0,      0,              cmd_list_iss,   "List OAuth2 Issuers"),
-SDATACM (DTP_SCHEMA,    "add-iss",          0,      pm_add_iss,     cmd_add_iss,    "Add OAuth2 Issuer"),
-SDATACM (DTP_SCHEMA,    "remove-iss",       0,      pm_rm_iss,      cmd_remove_iss, "Remove OAuth2 Issuer"),
-SDATACM (DTP_SCHEMA,    "enable-iss",       0,      pm_rm_iss,      cmd_enable_iss, "Enable OAuth2 Issuer"),
-SDATACM (DTP_SCHEMA,    "disable-iss",      0,      pm_rm_iss,      cmd_disable_iss,"Disable OAuth2 Issuer"),
-
 SDATACM (DTP_SCHEMA,    "authzs",           0,      pm_authzs,      cmd_authzs,     "Authorization's help"),
-SDATACM (DTP_SCHEMA,    "users",            0,      pm_users,       cmd_users,      "List users"),
-SDATACM (DTP_SCHEMA,    "accesses",         0,      pm_users,       cmd_accesses,   "List user accesses"),
-SDATACM (DTP_SCHEMA,    "create-user",      0,      pm_create_user, cmd_create_user,"Create or update user (see ROLE format)"),
-SDATACM (DTP_SCHEMA,    "enable-user",      0,      pm_enable_user, cmd_enable_user,"Enable user"),
-SDATACM (DTP_SCHEMA,    "disable-user",     0,      pm_disable_user,cmd_disable_user,"Disable user"),
-SDATACM (DTP_SCHEMA,    "roles",            0,      pm_roles,       cmd_roles,      "List roles"),
-SDATACM (DTP_SCHEMA,    "user-roles",       0,      pm_user_roles,  cmd_user_roles, "Get roles of user"),
-SDATACM (DTP_SCHEMA,    "user-authzs",      0,      pm_user_authzs, cmd_user_authzs,"Get permissions of user"),
+
+/*-CMD2---type----------name------------flag------------alias---items---------------json_fn-------------description--*/
+SDATACM2(DTP_SCHEMA,    "list-iss",     SDF_AUTHZ_X,    0,      0,              cmd_list_iss,   "List OAuth2 Issuers"),
+SDATACM2(DTP_SCHEMA,    "add-iss",      SDF_AUTHZ_X,    0,      pm_add_iss,     cmd_add_iss,    "Add OAuth2 Issuer"),
+SDATACM2(DTP_SCHEMA,    "remove-iss",   SDF_AUTHZ_X,    0,      pm_rm_iss,      cmd_remove_iss, "Remove OAuth2 Issuer"),
+SDATACM2(DTP_SCHEMA,    "enable-iss",   SDF_AUTHZ_X,    0,      pm_rm_iss,      cmd_enable_iss, "Enable OAuth2 Issuer"),
+SDATACM2(DTP_SCHEMA,    "disable-iss",  SDF_AUTHZ_X,    0,      pm_rm_iss,      cmd_disable_iss,"Disable OAuth2 Issuer"),
+SDATACM2(DTP_SCHEMA,    "users",        SDF_AUTHZ_X,    0,      pm_users,       cmd_users,      "List users"),
+SDATACM2(DTP_SCHEMA,    "accesses",     SDF_AUTHZ_X,    0,      pm_users,       cmd_accesses,   "List user accesses"),
+SDATACM2(DTP_SCHEMA,    "create-user",  SDF_AUTHZ_X,    0,      pm_create_user, cmd_create_user,"Create or update user (see ROLE format)"),
+SDATACM2(DTP_SCHEMA,    "enable-user",  SDF_AUTHZ_X,    0,      pm_enable_user, cmd_enable_user,"Enable user"),
+SDATACM2(DTP_SCHEMA,    "disable-user", SDF_AUTHZ_X,    0,      pm_disable_user,cmd_disable_user,"Disable user"),
+SDATACM2(DTP_SCHEMA,    "roles",        SDF_AUTHZ_X,    0,      pm_roles,       cmd_roles,      "List roles"),
+SDATACM2(DTP_SCHEMA,    "user-roles",   SDF_AUTHZ_X,    0,      pm_user_roles,  cmd_user_roles, "Get roles of user"),
+SDATACM2(DTP_SCHEMA,    "user-authzs",  SDF_AUTHZ_X,    0,      pm_user_authzs, cmd_user_authzs,"Get permissions of user"),
 SDATA_END()
 };
 

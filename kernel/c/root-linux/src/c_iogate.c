@@ -65,12 +65,13 @@ PRIVATE sdata_desc_t command_table[] = {
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,        cmd_help,               "Available commands or help about a command."),
 SDATACM (DTP_SCHEMA,    "",                         0,      0,              0,                      "\nDeploy\n-----------"),
 SDATACM (DTP_SCHEMA,    "",                         0,      0,              0,                      "\nOperation\n-----------"),
-SDATACM (DTP_SCHEMA,    "view-channels",            0,      pm_channel,     cmd_view_channels,      "View channels."),
-SDATACM (DTP_SCHEMA,    "enable-channel",           0,      pm_channel,     cmd_enable_channels,    "Enable channel."),
-SDATACM (DTP_SCHEMA,    "disable-channel",          0,      pm_channel,     cmd_disable_channels,   "Disable channel."),
-SDATACM (DTP_SCHEMA,    "trace-on-channel",         0,      pm_channel,     cmd_trace_on_channels, "Trace on channel."),
-SDATACM (DTP_SCHEMA,    "trace-off-channel",        0,      pm_channel,     cmd_trace_off_channels,"Trace off channel."),
-SDATACM (DTP_SCHEMA,    "reset-stats-channel",      0,      pm_channel,     cmd_reset_stats_channels,"Reset stats of channel."),
+/*-CMD2---type----------name--------------------flag------------ali-items---------------json_fn-------------description--*/
+SDATACM2(DTP_SCHEMA,    "view-channels",        SDF_AUTHZ_X,    0,  pm_channel,     cmd_view_channels,      "View channels."),
+SDATACM2(DTP_SCHEMA,    "enable-channel",       SDF_AUTHZ_X,    0,  pm_channel,     cmd_enable_channels,    "Enable channel."),
+SDATACM2(DTP_SCHEMA,    "disable-channel",      SDF_AUTHZ_X,    0,  pm_channel,     cmd_disable_channels,   "Disable channel."),
+SDATACM2(DTP_SCHEMA,    "trace-on-channel",     SDF_AUTHZ_X,    0,  pm_channel,     cmd_trace_on_channels, "Trace on channel."),
+SDATACM2(DTP_SCHEMA,    "trace-off-channel",    SDF_AUTHZ_X,    0,  pm_channel,     cmd_trace_off_channels,"Trace off channel."),
+SDATACM2(DTP_SCHEMA,    "reset-stats-channel",  SDF_AUTHZ_X,    0,  pm_channel,     cmd_reset_stats_channels,"Reset stats of channel."),
 SDATA_END()
 };
 

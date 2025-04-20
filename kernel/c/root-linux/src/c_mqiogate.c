@@ -57,7 +57,7 @@ SDATA_END()
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
-SDATACM (DTP_SCHEMA,    "view-channels",    0,          pm_channel,     cmd_view_channels,"View channels."),
+SDATACM2(DTP_SCHEMA,    "view-channels",    SDF_AUTHZ_X,0,pm_channel,   cmd_view_channels,"View channels."),
 SDATA_END()
 };
 

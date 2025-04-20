@@ -67,8 +67,8 @@ PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-----------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,         pm_help,        cmd_help,       "Command's help"),
 
-SDATACM (DTP_SCHEMA,    "queue_mark_pending",   0,          pm_queue,       cmd_queue_mark_pending, "Mark selected messages as pending (Will be resend)."),
-SDATACM (DTP_SCHEMA,    "queue_mark_notpending", 0,         pm_queue,       cmd_queue_mark_notpending,"Mark selected messages as notpending (Will NOT be send or resend)."),
+SDATACM2(DTP_SCHEMA,    "queue_mark_pending", SDF_AUTHZ_X, 0,pm_queue,       cmd_queue_mark_pending, "Mark selected messages as pending (Will be resend)."),
+SDATACM2(DTP_SCHEMA,    "queue_mark_notpending", SDF_AUTHZ_X, 0, pm_queue,   cmd_queue_mark_notpending,"Mark selected messages as notpending (Will NOT be send or resend)."),
 SDATA_END()
 };
 
