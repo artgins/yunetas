@@ -70,6 +70,7 @@ New API
     gobj_subs_desc
     gobj_list_subscribings
     gobj_is_bottom_gobj
+    str2gbuf
 
 Delete API
 

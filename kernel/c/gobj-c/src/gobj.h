@@ -2639,6 +2639,14 @@ PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer using gbuffer_str
 );
 
 /*
+ *  String to a new gbuffer
+ */
+PUBLIC gbuffer_t *str2gbuf(
+    const char *fmt,
+    ...
+)  JANSSON_ATTRS((format(printf, 1, 2)));
+
+/*
  *  Json to gbuffer
  */
 PUBLIC gbuffer_t *json2gbuf(

@@ -9,6 +9,8 @@
  ***********************************************************************/
 #include <ctype.h>
 #include <errno.h>
+#include <linux/limits.h>
+
 #include "kwid.h"
 #include "helpers.h"
 
@@ -1213,6 +1215,26 @@ PUBLIC gbuffer_t *gbuffer_encode_base64( // return new gbuffer
     gbuffer_t *gbuf_output = gbuffer_string_to_base64(src, len);
     gbuffer_decref(gbuf_input);
     return gbuf_output;
+}
+
+/***************************************************************************
+ *      Dump string into a new gbuf
+ ***************************************************************************/
+PUBLIC gbuffer_t *str2gbuf(
+    const char *fmt,
+    ...
+) {
+    va_list ap;
+    char bf[PATH_MAX];
+
+    va_start(ap, fmt);
+    vsnprintf(bf, sizeof(bf), fmt, ap);
+    va_end(ap);
+
+    int len = (int)strlen(bf);
+    gbuffer_t *gbuf = gbuffer_create(len, len);
+    gbuffer_append(gbuf, bf, len);
+    return gbuf;
 }
 
 /***************************************************************************
