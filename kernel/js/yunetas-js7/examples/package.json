@@ -14,7 +14,7 @@
     "dependencies": {
         "i18next": "^24.2.2",
         "uplot": "^1.6.31",
-        "yunetas": "file:../yunetas"
+        "yunetas": "^0.2.0"
     },
     "devDependencies": {
         "@rollup/plugin-terser": "^0.4.4",
