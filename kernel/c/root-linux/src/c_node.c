@@ -789,6 +789,9 @@ PRIVATE json_t *mt_update_node( // Return is YOURS
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!jn_options) {
+        jn_options = json_object();
+    }
 
     BOOL volatil = kw_get_bool(gobj, jn_options, "volatil", 0, KW_WILD_NUMBER);
     BOOL create = kw_get_bool(gobj, jn_options, "create", 0, KW_WILD_NUMBER);
@@ -1269,6 +1272,9 @@ PRIVATE json_t *mt_list_nodes(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!jn_options) {
+        jn_options = json_object();
+    }
 
     /*-----------------------------------*
      *      Check appropriate topic
@@ -1669,6 +1675,9 @@ PRIVATE json_t *mt_node_tree(
 )
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!jn_options) {
+        jn_options = json_object();
+    }
 
     /*-----------------------------------*
      *      Check appropriate topic
