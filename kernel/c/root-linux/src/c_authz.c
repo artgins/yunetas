@@ -321,23 +321,9 @@ PRIVATE void mt_create(hgobj gobj)
     BOOL master = gobj_read_bool_attr(gobj, "master");
 
     if(empty_string(path)) {
-        /*------------------------------------*
-         *  Without path, it must be master
-         *------------------------------------*/
-        /*
-         *  Warning about bad Authz configuration
-         */
-        if(!master) {
-            gobj_log_warning(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Authz WITHOUT path must be configured as master",
-                NULL
-            );
-        }
-        master = true;
-        gobj_write_bool_attr(gobj, "master", master);
-
+        /*--------------------------------------------*
+         *  Without path, it must be master (or not)
+         *--------------------------------------------*/
         /*
          *  Set the path
          */
