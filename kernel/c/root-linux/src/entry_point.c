@@ -908,6 +908,7 @@ PRIVATE void process(
                     "index",        "%d", index,
                     NULL
                 );
+                gobj_trace_json(0, jn_service_tree, "service without name");
                 continue;
             }
             json_incref(jn_service_tree);
