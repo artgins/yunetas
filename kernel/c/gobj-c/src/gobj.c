@@ -8025,7 +8025,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
         subscriber
     );
     if(json_array_size(dl_subs) > 0) {
-        gobj_log_warning(publisher, 0,
+        gobj_log_warning(publisher, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "subscription(s) REPEATED, will be deleted and override",
