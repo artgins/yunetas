@@ -312,7 +312,7 @@ function mt_command(gobj, command, kw, src)
     let jn_ievent_id = build_cli_ievent_request(
         gobj,
         gobj_name(src),
-        kw_get_str(gobj, kw, "service", null, 0)
+        kw_get_str(gobj, kw, "service", "", 0)
     );
 
     let kw_request = json_deep_copy(kw);
