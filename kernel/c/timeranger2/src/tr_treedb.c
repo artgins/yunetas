@@ -964,7 +964,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *      __snaps__
      *------------------------------*/
     char rt_id[2*NAME_MAX];
-    if(master) {
+    if(1) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
@@ -1016,7 +1016,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *  Open "system" lists:
      *      __graphs__
      *------------------------------*/
-    if(master) {
+    if(1) {
         char path[NAME_MAX];
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
@@ -7279,6 +7279,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
             "msg",          "%s", "Topic name not found in treedbs",
             "treedb_name",  "%s", treedb_name,
             "topic_name",   "%s", topic_name,
+            "directory",    "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
             NULL
         );
         JSON_DECREF(jn_filter_)
