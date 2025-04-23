@@ -87,6 +87,19 @@ static int register_yuno_and_more(void)
      *--------------------*/
     result += register_c_test_timer0();
 
+    /*--------------------------*
+     *  Check all gclass' FSM
+     *--------------------------*/
+    yunetas_register_c_core();
+    json_t *jn_gclasses = gclass_gclass_register();
+    int idx; json_t *jn_gclass;
+    json_array_foreach(jn_gclasses, idx, jn_gclass) {
+        const char *gclass_name = kw_get_str(0, jn_gclass, "gclass", "", KW_REQUIRED);
+        hgclass gclass = gclass_find_by_name(gclass_name);
+        result += gclass_check_fsm(gclass);
+    }
+    json_decref(jn_gclasses);
+
     /*------------------------------------------------*
      *          Traces
      *------------------------------------------------*/

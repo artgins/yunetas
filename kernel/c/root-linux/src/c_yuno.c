@@ -3712,7 +3712,7 @@ PRIVATE json_t *cmd_list_gclass_commands(hgobj gobj, const char* cmd, json_t* kw
 
         int idx; json_t *jn_gclass;
         json_array_foreach(jn_gclasses, idx, jn_gclass) {
-            gclass_name = kw_get_str(gobj,jn_gclass, "gclass", "", KW_REQUIRED);
+            gclass_name = kw_get_str(gobj,jn_gclass, "gclass_name", "", KW_REQUIRED);
             hgclass gclass = gclass_find_by_name(gclass_name);
             if(gclass) {
                 json_t *jn_commands = get_command_info(gobj, gclass, details);

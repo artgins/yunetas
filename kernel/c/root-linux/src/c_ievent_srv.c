@@ -230,9 +230,9 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         gobj,
         kw,         // not owned
         "__stats__",
-        json_pack("{s:s, s:O}",   // owned
+        json_pack("{s:s, s:o}",   // owned
             "stats", stats,
-            "kw", kw
+            "kw", json_deep_copy(kw)
         )
     );
 
@@ -285,9 +285,9 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
         gobj,
         kw,         // not owned
         "__command__",
-        json_pack("{s:s, s:O}",   // owned
+        json_pack("{s:s, s:o}",   // owned
             "command", command,
-            "kw", kw
+            "kw", json_deep_copy(kw) // TODO remove possible content64
         )
     );
 
@@ -1429,6 +1429,44 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  Remote response
+ *  HACK nodo intermedio
+ ***************************************************************************/
+PRIVATE int ac_mt_stats_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    json_t * webix = kw;
+
+    int result = (int)kw_get_int(gobj, webix, "result", -1, 0);
+    const char *comment = kw_get_str(gobj, webix, "comment", "", 0);
+    json_t *jn_schema = kw_get_dict_value(gobj, webix, "schema", 0, 0);
+    json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
+
+    json_t *__stats__  = msg_iev_get_stack(gobj, kw, "__stats__", true);
+    const char *stats = kw_get_str(gobj, __stats__, "stats", "", KW_REQUIRED);
+    json_t *kw_stats = kw_get_dict(gobj, __stats__, "kw", json_object(), KW_REQUIRED);
+
+    print_json2("webix stats answer", webix);
+
+    // switch(command) {
+    //     case "descs":
+    //         if(result >= 0) {
+    //         }
+    //     break;
+    //
+    //     case "create-node":
+    //     case "update-node":
+    //     case "delete-node":
+    //         // Don't process by here, process on subscribed events.
+    //         break;
+    //
+    //     default:
+    // }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
  *  remote ask for command
  ***************************************************************************/
 PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -1564,6 +1602,44 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             src
         );
     }
+
+    KW_DECREF(kw)
+    return 0;
+}
+
+/***************************************************************************
+ *  Remote response
+ *  HACK nodo intermedio
+ ***************************************************************************/
+PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+{
+    json_t * webix = kw;
+
+    int result = (int)kw_get_int(gobj, webix, "result", -1, 0);
+    const char *comment = kw_get_str(gobj, webix, "comment", "", 0);
+    json_t *jn_schema = kw_get_dict_value(gobj, webix, "schema", 0, 0);
+    json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
+
+    json_t *__command__  = msg_iev_get_stack(gobj, kw, "__command__", true);
+    const char *command = kw_get_str(gobj, __command__, "command", "", KW_REQUIRED);
+    json_t *kw_command = kw_get_dict(gobj, __command__, "kw", json_object(), KW_REQUIRED);
+
+    print_json2("webix command answer", webix);
+
+    // switch(command) {
+    //     case "descs":
+    //         if(result >= 0) {
+    //         }
+    //     break;
+    //
+    //     case "create-node":
+    //     case "update-node":
+    //     case "delete-node":
+    //         // Don't process by here, process on subscribed events.
+    //         break;
+    //
+    //     default:
+    // }
 
     KW_DECREF(kw)
     return 0;
@@ -1706,8 +1782,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
     ev_action_t st_session[] = {
         {EV_ON_MESSAGE,         ac_on_message,          0},
-        {EV_MT_STATS,           ac_mt_stats,            0},
         {EV_MT_COMMAND,         ac_mt_command,          0},
+        {EV_MT_COMMAND_ANSWER,  ac_mt_command_answer,   0},
+        {EV_MT_STATS,           ac_mt_stats,            0},
+        {EV_MT_STATS_ANSWER,    ac_mt_stats_answer,     0},
         {EV_IDENTITY_CARD,      ac_identity_card,       0},
         {EV_GOODBYE,            ac_goodbye,             0},
         {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
@@ -1725,16 +1803,17 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
-        {EV_ON_MESSAGE,         0}
-        ,{EV_ON_OPEN,            EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_ON_CLOSE,           EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_DROP,               0},
-        // public
-        {EV_IDENTITY_CARD,      EVF_PUBLIC_EVENT},
-        {EV_GOODBYE,            EVF_PUBLIC_EVENT},
-        {EV_MT_STATS,           EVF_PUBLIC_EVENT},
-        {EV_MT_COMMAND,         EVF_PUBLIC_EVENT},
-        {EV_REMOTE_LOG,         EVF_PUBLIC_EVENT},
+        {EV_ON_MESSAGE,             0},
+        {EV_MT_COMMAND,             EVF_PUBLIC_EVENT},
+        {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
+        {EV_MT_STATS,               EVF_PUBLIC_EVENT},
+        {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
+        {EV_ON_OPEN,                EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_IDENTITY_CARD,          EVF_PUBLIC_EVENT},
+        {EV_GOODBYE,                EVF_PUBLIC_EVENT},
+        {EV_REMOTE_LOG,             EVF_PUBLIC_EVENT},
+        {EV_DROP,                   0},
         // internal
         {EV_TIMEOUT,            0},
         {EV_STOPPED,            0},
