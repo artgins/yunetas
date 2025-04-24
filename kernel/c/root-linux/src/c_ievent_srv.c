@@ -1006,7 +1006,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  porque no es una petición que salga del agente.
      *-----------------------------------------------------------*/
     json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, false);
-    // TODO en request_id tenemos el routing del inter-event
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1068,6 +1067,20 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         KW_DECREF(kw)
         return -1;
     }
+
+    /*------------------------------------*
+     *   Set channel info
+     *------------------------------------*/
+    json_object_set_new(
+        jn_ievent_id,
+        "input_service",
+        json_string(gobj_name(gobj_parent(gobj)))
+    );
+    json_object_set_new(
+        jn_ievent_id,
+        "input_channel",
+        json_string(gobj_name(gobj))
+    );
 
     /*------------------------------------*
      *   Dispatch event

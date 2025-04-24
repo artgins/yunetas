@@ -994,7 +994,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
     const char *iev_dst_yuno = kw_get_str(gobj, jn_ievent_id, "dst_yuno", "", 0);
     if(!empty_string(iev_dst_yuno)) {
-        char *px = strchr(iev_dst_yuno, '^');
+        char *px = strchr(iev_dst_yuno, '^'); // TODO review, not used in ievent_srv, review
         if(px) {
             *px = 0;
         }
