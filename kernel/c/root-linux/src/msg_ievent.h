@@ -89,9 +89,9 @@ extern "C"{
 /***************************************************
  *              Constants
  **************************************************/
-#define IEVENT_MESSAGE_STACK_ID "ievent_gate_stack"
-#define COMMAND_STACK_ID "command_stack"
-#define STATS_STACK_ID   "stats_stack"
+#define IEVENT_STACK_ID     "ievent_gate_stack" /* old IEVENT_MESSAGE_AREA_ID */
+#define COMMAND_STACK_ID    "command_stack"
+#define STATS_STACK_ID      "stats_stack"
 
 #define COMMAND_RESULT(gobj, kw)     (kw_get_int((gobj), (kw), "result", -1, 0))
 #define COMMAND_COMMENT(gobj, kw)    (kw_get_str((gobj), (kw), "comment", "", 0))

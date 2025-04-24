@@ -420,7 +420,7 @@ PUBLIC json_t *msg_iev_set_back_metadata(
     json_object_set_new(kw_response, "__md_yuno__", jn_metadata);
 
     if(reverse_dst) {
-        json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw_response, IEVENT_MESSAGE_STACK_ID, true);
+        json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw_response, IEVENT_STACK_ID, true);
         msg_iev_reverse_dst(gobj, jn_ievent_id);
     }
 
