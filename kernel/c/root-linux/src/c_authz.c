@@ -2947,7 +2947,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         return false;
     }
 
-    const char *__username__ = kw_get_str(gobj, kw, "__temp__`__username__", 0, 0);
+    const char *__username__ = kw_get_str(gobj, kw, "__username__", 0, 0);
     if(empty_string(__username__)) {
         __username__ = gobj_read_str_attr(src, "__username__");
         if(empty_string(__username__)) {

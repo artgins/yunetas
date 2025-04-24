@@ -873,10 +873,10 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             "client_yuno_service", gobj_read_str_attr(gobj, "client_yuno_service"),
             "identity_card", kw // REQUIRED for controlcenter, agent!!
         );
-        kw_set_subdict_value(
+        kw_set_dict_value(
             gobj,
             kw_on_open,
-            "__temp__", "__username__",
+            "__username__",
             json_string(gobj_read_str_attr(gobj, "__username__"))
         );
 
@@ -1289,10 +1289,10 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *   Send inter-event to subscriber
          */
-        kw_set_subdict_value(
+        kw_set_dict_value(
             gobj,
             iev_kw,
-            "__temp__", "__username__",
+            "__username__",
             json_string(gobj_read_str_attr(gobj, "__username__"))
         );
 
@@ -1439,10 +1439,10 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
         stats = kw_get_str(gobj, __stats__, "stats", "", KW_REQUIRED);
     }
 
-    kw_set_subdict_value(
+    kw_set_dict_value(
         gobj,
         kw,
-        "__temp__", "__username__",
+        "__username__",
         json_string(gobj_read_str_attr(gobj, "__username__"))
     );
 
@@ -1580,10 +1580,10 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         command = kw_get_str(gobj, __command__, "command", "", KW_REQUIRED);
     }
 
-    kw_set_subdict_value(
+    kw_set_dict_value(
         gobj,
         kw,
-        "__temp__", "__username__",
+        "__username__",
         json_string(gobj_read_str_attr(gobj, "__username__"))
     );
 
