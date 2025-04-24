@@ -254,7 +254,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        "stats_stack",
+        STATS_STACK_ID,
         json_pack("{s:s, s:o}",   // owned
             "stats", stats,
             "kw", __md_stats__
@@ -264,7 +264,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id   // owned
     );
 
@@ -314,7 +314,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        "command_stack",
+        COMMAND_STACK_ID,
         json_pack("{s:s, s:o}",   // owned
             "command", command,
             "kw", __md_command__
@@ -324,7 +324,7 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id   // owned
     );
 
@@ -361,7 +361,7 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
      *  Put the ievent if it doesn't come with it,
      *  if it does come with it, it's because it will be a response
      */
-    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
+    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_STACK_ID, false);
     if(jn_request) {
         /*
          *      __RESPONSE__
@@ -380,7 +380,7 @@ PRIVATE int mt_inject_event(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
         msg_iev_push_stack(
             gobj,
             kw,         // not owned
-            IEVENT_MESSAGE_AREA_ID,
+            IEVENT_MESSAGE_STACK_ID,
             jn_ievent_id   // owned
         );
 
@@ -473,7 +473,7 @@ PRIVATE int mt_subscription_deleted(
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id   // owned
     );
 
@@ -577,7 +577,7 @@ PRIVATE int send_identity_card(hgobj gobj)
     msg_iev_push_stack(
         gobj,
         kw_identity_card,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id   // owned
     );
 
@@ -693,7 +693,7 @@ PRIVATE int send_remote_subscription(
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id   // owned
     );
 
@@ -807,7 +807,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     /*
      *      __RESPONSE__ __MESSAGE__
      */
-    json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_STACK_ID, true);
     const char *src_yuno = kw_get_str(gobj, jn_ievent_id, "src_yuno", "", 0);
     const char *src_role = kw_get_str(gobj, jn_ievent_id, "src_role", "", 0);
     const char *src_service = kw_get_str(gobj, jn_ievent_id, "src_service", "", 0);
@@ -970,7 +970,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Get inter-event routing information.
      *----------------------------------------*/
-    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_MESSAGE_AREA_ID, true);
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_MESSAGE_STACK_ID, true);
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1136,7 +1136,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*-----------------------------------------------------------*
      *  Get inter-event routing information.
      *-----------------------------------------------------------*/
-    // json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
+    // json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_STACK_ID, false);
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1276,7 +1276,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*-----------------------------------------------------------*
      *  Get inter-event routing information.
      *-----------------------------------------------------------*/
-    // json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, false);
+    // json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_STACK_ID, false);
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1395,7 +1395,7 @@ PRIVATE int ac_mt_command(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 //     // }
 //
 //     // TODO implementación del agente
-//     // json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_AREA_ID);
+//     // json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_STACK_ID);
 //     //
 //     // const char *dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
 //     // if(strcmp(dst_service, gobj_name(gobj))==0) {

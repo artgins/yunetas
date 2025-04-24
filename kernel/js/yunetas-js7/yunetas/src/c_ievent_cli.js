@@ -78,7 +78,9 @@ import {
  ***************************************************************/
 const GCLASS_NAME = "C_IEVENT_CLI";
 
-const IEVENT_MESSAGE_AREA_ID = "ievent_gate_stack";
+const IEVENT_MESSAGE_STACK_ID = "ievent_gate_stack";
+const COMMAND_STACK_ID = "command_stack";
+const STATS_STACK_ID   = "stats_stack";
 
 /***************************************************************
  *              Data
@@ -276,7 +278,7 @@ function mt_stats(gobj, stats, kw, src)
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        "stats_stack",
+        STATS_STACK_ID,
         {
             "stats": stats,
             "kw": __md_stats__
@@ -286,7 +288,7 @@ function mt_stats(gobj, stats, kw, src)
     msg_iev_push_stack(
         gobj,
         kw,
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id
     );
 
@@ -334,7 +336,7 @@ function mt_command(gobj, command, kw, src)
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        "command_stack",
+        COMMAND_STACK_ID,
         {
             "command": command,
             "kw": __md_command__
@@ -344,7 +346,7 @@ function mt_command(gobj, command, kw, src)
     msg_iev_push_stack(
         gobj,
         kw,
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id
     );
 
@@ -376,7 +378,7 @@ function mt_inject_event(gobj, event, kw, src)
      *  Put the ievent if it doesn't come with it,
      *  if it does come with it, it's because it will be a response
      */
-    let jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID);
+    let jn_request = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_STACK_ID);
     if(jn_request) {
         /*
          *      __RESPONSE__
@@ -402,7 +404,7 @@ function mt_inject_event(gobj, event, kw, src)
         msg_iev_push_stack(
             gobj,
             kw,
-            IEVENT_MESSAGE_AREA_ID,
+            IEVENT_MESSAGE_STACK_ID,
             jn_ievent_id
         );
     }
@@ -483,7 +485,7 @@ function mt_subscription_deleted(gobj, subs)
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id   // owned
     );
 
@@ -736,7 +738,7 @@ function send_identity_card(gobj)
     msg_iev_push_stack(
         gobj,
         kw,
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id   // owned
     );
 
@@ -830,7 +832,7 @@ function send_remote_subscription(gobj, subs)
     msg_iev_push_stack(
         gobj,
         kw,         // not owned
-        IEVENT_MESSAGE_AREA_ID,
+        IEVENT_MESSAGE_STACK_ID,
         jn_ievent_id   // owned
     );
 
@@ -965,7 +967,7 @@ function ac_identity_card_ack(gobj, event, kw, src)
     /*
      *      __RESPONSE__ __MESSAGE__
      */
-    let event_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_AREA_ID, true);
+    let event_id = msg_iev_get_stack(gobj, kw, IEVENT_MESSAGE_STACK_ID, true);
     let src_yuno = kw_get_str(gobj, event_id, "src_yuno", "");
     let src_role = kw_get_str(gobj, event_id, "src_role", "");
     let src_service = kw_get_str(gobj, event_id, "src_service", "");
@@ -1097,7 +1099,7 @@ function ac_on_message(gobj, event, kw, src)
     /*----------------------------------------*
      *  Get inter-event routing information.
      *----------------------------------------*/
-    let event_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_MESSAGE_AREA_ID);
+    let event_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_MESSAGE_STACK_ID);
 
     /*----------------------------------------*
      *  Check dst role^name

@@ -56,7 +56,7 @@ DEBUG: {
         idx_url: 0
     };
 
-    var IEVENT_MESSAGE_AREA_ID = "ievent_gate_stack";
+    var IEVENT_MESSAGE_STACK_ID = "ievent_gate_stack";
 
 
 
@@ -317,7 +317,7 @@ DEBUG: {
         );
         msg_iev_push_stack(
             kw,
-            IEVENT_MESSAGE_AREA_ID,
+            IEVENT_MESSAGE_STACK_ID,
             jn_ievent_id   // owned
         );
 
@@ -493,7 +493,7 @@ DEBUG: {
         /*
          *      __ANSWER__ __MESSAGE__
          */
-        var request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
+        var request = msg_iev_get_stack(kw, IEVENT_MESSAGE_STACK_ID);
         var src_yuno = kw_get_str(request, "src_yuno", "");
         var src_role = kw_get_str(request, "src_role", "");
         var src_service = kw_get_str(request, "src_service", "");
@@ -614,7 +614,7 @@ DEBUG: {
         /*----------------------------------------*
          *  Pop inter-event routing information.
          *----------------------------------------*/
-        let event_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_AREA_ID);
+        let event_id = msg_iev_get_stack(iev_kw, IEVENT_MESSAGE_STACK_ID);
         let dst_service = kw_get_str(event_id, "dst_service", "");
         // Chequea tb el nombre TODO
         let dst_role = kw_get_str(event_id, "dst_role", "");
@@ -773,7 +773,7 @@ DEBUG: {
         var self = this;
 
         self.config.idx_url = 0;
-        msg_iev_add_answer_filter(self, IEVENT_MESSAGE_AREA_ID, ievent_answer_filter);
+        msg_iev_add_answer_filter(self, IEVENT_MESSAGE_STACK_ID, ievent_answer_filter);
         self.websocket = setup_websocket(self);
     };
 
@@ -817,7 +817,7 @@ DEBUG: {
         );
         msg_iev_push_stack(
             kw,         // not owned
-            IEVENT_MESSAGE_AREA_ID,
+            IEVENT_MESSAGE_STACK_ID,
             jn_ievent_id   // owned
         );
 
@@ -862,7 +862,7 @@ DEBUG: {
         );
         msg_iev_push_stack(
             kw,         // not owned
-            IEVENT_MESSAGE_AREA_ID,
+            IEVENT_MESSAGE_STACK_ID,
             jn_ievent_id   // owned
         );
 
@@ -893,7 +893,7 @@ DEBUG: {
         /*
          *      __MESSAGE__
          */
-        let jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID);
+        let jn_request = msg_iev_get_stack(kw, IEVENT_MESSAGE_STACK_ID);
         if(!jn_request) {
             /*
              *  Pon el ievent si no viene con él,
@@ -911,7 +911,7 @@ DEBUG: {
             );
             msg_iev_push_stack(
                 kw,         // not owned
-                IEVENT_MESSAGE_AREA_ID,
+                IEVENT_MESSAGE_STACK_ID,
                 jn_ievent_id   // owned
             );
         }
@@ -972,7 +972,7 @@ DEBUG: {
         );
         msg_iev_push_stack(
             kw,         // not owned
-            IEVENT_MESSAGE_AREA_ID,
+            IEVENT_MESSAGE_STACK_ID,
             jn_ievent_id   // owned
         );
 
@@ -1041,7 +1041,7 @@ DEBUG: {
         );
         msg_iev_push_stack(
             kw,         // not owned
-            IEVENT_MESSAGE_AREA_ID,
+            IEVENT_MESSAGE_STACK_ID,
             jn_ievent_id   // owned
         );
 
