@@ -65,7 +65,7 @@ import {
     trace_json,
     json_deep_copy,
     json_object_del,
-    set_remote_log_functions,
+    set_remote_log_functions, kw_flag_t,
 } from "./helpers.js";
 
 import {
@@ -264,29 +264,36 @@ function mt_stats(gobj, stats, kw, src)
         kw_get_str(gobj, kw, "service", null, 0)
     );
 
-    let kw_request = json_deep_copy(kw);
+    let __md_stats__ = kw_get_dict_value(
+        gobj, kw, "__md_stats__", null, kw_flag_t.KW_EXTRACT
+    );
+    if(__md_stats__) {
+        //
+    } else {
+        __md_stats__ = {};
+    }
 
     msg_iev_push_stack(
         gobj,
-        kw_request,
-        "__stats__",
+        kw,         // not owned
+        "stats_stack",
         {
             "stats": stats,
-            "kw": kw
+            "kw": __md_stats__
         }
     );
 
     msg_iev_push_stack(
         gobj,
-        kw_request,
+        kw,
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id
     );
 
-    // kw["__stats__"] = stats; // TODO deprecated, used by v6
-    msg_iev_set_msg_type(gobj, kw_request, "__stats__");
+    kw["__stats__"] = stats;
+    msg_iev_set_msg_type(gobj, kw, "__stats__");
 
-    send_static_iev(gobj, "EV_MT_STATS", kw_request, src);
+    send_static_iev(gobj, "EV_MT_STATS", kw, src);
 
     return null;   // return null on asynchronous response.
 }
@@ -315,29 +322,36 @@ function mt_command(gobj, command, kw, src)
         kw_get_str(gobj, kw, "service", "", 0)
     );
 
-    let kw_request = json_deep_copy(kw);
+    let __md_command__ = kw_get_dict_value(
+        gobj, kw, "__md_command__", null, kw_flag_t.KW_EXTRACT
+    );
+    if(__md_command__) {
+        //
+    } else {
+        __md_command__ = {};
+    }
 
     msg_iev_push_stack(
         gobj,
-        kw_request,         // not owned
-        "__command__",
+        kw,         // not owned
+        "command_stack",
         {
             "command": command,
-            "kw": kw
+            "kw": __md_command__
         }
     );
 
     msg_iev_push_stack(
         gobj,
-        kw_request,
+        kw,
         IEVENT_MESSAGE_AREA_ID,
         jn_ievent_id
     );
 
-    // kw["__command__"] = command; // TODO deprecated, used by v6
-    msg_iev_set_msg_type(gobj, kw_request, "__command__");
+    kw["__command__"] = command;
+    msg_iev_set_msg_type(gobj, kw, "__command__");
 
-    send_static_iev(gobj, "EV_MT_COMMAND", kw_request, src);
+    send_static_iev(gobj, "EV_MT_COMMAND", kw, src);
 
     return null;   // return null on asynchronous response.
 }
