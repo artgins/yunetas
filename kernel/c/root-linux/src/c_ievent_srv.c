@@ -1287,7 +1287,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
 
         /*
-         *   Send inter-event to subscriber
+         *   Set __username__
          */
         kw_set_dict_value(
             gobj,
@@ -1296,6 +1296,9 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             json_string(gobj_read_str_attr(gobj, "__username__"))
         );
 
+        /*
+         *   Send inter-event to subscriber
+         */
         json_t *jn_iev = json_object();
         json_object_set_new(jn_iev, "event", json_string(iev_event));
         json_object_set_new(jn_iev, "kw", iev_kw);
