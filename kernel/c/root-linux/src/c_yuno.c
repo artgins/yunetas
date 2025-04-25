@@ -430,7 +430,7 @@ SDATA (DTP_INTEGER, "disk_size_in_gigas",SDF_RD|SDF_STATS,"0",          "Disk si
 SDATA (DTP_INTEGER, "disk_free_percent",SDF_RD|SDF_STATS, "0",          "Disk free of /yuneta"),
 
 SDATA (DTP_LIST,    "tags",             SDF_RD,         "[]",           "tags"),
-SDATA (DTP_LIST,    "required_services",SDF_RD,         "[]",           "Required services. Format: public_service_name[.yuno_name]"),
+SDATA (DTP_LIST,    "required_services",SDF_RD,         "[]",           "Required services. Format: 'public_service_name[.yuno_name]'. TODO add alternative parameter: dict (jn_filter)"),
 SDATA (DTP_LIST,    "public_services",  SDF_RD,         "[]",           "Public services"),
 SDATA (DTP_DICT,    "service_descriptor",SDF_RD,        "{}",           "Public service descriptor"),
 SDATA (DTP_STRING,  "i18n_dirname",     SDF_RD,         "",             "dir_name parameter of bindtextdomain()"),
