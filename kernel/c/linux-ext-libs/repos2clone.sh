@@ -4,7 +4,7 @@ declare -A REPOS
 #------------------------------------------
 #   VERSIONS
 #------------------------------------------
-TAG_JANSSON="v2.14"
+TAG_JANSSON="v2.14.1"
 TAG_LIBURING="liburing-2.7"
 TAG_MBEDTLS="v3.6.2"
 TAG_OPENSSL="openssl-3.4.1"
