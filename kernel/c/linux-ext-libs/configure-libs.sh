@@ -100,6 +100,7 @@ echo "===================== PCRE2 ======================="
 cd build/pcre2
 
 git checkout "$TAG_PCRE2"
+git submodule update --init
 
 mkdir -p build
 cd build
