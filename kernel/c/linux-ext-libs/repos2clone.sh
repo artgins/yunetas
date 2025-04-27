@@ -7,10 +7,10 @@ declare -A REPOS
 TAG_JANSSON="v2.14"
 TAG_LIBURING="liburing-2.7"
 TAG_MBEDTLS="v3.6.2"
-TAG_OPENSSL="openssl-3.4.0"
+TAG_OPENSSL="openssl-3.4.1"
 TAG_PCRE2="pcre2-10.44"
 TAG_LIBJWT="v1.17.2"
-TAG_OPENRESTY="1.27.1.1"    # warning: without the initial 'v'
+TAG_OPENRESTY="1.27.1.2"    # warning: without the initial 'v'
 TAG_ARGP_STANDALONE="v1.1.3"
 
 #------------------------------------------
