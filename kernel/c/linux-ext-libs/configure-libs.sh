@@ -153,6 +153,7 @@ cd "openresty-$TAG_OPENRESTY"
 ./configure \
     --prefix=/yuneta/bin/openresty \
     --with-http_ssl_module \
+    --with-http_realip_module \
     --with-stream \
     --with-stream_ssl_module \
     --with-http_stub_status_module \
@@ -196,11 +197,6 @@ make install
 cd ..
 cd ../..
 
-
-
-# Fix these old dependencies, the new cause errors. NEWS: it seems that works with last version
-#/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install zmartzone/lua-resty-openidc=1.7.5
-#/yuneta/bin/openresty/bin/opm --install-dir=/yuneta/bin/openresty install bungle/lua-resty-session=4.0.5
 
 #------------------------------------------
 #   Save the version installed
