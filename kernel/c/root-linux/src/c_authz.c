@@ -896,7 +896,13 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *  WARNING "session_state" is from keycloak!!!
      *  And others???
      *-------------------------------*/
-    const char *session_id = kw_get_str(gobj, jwt_payload, "session_state", 0, KW_REQUIRED);
+    const char *session_id = kw_get_str(
+        gobj,
+        jwt_payload,
+        "sid",
+        "",
+        KW_REQUIRED
+    );
     session = json_pack("{s:s, s:I}",
         "id", session_id,
         "channel_gobj", (json_int_t)(size_t)src
