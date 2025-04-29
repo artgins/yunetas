@@ -2629,7 +2629,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Add logout user
      *--------------------------------------------*/
     if(priv->tranger) { // Si han pasado a pause es 0
-        const char *session_id = kw_get_str(gobj, jwt_payload, "session_state", 0, KW_REQUIRED);
+        const char *session_id = kw_get_str(gobj, jwt_payload, "sid", "", KW_REQUIRED);
         const char *username = kw_get_str(gobj, jwt_payload, "preferred_username", 0, KW_REQUIRED);
 
         json_t *user = gobj_get_node(
