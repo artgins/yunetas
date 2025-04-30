@@ -3,6 +3,7 @@
  *          Prot_tcp4h GClass.
  *
  *          Protocol tcp4h, messages with a header of 4 bytes
+ *          The header of 4 bytes in host order includes the payload size and the 4 bytes of header
  *
  *          Copyright (c) 2017-2023 Niyamaka.
  *          Copyright (c) 2024, ArtGins.
