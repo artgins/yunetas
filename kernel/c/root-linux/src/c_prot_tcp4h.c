@@ -30,7 +30,7 @@
 typedef union {
     unsigned char bf[4];
     uint32_t len;
-} HEADER_ERPL2;
+} HEADER_ERPL4;
 
 /***************************************************************
  *              Data
@@ -70,7 +70,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     gbuffer_t *last_pkt;  /* packet currently receiving */
-    char bf_header_erpl2[sizeof(HEADER_ERPL2)];
+    char bf_header_erpl4[sizeof(HEADER_ERPL4)];
     size_t idx_header;
 
     uint32_t max_pkt_size;
@@ -291,10 +291,10 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             /*--------------------*
              *   New packet
              *--------------------*/
-            size_t need2header = sizeof(HEADER_ERPL2) - priv->idx_header;
+            size_t need2header = sizeof(HEADER_ERPL4) - priv->idx_header;
             if(len < need2header) {
                 memcpy(
-                    priv->bf_header_erpl2 + priv->idx_header,
+                    priv->bf_header_erpl4 + priv->idx_header,
                     gbuffer_get(gbuf, len),
                     len
                 );
@@ -303,7 +303,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 continue;
             } else {
                 memcpy(
-                    priv->bf_header_erpl2 + priv->idx_header,
+                    priv->bf_header_erpl4 + priv->idx_header,
                     gbuffer_get(gbuf, need2header),
                     need2header
                 );
@@ -314,35 +314,35 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             /*
              *  Quita la cabecera
              */
-            HEADER_ERPL2 header_erpl2;
-            memmove((char *)&header_erpl2, priv->bf_header_erpl2, sizeof(HEADER_ERPL2));
-            header_erpl2.len = ntohl(header_erpl2.len);
-            header_erpl2.len -= sizeof(HEADER_ERPL2); // remove header
+            HEADER_ERPL4 header_erpl4;
+            memmove((char *)&header_erpl4, priv->bf_header_erpl4, sizeof(HEADER_ERPL4));
+            header_erpl4.len = ntohl(header_erpl4.len);
+            header_erpl4.len -= sizeof(HEADER_ERPL4); // remove header
 
-            if(header_erpl2.len > priv->max_pkt_size) {
+            if(header_erpl4.len > priv->max_pkt_size) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MEMORY_ERROR,
                     "msg",          "%s", "TOO LONG SIZE",
-                    "len",          "%d", header_erpl2.len,
+                    "len",          "%d", header_erpl4.len,
                     NULL
                 );
                 gobj_trace_dump_gbuf(
                     gobj,
                     gbuf,
                     "ERROR: TOO LONG SIZE (%d)",
-                    (int)header_erpl2.len
+                    (int)header_erpl4.len
                 );
                 gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
                 break;
             }
-            gbuffer_t *new_pkt = gbuffer_create(header_erpl2.len, header_erpl2.len);
+            gbuffer_t *new_pkt = gbuffer_create(header_erpl4.len, header_erpl4.len);
             if(!new_pkt) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_MEMORY_ERROR,
                     "msg",          "%s", "gbuffer_create() FAILED",
-                    "len",          "%d", header_erpl2.len,
+                    "len",          "%d", header_erpl4.len,
                     NULL
                 );
                 gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
@@ -351,16 +351,16 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             /*
              *  Put the data
              */
-            if(len >= header_erpl2.len) {
+            if(len >= header_erpl4.len) {
                 /* PAQUETE COMPLETO o MULTIPLE */
-                if(header_erpl2.len > 0) {
+                if(header_erpl4.len > 0) {
                     // SSQ/SSR are 0 length
                     gbuffer_append(
                         new_pkt,
-                        gbuffer_get(gbuf, header_erpl2.len),
-                        header_erpl2.len
+                        gbuffer_get(gbuf, header_erpl4.len),
+                        header_erpl4.len
                     );
-                    len -= header_erpl2.len;
+                    len -= header_erpl4.len;
                 }
                 json_t *kw_tx = json_pack("{s:I}",
                     "gbuffer", (json_int_t)(size_t)new_pkt
@@ -374,7 +374,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
                 }
 
-            } else { /* len < header_erpl2.len */
+            } else { /* len < header_erpl4.len */
                 /* PAQUETE INCOMPLETO */
                 if(len>0) {
                     gbuffer_append(
@@ -400,18 +400,18 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
 //    gbuffer_t *gbuf_payload = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_EXTRACT);
 //    gbuffer_t *gbuf_header;
-//    HEADER_ERPL2 header_erpl2;
+//    HEADER_ERPL4 header_erpl4;
 //
 //    /*---------------------------*
 //     *      Send header
 //     *---------------------------*/
-//    memset(&header_erpl2, 0, sizeof(HEADER_ERPL2));
-//    gbuf_header = gbuffer_create(sizeof(HEADER_ERPL2), sizeof(HEADER_ERPL2));
-//    header_erpl2.len = htonl(gbuffer_leftbytes(gbuf_payload) + sizeof(HEADER_ERPL2));
+//    memset(&header_erpl4, 0, sizeof(HEADER_ERPL4));
+//    gbuf_header = gbuffer_create(sizeof(HEADER_ERPL4), sizeof(HEADER_ERPL4));
+//    header_erpl4.len = htonl(gbuffer_leftbytes(gbuf_payload) + sizeof(HEADER_ERPL4));
 //    gbuffer_append(
 //        gbuf_header,
-//        &header_erpl2,
-//        sizeof(HEADER_ERPL2)
+//        &header_erpl4,
+//        sizeof(HEADER_ERPL4)
 //    );
 //    if(gobj_trace_level(gobj) & TRAFFIC) {
 //        gobj_trace_dump_gbuf(gobj, gbuf_header, "%s -> %s",
@@ -444,17 +444,17 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
     size_t len = gbuffer_leftbytes(gbuf);
     gbuffer_t *new_gbuf;
-    HEADER_ERPL2 header_erpl2;
+    HEADER_ERPL4 header_erpl4;
 
-    memset(&header_erpl2, 0, sizeof(HEADER_ERPL2));
+    memset(&header_erpl4, 0, sizeof(HEADER_ERPL4));
 
-    len += sizeof(HEADER_ERPL2);
+    len += sizeof(HEADER_ERPL4);
     new_gbuf = gbuffer_create(len, len);
-    header_erpl2.len = htonl(len);
+    header_erpl4.len = htonl(len);
     gbuffer_append(
         new_gbuf,
-        &header_erpl2,
-        sizeof(HEADER_ERPL2)
+        &header_erpl4,
+        sizeof(HEADER_ERPL4)
     );
     gbuffer_append_gbuf(new_gbuf, gbuf);
 
