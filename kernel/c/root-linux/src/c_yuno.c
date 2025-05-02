@@ -4215,6 +4215,34 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
         );
         return -1;
     }
+
+    // Verify the new limit
+    if(getrlimit(RLIMIT_NOFILE, &rl) != 0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "getrlimit() FAILED",
+            "limit",        "%lu", (unsigned long)limit_open_files,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    if(rl.rlim_cur != limit_open_files || rl.rlim_max != limit_open_files) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "setrlimit() limit not match ",
+            "rlim_cur",     "%lu", (unsigned long)rl.rlim_cur,
+            "rlim_max",     "%lu", (unsigned long)rl.rlim_max,
+            "limit",        "%lu", (unsigned long)limit_open_files,
+            NULL
+        );
+        return -1;
+    }
+
     return 0;
 }
 
