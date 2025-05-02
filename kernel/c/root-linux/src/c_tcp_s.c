@@ -53,6 +53,7 @@ SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,          
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_RD,             0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
+SDATA (DTP_INTEGER,     "backlog",              SDF_RD,             65535,          "Value for listen() backlog argument"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_RD,             0,              "Share the port"),
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,             "1",            "Exit if Listen failed"),
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,             0,              "tree of children to create on new accept"),
@@ -239,7 +240,7 @@ PRIVATE int mt_start(hgobj gobj)
     priv->fd_listen = yev_setup_accept_event(
         priv->yev_server_accept,
         url,        // server_url,
-        0,          // backlog, default 512
+        (int)gobj_read_integer_attr(gobj, "backlog"),  // backlog, if 0 then default 512
         gobj_read_bool_attr(gobj, "shared"), // shared
         0,  // ai_family AF_UNSPEC
         0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
