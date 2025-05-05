@@ -2185,12 +2185,12 @@ PUBLIC yev_event_h yev_create_accept_event(
 }
 
 /***************************************************************************
- *
+ *  backlog default /proc/sys/net/core/somaxconn, since Linux 5.4 is 4096
  ***************************************************************************/
 PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->fd
     yev_event_h yev_event_,
     const char *listen_url,
-    int backlog,            /* queue of pending connections for socket listening, default 512 */
+    int backlog,            /* queue of pending connections for socket listening */
     BOOL shared,            /* open socket as shared */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
     int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
@@ -2250,8 +2250,8 @@ PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->
         return -1;
     }
 
-    if(backlog <= 0) {
-        backlog = DEFAULT_BACKLOG;
+    if(backlog < 0) {
+        backlog = 0;
     }
     struct addrinfo hints = {
         .ai_family = ai_family,
