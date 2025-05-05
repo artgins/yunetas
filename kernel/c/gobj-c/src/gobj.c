@@ -353,7 +353,6 @@ PRIVATE dl_list_t dl_global_event_types;
 
 PRIVATE int  __inside__ = 0;  // it's a counter
 PRIVATE volatile int  __shutdowning__ = 0;
-PRIVATE volatile BOOL __yuno_must_die__ = false;
 PRIVATE int  __exit_code__ = 0;
 PRIVATE json_t * (*__global_command_parser_fn__)(
     hgobj gobj,
@@ -650,7 +649,8 @@ PUBLIC void gobj_shutdown(void)
 
     if(__yuno__ && !(__yuno__->obflag & obflag_destroying)) {
         if(gobj_is_playing(__yuno__)) {
-            gobj_pause(__yuno__); // It will pause default_service
+            // It will pause default_service, WARNING too slow for big configurations!!
+            gobj_pause(__yuno__);
         }
 
         gobj_pause_autoplay_services();
@@ -668,22 +668,6 @@ PUBLIC void gobj_shutdown(void)
 PUBLIC BOOL gobj_is_shutdowning(void)
 {
     return __shutdowning__;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void gobj_set_yuno_must_die(void)
-{
-    __yuno_must_die__ = true;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC BOOL gobj_get_yuno_must_die(void)
-{
-    return __yuno_must_die__;
 }
 
 /***************************************************************************

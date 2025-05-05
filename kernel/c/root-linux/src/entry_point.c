@@ -45,6 +45,7 @@
  *      Data
  ***************************************************************************/
 PRIVATE hgobj __yuno_gobj__ = 0;
+PRIVATE volatile BOOL __yuno_must_die__ = false;
 PRIVATE char __realm_id__[NAME_MAX] = {0};
 PRIVATE char __node_owner__[NAME_MAX] = {0};
 PRIVATE char __realm_owner__[NAME_MAX] = {0};
@@ -68,9 +69,7 @@ PRIVATE json_t *__jn_config__ = 0;
 
 PRIVATE int __auto_kill_time__ = 0;
 PRIVATE int __as_daemon__ = 0;
-PRIVATE int __assure_kill_time__ = 5;
-PRIVATE BOOL __quick_death__ = 0;
-PRIVATE BOOL __ordered_death__ = 1;  // WARNING Vamos a probar otra vez las muertes ordenadas 22/03/2017
+PRIVATE int __assure_kill_time__ = 30;  // Let 30 seconds to stop a yuno
 
 PRIVATE int __print__ = 0;
 
@@ -225,18 +224,16 @@ PRIVATE void quit_sighandler(int sig)
     hgobj gobj = __yuno_gobj__;
 
     if(gobj) {
-        if(__quick_death__ && !__ordered_death__) {
-            _exit(0);
-        }
         tries++;
-        gobj_set_yuno_must_die();
+        set_yuno_must_die();
 
         if(!__auto_kill_time__) {
             if(__assure_kill_time__ > 0)
-                alarm(__assure_kill_time__); // que se muera a la fuerza en 5 o 10 seg.
+                alarm(__assure_kill_time__); // maximum time to be killed
         }
         if(tries > 1) {
-            _exit(-1);
+            // exit with 0 to avoid the watcher to relaunch the daemon daemon
+            _exit(0);
         }
         return;
     }
@@ -277,7 +274,7 @@ PRIVATE void daemon_catch_signals(void)
     sigIntHandler.sa_handler = quit_sighandler;
     sigemptyset(&sigIntHandler.sa_mask);
     sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
-    sigaction(SIGALRM, &sigIntHandler, NULL);   // to debug in kdevelop
+    sigaction(SIGALRM, &sigIntHandler, NULL);   // internal launch to assure kill
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
 //    sigaction(SIGTERM, &sigIntHandler, NULL);
@@ -285,7 +282,7 @@ PRIVATE void daemon_catch_signals(void)
     sigIntHandler.sa_handler = raise_sighandler;
     sigemptyset(&sigIntHandler.sa_mask);
     sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
-    sigaction(SIGUSR1, &sigIntHandler, NULL);
+    sigaction(SIGUSR1, &sigIntHandler, NULL);   // deep tracing
 }
 
 /***************************************************************************
@@ -422,7 +419,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     }
     if(arguments.start) {
         __as_daemon__ = 1;
-        __quick_death__ = 1;
     }
     if(arguments.print_verbose_config ||
             arguments.print_final_config ||
@@ -433,6 +429,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Load json config
      *------------------------------------------------*/
+    // WARNING too slow for big configurations!!
     char *sconfig = json_config( // HACK I know that sconfig is malloc'ed
         arguments.print_verbose_config,     // WARNING if true will exit(0)
         arguments.print_final_config,       // WARNING if true will exit(0)
@@ -823,6 +820,8 @@ PRIVATE void process(
         NULL
     );
 
+    rotatory_flush(0);
+
     /*------------------------------------------------*
      *          Create main process yuno
      *------------------------------------------------*/
@@ -942,7 +941,7 @@ PRIVATE void process(
      *      Run main event loop
      *-----------------------------------*/
     /*
-     *  Forever loop. Returning is because someone order to stop with gobj_set_yuno_must_die()
+     *  Forever loop. Returning is because someone order to stop with set_yuno_must_die()
      */
     yev_loop_run(yuno_event_loop(), -1);
 
@@ -986,7 +985,15 @@ PUBLIC void set_auto_kill_time(int seconds)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void set_ordered_death(BOOL ordered_death)
+PUBLIC void set_yuno_must_die(void)
 {
-    __ordered_death__ = ordered_death;
+    __yuno_must_die__ = true;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL get_yuno_must_die(void)
+{
+    return __yuno_must_die__;
 }

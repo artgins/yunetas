@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <pwd.h>
 #include <signal.h>
+#include "entry_point.h"
 #include "ydaemon.h"
 
 /******************************************************
@@ -126,13 +127,30 @@ static int relauncher(
          *------------------------*/
         catch_signals();
         int status;
-        if (waitpid(pid, &status, 0) == -1) {
+        if(waitpid(pid, &status, 0) == -1) {
             print_error(PEF_EXIT, "waitpid() failed, errno %d %s", errno, strerror(errno));
         }
         exit_code = 0;
         signal_code = 0;
+        if(debug) {
+            print_error(0, "waitpid() return status %d", status);
+        }
 
-        if (WIFEXITED(status)) {
+        if(WIFSIGNALED(status)) {
+            signal_code = (int)(char)(WTERMSIG(status));
+            if(debug) {
+                print_error(0, "Process child signalized with signal %d, process %s, pid %d",
+                    signal_code,
+                    process_name,
+                    getpid()
+                );
+            }
+            if(signal_code == SIGKILL) {
+                return 1; // Exit
+            }
+            return -1; // relaunch
+
+        } else if(WIFEXITED(status)) {
             exit_code = (int)(char)(WEXITSTATUS(status));
             if(debug) {
                 print_error(0, "Process child exiting with code %d, process %s, pid %d",
@@ -147,24 +165,11 @@ static int relauncher(
             }
             return 1;
 
-        } else if (WIFSIGNALED(status)) {
-            signal_code = (int)(char)(WTERMSIG(status));
-            if(debug) {
-                print_error(0, "Process child signalized with signal %d, process %s, pid %d",
-                    signal_code,
-                    process_name,
-                    getpid()
-                );
-            }
-            if(signal_code == SIGKILL) {
-                return 1; // Exit
-            }
-            return -1; // relaunch
-
         } else {
-            print_error(0, "Caso implementado, process %s, pid %d",
+            print_error(0, "Case not implemented, process %s, pid %d, status %d",
                 process_name,
-                getpid()
+                getpid(),
+                status
             );
         }
         return -1; // relaunch

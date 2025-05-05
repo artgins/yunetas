@@ -299,7 +299,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
             );
         }
 
-        gobj_set_yuno_must_die();
+        set_yuno_must_die();
     }
 
     KW_DECREF(kw)

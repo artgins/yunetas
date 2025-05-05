@@ -211,7 +211,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     priv->counter++;
 
     if(priv->counter > 4) {
-        gobj_set_yuno_must_die();
+        set_yuno_must_die();
     } else {
         gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,

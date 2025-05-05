@@ -211,7 +211,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     i++;
 
     if(i>2) {
-        gobj_set_yuno_must_die();
+        set_yuno_must_die();
     }
 
     JSON_DECREF(kw)

@@ -55,6 +55,10 @@ Change API
         gobj.h:PUBLIC json_t *gobj_node_childs( // Return MUST be decref
         tr_treedb.h:PUBLIC json_t *treedb_node_childs(
 
+    rename gobj_set_yuno_must_die() to set_yuno_must_die();
+    rename gobj_get_yuno_must_die() to get_yuno_must_die();
+
+    remove set_ordered_death()
 
 New API
 

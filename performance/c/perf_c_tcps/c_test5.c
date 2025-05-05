@@ -409,7 +409,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(priv->rxMsgs>=180000) {
         MT_INCREMENT_COUNT(time_measure, 180000)
         MT_PRINT_TIME(time_measure, gobj_short_name(gobj))
-        gobj_set_yuno_must_die();
+        set_yuno_must_die();
     } else {
         GBUFFER_INCREF(gbuf)
         json_t *kw_send = json_pack("{s:I}",

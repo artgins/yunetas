@@ -29,6 +29,7 @@
 #include <yev_loop.h>
 #include <rotatory.h>
 #include <tr_treedb.h>
+#include "entry_point.h"
 #include "yunetas_environment.h"
 #include "c_timer0.h"
 #include "cpu.h"
@@ -4484,7 +4485,15 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         priv->t_flush = start_sectimer(priv->timeout_flush);
         rotatory_flush(0);
     }
-    if(gobj_get_yuno_must_die()) {
+    if(get_yuno_must_die()) {
+        gobj_log_info(gobj, 0,
+            "msgset",       "%s", MSGSET_STARTUP,
+            "msg",          "%s", "Exit to die",
+            "msg2",         "%s", "❌❌❌❌ Exit to die ❌❌❌❌",
+            NULL
+        );
+        gobj_set_exit_code(0);
+        rotatory_flush(0);
         JSON_DECREF(kw)
         yev_loop_reset_running(priv->yev_loop);
         return 0;
@@ -4495,6 +4504,7 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
             "msg",          "%s", "Exit to restart",
             NULL
         );
+        rotatory_flush(0);
         gobj_set_exit_code(-1);
         JSON_DECREF(kw)
         yev_loop_reset_running(priv->yev_loop);

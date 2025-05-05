@@ -45,6 +45,7 @@ PUBLIC int search_process(
 PUBLIC int get_relaunch_times(void);
 PUBLIC int daemon_set_debug_mode(BOOL set);
 PUBLIC BOOL daemon_get_debug_mode(void);
+
 #endif  /* __linux__ */
 
 #ifdef __cplusplus
