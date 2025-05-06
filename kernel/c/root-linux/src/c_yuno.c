@@ -98,6 +98,7 @@ PRIVATE json_t *cmd_get_trace_filter(hgobj gobj, const char *cmd, json_t *kw, hg
 
 PRIVATE json_t *cmd_reset_all_traces(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_deep_trace(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_set_trace_machine_format(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_set_autokill(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_trunk_rotatory_file(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -380,6 +381,7 @@ SDATACM2(DTP_SCHEMA,    "get-trace-filter",         SDF_AUTHZ_X, 0,      0, cmd_
 
 SDATACM2(DTP_SCHEMA,    "reset-all-traces",         SDF_AUTHZ_X, 0,      pm_reset_all_tr, cmd_reset_all_traces,    "Reset all traces of a named-gobj of gclass"),
 SDATACM2(DTP_SCHEMA,    "set-deep-trace",           SDF_AUTHZ_X, 0,      pm_set_deep_trace,cmd_set_deep_trace,   "Set deep trace, all traces active"),
+SDATACM2(DTP_SCHEMA,    "set-machine-format",       SDF_AUTHZ_X, 0,      pm_set_deep_trace,cmd_set_trace_machine_format,   "Set trace machine format"),
 
 SDATA_END()
 };
@@ -441,6 +443,8 @@ SDATA (DTP_INTEGER, "watcher_pid",      SDF_RD,         "0",            "Watcher
 SDATA (DTP_JSON,    "allowed_ips",      SDF_PERSIST,    "{}",           "Allowed peer ip's if true, false not allowed"),
 SDATA (DTP_JSON,    "denied_ips",       SDF_PERSIST,    "{}",           "Denied peer ip's if true, false not denied"),
 
+
+SDATA (DTP_INTEGER, "trace_machine_format", SDF_WR|SDF_STATS|SDF_PERSIST,"0", "trace machine format, 0 legacy default, 1 simpler"),
 SDATA (DTP_INTEGER, "deep_trace",       SDF_WR|SDF_STATS|SDF_PERSIST,"0", "Deep trace set or not set"),
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
@@ -652,6 +656,9 @@ PRIVATE void mt_create(hgobj gobj)
     set_user_trace_filter(gobj);
     if(gobj_read_integer_attr(gobj, "deep_trace")) {
         gobj_set_deep_tracing((int)gobj_read_integer_attr(gobj, "deep_trace"));
+    }
+    if(gobj_read_integer_attr(gobj, "trace_machine_format")) {
+        gobj_set_trace_machine_format((int)gobj_read_integer_attr(gobj, "trace_machine_format"));
     }
 
     /*------------------------*
@@ -2776,6 +2783,52 @@ PRIVATE json_t* cmd_set_deep_trace(hgobj gobj, const char* cmd, json_t* kw, hgob
     gobj_write_integer_attr(gobj, "deep_trace", trace);
     gobj_set_deep_tracing(trace);
     gobj_save_persistent_attrs(gobj, json_string("deep_trace"));
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,
+        json_sprintf(
+            "%s: daemon debug set to %d", gobj_short_name(gobj), trace
+        ),
+        0,
+        0
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t* cmd_set_trace_machine_format(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
+{
+    const char *trace_value = kw_get_str(gobj, kw, "set", 0, 0);
+    if(empty_string(trace_value)) {
+        json_t *kw_response = build_command_response(
+            gobj,
+            -1,     // result
+            json_sprintf(
+                "%s: bitmask set or re-set?", gobj_short_name(gobj)
+            ),
+            0,      // jn_schema
+            0       // jn_data
+        );
+        JSON_DECREF(kw)
+        return kw_response;
+    }
+
+    BOOL trace;
+    if(strcasecmp(trace_value, "true")==0 || strcasecmp(trace_value, "set")==0) {
+        trace = 1;
+    } else if(strcasecmp(trace_value, "false")==0 || strcasecmp(trace_value, "reset")==0) {
+        trace = 0;
+    } else {
+        trace = atoi(trace_value);
+    }
+
+    gobj_write_integer_attr(gobj, "trace_machine_format", trace);
+    gobj_set_trace_machine_format(trace);
+    gobj_save_persistent_attrs(gobj, json_string("trace_machine_format"));
 
     json_t *kw_response = build_command_response(
         gobj,
