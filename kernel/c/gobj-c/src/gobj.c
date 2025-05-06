@@ -25,8 +25,6 @@
 #include "helpers.h"
 #include "gobj.h"
 
-#include <linux/limits.h>
-
 #include "stats_parser.h"
 
 extern void jsonp_free(void *ptr);
@@ -380,7 +378,7 @@ PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys
 PRIVATE dl_list_t dl_gclass = {0};
 PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(size_t)gobj
 PRIVATE dl_list_t dl_trans_filter = {0};
-
+PRIVATE int trace_machine_format = 0;
 /*
  *  Global trace levels
  */
@@ -7142,14 +7140,22 @@ PUBLIC int gobj_send_event(
         if(dst->gclass->gmt->mt_inject_event) {
             __inside__ --;
             if(tracea) {
-                trace_machine("🔃 mach(%s%s), st: %s, ev: %s, from(%s%s)",
-                    (!dst->running)?"!!":"",
-                    gobj_short_name(dst),
-                    state->state_name,
-                    event?event:"",
-                    (src && !src->running)?"!!":"",
-                    gobj_short_name(src)
-                );
+                if(trace_machine_format) {
+                    trace_machine("🔜 %s %s%s",
+                        event?event:"",
+                        (!dst->running)?"!!":"",
+                        gobj_short_name(dst)
+                    );
+                } else {
+                    trace_machine("🔜 mach(%s%s), st: %s, ev: %s, from(%s%s)",
+                        (!dst->running)?"!!":"",
+                        gobj_short_name(dst),
+                        state->state_name,
+                        event?event:"",
+                        (src && !src->running)?"!!":"",
+                        gobj_short_name(src)
+                    );
+                }
                 if(kw) {
                     if(__trace_gobj_ev_kw__(dst)) {
                         if(json_object_size(kw)) {
@@ -7199,16 +7205,27 @@ PUBLIC int gobj_send_event(
      *      Exec the event
      *----------------------------------*/
     if(tracea) {
-        trace_machine("🔄 mach(%s%s^%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
-            (!dst->running)?"!!":"",
-            gobj_gclass_name(dst), gobj_name(dst),
-            state->state_name,
-            On_Black RBlue,
-            event?event:"",
-            Color_Off,
-            (src && !src->running)?"!!":"",
-            gobj_gclass_name(src), gobj_name(src)
-        );
+        if(trace_machine_format) {
+            trace_machine("🔄 %s%s%s %s%s",
+                On_Black RBlue,
+                event?event:"",
+                Color_Off,
+                (!dst->running)?"!!":"",
+                gobj_short_name(dst)
+            );
+        } else {
+            trace_machine("🔄 mach(%s%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
+                (!dst->running)?"!!":"",
+                gobj_short_name(dst),
+                state->state_name,
+                On_Black RBlue,
+                event?event:"",
+                Color_Off,
+                (src && !src->running)?"!!":"",
+                gobj_gclass_name(src), gobj_name(src)
+            );
+        }
+
         if(kw) {
             if(__trace_gobj_ev_kw__(dst)) {
                 if(json_object_size(kw)) {
@@ -7240,13 +7257,17 @@ PUBLIC int gobj_send_event(
     }
 
     if(tracea && !(dst->obflag & obflag_destroyed)) {
-        trace_machine("<- mach(%s%s^%s), st: %s, ev: %s, ret: %d",
-            (!dst->running)?"!!":"",
-            gobj_gclass_name(dst), gobj_name(dst),
-            dst->current_state->state_name,
-            event?event:"",
-            ret
-        );
+        if(trace_machine_format) {
+            // No trace return
+        } else {
+            trace_machine("<- mach(%s%s^%s), st: %s, ev: %s, ret: %d",
+                (!dst->running)?"!!":"",
+                gobj_gclass_name(dst), gobj_name(dst),
+                dst->current_state->state_name,
+                event?event:"",
+                ret
+            );
+        }
     }
 
     __inside__ --;
@@ -7304,16 +7325,20 @@ PUBLIC BOOL gobj_change_state(
     BOOL tracea = is_machine_tracing(gobj, EV_STATE_CHANGED);
     BOOL tracea_states = __trace_gobj_states__(gobj)?true:false;
     if(tracea || tracea_states) {
-        trace_machine("🔀🔀 mach(%s%s^%s), new st(%s%s%s), prev st(%s%s%s)",
-            (!gobj->running)?"!!":"",
-            gobj_gclass_name(gobj), gobj_name(gobj),
-            On_Black RGreen,
-            gobj_current_state(gobj),
-            Color_Off,
-            On_Black RGreen,
-            gobj->last_state->state_name,
-            Color_Off
-        );
+        if(trace_machine_format) {
+            // No trace state
+        } else {
+            trace_machine("🔀🔀 mach(%s%s), new st(%s%s%s), prev st(%s%s%s)",
+                (!gobj->running)?"!!":"",
+                gobj_short_name(gobj),
+                On_Black RGreen,
+                gobj_current_state(gobj),
+                Color_Off,
+                On_Black RGreen,
+                gobj->last_state->state_name,
+                Color_Off
+            );
+        }
     }
 
     json_t *kw_st = json_object();
@@ -8467,14 +8492,24 @@ PUBLIC int gobj_publish_event(
     BOOL tracea = (__trace_gobj_subscriptions__(publisher) || is_machine_tracing(publisher, event)) &&
         !is_machine_not_tracing(publisher, event);
     if(tracea) {
-        trace_machine("🔝🔝 mach(%s%s^%s), st: %s, ev: %s%s%s",
-            (!publisher->running)?"!!":"",
-            gobj_gclass_name(publisher), gobj_name(publisher),
-            publisher->current_state->state_name,
-            On_Black BBlue,
-            event?event:"",
-            Color_Off
-        );
+        if(trace_machine_format) {
+            trace_machine("🔝🔝 %s%s%s %s%s",
+                On_Black BBlue,
+                event?event:"",
+                Color_Off,
+                (!publisher->running)?"!!":"",
+                gobj_short_name(publisher)
+            );
+        } else {
+            trace_machine("🔝🔝 mach(%s%s), st: %s, ev: %s%s%s",
+                (!publisher->running)?"!!":"",
+                gobj_short_name(publisher),
+                publisher->current_state->state_name,
+                On_Black BBlue,
+                event?event:"",
+                Color_Off
+            );
+        }
         if(__trace_gobj_ev_kw__(publisher)) {
             if(json_object_size(kw)) {
                 gobj_trace_json(publisher, kw, "kw publish event %s", event?event:"");
@@ -8661,14 +8696,22 @@ PUBLIC int gobj_publish_event(
              *  Send event
              */
             if(tracea) {
-                trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
-                    (!subscriber->running)?"!!":"",
-                    gobj_short_name(subscriber),
-                    gobj_current_state(subscriber),
-                    event?event:"",
-                    (publisher && !publisher->running)?"!!":"",
-                    gobj_short_name(publisher)
-                );
+                if(trace_machine_format) {
+                    trace_machine("🔝🔄 %s %s%s",
+                        event?event:"",
+                        (!subscriber->running)?"!!":"",
+                        gobj_short_name(subscriber)
+                    );
+                } else {
+                    trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
+                        (!subscriber->running)?"!!":"",
+                        gobj_short_name(subscriber),
+                        gobj_current_state(subscriber),
+                        event?event:"",
+                        (publisher && !publisher->running)?"!!":"",
+                        gobj_short_name(publisher)
+                    );
+                }
                 if(__trace_gobj_ev_kw__(publisher)) {
                     if(json_object_size(kw2publish)) {
                         gobj_trace_json(publisher, kw2publish, "kw publish send event");
@@ -11160,6 +11203,14 @@ PRIVATE int _set_gobj_trace_no_level(hgobj gobj_, const char *level, BOOL set)
     }
 
     return 0;
+}
+
+/****************************************************************************
+ *  0 legacy default,
+ ****************************************************************************/
+PUBLIC void gobj_set_trace_machine_format(int format)
+{
+    trace_machine_format = format;
 }
 
 /****************************************************************************

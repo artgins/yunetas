@@ -1183,6 +1183,38 @@ PUBLIC void trace_machine(const char *fmt, ...)
     __inside_log__ = 0;
 }
 
+/****************************************************************************
+ *  Trace machine function with no date, only tabs
+ ****************************************************************************/
+PUBLIC void trace_machine2(const char *fmt, ...)
+{
+    va_list ap;
+    char temp[512];
+
+    if(!__initialized__) {
+        return;
+    }
+    if(__inside_log__) {
+        return;
+    }
+    __inside_log__ = 1;
+
+    if(!fmt) {
+        fmt = "";
+    }
+
+    tab(temp, sizeof(temp));
+
+    va_start(ap, fmt);
+    size_t len = strlen(temp);
+    vsnprintf(temp+len, sizeof(temp)-len, fmt, ap);
+    va_end(ap);
+
+    _log_bf(LOG_DEBUG, 0, temp, strlen(temp));
+
+    __inside_log__ = 0;
+}
+
 /*****************************************************************
  *      Discover extra data
  *****************************************************************/

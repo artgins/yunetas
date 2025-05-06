@@ -75,6 +75,7 @@ New API
     gobj_list_subscribings
     gobj_is_bottom_gobj
     str2gbuf
+    gobj_set_trace_machine_format
 
 Delete API
 
