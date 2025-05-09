@@ -19,6 +19,8 @@
 #include "c_tcp.h"
 #include "c_tcp_s.h"
 
+#include <testing.h> // TODO TEST
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
@@ -379,6 +381,11 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             return -1;
     }
 
+// TODO TEST
+time_measure_t time_measure;
+MT_START_TIME(time_measure)
+
+
     /*-------------------------------------------------*
      *  WARNING: Here only with YEV_ACCEPT_TYPE event
      *-------------------------------------------------*/
@@ -529,6 +536,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
      */
 //  TODO  json_t *kw_subs = json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1);
 //    gobj_subscribe_event(clisrv, EV_STOPPED, kw_subs, gobj);
+
+// TODO TEST
+MT_PRINT_TIME(time_measure, "Accept cb")
 
     gobj_start(clisrv); // this call set_connected(clisrv);
 
