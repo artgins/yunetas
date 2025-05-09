@@ -695,7 +695,7 @@ PRIVATE void format_with_commas(long value, char *buffer, size_t buflen)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void mt_print_time(time_measure_t *time_measure, const char *prefix)
+PUBLIC void mt_print_time(time_measure_t *time_measure, const char *prefix)
 {
     register uint64_t s, e;
     s = ((uint64_t)time_measure->start.tv_sec)*1000000 + ((uint64_t)time_measure->start.tv_nsec)/1000;

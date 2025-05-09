@@ -85,7 +85,7 @@ typedef struct {
     clock_gettime(CLOCK_MONOTONIC, &time_measure.end); \
     mt_print_time(&time_measure, prefix);
 
-PRIVATE void mt_print_time(time_measure_t *time_measure, const char *prefix);
+PUBLIC void mt_print_time(time_measure_t *time_measure, const char *prefix);
 
 static inline double mt_get_time(time_measure_t *time_measure)
 {
