@@ -85,22 +85,7 @@ typedef struct {
     clock_gettime(CLOCK_MONOTONIC, &time_measure.end); \
     mt_print_time(&time_measure, prefix);
 
-static inline void mt_print_time(time_measure_t *time_measure, const char *prefix)
-{
-    register uint64_t s, e;
-    s = ((uint64_t)time_measure->start.tv_sec)*1000000 + ((uint64_t)time_measure->start.tv_nsec)/1000;
-    e = ((uint64_t)time_measure->end.tv_sec)*1000000 + ((uint64_t)time_measure->end.tv_nsec)/1000;
-    double dt =  ((double)(e-s))/1000000;
-
-    printf("%s# TIME %s (count: %"PRIu64"): %f seconds, %'ld op/sec%s\n",
-           On_Black RGreen,
-           prefix?prefix:"",
-           time_measure->count,
-           dt,
-           (long)(((double)time_measure->count)/dt),
-           Color_Off
-    );
-}
+PRIVATE void mt_print_time(time_measure_t *time_measure, const char *prefix);
 
 static inline double mt_get_time(time_measure_t *time_measure)
 {

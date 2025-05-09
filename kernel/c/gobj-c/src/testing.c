@@ -658,3 +658,68 @@ PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg,
 
     return ret;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void format_with_commas(long value, char *buffer, size_t buflen)
+{
+    char temp[32];
+    int len, commas, i, j;
+
+    snprintf(temp, sizeof(temp), "%ld", value);
+
+    len = (int)strlen(temp);
+    commas = (len - 1) / 3;
+
+    if((len + commas + 1) > buflen) {
+        buffer[0] = '\0';
+        return;
+    }
+
+    i = len - 1;
+    j = len + commas;
+    buffer[j--] = '\0';
+
+    int count = 0;
+    while(i >= 0) {
+        if(count == 3) {
+            buffer[j--] = ',';
+            count = 0;
+        }
+        buffer[j--] = temp[i--];
+        count++;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void mt_print_time(time_measure_t *time_measure, const char *prefix)
+{
+    register uint64_t s, e;
+    s = ((uint64_t)time_measure->start.tv_sec)*1000000 + ((uint64_t)time_measure->start.tv_nsec)/1000;
+    e = ((uint64_t)time_measure->end.tv_sec)*1000000 + ((uint64_t)time_measure->end.tv_nsec)/1000;
+    double dt =  ((double)(e-s))/1000000;
+
+    char ops_formatted[32];
+    format_with_commas((long)((double)time_measure->count / dt), ops_formatted, sizeof(ops_formatted));
+
+    printf("%s# TIME %s (count: %" PRIu64 "): %f seconds, %s op/sec%s\n",
+        On_Black RGreen,
+        prefix?prefix:"",
+        time_measure->count,
+        dt,
+        ops_formatted,
+        Color_Off
+    );
+
+    // printf("%s# TIME %s (count: %" PRIu64 "): %f seconds, %'ld op/sec%s\n",
+    //        On_Black RGreen,
+    //        prefix?prefix:"",
+    //        time_measure->count,
+    //        dt,
+    //        (long)(((double)time_measure->count)/dt),
+    //        Color_Off
+    // );
+}
