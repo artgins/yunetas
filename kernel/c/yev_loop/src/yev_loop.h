@@ -140,11 +140,7 @@ PUBLIC int yev_protocol_set_protocol_fill_hints_fn( // Set your own table of pro
 
 /*
  *  To start a timer event, don't use this yev_start_event(), use yev_start_timer_event().
- *  Before start `connects` and `accepts` events, you need to configure them with
- *      yev_setup_connect_event() and yev_setup_accept_event().
- *      These functions will create and configure a socket to listen or to connect
  */
-
 
 PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
                             // you can set the same gbuffer without warning.
