@@ -2058,23 +2058,6 @@ PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in 
     yev_event->type = YEV_CONNECT_TYPE;
     yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
 
-    if(trace_level & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_debug(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev_create_connect_event",
-            "msg2",         "%s", "💥🟦 yev_create_connect_event",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "yev_state",    "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_get_fd(yev_event),
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            NULL
-        );
-        json_decref(jn_flags);
-    }
-
     yev_event->fd = fd;
 
     if(secure) {
@@ -2088,11 +2071,11 @@ PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in 
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev_setup_connect_event",
-            "msg2",         "%s", "💥🟦🟦 yev_setup_connect_event",
+            "msg",          "%s", "yev_create_connect_event",
+            "msg2",         "%s", "💥🟦 yev_create_connect_event",
             "type",         "%s", yev_event_type_name(yev_event),
             "yev_state",    "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", fd,
+            "fd",           "%d", yev_get_fd(yev_event),
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
             NULL
@@ -2117,34 +2100,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     hgobj gobj
 ) {
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
-
-    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
-    if(!yev_event) {
-        // Error already logged
-        return NULL;
-    }
-
-    yev_event->type = YEV_ACCEPT_TYPE;
-    yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
-
     uint32_t trace_level = gobj_trace_level(yev_loop->yuno?gobj:0);
-
-    if(trace_level & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_debug(yev_loop->yuno?gobj:0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev_create_accept_event",
-            "msg2",         "%s", "💥🟦 yev_create_accept_event",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "yev_state",    "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", yev_get_fd(yev_event),
-            "p",            "%p", yev_event,
-            "flag",         "%j", jn_flags,
-            NULL
-        );
-        json_decref(jn_flags);
-    }
 
     if(!ai_family) {
         ai_family = AF_UNSPEC;
@@ -2152,19 +2108,6 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     if(!ai_flags) {
         ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
     }
-
-    if(yev_event->fd >= 0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBURING_ERROR,
-            "msg",          "%s", "fd ALREADY set",
-            "url",          "%s", listen_url,
-            "fd",           "%d", yev_get_fd(yev_event),
-            "p",            "%p", yev_event,
-            NULL
-        );
-        return -1;
-    };
 
     char schema[40];
     char host[120];
@@ -2183,7 +2126,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     );
     if(ret < 0) {
         // Error already logged
-        return -1;
+        return NULL;
     }
 
     if(backlog < 0) {
@@ -2200,11 +2143,6 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         &hints,
         &secure
     );
-    if(secure) {
-        yev_event->flag |= YEV_FLAG_USE_TLS;
-    } else {
-        yev_event->flag &= ~YEV_FLAG_USE_TLS;
-    }
 
     struct addrinfo *results;
     struct addrinfo *rp;
@@ -2226,7 +2164,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             "strerror",     "%s", strerror(errno),
             NULL
         );
-        return -1;
+        return NULL;
     }
 
     int fd = -1;
@@ -2329,43 +2267,53 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     }
 
     if(ret == 0) {
-        if(rp && rp->ai_addrlen <= sizeof(yev_event->sock_info->src_addr)) {
-            memcpy(&yev_event->sock_info->src_addr, rp->ai_addr, rp->ai_addrlen);
-            yev_event->sock_info->src_addrlen = (socklen_t) rp->ai_addrlen;
-        } else {
-            close(fd);
-            fd = -1;
-            ret = -1;
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBURING_ERROR,
-                "msg",          "%s", "What merde?",
-                "url",          "%s", listen_url,
-                "host",         "%s", host,
-                "port",         "%s", port,
-                NULL
-            );
-        }
+        close(fd);
+        fd = -1;
+        ret = -1;
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING_ERROR,
+            "msg",          "%s", "What merde?",
+            "url",          "%s", listen_url,
+            "host",         "%s", host,
+            "port",         "%s", port,
+            NULL
+        );
     }
 
     freeaddrinfo(results);
 
     if(ret == -1) {
-        return ret;
+        return NULL;
     }
+
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_ACCEPT_TYPE;
+    yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
 
     yev_event->fd = fd;
 
+    if(secure) {
+        yev_event->flag |= YEV_FLAG_USE_TLS;
+    } else {
+        yev_event->flag &= ~YEV_FLAG_USE_TLS;
+    }
+
     if(trace_level & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_debug(gobj, 0,
+        gobj_log_debug(yev_loop->yuno?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev_setup_accept_event",
-            "msg2",         "%s", "💥🟦🟦 yev_setup_accept_event",
+            "msg",          "%s", "yev_create_accept_event",
+            "msg2",         "%s", "💥🟦 yev_create_accept_event",
             "type",         "%s", yev_event_type_name(yev_event),
             "yev_state",    "%s", yev_get_state_name(yev_event),
-            "fd",           "%d", fd,
+            "fd",           "%d", yev_get_fd(yev_event),
             "p",            "%p", yev_event,
             "flag",         "%j", jn_flags,
             NULL
