@@ -215,32 +215,25 @@ PUBLIC yev_event_h yev_create_inotify_event(
     gbuffer_t *gbuf
 );
 
-PUBLIC yev_event_h yev_create_connect_event(
-    yev_loop_h yev_loop,
+PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in yev_event->fd
+    yev_loop_h yev_loop_,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
-    hgobj gobj
-);
-PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event->fd
-                                    // If fd already set, close and set the new
-    yev_event_h yev_event,
     const char *dst_url,
     const char *src_url,    /* local bind, only host:port */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
-    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
-);
-
-PUBLIC yev_event_h yev_create_accept_event(
-    yev_loop_h yev_loop,
-    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
+    int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
     hgobj gobj
 );
-PUBLIC int yev_setup_accept_event( // create the socket listening in yev_event->fd
-    yev_event_h yev_event,
+
+PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in yev_event->fd
+    yev_loop_h yev_loop_,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     const char *listen_url,
-    int backlog,            /* queue of pending connections for socket listening, default 512 */
+    int backlog,            /* queue of pending connections for socket listening */
     BOOL shared,            /* open socket as shared */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
-    int ai_flags            /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    hgobj gobj
 );
 
 PUBLIC yev_event_h yev_create_read_event(
