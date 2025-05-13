@@ -236,22 +236,19 @@ PRIVATE int mt_start(hgobj gobj)
     priv->yev_server_accept = yev_create_accept_event(
         yuno_event_loop(),
         yev_callback,
-        gobj
-    );
-
-    priv->fd_listen = yev_setup_accept_event(
-        priv->yev_server_accept,
         url,        // server_url,
         (int)gobj_read_integer_attr(gobj, "backlog"),
         gobj_read_bool_attr(gobj, "shared"), // shared
         0,  // ai_family AF_UNSPEC
-        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        0,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        gobj
     );
-    if(priv->fd_listen < 0) {
+
+    if(!priv->yev_server_accept) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "yev_setup_accept_event() FAILED",
+            "msg",          "%s", "yev_create_accept_event() FAILED",
             "url",          "%s", url,
             NULL
         );

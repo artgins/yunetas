@@ -122,15 +122,12 @@ int do_test(void)
     yev_event_accept = yev_create_accept_event(
         yev_loop,
         yev_callback,
+        server_url,     // listen_url,
+        0,              // backlog,
+        false,          // shared
+        AF_INET,        // ai_family AF_UNSPEC
+        AI_ADDRCONFIG,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
         0
-    );
-    yev_setup_accept_event( // create the socket listening in yev_get_fd(yev_event)
-        yev_event_accept,
-        server_url, // listen_url,
-        0, //backlog,
-        false, // shared
-        AF_INET,  // ai_family AF_UNSPEC
-        AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
     );
     yev_start_event(yev_event_accept);
 
