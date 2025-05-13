@@ -1,30 +1,22 @@
 /****************************************************************************
  *          MAIN.C
  *
- *          Test: Use pepon as server and test interchange of messages
+ *          Test server connections
  *
-  *          Tasks
- *          - Play pepon as server with echo
- *          - Open __out_side__ (teston)
- *          - On open (pure cli connected to pepon), send a Hola message
- *          - On receiving the message re-send again
- *          - On 180000 received messages shutdown
  *
- *  Performance 18-Nov-2024 in my machine
- *      # TIME C_TEST4^c_test4 (count: 180000): 5.033485 seconds, 35760 op/sec
+ *  Performance ??-???-2025 in my machine
  *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
-#include "common/c_pepon.h"
-#include "c_test4.h"
+#include "c_listen.h"
 
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "perf_tcp_" "test4"
-#define APP_DOC         "Test C_TCP"
+#define APP_NAME        "test_listen"
+#define APP_DOC         "Test Listen"
 
 #define APP_VERSION     "1.0.0"
 #define APP_SUPPORT     "<support@artgins.com>"
@@ -78,14 +70,14 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': 'c_test4',                                      \n\
-            'gclass': 'C_TEST4',                                    \n\
+            'name': 'c_listen',                                     \n\
+            'gclass': 'C_LISTEN',                                   \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
-            'children': [                                            \n\
+            'children': [                                           \n\
             ]                                                       \n\
         },                                                          \n\
         {                                                           \n\
@@ -130,35 +122,6 @@ PRIVATE char variable_config[]= "\
                     ]                                               \n\
                 }                                                   \n\
             }                                                       \n\
-        },                                                          \n\
-        {                                                           \n\
-            'name': '__output_side__',                              \n\
-            'gclass': 'C_IOGATE',                                   \n\
-            'autostart': false,                                     \n\
-            'autoplay': false,                                      \n\
-            'children': [                                            \n\
-                {                                                   \n\
-                    'name': 'output',                               \n\
-                    'gclass': 'C_CHANNEL',                          \n\
-                    'children': [                                    \n\
-                        {                                           \n\
-                            'name': 'output',                       \n\
-                            'gclass': 'C_PROT_TCP4H',               \n\
-                            'kw': {                                 \n\
-                            },                                      \n\
-                            'children': [                            \n\
-                                {                                   \n\
-                                    'name': 'output',               \n\
-                                    'gclass': 'C_TCP',              \n\
-                                    'kw': {                         \n\
-                                        'url':'tcp://127.0.0.1:7778' \n\
-                                    }                               \n\
-                                }                                   \n\
-                            ]                                       \n\
-                        }                                           \n\
-                    ]                                               \n\
-                }                                                   \n\
-            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -177,8 +140,7 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    result += register_c_pepon();
-    result += register_c_test4();
+    result += register_c_listen();
 
     /*------------------------------------------------*
      *          Traces

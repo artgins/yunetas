@@ -6,7 +6,6 @@
  ***********************************************************************/
 #include <iconv.h>
 
-#include "common/c_pepon.h"
 #include "c_listen.h"
 
 /***************************************************************************
@@ -57,9 +56,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t timeout;
     hgobj timer;
 
-    hgobj pepon;
-
-    hgobj gobj_output_side;
+    hgobj gobj_input_side;
     json_int_t txMsgs;
     json_int_t rxMsgs;
 } PRIVATE_DATA;
@@ -84,10 +81,6 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-    json_t *kw_pepon = json_pack("{s:b}",
-        "do_echo", 1
-    );
-    priv->pepon = gobj_create_pure_child("server", C_PEPON, kw_pepon, gobj);
 
     /*
      *  Do copy of heavy-used parameters, for quick access.
@@ -104,9 +97,6 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
-    if(!gobj_is_running(priv->pepon)) {
-        gobj_start(priv->pepon);
-    }
 
     return 0;
 }
@@ -119,7 +109,6 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_stop(priv->timer);
-    gobj_stop(priv->pepon);
 
     return 0;
 }
@@ -135,8 +124,12 @@ PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_play(priv->pepon);
-    set_timeout(priv->timer, 1000); // timeout to connecting
+    // set_timeout(priv->timer, 1000); // timeout to connecting
+    priv->gobj_input_side = gobj_find_service("__input_side__", true);
+
+    gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
+
+    gobj_start_tree(priv->gobj_input_side);
 
     return 0;
 }
@@ -149,7 +142,7 @@ PRIVATE int mt_pause(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    gobj_pause(priv->pepon);
+    gobj_stop_tree(priv->gobj_input_side);
 
     return 0;
 }
@@ -182,44 +175,9 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    set_timeout(priv->timer, 1000); // timeout to start sending messages
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_timeout_to_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->gobj_output_side = gobj_find_service("__output_side__", true);
-    gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
-    gobj_start_tree(priv->gobj_output_side);
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-gbuffer_t *gbuf_to_send = 0;
-PRIVATE int ac_timeout_send_messages(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gbuf_to_send = gbuffer_create(1024, 1024);
-    gbuffer_printf(gbuf_to_send, MESSAGE);
-
-    json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf_to_send
-    );
-    gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
+    // set_timeout(priv->timer, 1000); // timeout to start sending messages
 
     JSON_DECREF(kw)
     return 0;
@@ -269,12 +227,6 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         MT_INCREMENT_COUNT(time_measure, 180000)
         MT_PRINT_TIME(time_measure, gobj_short_name(gobj))
         set_yuno_must_die();
-    } else {
-        GBUFFER_INCREF(gbuf)
-        json_t *kw_send = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(size_t)gbuf
-        );
-        gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
     }
 
     KW_DECREF(kw)
@@ -356,14 +308,13 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_closed[] = {
         {EV_STOPPED,                ac_stopped,                 0},
-        {EV_TIMEOUT,                ac_timeout_to_connect,      0},
         {EV_ON_OPEN,                ac_on_open,                 ST_OPENED},
         {0,0,0}
     };
     ev_action_t st_opened[] = {
         {EV_ON_MESSAGE,             ac_on_message,              0},
         {EV_ON_CLOSE,               ac_on_close,                ST_CLOSED},
-        {EV_TIMEOUT,                ac_timeout_send_messages,   0},
+        {EV_TIMEOUT,                0,                          0},
         {0,0,0}
     };
 

@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(perf_c_tcp C)
+project(stress_c_listen C)
 get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
@@ -21,13 +21,10 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 SET(SRCS
-    test4
-    test5
+    listen
 )
 
 SET(COMMON
-    common/c_pepon.c
-    common/c_teston.c
 )
 
 ##############################################

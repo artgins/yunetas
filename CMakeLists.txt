@@ -21,6 +21,7 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 #-------------------------------#
 option (ENABLE_TESTS "Build tests" ON)
 option (ENABLE_PERFORMANCE "Build performance" ON)
+option (ENABLE_STRESS "Build stress" ON)
 
 ##############################################
 #   Source
@@ -43,6 +44,10 @@ endif ()
 
 if (ENABLE_PERFORMANCE)
     add_subdirectory(performance/c)
+endif ()
+
+if (ENABLE_STRESS)
+    add_subdirectory(stress/c)
 endif ()
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
