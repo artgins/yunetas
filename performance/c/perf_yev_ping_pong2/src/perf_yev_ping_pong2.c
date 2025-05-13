@@ -628,15 +628,12 @@ int do_test(void)
     yev_event_h yev_server_accept = yev_create_accept_event(
         yev_loop,
         yev_server_callback,
-        NULL
-    );
-    fd_listen = yev_setup_accept_event(
-        yev_server_accept,
         server_url,     // server_url,
         0,              // backlog, default 512
         false,          // shared
         AF_INET,        // ai_family AF_UNSPEC
-        AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        AI_ADDRCONFIG,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        NULL
     );
     if(fd_listen < 0) {
         gobj_trace_msg(0, "Error setup listen on %s", server_url);
@@ -651,14 +648,11 @@ int do_test(void)
     yev_event_h yev_client_connect = yev_create_connect_event(
         yev_loop,
         yev_client_callback,
-        NULL
-    );
-    fd_connect = yev_setup_connect_event(
-        yev_client_connect,
         server_url,     // client_url
-        NULL,   // local bind src_url, only host:port
+        NULL,           // local bind src_url, only host:port
         AF_INET,        // ai_family AF_UNSPEC
-        AI_ADDRCONFIG   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        AI_ADDRCONFIG,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        NULL
     );
     if(fd_connect < 0) {
         gobj_trace_msg(0, "Error setup connect to %s", server_url);
