@@ -1,6 +1,7 @@
 VERSION_INSTALLED.txt
 
 .vite/
+chatgpt/
 
 cmake-build-debug-clang/
 cmake-build-debug-musl/
