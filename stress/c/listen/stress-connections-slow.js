@@ -16,7 +16,7 @@ const args = require('minimist')(argv.slice(2), {
     },
     default: {
         host: '127.0.0.1',
-        port: 2002,
+        port: 7778,
         connections: 10,
         disconnect: 60  // seconds before disconnect
     },
