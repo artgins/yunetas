@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.5)
-project(stress_c_listen C)
+project(stress_listen C)
 get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
@@ -31,7 +31,7 @@ SET(COMMON
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "stress_tcp_${test}")
+    set(binary "stress_${test}")
     add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
     target_link_libraries(${binary}
