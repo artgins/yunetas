@@ -44,8 +44,22 @@ PRIVATE char variable_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
         'console_log_handlers': {                                   \n\
+            'to_stdout': {                                          \n\
+                'handler_type': 'stdout',                           \n\
+                'handler_options': 255                              \n\
+            }                                                       \n\
         },                                                          \n\
         'daemon_log_handlers': {                                    \n\
+            'to_file': {                                            \n\
+                'handler_type': 'file',                             \n\
+                'filename_mask': 'stress-listen-W.log',             \n\
+                'handler_options': 255                              \n\
+            },                                                      \n\
+            'to_udp': {                                             \n\
+                'handler_type': 'udp',                              \n\
+                'url': 'udp://127.0.0.1:1992',                      \n\
+                'handler_options': 255                              \n\
+            }                                                       \n\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
@@ -196,10 +210,8 @@ int main(int argc, char *argv[])
     glog_init();
 
     /*
-     *  Add all handlers very early
+     *  Add test handler very early
      */
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_INFO, 0);
-
     gobj_log_register_handler(
         "testing",          // handler_name
         0,                  // close_fn
@@ -207,7 +219,6 @@ int main(int argc, char *argv[])
         0                   // fwrite_fn
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_WARNING, 0);
-
 
     /*------------------------------------------------*
      *      To check memory loss
