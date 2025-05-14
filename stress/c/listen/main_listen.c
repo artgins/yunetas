@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
     /*
      *  Add all handlers very early
      */
-    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_WARNING, 0);
+    gobj_log_add_handler("stdout", "stdout", LOG_OPT_UP_INFO, 0);
 
     gobj_log_register_handler(
         "testing",          // handler_name

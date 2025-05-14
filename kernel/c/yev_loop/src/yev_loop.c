@@ -2021,22 +2021,9 @@ PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in 
             "port",         "%s", dst_port,
             NULL
         );
-        ret = -1;
-    }
-
-    if(ret != 0) {
         close(fd);
         fd = -1;
         ret = -1;
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBURING_ERROR,
-            "msg",          "%s", "What merde?",
-            "url",          "%s", dst_url,
-            "host",         "%s", dst_host,
-            "port",         "%s", dst_port,
-            NULL
-        );
     }
 
     freeaddrinfo(results);
@@ -2057,8 +2044,12 @@ PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in 
 
     yev_event->type = YEV_CONNECT_TYPE;
     yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
-
     yev_event->fd = fd;
+
+    if(rp && rp->ai_addrlen <= sizeof(yev_event->sock_info->dst_addr)) {
+        memcpy(&yev_event->sock_info->dst_addr, rp->ai_addr, rp->ai_addrlen);
+        yev_event->sock_info->dst_addrlen = (socklen_t) rp->ai_addrlen;
+    }
 
     if(secure) {
         yev_event->flag |= YEV_FLAG_USE_TLS;
@@ -2263,22 +2254,9 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             "port",         "%s", port,
             NULL
         );
-        ret = -1;
-    }
-
-    if(ret == 0) {
         close(fd);
         fd = -1;
         ret = -1;
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBURING_ERROR,
-            "msg",          "%s", "What merde?",
-            "url",          "%s", listen_url,
-            "host",         "%s", host,
-            "port",         "%s", port,
-            NULL
-        );
     }
 
     freeaddrinfo(results);
@@ -2295,8 +2273,12 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
 
     yev_event->type = YEV_ACCEPT_TYPE;
     yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
-
     yev_event->fd = fd;
+
+    if(rp && rp->ai_addrlen <= sizeof(yev_event->sock_info->src_addr)) {
+        memcpy(&yev_event->sock_info->src_addr, rp->ai_addr, rp->ai_addrlen);
+        yev_event->sock_info->src_addrlen = (socklen_t) rp->ai_addrlen;
+    }
 
     if(secure) {
         yev_event->flag |= YEV_FLAG_USE_TLS;
