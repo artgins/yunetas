@@ -63,9 +63,7 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcp://0.0.0.0:7778',                  \n\
-            '__input_host__': '0.0.0.0',                            \n\
-            '__input_port__': '7778'                                \n\
+            '__input_url__': 'tcp://0.0.0.0:7778'                   \n\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
@@ -87,7 +85,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
-            'children': [                                            \n\
+            'children': [                                           \n\
                 {                                                   \n\
                     'name': 'server_port',                          \n\
                     'gclass': 'C_TCP_S',                            \n\
@@ -96,7 +94,7 @@ PRIVATE char variable_config[]= "\
                         'child_tree_filter': {                      \n\
                             'op': 'find',                           \n\
                             'kw': {                                 \n\
-                                '__prefix_gobj_name__': '(^^__input_port__^^)-', \n\
+                                '__prefix_gobj_name__': 'input-',   \n\
                                 '__gclass_name__': 'C_CHANNEL',     \n\
                                 '__disabled__': false,              \n\
                                 'connected': false                  \n\
@@ -105,19 +103,27 @@ PRIVATE char variable_config[]= "\
                     }                                               \n\
                 }                                                   \n\
             ],                                                      \n\
-            '[^^children^^]': {                                      \n\
+            '[^^children^^]': {                                     \n\
                 '__range__': [[1,1]],                               \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
-                    'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
+                    'name': 'input-(^^__range__^^)', \n\
                     'gclass': 'C_CHANNEL',                          \n\
-                    'children': [                                    \n\
+                    'children': [                                   \n\
                         {                                           \n\
-                            'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
+                            'name': 'input-(^^__range__^^)', \n\
                             'gclass': 'C_PROT_TCP4H',               \n\
                             'kw': {                                 \n\
-                            }                                       \n\
+                            },                                      \n\
+                            'children': [                           \n\
+                                {                                       \n\
+                                    'name': 'input-(^^__range__^^)',    \n\
+                                    'gclass': 'C_TCP',                  \n\
+                                    'kw': {                         \n\
+                                    }                               \n\
+                                }                                   \n\
+                            ]                                       \n\
                         }                                           \n\
                     ]                                               \n\
                 }                                                   \n\

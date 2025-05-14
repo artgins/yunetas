@@ -31,7 +31,7 @@ SET(COMMON
 #   Tests
 ##############################################
 foreach(test ${SRCS})
-    set(binary "perf_tcp_${test}")
+    set(binary "stress_tcp_${test}")
     add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
     target_link_libraries(${binary}
