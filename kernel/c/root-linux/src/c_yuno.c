@@ -210,7 +210,7 @@ PRIVATE const sdata_desc_t pm_gobj_tree[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__yuno__", "named-gobj or full gobj name"),
-SDATAPM (DTP_JSON,      "options",      0,              "[\"name\",\"state\",\"running\",\"playing\",\"service\", \"disabled\",\"gobj_trace_level\",\"bottom_gobj\",\"commands\"]",       "json LIST with strings, empty all"),
+SDATAPM (DTP_JSON,      "options",      0,              "[\"name\",\"state\",\"running\",\"playing\",\"service\",\"disabled\",\"volatil\",\"gobj_trace_level\",\"bottom_gobj\",\"commands\"]",       "json LIST with strings, empty all"),
 SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_set_gobj_tr[] = {
