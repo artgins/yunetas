@@ -64,12 +64,14 @@ PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len)
                 kw_get_list_value(0, expected_log_messages, 0, KW_EXTRACT);
                 JSON_DECREF(expected_msg)
                 JSON_DECREF(msg)
-                return -1; // It's only mine
+                // return -1; // It's only mine
+                return 0;
             }
         }
     }
     json_array_append_new(unexpected_log_messages, msg);
-    return -1; // It's only mine
+    // return -1; // It's only mine
+    return 0;
 }
 
 /***************************************************************************

@@ -912,19 +912,15 @@ PRIVATE int mt_start(hgobj gobj)
             // Manual connex configuration
             json_t *kw_connex = gobj_read_json_attr(gobj, "kw_connex");
             json_incref(kw_connex);
-            tcp0 = gobj_create(gobj_name(gobj), C_TCP, kw_connex, gobj);
+            tcp0 = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw_connex, gobj);
             gobj_set_bottom_gobj(gobj, tcp0);
             gobj_write_str_attr(tcp0, "tx_ready_event_name", 0);
+            gobj_start(tcp0);
         }
     }
 
     gobj_start(priv->timer);
-    hgobj tcp0 = gobj_bottom_gobj(gobj);
-    if(tcp0) {
-        if(!gobj_is_running(tcp0)) {
-            gobj_start(tcp0);
-        }
-    }
+
     return 0;
 }
 

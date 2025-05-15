@@ -484,7 +484,7 @@ MT_START_TIME(time_measure)
          *  Create the clisrv gobj if not exist
          *----------------------------------------*/
         hgobj clisrv = NULL;
-        if(gobj_gclass(gobj_bottom) != C_TCP) {
+        if(gobj_gclass_name(gobj_bottom) != C_TCP) {
             json_t *kw_clisrv = json_deep_copy(priv->clisrv_kw);
             if(!kw_clisrv) {
                 kw_clisrv = json_object();

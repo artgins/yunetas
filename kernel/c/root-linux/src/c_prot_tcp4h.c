@@ -145,10 +145,7 @@ PRIVATE int mt_start(hgobj gobj)
             hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
         #endif
         gobj_set_bottom_gobj(gobj, gobj_bottom);
-    }
-
-    if(gobj_bottom_gobj(gobj)) {
-        gobj_start(gobj_bottom_gobj(gobj));
+        gobj_start(gobj_bottom);
     }
 
     return 0;
