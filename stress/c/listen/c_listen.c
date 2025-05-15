@@ -171,7 +171,7 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 /***************************************************************************
- *  Gps connected
+ *  Device connected
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -306,21 +306,17 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Define States
      *----------------------------------------*/
-    ev_action_t st_closed[] = {
-        {EV_STOPPED,                ac_stopped,                 0},
-        {EV_ON_OPEN,                ac_on_open,                 ST_OPENED},
-        {0,0,0}
-    };
-    ev_action_t st_opened[] = {
+    ev_action_t st_idle[] = {
+        {EV_ON_OPEN,                ac_on_open,                 0},
         {EV_ON_MESSAGE,             ac_on_message,              0},
-        {EV_ON_CLOSE,               ac_on_close,                ST_CLOSED},
+        {EV_ON_CLOSE,               ac_on_close,                0},
         {EV_TIMEOUT,                0,                          0},
+        {EV_STOPPED,                ac_stopped,                 0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_CLOSED,                 st_closed},
-        {ST_OPENED,                 st_opened},
+        {ST_IDLE,                   st_idle},
         {0, 0}
     };
 

@@ -330,6 +330,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
 /***************************************************************************
  *  Accept cb
+ *  WARNING yev_callback() return -1 will break the loop of yevent
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
@@ -341,7 +342,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             "msg",          "%s", "gobj NULL",
             NULL
         );
-        return -1;
+        return 0;
     }
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -374,7 +375,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 NULL
             );
-            return -1;
+            return 0;
     }
 
 // TODO TEST
@@ -395,7 +396,7 @@ MT_START_TIME(time_measure)
             "event_type",   "%s", yev_event_type_name(yev_event),
             NULL
         );
-        return -1;
+        return 0;
     }
 
     char peername[80];
@@ -414,7 +415,7 @@ MT_START_TIME(time_measure)
                     NULL
                 );
                 close(fd_clisrv);
-                return -1;
+                return 0;
             }
         }
     }
@@ -438,7 +439,7 @@ MT_START_TIME(time_measure)
     hgobj gobj_bottom = 0;
 
     json_t *jn_child_tree_filter = gobj_read_json_attr(gobj, "child_tree_filter");
-    if(json_is_object(jn_child_tree_filter)) {
+    if(json_is_object(jn_child_tree_filter) && json_object_size(jn_child_tree_filter) > 0) {
         /*--------------------------------*
          *      Legacy method
          *--------------------------------*/
@@ -458,7 +459,7 @@ MT_START_TIME(time_measure)
                 NULL
             );
             close(fd_clisrv);
-            return -1;
+            return 0;
         }
 
         gobj_bottom = gobj_last_bottom_gobj(gobj_top);
@@ -495,7 +496,7 @@ MT_START_TIME(time_measure)
             json_object_set_new(kw_clisrv, "fd_clisrv", json_integer(fd_clisrv));
 
             clisrv = gobj_create_volatil(
-                xname, // the same name as the filter, if filter.
+                xname, // the same name as the filter.
                 C_TCP,
                 kw_clisrv,
                 gobj_bottom
@@ -531,7 +532,7 @@ MT_PRINT_TIME(time_measure, "Accept cb")
             NULL
         );
         close(fd_clisrv);
-        return -1;
+        return 0;
     }
 
     return 0;

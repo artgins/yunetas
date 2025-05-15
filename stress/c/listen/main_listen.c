@@ -131,12 +131,6 @@ PRIVATE char variable_config[]= "\
                             'kw': {                                 \n\
                             },                                      \n\
                             'children': [                           \n\
-                                {                                       \n\
-                                    'name': 'input-(^^__range__^^)',    \n\
-                                    'gclass': 'C_TCP',                  \n\
-                                    'kw': {                         \n\
-                                    }                               \n\
-                                }                                   \n\
                             ]                                       \n\
                         }                                           \n\
                     ]                                               \n\
