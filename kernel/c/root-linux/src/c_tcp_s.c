@@ -486,6 +486,9 @@ MT_START_TIME(time_measure)
          *----------------------------------------*/
         hgobj clisrv = NULL;
         if(gobj_gclass_name(gobj_bottom) != C_TCP) {
+            /*
+             *  Legacy method, create a volatil tcp gobj
+             */
             json_t *kw_clisrv = json_deep_copy(priv->clisrv_kw);
             if(!kw_clisrv) {
                 kw_clisrv = json_object();
@@ -515,6 +518,7 @@ MT_START_TIME(time_measure)
 
 // TODO TEST
 MT_PRINT_TIME(time_measure, "Accept cb")
+
         gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
         gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
         gobj_write_bool_attr(clisrv, "__clisrv__", true);

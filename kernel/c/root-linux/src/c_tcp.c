@@ -248,8 +248,6 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-    gobj_reset_volatil_attrs(gobj);
-
     if(priv->__clisrv__) {
         /*
          *  clisrv
@@ -349,6 +347,8 @@ PRIVATE int mt_stop(hgobj gobj)
     }
 
     try_to_stop_yevents(gobj);
+
+    gobj_reset_volatil_attrs(gobj);
 
     return 0;
 }
