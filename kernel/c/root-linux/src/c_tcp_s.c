@@ -33,8 +33,6 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
-//PRIVATE void on_close_cb(uv_handle_t* handle);
-//PRIVATE void on_connection_cb(uv_stream_t *uv_server_socket, int status);
 
 
 /***************************************************************************
@@ -441,46 +439,44 @@ MT_START_TIME(time_measure)
     json_t *jn_child_tree_filter = gobj_read_json_attr(gobj, "child_tree_filter");
     if(json_is_object(jn_child_tree_filter)) {
         /*--------------------------------*
-         *      New method
+         *      Legacy method
          *--------------------------------*/
-        const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
+        // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
         json_t *jn_filter = json_deep_copy(kw_get_dict(gobj, jn_child_tree_filter, "kw", json_object(), 0));
         // HACK si llegan dos on_connection_cb seguidos coge el mismo tree, protege internamente
         json_object_set_new(jn_filter, "__clisrv__", json_false());
-        if(1 || strcmp(op, "find")==0) { // here, only find operation is valid.
-            gobj_top = gobj_find_child(gobj_parent(gobj), jn_filter);
-            if(!gobj_top) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                    "msg",          "%s", "TCP_S: Connection not accepted: no free child tree found",
-                    "msg2",         "%s", "🌐TCP_S: Connection not accepted: no free child tree found",
-                    "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
-                    "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
-                    NULL
-                );
-                close(fd_clisrv);
-                return -1;
-            }
+        gobj_top = gobj_find_child(gobj_parent(gobj), jn_filter);
+        if(!gobj_top) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "TCP_S: Connection not accepted: no free child tree found",
+                "msg2",         "%s", "🌐TCP_S: Connection not accepted: no free child tree found",
+                "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
+                "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
+                NULL
+            );
+            close(fd_clisrv);
+            return -1;
+        }
 
-            gobj_bottom = gobj_last_bottom_gobj(gobj_top);
-            if(!gobj_bottom) {
-                gobj_bottom = gobj_top;
-            }
+        gobj_bottom = gobj_last_bottom_gobj(gobj_top);
+        if(!gobj_bottom) {
+            gobj_bottom = gobj_top;
+        }
 
-            if(gobj_trace_level(gobj) & TRACE_ACCEPTED) {
-                const char *top_tree = gobj_full_name(gobj_top);
-                const char *bottom_tree = gobj_full_name(gobj_bottom);
-                gobj_log_info(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                    "msg",          "%s", "Clisrv accepted",
-                    "msg2",         "%s", "🌐TCP_S: Clisrv accepted...🔷👍",
-                    "top_tree",     "%s", top_tree,
-                    "bottom_tree",  "%s", bottom_tree,
-                    NULL
-                );
-            }
+        if(gobj_trace_level(gobj) & TRACE_ACCEPTED) {
+            const char *top_tree = gobj_full_name(gobj_top);
+            const char *bottom_tree = gobj_full_name(gobj_bottom);
+            gobj_log_info(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "Clisrv accepted",
+                "msg2",         "%s", "🌐TCP_S: Clisrv accepted...🔷👍",
+                "top_tree",     "%s", top_tree,
+                "bottom_tree",  "%s", bottom_tree,
+                NULL
+            );
         }
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,

@@ -7009,6 +7009,13 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
             gobj_is_disabled(gobj) ? json_true() : json_false()
         );
     }
+    if(kw_find_str_in_list(gobj, jn_filter, "volatil")!=-1 || !json_array_size(jn_filter)) {
+        json_object_set_new(
+            jn_dict,
+            "volatil",
+            gobj_is_volatil(gobj) ? json_true() : json_false()
+        );
+    }
     if(kw_find_str_in_list(gobj, jn_filter, "commands")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
