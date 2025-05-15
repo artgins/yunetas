@@ -195,12 +195,12 @@ PRIVATE void mt_create(hgobj gobj)
     }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
+    SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
     SET_PRIV(__clisrv__,            gobj_read_bool_attr)
     SET_PRIV(use_ssl,               gobj_read_bool_attr)
-    SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
-    SET_PRIV(timeout_inactivity,    (int)gobj_read_integer_attr)
-    SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
     SET_PRIV(ytls,                  (hytls)(size_t)gobj_read_integer_attr)
+    SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
+    SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
 }
 
 /***************************************************************************
@@ -211,8 +211,11 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(timeout_inactivity,      (int) gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(__clisrv__,            gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(use_ssl,               gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(ytls,                  (hytls)(size_t)gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
 
