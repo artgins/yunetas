@@ -86,7 +86,7 @@ SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of t
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
-SDATA (DTP_POINTER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
+SDATA (DTP_INTEGER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
 
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),

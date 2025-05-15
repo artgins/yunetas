@@ -479,6 +479,47 @@ MT_START_TIME(time_measure)
                 NULL
             );
         }
+
+        /*----------------------------------------*
+         *  Create the clisrv gobj if not exist
+         *----------------------------------------*/
+        hgobj clisrv = NULL;
+        if(gobj_gclass(gobj_bottom) != C_TCP) {
+            json_t *kw_clisrv = json_deep_copy(priv->clisrv_kw);
+            if(!kw_clisrv) {
+                kw_clisrv = json_object();
+            }
+            json_object_set_new(kw_clisrv, "ytls", json_integer((json_int_t)(size_t)priv->ytls));
+            json_object_set_new(kw_clisrv, "use_ssl", json_boolean(priv->use_ssl));
+            json_object_set_new(kw_clisrv, "__clisrv__", json_true());
+            json_object_set_new(kw_clisrv, "fd_clisrv", json_integer(fd_clisrv));
+
+            clisrv = gobj_create_volatil(
+                xname, // the same name as the filter, if filter.
+                C_TCP,
+                kw_clisrv,
+                gobj_bottom
+            );
+            gobj_set_bottom_gobj(gobj_bottom, clisrv);
+
+            /*
+             *  srvsock needs to know of disconnected event
+             *  for deleting gobjs or do statistics TODO sure? review
+             */
+            // TODO json_t *kw_subs = json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1);
+            //  gobj_subscribe_event(clisrv, EV_STOPPED, kw_subs, gobj);
+        } else {
+            clisrv = gobj_bottom;
+        }
+
+// TODO TEST
+MT_PRINT_TIME(time_measure, "Accept cb")
+        gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
+        gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
+        gobj_write_bool_attr(clisrv, "__clisrv__", true);
+        gobj_write_integer_attr(clisrv, "fd_clisrv", fd_clisrv);
+        gobj_start(clisrv); // this call set_connected(clisrv);
+
     } else {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -492,38 +533,6 @@ MT_START_TIME(time_measure)
         close(fd_clisrv);
         return -1;
     }
-
-    /*----------------------------*
-     *  Create the clisrv gobj.
-     *----------------------------*/
-    json_t *kw_clisrv = json_deep_copy(priv->clisrv_kw);
-    if(!kw_clisrv) {
-        kw_clisrv = json_object();
-    }
-    json_object_set_new(kw_clisrv, "ytls", json_integer((json_int_t)(size_t)priv->ytls));
-    json_object_set_new(kw_clisrv, "use_ssl", json_boolean(priv->use_ssl));
-    json_object_set_new(kw_clisrv, "__clisrv__", json_true());
-    json_object_set_new(kw_clisrv, "fd_clisrv", json_integer((json_int_t)(size_t)fd_clisrv));
-
-    hgobj clisrv = gobj_create_volatil(
-        xname, // the same name as the filter, if filter.
-        C_TCP,
-        kw_clisrv,
-        gobj_bottom
-    );
-    gobj_set_bottom_gobj(gobj_bottom, clisrv);
-
-    /*
-     *  srvsock needs to know of disconnected event
-     *  for deleting gobjs or do statistics TODO sure? review
-     */
-//  TODO  json_t *kw_subs = json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1);
-//    gobj_subscribe_event(clisrv, EV_STOPPED, kw_subs, gobj);
-
-// TODO TEST
-MT_PRINT_TIME(time_measure, "Accept cb")
-
-    gobj_start(clisrv); // this call set_connected(clisrv);
 
     return 0;
 }
