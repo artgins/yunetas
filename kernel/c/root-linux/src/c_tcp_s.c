@@ -134,8 +134,9 @@ PRIVATE void mt_create(hgobj gobj)
      *  subscription model: no send or publish events
      */
     priv->subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
-    if(!priv->subscriber)
+    if(!priv->subscriber) {
         priv->subscriber = gobj_parent(gobj);
+    }
 }
 
 /***************************************************************************
@@ -492,17 +493,6 @@ MT_START_TIME(time_measure)
         return -1;
     }
 
-    if(!priv->subscriber) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "No subscriber",
-            NULL
-        );
-        close(fd_clisrv);
-        return -1;
-    }
-
     /*----------------------------*
      *  Create the clisrv gobj.
      *----------------------------*/
@@ -519,7 +509,7 @@ MT_START_TIME(time_measure)
         xname, // the same name as the filter, if filter.
         C_TCP,
         kw_clisrv,
-        gobj_bottom?gobj_bottom:priv->subscriber
+        gobj_bottom
     );
     gobj_set_bottom_gobj(gobj_bottom, clisrv);
 
