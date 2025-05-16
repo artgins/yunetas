@@ -61,6 +61,8 @@ Change API
     remove set_ordered_death()
     yev_setup_accept_event() and yev_setup_connect_event() removed
 
+    important! gclass and event names are case insensitive
+
 New API
 
     build_stats_response
