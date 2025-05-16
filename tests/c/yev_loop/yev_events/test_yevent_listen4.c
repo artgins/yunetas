@@ -152,14 +152,18 @@ int do_test(void)
         AI_ADDRCONFIG,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
         0
     );
-    yev_start_event(yev_event_accept2);
+    if(yev_event_accept2) {
+        yev_start_event(yev_event_accept2);
+    }
     yev_loop_run(yev_loop, 1);
 
     yev_stop_event(yev_event_accept);
     yev_loop_run(yev_loop, 1);
 
     yev_destroy_event(yev_event_accept);
-    yev_destroy_event(yev_event_accept2);
+    if(yev_event_accept2) {
+        yev_destroy_event(yev_event_accept2);
+    }
 
     yev_loop_stop(yev_loop);
     yev_loop_destroy(yev_loop);
@@ -235,10 +239,9 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "addrinfo on listen",
         "msg", "bind() FAILED",
-        "msg", "Cannot start event: accept addr NULL",
         "msg", "Listen socket failed or stopped"
     );
 
