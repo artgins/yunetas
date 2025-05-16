@@ -1073,7 +1073,7 @@ PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
         event_t *event_ = dl_first(&gclass->dl_events);
         while(event_) {
             if((event_->event_type.event_flag & EVF_PUBLIC_EVENT)) {
-                if(event_->event_type.event_name && strcmp(event_->event_type.event_name, event)==0) {
+                if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event)==0) {
                     return event_->event_type.event_name;
                 }
             }
@@ -1405,13 +1405,13 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
  ***************************************************************************/
 PRIVATE const char *old_to_new_gclass_name(const char *gclass_name)
 {
-    if(strcmp(gclass_name, "IEvent_cli")==0) {
+    if(strcasecmp(gclass_name, "IEvent_cli")==0) {
         return "C_IEVENT_CLI";
-    } else if(strcmp(gclass_name, "IOGate")==0) {
+    } else if(strcasecmp(gclass_name, "IOGate")==0) {
         return "C_IOGATE";
-    } else if(strcmp(gclass_name, "Channel")==0) {
+    } else if(strcasecmp(gclass_name, "Channel")==0) {
         return "C_CHANNEL";
-    } if(strcmp(gclass_name, "GWebSocket")==0) {
+    } if(strcasecmp(gclass_name, "GWebSocket")==0) {
         return "C_WEBSOCKET";
     }
     return gclass_name;
@@ -4912,10 +4912,10 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
     snprintf(service_name, sizeof(service_name), "%s", service);
     strntolower(service_name, sizeof(service_name));
 
-    if(strcmp(service_name, "__default_service__")==0) {
+    if(strcasecmp(service_name, "__default_service__")==0) {
         return __default_service__;
     }
-    if(strcmp(service_name, "__yuno__")==0 || strcmp(service_name, "__root__")==0) {
+    if(strcasecmp(service_name, "__yuno__")==0 || strcasecmp(service_name, "__root__")==0) {
         return gobj_yuno();
     }
 
@@ -4948,7 +4948,7 @@ PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose) 
     json_object_foreach(__jn_services__, key, jn_service) {
         gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
         const char *gclass_name_ = gobj_gclass_name(gobj);
-        if(strcmp(gclass_name, gclass_name_)==0) {
+        if(strcasecmp(gclass_name, gclass_name_)==0) {
             return gobj;
         }
     }
@@ -5459,7 +5459,7 @@ PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
                 if(!gclass_name_) {
                     continue;
                 }
-                if(strcmp(gclass_name_, gobj_gclass_name(gobj))==0) {
+                if(strcasecmp(gclass_name_, gobj_gclass_name(gobj))==0) {
                     continue;
                 }
             }
