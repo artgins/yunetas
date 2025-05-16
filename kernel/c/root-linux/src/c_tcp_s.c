@@ -445,7 +445,7 @@ MT_START_TIME(time_measure)
          *--------------------------------*/
         // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
         json_t *jn_filter = kw_get_dict(gobj, jn_child_tree_filter, "kw", json_object(), 0);
-        gobj_top = gobj_find_child(gobj_parent(gobj), jn_filter);
+        gobj_top = gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
         if(!gobj_top) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
