@@ -104,10 +104,10 @@ SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer s
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
 SDATA (DTP_INTEGER, "timeout_inactivity", SDF_WR|SDF_PERSIST, "-1", "Inactivity timeout in miliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 
-SDATA (DTP_INTEGER, "txBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages transmitted"),
-SDATA (DTP_INTEGER, "rxBytes",          SDF_VOLATIL|SDF_STATS, "0", "Messages received"),
-SDATA (DTP_INTEGER, "txMsgs",           SDF_VOLATIL|SDF_STATS, "0", "Messages transmitted"),
-SDATA (DTP_INTEGER, "rxMsgs",           SDF_VOLATIL|SDF_STATS, "0", "Messages received"),
+SDATA (DTP_INTEGER, "txBytes",          SDF_STATS,      "0", "Messages transmitted"),
+SDATA (DTP_INTEGER, "rxBytes",          SDF_STATS,      "0", "Messages received"),
+SDATA (DTP_INTEGER, "txMsgs",           SDF_STATS,      "0", "Messages transmitted"),
+SDATA (DTP_INTEGER, "rxMsgs",           SDF_STATS,      "0", "Messages received"),
 SDATA (DTP_STRING,  "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,  "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
@@ -592,9 +592,6 @@ PRIVATE void set_disconnected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "connected", false);
-    gobj_write_bool_attr(gobj, "secure_connected", false);
-
     if(gobj_trace_level(gobj) & (TRACE_CONNECT_DISCONNECT) || 1) {
         if(IS_CLI) {
             gobj_log_info(gobj, 0,
@@ -663,6 +660,9 @@ PRIVATE void set_disconnected(hgobj gobj)
         priv->sskt = 0;
     }
 
+    gobj_write_bool_attr(gobj, "connected", false);
+    gobj_write_bool_attr(gobj, "secure_connected", false);
+
     /*
      *  Info of "disconnected"
      */
@@ -678,10 +678,15 @@ PRIVATE void set_disconnected(hgobj gobj)
         }
     }
 
-    gobj_write_str_attr(gobj, "peername", "");
-    gobj_write_str_attr(gobj, "sockname", "");
+    // WARNING will reset attrs: connected,secure_connected,peername,sockname
+    gobj_reset_volatil_attrs(gobj);
 
     if(IS_CLISRV) {
+        priv->txMsgs = 0;
+        priv->rxMsgs = 0;
+        priv->txBytes = 0;
+        priv->rxBytes = 0;
+
         // auto stop
         if(gobj_is_running(gobj)) {
             gobj_stop(gobj);

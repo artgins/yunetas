@@ -1140,6 +1140,10 @@ PUBLIC void gclass_unregister(hgclass hgclass)
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass_)
 {
     gclass_t *gclass = gclass_;
+    if(!gclass) {
+        // Silence
+        return NULL;
+    }
     return gclass->gclass_name;
 }
 
@@ -1188,11 +1192,30 @@ PUBLIC json_t *gclass_gclass_register(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name)
+PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name) // gclass_name can be 'char *' or gclass_name_t
 {
+    if(!gclass_name) {
+        // Silence
+        return NULL;
+    }
+
+    /*
+     *  Find firstly by name type
+     */
     gclass_t *gclass = dl_first(&dl_gclass);
     while(gclass) {
-        if(strcmp(gclass_name, gclass->gclass_name)==0) {
+        if(gclass_name == gclass->gclass_name) {
+            return gclass;
+        }
+        gclass = dl_next(gclass);
+    }
+
+    /*
+     *  Find firstly by name str
+     */
+    gclass = dl_first(&dl_gclass);
+    while(gclass) {
+        if(strcasecmp(gclass_name, gclass->gclass_name)==0) {
             return gclass;
         }
         gclass = dl_next(gclass);
@@ -5156,82 +5179,69 @@ PUBLIC BOOL gobj_match_gobj(
 )
 {
     gobj_t *gobj = gobj_;
-    const char *__inherited_gclass_name__ = kw_get_str(gobj, jn_filter_, "__inherited_gclass_name__", 0, 0);
-    const char *__gclass_name__ = kw_get_str(gobj, jn_filter_, "__gclass_name__", 0, 0);
-    const char *__gobj_name__ = kw_get_str(gobj, jn_filter_, "__gobj_name__", 0, 0);
-    const char *__prefix_gobj_name__ = kw_get_str(gobj, jn_filter_, "__prefix_gobj_name__", 0, 0);
-    const char *__state__ = kw_get_str(gobj, jn_filter_, "__state__", 0, 0);
+    json_t *jn_filter = json_deep_copy(jn_filter_); // deep copy, jn_filter will be modified
+    JSON_DECREF(jn_filter_)
 
-    /*
-     *  Delete the system keys of the jn_filter used in find loop
-     */
-    json_t *jn_filter = json_deep_copy(jn_filter_);
+    const char *__inherited_gclass_name__ =  kw_get_str(
+        gobj, jn_filter, "__inherited_gclass_name__", 0, 0
+    );
+    const char * __gclass_name__ = kw_get_str(gobj, jn_filter, "__gclass_name__", 0, 0);
+    const char * __state__ = kw_get_str(gobj, jn_filter, "__state__", 0, 0);
+    const char *__gobj_name__ = kw_get_str(gobj, jn_filter, "__gobj_name__", 0, 0);
+    const char *__prefix_gobj_name__ = kw_get_str(gobj, jn_filter, "__prefix_gobj_name__", 0, 0);
+
     if(__inherited_gclass_name__) {
+        if(!gobj_typeof_inherited_gclass(gobj, __inherited_gclass_name__)) {
+            JSON_DECREF(jn_filter) // clone
+            return false;
+        }
         json_object_del(jn_filter, "__inherited_gclass_name__");
     }
+
     if(__gclass_name__) {
+        if(!gobj_typeof_gclass(gobj, __gclass_name__)) {
+            JSON_DECREF(jn_filter) // clone
+            return false;
+        }
         json_object_del(jn_filter, "__gclass_name__");
     }
-    if(__gobj_name__) {
-        json_object_del(jn_filter, "__gobj_name__");
-    }
-    if(__prefix_gobj_name__) {
-        json_object_del(jn_filter, "__prefix_gobj_name__");
-    }
     if(__state__) {
+        if(strcasecmp(__state__, gobj_current_state(gobj))!=0) {
+            JSON_DECREF(jn_filter) // clone
+            return false;
+        }
         json_object_del(jn_filter, "__state__");
     }
 
-    if(kw_has_key(jn_filter_, "__disabled__")) {
-        BOOL disabled = kw_get_bool(gobj, jn_filter_, "__disabled__", 0, 0);
+    if(kw_has_key(jn_filter, "__disabled__")) {
+        BOOL disabled = kw_get_bool(gobj, jn_filter, "__disabled__", 0, 0);
         if(disabled && !gobj_is_disabled(gobj)) {
             JSON_DECREF(jn_filter) // clone
-            JSON_DECREF(jn_filter_)
             return false;
         }
         if(!disabled && gobj_is_disabled(gobj)) {
             JSON_DECREF(jn_filter) // clone
-            JSON_DECREF(jn_filter_)
             return false;
         }
         json_object_del(jn_filter, "__disabled__");
     }
 
-   if(!empty_string(__inherited_gclass_name__)) {
-        if(!gobj_typeof_inherited_gclass(gobj, __inherited_gclass_name__)) {
-            JSON_DECREF(jn_filter) // clone
-            JSON_DECREF(jn_filter_)
-            return false;
-        }
-    }
-    if(!empty_string(__gclass_name__)) {
-        if(!gobj_typeof_gclass(gobj, __gclass_name__)) {
-            JSON_DECREF(jn_filter) // clone
-            JSON_DECREF(jn_filter_)
-            return false;
-        }
-    }
-    const char *child_name = gobj_name(gobj);
-    if(!empty_string(__gobj_name__)) {
+    if(__gobj_name__) {
+        const char *child_name = gobj_name(gobj);
         if(strcmp(__gobj_name__, child_name)!=0) {
             JSON_DECREF(jn_filter) // clone
-            JSON_DECREF(jn_filter_)
             return false;
         }
+        json_object_del(jn_filter, "__gobj_name__");
     }
-    if(!empty_string(__prefix_gobj_name__)) {
+
+    if(__prefix_gobj_name__) {
+        const char *child_name = gobj_name(gobj);
         if(strncmp(__prefix_gobj_name__, child_name, strlen(__prefix_gobj_name__))!=0) {
             JSON_DECREF(jn_filter) // clone
-            JSON_DECREF(jn_filter_)
             return false;
         }
-    }
-    if(!empty_string(__state__)) {
-        if(strcasecmp(__state__, gobj_current_state(gobj))!=0) {
-            JSON_DECREF(jn_filter) // clone
-            JSON_DECREF(jn_filter_)
-            return false;
-        }
+        json_object_del(jn_filter, "__prefix_gobj_name__");
     }
 
     const char *key;
@@ -5251,7 +5261,6 @@ PUBLIC BOOL gobj_match_gobj(
     }
 
     JSON_DECREF(jn_filter) // clone
-    JSON_DECREF(jn_filter_)
     return matched;
 }
 
@@ -6073,10 +6082,11 @@ PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj_)
  ***************************************************************************/
 PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name)
 {
-    if(strcasecmp(((gobj_t *)gobj)->gclass->gclass_name, gclass_name)==0)
+    if(strcasecmp(((gobj_t *)gobj)->gclass->gclass_name, gclass_name)==0) {
         return true;
-    else
+    } else {
         return false;
+    }
 }
 
 /***************************************************************************

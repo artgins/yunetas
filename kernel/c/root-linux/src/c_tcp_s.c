@@ -444,9 +444,7 @@ MT_START_TIME(time_measure)
          *      Legacy method
          *--------------------------------*/
         // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
-        json_t *jn_filter = json_deep_copy(kw_get_dict(gobj, jn_child_tree_filter, "kw", json_object(), 0));
-        // HACK si llegan dos on_connection_cb seguidos coge el mismo tree, protege internamente
-        json_object_set_new(jn_filter, "__clisrv__", json_false());
+        json_t *jn_filter = kw_get_dict(gobj, jn_child_tree_filter, "kw", json_object(), 0);
         gobj_top = gobj_find_child(gobj_parent(gobj), jn_filter);
         if(!gobj_top) {
             gobj_log_error(gobj, 0,
