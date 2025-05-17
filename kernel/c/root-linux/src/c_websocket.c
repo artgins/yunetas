@@ -147,6 +147,7 @@ SDATA (DTP_POINTER,     "user_data",        0,                          0,      
 SDATA (DTP_POINTER,     "user_data2",       0,                          0,          "more user data"),
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,                     0,          "What side? server or client"),
 SDATA (DTP_STRING,      "resource",         SDF_RD,                     "/",        "Resource when iam client"),
+SDATA (DTP_JSON,        "kw_connex",        SDF_RD,                     0,          "DEPRECATED, Kw to create connex at client ws"),
 SDATA (DTP_POINTER,     "subscriber",       0,                          0,          "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
@@ -290,9 +291,23 @@ PRIVATE int mt_start(hgobj gobj)
     if(!priv->iamServer) {
         hgobj bottom_gobj = gobj_bottom_gobj(gobj);
         if(!bottom_gobj) {
+            const char *url = gobj_read_str_attr(gobj, "url");
+            if(empty_string(url)) {
+                // HACK, legacy kw_connex
+                json_t *kw_connex = gobj_read_json_attr(gobj, "kw_connex");
+                url = kw_get_str(gobj, kw_connex, "url", "", 0);
+                if(empty_string(url)) {
+                    json_t *jn_urls = kw_get_list(gobj, kw_connex, "urls", 0, 0);
+                    if(jn_urls) {
+                        json_t *jn_url = json_array_get(jn_urls, 0);
+                        url = json_string_value(jn_url);
+                    }
+                }
+            }
+
             json_t *kw = json_pack("{s:s, s:s}",
                 "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
-                "url", gobj_read_str_attr(gobj, "url")
+                "url", url
             );
 
 #ifdef ESP_PLATFORM
