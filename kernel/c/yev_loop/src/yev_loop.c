@@ -216,12 +216,11 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
     }
 
     struct io_uring_cqe *cqe;
-
-    struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
     yev_loop->running = true;
     while(yev_loop->running) {
         int err;
         if(timeout_in_seconds > 0) {
+            struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
             err = io_uring_wait_cqe_timeout(&yev_loop->ring, &cqe, &timeout);
         } else {
             err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
