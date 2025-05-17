@@ -7158,10 +7158,15 @@ PUBLIC int gobj_send_event(
             __inside__ --;
             if(tracea) {
                 if(trace_machine_format) {
-                    trace_machine("🔜 %s %s%s",
+                    trace_machine("🔜 %s%s%s %s%s %s%s%s",
+                        On_Black RRed,
                         event?event:"",
+                        Color_Off,
                         (!dst->running)?"!!":"",
-                        gobj_short_name(dst)
+                        gobj_short_name(dst),
+                        On_Black RGreen,
+                        state->state_name,
+                        Color_Off
                     );
                 } else {
                     trace_machine("🔜 mach(%s%s), st: %s, ev: %s, from(%s%s)",
@@ -7223,12 +7228,15 @@ PUBLIC int gobj_send_event(
      *----------------------------------*/
     if(tracea) {
         if(trace_machine_format) {
-            trace_machine("🔄 %s%s%s %s%s",
+            trace_machine("🔄 %s%s%s %s%s %s%s%s",
                 On_Black RBlue,
                 event?event:"",
                 Color_Off,
                 (!dst->running)?"!!":"",
-                gobj_short_name(dst)
+                gobj_short_name(dst),
+                On_Black RGreen,
+                state->state_name,
+                Color_Off
             );
         } else {
             trace_machine("🔄 mach(%s%s), st: %s, ev: %s%s%s, from(%s%s^%s)",
@@ -8510,12 +8518,15 @@ PUBLIC int gobj_publish_event(
         !is_machine_not_tracing(publisher, event);
     if(tracea) {
         if(trace_machine_format) {
-            trace_machine("🔝🔝 %s%s%s %s%s",
+            trace_machine("🔝🔝 %s%s%s %s%s %s%s%s",
                 On_Black BBlue,
                 event?event:"",
                 Color_Off,
                 (!publisher->running)?"!!":"",
-                gobj_short_name(publisher)
+                gobj_short_name(publisher),
+                On_Black RGreen,
+                publisher->current_state->state_name,
+                Color_Off
             );
         } else {
             trace_machine("🔝🔝 mach(%s%s), st: %s, ev: %s%s%s",

@@ -381,7 +381,7 @@ SDATACM2(DTP_SCHEMA,    "get-trace-filter",         SDF_AUTHZ_X, 0,      0, cmd_
 
 SDATACM2(DTP_SCHEMA,    "reset-all-traces",         SDF_AUTHZ_X, 0,      pm_reset_all_tr, cmd_reset_all_traces,    "Reset all traces of a named-gobj of gclass"),
 SDATACM2(DTP_SCHEMA,    "set-deep-trace",           SDF_AUTHZ_X, 0,      pm_set_deep_trace,cmd_set_deep_trace,   "Set deep trace, all traces active"),
-SDATACM2(DTP_SCHEMA,    "set-machine-format",       SDF_AUTHZ_X, 0,      pm_set_deep_trace,cmd_set_trace_machine_format,   "Set trace machine format"),
+SDATACM2(DTP_SCHEMA,    "set-machine-format",       SDF_AUTHZ_X, 0,      pm_set_deep_trace,cmd_set_trace_machine_format,   "Set trace machine format, 0 legacy default, 1 simpler"),
 
 SDATA_END()
 };
