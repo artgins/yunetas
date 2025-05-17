@@ -289,6 +289,9 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->iamServer) {
+        /*
+         *  Client side
+         */
         hgobj bottom_gobj = gobj_bottom_gobj(gobj);
         if(!bottom_gobj) {
             const char *url = gobj_read_str_attr(gobj, "url");
@@ -311,23 +314,18 @@ PRIVATE int mt_start(hgobj gobj)
             );
 
 #ifdef ESP_PLATFORM
-            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
 #endif
 #ifdef __linux__
-            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
+            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
 #endif
-            gobj_set_bottom_gobj(gobj, gobj_bottom);
+            gobj_set_bottom_gobj(gobj, bottom_gobj);
         }
+
+        gobj_start(bottom_gobj);
     }
 
     gobj_start(priv->timer);
-
-    hgobj tcp0 = gobj_bottom_gobj(gobj);
-    if(tcp0) {
-        if(!gobj_is_running(tcp0)) {
-            gobj_start(tcp0);
-        }
-    }
 
     return 0;
 }
