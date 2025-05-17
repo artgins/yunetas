@@ -485,6 +485,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         /*
          *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
          */
+print_error(0, "Merde 0");  // TODO TEST
+
         if(yev_loop->callback) {
             return yev_loop->callback(0);
         }
@@ -495,6 +497,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     if(!yev_event) {
         // HACK CQE event without data is loop ending
         /* Mark this request as processed */
+print_error(0, "Merde 1");  // TODO TEST
         return -1;
     }
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
@@ -2119,8 +2122,8 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         return NULL;
     }
 
-    if(backlog < 0) {
-        backlog = 0;
+    if(backlog <= 0) {
+        backlog = 4096;
     }
     struct addrinfo hints = {
         .ai_family = ai_family,
