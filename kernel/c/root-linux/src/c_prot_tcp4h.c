@@ -129,8 +129,12 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
-    if(!bottom_gobj) {
-        const char *url = gobj_read_str_attr(gobj, "url");
+    const char *url = gobj_read_str_attr(gobj, "url");
+
+    if(!empty_string(url) && !bottom_gobj) {
+        /*
+         *  Not empty url -> is a client
+         */
         if(!empty_string(url)) {
             json_t *kw = json_pack("{s:s, s:s}",
                 "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
