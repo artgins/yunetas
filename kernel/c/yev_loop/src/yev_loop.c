@@ -485,8 +485,6 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         /*
          *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
          */
-print_error(0, "Merde 0");  // TODO TEST
-
         if(yev_loop->callback) {
             return yev_loop->callback(0);
         }
@@ -496,9 +494,7 @@ print_error(0, "Merde 0");  // TODO TEST
     yev_event_t *yev_event = (yev_event_t *)io_uring_cqe_get_data(cqe);
     if(!yev_event) {
         // HACK CQE event without data is loop ending
-        /* Mark this request as processed */
-print_error(0, "Merde 1");  // TODO TEST
-        return -1;
+        return -1; /* Break the loop */
     }
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
 
