@@ -906,6 +906,12 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  The bottom must be a C_TCP.
+     *  If it's a client then start to begin the connection.
+     *  If it's a server, wait to give the connection done by C_TCP_S.
+     */
+
     if(!priv->iamServer) {
         /*
          *  Client side
