@@ -82,16 +82,16 @@ PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);
  *---------------------------------------------*/
 PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_transport
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
-SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server"),
-SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
+SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is true to know if this is a server (client channel) tcp gobj."),
+SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect in the case of tcp gobj client. Check if the 'url' is not empty to know if this is a client tcp gobj."),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally if client, externally is clisrv"),
+SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
 SDATA (DTP_INTEGER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
 
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_BOOLEAN, "secure_connected", SDF_VOLATIL|SDF_STATS, "false", "Connection state"),
-SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect"),
 SDATA (DTP_STRING,  "schema",           SDF_RD,         "",         "schema, decoded from url. Set internally"),
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
