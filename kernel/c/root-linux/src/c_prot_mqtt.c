@@ -570,7 +570,8 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default-description---------- */
-SDATA (DTP_BOOLEAN,     "connected",        SDF_VOLATIL|SDF_STATS,      0,      "Connection state. Important filter!"),
+SDATA (DTP_STRING,      "url",              SDF_PERSIST,                "",         "Url to connect"),
+SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",         "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
@@ -646,7 +647,6 @@ SDATA (DTP_STRING,      "will_topic",       SDF_VOLATIL,                0,      
 SDATA (DTP_POINTER,     "user_data",        0,                          0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                          0,      "more user data"),
 SDATA (DTP_BOOLEAN,     "iamServer",        SDF_RD,                     0,      "What side? server or client"),
-SDATA (DTP_JSON,        "kw_connex",        SDF_RD,                     0,      "Kw to create connex at client ws"),
 SDATA (DTP_POINTER,     "subscriber",       0,                          0,      "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
@@ -907,19 +907,31 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(!priv->iamServer) {
-        hgobj tcp0 = gobj_bottom_gobj(gobj);
-        if(!tcp0) {
-            // Manual connex configuration
-            json_t *kw_connex = gobj_read_json_attr(gobj, "kw_connex");
-            json_incref(kw_connex);
-            tcp0 = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw_connex, gobj);
-            gobj_set_bottom_gobj(gobj, tcp0);
-            gobj_write_str_attr(tcp0, "tx_ready_event_name", 0);
-            gobj_start(tcp0);
+        hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+        if(!bottom_gobj) {
+            json_t *kw = json_pack("{s:s, s:s}",
+                "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
+                "url", gobj_read_str_attr(gobj, "url")
+            );
+
+#ifdef ESP_PLATFORM
+            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+#endif
+#ifdef __linux__
+            hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
+#endif
+            gobj_set_bottom_gobj(gobj, gobj_bottom);
         }
     }
 
     gobj_start(priv->timer);
+
+    hgobj tcp0 = gobj_bottom_gobj(gobj);
+    if(tcp0) {
+        if(!gobj_is_running(tcp0)) {
+            gobj_start(tcp0);
+        }
+    }
 
     return 0;
 }

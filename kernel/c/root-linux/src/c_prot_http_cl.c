@@ -39,7 +39,6 @@
 PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
-SDATA (DTP_STRING,  "jwt",              SDF_PERSIST,    "",         "Access token"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "false",    "Publish raw partial data of body or full body at the end"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
@@ -160,7 +159,13 @@ PRIVATE int mt_start(hgobj gobj)
             hgobj gobj_bottom = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
         #endif
         gobj_set_bottom_gobj(gobj, gobj_bottom);
-        gobj_start(gobj_bottom);
+    }
+
+    hgobj tcp0 = gobj_bottom_gobj(gobj);
+    if(tcp0) {
+        if(!gobj_is_running(tcp0)) {
+            gobj_start(tcp0);
+        }
     }
 
     return 0;
