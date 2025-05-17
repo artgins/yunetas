@@ -146,7 +146,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     /*
-     *  The bottom must be a C_TCP.
+     *  The bottom must be a C_TCP (it has manual start/stop!).
      *  If it's a client then start to begin the connection.
      *  If it's a server, wait to give the connection done by C_TCP_S.
      */
