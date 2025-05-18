@@ -128,7 +128,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    const char *url = gobj_read_str_attr(gobj, "url");
+    // const char *url = gobj_read_str_attr(gobj, "url");
 
     /*
      *  The bottom must be a C_TCP (it has manual start/stop!).
@@ -136,26 +136,52 @@ PRIVATE int mt_start(hgobj gobj)
      *  If it's a server, wait to give the connection done by C_TCP_S.
      */
 
-    if(!empty_string(url)) {
-        /*
-         *  Not empty url -> is a client
-         */
-        hgobj bottom_gobj = gobj_bottom_gobj(gobj);
-        if(!bottom_gobj) {
-            json_t *kw = json_pack("{s:s, s:s}",
-                "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
-                "url", url
-            );
+    // if(!empty_string(url)) {
+    //     /*
+    //      *  Not empty url -> is a client
+    //      */
+    //     hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+    //     if(!bottom_gobj) {
+    //         json_t *kw = json_pack("{s:s, s:s}",
+    //             "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
+    //             "url", url
+    //         );
+    //
+    //         #ifdef ESP_PLATFORM
+    //             bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+    //         #endif
+    //         #ifdef __linux__
+    //             bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
+    //         #endif
+    //         gobj_set_bottom_gobj(gobj, bottom_gobj);
+    //     }
+    //     gobj_start(bottom_gobj);
+    // }
 
-            #ifdef ESP_PLATFORM
-                bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
-            #endif
-            #ifdef __linux__
-                bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
-            #endif
-            gobj_set_bottom_gobj(gobj, bottom_gobj);
-        }
+    const char *url = gobj_read_str_attr(gobj, "url");
+    hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+    if(!empty_string(url) && !bottom_gobj) {
+        json_t *kw = json_pack("{s:s, s:s}",
+            "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
+            "url", url
+        );
+
+        #ifdef ESP_PLATFORM
+            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+        #endif
+        #ifdef __linux__
+            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
+        #endif
+        gobj_set_bottom_gobj(gobj, bottom_gobj);
         gobj_start(bottom_gobj);
+
+    } else {
+        if(!empty_string(gobj_read_str_attr(bottom_gobj, "url"))) {
+            /*
+             *  Not empty url -> is a client
+             */
+            gobj_start(bottom_gobj);
+        }
     }
 
     return 0;
