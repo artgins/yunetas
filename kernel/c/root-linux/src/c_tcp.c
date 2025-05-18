@@ -1237,6 +1237,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "errno",        "%d", -yev_get_result(yev_event),
                             "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                             "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
                             NULL
                         );
                     }
