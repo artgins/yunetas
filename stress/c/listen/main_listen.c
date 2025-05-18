@@ -23,11 +23,10 @@
 #define APP_DATETIME    __DATE__ " " __TIME__
 
 #define USE_OWN_SYSTEM_MEMORY   false
-#define DEBUG_MEMORY            false
-#define MEM_MIN_BLOCK           0       // use default
-#define MEM_MAX_BLOCK           0       // use default
-#define MEM_SUPERBLOCK          0       // use default
-#define MEM_MAX_SYSTEM_MEMORY   0       // use default
+#define MEM_MIN_BLOCK           512
+#define MEM_MAX_BLOCK           209715200       // 200*M
+#define MEM_SUPERBLOCK          209715200       // 200*M
+#define MEM_MAX_SYSTEM_MEMORY   2147483648      // 2*G
 
 /***************************************************************************
  *                      Default config
@@ -118,7 +117,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,10]],                              \n\
+                '__range__': [[1,10000]],                           \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
@@ -249,11 +248,11 @@ int main(int argc, char *argv[])
         NULL,       // stats_parser, default internal stats_parser
         NULL,       // authz_checker, default Monoclass C_AUTHZ
         NULL,       // authenticate_parser, default Monoclass C_AUTHZ
-        0,
-        0,
-        false,
-        0,
-        0
+        MEM_MAX_BLOCK,
+        MEM_MAX_SYSTEM_MEMORY,
+        USE_OWN_SYSTEM_MEMORY,
+        MEM_MIN_BLOCK,
+        MEM_SUPERBLOCK
     );
 
     result += yuneta_entry_point(

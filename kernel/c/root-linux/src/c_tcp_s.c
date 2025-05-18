@@ -515,6 +515,7 @@ MT_START_TIME(time_measure)
         }
 
 // TODO TEST
+MT_INCREMENT_COUNT(time_measure, 1)
 MT_PRINT_TIME(time_measure, "Accept cb")
 
         gobj_write_bool_attr(clisrv, "__clisrv__", true);

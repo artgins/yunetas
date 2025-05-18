@@ -19,6 +19,11 @@
 #define APP_SUPPORT     "<support@artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 
+#define USE_OWN_SYSTEM_MEMORY   false
+#define MEM_MIN_BLOCK           0       // use default
+#define MEM_MAX_BLOCK           0       // use default
+#define MEM_SUPERBLOCK          0       // use default
+#define MEM_MAX_SYSTEM_MEMORY   0       // use default
 
 /***************************************************************************
  *                      Default config
@@ -219,11 +224,11 @@ int main(int argc, char *argv[])
         NULL,       // stats_parser, default internal stats_parser
         NULL,       // authz_checker, default Monoclass C_AUTHZ
         NULL,       // authenticate_parser, default Monoclass C_AUTHZ
-        0,
-        0,
-        false,
-        0,
-        0
+        MEM_MAX_BLOCK,
+        MEM_MAX_SYSTEM_MEMORY,
+        USE_OWN_SYSTEM_MEMORY,
+        MEM_MIN_BLOCK,
+        MEM_SUPERBLOCK
     );
 
     result += yuneta_entry_point(

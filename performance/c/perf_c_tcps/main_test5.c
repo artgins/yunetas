@@ -32,7 +32,6 @@
 #define APP_DATETIME    __DATE__ " " __TIME__
 
 #define USE_OWN_SYSTEM_MEMORY   false
-#define DEBUG_MEMORY            false
 #define MEM_MIN_BLOCK           0       // use default
 #define MEM_MAX_BLOCK           0       // use default
 #define MEM_SUPERBLOCK          0       // use default
