@@ -268,14 +268,6 @@ int main(int argc, char *argv[])
     // gobj_set_deep_tracing(1);
     // set_auto_kill_time(4);
 
-    // Avoid timer trace, too much information
-    gobj_set_global_no_trace("timer_periodic", true);
-
-    gobj_set_gobj_trace(0, "create_delete", true, 0);
-    gobj_set_gobj_trace(0, "create_delete2", true, 0);
-    gobj_set_gobj_trace(0, "start_stop", true, 0);
-    gobj_set_gobj_trace(0, "machine", true, 0);
-
     /*------------------------------------------------*
      *          Start yuneta
      *------------------------------------------------*/
