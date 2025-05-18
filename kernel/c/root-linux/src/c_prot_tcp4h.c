@@ -173,9 +173,9 @@ PRIVATE int mt_start(hgobj gobj)
             bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
         #endif
         gobj_set_bottom_gobj(gobj, bottom_gobj);
-        gobj_start(bottom_gobj);
+    }
 
-    } else {
+    if(bottom_gobj) {
         if(!empty_string(gobj_read_str_attr(bottom_gobj, "url"))) {
             /*
              *  Not empty url -> is a client
