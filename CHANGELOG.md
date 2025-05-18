@@ -59,8 +59,9 @@ Change API
     rename gobj_get_yuno_must_die() to get_yuno_must_die();
 
     remove set_ordered_death()
-    yev_setup_accept_event() and yev_setup_connect_event() removed
-
+    yev_setup_accept_event() removed
+    yev_create_connect_event() new parameters 
+ 
     important! gclass and event names are case insensitive
 
 New API

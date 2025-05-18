@@ -270,7 +270,7 @@ PRIVATE int mt_start(hgobj gobj)
 
         /*
          *  Parse url to save schema
-         *  It's parsing again in yev_setup_connect_event()
+         *  It's parsing again in yev_setup_connect_event
          */
         char schema[40]; char host[120]; char port[40];
         if(parse_url(
@@ -722,6 +722,11 @@ PRIVATE void set_disconnected(hgobj gobj)
             } else {
                 gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
             }
+            /*
+             *  The gobj is in stop
+             */
+            EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
+            EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
         }
     }
 }
@@ -1282,6 +1287,24 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     JSON_DECREF(kw)
+
+    const char *url = gobj_read_str_attr(gobj, "url");
+    if(yev_setup_connect_event(
+        priv->yev_client_connect,
+        url,    // client_url
+        NULL,   // local bind
+        0,  // ai_family AF_UNSPEC
+        0   // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+    )<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Cannot connect tcp gobj",
+            NULL
+        );
+        try_to_stop_yevents(gobj);
+        return -1;
+    }
 
     if(yev_get_flag(priv->yev_client_connect) & YEV_FLAG_USE_TLS) {
         gobj_write_bool_attr(gobj, "use_ssl", true);
