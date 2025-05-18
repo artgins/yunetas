@@ -1890,6 +1890,11 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
         return -1;
     }
 
+    if(yev_event->fd > 0) {
+        // Already set
+        return yev_event->fd;
+    }
+
     if(!ai_family) {
         ai_family = AF_UNSPEC;
     }
@@ -1899,20 +1904,6 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
 
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
     uint32_t trace_level = gobj_trace_level(gobj);
-
-    if(yev_event->fd > 0) {
-        close(yev_event->fd);
-        yev_event->fd = 0;
-        gobj_log_info(yev_event->yev_loop->yuno?gobj:0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBURING_ERROR,
-            "msg",          "%s", "fd ALREADY set, close and set the new",
-            "url",          "%s", dst_url,
-            "fd",           "%d", yev_get_fd(yev_event),
-            "p",            "%p", yev_event,
-            NULL
-        );
-    }
 
     char schema[16];
     char dst_host[120];
