@@ -104,6 +104,7 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
+                        'backlog': 10010,                           \n\
                         'child_tree_filter': {                      \n\
                             'op': 'find',                           \n\
                             'kw': {                                 \n\

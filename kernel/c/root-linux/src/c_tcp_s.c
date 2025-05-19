@@ -232,6 +232,9 @@ PRIVATE int mt_start(hgobj gobj)
     /*--------------------------------*
      *      Setup server
      *--------------------------------*/
+
+    int x; // TODO check if the value of the net.core.somaxconn is lower than backlog!
+
     priv->yev_server_accept = yev_create_accept_event(
         yuno_event_loop(),
         yev_callback,
