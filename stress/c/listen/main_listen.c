@@ -76,7 +76,7 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'global': {                                                     \n\
         '__input_side__.__json_config_variables__': {               \n\
-            '__input_url__': 'tcp://0.0.0.0:7778'                   \n\
+            '__input_url__': 'tcp://0.0.0.0:7779'                   \n\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
