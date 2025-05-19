@@ -575,7 +575,7 @@ SDATA (DTP_STRING,      "cert_pem",         SDF_PERSIST,                "",     
 SDATA (DTP_BOOLEAN,     "in_session",       SDF_VOLATIL|SDF_STATS,      0,      "CONNECT mqtt done"),
 SDATA (DTP_BOOLEAN,     "send_disconnect",  SDF_VOLATIL,                0,      "send DISCONNECT"),
 SDATA (DTP_JSON,        "client",           SDF_VOLATIL,                0,      "client online"),
-SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,   "15000",      "Timeout to handshake"),
+SDATA (DTP_INTEGER,     "timeout_handshake",SDF_WR|SDF_PERSIST,    "5000",      "Timeout to handshake"),
 SDATA (DTP_INTEGER,     "timeout_close",    SDF_WR|SDF_PERSIST,    "3000",      "Timeout to close"),
 SDATA (DTP_INTEGER,     "pingT",            SDF_WR|SDF_PERSIST,   "50000",      "Ping interval. If value <= 0 then No ping"),
 
