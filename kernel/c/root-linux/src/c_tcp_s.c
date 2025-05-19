@@ -337,6 +337,10 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
+    // TODO TEST
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+
     hgobj gobj = yev_get_gobj(yev_event);
     if(!gobj) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -380,11 +384,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             );
             return 0;
     }
-
-// TODO TEST
-time_measure_t time_measure;
-MT_START_TIME(time_measure)
-
 
     /*-------------------------------------------------*
      *  WARNING: Here only with YEV_ACCEPT_TYPE event
@@ -440,6 +439,10 @@ MT_START_TIME(time_measure)
      *-----------------------------------------------------------*/
     hgobj gobj_top = 0;
     hgobj gobj_bottom = 0;
+
+// TODO TEST
+MT_INCREMENT_COUNT(time_measure, 1)
+MT_PRINT_TIME(time_measure, "Accept cb1")
 
     json_t *jn_child_tree_filter = gobj_read_json_attr(gobj, "child_tree_filter");
     if(json_is_object(jn_child_tree_filter) && json_object_size(jn_child_tree_filter) > 0) {
@@ -519,7 +522,7 @@ MT_START_TIME(time_measure)
 
 // TODO TEST
 MT_INCREMENT_COUNT(time_measure, 1)
-MT_PRINT_TIME(time_measure, "Accept cb")
+MT_PRINT_TIME(time_measure, "Accept cb2")
 
         gobj_write_bool_attr(clisrv, "__clisrv__", true);
         gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
