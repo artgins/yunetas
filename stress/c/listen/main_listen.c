@@ -62,7 +62,7 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
-        'autoplay': true,                                           \n\
+        'autoplay': false,                                          \n\
         'required_services': [],                                    \n\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
@@ -175,14 +175,14 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", true);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", true);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", true);
-    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", true);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", true);
 
     // Samples of global traces
     // gobj_set_gobj_trace(0, "create_delete", true, 0);
     // gobj_set_gobj_trace(0, "create_delete2", true, 0);
     // gobj_set_gobj_trace(0, "start_stop", true, 0);
     // gobj_set_gobj_trace(0, "subscriptions", true, 0);
-    gobj_set_gobj_trace(0, "machine", true, 0);
+    // gobj_set_gobj_trace(0, "machine", true, 0);
     // gobj_set_gobj_trace(0, "ev_kw", true, 0);
     // gobj_set_gobj_trace(0, "liburing", true, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", true, 0);

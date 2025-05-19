@@ -99,6 +99,9 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    /*
+     *  TODO this subscribe is TOO SLOW
+     */
     gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
 
     if(priv->msec > 0) {

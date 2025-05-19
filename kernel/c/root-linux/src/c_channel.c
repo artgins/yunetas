@@ -137,7 +137,6 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_start(priv->timer);
-    gobj_start_tree(gobj);
     return 0;
 }
 
@@ -150,7 +149,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
-    gobj_stop_tree(gobj);
     return 0;
 }
 
