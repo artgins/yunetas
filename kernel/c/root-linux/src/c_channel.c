@@ -37,13 +37,12 @@
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             0,          "Channel opened (opened is higher level than connected"),
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
-SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
-SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RSTATS,         0,          "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RSTATS,         0,          "Messages received"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RSTATS,         0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RSTATS,         0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RSTATS,         0,          "Max Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RSTATS,         0,          "Max Messages by second"),
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -68,9 +67,12 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    hgobj timer;
     json_int_t txMsgs;
     json_int_t rxMsgs;
+    json_int_t txMsgsec;
+    json_int_t rxMsgsec;
+    json_int_t maxtxMsgsec;
+    json_int_t maxrxMsgsec;
     json_int_t last_txMsgs;
     json_int_t last_rxMsgs;
     uint64_t last_ms;
@@ -93,10 +95,6 @@ PRIVATE hgclass __gclass__ = 0;
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-
     /*
      *  CHILD subscription model
      */
@@ -134,9 +132,6 @@ PRIVATE int mt_disable(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_start(priv->timer);
     return 0;
 }
 
@@ -145,10 +140,6 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
     return 0;
 }
 
@@ -160,13 +151,65 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     SData_Value_t v = {0,{0}};
+
+    /*
+     *  Local stats
+     */
+    uint64_t ms = time_in_miliseconds_monotonic();
+    if(!priv->last_ms) {
+        priv->last_ms = ms;
+    }
+    json_int_t t = (json_int_t)(ms - priv->last_ms);
+
+    if(t>=1000) {
+        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
+        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
+
+        txMsgsec *= 1000;
+        rxMsgsec *= 1000;
+        txMsgsec /= t;
+        rxMsgsec /= t;
+
+        if(txMsgsec > priv->maxtxMsgsec) {
+            priv->maxtxMsgsec = txMsgsec;
+        }
+        if(rxMsgsec > priv->maxrxMsgsec) {
+            priv->maxrxMsgsec = rxMsgsec;
+        }
+
+        priv->txMsgsec = txMsgsec;
+        priv->rxMsgsec = rxMsgsec;
+
+        priv->last_ms = ms;
+        priv->last_txMsgs = priv->txMsgs;
+        priv->last_rxMsgs = priv->rxMsgs;
+    }
+
     if(strcmp(name, "txMsgs")==0) {
         v.found = 1;
         v.v.i = priv->txMsgs;
+
     } else if(strcmp(name, "rxMsgs")==0) {
         v.found = 1;
         v.v.i = priv->rxMsgs;
+
+    } else if(strcmp(name, "txMsgsec")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgsec;
+
+    } else if(strcmp(name, "rxMsgsec")==0) {
+        v.found = 1;
+        v.v.i = priv->rxMsgsec;
+
+    } else if(strcmp(name, "maxtxMsgsec")==0) {
+        v.found = 1;
+        v.v.i = priv->maxtxMsgsec;
+
+    } else if(strcmp(name, "maxrxMsgsec")==0) {
+        v.found = 1;
+        v.v.i = priv->maxrxMsgsec;
     }
+
     return v;
 }
 
@@ -220,8 +263,6 @@ PRIVATE BOOL all_children_closed(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*
      *  This action is called only in ST_CLOSED state.
      *  The first tube being connected will cause this.
@@ -236,8 +277,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
     gobj_write_bool_attr(gobj, "opened", true);
-
-    set_timeout_periodic(priv->timer,gobj_read_integer_attr(gobj, "timeout"));
 
     /*
      *  CHILD subscription model
@@ -254,10 +293,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    clear_timeout(priv->timer);
-
     if(all_children_closed(gobj)) {
         if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
             gobj_log_info(gobj, 0,
@@ -452,50 +487,6 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
     return 0;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  Local stats
-     */
-    uint64_t ms = time_in_miliseconds_monotonic();
-    if(!priv->last_ms) {
-        priv->last_ms = ms;
-    }
-    json_int_t t = (json_int_t)(ms - priv->last_ms);
-    if(t>0) {
-        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
-        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
-
-        txMsgsec *= 1000;
-        rxMsgsec *= 1000;
-        txMsgsec /= t;
-        rxMsgsec /= t;
-
-        json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
-        json_int_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
-        if(txMsgsec > maxtxMsgsec) {
-            gobj_write_integer_attr(gobj, "maxtxMsgsec", txMsgsec);
-        }
-        if(rxMsgsec > maxrxMsgsec) {
-            gobj_write_integer_attr(gobj, "maxrxMsgsec", rxMsgsec);
-        }
-
-        gobj_write_integer_attr(gobj, "txMsgsec", txMsgsec);
-        gobj_write_integer_attr(gobj, "rxMsgsec", rxMsgsec);
-    }
-    priv->last_ms = ms;
-    priv->last_txMsgs = priv->txMsgs;
-    priv->last_rxMsgs = priv->rxMsgs;
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
 
 /***************************************************************************
  *                          FSM
@@ -547,7 +538,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *----------------------------------------*/
     ev_action_t st_closed[] = {
         {EV_ON_OPEN,            ac_on_open,         ST_OPENED},
-        {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
         {EV_STOPPED,            ac_stopped,         0},
         {0,0,0}
     };
@@ -557,7 +547,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_MESSAGE,       ac_send_message,    0},
         {EV_ON_ID,              ac_on_id,           0},
         {EV_ON_ID_NAK,          ac_on_id_nak,       0},
-        {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
         {EV_DROP,               ac_drop,            0},
         {EV_ON_OPEN,            0,                  0},
         {EV_ON_CLOSE,           ac_on_close,        0},
@@ -584,7 +573,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
         // internal
         {EV_STOPPED,                0},
-        {EV_TIMEOUT_PERIODIC,       0},
 
         {0, 0}
     };
