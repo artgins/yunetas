@@ -117,7 +117,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,10]],                           \n\
+                '__range__': [[1,10000]],                           \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
@@ -130,12 +130,6 @@ PRIVATE char variable_config[]= "\
                             'kw': {                                 \n\
                             },                                      \n\
                             'children': [                           \n\
-                                {                                       \n\
-                                    'name': 'input-(^^__range__^^)',    \n\
-                                    'gclass': 'C_TCP',                  \n\
-                                    'kw': {                         \n\
-                                    }                               \n\
-                                }                                   \n\
                             ]                                       \n\
                         }                                           \n\
                     ]                                               \n\
@@ -181,7 +175,7 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", true);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", true);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", true);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", true);
+    gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", true);
 
     // Samples of global traces
     // gobj_set_gobj_trace(0, "create_delete", true, 0);

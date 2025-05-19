@@ -667,6 +667,12 @@ PRIVATE void set_disconnected(hgobj gobj)
     gobj_write_bool_attr(gobj, "secure_connected", false);
 
     /*
+     *  Clean tx messages
+     */
+    GBUFFER_DECREF(priv->gbuf_txing)
+    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
+
+    /*
      *  Info of "disconnected"
      */
     if(priv->inform_disconnection) {
@@ -1471,6 +1477,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_wait_stopped[] = {
+        {EV_DROP,                   ac_drop,                    0}, // someone insists
         {0,0,0}
     };
 

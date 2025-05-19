@@ -4802,7 +4802,7 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
         return 0;
     }
 
-    if(is_machine_tracing(gobj, 0)) {
+    if(__deep_trace__) { // too much traces, limit to deep trace
         trace_machine("🔽 set_bottom_gobj('%s') = '%s', prev '%s'",
             gobj_short_name(gobj),
             bottom_gobj?gobj_short_name(bottom_gobj):"",
