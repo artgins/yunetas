@@ -7872,22 +7872,25 @@ PRIVATE int _delete_subscription(
     /*-----------------------------*
      *          Trace
      *-----------------------------*/
-    if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)
-    ) {
+    BOOL trace = __trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher);
+    if(trace) {
         trace_machine(
             "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
             event?event:"",
             gobj_short_name(subscriber),
             gobj_short_name(publisher)
         );
-        gobj_trace_json(
-            gobj,
-            subs,
-            "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
-            event?event:"",
-            gobj_short_name(subscriber),
-            gobj_short_name(publisher)
-        );
+
+        if(__trace_gobj_ev_kw__(subscriber) || __trace_gobj_ev_kw__(publisher)) {
+            gobj_trace_json(
+                gobj,
+                subs,
+                "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
+                event?event:"",
+                gobj_short_name(subscriber),
+                gobj_short_name(publisher)
+            );
+        }
     }
 
     /*------------------------------------------------*
@@ -8130,16 +8133,17 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     /*-----------------------------*
      *          Trace
      *-----------------------------*/
-    if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher)
-    ) {
+    BOOL trace = __trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher);
+    if(trace) {
         trace_machine(
             "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
             event?event:"",
             gobj_short_name(subscriber),
             gobj_short_name(publisher)
         );
-        if(kw) {
-            if(json_object_size(kw)) {
+
+        if(kw && json_object_size(kw)) {
+            if(__trace_gobj_ev_kw__(subscriber) || __trace_gobj_ev_kw__(publisher)) {
                 gobj_trace_json(
                     publisher,
                     subs,

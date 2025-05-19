@@ -16,7 +16,7 @@ const args = require('minimist')(argv.slice(2), {
     },
     default: {
         host: '127.0.0.1',
-        port: 7778,
+        port: 7779,
         connections: 10,
         disconnect: 60  // seconds before disconnect
     },
@@ -31,7 +31,7 @@ Options:
   -h, --host         Target host (default: 127.0.0.1)
   -p, --port         Target port (default: 2002)
   -c, --connections  Number of concurrent connections (default: 10)
-  -d, --disconnect   Seconds before closing each connection (default: 60)
+  -d, --disconnect   Seconds before closing each connection (default: 60, 0=no-disconnect)
       --help         Show this help message
 
 Each connection logs its local and remote address when connected,
@@ -48,10 +48,12 @@ function createConnection(i) {
         const local = `${client.localAddress}:${client.localPort}`;
         console.log(`Connected ${i}: peer=${peer}, local=${local}`);
 
-        setTimeout(() => {
-            console.log(`Close Connection ${i}`);
-            client.end();
-        }, args.disconnect * 1000);
+        if(args.disconnect) {
+            setTimeout(() => {
+                console.log(`Close Connection ${i}`);
+                client.end();
+            }, args.disconnect * 1000);
+        }
     });
 
     client.on('error', (err) => {
