@@ -779,6 +779,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_timeout_wait_idAck(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    // TODO by here it fails
     gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw)
@@ -918,6 +919,21 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_short_name(gobj),
             gobj_short_name(src)
         );
+        if((trace_level & TRACE_IEVENTS2)) {
+            trace_inter_event2(gobj, prefix, event, kw);
+        } else if((trace_level & TRACE_IEVENTS)) {
+            trace_inter_event(gobj, prefix, event, kw);
+        } else if((trace_level & TRACE_IDENTITY_CARD)) {
+            if(event == EV_IDENTITY_CARD ||
+                event == EV_IDENTITY_CARD_ACK ||
+                event == EV_PLAY_YUNO ||
+                event == EV_PLAY_YUNO_ACK ||
+                event == EV_PAUSE_YUNO ||
+                event == EV_PAUSE_YUNO_ACK
+               ) {
+                trace_inter_event2(gobj, prefix, event, kw);
+            }
+        }
     }
 
     /*-----------------------------------------*

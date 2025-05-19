@@ -378,7 +378,7 @@ PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys
 PRIVATE dl_list_t dl_gclass = {0};
 PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(size_t)gobj
 PRIVATE dl_list_t dl_trans_filter = {0};
-PRIVATE int trace_machine_format = 0;
+PRIVATE int trace_machine_format = 1;       // 0 legacy, 1 simpler
 /*
  *  Global trace levels
  */
@@ -7008,9 +7008,17 @@ PUBLIC json_t *gobj2json( // Return a dict with gobj's description.
     if(kw_find_str_in_list(gobj, jn_filter, "bottom_gobj")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(
             jn_dict,
-            "bottom_gobj",
+            "is_bottom_gobj",
             gobj_is_bottom_gobj(gobj)? json_true() : json_false()
         );
+        hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+        if(bottom_gobj) {
+            json_object_set_new(
+                jn_dict,
+                "bottom_gobj",
+                json_string(gobj_short_name(bottom_gobj))
+            );
+        }
     }
     if(kw_find_str_in_list(gobj, jn_filter, "disabled")!=-1 || !json_array_size(jn_filter)) {
         json_object_set_new(

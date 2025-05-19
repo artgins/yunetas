@@ -117,7 +117,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,10000]],                           \n\
+                '__range__': [[1,10]],                           \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
@@ -172,7 +172,7 @@ static int register_yuno_and_more(void)
 
     // Samples of traces
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", true);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", true);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", true);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", true);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", true);
@@ -188,7 +188,7 @@ static int register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "create_delete2", true, 0);
     // gobj_set_gobj_trace(0, "start_stop", true, 0);
     // gobj_set_gobj_trace(0, "subscriptions", true, 0);
-    // gobj_set_gobj_trace(0, "machine", true, 0);
+    gobj_set_gobj_trace(0, "machine", true, 0);
     // gobj_set_gobj_trace(0, "ev_kw", true, 0);
     // gobj_set_gobj_trace(0, "liburing", true, 0);
     // gobj_set_gobj_trace(0, "liburing_timer", true, 0);

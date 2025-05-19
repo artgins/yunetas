@@ -454,6 +454,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                 "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                "fd",           "%d", fd,
                 NULL
             );
         } else {
@@ -465,6 +466,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
                 "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                "fd",           "%d", fd,
                 NULL
             );
         }
@@ -1149,6 +1151,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "errno",        "%d", -yev_get_result(yev_event),
                             "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                             "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
                             NULL
                         );
                     }
@@ -1210,6 +1213,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "errno",        "%d", -yev_get_result(yev_event),
                             "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                             "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
                             NULL
                         );
                     }
