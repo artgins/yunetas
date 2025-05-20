@@ -1299,7 +1299,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     JSON_DECREF(kw)
 
     const char *url = gobj_read_str_attr(gobj, "url");
-    if(yev_setup_connect_event(
+    if(yev_rearm_connect_event(
         priv->yev_client_connect,
         url,    // client_url
         NULL,   // local bind

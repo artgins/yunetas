@@ -15,6 +15,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <cpu.h>
 #include <helpers.h>
 #include <kwid.h>
 #include "yev_loop.h"
@@ -1858,7 +1859,7 @@ PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in 
         json_decref(jn_flags);
     }
 
-    yev_setup_connect_event(yev_event,
+    yev_rearm_connect_event(yev_event,
         dst_url,
         src_url,
         ai_family,
@@ -1869,10 +1870,13 @@ PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in 
 }
 
 /***************************************************************************
- *
+ *  create the socket to connect in yev_event->fd
+ *  If fd already set, let it and return
+ *  To recreate fd previously close it and set -1
  ***************************************************************************/
-PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event->fd
-                                    // If fd already set, close and set the new
+PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event->fd
+                                    // If fd already set, let it and return
+                                    // To recreate fd, previously close it and set -1
     yev_event_h yev_event_,
     const char *dst_url,
     const char *src_url,    /* local bind, only host:port */
@@ -2132,8 +2136,8 @@ PUBLIC int yev_setup_connect_event( // create the socket to connect in yev_event
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "yev_setup_connect_event",
-            "msg2",         "%s", "💥🟦🟦 yev_setup_connect_event",
+            "msg",          "%s", "yev_rearm_connect_event",
+            "msg2",         "%s", "💥🟦🟦 yev_rearm_connect_event",
             "type",         "%s", yev_event_type_name(yev_event),
             "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", fd,
@@ -2193,6 +2197,21 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     if(backlog <= 0) {
         backlog = 4096;
     }
+
+#ifdef __linux__
+    int somaxconn = get_net_core_somaxconn();
+    if(somaxconn < backlog) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "net.core.somaxconn TOO SMALL, increase it in the s.o.",
+            "somaxconn",    "%d", somaxconn,
+            "backlog",      "%d", backlog,
+            NULL
+        );
+    }
+#endif
+
     struct addrinfo hints = {
         .ai_family = ai_family,
         .ai_flags = ai_flags,
@@ -2378,7 +2397,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
 
 /***************************************************************************
  *
- *********** ****************************************************************/
+ ***************************************************************************/
 PUBLIC yev_event_h yev_create_read_event(
     yev_loop_h yev_loop_,
     yev_callback_t callback,
