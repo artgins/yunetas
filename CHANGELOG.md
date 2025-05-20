@@ -80,6 +80,8 @@ New API
     gobj_is_bottom_gobj
     str2gbuf
     gobj_set_trace_machine_format
+    get_net_core_somaxconn(void)
+
 
 Delete API
 

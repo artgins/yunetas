@@ -43,20 +43,20 @@ extern "C" {
 #define INTERRUPTS      "/proc/interrupts"
 #define MEMINFO         "/proc/meminfo"
 
-#define PID_STAT    "/proc/%u/stat"
-#define PID_STATUS  "/proc/%u/status"
-#define PID_IO      "/proc/%u/io"
-#define PID_CMDLINE "/proc/%u/cmdline"
-#define PID_SMAP    "/proc/%u/smaps"
-#define PID_FD      "/proc/%u/fd"
+#define PID_STAT        "/proc/%u/stat"
+#define PID_STATUS      "/proc/%u/status"
+#define PID_IO          "/proc/%u/io"
+#define PID_CMDLINE     "/proc/%u/cmdline"
+#define PID_SMAP        "/proc/%u/smaps"
+#define PID_FD          "/proc/%u/fd"
 
-#define PROC_TASK   "/proc/%u/task"
-#define TASK_STAT   "/proc/%u/task/%u/stat"
-#define TASK_STATUS "/proc/%u/task/%u/status"
-#define TASK_IO     "/proc/%u/task/%u/io"
+#define PROC_TASK       "/proc/%u/task"
+#define TASK_STAT       "/proc/%u/task/%u/stat"
+#define TASK_STATUS     "/proc/%u/task/%u/status"
+#define TASK_IO         "/proc/%u/task/%u/io"
 #define TASK_CMDLINE    "/proc/%u/task/%u/cmdline"
-#define TASK_SMAP   "/proc/%u/task/%u/smaps"
-#define TASK_FD     "/proc/%u/task/%u/fd"
+#define TASK_SMAP       "/proc/%u/task/%u/smaps"
+#define TASK_FD         "/proc/%u/task/%u/fd"
 
 /*
  * kB <-> number of pages.
@@ -191,18 +191,12 @@ void read_uptime(unsigned long long *uptime);
 void read_meminfo(struct stats_memory *st_memory);
 void read_stat_cpu(struct stats_cpu *st_cpu, int nbr, unsigned long long *uptime, unsigned long long *uptime0);
 
-#else
-struct pid_stats {
-    char               comm[MAX_COMM_LEN];
-    char               cmdline[MAX_CMDLINE_LEN];
-};
-
-#endif /* __linux__ */
-
 unsigned long free_ram_in_kb(void); /* Free memory in kB */
 int cpu_usage(unsigned int pid, uint64_t *system_time, uint64_t *process_time);
 int read_proc_pid_cmdline(unsigned int pid, struct pid_stats *pst, unsigned int tgid);
+int get_net_core_somaxconn(void);
 
+#endif /* __linux__ */
 
 #ifdef __cplusplus
 }

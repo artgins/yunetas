@@ -15,6 +15,7 @@
 #include <kwid.h>
 #include <ytls.h>
 #include <yev_loop.h>
+#include <cpu.h>
 #include "c_yuno.h"
 #include "c_tcp.h"
 #include "c_tcp_s.h"
@@ -232,14 +233,25 @@ PRIVATE int mt_start(hgobj gobj)
     /*--------------------------------*
      *      Setup server
      *--------------------------------*/
-
-    int x; // TODO check if the value of the net.core.somaxconn is lower than backlog!
-
+    int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
+#ifdef __linux__
+    int somaxconn = get_net_core_somaxconn();
+    if(somaxconn < backlog) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "net.core.somaxconn TOO SMALL, increase it in the s.o.",
+            "somaxconn",    "%d", somaxconn,
+            "backlog",      "%d", backlog,
+            NULL
+        );
+    }
+#endif
     priv->yev_server_accept = yev_create_accept_event(
         yuno_event_loop(),
         yev_callback,
         url,        // server_url,
-        (int)gobj_read_integer_attr(gobj, "backlog"),
+        backlog,
         gobj_read_bool_attr(gobj, "shared"), // shared
         0,  // ai_family AF_UNSPEC
         0,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG

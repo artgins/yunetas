@@ -824,27 +824,26 @@ unsigned long proc_vmem_in_kb(unsigned int pid)
     return pst.vsz;
 }
 
-#else /* WIN32 */
-
-/*
- ***************************************************************************
- *  Free memory in kB
- ***************************************************************************
- */
-unsigned long free_ram_in_kb(void)
+/***************************************************************************
+ *  Read the value of net.core.somaxconn
+ *  Returns: the value on success, or -1 on error.
+ ***************************************************************************/
+int get_net_core_somaxconn(void)
 {
-    // TODO
-    return 0;
+    const char *path = "/proc/sys/net/core/somaxconn";
+    FILE *fp = fopen(path, "r");
+    if(!fp) {
+        return -1;
+    }
+
+    int value;
+    if(fscanf(fp, "%d", &value) != 1) {
+        fclose(fp);
+        return -1;
+    }
+
+    fclose(fp);
+    return value;
 }
 
-/*
- ***************************************************************************
- *  Cpu usage
- ***************************************************************************
- */
-int cpu_usage(unsigned int pid, uint64_t *system_time, uint64_t *process_time)
-{
-    return 0;
-}
-
-#endif /* WIN32 */
+#endif
