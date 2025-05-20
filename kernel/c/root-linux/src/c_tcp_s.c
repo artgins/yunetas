@@ -401,9 +401,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         return 0;
     }
 
-    char peername[80];
-    get_peername(peername, sizeof(peername), fd_clisrv);
     if(gobj_read_bool_attr(gobj, "only_allowed_ips")) {
+        char peername[80];
+        get_peername(peername, sizeof(peername), fd_clisrv);
         const char *localhost = "127.0.0.";
         if(strncmp(peername, localhost, strlen(localhost))!=0) {
             if(!is_ip_allowed(peername)) {
