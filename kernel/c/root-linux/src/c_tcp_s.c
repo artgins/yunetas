@@ -431,9 +431,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
      *  Create a filter, if.
      *  A filter is a top level gobj tree over the clisrv gobj.
      *-----------------------------------------------------------*/
-    hgobj gobj_top = 0;
-    hgobj gobj_bottom = 0;
-
 // TODO TEST
 MT_INCREMENT_COUNT(time_measure, 1)
 MT_PRINT_TIME(time_measure, "Accept cb1")
@@ -443,6 +440,9 @@ MT_PRINT_TIME(time_measure, "Accept cb1")
         /*--------------------------------*
          *      Legacy method
          *--------------------------------*/
+        hgobj gobj_top = 0;
+        hgobj gobj_bottom = 0;
+
         // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
         json_t *jn_filter = kw_get_dict(gobj, jn_child_tree_filter, "kw", json_object(), 0);
         gobj_top = gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
