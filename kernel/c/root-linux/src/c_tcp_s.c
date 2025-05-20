@@ -444,7 +444,7 @@ MT_INCREMENT_COUNT(time_measure, 1)
 MT_PRINT_TIME(time_measure, "Accept cb1")
 
     json_t *jn_child_tree_filter = gobj_read_json_attr(gobj, "child_tree_filter");
-    if(json_is_object(jn_child_tree_filter) && json_object_size(jn_child_tree_filter) > 0) {
+    if(json_object_size(jn_child_tree_filter) > 0) {
         /*--------------------------------*
          *      Legacy method
          *--------------------------------*/
