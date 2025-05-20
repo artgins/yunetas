@@ -67,11 +67,11 @@ PRIVATE char variable_config[]= "\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
         },                                                          \n\
-        'io_uring_entries': 30000,                                  \n\
+        'io_uring_entries': 20000,                                  \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
         'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
-            #^^ 'C_TCP': ['connections'],                               \n\
+            'C_TCP': ['connections']                               \n\
             #^^ 'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
         }                                                           \n\
     },                                                              \n\

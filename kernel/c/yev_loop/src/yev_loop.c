@@ -109,7 +109,7 @@ PUBLIC int yev_loop_create(
     yev_loop_h *yev_loop_
 )
 {
-    struct io_uring ring_test;
+    //struct io_uring ring_test;
     int err;
 
     *yev_loop_ = 0;     // error case
@@ -118,31 +118,31 @@ PUBLIC int yev_loop_create(
         entries = DEFAULT_ENTRIES;
     }
 
-    struct io_uring_params params_test = {0};
-    //params_test.flags |= IORING_SETUP_COOP_TASKRUN; // Available since 5.18
-    //params_test.flags |= IORING_SETUP_SINGLE_ISSUER; // Available since 6.0
-retry:
-    err = io_uring_queue_init_params(entries, &ring_test, &params_test);
-    if(err) {
-        if (err == -EINVAL && params_test.flags & IORING_SETUP_SINGLE_ISSUER) {
-            params_test.flags &= ~IORING_SETUP_SINGLE_ISSUER;
-            goto retry;
-        }
-        if (err == -EINVAL && params_test.flags & IORING_SETUP_COOP_TASKRUN) {
-            params_test.flags &= ~IORING_SETUP_COOP_TASKRUN;
-            goto retry;
-        }
-
-        gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "Linux kernel without io_uring, cannot run yunetas",
-            "errno",        "%d", -err,
-            "serrno",       "%s", strerror(-err),
-            NULL
-        );
-        return -1;
-    }
+    // struct io_uring_params params_test = {0};
+    // //params_test.flags |= IORING_SETUP_COOP_TASKRUN; // Available since 5.18
+    // //params_test.flags |= IORING_SETUP_SINGLE_ISSUER; // Available since 6.0
+// retry:
+//     err = io_uring_queue_init_params(entries, &ring_test, &params_test);
+//     if(err) {
+//         if (err == -EINVAL && params_test.flags & IORING_SETUP_SINGLE_ISSUER) {
+//             params_test.flags &= ~IORING_SETUP_SINGLE_ISSUER;
+//             goto retry;
+//         }
+//         if (err == -EINVAL && params_test.flags & IORING_SETUP_COOP_TASKRUN) {
+//             params_test.flags &= ~IORING_SETUP_COOP_TASKRUN;
+//             goto retry;
+//         }
+//
+//         gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_YEV_LOOP,
+//             "msg",          "%s", "Linux kernel without io_uring, cannot run yunetas",
+//             "errno",        "%d", -err,
+//             "serrno",       "%s", strerror(-err),
+//             NULL
+//         );
+//         return -1;
+//     }
 
     yev_loop_t *yev_loop = GBMEM_MALLOC(sizeof(yev_loop_t));
     if(!yev_loop) {
@@ -154,11 +154,12 @@ retry:
         );
         return -1;
     }
-    struct io_uring_params params = {
-        .flags = params_test.flags
-    };
+    // struct io_uring_params params = {
+    //     .flags = params_test.flags
+    // };
+    // err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
 
-    err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
+    err = io_uring_queue_init(entries, &yev_loop->ring, 0);
     if (err < 0) {
         GBMEM_FREE(yev_loop)
         gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,

@@ -630,7 +630,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
 // TODO TEST
 MT_INCREMENT_COUNT(time_measure, 1)
-MT_PRINT_TIME(time_measure, "Accept cb2")
+char temp[256];
+snprintf(temp, sizeof(temp), "Accept cb2, dup %d", yev_get_dup_idx(yev_event));
+MT_PRINT_TIME(time_measure, temp);
 
         gobj_write_bool_attr(clisrv, "__clisrv__", true);
         gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
