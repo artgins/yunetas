@@ -422,15 +422,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         }
     }
 
-    /*-------------------*
-     *  Name of clisrv
-     *-------------------*/
-    priv->tconnxs++;
-    char xname[80];
-    snprintf(xname, sizeof(xname), "clisrv-%"JSON_INTEGER_FORMAT,
-        priv->tconnxs
-    );
-
+    /*
+     *  Concurrent connections
+     */
     priv->connxs++;
 
     /*-----------------------------------------------------------*
@@ -501,6 +495,15 @@ MT_PRINT_TIME(time_measure, "Accept cb1")
             json_object_set_new(kw_clisrv, "use_ssl", json_boolean(priv->use_ssl));
             json_object_set_new(kw_clisrv, "__clisrv__", json_true());
             json_object_set_new(kw_clisrv, "fd_clisrv", json_integer(fd_clisrv));
+
+            /*-------------------*
+             *  Name of clisrv
+             *-------------------*/
+            priv->tconnxs++;
+            char xname[80];
+            snprintf(xname, sizeof(xname), "clisrv-%"JSON_INTEGER_FORMAT,
+                priv->tconnxs
+            );
 
             clisrv = gobj_create_volatil(
                 xname, // the same name as the filter.
