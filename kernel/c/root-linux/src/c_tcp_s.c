@@ -22,6 +22,8 @@
 
 #include <testing.h> // TODO TEST
 
+#include "c_channel.h"
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
@@ -133,8 +135,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     SET_PRIV(child_tree_filter, gobj_read_json_attr)
-
-    SET_PRIV(clisrv_kw,     gobj_read_json_attr)
+    SET_PRIV(clisrv_kw,         gobj_read_json_attr)
 
     /*
      *  subscription model: no send or publish events
@@ -300,7 +301,38 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_change_state(gobj, ST_IDLE);
 
-    yev_start_event(priv->yev_server_accept);
+    if(json_object_size(priv->child_tree_filter) > 0) {
+        /*--------------------------------*
+         *      Legacy method
+         *--------------------------------*/
+        yev_start_event(priv->yev_server_accept);
+    } else {
+        /*-----------------------------------------*
+         *      New method
+         *  Set an accept event in each TCP gobj
+         *-----------------------------------------*/
+        hgobj parent = gobj_parent(gobj);
+        hgobj child = gobj_first_child(parent);
+        while(child) {
+            if(gobj_gclass_name(child) == C_CHANNEL) {
+                hgobj bottom_gobj = gobj_last_bottom_gobj(child);
+                if(gobj_gclass_name(bottom_gobj) == C_TCP) {
+
+
+                } else {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "Bottom gobj must be C_TCP",
+                        "channel",      "%s", gobj_full_name(bottom_gobj),
+                        NULL
+                    );
+                }
+            }
+            child = gobj_next_child(child);
+        }
+
+    }
 
     return 0;
 }
