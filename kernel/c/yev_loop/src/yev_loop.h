@@ -168,6 +168,7 @@ PUBLIC yev_loop_h yev_get_loop(yev_event_h yev_event);
 PUBLIC yev_flag_t yev_get_flag(yev_event_h yev_event);
 PUBLIC yev_state_t yev_get_state(yev_event_h yev_event);
 PUBLIC int yev_get_result(yev_event_h yev_event);
+PUBLIC int yev_get_dup_idx(yev_event_h yev_event);
 PUBLIC hgobj yev_get_gobj(yev_event_h yev_event);
 PUBLIC hgobj yev_get_yuno(yev_loop_h yev_loop);
 PUBLIC int yev_set_user_data(
@@ -239,6 +240,12 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     BOOL shared,            /* open socket as shared */
     int ai_family,          /* default: AF_UNSPEC, Allow IPv4 or IPv6  (AF_INET AF_INET6) */
     int ai_flags,           /* default: AI_V4MAPPED | AI_ADDRCONFIG */
+    hgobj gobj
+);
+
+PUBLIC yev_event_h yev_dup_accept_event(
+    yev_event_h yev_server_accept,
+    int dup_idx,
     hgobj gobj
 );
 

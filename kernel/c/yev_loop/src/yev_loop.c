@@ -54,6 +54,7 @@ struct yev_event_s {
     int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
 
     sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
+    int dup_idx;
 };
 
 struct yev_loop_s {
@@ -978,6 +979,14 @@ PUBLIC yev_state_t yev_get_state(yev_event_h yev_event)
 PUBLIC int yev_get_result(yev_event_h yev_event)
 {
     return ((yev_event_t *)yev_event)->result;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int yev_get_dup_idx(yev_event_h yev_event)
+{
+    return ((yev_event_t *)yev_event)->dup_idx;
 }
 
 /***************************************************************************
@@ -2424,6 +2433,60 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev_create_accept_event",
             "msg2",         "%s", "💥🟦 yev_create_accept_event",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
+            "fd",           "%d", yev_get_fd(yev_event),
+            "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
+    return yev_event;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC yev_event_h yev_dup_accept_event( // create the socket listening in yev_event->fd
+    yev_event_h yev_event_accept_,
+    int dup_idx,
+    hgobj gobj
+) {
+    yev_event_t *yev_event_accept = (yev_event_t *)yev_event_accept_;
+    yev_loop_t *yev_loop = yev_event_accept->yev_loop;
+
+    uint32_t trace_level = gobj_trace_level(yev_loop->yuno?gobj:0);
+
+    yev_event_t *yev_event = create_event(
+        yev_loop,
+        yev_event_accept->callback,
+        gobj,
+        yev_event_accept->fd
+    );
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_ACCEPT_TYPE;
+    yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
+    memcpy(
+        &yev_event->sock_info->src_addr,
+        &yev_event_accept->sock_info->src_addr,
+        yev_event_accept->sock_info->src_addrlen
+    );
+    yev_event->sock_info->src_addrlen = yev_event_accept->sock_info->src_addrlen;
+    yev_event->dup_idx = dup_idx;
+
+    if(trace_level & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+        gobj_log_debug(yev_loop->yuno?gobj:0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev_dup_accept_event",
+            "msg2",         "%s", "💥🟦 yev_dup_accept_event",
             "type",         "%s", yev_event_type_name(yev_event),
             "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", yev_get_fd(yev_event),

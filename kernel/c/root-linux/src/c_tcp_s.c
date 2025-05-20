@@ -172,6 +172,16 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
+
+    int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
+    for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+        if(priv->yev_dups[dup_idx]) {
+            yev_destroy_event(priv->yev_dups[dup_idx]);
+            priv->yev_dups[dup_idx] = 0;
+        }
+    }
+
+    GBMEM_FREE(priv->yev_dups)
 }
 
 /***************************************************************************
@@ -307,11 +317,11 @@ PRIVATE int mt_start(hgobj gobj)
          *      Legacy method
          *--------------------------------*/
         yev_start_event(priv->yev_server_accept);
-        // // priv->yev_dups = GBMEM_MALLOC(backlog * )
-        // for(int i=0; i<backlog; i++) {
-        //     yev_event_h yev_dup = yev_dup_accept_event(priv->yev_server_accept);
-        //     yev_start_event(yev_dup);
-        // }
+        priv->yev_dups = GBMEM_MALLOC((backlog + 1)* sizeof(yev_event_h *));
+        for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+            priv->yev_dups[dup_idx] = yev_dup_accept_event(priv->yev_server_accept, dup_idx, gobj);
+            yev_start_event(priv->yev_dups[dup_idx]);
+        }
 
     } else {
         /*-----------------------------------------*
@@ -357,6 +367,20 @@ PRIVATE int mt_stop(hgobj gobj)
         if(yev_event_is_stopped(priv->yev_server_accept)) {
             yev_destroy_event(priv->yev_server_accept);
             priv->yev_server_accept = 0;
+        } else {
+            gobj_change_state(gobj, ST_WAIT_STOPPED);
+        }
+    }
+
+    int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
+    for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+        if(!priv->yev_dups[dup_idx]) {
+            continue;
+        }
+        yev_stop_event(priv->yev_dups[dup_idx]);
+        if(yev_event_is_stopped(priv->yev_dups[dup_idx])) {
+            yev_destroy_event(priv->yev_dups[dup_idx]);
+            priv->yev_dups[dup_idx] = 0;
         } else {
             gobj_change_state(gobj, ST_WAIT_STOPPED);
         }
@@ -431,12 +455,19 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     if(yev_event_is_stopped(yev_event)) {
         gobj_change_state(gobj, ST_STOPPED);
         if(priv->yev_server_accept != yev_event) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "yev_event != yev_server_accept",
-                NULL
-            );
+            int dup_idx = yev_get_dup_idx(yev_event);
+            if(dup_idx && yev_event == priv->yev_dups[dup_idx]) {
+                yev_destroy_event(yev_event);
+                priv->yev_dups[dup_idx] = 0;
+            } else {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "dup_idx not match",
+                    NULL
+                );
+            }
+
         } else {
             yev_destroy_event(yev_event);
             priv->yev_server_accept = 0;
