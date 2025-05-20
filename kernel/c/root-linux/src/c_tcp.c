@@ -18,6 +18,8 @@
 #include "c_yuno.h"
 #include "c_tcp.h"
 
+#include <testing.h> // TODO TEST
+
 /*
     This gclass works with two type of TCP clients:
             - cli (pure client)
@@ -223,11 +225,18 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 /***************************************************************************
  *      Framework Method
  ***************************************************************************/
+time_measure_t yev_time_measure; // TODO TEST
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_start(priv->gobj_timer);
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept callback 6");
+
+    gobj_start(priv->gobj_timer); // TODO WTF!!! LOW!!
+
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept callback 7");
 
     gobj_state_t state = gobj_current_state(gobj);
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
@@ -252,12 +261,17 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept callback 8");
+
     if(priv->__clisrv__) {
         /*
          *  clisrv
          *  It's already connected when is created
          */
-        set_connected(gobj, priv->fd_clisrv);
+        set_connected(gobj, priv->fd_clisrv);  // TODO WTF!!! LOW!!
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept callback 9");
 
     } else {
         /*
@@ -335,6 +349,9 @@ PRIVATE int mt_start(hgobj gobj)
             }
         }
     }
+
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept callback 10");
 
     return 0;
 }

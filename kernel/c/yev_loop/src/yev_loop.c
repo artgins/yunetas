@@ -15,6 +15,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <testing.h> // TODO TEST
 #include <helpers.h>
 #include <kwid.h>
 #include "yev_loop.h"
@@ -196,6 +197,7 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop)
 /***************************************************************************
  *
  ***************************************************************************/
+extern time_measure_t yev_time_measure; // TODO TEST
 PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 {
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
@@ -231,8 +233,6 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         if(timeout_in_seconds > 0) {
             struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
             err = io_uring_wait_cqe_timeout(&yev_loop->ring, &cqe, &timeout);
-printf("timeout\n"); // TODO TEST
-
         } else {
             err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
         }
@@ -267,6 +267,9 @@ printf("timeout\n"); // TODO TEST
             break;
         }
 
+        // TODO TEST
+        MT_START_TIME(yev_time_measure)
+
         struct my_io_uring_cqe my_cqe;
         my_cqe.flags = cqe->flags;
         my_cqe.res = cqe->res;
@@ -275,19 +278,23 @@ printf("timeout\n"); // TODO TEST
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
 
-        printf("cqe->res %d\n", cqe->res); // TODO TEST
-
         yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
-        if(yev_event->type == YEV_ACCEPT_TYPE) {
-            static int i=0;
-            if(++i>1) {
-                continue; // TODO TEST
-            }
-        }
+        printf("type %d, cqe->res %d\n", yev_event->type, cqe->res); // TODO TEST
+        // if(yev_event->type == YEV_ACCEPT_TYPE) {
+        //     static int i=0;
+        //     if(++i>1) {
+        //         continue; // TODO TEST
+        //     }
+        // }
 
         if(callback_cqe(yev_loop, &my_cqe)<0) {
             yev_loop->running = false;
         }
+        // TODO TEST
+        MT_INCREMENT_COUNT(yev_time_measure, 1)
+        char temp[256];
+        snprintf(temp, sizeof(temp), "Type %d, dup %d", yev_event->type, yev_get_dup_idx(yev_event));
+        MT_PRINT_TIME(yev_time_measure, temp);
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {

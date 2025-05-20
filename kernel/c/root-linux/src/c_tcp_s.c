@@ -434,11 +434,12 @@ PUBLIC hgobj my_gobj_find_child(
  *  Accept cb
  *  WARNING yev_callback() return -1 will break the loop of yevent
  ***************************************************************************/
+extern time_measure_t yev_time_measure; // TODO TEST
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
-    // TODO TEST
-    time_measure_t time_measure;
-    MT_START_TIME(time_measure)
+// TODO TEST
+MT_INCREMENT_COUNT(yev_time_measure, 1)
+MT_PRINT_TIME(yev_time_measure, "accept callback 1");
 
     hgobj gobj = yev_get_gobj(yev_event);
     if(!gobj) {
@@ -533,14 +534,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
      */
     priv->connxs++;
 
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept callback 2");
+
     /*-----------------------------------------------------------*
      *  Create a filter, if.
      *  A filter is a top level gobj tree over the clisrv gobj.
      *-----------------------------------------------------------*/
-// TODO TEST
-// MT_INCREMENT_COUNT(time_measure, 1)
-// MT_PRINT_TIME(time_measure, "Accept cb1")
-
     if(json_object_size(priv->child_tree_filter) > 0) {
         /*--------------------------------*
          *      Legacy method
@@ -564,6 +564,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             close(fd_clisrv);
             return 0;
         }
+
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept callback 3");
 
         gobj_bottom = gobj_last_bottom_gobj(gobj_top);
         if(!gobj_bottom) {
@@ -629,15 +632,15 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         }
 
 // TODO TEST
-MT_INCREMENT_COUNT(time_measure, 1)
-char temp[256];
-snprintf(temp, sizeof(temp), "Accept cb2, dup %d", yev_get_dup_idx(yev_event));
-MT_PRINT_TIME(time_measure, temp);
+MT_PRINT_TIME(yev_time_measure, "accept callback 4");
+
 
         gobj_write_bool_attr(clisrv, "__clisrv__", true);
         gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
         gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
         gobj_write_integer_attr(clisrv, "fd_clisrv", fd_clisrv);
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept callback 5");
         gobj_start(clisrv); // this call set_connected(clisrv);
 
     } else {
