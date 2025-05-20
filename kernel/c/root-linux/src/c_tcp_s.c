@@ -99,6 +99,9 @@ typedef struct _PRIVATE_DATA {
     hytls ytls;
     BOOL use_ssl;
 
+    BOOL only_allowed_ips;
+    json_t *child_tree_filter;
+
     hgobj subscriber;
 } PRIVATE_DATA;
 
@@ -125,9 +128,11 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(url,           gobj_read_str_attr)
-    SET_PRIV(exitOnError,   gobj_read_bool_attr)
-    SET_PRIV(trace_tls,     gobj_read_bool_attr)
+    SET_PRIV(url,               gobj_read_str_attr)
+    SET_PRIV(exitOnError,       gobj_read_bool_attr)
+    SET_PRIV(trace_tls,         gobj_read_bool_attr)
+    SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
+    SET_PRIV(child_tree_filter, gobj_read_json_attr)
 
     SET_PRIV(clisrv_kw,     gobj_read_json_attr)
 
@@ -149,9 +154,10 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(url, gobj_read_str_attr)
 
-    ELIF_EQ_SET_PRIV(clisrv_kw,     gobj_read_json_attr)
-    ELIF_EQ_SET_PRIV(exitOnError,   gobj_read_bool_attr)
-    ELIF_EQ_SET_PRIV(trace_tls,     gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(clisrv_kw,         gobj_read_json_attr)
+    ELIF_EQ_SET_PRIV(exitOnError,       gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(trace_tls,         gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -401,7 +407,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         return 0;
     }
 
-    if(gobj_read_bool_attr(gobj, "only_allowed_ips")) {
+    if(priv->only_allowed_ips) {
         char peername[80];
         get_peername(peername, sizeof(peername), fd_clisrv);
         const char *localhost = "127.0.0.";
@@ -435,8 +441,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 MT_INCREMENT_COUNT(time_measure, 1)
 MT_PRINT_TIME(time_measure, "Accept cb1")
 
-    json_t *jn_child_tree_filter = gobj_read_json_attr(gobj, "child_tree_filter");
-    if(json_object_size(jn_child_tree_filter) > 0) {
+    if(json_object_size(priv->child_tree_filter) > 0) {
         /*--------------------------------*
          *      Legacy method
          *--------------------------------*/
@@ -444,7 +449,7 @@ MT_PRINT_TIME(time_measure, "Accept cb1")
         hgobj gobj_bottom = 0;
 
         // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
-        json_t *jn_filter = kw_get_dict(gobj, jn_child_tree_filter, "kw", json_object(), 0);
+        json_t *jn_filter = kw_get_dict(gobj, priv->child_tree_filter, "kw", json_object(), 0);
         gobj_top = gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
         if(!gobj_top) {
             gobj_log_error(gobj, 0,
