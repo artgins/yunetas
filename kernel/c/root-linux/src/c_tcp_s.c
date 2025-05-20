@@ -234,14 +234,15 @@ PRIVATE int mt_start(hgobj gobj)
      *      Setup server
      *--------------------------------*/
     int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
+    BOOL shared = gobj_read_bool_attr(gobj, "shared");
     priv->yev_server_accept = yev_create_accept_event(
         yuno_event_loop(),
         yev_callback,
-        url,        // server_url,
+        url,    // server_url,
         backlog,
-        gobj_read_bool_attr(gobj, "shared"), // shared
-        0,  // ai_family AF_UNSPEC
-        0,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        shared, // shared
+        0,      // ai_family AF_UNSPEC
+        0,      // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
         gobj
     );
 
@@ -273,8 +274,6 @@ PRIVATE int mt_start(hgobj gobj)
         priv->ytls = ytls_init(gobj, jn_crypto, true);
     }
 
-    yev_start_event(priv->yev_server_accept);
-
     gobj_write_str_attr(gobj, "lHost", host);
     gobj_write_str_attr(gobj, "lPort", port);
 
@@ -294,6 +293,8 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     gobj_change_state(gobj, ST_IDLE);
+
+    yev_start_event(priv->yev_server_accept);
 
     return 0;
 }
