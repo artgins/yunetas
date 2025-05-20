@@ -107,7 +107,7 @@ PUBLIC int yev_loop_create(
 
     *yev_loop_ = 0;     // error case
 
-    if(entries == 0) {
+    if(entries <= 0) {
         entries = DEFAULT_ENTRIES;
     }
 

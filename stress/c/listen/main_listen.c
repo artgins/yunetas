@@ -67,6 +67,7 @@ PRIVATE char variable_config[]= "\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
         },                                                          \n\
+        'io_uring_entries': 30000,                                  \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
         'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
@@ -109,7 +110,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,10]],                           \n\
+                '__range__': [[1,10000]],                           \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
@@ -122,11 +123,12 @@ PRIVATE char variable_config[]= "\
                             'kw': {                                 \n\
                             },                                      \n\
                             'children': [                           \n\
+                                #^^                                 \n\
                                 {                                       \n\
                                     'name': 'input-(^^__range__^^)',    \n\
                                     'gclass': 'C_TCP',                  \n\
-                                    'kw': {                         \n\
-                                    }                               \n\
+                                    'kw': {                             \n\
+                                    }                                   \n\
                                 }                                   \n\
                             ]                                       \n\
                         }                                           \n\

@@ -306,6 +306,7 @@ PRIVATE int mt_start(hgobj gobj)
          *      Legacy method
          *--------------------------------*/
         yev_start_event(priv->yev_server_accept);
+
     } else {
         /*-----------------------------------------*
          *      New method
@@ -323,7 +324,7 @@ PRIVATE int mt_start(hgobj gobj)
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "Bottom gobj must be C_TCP",
+                        "msg",          "%s", "Last bottom gobj must be C_TCP",
                         "channel",      "%s", gobj_full_name(bottom_gobj),
                         NULL
                     );
@@ -368,6 +369,35 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *  Returns the first matched child.
+ ***************************************************************************/
+PUBLIC hgobj my_gobj_find_child(
+    hgobj gobj,
+    json_t *jn_filter  // owned
+)
+{
+    size_t n_children = gobj_child_size(gobj);
+    static hgobj child = NULL;
+
+    if(!child) {
+        child = gobj_first_child(gobj);
+    }
+    for(int i=0; i<n_children; i++) {
+        if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            JSON_DECREF(jn_filter)
+            return child;
+        }
+        child = gobj_next_child(child);
+        if(!child) {
+            child = gobj_first_child(gobj);
+        }
+    }
+
+    JSON_DECREF(jn_filter)
+    return 0;
+}
 
 /***************************************************************************
  *  Accept cb
@@ -482,7 +512,7 @@ MT_PRINT_TIME(time_measure, "Accept cb1")
 
         // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
         json_t *jn_filter = kw_get_dict(gobj, priv->child_tree_filter, "kw", json_object(), 0);
-        gobj_top = gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
+        gobj_top = my_gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
         if(!gobj_top) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
