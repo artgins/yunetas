@@ -78,6 +78,7 @@ struct my_io_uring_cqe {
  ***************************************************************/
 PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
+PRIVATE int set_nonblocking(int fd);
 
 /***************************************************************
  *              Data
@@ -230,6 +231,8 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         if(timeout_in_seconds > 0) {
             struct __kernel_timespec timeout = { .tv_sec = timeout_in_seconds, .tv_nsec = 0 };
             err = io_uring_wait_cqe_timeout(&yev_loop->ring, &cqe, &timeout);
+printf("timeout\n"); // TODO TEST
+
         } else {
             err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
         }
@@ -271,6 +274,16 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
+
+        printf("cqe->res %d\n", cqe->res); // TODO TEST
+
+        yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
+        if(yev_event->type == YEV_ACCEPT_TYPE) {
+            static int i=0;
+            if(++i>1) {
+                continue; // TODO TEST
+            }
+        }
 
         if(callback_cqe(yev_loop, &my_cqe)<0) {
             yev_loop->running = false;
@@ -716,6 +729,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
                  */
                 yev_event->result = cqe->res; // HACK: is the cli_srv socket
                 if(yev_event->result > 0) {
+                    set_nonblocking(yev_event->result);
                     if (is_tcp_socket(yev_event->result)) {
                         set_tcp_socket_options(yev_event->result, yev_loop->keep_alive);
                     }
@@ -1342,6 +1356,7 @@ PUBLIC int yev_start_timer_event(
     time_t timeout_ms,
     BOOL periodic
 ) {
+return 0; // TODO TEST
     yev_event_t *yev_event = (yev_event_t *)yev_event_;
     /*------------------------*
      *  Check parameters
@@ -2153,6 +2168,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
         return ret;
     }
 
+    set_nonblocking(fd);
     if (is_tcp_socket(fd)) {
         set_tcp_socket_options(fd, yev_event->yev_loop->keep_alive);
     }
@@ -2369,6 +2385,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             close(fd);
             break;
         }
+        set_nonblocking(fd);
 
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2768,4 +2785,13 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)
 PUBLIC const char **yev_flag_strings(void)
 {
     return yev_flag_s;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int set_nonblocking(int fd)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
