@@ -15,7 +15,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <cpu.h>
 #include <helpers.h>
 #include <kwid.h>
 #include "yev_loop.h"
@@ -23,7 +22,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define DEFAULT_BACKLOG 512
+#define DEFAULT_BACKLOG 4096
 int multishot_available = 0; // Available since kernel 5.19
 
 /***************************************************************
@@ -2152,6 +2151,30 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
 }
 
 /***************************************************************************
+ *  Read the value of net.core.somaxconn
+ *  Returns: the value on success, or -1 on error.
+ ***************************************************************************/
+#ifdef __linux__
+PUBLIC int get_net_core_somaxconn(void)
+{
+    const char *path = "/proc/sys/net/core/somaxconn";
+    FILE *fp = fopen(path, "r");
+    if(!fp) {
+        return -1;
+    }
+
+    int value;
+    if(fscanf(fp, "%d", &value) != 1) {
+        fclose(fp);
+        return -1;
+    }
+
+    fclose(fp);
+    return value;
+}
+#endif
+
+/***************************************************************************
  *  backlog default /proc/sys/net/core/somaxconn, since Linux 5.4 is 4096
  ***************************************************************************/
 PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in yev_event->fd
@@ -2195,7 +2218,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     }
 
     if(backlog <= 0) {
-        backlog = 4096;
+        backlog = DEFAULT_BACKLOG;
     }
 
 #ifdef __linux__

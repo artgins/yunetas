@@ -234,19 +234,6 @@ PRIVATE int mt_start(hgobj gobj)
      *      Setup server
      *--------------------------------*/
     int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
-#ifdef __linux__
-    int somaxconn = get_net_core_somaxconn();
-    if(somaxconn < backlog) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "net.core.somaxconn TOO SMALL, increase it in the s.o.",
-            "somaxconn",    "%d", somaxconn,
-            "backlog",      "%d", backlog,
-            NULL
-        );
-    }
-#endif
     priv->yev_server_accept = yev_create_accept_event(
         yuno_event_loop(),
         yev_callback,

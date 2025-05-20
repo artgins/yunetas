@@ -824,26 +824,4 @@ unsigned long proc_vmem_in_kb(unsigned int pid)
     return pst.vsz;
 }
 
-/***************************************************************************
- *  Read the value of net.core.somaxconn
- *  Returns: the value on success, or -1 on error.
- ***************************************************************************/
-int get_net_core_somaxconn(void)
-{
-    const char *path = "/proc/sys/net/core/somaxconn";
-    FILE *fp = fopen(path, "r");
-    if(!fp) {
-        return -1;
-    }
-
-    int value;
-    if(fscanf(fp, "%d", &value) != 1) {
-        fclose(fp);
-        return -1;
-    }
-
-    fclose(fp);
-    return value;
-}
-
 #endif

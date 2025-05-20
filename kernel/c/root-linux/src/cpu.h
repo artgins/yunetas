@@ -194,7 +194,6 @@ void read_stat_cpu(struct stats_cpu *st_cpu, int nbr, unsigned long long *uptime
 unsigned long free_ram_in_kb(void); /* Free memory in kB */
 int cpu_usage(unsigned int pid, uint64_t *system_time, uint64_t *process_time);
 int read_proc_pid_cmdline(unsigned int pid, struct pid_stats *pst, unsigned int tgid);
-int get_net_core_somaxconn(void);
 
 #endif /* __linux__ */
 
