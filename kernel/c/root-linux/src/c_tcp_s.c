@@ -97,6 +97,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t tconnxs;
 
     yev_event_h yev_server_accept;
+    yev_event_h *yev_dups;
     int fd_listen;
     hytls ytls;
     BOOL use_ssl;
@@ -306,11 +307,17 @@ PRIVATE int mt_start(hgobj gobj)
          *      Legacy method
          *--------------------------------*/
         yev_start_event(priv->yev_server_accept);
+        // // priv->yev_dups = GBMEM_MALLOC(backlog * )
+        // for(int i=0; i<backlog; i++) {
+        //     yev_event_h yev_dup = yev_dup_accept_event(priv->yev_server_accept);
+        //     yev_start_event(yev_dup);
+        // }
 
     } else {
         /*-----------------------------------------*
          *      New method
          *  Set an accept event in each TCP gobj
+         *  TODO in progress
          *-----------------------------------------*/
         hgobj parent = gobj_parent(gobj);
         hgobj child = gobj_first_child(parent);
@@ -320,7 +327,7 @@ PRIVATE int mt_start(hgobj gobj)
                 if(gobj_gclass_name(bottom_gobj) == C_TCP) {
 
 
-                } else {
+                // TODO } else {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -500,8 +507,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
      *  A filter is a top level gobj tree over the clisrv gobj.
      *-----------------------------------------------------------*/
 // TODO TEST
-MT_INCREMENT_COUNT(time_measure, 1)
-MT_PRINT_TIME(time_measure, "Accept cb1")
+// MT_INCREMENT_COUNT(time_measure, 1)
+// MT_PRINT_TIME(time_measure, "Accept cb1")
 
     if(json_object_size(priv->child_tree_filter) > 0) {
         /*--------------------------------*

@@ -444,7 +444,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*
      *  Info of "connected"
      */
-    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT || 1) {
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         if(IS_CLI) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -595,7 +595,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & (TRACE_CONNECT_DISCONNECT) || 1) {
+    if(gobj_trace_level(gobj) & (TRACE_CONNECT_DISCONNECT)) {
         if(IS_CLI) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1145,7 +1145,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(gobj_trace_level(gobj) & TRACE_URING || 1) {
+                    if(gobj_trace_level(gobj) & TRACE_URING) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -1207,7 +1207,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(gobj_trace_level(gobj) & TRACE_URING || 1) {
+                    if(gobj_trace_level(gobj) & TRACE_URING) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -1242,7 +1242,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(gobj_trace_level(gobj) & TRACE_URING || 1) {
+                    if(gobj_trace_level(gobj) & TRACE_URING) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_LIBURING_ERROR,

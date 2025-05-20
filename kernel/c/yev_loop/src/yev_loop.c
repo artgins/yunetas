@@ -66,10 +66,16 @@ struct yev_loop_s {
     yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
 };
 
+struct my_io_uring_cqe {
+    __u64	user_data;	/* sqe->user_data value passed back */
+    __s32	res;		/* result code for this event */
+    __u32	flags;
+};
+
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe);
+PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 
 /***************************************************************
@@ -256,11 +262,17 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             break;
         }
 
-        if(callback_cqe(yev_loop, cqe)<0) {
-            yev_loop->running = false;
-        }
+        struct my_io_uring_cqe my_cqe;
+        my_cqe.flags = cqe->flags;
+        my_cqe.res = cqe->res;
+        my_cqe.user_data = cqe->user_data;
+
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
+
+        if(callback_cqe(yev_loop, &my_cqe)<0) {
+            yev_loop->running = false;
+        }
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
@@ -310,12 +322,19 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        if(callback_cqe(yev_loop, cqe)<0) {
+        struct my_io_uring_cqe my_cqe;
+        my_cqe.flags = cqe->flags;
+        my_cqe.res = cqe->res;
+        my_cqe.user_data = cqe->user_data;
+
+        /* Mark this request as processed */
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
+
+        if(callback_cqe(yev_loop, &my_cqe)<0) {
             if(yev_loop->stopping) {
                 break;
             }
         }
-        io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
@@ -476,7 +495,7 @@ PUBLIC const char * yev_get_state_name(yev_event_h yev_event_)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
+PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
 {
     /*------------------------*
      *  Check parameters
@@ -491,7 +510,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         return 0;
     }
 
-    yev_event_t *yev_event = (yev_event_t *)io_uring_cqe_get_data(cqe);
+    yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data; // (yev_event_t *)io_uring_cqe_get_data(cqe);
     if(!yev_event) {
         // HACK CQE event without data is loop ending
         return -1; /* Break the loop */

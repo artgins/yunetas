@@ -71,8 +71,8 @@ PRIVATE char variable_config[]= "\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
         'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
-            'C_TCP': ['connections'],                               \n\
-            'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
+            #^^ 'C_TCP': ['connections'],                               \n\
+            #^^ 'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
@@ -105,7 +105,16 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
-                        'backlog': 10010                           \n\
+                        'backlog': 10010,                           \n\
+                        'child_tree_filter': {                      \n\
+                            'op': 'find',                           \n\
+                            'kw': {                                 \n\
+                                '__prefix_gobj_name__': 'input-',   \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
                     }                                               \n\
                 }                                                   \n\
             ],                                                      \n\
