@@ -25,7 +25,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int channels_opened(hgobj gobj);
+PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
 
 /***************************************************************************
  *              Resources
@@ -848,7 +848,7 @@ PRIVATE int send_all(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  How many channel opened?
  ***************************************************************************/
-PRIVATE int channels_opened(hgobj gobj)
+PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgobj src)
 {
     int opened = 0;
 
@@ -866,7 +866,9 @@ PRIVATE int channels_opened(hgobj gobj)
     }
     JSON_DECREF(jn_filter)
 
-    return opened;
+    return json_pack("{s:i}",
+        "channels_opened", opened
+    );
 }
 
 
@@ -912,15 +914,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_integer((json_int_t)(size_t)src)
     );
 
-    int opened = channels_opened(gobj);
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channels_opened",
-        json_integer(opened)
-    );
-
     /*
      *  SERVICE subscription model
      */
@@ -962,15 +955,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "__temp__",
         "channel_gobj",
         json_integer((json_int_t)(size_t)src)
-    );
-
-    int opened = channels_opened(gobj);
-    kw_set_subdict_value(
-        gobj,
-        kw,
-        "__temp__",
-        "channels_opened",
-        json_integer(opened)
     );
 
     /*
@@ -1296,6 +1280,14 @@ PRIVATE const GMETHODS gmt = {
     .mt_reading = mt_reading,
 };
 
+/*---------------------------------------------*
+ *              Local methods table
+ *---------------------------------------------*/
+PRIVATE LMETHOD lmt[] = {
+    {"channels_opened",         channels_opened,   0},
+    {0, 0, 0}
+};
+
 /*------------------------*
  *      GClass name
  *------------------------*/
@@ -1379,7 +1371,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         event_types,
         states,
         &gmt,
-        0,  // lmt,
+        lmt,
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
