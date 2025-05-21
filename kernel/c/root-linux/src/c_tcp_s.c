@@ -438,7 +438,6 @@ PUBLIC hgobj my_gobj_find_child(
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
 // TODO TEST
-MT_INCREMENT_COUNT(yev_time_measure, 1)
 MT_PRINT_TIME(yev_time_measure, "accept callback 1");
 
     hgobj gobj = yev_get_gobj(yev_event);

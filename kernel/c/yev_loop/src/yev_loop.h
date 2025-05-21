@@ -77,12 +77,12 @@ extern "C"{
  ***************************************************************/
 #define DEFAULT_ENTRIES 2400    /* 2400 is recommended for manage 1000 connections */
 
-typedef enum  {
-    YEV_TIMER_TYPE        = 1,
-    YEV_READ_TYPE,
-    YEV_WRITE_TYPE,
-    YEV_CONNECT_TYPE,
-    YEV_ACCEPT_TYPE,
+typedef enum  { // WARNING 8 bits only
+    YEV_CONNECT_TYPE    = 0x01,
+    YEV_ACCEPT_TYPE     = 0x02,
+    YEV_READ_TYPE       = 0x04,
+    YEV_WRITE_TYPE      = 0x08,
+    YEV_TIMER_TYPE      = 0x10,
 } yev_type_t;
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]

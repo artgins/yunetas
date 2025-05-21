@@ -294,7 +294,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 
         if(measuring_times & yev_event->type) {
             char temp[120];
-            snprintf(temp, sizeof(temp), "Type %s, res %d, flags %d, dup %d",
+            snprintf(temp, sizeof(temp), "TOTAL: type %s, res %d, flags %d, dup %d",
                 yev_event_type_name(yev_event),
                 yev_event->cqe_res,
                 yev_event->cqe_flags,
