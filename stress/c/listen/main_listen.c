@@ -49,6 +49,16 @@ PRIVATE char variable_config[]= "\
             }                                                       \n\
         },                                                          \n\
         'daemon_log_handlers': {                                    \n\
+            'to_file': {                                            \n\
+                'handler_type': 'file',                             \n\
+                'filename_mask': 'stress-listen-W.log',             \n\
+                'handler_options': 255                              \n\
+            },                                                      \n\
+            'to_udp': {                                             \n\
+                'handler_type': 'udp',                              \n\
+                'url': 'udp://127.0.0.1:1992',                      \n\
+                'handler_options': 255                              \n\
+            }                                                       \n\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
@@ -58,6 +68,7 @@ PRIVATE char variable_config[]= "\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'io_uring_entries': 20000,                                  \n\
+        'limit_open_files': 200000,                                 \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
         'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\

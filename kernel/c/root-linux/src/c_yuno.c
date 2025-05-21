@@ -456,7 +456,8 @@ SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring, multiply by 3 the maximum number of wanted connections"),
-SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "200000",       "Limit open files"),
+SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "20000",        "Limit open files"),
+SDATA (DTP_INTEGER, "limit_open_files_done", SDF_RD,    "",             "Limit open files done"),
 SDATA_END()
 };
 
@@ -4267,7 +4268,6 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
             "strerror",     "%s", strerror(errno),
             NULL
         );
-        return -1;
     }
 
     // Verify the new limit
@@ -4281,8 +4281,9 @@ PRIVATE int set_limit_open_files(hgobj gobj, json_int_t limit_open_files)
             "strerror",     "%s", strerror(errno),
             NULL
         );
-        return -1;
     }
+
+    gobj_write_integer_attr(gobj, "limit_open_files_done", (json_int_t)rl.rlim_cur);
 
     if(rl.rlim_cur != limit_open_files || rl.rlim_max != limit_open_files) {
         gobj_log_error(gobj, 0,
