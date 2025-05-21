@@ -73,6 +73,8 @@ typedef struct {
     uint64_t count;
 } time_measure_t;
 
+extern PUBLIC time_measure_t yev_time_measure; // to measure yev times
+
 #define MT_START_TIME(time_measure) \
     clock_gettime(CLOCK_MONOTONIC, &time_measure.start); \
     time_measure.end = time_measure.start; \

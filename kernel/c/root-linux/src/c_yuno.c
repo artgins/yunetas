@@ -290,6 +290,7 @@ PRIVATE sdata_desc_t pm_list_subscriptions[] = {
 SDATAPM (DTP_STRING,    "gobj_name",    0,              0,          "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "gobj",         0,              "__default_service__", "named-gobj or full gobj name"),
 SDATAPM (DTP_STRING,    "event",        0,              0,          "Event"),
+SDATAPM (DTP_BOOLEAN,   "tree",         0,              0,          "true: search subs in all below tree"),
 SDATA_END()
 };
 
@@ -3570,8 +3571,21 @@ static const json_desc_t subs_desc[] = {
 };
 
 /***************************************************************************
- *  list subscriptions
+ *
  ***************************************************************************/
+PRIVATE int cb_list_subscriptions(hgobj child, void *user_data, void *user_data2)
+{
+    json_t *jn_list = user_data;
+    gobj_event_t event = user_data2;
+
+    json_t *jn_data = gobj_list_subscriptions(child, event, NULL, NULL);
+    if(json_array_size(jn_data)) {
+        json_array_extend(jn_list, jn_data);
+    }
+    JSON_DECREF(jn_data)
+    return 0;
+}
+
 PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
     const char *gobj_name_ = kw_get_str( // __default_service__
@@ -3605,13 +3619,32 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
 
     const char *event_name = kw_get_str(gobj, kw, "event", 0, 0);
     if(!empty_string(event_name)) {
-        event_type_t *event_type = gobj_event_type_by_name(gobj2view, event_name);
+        event_type_t *event_type = gclass_find_event(event_name, 0, false);
         if(event_type) {
             event = event_type->event_name;
+        } else {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,
+                json_sprintf(
+                    "%s: event '%s' not found.", gobj_short_name(gobj), event_name
+                ),
+                0,
+                NULL
+            );
+            JSON_DECREF(kw)
+            return kw_response;
         }
     }
 
     json_t *jn_data = gobj_list_subscriptions(gobj2view, event, kw_subs, subscriber);
+
+    BOOL tree = kw_get_bool(gobj, kw, "tree", 0, KW_WILD_NUMBER);
+    if(tree) {
+        gobj_walk_gobj_children_tree(
+            gobj, WALK_TOP2BOTTOM, cb_list_subscriptions, jn_data, (void *)event
+        );
+    }
 
     /*
      *  Inform
@@ -3630,6 +3663,19 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
 /***************************************************************************
  *  list subscribings
  ***************************************************************************/
+PRIVATE int cb_list_subscribings(hgobj child, void *user_data, void *user_data2)
+{
+    json_t *jn_list = user_data;
+    gobj_event_t event = user_data2;
+
+    json_t *jn_data = gobj_list_subscribings(child, event, NULL, NULL);
+    if(json_array_size(jn_data)) {
+        json_array_extend(jn_list, jn_data);
+    }
+    JSON_DECREF(jn_data)
+    return 0;
+}
+
 PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 {
     const char *gobj_name_ = kw_get_str( // __default_service__
@@ -3654,7 +3700,7 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
                     "%s: gobj '%s' not found.", gobj_short_name(gobj), gobj_name_
                 ),
                 0,
-                gobj_global_variables()
+                NULL
             );
             JSON_DECREF(kw)
             return kw_response;
@@ -3663,13 +3709,32 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
 
     const char *event_name = kw_get_str(gobj, kw, "event", 0, 0);
     if(!empty_string(event_name)) {
-        event_type_t *event_type = gobj_event_type_by_name(gobj2view, event_name);
+        event_type_t *event_type = gclass_find_event(event_name, 0, false);
         if(event_type) {
             event = event_type->event_name;
+        } else {
+            json_t *kw_response = build_command_response(
+                gobj,
+                -1,
+                json_sprintf(
+                    "%s: event '%s' not found.", gobj_short_name(gobj), event_name
+                ),
+                0,
+                gobj_global_variables()
+            );
+            JSON_DECREF(kw)
+            return kw_response;
         }
     }
 
     json_t *jn_data = gobj_list_subscribings(gobj2view, event, kw_subs, subscriber);
+
+    BOOL tree = kw_get_bool(gobj, kw, "tree", 0, KW_WILD_NUMBER);
+    if(tree) {
+        gobj_walk_gobj_children_tree(
+            gobj, WALK_TOP2BOTTOM, cb_list_subscribings, jn_data, (void *)event
+        );
+    }
 
     /*
      *  Inform

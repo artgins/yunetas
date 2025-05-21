@@ -49,6 +49,8 @@ PRIVATE json_t *expected = 0;
 PRIVATE BOOL verbose = false;
 PRIVATE const char **ignore_keys = NULL;
 
+PUBLIC time_measure_t yev_time_measure;
+
 /***************************************************************************
  *
  ***************************************************************************/

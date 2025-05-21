@@ -94,7 +94,6 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
 );
 PRIVATE yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn = _yev_protocol_fill_hints;
 
-PUBLIC time_measure_t yev_time_measure;
 PRIVATE int measuring_times = 0;
 
 /***************************************************************************

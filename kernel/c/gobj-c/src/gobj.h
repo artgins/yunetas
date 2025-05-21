@@ -1212,6 +1212,7 @@ PUBLIC int gclass_add_event_type(
     event_flag_t event_flag
 );
 
+PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_flag, BOOL verbose); // Find an event in any gclass
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); // Find a public event in any gclass
 PUBLIC void gclass_unregister(hgclass hgclass);
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);

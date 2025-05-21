@@ -10,6 +10,7 @@
  ****************************************************************************/
 #include <time.h>
 #include <gobj.h>
+#include <testing.h>
 #include "c_timer.h"
 
 /***************************************************************
@@ -102,7 +103,10 @@ PRIVATE int mt_start(hgobj gobj)
     /*
      *  TODO this subscribe is TOO SLOW
      */
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept before gobj_subscribe_event EV_TIMEOUT_PERIODIC");
     gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
+MT_PRINT_TIME(yev_time_measure, "accept after gobj_subscribe_event EV_TIMEOUT_PERIODIC");
 
     if(priv->msec > 0) {
         priv->t_flush = start_msectimer(priv->msec);

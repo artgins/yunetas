@@ -118,7 +118,6 @@ typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
 /***************************************************************
  *              Data
  ***************************************************************/
-extern PUBLIC time_measure_t yev_time_measure; // to measure times
 
 /***************************************************************
  *              Prototypes

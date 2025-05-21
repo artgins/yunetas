@@ -22,6 +22,7 @@
 #include "ansi_escape_codes.h"
 #include "command_parser.h"
 #include "kwid.h"
+#include "testing.h"
 #include "helpers.h"
 #include "gobj.h"
 
@@ -1064,17 +1065,17 @@ PUBLIC int gclass_add_event_type(
 }
 
 /***************************************************************************
- *  Find a public event in any gclass
+ *  Find an event in any gclass
  ***************************************************************************/
-PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
+PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_flag, BOOL verbose)
 {
     gclass_t *gclass = dl_first(&dl_gclass);
     while(gclass) {
         event_t *event_ = dl_first(&gclass->dl_events);
         while(event_) {
-            if((event_->event_type.event_flag & EVF_PUBLIC_EVENT)) {
+            if(!event_flag || (event_->event_type.event_flag & event_flag)) {
                 if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event)==0) {
-                    return event_->event_type.event_name;
+                    return &event_->event_type;
                 }
             }
             event_ = dl_next(event_);
@@ -1085,10 +1086,22 @@ PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "PUBLIC event NOT FOUND",
+            "msg",          "%s", "EVENT NOT FOUND",
             "event",        "%s", event,
             NULL
         );
+    }
+    return NULL;
+}
+
+/***************************************************************************
+ *  Find a public event in any gclass
+ ***************************************************************************/
+PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
+{
+    event_type_t *event_type = gclass_find_event(event, EVF_PUBLIC_EVENT, verbose);
+    if(event_type) {
+        return event_type->event_name;
     }
     return NULL;
 }
@@ -4088,6 +4101,9 @@ PUBLIC int gobj_start(hgobj gobj_)
     /*
      *  Check required attributes.
      */
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept before gobj_check_required_attrs");
+
     json_t *jn_required_attrs = gobj_check_required_attrs(gobj);
     if(jn_required_attrs) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -4101,6 +4117,8 @@ PUBLIC int gobj_start(hgobj gobj_)
         JSON_DECREF(jn_required_attrs)
         return -1;
     }
+// TODO TEST
+MT_PRINT_TIME(yev_time_measure, "accept after gobj_check_required_attrs");
 
     if(__trace_gobj_start_stop__(gobj)) {
         trace_machine("⏺ ⏺ start: %s",

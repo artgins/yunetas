@@ -81,7 +81,7 @@ New API
     str2gbuf
     gobj_set_trace_machine_format
     get_net_core_somaxconn(void)
-
+    gclass_find_event
 
 Delete API
 
