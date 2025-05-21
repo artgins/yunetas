@@ -4101,9 +4101,6 @@ PUBLIC int gobj_start(hgobj gobj_)
     /*
      *  Check required attributes.
      */
-// TODO TEST
-MT_PRINT_TIME(yev_time_measure, "accept before gobj_check_required_attrs");
-
     json_t *jn_required_attrs = gobj_check_required_attrs(gobj);
     if(jn_required_attrs) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -4117,8 +4114,6 @@ MT_PRINT_TIME(yev_time_measure, "accept before gobj_check_required_attrs");
         JSON_DECREF(jn_required_attrs)
         return -1;
     }
-// TODO TEST
-MT_PRINT_TIME(yev_time_measure, "accept after gobj_check_required_attrs");
 
     if(__trace_gobj_start_stop__(gobj)) {
         trace_machine("⏺ ⏺ start: %s",

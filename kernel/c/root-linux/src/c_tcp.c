@@ -188,7 +188,9 @@ PRIVATE void mt_create(hgobj gobj)
 
     dl_init(&priv->dl_tx, gobj);
 
-    priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    if(IS_CLI) {
+        priv->gobj_timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    }
 
     /*
      *  CHILD subscription model
@@ -359,7 +361,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_is_running(priv->gobj_timer)) {
+    if(priv->gobj_timer && gobj_is_running(priv->gobj_timer)) {
         gobj_stop(priv->gobj_timer);
     }
 
@@ -487,7 +489,9 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
     priv->connxs++;
 
-    clear_timeout(priv->gobj_timer);
+    if(priv->gobj_timer) {
+        clear_timeout(priv->gobj_timer);
+    }
 
     /*-------------------------------*
      *      Setup reading event
