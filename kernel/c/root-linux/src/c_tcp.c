@@ -225,7 +225,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 /***************************************************************************
  *      Framework Method
  ***************************************************************************/
-time_measure_t yev_time_measure; // TODO TEST
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);

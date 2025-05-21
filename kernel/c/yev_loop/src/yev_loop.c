@@ -15,9 +15,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#include <testing.h> // TODO TEST
+#include <testing.h>
 #include <helpers.h>
-#include <kwid.h>
 #include "yev_loop.h"
 
 /***************************************************************
@@ -55,7 +54,9 @@ struct yev_event_s {
     int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
 
     sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
-    int dup_idx;
+    int dup_idx;            // Duplicate events with the same fd
+    int32_t	cqe_res;        // result for this event (from cqe->res)
+    uint32_t cqe_flags;     // flags for this event (from cqe->flags)
 };
 
 struct yev_loop_s {
@@ -68,18 +69,11 @@ struct yev_loop_s {
     yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
 };
 
-struct my_io_uring_cqe {
-    __u64	user_data;	/* sqe->user_data value passed back */
-    __s32	res;		/* result code for this event */
-    __u32	flags;
-};
-
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe);
+PRIVATE int callback_cqe(yev_loop_t *yev_loop, yev_event_t *yev_event);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
-PRIVATE int set_nonblocking(int fd);
 
 /***************************************************************
  *              Data
@@ -100,6 +94,9 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
 );
 PRIVATE yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn = _yev_protocol_fill_hints;
 
+PUBLIC time_measure_t yev_time_measure;
+PRIVATE int measuring_times = 0;
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -111,7 +108,7 @@ PUBLIC int yev_loop_create(
     yev_loop_h *yev_loop_
 )
 {
-    //struct io_uring ring_test;
+    struct io_uring ring_test;
     int err;
 
     *yev_loop_ = 0;     // error case
@@ -120,31 +117,32 @@ PUBLIC int yev_loop_create(
         entries = DEFAULT_ENTRIES;
     }
 
-    // struct io_uring_params params_test = {0};
-    // //params_test.flags |= IORING_SETUP_COOP_TASKRUN; // Available since 5.18
-    // //params_test.flags |= IORING_SETUP_SINGLE_ISSUER; // Available since 6.0
-// retry:
-//     err = io_uring_queue_init_params(entries, &ring_test, &params_test);
-//     if(err) {
-//         if (err == -EINVAL && params_test.flags & IORING_SETUP_SINGLE_ISSUER) {
-//             params_test.flags &= ~IORING_SETUP_SINGLE_ISSUER;
-//             goto retry;
-//         }
-//         if (err == -EINVAL && params_test.flags & IORING_SETUP_COOP_TASKRUN) {
-//             params_test.flags &= ~IORING_SETUP_COOP_TASKRUN;
-//             goto retry;
-//         }
-//
-//         gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
-//             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_YEV_LOOP,
-//             "msg",          "%s", "Linux kernel without io_uring, cannot run yunetas",
-//             "errno",        "%d", -err,
-//             "serrno",       "%s", strerror(-err),
-//             NULL
-//         );
-//         return -1;
-//     }
+    struct io_uring_params params_test = {0};
+    //params_test.flags |= IORING_SETUP_COOP_TASKRUN; // Available since 5.18
+    //params_test.flags |= IORING_SETUP_SINGLE_ISSUER; // Available since 6.0
+retry:
+    err = io_uring_queue_init_params(10, &ring_test, &params_test);
+    if(err) {
+        if (err == -EINVAL && params_test.flags & IORING_SETUP_SINGLE_ISSUER) {
+            params_test.flags &= ~IORING_SETUP_SINGLE_ISSUER;
+            goto retry;
+        }
+        if (err == -EINVAL && params_test.flags & IORING_SETUP_COOP_TASKRUN) {
+            params_test.flags &= ~IORING_SETUP_COOP_TASKRUN;
+            goto retry;
+        }
+
+        gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "Linux kernel without io_uring, cannot run yunetas",
+            "errno",        "%d", -err,
+            "serrno",       "%s", strerror(-err),
+            NULL
+        );
+        return -1;
+    }
+    io_uring_queue_exit(&ring_test);
 
     yev_loop_t *yev_loop = GBMEM_MALLOC(sizeof(yev_loop_t));
     if(!yev_loop) {
@@ -156,12 +154,10 @@ PUBLIC int yev_loop_create(
         );
         return -1;
     }
-    // struct io_uring_params params = {
-    //     .flags = params_test.flags
-    // };
-    // err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
-
-    err = io_uring_queue_init(entries, &yev_loop->ring, 0);
+    struct io_uring_params params = {
+        .flags = params_test.flags
+    };
+    err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
     if (err < 0) {
         GBMEM_FREE(yev_loop)
         gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
@@ -188,16 +184,16 @@ PUBLIC int yev_loop_create(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void yev_loop_destroy(yev_loop_h yev_loop)
+PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
 {
-    io_uring_queue_exit(&((yev_loop_t *)yev_loop)->ring);
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
+    io_uring_queue_exit(&yev_loop->ring);
     GBMEM_FREE(yev_loop)
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-extern time_measure_t yev_time_measure; // TODO TEST
 PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 {
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
@@ -236,6 +232,15 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         } else {
             err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
         }
+
+        /*
+         *  To measure the time of executing of the event
+         */
+        if(measuring_times) {
+            MT_START_TIME(yev_time_measure)
+            MT_INCREMENT_COUNT(yev_time_measure, 1)
+        }
+
         if (err < 0) {
             if(err == -EINTR) {
                 // Ctrl+C cause this
@@ -245,13 +250,22 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
                 continue;
             }
             if(err == -ETIME) {
+                /* Mark this request as processed */
+                io_uring_cqe_seen(&yev_loop->ring, cqe);
+
                 // Timeout
                 if(callback_cqe(yev_loop, NULL)<0) {
                     yev_loop->running = false;
                 }
 
-                /* Mark this request as processed */
-                io_uring_cqe_seen(&yev_loop->ring, cqe);
+                if(measuring_times & YEV_TIMER_TYPE) {
+                    char temp[120];
+                    snprintf(temp, sizeof(temp), "Type TIMEOUT, res %d, flags %d",
+                        cqe->res,
+                        cqe->flags
+                    );
+                    MT_PRINT_TIME(yev_time_measure, temp);
+                }
                 continue;
             }
             gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
@@ -267,34 +281,27 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             break;
         }
 
-        // TODO TEST
-        MT_START_TIME(yev_time_measure)
-
-        struct my_io_uring_cqe my_cqe;
-        my_cqe.flags = cqe->flags;
-        my_cqe.res = cqe->res;
-        my_cqe.user_data = cqe->user_data;
-
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
 
         yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
-        printf("type %d, cqe->res %d\n", yev_event->type, cqe->res); // TODO TEST
-        // if(yev_event->type == YEV_ACCEPT_TYPE) {
-        //     static int i=0;
-        //     if(++i>1) {
-        //         continue; // TODO TEST
-        //     }
-        // }
+        yev_event->cqe_res = cqe->res;
+        yev_event->cqe_flags = cqe->flags;
 
-        if(callback_cqe(yev_loop, &my_cqe)<0) {
+        if(callback_cqe(yev_loop, yev_event)<0) {
             yev_loop->running = false;
         }
-        // TODO TEST
-        MT_INCREMENT_COUNT(yev_time_measure, 1)
-        char temp[256];
-        snprintf(temp, sizeof(temp), "Type %d, dup %d", yev_event->type, yev_get_dup_idx(yev_event));
-        MT_PRINT_TIME(yev_time_measure, temp);
+
+        if(measuring_times & yev_event->type) {
+            char temp[120];
+            snprintf(temp, sizeof(temp), "Type %s, res %d, flags %d, dup %d",
+                yev_event_type_name(yev_event),
+                yev_event->cqe_res,
+                yev_event->cqe_flags,
+                yev_get_dup_idx(yev_event)
+            );
+            MT_PRINT_TIME(yev_time_measure, temp);
+        }
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
@@ -344,15 +351,16 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        struct my_io_uring_cqe my_cqe;
-        my_cqe.flags = cqe->flags;
-        my_cqe.res = cqe->res;
-        my_cqe.user_data = cqe->user_data;
+        yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
+        if(yev_event) {
+            yev_event->cqe_res = cqe->res;
+            yev_event->cqe_flags = cqe->flags;
+        }
 
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
 
-        if(callback_cqe(yev_loop, &my_cqe)<0) {
+        if(callback_cqe(yev_loop, yev_event)<0) {
             if(yev_loop->stopping) {
                 break;
             }
@@ -517,12 +525,12 @@ PUBLIC const char * yev_get_state_name(yev_event_h yev_event_)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
+PRIVATE int callback_cqe(yev_loop_t *yev_loop, yev_event_t *yev_event)
 {
     /*------------------------*
      *  Check parameters
      *------------------------*/
-    if(cqe == NULL) {
+    if(yev_event == NULL) {
         /*
          *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
          */
@@ -532,12 +540,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
         return 0;
     }
 
-    yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data; // (yev_event_t *)io_uring_cqe_get_data(cqe);
-    if(!yev_event) {
-        // HACK CQE event without data is loop ending
-        return -1; /* Break the loop */
-    }
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
+    int cqe_res = yev_event->cqe_res;
 
     /*------------------------*
      *      Trace
@@ -559,8 +563,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
             "p",            "%p", yev_event,
             "fd",           "%d", yev_get_fd(yev_event),
             "flag",         "%j", jn_flags,
-            "cqe->res",     "%d", (int)cqe->res,
-            "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+            "cqe->res",     "%d", (int)cqe_res,
+            "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
             NULL
         );
         json_decref(jn_flags);
@@ -572,14 +576,14 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
     yev_state_t cur_state = yev_get_state(yev_event);
     switch(cur_state) {
         case YEV_ST_RUNNING:  // cqe ready
-            if(cqe->res > 0) {
+            if(cqe_res > 0) {
                 yev_set_state(yev_event, YEV_ST_IDLE);
-            } else if(cqe->res < 0) {
+            } else if(cqe_res < 0) {
                 yev_set_state(yev_event, YEV_ST_STOPPED);
-            } else { // cqe->res == 0
+            } else { // cqe_res == 0
                 // In READ events when the peer has closed the socket the reads return 0
                 if(yev_event->type == YEV_READ_TYPE) {
-                    cqe->res = -EPIPE; // Broken pipe (remote side closed connection)
+                    cqe_res = -EPIPE; // Broken pipe (remote side closed connection)
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 } else {
                     yev_set_state(yev_event, YEV_ST_IDLE);
@@ -589,16 +593,16 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
         case YEV_ST_CANCELING: // cqe ready
             /*
              *  In the case of YEV_TIMER_TYPE and others, when canceling
-             *      first receives cqe->res 0
+             *      first receives cqe_res 0
              *      after receives ECANCELED
              */
-            if(cqe->res < 0) {
+            if(cqe_res < 0) {
                 /*
                  *  HACK this error is information of disconnection cause.
                  */
                 yev_set_state(yev_event, YEV_ST_STOPPED);
 
-            } else if(cqe->res >= 0) {
+            } else if(cqe_res >= 0) {
                 /*
                  *  When canceling it could arrive events type with res >= 0
                  *  Wait to one negative
@@ -613,7 +617,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
         case YEV_ST_STOPPED: // cqe ready
             /*
              *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
-             *  and it can receive cqe->res = -2 (No such file or directory)
+             *  and it can receive cqe_res = -2 (No such file or directory)
              *
              *  Cases seen:
              *      - Cancel the read event (previously the socket was closed for testing)
@@ -623,7 +627,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
              *          this cause a log_warning "receive event in stopped state"
              *          the event is ignored
              */
-            if(cqe->res != -2) {
+            if(cqe_res != -2) {
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBURING_ERROR,
@@ -631,15 +635,15 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
                     "event_type",   "%s", yev_event_type_name(yev_event),
                     "yev_state",    "%s", yev_get_state_name(yev_event),
                     "p",            "%p", yev_event,
-                    "cqe->res",     "%d", (int)cqe->res,
-                    "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                    "cqe_res",     "%d", (int)cqe_res,
+                    "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
                     NULL
                 );
             }
             /*
              *  Don't call callback again
              *  if the state is STOPPED the callback was already done,
-             *  It'd normally receive first cqe->res = 0 and later cqe->res = -ECANCELED
+             *  It'd normally receive first cqe_res = 0 and later cqe_res = -ECANCELED
              */
 
             /* Mark this request as processed */
@@ -654,8 +658,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 "yev_state",    "%s", yev_get_state_name(yev_event),
                 "p",            "%p", yev_event,
-                "cqe->res",     "%d", (int)cqe->res,
-                "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                "cqe_res",     "%d", (int)cqe_res,
+                "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
                 NULL
             );
             /* Mark this request as processed */
@@ -679,8 +683,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
                 "p",            "%p", yev_event,
                 "fd",           "%d", yev_get_fd(yev_event),
                 "flag",         "%j", jn_flags,
-                "cqe->res",     "%d", (int)cqe->res,
-                "sres",         "%s", (cqe->res<0)? strerror(-cqe->res):"",
+                "cqe_res",     "%d", (int)cqe_res,
+                "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
                 NULL
             );
             json_decref(jn_flags);
@@ -720,7 +724,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
-                yev_event->result = cqe->res;
+                yev_event->result = cqe_res;
                 if(yev_event->callback) {
                     ret = yev_event->callback(
                         yev_event
@@ -734,7 +738,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
-                yev_event->result = cqe->res; // HACK: is the cli_srv socket
+                yev_event->result = cqe_res; // HACK: is the cli_srv socket
                 if(yev_event->result > 0) {
                     set_nonblocking(yev_event->result);
                     if (is_tcp_socket(yev_event->result)) {
@@ -789,15 +793,15 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
 
         case YEV_WRITE_TYPE: // cqe ready
             {
-                if(cqe->res > 0 && yev_event->gbuf) {
+                if(cqe_res > 0 && yev_event->gbuf) {
                     // Pop the read bytes used to write fd
-                    gbuffer_get(yev_event->gbuf, cqe->res);
+                    gbuffer_get(yev_event->gbuf, cqe_res);
                 }
 
                 /*
                  *  Call callback
                  */
-                yev_event->result = cqe->res;
+                yev_event->result = cqe_res;
                 if(yev_event->callback) {
                     ret = yev_event->callback(
                         yev_event
@@ -808,15 +812,15 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
 
         case YEV_READ_TYPE: // cqe ready
             {
-                if(cqe->res > 0 && yev_event->gbuf) {
+                if(cqe_res > 0 && yev_event->gbuf) {
                     // Mark the written bytes of reading fd
-                    gbuffer_set_wr(yev_event->gbuf, cqe->res);
+                    gbuffer_set_wr(yev_event->gbuf, cqe_res);
                 }
 
                 /*
                  *  Call callback
                  */
-                yev_event->result = cqe->res;
+                yev_event->result = cqe_res;
                 if (yev_event->callback) {
                     ret = yev_event->callback(
                         yev_event
@@ -830,7 +834,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct my_io_uring_cqe *cqe)
                 /*
                  *  Call callback
                  */
-                yev_event->result = cqe->res;
+                yev_event->result = cqe_res;
                 if(yev_event->callback) {
                     ret = yev_event->callback(
                         yev_event
@@ -1363,7 +1367,6 @@ PUBLIC int yev_start_timer_event(
     time_t timeout_ms,
     BOOL periodic
 ) {
-return 0; // TODO TEST
     yev_event_t *yev_event = (yev_event_t *)yev_event_;
     /*------------------------*
      *  Check parameters
@@ -2797,8 +2800,38 @@ PUBLIC const char **yev_flag_strings(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int set_nonblocking(int fd)
+PUBLIC int set_nonblocking(int fd)
 {
     int flags = fcntl(fd, F_GETFL, 0);
-    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    if(flags < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msg",          "%s", "fcntl() FAILED",
+             "serrno",       "%s", strerror(flags),
+             NULL
+         );
+
+        return -1;
+    }
+    flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    if(flags < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msg",          "%s", "fcntl() FAILED",
+             "serrno",       "%s", strerror(flags),
+             NULL
+         );
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void set_measure_times(int types) // Set the measure of times of types (-1 all)
+{
+    measuring_times = types;
 }

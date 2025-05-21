@@ -11,6 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
 #include <ytls.h>
@@ -434,7 +435,6 @@ PUBLIC hgobj my_gobj_find_child(
  *  Accept cb
  *  WARNING yev_callback() return -1 will break the loop of yevent
  ***************************************************************************/
-extern time_measure_t yev_time_measure; // TODO TEST
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
 // TODO TEST

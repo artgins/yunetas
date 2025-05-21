@@ -9,8 +9,10 @@
  ****************************************************************************/
 #pragma once
 
-#include <gobj.h>
 #include <netdb.h>  // need it by struct addrinfo
+
+#include <testing.h>
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -112,6 +114,11 @@ typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
     struct addrinfo *hints,
     int *secure // fill true if needs TLS
 );
+
+/***************************************************************
+ *              Data
+ ***************************************************************/
+extern PUBLIC time_measure_t yev_time_measure; // to measure times
 
 /***************************************************************
  *              Prototypes
@@ -276,6 +283,8 @@ PUBLIC BOOL is_udp_socket(int fd);
 PUBLIC int get_peername(char *bf, size_t bfsize, int fd);
 PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
 PUBLIC const char **yev_flag_strings(void);
+PUBLIC int set_nonblocking(int fd);
+PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
 
 #ifdef __cplusplus
 }
