@@ -57,6 +57,44 @@ config DEBUG_WITH_BACKTRACE
     help
         Use backtrace library to print stack trace
 
+config DEBUG_PRINT_YEV_ANY
+    bool
+    default DEBUG_PRINT_YEV_CONNECT_TIMES || \
+            DEBUG_PRINT_YEV_ACCEPT_TIMES  || \
+            DEBUG_PRINT_YEV_READ_TIMES    || \
+            DEBUG_PRINT_YEV_WRITE_TIMES   || \
+            DEBUG_PRINT_YEV_TIMER_TIMES
+
+config DEBUG_PRINT_YEV_CONNECT_TIMES
+    bool "Print times yev_loop YEV_CONNECT_TYPE"
+    default n
+    help
+        Print elapsed times of several points in yev_loop YEV_CONNECT_TYPE event
+
+config DEBUG_PRINT_YEV_ACCEPT_TIMES
+    bool "Print times yev_loop YEV_ACCEPT_TYPE"
+    default n
+    help
+        Print elapsed times of several points in yev_loop YEV_ACCEPT_TYPE event
+
+config DEBUG_PRINT_YEV_READ_TIMES
+    bool "Print times yev_loop YEV_READ_TYPE"
+    default n
+    help
+        Print elapsed times of several points in yev_loop YEV_READ_TYPE event
+
+config DEBUG_PRINT_YEV_WRITE_TIMES
+    bool "Print times yev_loop YEV_WRITE_TYPE"
+    default n
+    help
+        Print elapsed times of several points in yev_loop YEV_WRITE_TYPE event
+
+config DEBUG_PRINT_YEV_TIMER_TIMES
+    bool "Print times yev_loop YEV_TIMER_TYPE"
+    default n
+    help
+        Print elapsed times of several points in yev_loop YEV_TIMER_TYPE event
+
 endmenu
 
 #------------------------------#

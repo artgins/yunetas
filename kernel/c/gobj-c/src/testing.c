@@ -681,13 +681,13 @@ PUBLIC void mt_print_time(time_measure_t *time_measure, const char *label)
 
     double ops_per_sec = (elapsed_sec > 0.0) ? ((double)count / elapsed_sec) : 0.0;
 
-    printf("%s#TIME %s (count: %" PRIu64 "): elapsed %" PRIu64 " ns, ops/sec %.2f%s\n",
+    printf("%s#TIME (count: %" PRIu64 "): elapsed %" PRIu64 " ns, ops/sec %.2f%s -> %s\n",
         On_Black RGreen,
-        label ? label : "",
         time_measure->count,
         elapsed_ns,
         ops_per_sec,
-        Color_Off
+        Color_Off,
+        label ? label : ""
     );
 }
 

@@ -235,11 +235,12 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         /*
          *  To measure the time of executing of the event
          */
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
         if(measuring_times) {
             MT_START_TIME(yev_time_measure)
             MT_INCREMENT_COUNT(yev_time_measure, 1)
         }
-
+#endif
         if (err < 0) {
             if(err == -EINTR) {
                 // Ctrl+C cause this
@@ -290,15 +291,18 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
 
-MT_PRINT_TIME(yev_time_measure, "callback 0-0"); // TODO TEST
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+        MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe()");
+#endif
 
         if(callback_cqe(yev_loop, yev_event)<0) {
             yev_loop->running = false;
         }
 
-        if(measuring_times & yev_event->type) {
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+        {
             char temp[120];
-            snprintf(temp, sizeof(temp), "TOTAL: type %s, res %d, flags %d, dup %d",
+            snprintf(temp, sizeof(temp), "TOTAL: type %s, res %d, flags %d, dup %d\n",
                 yev_event_type_name(yev_event),
                 yev_event->cqe_res,
                 yev_event->cqe_flags,
@@ -306,6 +310,7 @@ MT_PRINT_TIME(yev_time_measure, "callback 0-0"); // TODO TEST
             );
             MT_PRINT_TIME(yev_time_measure, temp);
         }
+#endif
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
@@ -544,6 +549,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, yev_event_t *yev_event)
         return 0;
     }
 
+MT_PRINT_TIME(yev_time_measure, "callback 0-1"); // TODO TEST
+
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
     int cqe_res = yev_event->cqe_res;
 
@@ -573,6 +580,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, yev_event_t *yev_event)
         );
         json_decref(jn_flags);
     }
+
+MT_PRINT_TIME(yev_time_measure, "callback 0-2"); // TODO TEST
 
     /*------------------------*
      *      Set state
@@ -695,6 +704,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, yev_event_t *yev_event)
         }
         cur_state = yev_get_state(yev_event);
     }
+
+MT_PRINT_TIME(yev_time_measure, "callback 0-3"); // TODO TEST
 
     /*-------------------------------*
      *      cqe ready
@@ -885,6 +896,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, yev_event_t *yev_event)
             }
             break;
     }
+
+MT_PRINT_TIME(yev_time_measure, "callback 0-4"); // TODO TEST
 
     return ret;
 }
