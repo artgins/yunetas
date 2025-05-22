@@ -238,9 +238,9 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *      To check
      *------------------------------------------------*/
-    set_measure_times(YEV_ACCEPT_TYPE);
+    // set_measure_times(YEV_ACCEPT_TYPE);
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(5);
+    // set_auto_kill_time(5);
 
     /*------------------------------------------------*
      *          Start yuneta

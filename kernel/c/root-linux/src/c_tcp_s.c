@@ -316,11 +316,11 @@ PRIVATE int mt_start(hgobj gobj)
          *      Legacy method
          *--------------------------------*/
         yev_start_event(priv->yev_server_accept);
-        priv->yev_dups = GBMEM_MALLOC((backlog + 1)* sizeof(yev_event_h *));
-        for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
-            priv->yev_dups[dup_idx] = yev_dup_accept_event(priv->yev_server_accept, dup_idx, gobj);
-            yev_start_event(priv->yev_dups[dup_idx]);
-        }
+        // priv->yev_dups = GBMEM_MALLOC((backlog + 1)* sizeof(yev_event_h *));
+        // for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+        //     priv->yev_dups[dup_idx] = yev_dup_accept_event(priv->yev_server_accept, dup_idx, gobj);
+        //     yev_start_event(priv->yev_dups[dup_idx]);
+        // }
 
     } else {
         /*-----------------------------------------*
@@ -371,17 +371,19 @@ PRIVATE int mt_stop(hgobj gobj)
         }
     }
 
-    int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
-    for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
-        if(!priv->yev_dups[dup_idx]) {
-            continue;
-        }
-        yev_stop_event(priv->yev_dups[dup_idx]);
-        if(yev_event_is_stopped(priv->yev_dups[dup_idx])) {
-            yev_destroy_event(priv->yev_dups[dup_idx]);
-            priv->yev_dups[dup_idx] = 0;
-        } else {
-            gobj_change_state(gobj, ST_WAIT_STOPPED);
+    if(priv->yev_dups) {
+        int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
+        for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+            if(!priv->yev_dups[dup_idx]) {
+                continue;
+            }
+            yev_stop_event(priv->yev_dups[dup_idx]);
+            if(yev_event_is_stopped(priv->yev_dups[dup_idx])) {
+                yev_destroy_event(priv->yev_dups[dup_idx]);
+                priv->yev_dups[dup_idx] = 0;
+            } else {
+                gobj_change_state(gobj, ST_WAIT_STOPPED);
+            }
         }
     }
 
