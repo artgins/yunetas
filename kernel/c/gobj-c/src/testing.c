@@ -666,64 +666,26 @@ PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg,
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void format_with_commas(long value, char *buffer, size_t buflen)
+PUBLIC void mt_print_time(time_measure_t *time_measure, const char *label)
 {
-    char temp[32];
-    int len, commas, i, j;
-
-    snprintf(temp, sizeof(temp), "%ld", value);
-
-    len = (int)strlen(temp);
-    commas = (len - 1) / 3;
-
-    if((len + commas + 1) > buflen) {
-        buffer[0] = '\0';
-        return;
+    // Convert start and end to nanoseconds
+    uint64_t start_ns = time_measure->start.tv_sec * 1000000000ULL + time_measure->start.tv_nsec;
+    uint64_t end_ns   = time_measure->end.tv_sec * 1000000000ULL + time_measure->end.tv_nsec;
+    uint64_t count = time_measure->count;
+    if(!count) {
+        count = 1;
     }
+    uint64_t elapsed_ns = end_ns - start_ns;
 
-    i = len - 1;
-    j = len + commas;
-    buffer[j--] = '\0';
+    double elapsed_sec = (double)elapsed_ns / 1e9;
+    double ops_per_sec = (elapsed_sec > 0.0) ? ((double)count / elapsed_sec) : 0.0;
 
-    int count = 0;
-    while(i >= 0) {
-        if(count == 3) {
-            buffer[j--] = ',';
-            count = 0;
-        }
-        buffer[j--] = temp[i--];
-        count++;
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void mt_print_time(time_measure_t *time_measure, const char *prefix)
-{
-    register uint64_t s, e;
-    s = ((uint64_t)time_measure->start.tv_sec)*1000000 + ((uint64_t)time_measure->start.tv_nsec)/1000;
-    e = ((uint64_t)time_measure->end.tv_sec)*1000000 + ((uint64_t)time_measure->end.tv_nsec)/1000;
-    double dt =  ((double)(e-s))/1000000;
-
-    char ops_formatted[32];
-    format_with_commas((long)((double)time_measure->count / dt), ops_formatted, sizeof(ops_formatted));
-
-    printf("%s# TIME %s (count: %" PRIu64 "): %f seconds, %s op/sec%s\n",
+    printf("%s#TIME %s (count: %" PRIu64 "): elapsed %" PRIu64 " ns, ops/sec %.2f%s\n",
         On_Black RGreen,
-        prefix?prefix:"",
+        label ? label : "",
         time_measure->count,
-        dt,
-        ops_formatted,
+        elapsed_ns,
+        ops_per_sec,
         Color_Off
     );
-
-    // printf("%s# TIME %s (count: %" PRIu64 "): %f seconds, %'ld op/sec%s\n",
-    //        On_Black RGreen,
-    //        prefix?prefix:"",
-    //        time_measure->count,
-    //        dt,
-    //        (long)(((double)time_measure->count)/dt),
-    //        Color_Off
-    // );
 }

@@ -5969,12 +5969,12 @@ PUBLIC void * gobj_priv_data(hgobj gobj)
 /***************************************************************************
  *  Return parent
  ***************************************************************************/
-PUBLIC hgobj gobj_parent(hgobj gobj_)
+PUBLIC hgobj gobj_parent(hgobj gobj)
 {
-    gobj_t *gobj = gobj_;
-    if(!gobj)
+    if(!gobj) {
         return NULL;
-    return gobj->parent;
+    }
+    return ((gobj_t *)gobj)->parent;
 }
 
 /***************************************************************************

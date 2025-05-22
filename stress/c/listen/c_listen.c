@@ -25,6 +25,7 @@
  *          Data: config, public data, private data
  ***************************************************************************/
 time_measure_t time_measure;
+time_measure_t time_measure2;
 
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
@@ -178,6 +179,18 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     // set_timeout(priv->timer, 1000); // timeout to start sending messages
+
+    static int i=0;
+    i++;
+
+    if(i==1) {
+        MT_START_TIME(time_measure2)
+    }
+    if(i>=10000) {
+        MT_INCREMENT_COUNT(time_measure2, 10000)
+        MT_PRINT_TIME(time_measure2, "OPENED 10000")
+        i = 0;
+    }
 
     JSON_DECREF(kw)
     return 0;

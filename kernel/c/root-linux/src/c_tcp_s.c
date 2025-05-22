@@ -450,7 +450,10 @@ MT_PRINT_TIME(yev_time_measure, "accept callback 1");
         );
         return 0;
     }
+MT_PRINT_TIME(yev_time_measure, "accept callback 1-1"); // TODO TEST
+
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+MT_PRINT_TIME(yev_time_measure, "accept callback 1-2"); // TODO TEST
 
     if(yev_event_is_stopped(yev_event)) {
         gobj_change_state(gobj, ST_STOPPED);
@@ -475,6 +478,8 @@ MT_PRINT_TIME(yev_time_measure, "accept callback 1");
         return 0;
     }
 
+MT_PRINT_TIME(yev_time_measure, "accept callback 1-3"); // TODO TEST
+
     switch(yev_get_type(yev_event)) {
         case YEV_ACCEPT_TYPE:
             break;
@@ -491,6 +496,8 @@ MT_PRINT_TIME(yev_time_measure, "accept callback 1");
             return 0;
     }
 
+MT_PRINT_TIME(yev_time_measure, "accept callback 1-4"); // TODO TEST
+
     /*-------------------------------------------------*
      *  WARNING: Here only with YEV_ACCEPT_TYPE event
      *-------------------------------------------------*/
@@ -506,6 +513,8 @@ MT_PRINT_TIME(yev_time_measure, "accept callback 1");
         );
         return 0;
     }
+
+MT_PRINT_TIME(yev_time_measure, "accept callback 1-5"); // TODO TEST
 
     if(priv->only_allowed_ips) {
         char peername[80];

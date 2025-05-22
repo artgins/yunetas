@@ -71,7 +71,7 @@ for(let i = 0; i < args.connections; i++) {
             if(cur_connections >= max_connections) {
                 let end =  process.hrtime.bigint();
                 let total = Number(end - start)/1000000000;
-                console.log(`Connected ${i}: peer=${peer}, local=${local}, Jobs ${jobs}, Total Duration: ${total} sec, ops ${1/total}`);
+                console.log(`Connected ${i}: peer=${peer}, local=${local}, Jobs ${jobs}, Total Duration: ${total} sec, ops ${max_connections/total}`);
             } else {
                 let end2 =  process.hrtime.bigint();
                 let total = Number(end2 - start2)/1000000000;

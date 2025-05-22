@@ -280,12 +280,17 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             break;
         }
 
-        /* Mark this request as processed */
-        io_uring_cqe_seen(&yev_loop->ring, cqe);
-
+        /*
+         *  Copy the result of cqe and mark as processed
+         */
         yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
         yev_event->cqe_res = cqe->res;
         yev_event->cqe_flags = cqe->flags;
+
+        /* Mark this request as processed */
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
+
+MT_PRINT_TIME(yev_time_measure, "callback 0-0"); // TODO TEST
 
         if(callback_cqe(yev_loop, yev_event)<0) {
             yev_loop->running = false;
