@@ -284,6 +284,7 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
 PUBLIC const char **yev_flag_strings(void);
 PUBLIC int set_nonblocking(int fd);
 PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
+PUBLIC int get_measure_times(void);
 
 #ifdef __cplusplus
 }

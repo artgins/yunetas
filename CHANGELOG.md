@@ -83,6 +83,8 @@ New API
     get_net_core_somaxconn(void)
     gclass_find_event
     mt_get_time
+    set_measure_times
+    get_measure_times
 
 Delete API
 

@@ -2912,3 +2912,21 @@ PUBLIC void set_measure_times(int types) // Set the measure of times of types (-
     );
 #endif
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int get_measure_times(void)
+{
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    return measuring_times;
+#else
+    gobj_log_error(0, LOG_OPT_TRACE_STACK,
+         "function",     "%s", __FUNCTION__,
+         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+         "msg",          "%s", "CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES not set",
+         NULL
+    );
+    return measuring_times;
+#endif
+}
