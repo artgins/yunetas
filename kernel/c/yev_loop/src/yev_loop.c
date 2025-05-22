@@ -193,19 +193,23 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
  ***************************************************************************/
 PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 {
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times) {
-        MT_PRINT_TIME(yev_time_measure, "callback_cqe() entry");
-    }
-#endif
-
     if(!cqe) {
         /*
          *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
          */
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        if(measuring_times & YEV_TIMER_TYPE) {
+            MT_PRINT_TIME(yev_time_measure, "callback_cqe() entry");
+        }
+#endif
         if(yev_loop->callback) {
             return yev_loop->callback(0);
         }
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        if(measuring_times & YEV_TIMER_TYPE) {
+            MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback() and end");
+        }
+#endif
         return 0;
     }
 
@@ -217,6 +221,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
     int cqe_res = cqe->res;
+    int yev_event_type = yev_event->type;
 
     /*------------------------*
      *      Trace
@@ -247,7 +252,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times) {
+    if(measuring_times & yev_event_type) {
         MT_PRINT_TIME(yev_time_measure, "callback_cqe() after trace_level");
     }
 #endif
@@ -377,7 +382,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times) {
+    if(measuring_times & yev_event_type) {
         MT_PRINT_TIME(yev_time_measure, "callback_cqe() after set_state");
     }
 #endif
@@ -421,7 +426,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-                if(measuring_times) {
+                if(measuring_times & yev_event_type) {
                     MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
                 }
 #endif
@@ -447,7 +452,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-                if(measuring_times) {
+                if(measuring_times & yev_event_type) {
                     MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
                 }
 #endif
@@ -507,7 +512,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-                if(measuring_times) {
+                if(measuring_times & yev_event_type) {
                     MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
                 }
 #endif
@@ -531,7 +536,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     );
                 }
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-                if(measuring_times) {
+                if(measuring_times & yev_event_type) {
                     MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
                 }
 #endif
@@ -551,7 +556,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-                if(measuring_times) {
+                if(measuring_times & yev_event_type) {
                     MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
                 }
 #endif
@@ -597,7 +602,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times) {
+    if(measuring_times & yev_event_type) {
         MT_PRINT_TIME(yev_time_measure, "callback_cqe() end");
     }
 #endif
@@ -701,13 +706,15 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times) {
+        yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
+        int yev_event_type = yev_event? yev_event->type:0;
+        if(measuring_times & yev_event_type) {
             MT_PRINT_TIME(yev_time_measure, "next print: consume of mt_print_time");
         }
 #endif
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times) {
+        if(measuring_times & yev_event_type) {
             MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe()");
         }
 #endif
@@ -716,8 +723,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times) {
-            yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
+        if(measuring_times & yev_event_type) {
             char temp[120];
             snprintf(temp, sizeof(temp), "TOTAL: type %s, res %d, flags %d, dup %d",
                 yev_event?yev_event_type_name(yev_event):"",
@@ -734,7 +740,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times) {
+        if(measuring_times & yev_event_type) {
             MT_PRINT_TIME(yev_time_measure, "after io_uring_cqe_seen()\n");
         }
 #endif
