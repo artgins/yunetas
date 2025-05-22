@@ -716,7 +716,10 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_times & yev_event_type) {
             char temp[80];
-            snprintf(temp, sizeof(temp), "BEFORE callback_cqe(%s)", yev_event_type_name(yev_event));
+            snprintf(temp, sizeof(temp), "BEFORE callback_cqe(%s), res %d",
+                yev_event_type_name(yev_event),
+                cqe->res
+            );
             MT_PRINT_TIME(yev_time_measure, temp);
         }
 #endif
@@ -807,7 +810,10 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         int yev_event_type = yev_event? yev_event->type:0;
         if(measuring_times & yev_event_type) {
             char temp[80];
-            snprintf(temp, sizeof(temp), "run1 BEFORE callback_cqe(%s)", yev_event_type_name(yev_event));
+            snprintf(temp, sizeof(temp), "run1 BEFORE callback_cqe(%s), res %d",
+                yev_event_type_name(yev_event),
+                cqe->res
+            );
             MT_PRINT_TIME(yev_time_measure, temp);
         }
 #endif
