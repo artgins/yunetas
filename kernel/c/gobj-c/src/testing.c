@@ -671,13 +671,14 @@ PUBLIC void mt_print_time(time_measure_t *time_measure, const char *label)
     // Convert start and end to nanoseconds
     uint64_t start_ns = time_measure->start.tv_sec * 1000000000ULL + time_measure->start.tv_nsec;
     uint64_t end_ns   = time_measure->end.tv_sec * 1000000000ULL + time_measure->end.tv_nsec;
+    uint64_t elapsed_ns = end_ns - start_ns;
+    double elapsed_sec = (double)elapsed_ns / 1e9;
+
     uint64_t count = time_measure->count;
     if(!count) {
         count = 1;
     }
-    uint64_t elapsed_ns = end_ns - start_ns;
 
-    double elapsed_sec = (double)elapsed_ns / 1e9;
     double ops_per_sec = (elapsed_sec > 0.0) ? ((double)count / elapsed_sec) : 0.0;
 
     printf("%s#TIME %s (count: %" PRIu64 "): elapsed %" PRIu64 " ns, ops/sec %.2f%s\n",
@@ -688,4 +689,17 @@ PUBLIC void mt_print_time(time_measure_t *time_measure, const char *label)
         ops_per_sec,
         Color_Off
     );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC double mt_get_time(time_measure_t *time_measure)
+{
+    // Convert start and end to nanoseconds
+    uint64_t start_ns = time_measure->start.tv_sec * 1000000000ULL + time_measure->start.tv_nsec;
+    uint64_t end_ns   = time_measure->end.tv_sec * 1000000000ULL + time_measure->end.tv_nsec;
+    uint64_t elapsed_ns = end_ns - start_ns;
+    double elapsed_sec = (double)elapsed_ns / 1e9;
+    return elapsed_sec;
 }

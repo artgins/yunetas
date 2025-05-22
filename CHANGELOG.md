@@ -82,6 +82,7 @@ New API
     gobj_set_trace_machine_format
     get_net_core_somaxconn(void)
     gclass_find_event
+    mt_get_time
 
 Delete API
 
