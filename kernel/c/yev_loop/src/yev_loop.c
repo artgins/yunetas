@@ -55,8 +55,6 @@ struct yev_event_s {
 
     sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
     int dup_idx;            // Duplicate events with the same fd
-    int32_t	cqe_res;        // result for this event (from cqe->res)
-    uint32_t cqe_flags;     // flags for this event (from cqe->flags)
 };
 
 struct yev_loop_s {
@@ -72,7 +70,7 @@ struct yev_loop_s {
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE int callback_cqe(yev_loop_t *yev_loop, yev_event_t *yev_event);
+PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state);
 PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo *ai, int port);
 
 /***************************************************************
@@ -193,6 +191,418 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
+{
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+    if(measuring_times) {
+        MT_PRINT_TIME(yev_time_measure, "callback_cqe() entry");
+    }
+#endif
+
+    yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
+    if(!yev_event) {
+        /*
+         *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
+         */
+        if(yev_loop->callback) {
+            return yev_loop->callback(0);
+        }
+        return 0;
+    }
+
+    hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
+    int cqe_res = cqe->res;
+
+    /*------------------------*
+     *      Trace
+     *------------------------*/
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level) {
+        if(((trace_level & TRACE_URING) && yev_event->type != YEV_TIMER_TYPE) ||
+            ((trace_level & TRACE_URING_TIME) && yev_event->type == YEV_TIMER_TYPE)
+        ) {
+            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "callback_cqe",
+                "msg2",         "%s", "💥💥💥💥⏪ callback_cqe",
+                "type",         "%s", yev_event_type_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
+                "loop_running", "%d", yev_loop->running?1:0,
+                "p",            "%p", yev_event,
+                "fd",           "%d", yev_get_fd(yev_event),
+                "flag",         "%j", jn_flags,
+                "cqe->res",     "%d", (int)cqe_res,
+                "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
+                NULL
+            );
+            json_decref(jn_flags);
+        }
+    }
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+    if(measuring_times) {
+        MT_PRINT_TIME(yev_time_measure, "callback_cqe() after trace_level");
+    }
+#endif
+
+    /*------------------------*
+     *      Set state
+     *------------------------*/
+    yev_state_t cur_state = yev_get_state(yev_event);
+    switch(cur_state) {
+        case YEV_ST_RUNNING:  // cqe ready
+            if(cqe_res > 0) {
+                yev_set_state(yev_event, YEV_ST_IDLE);
+            } else if(cqe_res < 0) {
+                yev_set_state(yev_event, YEV_ST_STOPPED);
+            } else { // cqe_res == 0
+                // In READ events when the peer has closed the socket the reads return 0
+                if(yev_event->type == YEV_READ_TYPE) {
+                    cqe_res = -EPIPE; // Broken pipe (remote side closed connection)
+                    yev_set_state(yev_event, YEV_ST_STOPPED);
+                } else {
+                    yev_set_state(yev_event, YEV_ST_IDLE);
+                }
+            }
+            break;
+        case YEV_ST_CANCELING: // cqe ready
+            /*
+             *  In the case of YEV_TIMER_TYPE and others, when canceling
+             *      first receives cqe_res 0
+             *      after receives ECANCELED
+             */
+            if(cqe_res < 0) {
+                /*
+                 *  HACK this error is information of disconnection cause.
+                 */
+                yev_set_state(yev_event, YEV_ST_STOPPED);
+
+            } else if(cqe_res >= 0) {
+                /*
+                 *  When canceling it could arrive events type with res >= 0
+                 *  Wait to one negative
+                 */
+                /*
+                 *  Mark this request as processed
+                 */
+                return 0;
+            }
+            break;
+
+        case YEV_ST_STOPPED: // cqe ready
+            /*
+             *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
+             *  and it can receive cqe_res = -2 (No such file or directory)
+             *
+             *  Cases seen:
+             *      - Cancel the read event (previously the socket was closed for testing)
+             *      - receive a read  "errno": -104, "strerror": "Connection reset by peer"
+             *          causing to set the read event in STOPPED state.
+             *      - receive another read event with "errno": -2, "No such file or directory"
+             *          this cause a log_warning "receive event in stopped state"
+             *          the event is ignored
+             */
+            if(cqe_res != -2) {
+                gobj_log_warning(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                    "msg",          "%s", "receive event in stopped state",
+                    "event_type",   "%s", yev_event_type_name(yev_event),
+                    "yev_state",    "%s", yev_get_state_name(yev_event),
+                    "p",            "%p", yev_event,
+                    "cqe_res",     "%d", (int)cqe_res,
+                    "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
+                    NULL
+                );
+            }
+            /*
+             *  Don't call callback again
+             *  if the state is STOPPED the callback was already done,
+             *  It'd normally receive first cqe_res = 0 and later cqe_res = -ECANCELED
+             */
+
+            /* Mark this request as processed */
+            return 0;
+
+        case YEV_ST_IDLE: // cqe ready
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                "msg",          "%s", "Wrong STATE receiving cqe",
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                "yev_state",    "%s", yev_get_state_name(yev_event),
+                "p",            "%p", yev_event,
+                "cqe_res",     "%d", (int)cqe_res,
+                "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
+                NULL
+            );
+            /* Mark this request as processed */
+            return 0;
+    }
+
+    if(cur_state != yev_get_state(yev_event)) {
+        // State has changed
+        if(trace_level) {
+            if(((trace_level & TRACE_URING) && yev_event->type != YEV_TIMER_TYPE) ||
+               ((trace_level & TRACE_URING_TIME) && yev_event->type == YEV_TIMER_TYPE)
+                ) {
+                json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+                gobj_log_debug(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_YEV_LOOP,
+                    "msg",          "%s", "callback_cqe NEW STATE",
+                    "msg2",         "%s", "💥💥💥💥⏪ callback_cqe NEW STATE",
+                    "type",         "%s", yev_event_type_name(yev_event),
+                    "yev_state",    "%s", yev_get_state_name(yev_event),
+                    "loop_running", "%d", yev_loop->running?1:0,
+                    "p",            "%p", yev_event,
+                    "fd",           "%d", yev_get_fd(yev_event),
+                    "flag",         "%j", jn_flags,
+                    "cqe_res",     "%d", (int)cqe_res,
+                    "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
+                    NULL
+                );
+                json_decref(jn_flags);
+            }
+        }
+        cur_state = yev_get_state(yev_event);
+    }
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+    if(measuring_times) {
+        MT_PRINT_TIME(yev_time_measure, "callback_cqe() after set_state");
+    }
+#endif
+
+    /*-------------------------------*
+     *      cqe ready
+     *-------------------------------*/
+    int ret = 0;
+    switch((yev_type_t)yev_event->type) {
+        case YEV_CONNECT_TYPE: // cqe ready
+            {
+                if(cur_state == YEV_ST_IDLE) {
+                    // HACK res == 0 when connected
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, true);
+                } else {
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, false);
+                    if(yev_event->fd > 0) {
+                        if(gobj_trace_level(0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+                            gobj_log_debug(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_YEV_LOOP,
+                                "msg",          "%s", "close socket",
+                                "msg2",         "%s", "💥🟥 close socket",
+                                "fd",           "%d", yev_event->fd ,
+                                "p",            "%p", yev_event,
+                                NULL
+                            );
+                        }
+                        close(yev_event->fd);
+                        yev_event->fd = -1;
+                    }
+                }
+
+                /*
+                 *  Call callback
+                 */
+                yev_event->result = cqe_res;
+                if(yev_event->callback) {
+                    ret = yev_event->callback(
+                        yev_event
+                    );
+                }
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+                if(measuring_times) {
+                    MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
+                }
+#endif
+            }
+            break;
+
+        case YEV_ACCEPT_TYPE: // cqe ready
+            {
+                /*
+                 *  Call callback
+                 */
+                yev_event->result = cqe_res; // HACK: is the cli_srv socket
+                if(yev_event->result > 0) {
+                    set_nonblocking(yev_event->result);
+                    if (is_tcp_socket(yev_event->result)) {
+                        set_tcp_socket_options(yev_event->result, yev_loop->keep_alive);
+                    }
+                }
+
+                if(yev_event->callback) {
+                    ret = yev_event->callback(
+                        yev_event
+                    );
+                }
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+                if(measuring_times) {
+                    MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
+                }
+#endif
+                if(ret == 0 && yev_loop->running && yev_event->state == YEV_ST_IDLE) {
+                    if(!gobj || (gobj && gobj_is_running(gobj))) {
+                        /*
+                         *  Rearm accept event
+                         */
+                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        io_uring_sqe_set_data(sqe, yev_event);
+                        io_uring_prep_accept(
+                            sqe,
+                            yev_event->fd,
+                            &yev_event->sock_info->src_addr,
+                            &yev_event->sock_info->src_addrlen,
+                            0
+                        );
+                        io_uring_submit(&yev_loop->ring);
+                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
+
+                        if(trace_level & TRACE_URING) {
+                            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+                            gobj_log_debug(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_YEV_LOOP,
+                                "msg",          "%s", "re-arming accept event",
+                                "msg2",         "%s", "💥💥⏩ re-arming accept event",
+                                "type",         "%s", yev_event_type_name(yev_event),
+                                "yev_state",    "%s", yev_get_state_name(yev_event),
+                                "fd",           "%d", yev_get_fd(yev_event),
+                                "p",            "%p", yev_event,
+                                "gbuffer",      "%p", yev_event->gbuf,
+                                "flag",         "%j", jn_flags,
+                                NULL
+                            );
+                            json_decref(jn_flags);
+                        }
+                    }
+                }
+            }
+            break;
+
+        case YEV_WRITE_TYPE: // cqe ready
+            {
+                if(cqe_res > 0 && yev_event->gbuf) {
+                    // Pop the read bytes used to write fd
+                    gbuffer_get(yev_event->gbuf, cqe_res);
+                }
+
+                /*
+                 *  Call callback
+                 */
+                yev_event->result = cqe_res;
+                if(yev_event->callback) {
+                    ret = yev_event->callback(
+                        yev_event
+                    );
+                }
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+                if(measuring_times) {
+                    MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
+                }
+#endif
+            }
+            break;
+
+        case YEV_READ_TYPE: // cqe ready
+            {
+                if(cqe_res > 0 && yev_event->gbuf) {
+                    // Mark the written bytes of reading fd
+                    gbuffer_set_wr(yev_event->gbuf, cqe_res);
+                }
+
+                /*
+                 *  Call callback
+                 */
+                yev_event->result = cqe_res;
+                if (yev_event->callback) {
+                    ret = yev_event->callback(
+                        yev_event
+                    );
+                }
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+                if(measuring_times) {
+                    MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
+                }
+#endif
+            }
+            break;
+
+        case YEV_TIMER_TYPE: // cqe ready
+            {
+                /*
+                 *  Call callback
+                 */
+                yev_event->result = cqe_res;
+                if(yev_event->callback) {
+                    ret = yev_event->callback(
+                        yev_event
+                    );
+                }
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+                if(measuring_times) {
+                    MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
+                }
+#endif
+                if(ret == 0 && yev_loop->running && yev_event->state == YEV_ST_IDLE &&
+                        (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
+                    if(!gobj || (gobj && gobj_is_running(gobj))) {
+                        /*
+                         *  Rearm periodic timer event
+                         */
+                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                        io_uring_sqe_set_data(sqe, yev_event);
+                        io_uring_prep_read(
+                            sqe,
+                            yev_event->fd,
+                            &yev_event->timer_bf,
+                            sizeof(yev_event->timer_bf),
+                            0
+                        );
+                        io_uring_submit(&yev_loop->ring);
+                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
+
+                        if(trace_level & TRACE_URING_TIME) {
+                            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+                            gobj_log_debug(gobj, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_YEV_LOOP,
+                                "msg",          "%s", "re-arming timer event",
+                                "msg2",         "%s", "💥💥⏩ re-arming timer event",
+                                "type",         "%s", yev_event_type_name(yev_event),
+                                "yev_state",    "%s", yev_get_state_name(yev_event),
+                                "fd",           "%d", yev_get_fd(yev_event),
+                                "p",            "%p", yev_event,
+                                "gbuffer",      "%p", yev_event->gbuf,
+                                "flag",         "%j", jn_flags,
+                                NULL
+                            );
+                            json_decref(jn_flags);
+                        }
+                    }
+                }
+            }
+            break;
+    }
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+    if(measuring_times) {
+        MT_PRINT_TIME(yev_time_measure, "callback_cqe() end");
+    }
+#endif
+
+    return ret;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 {
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
@@ -276,41 +686,47 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
                 "serr",         "%s", strerror(-err),
                 NULL
             );
-            /* Mark this request as processed */
+            /*
+             * Mark this request as processed
+             */
             io_uring_cqe_seen(&yev_loop->ring, cqe);
             break;
         }
 
-        /*
-         *  Copy the result of cqe and mark as processed
-         */
-        yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
-        yev_event->cqe_res = cqe->res;
-        yev_event->cqe_flags = cqe->flags;
-
-        /* Mark this request as processed */
-        io_uring_cqe_seen(&yev_loop->ring, cqe);
-
 #ifdef CONFIG_DEBUG_PRINT_YEV_ANY
-        MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe()");
+        if(measuring_times) {
+            MT_PRINT_TIME(yev_time_measure, "next print: consume of mt_print_time");
+        }
 #endif
 
-        if(callback_cqe(yev_loop, yev_event)<0) {
+#ifdef CONFIG_DEBUG_PRINT_YEV_ANY
+        if(measuring_times) {
+            MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe()");
+        }
+#endif
+
+        if(callback_cqe(yev_loop, cqe)<0) {
             yev_loop->running = false;
         }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_ANY
-        {
+        if(measuring_times) {
+            yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
             char temp[120];
             snprintf(temp, sizeof(temp), "TOTAL: type %s, res %d, flags %d, dup %d\n",
-                yev_event_type_name(yev_event),
-                yev_event->cqe_res,
-                yev_event->cqe_flags,
-                yev_get_dup_idx(yev_event)
+                yev_event?yev_event_type_name(yev_event):"",
+                cqe->res,
+                cqe->flags,
+                yev_event?yev_get_dup_idx(yev_event):0
             );
             MT_PRINT_TIME(yev_time_measure, temp);
         }
 #endif
+
+        /*
+         * Mark this request as processed
+         */
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
@@ -360,20 +776,13 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-        yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
-        if(yev_event) {
-            yev_event->cqe_res = cqe->res;
-            yev_event->cqe_flags = cqe->flags;
-        }
-
-        /* Mark this request as processed */
-        io_uring_cqe_seen(&yev_loop->ring, cqe);
-
-        if(callback_cqe(yev_loop, yev_event)<0) {
+        if(callback_cqe(yev_loop, cqe)<0) {
             if(yev_loop->stopping) {
                 break;
             }
         }
+        /* Mark this request as processed */
+        io_uring_cqe_seen(&yev_loop->ring, cqe);
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
@@ -529,377 +938,6 @@ PUBLIC const char * yev_get_state_name(yev_event_h yev_event_)
     } else {
         return "???";
     }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int callback_cqe(yev_loop_t *yev_loop, yev_event_t *yev_event)
-{
-    /*------------------------*
-     *  Check parameters
-     *------------------------*/
-    if(yev_event == NULL) {
-        /*
-         *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
-         */
-        if(yev_loop->callback) {
-            return yev_loop->callback(0);
-        }
-        return 0;
-    }
-
-MT_PRINT_TIME(yev_time_measure, "callback 0-1"); // TODO TEST
-
-    hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
-    int cqe_res = yev_event->cqe_res;
-
-    /*------------------------*
-     *      Trace
-     *------------------------*/
-    uint32_t trace_level = gobj_trace_level(gobj);
-
-    if(((trace_level & TRACE_URING) && yev_event->type != YEV_TIMER_TYPE) ||
-        ((trace_level & TRACE_URING_TIME) && yev_event->type == YEV_TIMER_TYPE)
-    ) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_debug(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "callback_cqe",
-            "msg2",         "%s", "💥💥💥💥⏪ callback_cqe",
-            "type",         "%s", yev_event_type_name(yev_event),
-            "yev_state",    "%s", yev_get_state_name(yev_event),
-            "loop_running", "%d", yev_loop->running?1:0,
-            "p",            "%p", yev_event,
-            "fd",           "%d", yev_get_fd(yev_event),
-            "flag",         "%j", jn_flags,
-            "cqe->res",     "%d", (int)cqe_res,
-            "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
-            NULL
-        );
-        json_decref(jn_flags);
-    }
-
-MT_PRINT_TIME(yev_time_measure, "callback 0-2"); // TODO TEST
-
-    /*------------------------*
-     *      Set state
-     *------------------------*/
-    yev_state_t cur_state = yev_get_state(yev_event);
-    switch(cur_state) {
-        case YEV_ST_RUNNING:  // cqe ready
-            if(cqe_res > 0) {
-                yev_set_state(yev_event, YEV_ST_IDLE);
-            } else if(cqe_res < 0) {
-                yev_set_state(yev_event, YEV_ST_STOPPED);
-            } else { // cqe_res == 0
-                // In READ events when the peer has closed the socket the reads return 0
-                if(yev_event->type == YEV_READ_TYPE) {
-                    cqe_res = -EPIPE; // Broken pipe (remote side closed connection)
-                    yev_set_state(yev_event, YEV_ST_STOPPED);
-                } else {
-                    yev_set_state(yev_event, YEV_ST_IDLE);
-                }
-            }
-            break;
-        case YEV_ST_CANCELING: // cqe ready
-            /*
-             *  In the case of YEV_TIMER_TYPE and others, when canceling
-             *      first receives cqe_res 0
-             *      after receives ECANCELED
-             */
-            if(cqe_res < 0) {
-                /*
-                 *  HACK this error is information of disconnection cause.
-                 */
-                yev_set_state(yev_event, YEV_ST_STOPPED);
-
-            } else if(cqe_res >= 0) {
-                /*
-                 *  When canceling it could arrive events type with res >= 0
-                 *  Wait to one negative
-                 */
-                /*
-                 *  Mark this request as processed
-                 */
-                return 0;
-            }
-            break;
-
-        case YEV_ST_STOPPED: // cqe ready
-            /*
-             *  When not running there is a IORING_ASYNC_CANCEL_ANY submit
-             *  and it can receive cqe_res = -2 (No such file or directory)
-             *
-             *  Cases seen:
-             *      - Cancel the read event (previously the socket was closed for testing)
-             *      - receive a read  "errno": -104, "strerror": "Connection reset by peer"
-             *          causing to set the read event in STOPPED state.
-             *      - receive another read event with "errno": -2, "No such file or directory"
-             *          this cause a log_warning "receive event in stopped state"
-             *          the event is ignored
-             */
-            if(cqe_res != -2) {
-                gobj_log_warning(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_LIBURING_ERROR,
-                    "msg",          "%s", "receive event in stopped state",
-                    "event_type",   "%s", yev_event_type_name(yev_event),
-                    "yev_state",    "%s", yev_get_state_name(yev_event),
-                    "p",            "%p", yev_event,
-                    "cqe_res",     "%d", (int)cqe_res,
-                    "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
-                    NULL
-                );
-            }
-            /*
-             *  Don't call callback again
-             *  if the state is STOPPED the callback was already done,
-             *  It'd normally receive first cqe_res = 0 and later cqe_res = -ECANCELED
-             */
-
-            /* Mark this request as processed */
-            return 0;
-
-        case YEV_ST_IDLE: // cqe ready
-        default:
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBURING_ERROR,
-                "msg",          "%s", "Wrong STATE receiving cqe",
-                "event_type",   "%s", yev_event_type_name(yev_event),
-                "yev_state",    "%s", yev_get_state_name(yev_event),
-                "p",            "%p", yev_event,
-                "cqe_res",     "%d", (int)cqe_res,
-                "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
-                NULL
-            );
-            /* Mark this request as processed */
-            return 0;
-    }
-
-    if(cur_state != yev_get_state(yev_event)) {
-        // State has changed
-        if(((trace_level & TRACE_URING) && yev_event->type != YEV_TIMER_TYPE) ||
-           ((trace_level & TRACE_URING_TIME) && yev_event->type == YEV_TIMER_TYPE)
-            ) {
-            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-            gobj_log_debug(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_YEV_LOOP,
-                "msg",          "%s", "callback_cqe NEW STATE",
-                "msg2",         "%s", "💥💥💥💥⏪ callback_cqe NEW STATE",
-                "type",         "%s", yev_event_type_name(yev_event),
-                "yev_state",    "%s", yev_get_state_name(yev_event),
-                "loop_running", "%d", yev_loop->running?1:0,
-                "p",            "%p", yev_event,
-                "fd",           "%d", yev_get_fd(yev_event),
-                "flag",         "%j", jn_flags,
-                "cqe_res",     "%d", (int)cqe_res,
-                "sres",         "%s", (cqe_res<0)? strerror(-cqe_res):"",
-                NULL
-            );
-            json_decref(jn_flags);
-        }
-        cur_state = yev_get_state(yev_event);
-    }
-
-MT_PRINT_TIME(yev_time_measure, "callback 0-3"); // TODO TEST
-
-    /*-------------------------------*
-     *      cqe ready
-     *-------------------------------*/
-    int ret = 0;
-    switch((yev_type_t)yev_event->type) {
-        case YEV_CONNECT_TYPE: // cqe ready
-            {
-                if(cur_state == YEV_ST_IDLE) {
-                    // HACK res == 0 when connected
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, true);
-                } else {
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, false);
-                    if(yev_event->fd > 0) {
-                        if(gobj_trace_level(0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
-                            gobj_log_debug(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_YEV_LOOP,
-                                "msg",          "%s", "close socket",
-                                "msg2",         "%s", "💥🟥 close socket",
-                                "fd",           "%d", yev_event->fd ,
-                                "p",            "%p", yev_event,
-                                NULL
-                            );
-                        }
-                        close(yev_event->fd);
-                        yev_event->fd = -1;
-                    }
-                }
-
-                /*
-                 *  Call callback
-                 */
-                yev_event->result = cqe_res;
-                if(yev_event->callback) {
-                    ret = yev_event->callback(
-                        yev_event
-                    );
-                }
-            }
-            break;
-
-        case YEV_ACCEPT_TYPE: // cqe ready
-            {
-                /*
-                 *  Call callback
-                 */
-                yev_event->result = cqe_res; // HACK: is the cli_srv socket
-                if(yev_event->result > 0) {
-                    set_nonblocking(yev_event->result);
-                    if (is_tcp_socket(yev_event->result)) {
-                        set_tcp_socket_options(yev_event->result, yev_loop->keep_alive);
-                    }
-                }
-
-                if(yev_event->callback) {
-                    ret = yev_event->callback(
-                        yev_event
-                    );
-                }
-
-                if(ret == 0 && yev_loop->running && yev_event->state == YEV_ST_IDLE) {
-                    if(!gobj || (gobj && gobj_is_running(gobj))) {
-                        /*
-                         *  Rearm accept event
-                         */
-                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                        io_uring_sqe_set_data(sqe, yev_event);
-                        io_uring_prep_accept(
-                            sqe,
-                            yev_event->fd,
-                            &yev_event->sock_info->src_addr,
-                            &yev_event->sock_info->src_addrlen,
-                            0
-                        );
-                        io_uring_submit(&yev_loop->ring);
-                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
-
-                        if(trace_level & TRACE_URING) {
-                            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-                            gobj_log_debug(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_YEV_LOOP,
-                                "msg",          "%s", "re-arming accept event",
-                                "msg2",         "%s", "💥💥⏩ re-arming accept event",
-                                "type",         "%s", yev_event_type_name(yev_event),
-                                "yev_state",    "%s", yev_get_state_name(yev_event),
-                                "fd",           "%d", yev_get_fd(yev_event),
-                                "p",            "%p", yev_event,
-                                "gbuffer",      "%p", yev_event->gbuf,
-                                "flag",         "%j", jn_flags,
-                                NULL
-                            );
-                            json_decref(jn_flags);
-                        }
-                    }
-                }
-            }
-            break;
-
-        case YEV_WRITE_TYPE: // cqe ready
-            {
-                if(cqe_res > 0 && yev_event->gbuf) {
-                    // Pop the read bytes used to write fd
-                    gbuffer_get(yev_event->gbuf, cqe_res);
-                }
-
-                /*
-                 *  Call callback
-                 */
-                yev_event->result = cqe_res;
-                if(yev_event->callback) {
-                    ret = yev_event->callback(
-                        yev_event
-                    );
-                }
-            }
-            break;
-
-        case YEV_READ_TYPE: // cqe ready
-            {
-                if(cqe_res > 0 && yev_event->gbuf) {
-                    // Mark the written bytes of reading fd
-                    gbuffer_set_wr(yev_event->gbuf, cqe_res);
-                }
-
-                /*
-                 *  Call callback
-                 */
-                yev_event->result = cqe_res;
-                if (yev_event->callback) {
-                    ret = yev_event->callback(
-                        yev_event
-                    );
-                }
-            }
-            break;
-
-        case YEV_TIMER_TYPE: // cqe ready
-            {
-                /*
-                 *  Call callback
-                 */
-                yev_event->result = cqe_res;
-                if(yev_event->callback) {
-                    ret = yev_event->callback(
-                        yev_event
-                    );
-                }
-
-                if(ret == 0 && yev_loop->running && yev_event->state == YEV_ST_IDLE &&
-                        (yev_event->flag & YEV_FLAG_TIMER_PERIODIC)) {
-                    if(!gobj || (gobj && gobj_is_running(gobj))) {
-                        /*
-                         *  Rearm periodic timer event
-                         */
-                        struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                        io_uring_sqe_set_data(sqe, yev_event);
-                        io_uring_prep_read(
-                            sqe,
-                            yev_event->fd,
-                            &yev_event->timer_bf,
-                            sizeof(yev_event->timer_bf),
-                            0
-                        );
-                        io_uring_submit(&yev_loop->ring);
-                        yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
-
-                        if(trace_level & TRACE_URING_TIME) {
-                            json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-                            gobj_log_debug(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_YEV_LOOP,
-                                "msg",          "%s", "re-arming timer event",
-                                "msg2",         "%s", "💥💥⏩ re-arming timer event",
-                                "type",         "%s", yev_event_type_name(yev_event),
-                                "yev_state",    "%s", yev_get_state_name(yev_event),
-                                "fd",           "%d", yev_get_fd(yev_event),
-                                "p",            "%p", yev_event,
-                                "gbuffer",      "%p", yev_event->gbuf,
-                                "flag",         "%j", jn_flags,
-                                NULL
-                            );
-                            json_decref(jn_flags);
-                        }
-                    }
-                }
-            }
-            break;
-    }
-
-MT_PRINT_TIME(yev_time_measure, "callback 0-4"); // TODO TEST
-
-    return ret;
 }
 
 /***************************************************************************
