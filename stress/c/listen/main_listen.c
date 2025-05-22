@@ -78,7 +78,7 @@ PRIVATE char variable_config[]= "\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
         },                                                          \n\
-        'io_uring_entries': 20000,                                  \n\
+        'io_uring_entries': 32768,                                  \n\
         'limit_open_files': 200000,                                 \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
         'i18n_domain': 'test_timer',                                \n\
@@ -118,6 +118,7 @@ PRIVATE char variable_config[]= "\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
                         'backlog': 30010,                           \n\
+                        'use_dups': 0,                              \n\
                         'child_tree_filter': {                      \n\
                             'op': 'find',                           \n\
                             'kw': {                                 \n\

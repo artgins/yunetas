@@ -191,11 +191,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         MT_PRINT_TIME(time_measure2, "OPENED 10000")
     }
     if(i==20000) {
-        MT_INCREMENT_COUNT(time_measure2, 20000)
+        MT_INCREMENT_COUNT(time_measure2, 10000)
         MT_PRINT_TIME(time_measure2, "OPENED 20000")
     }
     if(i==30000) {
-        MT_INCREMENT_COUNT(time_measure2, 30000)
+        MT_INCREMENT_COUNT(time_measure2, 10000)
         MT_PRINT_TIME(time_measure2, "OPENED 0000")
     }
 
