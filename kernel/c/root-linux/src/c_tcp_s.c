@@ -47,6 +47,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST, 0,              "url listening"),
 SDATA (DTP_INTEGER,     "backlog",              SDF_WR|SDF_PERSIST, "4096",         "Value for listen() backlog argument. It must be lower or equal to net.core.somaxconn. Change dynamically with 'sysctl -w net.core.somaxconn=?'. Change persistent with a file in /etc/sysctl.d/. Consult with 'cat /proc/sys/net/core/somaxconn'"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0,              "Share the port"),
+SDATA (DTP_BOOLEAN,     "use_dups",             SDF_WR|SDF_PERSIST, 0,              "Use yev_dup_accept_event(), same as backlog (better performance without!)"),
 SDATA (DTP_JSON,        "crypto",               SDF_WR|SDF_PERSIST, 0,              "Crypto config"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
@@ -316,11 +317,13 @@ PRIVATE int mt_start(hgobj gobj)
          *      Legacy method
          *--------------------------------*/
         yev_start_event(priv->yev_server_accept);
-        // priv->yev_dups = GBMEM_MALLOC((backlog + 1)* sizeof(yev_event_h *));
-        // for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
-        //     priv->yev_dups[dup_idx] = yev_dup_accept_event(priv->yev_server_accept, dup_idx, gobj);
-        //     yev_start_event(priv->yev_dups[dup_idx]);
-        // }
+        if(gobj_read_bool_attr(gobj, "use_dups")) {
+            priv->yev_dups = GBMEM_MALLOC((backlog + 1)* sizeof(yev_event_h *));
+            for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+                priv->yev_dups[dup_idx] = yev_dup_accept_event(priv->yev_server_accept, dup_idx, gobj);
+                yev_start_event(priv->yev_dups[dup_idx]);
+            }
+        }
 
     } else {
         /*-----------------------------------------*
