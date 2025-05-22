@@ -619,6 +619,13 @@ int main(int argc, char *argv[])
     uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_ex_t)) * sizeof(md2_record_ex_t);
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
+    gobj_setup_memory(
+        MEM_MAX_BLOCK,  // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
+        false,
+        0,
+        0
+    );
     gobj_start_up(
         argc,
         argv,
@@ -627,12 +634,7 @@ int main(int argc, char *argv[])
         NULL, // global_command_parser
         NULL, // global_stats_parser
         NULL, // global_authz_checker
-        NULL, // global_authenticate_parser
-        MEM_MAX_BLOCK,  // max_block, largest memory block
-        MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
-        false,
-        0,
-        0
+        NULL  // global_authenticate_parser
     );
 
     yuno_catch_signals();

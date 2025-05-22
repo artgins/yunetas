@@ -1151,6 +1151,15 @@ typedef struct {
     list_persistent_attrs_fn     list;
 } persistent_attrs_t;
 
+PUBLIC int gobj_setup_memory( /* If you don't use the defaults, call this before gobj_start_up */
+    size_t                      mem_max_block,          /* largest memory block, default 16M */
+    size_t                      mem_max_system_memory,  /* maximum system memory, default 64M */
+    BOOL                        use_own_system_memory,  /* Use internal memory manager */
+    // Below parameters are used only in internal memory manager:
+    size_t                      mem_min_block,          /* smaller memory block, default 512 */
+    size_t                      mem_superblock          /* superblock, default 16M */
+);
+
 PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     int                         argc,                   /* pass main() arguments */
     char                        *argv[],                /* pass main() arguments */
@@ -1159,13 +1168,7 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     json_function_fn            global_command_parser,  /* if NULL, use internal command parser */
     json_function_fn            global_statistics_parser,    /* if NULL, use internal stats parser */
     authorization_checker_fn    global_authorization_checker,   /* authorization checker function */
-    authentication_parser_fn    global_authentication_parser, /* authentication parser function */
-    size_t                      mem_max_block,          /* largest memory block, default 16M */
-    size_t                      mem_max_system_memory,  /* maximum system memory, default 64M */
-    BOOL                        use_own_system_memory,  /* Use internal memory manager */
-    // Below parameters are used only in internal memory manager:
-    size_t                      mem_min_block,          /* smaller memory block, default 512 */
-    size_t                      mem_superblock          /* superblock, default 16M */
+    authentication_parser_fn    global_authentication_parser  /* authentication parser function */
 );
 
 /*

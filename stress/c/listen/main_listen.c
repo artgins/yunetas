@@ -37,7 +37,7 @@
 #define MEM_MIN_BLOCK           512
 #define MEM_MAX_BLOCK           209715200       // 200*M
 #define MEM_SUPERBLOCK          209715200       // 200*M
-#define MEM_MAX_SYSTEM_MEMORY   2147483648      // 2*G
+#define MEM_MAX_SYSTEM_MEMORY   8589934592      // 8*G
 
 /***************************************************************************
  *                      Default config
@@ -117,7 +117,7 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
-                        'backlog': 10010,                           \n\
+                        'backlog': 30010,                           \n\
                         'child_tree_filter': {                      \n\
                             'op': 'find',                           \n\
                             'kw': {                                 \n\
@@ -131,7 +131,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,10000]],                           \n\
+                '__range__': [[1,30000]],                           \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\

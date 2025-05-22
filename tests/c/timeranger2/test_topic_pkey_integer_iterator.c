@@ -366,12 +366,7 @@ int main(int argc, char *argv[])
         NULL,   // global_command_parser
         NULL,   // global_stats_parser
         NULL,   // global_authz_checker
-        NULL,   // global_authenticate_parser
-        0,      // max_block, largest memory block
-        0,      // max_system_memory, maximum system memory
-        false,
-        0,
-        0
+        NULL   // global_authenticate_parser
     );
 
     yuno_catch_signals();

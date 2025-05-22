@@ -470,6 +470,14 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*---------------------------------------------------*
      *      WARNING now all json is gbmem allocated
      *---------------------------------------------------*/
+    gobj_setup_memory(
+        MEM_MAX_BLOCK,          // max_block, largest memory block
+        MEM_MAX_SYSTEM_MEMORY,  // max_system_memory, maximum system memory
+        USE_OWN_SYSTEM_MEMORY,
+        MEM_MIN_BLOCK,
+        MEM_SUPERBLOCK
+    );
+
     glog_init();
     rotatory_start_up();
 
@@ -529,12 +537,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         __command_parser_fn__,
         __stats_parser_fn__,
         __authz_checker_fn__,
-        __authenticate_parser_fn__,
-        MEM_MAX_BLOCK,          // max_block, largest memory block
-        MEM_MAX_SYSTEM_MEMORY,   // max_system_memory, maximum system memory
-        USE_OWN_SYSTEM_MEMORY,
-        MEM_MIN_BLOCK,
-        MEM_SUPERBLOCK
+        __authenticate_parser_fn__
     );
 
     /*------------------------------------------------*

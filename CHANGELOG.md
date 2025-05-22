@@ -64,6 +64,8 @@ Change API
  
     important! gclass and event names are case insensitive
 
+    gobj_start_up split in gobj_start_up and gobj_setup_memory
+
 New API
 
     build_stats_response
