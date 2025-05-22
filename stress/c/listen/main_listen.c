@@ -37,7 +37,7 @@
 #define MEM_MIN_BLOCK           512
 #define MEM_MAX_BLOCK           209715200       // 200*M
 #define MEM_SUPERBLOCK          209715200       // 200*M
-#define MEM_MAX_SYSTEM_MEMORY   8589934592      // 8*G
+#define MEM_MAX_SYSTEM_MEMORY   2147483648      // 2*G
 
 /***************************************************************************
  *                      Default config
