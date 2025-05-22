@@ -712,7 +712,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         if(measuring_times) {
             yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
             char temp[120];
-            snprintf(temp, sizeof(temp), "TOTAL: type %s, res %d, flags %d, dup %d\n",
+            snprintf(temp, sizeof(temp), "TOTAL: type %s, res %d, flags %d, dup %d",
                 yev_event?yev_event_type_name(yev_event):"",
                 cqe->res,
                 cqe->flags,
@@ -726,6 +726,12 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
          * Mark this request as processed
          */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        if(measuring_times) {
+            MT_PRINT_TIME(yev_time_measure, "after io_uring_cqe_seen()\n");
+        }
+#endif
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
