@@ -2916,7 +2916,7 @@ PUBLIC void set_measure_times(int types) // Set the measure of times of types (-
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int get_measure_times(void)
+PUBLIC int get_measure_times(void) // return yevent types measuring
 {
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
     return measuring_times;
