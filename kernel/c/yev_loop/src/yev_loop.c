@@ -199,8 +199,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
 #endif
 
-    yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
-    if(!yev_event) {
+    if(!cqe) {
         /*
          *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
          */
@@ -210,6 +209,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
         return 0;
     }
 
+    yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
     int cqe_res = cqe->res;
 
