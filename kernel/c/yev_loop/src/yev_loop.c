@@ -721,7 +721,6 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             MT_PRINT_TIME(yev_time_measure, temp);
         }
 #endif
-
         /*
          * Mark this request as processed
          */
@@ -988,9 +987,6 @@ PUBLIC gbuffer_t *yev_get_gbuf(yev_event_h yev_event)
  ***************************************************************************/
 PUBLIC int yev_get_fd(yev_event_h yev_event)
 {
-    // if(((yev_event_t *)yev_event)->type == YEV_ACCEPT_TYPE) {
-    //     return ((yev_event_t *)yev_event)->result;
-    // }
     return ((yev_event_t *)yev_event)->fd;
 }
 
@@ -1095,12 +1091,11 @@ PUBLIC hgobj yev_get_yuno(yev_loop_h yev_loop)
  *
  ***************************************************************************/
 PUBLIC int yev_set_user_data(
-    yev_event_h yev_event_,
+    yev_event_h yev_event,
     void *user_data
 )
 {
-    yev_event_t *yev_event = (yev_event_t *)yev_event_;
-    yev_event->user_data = user_data;
+    ((yev_event_t *)yev_event)->user_data = user_data;
     return 0;
 }
 
