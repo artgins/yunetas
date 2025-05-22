@@ -234,6 +234,13 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    int measuring_times = get_measure_times();
+    if(measuring_times & (YEV_ACCEPT_TYPE|YEV_CONNECT_TYPE)) {
+        MT_PRINT_TIME(yev_time_measure, "C_TCP mt_start entry");
+    }
+#endif
+
     gobj_state_t state = gobj_current_state(gobj);
     if(!(state == ST_STOPPED || state == ST_DISCONNECTED)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -257,17 +264,18 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-// TODO TEST
-MT_PRINT_TIME(yev_time_measure, "accept callback 8");
-
     if(priv->__clisrv__) {
         /*
          *  clisrv
          *  It's already connected when is created
          */
-        set_connected(gobj, priv->fd_clisrv);  // TODO WTF!!! LOW!!
-// TODO TEST
-MT_PRINT_TIME(yev_time_measure, "accept callback 9");
+        set_connected(gobj, priv->fd_clisrv);  // WTF!!! LOW!!
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        if(measuring_times & YEV_ACCEPT_TYPE) {
+            MT_PRINT_TIME(yev_time_measure, "C_TCP mt_start set_connected");
+        }
+#endif
 
     } else {
         /*
@@ -348,8 +356,11 @@ MT_PRINT_TIME(yev_time_measure, "accept callback 9");
         }
     }
 
-// TODO TEST
-MT_PRINT_TIME(yev_time_measure, "accept callback 10");
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    if(measuring_times & (YEV_ACCEPT_TYPE|YEV_CONNECT_TYPE)) {
+        MT_PRINT_TIME(yev_time_measure, "C_TCP mt_start end");
+    }
+#endif
 
     return 0;
 }

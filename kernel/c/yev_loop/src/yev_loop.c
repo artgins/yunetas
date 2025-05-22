@@ -715,7 +715,9 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_times & yev_event_type) {
-            MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe()");
+            char temp[80];
+            snprintf(temp, sizeof(temp), "BEFORE callback_cqe(%s)", yev_event_type_name(yev_event));
+            MT_PRINT_TIME(yev_time_measure, temp);
         }
 #endif
         if(callback_cqe(yev_loop, cqe)<0) {
@@ -791,8 +793,25 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         );
     }
 
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    if(measuring_times) {
+        MT_START_TIME(yev_time_measure)
+        MT_INCREMENT_COUNT(yev_time_measure, 1)
+    }
+#endif
+
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
+        int yev_event_type = yev_event? yev_event->type:0;
+        if(measuring_times & yev_event_type) {
+            char temp[80];
+            snprintf(temp, sizeof(temp), "run1 BEFORE callback_cqe(%s)", yev_event_type_name(yev_event));
+            MT_PRINT_TIME(yev_time_measure, temp);
+        }
+#endif
+
         if(callback_cqe(yev_loop, cqe)<0) {
             if(yev_loop->stopping) {
                 break;
@@ -800,6 +819,11 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         }
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        if(measuring_times & yev_event_type) {
+            MT_PRINT_TIME(yev_time_measure, "run1 after io_uring_cqe_seen()\n");
+        }
+#endif
     }
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
