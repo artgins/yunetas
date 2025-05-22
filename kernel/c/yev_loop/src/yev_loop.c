@@ -210,6 +210,11 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     }
 
     yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
+    if(!yev_event) {
+        // HACK CQE event without data is loop ending
+        return -1; /* Break the loop */
+    }
+
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
     int cqe_res = cqe->res;
 

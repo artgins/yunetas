@@ -101,12 +101,9 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
-     *  TODO this subscribe is TOO SLOW
+     *  WARNING this subscribe can be TOO SLOW
      */
-// TODO TEST
-MT_PRINT_TIME(yev_time_measure, "accept before gobj_subscribe_event EV_TIMEOUT_PERIODIC");
     gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, 0, gobj);
-MT_PRINT_TIME(yev_time_measure, "accept after gobj_subscribe_event EV_TIMEOUT_PERIODIC");
 
     if(priv->msec > 0) {
         priv->t_flush = start_msectimer(priv->msec);
