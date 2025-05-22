@@ -673,6 +673,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
                     yev_loop->running = false;
                 }
 
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
                 if(measuring_times & YEV_TIMER_TYPE) {
                     char temp[120];
                     snprintf(temp, sizeof(temp), "Type TIMEOUT, res %d, flags %d",
@@ -681,6 +682,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
                     );
                     MT_PRINT_TIME(yev_time_measure, temp);
                 }
+#endif
                 continue;
             }
             gobj_log_error(yev_loop->yuno, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
@@ -2882,7 +2884,7 @@ PUBLIC int set_nonblocking(int fd)
              "msg",          "%s", "fcntl() FAILED",
              "serrno",       "%s", strerror(flags),
              NULL
-         );
+        );
     }
 
     return 0;
@@ -2893,5 +2895,14 @@ PUBLIC int set_nonblocking(int fd)
  ***************************************************************************/
 PUBLIC void set_measure_times(int types) // Set the measure of times of types (-1 all)
 {
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
     measuring_times = types;
+#else
+    gobj_log_error(0, LOG_OPT_TRACE_STACK,
+         "function",     "%s", __FUNCTION__,
+         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+         "msg",          "%s", "CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES not set",
+         NULL
+    );
+#endif
 }
