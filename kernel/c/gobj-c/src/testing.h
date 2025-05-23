@@ -56,7 +56,7 @@ PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...) JANS
 
 
 /***************************************************************************
- *  Measurement of times
+ *  Measurement of Times (MT)
  *  Example:
 
     ...
