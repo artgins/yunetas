@@ -530,6 +530,35 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
     yev_start_event(priv->yev_client_rx);
 
+    /*-------------------------------*
+     *      Setup poll event (to detect
+     *-------------------------------*/
+    if(!priv->yev_client_rx) {
+        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+        priv->yev_client_rx = yev_create_read_event(
+            yuno_event_loop(),
+            yev_callback,
+            gobj,
+            fd,
+            gbuffer_create(rx_buffer_size, rx_buffer_size)
+        );
+    }
+
+    if(priv->yev_client_rx) {
+        yev_set_fd(priv->yev_client_rx, fd);
+    }
+    if(!yev_get_gbuf(priv->yev_client_rx)) {
+        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
+    } else {
+        gbuffer_clear(yev_get_gbuf(priv->yev_client_rx));
+    }
+
+    yev_start_event(priv->yev_client_rx);
+
+    /*---------------------------*
+     *  Secure or clear traffic
+     **---------------------------*/
     if(priv->use_ssl) {
         /*---------------------------*
          *      Secure traffic

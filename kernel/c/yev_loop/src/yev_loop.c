@@ -55,6 +55,7 @@ struct yev_event_s {
 
     sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
     int dup_idx;            // Duplicate events with the same fd
+    unsigned poll_mask;     // To use in POLL
 };
 
 struct yev_loop_s {
@@ -2632,6 +2633,48 @@ PUBLIC yev_event_h yev_dup_accept_event( // create the socket listening in yev_e
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC yev_event_h yev_create_poll_event( // create the socket listening in yev_event->fd
+    yev_loop_h yev_loop_,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
+    hgobj gobj,
+    int fd,
+    unsigned poll_mask
+) {
+
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_POLL_TYPE;
+    yev_event->poll_mask = poll_mask;
+
+    if(gobj_trace_level(yev_loop->yuno?gobj:0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+        gobj_log_debug(yev_loop->yuno?gobj:0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev_create_poll_event",
+            "msg2",         "%s", "💥🟦 yev_create_poll_event",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
+            "fd",           "%d", fd,
+            "poll_mask",    "%d", poll_mask,
+            "p",            "%p", yev_event,
+            "flag",         "%j", jn_flags,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
+    return yev_event;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC yev_event_h yev_create_read_event(
     yev_loop_h yev_loop_,
     yev_callback_t callback,
@@ -2760,8 +2803,10 @@ PUBLIC const char *yev_event_type_name(yev_event_h yev_event_)
             return "YEV_ACCEPT_TYPE";
         case YEV_TIMER_TYPE:
             return "YEV_TIMER_TYPE";
+        case YEV_POLL_TYPE:
+            return "YEV_POLL_TYPE";
     }
-    return "???";
+    return "YEV_?_TYPE";
 }
 
 /***************************************************************************

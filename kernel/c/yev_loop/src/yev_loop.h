@@ -83,6 +83,7 @@ typedef enum  { // WARNING 8 bits only
     YEV_READ_TYPE       = 0x04,
     YEV_WRITE_TYPE      = 0x08,
     YEV_TIMER_TYPE      = 0x10,
+    YEV_POLL_TYPE       = 0x20,
 } yev_type_t;
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
@@ -196,11 +197,11 @@ PUBLIC int yev_start_timer_event( // Create the handler fd for timer if not exis
 /*
  *  The timer (once) if it's in idle can be reused, if it's stopped, you must create one new.
  */
-PUBLIC int yev_stop_event(yev_event_h yev_event); // IDEMPOTENT close fd (timer,accept,connect)
+PUBLIC int yev_stop_event(yev_event_h yev_event); // IDEMPOTENT close fd (timer,accept,connect,poll)
 
 
 /*
- *  In `connect`, `timer` and `accept` events, the socket will be closed.
+ *  In `timer`, `accept`, `connect` and 'poll' events, the socket will be closed.
  */
 PUBLIC void yev_destroy_event(yev_event_h yev_event);
 
@@ -253,6 +254,14 @@ PUBLIC yev_event_h yev_dup_accept_event(
     yev_event_h yev_server_accept,
     int dup_idx,
     hgobj gobj
+);
+
+PUBLIC yev_event_h yev_create_poll_event( // create the socket listening in yev_event->fd
+    yev_loop_h yev_loop,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
+    hgobj gobj,
+    int fd,
+    unsigned poll_mask
 );
 
 PUBLIC yev_event_h yev_create_read_event(
