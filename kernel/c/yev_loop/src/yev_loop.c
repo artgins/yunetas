@@ -221,7 +221,10 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 
     hgobj gobj = yev_loop->running? (yev_loop->yuno?yev_event->gobj:0) : 0;
     int cqe_res = cqe->res;
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
     int yev_event_type = yev_event->type;
+#endif
 
     /*------------------------*
      *      Trace
