@@ -160,7 +160,7 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
 
 PUBLIC gbuffer_t *yev_get_gbuf(yev_event_h yev_event);
 PUBLIC int yev_get_fd(yev_event_h yev_event);
-PUBLIC void yev_set_fd( // only for yev_create_read_event() and yev_create_write_event()
+PUBLIC void yev_set_fd( // only for yev_create_read_event(), yev_create_write_event(), yev_create_poll_event
     yev_event_h yev_event,
     int fd
 );
