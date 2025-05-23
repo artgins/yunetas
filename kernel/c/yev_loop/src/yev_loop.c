@@ -273,7 +273,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 yev_set_state(yev_event, YEV_ST_STOPPED);
             } else { // cqe_res == 0
                 // In READ events when the peer has closed the socket the reads return 0
-                if(yev_event->type == YEV_READ_TYPE) {
+                if(yev_event->type == YEV_READ_TYPE || yev_event->type == YEV_POLL_TYPE) { // ???
                     cqe_res = -EPIPE; // Broken pipe (remote side closed connection)
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 } else {
@@ -546,6 +546,25 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 #endif
             }
             break;
+
+        case YEV_POLL_TYPE: // cqe ready
+        {
+            /*
+             *  Call callback
+             */
+            yev_event->result = cqe_res;
+            if (yev_event->callback) {
+                ret = yev_event->callback(
+                    yev_event
+                );
+            }
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            if(measuring_times & yev_event_type) {
+                MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
+            }
+#endif
+        }
+        break;
 
         case YEV_TIMER_TYPE: // cqe ready
             {
@@ -1424,6 +1443,32 @@ PUBLIC int yev_start_event(
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
+        case YEV_POLL_TYPE: // Summit sqe
+            {
+                if(yev_event->fd <= 0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "Cannot start event: fd negative",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+
+                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
+                io_uring_prep_poll_add(
+                    sqe,
+                    yev_event->fd,
+                    yev_event->poll_mask
+                );
+                io_uring_submit(&yev_loop->ring);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
+            }
+            break;
         case YEV_TIMER_TYPE: // Summit sqe
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -1676,6 +1721,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
+        case YEV_POLL_TYPE:
             break;
         case YEV_CONNECT_TYPE:
         case YEV_ACCEPT_TYPE:
@@ -1882,6 +1928,7 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
+        case YEV_POLL_TYPE:
             break;
         case YEV_CONNECT_TYPE:  // it must not happen
         case YEV_ACCEPT_TYPE:   // it must not happen

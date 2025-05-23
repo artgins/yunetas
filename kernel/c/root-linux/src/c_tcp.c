@@ -13,6 +13,7 @@
 #include <helpers.h>
 #include <kwid.h>
 #include <ytls.h>
+#include <sys/epoll.h>
 #include <yev_loop.h>
 #include "c_timer.h"
 #include "c_yuno.h"
@@ -145,6 +146,7 @@ typedef struct _PRIVATE_DATA {
     const char *url;
     yev_event_h yev_client_connect; // Used if not __clisrv__ (pure tcp client)
     yev_event_h yev_client_rx;
+    yev_event_h yev_close_poll;
     int fd_clisrv;
     int timeout_inactivity;
     BOOL inform_disconnection;
@@ -392,6 +394,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_close_poll)
     if(priv->sskt) {
         ytls_free_secure_filter(priv->ytls, priv->sskt);
         priv->sskt = 0;
@@ -530,31 +533,24 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
     yev_start_event(priv->yev_client_rx);
 
-    /*-------------------------------*
-     *      Setup poll event (to detect
-     *-------------------------------*/
-    if(!priv->yev_client_rx) {
-        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        priv->yev_client_rx = yev_create_read_event(
+    /*--------------------------------------------------*
+     *  Setup poll event to detect half-closed sockets
+     *--------------------------------------------------*/
+    if(!priv->yev_close_poll) {
+        priv->yev_close_poll = yev_create_poll_event(
             yuno_event_loop(),
             yev_callback,
             gobj,
             fd,
-            gbuffer_create(rx_buffer_size, rx_buffer_size)
+            EPOLLRDHUP
         );
     }
 
-    if(priv->yev_client_rx) {
-        yev_set_fd(priv->yev_client_rx, fd);
-    }
-    if(!yev_get_gbuf(priv->yev_client_rx)) {
-        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
-    } else {
-        gbuffer_clear(yev_get_gbuf(priv->yev_client_rx));
+    if(priv->yev_close_poll) {
+        yev_set_fd(priv->yev_close_poll, fd);
     }
 
-    yev_start_event(priv->yev_client_rx);
+    yev_start_event(priv->yev_close_poll);
 
     /*---------------------------*
      *  Secure or clear traffic
@@ -792,6 +788,7 @@ PRIVATE void set_disconnected(hgobj gobj)
              */
             EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
             EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
+            EXEC_AND_RESET(yev_destroy_event, priv->yev_close_poll)
         }
     }
 }
@@ -984,6 +981,15 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_client_rx)) {
             yev_stop_event(priv->yev_client_rx);
             if(!yev_event_is_stopped(priv->yev_client_rx)) {
+                to_wait_stopped = true;
+            }
+        }
+    }
+
+    if(priv->yev_close_poll) {
+        if(!yev_event_is_stopped(priv->yev_close_poll)) {
+            yev_stop_event(priv->yev_close_poll);
+            if(!yev_event_is_stopped(priv->yev_close_poll)) {
                 to_wait_stopped = true;
             }
         }
