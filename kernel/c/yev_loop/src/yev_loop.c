@@ -2383,7 +2383,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "net.core.somaxconn TOO SMALL, increase it in the s.o.",
+            "msg",          "%s", "net.core.somaxconn TOO SMALL, increase it in the s.o.Change dynamically with 'sysctl -w net.core.somaxconn=?'. Change persistent with a file in /etc/sysctl.d/. Consult with 'cat /proc/sys/net/core/somaxconn'",
             "somaxconn",    "%d", somaxconn,
             "backlog",      "%d", backlog,
             NULL
