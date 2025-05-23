@@ -145,7 +145,7 @@ typedef struct _PRIVATE_DATA {
     BOOL __clisrv__;
     const char *url;
     yev_event_h yev_client_connect; // Used if not __clisrv__ (pure tcp client)
-    yev_event_h yev_client_rx;
+    yev_event_h yev_reading;
     yev_event_h yev_close_poll;
     int fd_clisrv;
     int timeout_inactivity;
@@ -393,7 +393,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_close_poll)
     if(priv->sskt) {
         ytls_free_secure_filter(priv->ytls, priv->sskt);
@@ -510,9 +510,9 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*-------------------------------*
      *      Setup reading event
      *-------------------------------*/
-    if(!priv->yev_client_rx) {
+    if(!priv->yev_reading) {
         json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        priv->yev_client_rx = yev_create_read_event(
+        priv->yev_reading = yev_create_read_event(
             yuno_event_loop(),
             yev_callback,
             gobj,
@@ -521,17 +521,17 @@ PRIVATE void set_connected(hgobj gobj, int fd)
         );
     }
 
-    if(priv->yev_client_rx) {
-        yev_set_fd(priv->yev_client_rx, fd);
+    if(priv->yev_reading) {
+        yev_set_fd(priv->yev_reading, fd);
     }
-    if(!yev_get_gbuf(priv->yev_client_rx)) {
+    if(!yev_get_gbuf(priv->yev_reading)) {
         json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        yev_set_gbuffer(priv->yev_client_rx, gbuffer_create(rx_buffer_size, rx_buffer_size));
+        yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
     } else {
-        gbuffer_clear(yev_get_gbuf(priv->yev_client_rx));
+        gbuffer_clear(yev_get_gbuf(priv->yev_reading));
     }
 
-    yev_start_event(priv->yev_client_rx);
+    yev_start_event(priv->yev_reading);
 
     /*--------------------------------------------------*
      *  Setup poll event to detect half-closed sockets
@@ -787,7 +787,7 @@ PRIVATE void set_disconnected(hgobj gobj)
              *  The gobj is in stop
              */
             EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
-            EXEC_AND_RESET(yev_destroy_event, priv->yev_client_rx)
+            EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
             EXEC_AND_RESET(yev_destroy_event, priv->yev_close_poll)
         }
     }
@@ -977,10 +977,10 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         }
     }
 
-    if(priv->yev_client_rx) {
-        if(!yev_event_is_stopped(priv->yev_client_rx)) {
-            yev_stop_event(priv->yev_client_rx);
-            if(!yev_event_is_stopped(priv->yev_client_rx)) {
+    if(priv->yev_reading) {
+        if(!yev_event_is_stopped(priv->yev_reading)) {
+            yev_stop_event(priv->yev_reading);
+            if(!yev_event_is_stopped(priv->yev_reading)) {
                 to_wait_stopped = true;
             }
         }
