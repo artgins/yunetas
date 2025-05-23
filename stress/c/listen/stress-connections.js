@@ -31,7 +31,7 @@ Usage: stress.js [options]
 
 Options:
   -h, --host         Target host (default: 127.0.0.1)
-  -p, --port         Target port (default: 2002)
+  -p, --port         Target port (default: 7779)
   -c, --connections  Number of concurrent connections (default: 10)
   -j, --job        Load the connection tube with a job, a loop of console.log("Nothing" 'job' times) (default: 0)
   -d, --disconnect   Seconds before closing each connection (default: 60, 0=no-disconnect)
