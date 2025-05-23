@@ -16,6 +16,8 @@ Utilities used by Yunetas:
 
     - `openresty <https://github.com/openresty/openresty>`_
 
+If you change some version of those libraries rembember to change the VERSION of installation in configure-libs.sh
+
 The external libraries will be integrated in the yuneta kernel as static libraries.
 
 To avoid conflicts with other versions of libuv and jansson installed in your host,

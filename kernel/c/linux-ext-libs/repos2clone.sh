@@ -1,9 +1,11 @@
 # Define an associative array with repositories and their corresponding versions
 declare -A REPOS
 
-#------------------------------------------
+#--------------------------------------------------------------------------
 #   VERSIONS
-#------------------------------------------
+# If you change some version of those libraries
+#   remember to change the VERSION of installation in configure-libs.sh
+#--------------------------------------------------------------------------
 TAG_JANSSON="v2.14.1"
 TAG_LIBURING="liburing-2.7"
 TAG_MBEDTLS="v3.6.2"
