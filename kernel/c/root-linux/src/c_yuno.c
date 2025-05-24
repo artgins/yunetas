@@ -456,7 +456,7 @@ SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout
 SDATA (DTP_INTEGER, "autokill",         SDF_RD,         "0",            "Timeout (>0) to autokill in seconds"),
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
-SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring, multiply by 3 the maximum number of wanted connections"),
+SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring, multiply by 3 the maximum number of wanted connections. Default if 0 = 2400"),
 SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "20000",        "Limit open files"),
 SDATA (DTP_INTEGER, "limit_open_files_done", SDF_RD,    "",             "Limit open files done"),
 SDATA_END()
