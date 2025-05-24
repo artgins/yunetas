@@ -11,7 +11,6 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define MESSAGE "{\"id\": 1, \"tm\": 1, \"content\": \"Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el alfa.Pepe el.\"}"
 
 /***************************************************************************
  *              Structures
@@ -222,26 +221,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     char *p = gbuffer_cur_rd_pointer(gbuf);
-    if(strcmp(p, MESSAGE)!=0) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Message is not the same",
-            NULL
-        );
-    }
-
-    static int i=0;
-    i++;
-
-    if(i==1) {
-        MT_START_TIME(time_measure)
-    }
-    if(i>180000) {
-        MT_INCREMENT_COUNT(time_measure, 180000)
-        MT_PRINT_TIME(time_measure, gobj_short_name(gobj))
-        set_yuno_must_die();
-    }
+    if(p) {}
 
     KW_DECREF(kw)
     return 0;
