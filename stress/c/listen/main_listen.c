@@ -117,7 +117,7 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
-                        'backlog': 30010,                           \n\
+                        'backlog': 30000,                           \n\
                         'use_dups': 0,                              \n\
                         'child_tree_filter': {                      \n\
                             'op': 'find',                           \n\

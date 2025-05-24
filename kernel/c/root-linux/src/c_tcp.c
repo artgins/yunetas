@@ -976,29 +976,29 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     }
 
     if(priv->yev_client_connect) {
-        if(!yev_event_is_stopped(priv->yev_client_connect)) {
+        if(!yev_event_is_stopping(priv->yev_client_connect)) {
             yev_stop_event(priv->yev_client_connect);
-            if(!yev_event_is_stopped(priv->yev_client_connect)) {
-                to_wait_stopped = true;
-            }
+        }
+        if(!yev_event_is_stopped(priv->yev_client_connect)) {
+            to_wait_stopped = true;
         }
     }
 
     if(priv->yev_reading) {
-        if(!yev_event_is_stopped(priv->yev_reading)) {
+        if(!yev_event_is_stopping(priv->yev_reading)) {
             yev_stop_event(priv->yev_reading);
-            if(!yev_event_is_stopped(priv->yev_reading)) {
-                to_wait_stopped = true;
-            }
+        }
+        if(!yev_event_is_stopped(priv->yev_reading)) {
+            to_wait_stopped = true;
         }
     }
 
     if(priv->yev_close_poll) {
-        if(!yev_event_is_stopped(priv->yev_close_poll)) {
+        if(!yev_event_is_stopping(priv->yev_close_poll)) {
             yev_stop_event(priv->yev_close_poll);
-            if(!yev_event_is_stopped(priv->yev_close_poll)) {
-                to_wait_stopped = true;
-            }
+        }
+        if(!yev_event_is_stopped(priv->yev_close_poll)) {
+            to_wait_stopped = true;
         }
     }
 
