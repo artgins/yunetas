@@ -536,21 +536,21 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*--------------------------------------------------*
      *  Setup poll event to detect half-closed sockets
      *--------------------------------------------------*/
-    if(!priv->yev_close_poll) {
-        priv->yev_close_poll = yev_create_poll_event(
-            yuno_event_loop(),
-            yev_callback,
-            gobj,
-            fd,
-            EPOLLRDHUP
-        );
-    }
-
-    if(priv->yev_close_poll) {
-        yev_set_fd(priv->yev_close_poll, fd);
-    }
-
-    yev_start_event(priv->yev_close_poll);
+    // if(!priv->yev_close_poll) {
+    //     priv->yev_close_poll = yev_create_poll_event(
+    //         yuno_event_loop(),
+    //         yev_callback,
+    //         gobj,
+    //         fd,
+    //         EPOLLRDHUP
+    //     );
+    // }
+    //
+    // if(priv->yev_close_poll) {
+    //     yev_set_fd(priv->yev_close_poll, fd);
+    // }
+    //
+    // yev_start_event(priv->yev_close_poll);
 
     /*---------------------------*
      *  Secure or clear traffic
@@ -1336,26 +1336,28 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 /*
                  *  Disconnected
                  */
-                gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+                int result = yev_get_result(yev_event);
+                if(result > 0 && result & EPOLLRDHUP) {
+                    gobj_log_set_last_message("%s", "EPOLLRDHUP Peer shutdown");
 
-                if(gobj_trace_level(gobj) & TRACE_URING) {
-                    gobj_log_debug(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                        "msg",          "%s", "TCP: POLL EPOLLRDHUP",
-                        "msg2",         "%s", "🌐TCP: POLL EPOLLRDHUP",
-                        "url",          "%s", gobj_read_str_attr(gobj, "url"),
-                        "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                        "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
-                        "errno",        "%d", -yev_get_result(yev_event),
-                        "strerror",     "%s", strerror(-yev_get_result(yev_event)),
-                        "p",            "%p", yev_event,
-                        "fd",           "%d", yev_get_fd(yev_event),
-                        NULL
-                    );
+                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "TCP: POLL EPOLLRDHUP",
+                            "msg2",         "%s", "🌐TCP: POLL EPOLLRDHUP",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
+                            NULL
+                        );
+                    }
+                    try_to_stop_yevents(gobj);
                 }
-
-                try_to_stop_yevents(gobj);
             }
             break;
 
