@@ -145,9 +145,9 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_timer;               // Only used in pure tcp client
     BOOL __clisrv__;
     const char *url;
-    yev_event_h yev_client_connect; // Used if not __clisrv__ (pure tcp client)
+    yev_event_h yev_connect; // Used if not __clisrv__ (pure tcp client)
     yev_event_h yev_reading;
-    yev_event_h yev_close_poll;
+    yev_event_h yev_poll;
     int fd_clisrv;
     int timeout_inactivity;
     BOOL inform_disconnection;
@@ -259,11 +259,11 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-    if(priv->yev_client_connect) {
+    if(priv->yev_connect) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "yev_client_connect ALREADY exists",
+            "msg",          "%s", "yev_connect ALREADY exists",
             "state",        "%s", gobj_current_state(gobj),
             NULL
         );
@@ -318,7 +318,7 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_write_str_attr(gobj, "schema", schema);
 
         const char *url = gobj_read_str_attr(gobj, "url");
-        priv->yev_client_connect = yev_create_connect_event(
+        priv->yev_connect = yev_create_connect_event(
             yuno_event_loop(),
             yev_callback,
             url,    // client_url
@@ -328,7 +328,7 @@ PRIVATE int mt_start(hgobj gobj)
             gobj
         );
 
-        if(!priv->yev_client_connect) {
+        if(!priv->yev_connect) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -396,9 +396,9 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_close_poll)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_poll)
     if(priv->sskt) {
         ytls_free_secure_filter(priv->ytls, priv->sskt);
         priv->sskt = 0;
@@ -540,9 +540,9 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*--------------------------------------------------*
      *  Setup poll event to detect half-closed sockets
      *--------------------------------------------------*/
-    if(priv->use_close_poll || 1) {
-        if(!priv->yev_close_poll) {
-            priv->yev_close_poll = yev_create_poll_event(
+    if(priv->use_close_poll) {
+        if(!priv->yev_poll) {
+            priv->yev_poll = yev_create_poll_event(
                 yuno_event_loop(),
                 yev_callback,
                 gobj,
@@ -551,11 +551,11 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             );
         }
 
-        if(priv->yev_close_poll) {
-            yev_set_fd(priv->yev_close_poll, fd);
+        if(priv->yev_poll) {
+            yev_set_fd(priv->yev_poll, fd);
         }
 
-        yev_start_event(priv->yev_close_poll);
+        yev_start_event(priv->yev_poll);
     }
 
     /*---------------------------*
@@ -682,22 +682,22 @@ PRIVATE void set_disconnected(hgobj gobj)
         }
     }
 
-    if(priv->yev_client_connect) {
-        if(yev_get_fd(priv->yev_client_connect) > 0) {
+    if(priv->yev_connect) {
+        if(yev_get_fd(priv->yev_connect) > 0) {
             if(gobj_trace_level(gobj) & TRACE_URING) {
                 gobj_log_debug(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_YEV_LOOP,
-                    "msg",          "%s", "close socket yev_client_connect",
-                    "msg2",         "%s", "💥🟥 close socket yev_client_connect",
-                    "fd",           "%d", yev_get_fd(priv->yev_client_connect) ,
-                    "p",            "%p", priv->yev_client_connect,
+                    "msg",          "%s", "close socket yev_connect",
+                    "msg2",         "%s", "💥🟥 close socket yev_connect",
+                    "fd",           "%d", yev_get_fd(priv->yev_connect) ,
+                    "p",            "%p", priv->yev_connect,
                     NULL
                 );
             }
 
-            close(yev_get_fd(priv->yev_client_connect));
-            yev_set_fd(priv->yev_client_connect, -1);
+            close(yev_get_fd(priv->yev_connect));
+            yev_set_fd(priv->yev_connect, -1);
         }
     } else {
         if(priv->fd_clisrv > 0) {
@@ -721,8 +721,8 @@ PRIVATE void set_disconnected(hgobj gobj)
         yev_set_fd(priv->yev_reading, -1);
     }
 
-    if(priv->yev_close_poll) {
-        yev_set_fd(priv->yev_close_poll, -1);
+    if(priv->yev_poll) {
+        yev_set_fd(priv->yev_poll, -1);
     }
 
     if(priv->sskt) {
@@ -795,7 +795,7 @@ PRIVATE void set_disconnected(hgobj gobj)
             /*
              *  CHILD subscription model
              */
-            EXEC_AND_RESET(yev_destroy_event, priv->yev_client_connect)
+            EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
 
             if(gobj_is_service(gobj)) {
                 gobj_publish_event(gobj, EV_STOPPED, 0);
@@ -850,7 +850,7 @@ PRIVATE int write_data(hgobj gobj)
         /*
          *  Transmit
          */
-        int fd = priv->__clisrv__? priv->fd_clisrv:yev_get_fd(priv->yev_client_connect);
+        int fd = priv->__clisrv__? priv->fd_clisrv:yev_get_fd(priv->yev_connect);
         yev_event_h yev_write_event = yev_create_write_event(
             yuno_event_loop(),
             yev_callback,
@@ -981,30 +981,30 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         priv->fd_clisrv = -1;
     }
 
-    if(priv->yev_client_connect) {
-        if(!yev_event_is_stopping(priv->yev_client_connect)) {
-            yev_stop_event(priv->yev_client_connect);
-        }
-        if(!yev_event_is_stopped(priv->yev_client_connect)) {
-            to_wait_stopped = true;
+    if(priv->yev_connect) {
+        if(!yev_event_is_stopped(priv->yev_connect) && !yev_event_is_stopping(priv->yev_connect)) {
+            yev_stop_event(priv->yev_connect);
+            if(!yev_event_is_stopped(priv->yev_connect)) {
+                to_wait_stopped = true;
+            }
         }
     }
 
     if(priv->yev_reading) {
-        if(!yev_event_is_stopping(priv->yev_reading)) {
+        if(!yev_event_is_stopped(priv->yev_reading) && !yev_event_is_stopping(priv->yev_reading)) {
             yev_stop_event(priv->yev_reading);
-        }
-        if(!yev_event_is_stopped(priv->yev_reading)) {
-            to_wait_stopped = true;
+            if(!yev_event_is_stopped(priv->yev_reading)) {
+                to_wait_stopped = true;
+            }
         }
     }
 
-    if(priv->yev_close_poll) {
-        if(!yev_event_is_stopping(priv->yev_close_poll)) {
-            yev_stop_event(priv->yev_close_poll);
-        }
-        if(!yev_event_is_stopped(priv->yev_close_poll)) {
-            to_wait_stopped = true;
+    if(priv->yev_poll) {
+        if(!yev_event_is_stopped(priv->yev_poll) && !yev_event_is_stopping(priv->yev_poll)) {
+            yev_stop_event(priv->yev_poll);
+            if(!yev_event_is_stopped(priv->yev_poll)) {
+                to_wait_stopped = true;
+            }
         }
     }
 
@@ -1407,7 +1407,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     const char *url = gobj_read_str_attr(gobj, "url");
     if(yev_rearm_connect_event(
-        priv->yev_client_connect,
+        priv->yev_connect,
         url,    // client_url
         NULL,   // local bind
         0,  // ai_family AF_UNSPEC
@@ -1423,7 +1423,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         return -1;
     }
 
-    if(yev_get_flag(priv->yev_client_connect) & YEV_FLAG_USE_TLS) {
+    if(yev_get_flag(priv->yev_connect) & YEV_FLAG_USE_TLS) {
         gobj_write_bool_attr(gobj, "use_ssl", true);
     } else {
         gobj_write_bool_attr(gobj, "use_ssl", false);
@@ -1443,7 +1443,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     }
 
-    if(yev_start_event(priv->yev_client_connect)<0) {
+    if(yev_start_event(priv->yev_connect)<0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -1498,7 +1498,7 @@ PRIVATE int ac_send_encrypted_data(hgobj gobj, gobj_event_t event, json_t *kw, h
     /*
      *  Transmit
      */
-    int fd = priv->__clisrv__? priv->fd_clisrv:yev_get_fd(priv->yev_client_connect);
+    int fd = priv->__clisrv__? priv->fd_clisrv:yev_get_fd(priv->yev_connect);
     yev_event_h yev_write_event = yev_create_write_event(
         yuno_event_loop(),
         yev_callback,

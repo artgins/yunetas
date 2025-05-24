@@ -273,7 +273,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 yev_set_state(yev_event, YEV_ST_STOPPED);
             } else { // cqe_res == 0
                 // In READ events when the peer has closed the socket the reads return 0
-                if(yev_event->type == YEV_READ_TYPE || yev_event->type == YEV_POLL_TYPE) { // ???
+                if(yev_event->type == YEV_READ_TYPE) {
                     cqe_res = -EPIPE; // Broken pipe (remote side closed connection)
                     yev_set_state(yev_event, YEV_ST_STOPPED);
                 } else {
