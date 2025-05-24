@@ -385,8 +385,6 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
         regfree(&_re_name);
     }
 
-    // ??? jn_data = sort_json_list_by_string(jn_data);
-
     return msg_iev_build_response(
         gobj,
         0,

@@ -101,6 +101,7 @@ SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server 
 SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verification of cert common name"),
 SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-alive if > 0"),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
+SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "true",     "Set true if you want check disconnections with EPOLLRDHUP and EPOLLHUP"),
 
 SDATA (DTP_BOOLEAN,  "no_tx_ready_event",SDF_RD,        0,          "Set true if you don't want EV_TX_READY event"),
 
@@ -150,6 +151,7 @@ typedef struct _PRIVATE_DATA {
     int fd_clisrv;
     int timeout_inactivity;
     BOOL inform_disconnection;
+    BOOL use_close_poll;
 
     json_int_t connxs;
     json_int_t txMsgs;
@@ -207,6 +209,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(__clisrv__,            gobj_read_bool_attr)
     SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(use_ssl,               gobj_read_bool_attr)
+    SET_PRIV(use_close_poll,        gobj_read_bool_attr)
     SET_PRIV(ytls,                  (hytls)(size_t)gobj_read_integer_attr)
     SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
     SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
@@ -223,6 +226,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(__clisrv__,            gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(url,                   gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(use_ssl,               gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(use_close_poll,        gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(ytls,                  (hytls)(size_t)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
@@ -536,21 +540,23 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*--------------------------------------------------*
      *  Setup poll event to detect half-closed sockets
      *--------------------------------------------------*/
-    // if(!priv->yev_close_poll) {
-    //     priv->yev_close_poll = yev_create_poll_event(
-    //         yuno_event_loop(),
-    //         yev_callback,
-    //         gobj,
-    //         fd,
-    //         EPOLLRDHUP
-    //     );
-    // }
-    //
-    // if(priv->yev_close_poll) {
-    //     yev_set_fd(priv->yev_close_poll, fd);
-    // }
-    //
-    // yev_start_event(priv->yev_close_poll);
+    if(priv->use_close_poll) {
+        if(!priv->yev_close_poll) {
+            priv->yev_close_poll = yev_create_poll_event(
+                yuno_event_loop(),
+                yev_callback,
+                gobj,
+                fd,
+                EPOLLRDHUP
+            );
+        }
+
+        if(priv->yev_close_poll) {
+            yev_set_fd(priv->yev_close_poll, fd);
+        }
+
+        yev_start_event(priv->yev_close_poll);
+    }
 
     /*---------------------------*
      *  Secure or clear traffic
