@@ -540,7 +540,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*--------------------------------------------------*
      *  Setup poll event to detect half-closed sockets
      *--------------------------------------------------*/
-    if(priv->use_close_poll) {
+    if(priv->use_close_poll || 1) {
         if(!priv->yev_close_poll) {
             priv->yev_close_poll = yev_create_poll_event(
                 yuno_event_loop(),
