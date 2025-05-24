@@ -153,7 +153,7 @@ retry:
         return -1;
     }
     struct io_uring_params params = {
-        .flags = params_test.flags
+        .flags = params_test.flags | IORING_SETUP_CLAMP
     };
     err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
     if (err < 0) {

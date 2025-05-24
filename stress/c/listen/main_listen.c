@@ -78,7 +78,7 @@ PRIVATE char variable_config[]= "\
         'public_services': [],                                      \n\
         'service_descriptor': {                                     \n\
         },                                                          \n\
-        'io_uring_entries': 32768,                                  \n\
+        'io_uring_entries': 65535,                                  \n\
         'limit_open_files': 200000,                                 \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
         'i18n_domain': 'test_timer',                                \n\
