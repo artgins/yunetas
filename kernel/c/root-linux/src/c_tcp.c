@@ -88,7 +88,7 @@ PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is true to know if this is a server (client channel) tcp gobj."),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect in the case of tcp gobj client. Check if the 'url' is not empty to know if this is a client tcp gobj."),
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
-SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "true",     "Set true if you want check disconnections with EPOLLRDHUP,EPOLLHUP POLLRDHUP | POLLHUP | POLLERR"),
+SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "true",     "Set true if you want check early disconnections with POLLRDHUP | POLLHUP | POLLERR"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
