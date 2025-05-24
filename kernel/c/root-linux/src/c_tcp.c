@@ -87,6 +87,8 @@ PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is true to know if this is a server (client channel) tcp gobj."),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect in the case of tcp gobj client. Check if the 'url' is not empty to know if this is a client tcp gobj."),
+SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
+SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "true",     "Set true if you want check disconnections with EPOLLRDHUP and EPOLLHUP"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
@@ -99,9 +101,6 @@ SDATA (DTP_STRING,  "schema",           SDF_RD,         "",         "schema, dec
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verification of cert common name"),
-SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "10",       "Set keep-alive if > 0"),
-SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
-SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "true",     "Set true if you want check disconnections with EPOLLRDHUP and EPOLLHUP"),
 
 SDATA (DTP_BOOLEAN,  "no_tx_ready_event",SDF_RD,        0,          "Set true if you don't want EV_TX_READY event"),
 
@@ -982,7 +981,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     }
 
     if(priv->yev_connect) {
-        if(!yev_event_is_stopped(priv->yev_connect) && !yev_event_is_stopping(priv->yev_connect)) {
+        if(!yev_event_is_stopped(priv->yev_connect)) {
             yev_stop_event(priv->yev_connect);
             if(!yev_event_is_stopped(priv->yev_connect)) {
                 to_wait_stopped = true;
@@ -991,7 +990,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     }
 
     if(priv->yev_reading) {
-        if(!yev_event_is_stopped(priv->yev_reading) && !yev_event_is_stopping(priv->yev_reading)) {
+        if(!yev_event_is_stopped(priv->yev_reading)) {
             yev_stop_event(priv->yev_reading);
             if(!yev_event_is_stopped(priv->yev_reading)) {
                 to_wait_stopped = true;
@@ -1000,7 +999,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     }
 
     if(priv->yev_poll) {
-        if(!yev_event_is_stopped(priv->yev_poll) && !yev_event_is_stopping(priv->yev_poll)) {
+        if(!yev_event_is_stopped(priv->yev_poll)) {
             yev_stop_event(priv->yev_poll);
             if(!yev_event_is_stopped(priv->yev_poll)) {
                 to_wait_stopped = true;
@@ -1342,8 +1341,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 /*
                  *  Disconnected
                  */
-                int result = yev_get_result(yev_event);
-                if(result > 0 && result & EPOLLRDHUP) {
+                // int result = yev_get_result(yev_event);
+                { // if(result > 0)
                     gobj_log_set_last_message("%s", "EPOLLRDHUP Peer shutdown");
 
                     if(gobj_trace_level(gobj) & TRACE_URING) {

@@ -1759,23 +1759,6 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
             yev_set_state(yev_event, YEV_ST_CANCELING);
             break;
 
-        case YEV_ST_CANCELING:
-            {
-                json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-                gobj_log_error(0, LOG_OPT_TRACE_STACK,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_LIBURING_ERROR,
-                    "msg",          "%s", "Stopping a event already canceling",
-                    "type",         "%s", yev_event_type_name(yev_event),
-                    "fd",           "%d", yev_get_fd(yev_event),
-                    "p",            "%p", yev_event,
-                    "flag",         "%j", jn_flags,
-                    NULL
-                );
-                json_decref(jn_flags);
-            }
-            return -1;
-
         case YEV_ST_IDLE:
             yev_set_state(yev_event, YEV_ST_STOPPED);
             if(yev_event->type == YEV_CONNECT_TYPE) {
@@ -1795,6 +1778,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
             }
             break;
 
+        case YEV_ST_CANCELING:
         case YEV_ST_STOPPED:
             // "yev_event already stopped" Silence please
             return -1;
