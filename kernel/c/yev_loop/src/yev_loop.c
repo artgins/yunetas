@@ -23,7 +23,7 @@
  *              Constants
  ***************************************************************/
 #define DEFAULT_BACKLOG 4096
-int multishot_available = 0; // Available since kernel 5.19
+int multishot_available = 0; // Available since kernel 5.19 NOT TESTED!! DONT'USE
 
 /***************************************************************
  *              Structures
