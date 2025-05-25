@@ -337,9 +337,15 @@ PRIVATE int mt_start(hgobj gobj)
             if(gobj_gclass_name(child) == C_CHANNEL) {
                 hgobj bottom_gobj = gobj_last_bottom_gobj(child);
                 if(gobj_gclass_name(bottom_gobj) == C_TCP) {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                        "msg",          "%s", "new method NOT IMPLEMENTED",
+                        "channel",      "%s", gobj_full_name(bottom_gobj),
+                        NULL
+                    );
 
-
-                // TODO } else {
+                } else {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
