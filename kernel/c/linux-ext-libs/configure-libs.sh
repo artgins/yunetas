@@ -1,6 +1,11 @@
 #!/bin/bash
 
-VERSION="1.0"
+#
+#   version 1.1
+#       upgrade to liburing-2.9
+#
+
+VERSION="1.1"
 
 source ./repos2clone.sh
 
