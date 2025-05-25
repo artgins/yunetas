@@ -8,7 +8,7 @@ declare -A REPOS
 #--------------------------------------------------------------------------
 TAG_JANSSON="v2.14.1"
 TAG_LIBURING="liburing-2.9"
-TAG_MBEDTLS="v3.6.3.1"
+TAG_MBEDTLS="v3.6.2"
 TAG_OPENSSL="openssl-3.4.1"
 TAG_PCRE2="pcre2-10.45"
 TAG_LIBJWT="v1.17.2"
