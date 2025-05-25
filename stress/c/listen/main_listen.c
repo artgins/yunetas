@@ -3,7 +3,7 @@
  *
  *          Test server connections
  *
- *          Copyright (c) 2024 by ArtGins.
+ *          Copyright (c) 2025 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
@@ -118,7 +118,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,150000]],                           \n\
+                '__range__': [[1,30000]],                           \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
