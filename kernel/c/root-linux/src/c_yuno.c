@@ -1670,6 +1670,9 @@ PRIVATE int save_global_trace(
             if(idx != -1) {
                 json_array_remove(jn_levels, idx);
             }
+            if(json_size(jn_levels)==0) {
+                json_object_del(jn_trace_levels, "__global_trace__");
+            }
         } else {
             /*
              *  Add level
