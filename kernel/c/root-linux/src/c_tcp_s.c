@@ -468,10 +468,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(yev_event_is_stopped(yev_event)) {
-        gobj_change_state(gobj, ST_STOPPED);
-        if(priv->yev_server_accept != yev_event) {
+        if(priv->yev_server_accept == yev_event) {
+            yev_destroy_event(yev_event);
+            priv->yev_server_accept = 0;
+            gobj_change_state(gobj, ST_STOPPED);
+        } else {
             int dup_idx = yev_get_dup_idx(yev_event);
-            if(dup_idx && yev_event == priv->yev_dups[dup_idx]) {
+            if(dup_idx > 0 && yev_event == priv->yev_dups[dup_idx]) {
                 yev_destroy_event(yev_event);
                 priv->yev_dups[dup_idx] = 0;
             } else {
@@ -482,11 +485,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     NULL
                 );
             }
-
-        } else {
-            yev_destroy_event(yev_event);
-            priv->yev_server_accept = 0;
         }
+
         return 0;
     }
 
