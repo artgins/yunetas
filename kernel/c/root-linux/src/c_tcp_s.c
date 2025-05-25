@@ -681,6 +681,11 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         #endif
 
     } else {
+        /*-----------------------------------------*
+         *      New method
+         *  Set an accept event in each TCP gobj
+         *  TODO in progress
+         *-----------------------------------------*/
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
