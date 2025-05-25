@@ -4,17 +4,10 @@
  *          Test server connections
  *
  *
- *  Performance 22-May-2025 in my machine
- *
+
+Performance 22-May-2025 in my machine
 
 #TIME (count: 10000): elapsed 0.352265134 s, ops/sec 28387.71 -> OPENED 10000
-#TIME (count: 10000): elapsed 0.315886665 s, ops/sec 31656.92 -> OPENED 10000
-#TIME (count: 10000): elapsed 0.308869917 s, ops/sec 32376.09 -> OPENED 10000
-#TIME (count: 10000): elapsed 0.312686870 s, ops/sec 31980.88 -> OPENED 10000
-#TIME (count: 10000): elapsed 0.299153698 s, ops/sec 33427.63 -> OPENED 10000
-#TIME (count: 10000): elapsed 0.290414908 s, ops/sec 34433.49 -> OPENED 10000
-#TIME (count: 10000): elapsed 0.304907300 s, ops/sec 32796.85 -> OPENED 10000
-#TIME (count: 10000): elapsed 0.316647136 s, ops/sec 31580.90 -> OPENED 10000
 
  *
  *          Copyright (c) 2024 by ArtGins.
@@ -117,7 +110,7 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
-                        'backlog': 30000,                           \n\
+                        'backlog': 11000,                           \n\
                         'use_dups': 0,                              \n\
                         'child_tree_filter': {                      \n\
                             'op': 'find',                           \n\

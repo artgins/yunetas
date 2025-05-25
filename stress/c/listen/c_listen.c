@@ -23,8 +23,27 @@
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-time_measure_t time_measure;
-time_measure_t time_measure2;
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_reset_connexs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+
+PRIVATE time_measure_t time_measure2;
+PRIVATE int connections=0;
+
+PRIVATE sdata_desc_t pm_help[] = {
+/*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "level=1: search in bottoms, level=2: search in all childs"),
+SDATA_END()
+};
+
+PRIVATE const char *a_help[] = {"h", "?", 0};
+
+PRIVATE sdata_desc_t command_table[] = {
+/*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "reset-connections",0,          0,              cmd_reset_connexs, "Reset connections counter"),
+SDATA_END()
+};
 
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
@@ -156,6 +175,40 @@ PRIVATE int mt_pause(hgobj gobj)
 
 
 
+ /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    KW_INCREF(kw);
+    json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
+    return msg_iev_build_response(
+        gobj,
+        0,
+        jn_resp,
+        0,
+        0,
+        kw  // owned
+    );
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_reset_connexs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    connections=0;
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Reset connections counter"),
+        0,
+        0,
+        kw  // owned
+    );
+
+}
+
                     /***************************
                      *      Local Methods
                      ***************************/
@@ -179,16 +232,15 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     // set_timeout(priv->timer, 1000); // timeout to start sending messages
 
-    static int i=0;
-    i++;
+    connections++;
 
-    if(i==1) {
+    if(connections==1) {
         MT_START_TIME(time_measure2)
     }
-    if(i%10000 == 0 && i>0) {
-        MT_SET_COUNT(time_measure2, i)
+    if(connections%10000 == 0 && connections>0) {
+        MT_SET_COUNT(time_measure2, connections)
         char temp[80];
-        snprintf(temp, sizeof(temp), "OPENED %d", i);
+        snprintf(temp, sizeof(temp), "OPENED %d", connections);
         MT_PRINT_TIME(time_measure2, temp)
     }
 
@@ -335,7 +387,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         attrs_table,
         sizeof(PRIVATE_DATA),
         0,  // authz_table,
-        0,  // command_table,
+        command_table,
         s_user_trace_level,  // s_user_trace_level,
         0   // gcflag_t
     );

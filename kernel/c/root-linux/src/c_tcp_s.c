@@ -407,6 +407,8 @@ PRIVATE int mt_stop(hgobj gobj)
 
 /***************************************************************************
  *  Returns the first matched child.
+ *  TODO improve to manage multiple connections quickly
+ *      for example a two list? of connected and disconnected channels?
  ***************************************************************************/
 PUBLIC hgobj my_gobj_find_child(
     hgobj gobj,
