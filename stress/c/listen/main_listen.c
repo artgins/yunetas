@@ -3,13 +3,6 @@
  *
  *          Test server connections
  *
- *
-
-Performance 22-May-2025 in my machine
-
-#TIME (count: 10000): elapsed 0.352265134 s, ops/sec 28387.71 -> OPENED 10000
-
- *
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
@@ -30,7 +23,7 @@ Performance 22-May-2025 in my machine
 #define MEM_MIN_BLOCK           512
 #define MEM_MAX_BLOCK           209715200       // 200*M
 #define MEM_SUPERBLOCK          209715200       // 200*M
-#define MEM_MAX_SYSTEM_MEMORY   2147483648      // 2*G
+#define MEM_MAX_SYSTEM_MEMORY   17179869184 // 16 G // 2147483648      // 2*G
 
 /***************************************************************************
  *                      Default config
@@ -110,22 +103,22 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
-                        'backlog': 11000,                           \n\
-                        'use_dups': 0,                              \n\
-                        'child_tree_filter': {                      \n\
-                            'op': 'find',                           \n\
-                            'kw': {                                 \n\
-                                '__prefix_gobj_name__': 'input-',   \n\
-                                '__gclass_name__': 'C_CHANNEL',     \n\
-                                '__disabled__': false,              \n\
-                                'connected': false                  \n\
-                            }                                       \n\
-                        }                                           \n\
+                        'backlog': 65535,                           \n\
+                        'use_dups': 0                              \n\
+#^^                        'child_tree_filter': {                      \n\
+#^^                            'op': 'find',                           \n\
+#^^                            'kw': {                                 \n\
+#^^                                '__prefix_gobj_name__': 'input-',   \n\
+#^^                                '__gclass_name__': 'C_CHANNEL',     \n\
+#^^                                '__disabled__': false,              \n\
+#^^                                'connected': false                  \n\
+#^^                            }                                       \n\
+#^^                        }                                           \n\
                     }                                               \n\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,11000]],                           \n\
+                '__range__': [[1,150000]],                           \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
