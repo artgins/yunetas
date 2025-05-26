@@ -331,46 +331,109 @@ PRIVATE int mt_start(hgobj gobj)
          *-------------------------------------------*/
         hgobj parent = gobj_parent(gobj);
         hgobj child = gobj_first_child(parent);
-        int dups = 0;
+        int fd_clisrv = yev_get_fd(priv->yev_server_accept);
+
         while(child) {
             if(gobj_gclass_name(child) == C_CHANNEL) {
-                hgobj bottom_gobj = gobj_last_bottom_gobj(child);
-                if(gobj_gclass_name(bottom_gobj) == C_TCP) {
-                    // TODO in progress
-
-                    yev_event_h yev = yev_dup_accept_event(priv->yev_server_accept, -1, gobj);
-                    yev_start_event(yev);
-                    dups++;
-                    // gobj_log_error(gobj, 0,
-                    //     "function",     "%s", __FUNCTION__,
-                    //     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    //     "msg",          "%s", "new method NOT IMPLEMENTED",
-                    //     "channel",      "%s", gobj_full_name(bottom_gobj),
-                    //     NULL
-                    // );
-
-                } else {
+                hgobj gobj_bottom = gobj_last_bottom_gobj(child);
+                if(!gobj_bottom) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "Last bottom gobj must be C_TCP",
-                        "channel",      "%s", gobj_full_name(bottom_gobj),
+                        "msg",          "%s", "Bottom gobj not found",
+                        "child",        "%s", gobj_full_name(child),
+                        "url",          "%s", priv->url,
                         NULL
                     );
+                    child = gobj_next_child(child);
+                    continue;
                 }
+
+                /*----------------------------------------*
+                 *  Create the clisrv gobj if not exist
+                 *----------------------------------------*/
+                hgobj clisrv = NULL;
+                if(gobj_gclass_name(gobj_bottom) != C_TCP) {
+                    /*
+                     *  Create a tcp gobj
+                     */
+                    json_t *kw_clisrv = json_deep_copy(priv->clisrv_kw);
+                    if(!kw_clisrv) {
+                        kw_clisrv = json_object();
+                    }
+
+                    /*-------------------*
+                     *  Name of clisrv
+                     *-------------------*/
+                    priv->tconnxs++;
+                    char xname[80];
+                    snprintf(xname, sizeof(xname), "clisrv-%"JSON_INTEGER_FORMAT,
+                        priv->tconnxs
+                    );
+
+                    clisrv = gobj_create_pure_child(
+                        xname, // the same name as the filter.
+                        C_TCP,
+                        kw_clisrv,
+                        gobj_bottom
+                    );
+                    gobj_set_bottom_gobj(gobj_bottom, clisrv);
+
+                    /*
+                     *  srvsock needs to know of disconnected event
+                     *  for deleting gobjs or do statistics TODO sure? review
+                     */
+                    // TODO json_t *kw_subs = json_pack("{s:{s:b}}", "__config__", "__hard_subscription__", 1);
+                    //  gobj_subscribe_event(clisrv, EV_STOPPED, kw_subs, gobj);
+
+                } else {
+                    clisrv = gobj_bottom;
+                }
+
+                gobj_write_bool_attr(clisrv, "__clisrv__", true);
+                gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
+                gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
+                gobj_write_integer_attr(clisrv, "fd_clisrv", fd_clisrv);
+
+                #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+                if(measuring_times & YEV_ACCEPT_TYPE) {
+                    MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() clisrv configured");
+                }
+                #endif
+                gobj_start(clisrv); // this call set_connected(clisrv);
+
+
+
+
+
+
+                // if(gobj_gclass_name(bottom_gobj) == C_TCP) {
+                //     // TODO in progress
+                //
+                //     yev_event_h yev = yev_dup_accept_event(priv->yev_server_accept, -1, gobj);
+                //     yev_start_event(yev);
+                //     dups++;
+                //     // gobj_log_error(gobj, 0,
+                //     //     "function",     "%s", __FUNCTION__,
+                //     //     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                //     //     "msg",          "%s", "new method NOT IMPLEMENTED",
+                //     //     "channel",      "%s", gobj_full_name(bottom_gobj),
+                //     //     NULL
+                //     // );
+                //
+                // } else {
+                //     gobj_log_error(gobj, 0,
+                //         "function",     "%s", __FUNCTION__,
+                //         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                //         "msg",          "%s", "Last bottom gobj must be C_TCP",
+                //         "channel",      "%s", gobj_full_name(bottom_gobj),
+                //         NULL
+                //     );
+                // }
+
             }
             child = gobj_next_child(child);
         }
-
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "TCP_S: dups",
-            "msg2",         "%s", "🌐TCP_S: dups",
-            "url",          "%s", priv->url,
-            "dups",         "%d", dups,
-            NULL
-        );
 
     }
 
@@ -647,10 +710,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             if(!kw_clisrv) {
                 kw_clisrv = json_object();
             }
-            json_object_set_new(kw_clisrv, "ytls", json_integer((json_int_t)(size_t)priv->ytls));
-            json_object_set_new(kw_clisrv, "use_ssl", json_boolean(priv->use_ssl));
-            json_object_set_new(kw_clisrv, "__clisrv__", json_true());
-            json_object_set_new(kw_clisrv, "fd_clisrv", json_integer(fd_clisrv));
 
             /*-------------------*
              *  Name of clisrv
@@ -691,9 +750,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         }
         #endif
 
-        gobj_write_bool_attr(clisrv, "__clisrv__", true);
-        gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
         gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
+        gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
+        gobj_write_bool_attr(clisrv, "__clisrv__", true);
         gobj_write_integer_attr(clisrv, "fd_clisrv", fd_clisrv);
 
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
@@ -710,10 +769,10 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         #endif
 
     } else {
-        /*-----------------------------------------*
+        /*-------------------------------------------*
          *      New method
-         *  Connection cannot come by here!!
-         *-----------------------------------------*/
+         *  WARNING Connection cannot come by here!!
+         *-------------------------------------------*/
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
