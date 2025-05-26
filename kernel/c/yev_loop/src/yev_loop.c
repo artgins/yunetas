@@ -22,7 +22,6 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define DEFAULT_BACKLOG 4096
 int multishot_available = 0; // Available since kernel 5.19 NOT TESTED!! DONT'USE
 
 /***************************************************************
@@ -2367,7 +2366,7 @@ PUBLIC int get_net_core_somaxconn(void)
 #endif
 
 /***************************************************************************
- *  backlog default /proc/sys/net/core/somaxconn, since Linux 5.4 is 4096
+ *  backlog /proc/sys/net/core/somaxconn, since Linux 5.4 is 4096
  ***************************************************************************/
 PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in yev_event->fd
     yev_loop_h yev_loop_,
@@ -2407,10 +2406,6 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     if(ret < 0) {
         // Error already logged
         return NULL;
-    }
-
-    if(backlog <= 0) {
-        backlog = DEFAULT_BACKLOG;
     }
 
 #ifdef __linux__

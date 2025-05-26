@@ -103,7 +103,7 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
-                        'backlog': 32767,                           \n\
+                        'backlog': 0, #^^ new-method:0, legacy: 32767 \n\
                         'use_dups': 0                             \n\
 #^^                        'child_tree_filter': {                      \n\
 #^^                            'op': 'find',                           \n\
@@ -118,7 +118,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,1]],   #^^11000                        \n\
+                '__range__': [[1,10]],   #^^11000                        \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
@@ -238,7 +238,7 @@ int main(int argc, char *argv[])
      *------------------------------------------------*/
     // set_measure_times(YEV_ACCEPT_TYPE);
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(10);
+    // set_auto_kill_time(10);
 
     /*------------------------------------------------*
      *          Start yuneta

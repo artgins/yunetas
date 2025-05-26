@@ -1001,12 +1001,6 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     if(gobj_current_state(gobj)==ST_STOPPED) {
         return;
     }
-    if(gobj_current_state(gobj)==ST_DISCONNECTED) {
-        gobj_change_state(gobj, ST_STOPPED);
-        return;
-    }
-
-    gobj_change_state(gobj, ST_WAIT_STOPPED);
 
     if(gobj_trace_level(gobj) & TRACE_URING) {
         gobj_log_debug(gobj, 0,
@@ -1074,9 +1068,15 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         to_wait_stopped = true;
     }
 
-    if(!to_wait_stopped) {
-        gobj_change_state(gobj, ST_STOPPED);
-        set_disconnected(gobj);
+    if(to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
+    } else {
+        if(gobj_current_state(gobj)==ST_DISCONNECTED) {
+            gobj_change_state(gobj, ST_STOPPED);
+        } else {
+            gobj_change_state(gobj, ST_STOPPED);
+            set_disconnected(gobj);
+        }
     }
 }
 
