@@ -90,6 +90,8 @@ typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
     YEV_FLAG_TIMER_PERIODIC     = 0x01,
     YEV_FLAG_USE_TLS            = 0x02,
     YEV_FLAG_CONNECTED          = 0x04,     // user
+    YEV_FLAG_ACCEPT_DUP         = 0x08,
+    YEV_FLAG_ACCEPT_DUP2        = 0x10,
 } yev_flag_t;
 
 typedef enum  {

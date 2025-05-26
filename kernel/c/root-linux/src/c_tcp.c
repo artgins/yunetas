@@ -432,6 +432,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_poll)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_accept)
     if(priv->sskt) {
         ytls_free_secure_filter(priv->ytls, priv->sskt);
         priv->sskt = 0;
@@ -801,6 +802,8 @@ PRIVATE void set_disconnected(hgobj gobj)
                 /*
                  *  New method
                  */
+                // TODO if(yev_get_result(priv->yev_accept)
+                printf("====> yev_get_result(priv->yev_accept) %d\n", yev_get_result(priv->yev_accept));
                 gobj_change_state(gobj, ST_DISCONNECTED);
                 yev_start_event(priv->yev_accept);
 
@@ -1187,13 +1190,14 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     hgobj gobj = yev_get_gobj(yev_event);
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_URING) {
+    int trace = gobj_trace_level(gobj) & TRACE_URING;
+    if(trace) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev callback",
-            "msg2",         "%s", "🌐🌐💥 yev callback",
+            "msg2",         "%s", "TCP 🌐🌐💥 yev callback",
             "event type",   "%s", yev_event_type_name(yev_event),
             "state",        "%s", yev_get_state_name(yev_event),
             "result",       "%d", yev_get_result(yev_event),
@@ -1280,7 +1284,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                    if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -1342,7 +1346,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                    if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -1377,7 +1381,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                    if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_LIBURING_ERROR,
@@ -1427,7 +1431,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      */
                     gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
 
-                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                    if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_LIBURING_ERROR,
@@ -1455,7 +1459,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 { // if(result > 0)
                     gobj_log_set_last_message("%s", "EPOLLRDHUP Peer shutdown");
 
-                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                    if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,

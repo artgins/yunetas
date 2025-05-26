@@ -81,6 +81,8 @@ PRIVATE const char *yev_flag_s[] = {
     "YEV_FLAG_TIMER_PERIODIC",
     "YEV_FLAG_USE_TLS",
     "YEV_FLAG_CONNECTED",
+    "YEV_FLAG_ACCEPT_DUP",
+    "YEV_FLAG_ACCEPT_DUP2",
     0
 };
 
@@ -460,7 +462,9 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                     MT_PRINT_TIME(yev_time_measure, "callback_cqe() after yev->callback()");
                 }
 #endif
-                if(ret == 0 && yev_loop->running && yev_event->state == YEV_ST_IDLE) {
+                if(ret == 0 && yev_loop->running &&
+                        yev_event->state == YEV_ST_IDLE &&
+                        !(yev_event->flag & YEV_FLAG_ACCEPT_DUP2)) {
                     if(!gobj || (gobj && gobj_is_running(gobj))) {
                         /*
                          *  Rearm accept event
@@ -1721,10 +1725,10 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
+        case YEV_ACCEPT_TYPE:
         case YEV_POLL_TYPE:
             break;
         case YEV_CONNECT_TYPE:
-        case YEV_ACCEPT_TYPE:
         case YEV_TIMER_TYPE:
             // Each connection needs a new socket fd, i.e., after each disconnection.
             // The timer (once) if it's in idle can be reused, if stopped you must create one new.
@@ -2635,6 +2639,7 @@ PUBLIC yev_event_h yev_dup_accept_event(
     }
 
     yev_event->type = YEV_ACCEPT_TYPE;
+    yev_event->flag = YEV_FLAG_ACCEPT_DUP;
     yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
     memcpy(
         &yev_event->sock_info->src_addr,
@@ -2691,6 +2696,7 @@ PUBLIC yev_event_h yev_dup2_accept_event(
     }
 
     yev_event->type = YEV_ACCEPT_TYPE;
+    yev_event->flag = YEV_FLAG_ACCEPT_DUP2;
     yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
     memset(
         &yev_event->sock_info->src_addr,

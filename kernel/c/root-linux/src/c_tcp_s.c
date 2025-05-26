@@ -512,6 +512,27 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    int trace = (int)gobj_trace_level(gobj) & TRACE_URING;
+    if(trace) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "TCP_S 🌐🌐💥 yev callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
+            "flag",         "%j", jn_flags,
+            "p",            "%p", yev_event,
+            "fd",           "%d", yev_get_fd(yev_event),
+            "gbuffer",      "%p", yev_get_gbuf(yev_event),
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
     if(yev_event_is_stopped(yev_event)) {
         if(priv->yev_server_accept == yev_event) {
             yev_destroy_event(yev_event);
