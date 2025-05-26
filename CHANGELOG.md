@@ -59,7 +59,7 @@ Change API
     rename gobj_get_yuno_must_die() to get_yuno_must_die();
 
     remove set_ordered_death()
-    yev_create_accept_event(), yev_setup_accept_event()->  new parameters
+    yev_create_accept_event(), yev_setup_accept_event() ->  new parameters
     yev_create_connect_event(), yev_setup_connect_event() -> yev_ream_connect_event() 
  
     important! gclass and event names are case insensitive
@@ -87,6 +87,7 @@ New API
     mt_get_time
     set_measure_times
     get_measure_times
+    yev_dup_accept_event
 
 Delete API
 

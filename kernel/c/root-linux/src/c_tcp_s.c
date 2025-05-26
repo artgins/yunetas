@@ -47,7 +47,7 @@ PRIVATE sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST, 0,              "url listening"),
 SDATA (DTP_INTEGER,     "backlog",              SDF_WR|SDF_PERSIST, "4096",         "Value for listen() backlog argument. It must be lower or equal to net.core.somaxconn. Change dynamically with 'sysctl -w net.core.somaxconn=?'. Change persistent with a file in /etc/sysctl.d/. Consult with 'cat /proc/sys/net/core/somaxconn'"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0,              "Share the port"),
-SDATA (DTP_BOOLEAN,     "use_dups",             SDF_WR|SDF_PERSIST, 0,              "Use yev_dup_accept_event(), same as backlog (better performance without!)"),
+SDATA (DTP_INTEGER,     "use_dups",             SDF_WR|SDF_PERSIST, 0,              "Use yev_dup_accept_event() to set more accept yev_events. (Don't see more speed using it)"),
 SDATA (DTP_JSON,        "crypto",               SDF_WR|SDF_PERSIST, 0,              "Crypto config"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
@@ -95,6 +95,7 @@ typedef struct _PRIVATE_DATA {
     json_int_t tconnxs;
 
     yev_event_h yev_server_accept;
+    int use_dups;
     yev_event_h *yev_dups;
     int fd_listen;
     hytls ytls;
@@ -134,6 +135,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
     SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
     SET_PRIV(child_tree_filter, gobj_read_json_attr)
+    SET_PRIV(use_dups,          (int)gobj_read_integer_attr)
     SET_PRIV(clisrv_kw,         gobj_read_json_attr)
 
     /*
@@ -152,9 +154,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(url, gobj_read_str_attr)
-
-    ELIF_EQ_SET_PRIV(clisrv_kw,         gobj_read_json_attr)
+    IF_EQ_SET_PRIV(url,                 gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(exitOnError,       gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(trace_tls,         gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(only_allowed_ips,  gobj_read_bool_attr)
@@ -171,9 +171,8 @@ PRIVATE void mt_destroy(hgobj gobj)
     EXEC_AND_RESET(ytls_cleanup, priv->ytls)
     EXEC_AND_RESET(yev_destroy_event, priv->yev_server_accept)
 
-    int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
     if(priv->yev_dups) {
-        for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+        for(int dup_idx=1; dup_idx <= priv->use_dups; dup_idx++) {
             if(priv->yev_dups[dup_idx]) {
                 yev_destroy_event(priv->yev_dups[dup_idx]);
                 priv->yev_dups[dup_idx] = 0;
@@ -317,20 +316,19 @@ PRIVATE int mt_start(hgobj gobj)
          *      Legacy method
          *--------------------------------*/
         yev_start_event(priv->yev_server_accept);
-        if(gobj_read_bool_attr(gobj, "use_dups")) {
-            priv->yev_dups = GBMEM_MALLOC((backlog + 1)* sizeof(yev_event_h *));
-            for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+        if(priv->use_dups > 0) {
+            priv->yev_dups = GBMEM_MALLOC((priv->use_dups + 1)* sizeof(yev_event_h *));
+            for(int dup_idx=1; dup_idx<=priv->use_dups; dup_idx++) {
                 priv->yev_dups[dup_idx] = yev_dup_accept_event(priv->yev_server_accept, dup_idx, gobj);
                 yev_start_event(priv->yev_dups[dup_idx]);
             }
         }
 
     } else {
-        /*-----------------------------------------*
+        /*-------------------------------------------*
          *      New method
-         *  Set an accept event in each TCP gobj
-         *  TODO in progress
-         *-----------------------------------------*/
+         *  Set an accept yev_event in each TCP gobj
+         *-------------------------------------------*/
         hgobj parent = gobj_parent(gobj);
         hgobj child = gobj_first_child(parent);
         int dups = 0;
@@ -338,6 +336,8 @@ PRIVATE int mt_start(hgobj gobj)
             if(gobj_gclass_name(child) == C_CHANNEL) {
                 hgobj bottom_gobj = gobj_last_bottom_gobj(child);
                 if(gobj_gclass_name(bottom_gobj) == C_TCP) {
+                    // TODO in progress
+
                     yev_event_h yev = yev_dup_accept_event(priv->yev_server_accept, -1, gobj);
                     yev_start_event(yev);
                     dups++;
@@ -395,8 +395,7 @@ PRIVATE int mt_stop(hgobj gobj)
     }
 
     if(priv->yev_dups) {
-        int backlog = (int)gobj_read_integer_attr(gobj, "backlog");
-        for(int dup_idx=1; dup_idx<=backlog; dup_idx++) {
+        for(int dup_idx=1; dup_idx<=priv->use_dups; dup_idx++) {
             if(!priv->yev_dups[dup_idx]) {
                 continue;
             }
@@ -703,8 +702,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     } else {
         /*-----------------------------------------*
          *      New method
-         *  Set an accept event in each TCP gobj
-         *  TODO in progress
+         *  Connection cannot come by here!!
          *-----------------------------------------*/
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,

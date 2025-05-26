@@ -2610,12 +2610,12 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_h yev_dup_accept_event( // create the socket listening in yev_event->fd
-    yev_event_h yev_event_accept_,
+PUBLIC yev_event_h yev_dup_accept_event( // create a duplicate of accept events using the socket set in yev_server_accept->fd (created with yev_create_accept_event)
+    yev_event_h yev_server_accept,
     int dup_idx,
     hgobj gobj
 ) {
-    yev_event_t *yev_event_accept = (yev_event_t *)yev_event_accept_;
+    yev_event_t *yev_event_accept = (yev_event_t *)yev_server_accept;
     yev_loop_t *yev_loop = yev_event_accept->yev_loop;
 
     uint32_t trace_level = gobj_trace_level(yev_loop->yuno?gobj:0);

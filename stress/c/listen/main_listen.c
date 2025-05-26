@@ -103,17 +103,17 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                            \n\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
-                        'backlog': 65535,                           \n\
-                        'use_dups': 0                              \n\
-#^^                        'child_tree_filter': {                      \n\
-#^^                            'op': 'find',                           \n\
-#^^                            'kw': {                                 \n\
-#^^                                '__prefix_gobj_name__': 'input-',   \n\
-#^^                                '__gclass_name__': 'C_CHANNEL',     \n\
-#^^                                '__disabled__': false,              \n\
-#^^                                'connected': false                  \n\
-#^^                            }                                       \n\
-#^^                        }                                           \n\
+                        'backlog': 32767,                           \n\
+                        'use_dups': 0,                              \n\
+                        'child_tree_filter': {                      \n\
+                            'op': 'find',                           \n\
+                            'kw': {                                 \n\
+                                '__prefix_gobj_name__': 'input-',   \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
                     }                                               \n\
                 }                                                   \n\
             ],                                                      \n\
