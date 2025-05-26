@@ -118,7 +118,7 @@ PRIVATE char variable_config[]= "\
                 }                                                   \n\
             ],                                                      \n\
             '[^^children^^]': {                                     \n\
-                '__range__': [[1,30000]],                           \n\
+                '__range__': [[1,11000]],                           \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\

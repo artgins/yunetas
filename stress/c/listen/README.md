@@ -56,6 +56,9 @@ My laptop, 1 core:
     10 concurrent connecns internal 439558 bytes, total (Gnome system monitor) 786.4 Kb
     1000 concurrent: internal     24011218 bytes, total (Gnome system monitor) 32.2 MB
     10000 concurrent    internal 238456984 0.222 GB bytes, total (Gnome system monitor) 318.7 MB
+    
+    11000 concurrent    internal 262262984 0.2443 GB GB bytes, total (Gnome system monitor) 350.1 MB, 10 sec
+    
     30000 concurrent    internal 714839128 0.6657 GB bytes, total (Gnome system monitor) 954.7 MB, 1 minute
     50000 concurrent: internal  1191483416 1.109 GB bytes, total (Gnome system monitor) 1.6 GB, 3 minutes
     100000 concurrent: internal 2382831998 2.219 GB bytes, total (Gnome system monitor) 3.2 GB, 12 minutes 
