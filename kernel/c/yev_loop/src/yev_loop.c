@@ -2608,9 +2608,11 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
 }
 
 /***************************************************************************
- *
+ *  create a duplicate of accept events using the socket set
+ *  in yev_server_accept->fd (created with yev_create_accept_event)
+ *  It's managed in callback of yev_create_accept_event()
  ***************************************************************************/
-PUBLIC yev_event_h yev_dup_accept_event( // create a duplicate of accept events using the socket set in yev_server_accept->fd (created with yev_create_accept_event)
+PUBLIC yev_event_h yev_dup_accept_event(
     yev_event_h yev_server_accept,
     int dup_idx,
     hgobj gobj
