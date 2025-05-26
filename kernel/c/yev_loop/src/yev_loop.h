@@ -250,16 +250,16 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     hgobj gobj
 );
 
-PUBLIC yev_event_h yev_dup_accept_event( // create a duplicate of accept events using the socket set in yev_server_accept->fd (created with yev_create_accept_event) It's managed in callback of yev_create_accept_event()
+PUBLIC yev_event_h yev_dup_accept_event( // Create a duplicate of accept events using the socket of yev_server_accept (created with yev_create_accept_event()). It's managed in callback of the same yev_create_accept_event(). It needs 'child_tree_filter'.
     yev_event_h yev_server_accept,
     int dup_idx,
     hgobj gobj
 );
 
-PUBLIC yev_event_h yev_tcp_accept_event( // create a duplicate of accept events using the socket set in yev_server_accept->fd (created with yev_create_accept_event)
+PUBLIC yev_event_h yev_dup2_accept_event( // Create a duplicate of accept events using the socket of yev_server_accept (created with yev_create_accept_event()), but managed in another callback of another child (usually C_TCP) gobj
     yev_event_h yev_server_accept,
-    int dup_idx,
-    hgobj gobj
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
+    hgobj child
 );
 
 PUBLIC yev_event_h yev_create_poll_event( // create the socket listening in yev_event->fd
