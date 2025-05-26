@@ -93,6 +93,7 @@ SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if sch
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
 SDATA (DTP_INTEGER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
+SDATA (DTP_INTEGER, "fd_listen",        0,              0,          "socket accept listen"),
 
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
@@ -147,7 +148,9 @@ typedef struct _PRIVATE_DATA {
     yev_event_h yev_connect; // Used if not __clisrv__ (pure tcp client)
     yev_event_h yev_reading;
     yev_event_h yev_poll;
+    yev_event_h yev_accept;
     int fd_clisrv;
+    int fd_listen;
     int timeout_inactivity;
     BOOL inform_disconnection;
     BOOL use_close_poll;
@@ -209,6 +212,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(use_ssl,               gobj_read_bool_attr)
     SET_PRIV(__clisrv__,            gobj_read_bool_attr)
     SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
+    SET_PRIV(fd_listen,             (int)gobj_read_integer_attr)
     SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(use_close_poll,        gobj_read_bool_attr)
     SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
@@ -226,6 +230,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(use_ssl,               gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(__clisrv__,            gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(fd_clisrv,             (int)gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(fd_listen,             (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(url,                   gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(use_close_poll,        gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
@@ -274,7 +279,36 @@ PRIVATE int mt_start(hgobj gobj)
          *  clisrv
          *  It's already connected when is created
          */
-        set_connected(gobj, priv->fd_clisrv);  // WTF!!! LOW!!
+        if(priv->fd_clisrv > 0) {
+            /*
+             *  Legacy method
+             */
+            set_connected(gobj, priv->fd_clisrv);
+
+        } else {
+            /*
+             *  New method
+             */
+            if(priv->fd_listen > 0) {
+                priv->yev_accept = yev_dup2_accept_event(
+                    yuno_event_loop(),
+                    yev_callback, // if return -1 the loop in yev_loop_run will break;
+                    priv->fd_listen,
+                    gobj
+                );
+                if(priv->yev_accept) {
+                    yev_start_event(priv->yev_accept);
+                }
+
+            } else {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "New method (listen) without fd_listen",
+                    NULL
+                );
+            }
+        }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_times & YEV_ACCEPT_TYPE) {
@@ -526,15 +560,16 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
     if(priv->yev_reading) {
         yev_set_fd(priv->yev_reading, fd);
-    }
-    if(!yev_get_gbuf(priv->yev_reading)) {
-        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
-    } else {
-        gbuffer_clear(yev_get_gbuf(priv->yev_reading));
-    }
 
-    yev_start_event(priv->yev_reading);
+        if(!yev_get_gbuf(priv->yev_reading)) {
+            json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+            yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
+        } else {
+            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+        }
+
+        yev_start_event(priv->yev_reading);
+    }
 
     /*--------------------------------------------------*
      *  Setup poll event to detect half-closed sockets
@@ -552,9 +587,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
         if(priv->yev_poll) {
             yev_set_fd(priv->yev_poll, fd);
+            yev_start_event(priv->yev_poll);
         }
-
-        yev_start_event(priv->yev_poll);
     }
 
     /*---------------------------*
@@ -762,18 +796,35 @@ PRIVATE void set_disconnected(hgobj gobj)
         priv->txBytes = 0;
         priv->rxBytes = 0;
 
-        // auto stop
         if(gobj_is_running(gobj)) {
-            gobj_stop(gobj);
+            if(priv->yev_accept) {
+                /*
+                 *  New method
+                 */
+                gobj_change_state(gobj, ST_DISCONNECTED);
+                yev_start_event(priv->yev_accept);
+
+            } else {
+                /*
+                 *  Legacy method
+                 *  auto stop
+                 */
+                gobj_stop(gobj);
+            }
         }
 
-        /*
-         *  CHILD subscription model
-         */
-        if(gobj_is_service(gobj)) {
-            gobj_publish_event(gobj, EV_STOPPED, 0);
-        } else {
-            gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
+        if(!gobj_is_running(gobj)) {
+            /*
+             *  The gobj is in stop
+             */
+            /*
+             *  CHILD subscription model
+             */
+            if(gobj_is_service(gobj)) {
+                gobj_publish_event(gobj, EV_STOPPED, 0);
+            } else {
+                gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
+            }
         }
     }
 
@@ -1002,6 +1053,15 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_poll)) {
             yev_stop_event(priv->yev_poll);
             if(!yev_event_is_stopped(priv->yev_poll)) {
+                to_wait_stopped = true;
+            }
+        }
+    }
+
+    if(priv->yev_accept) {
+        if(!yev_event_is_stopped(priv->yev_accept)) {
+            yev_stop_event(priv->yev_accept);
+            if(!yev_event_is_stopped(priv->yev_accept)) {
                 to_wait_stopped = true;
             }
         }
@@ -1323,6 +1383,56 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             "msgset",       "%s", MSGSET_LIBURING_ERROR,
                             "msg",          "%s", "TCP: connect FAILED",
                             "msg2",         "%s", "🌐TCP: connect FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
+                            NULL
+                        );
+                    }
+                    try_to_stop_yevents(gobj);
+                }
+            }
+            break;
+
+        case YEV_ACCEPT_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    if(priv->fd_clisrv > 0) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "TCP: fd_clisrv > 0",
+                            "msg2",         "%s", "🌐TCP: fd_clisrv > 0",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
+                            "fd_clisrv",    "%d", priv->fd_clisrv,
+                            "fd_listen",    "%d", priv->fd_listen,
+                            NULL
+                        );
+                        close(priv->fd_clisrv);
+                        priv->fd_clisrv = -1;
+                    }
+                    priv->fd_clisrv = yev_get_result(yev_event);
+                    set_connected(gobj, priv->fd_clisrv);
+                } else {
+                    /*
+                     *  Error on connection
+                     */
+                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+
+                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                            "msg",          "%s", "TCP: accept FAILED",
+                            "msg2",         "%s", "🌐TCP: accept FAILED",
                             "url",          "%s", gobj_read_str_attr(gobj, "url"),
                             "errno",        "%d", -yev_get_result(yev_event),
                             "strerror",     "%s", strerror(-yev_get_result(yev_event)),

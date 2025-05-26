@@ -2665,25 +2665,25 @@ PUBLIC yev_event_h yev_dup_accept_event(
 }
 
 /***************************************************************************
- *  Create a duplicate of accept events using the socket of
- *  yev_server_accept (created with yev_create_accept_event()),
+ *  Create a duplicate of accept events using the listen socket
+ *  (created with yev_create_accept_event()),
  *  but managed in another callback of another child (usually C_TCP) gobj
  ***************************************************************************/
 PUBLIC yev_event_h yev_dup2_accept_event(
-    yev_event_h yev_server_accept,
+    yev_loop_h yev_loop_,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
-    hgobj child
+    int fd_listen,
+    hgobj gobj
 ) {
-    yev_event_t *yev_event_accept = (yev_event_t *)yev_server_accept;
-    yev_loop_t *yev_loop = yev_event_accept->yev_loop;
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
 
-    uint32_t trace_level = gobj_trace_level(yev_loop->yuno?child:0);
+    uint32_t trace_level = gobj_trace_level(yev_loop->yuno?gobj:0);
 
     yev_event_t *yev_event = create_event(
         yev_loop,
         callback,
-        child,
-        yev_event_accept->fd
+        gobj,
+        fd_listen
     );
     if(!yev_event) {
         // Error already logged
@@ -2692,16 +2692,16 @@ PUBLIC yev_event_h yev_dup2_accept_event(
 
     yev_event->type = YEV_ACCEPT_TYPE;
     yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t ));
-    memcpy(
+    memset(
         &yev_event->sock_info->src_addr,
-        &yev_event_accept->sock_info->src_addr,
-        yev_event_accept->sock_info->src_addrlen
+        0,
+        sizeof(yev_event->sock_info->src_addr)
     );
-    yev_event->sock_info->src_addrlen = yev_event_accept->sock_info->src_addrlen;
+    yev_event->sock_info->src_addrlen = sizeof(yev_event->sock_info->src_addr);
 
     if(trace_level & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
-        gobj_log_debug(yev_loop->yuno?child:0, 0,
+        gobj_log_debug(yev_loop->yuno?gobj:0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev_dup2_accept_event",

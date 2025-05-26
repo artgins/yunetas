@@ -331,7 +331,7 @@ PRIVATE int mt_start(hgobj gobj)
          *-------------------------------------------*/
         hgobj parent = gobj_parent(gobj);
         hgobj child = gobj_first_child(parent);
-        int fd_clisrv = yev_get_fd(priv->yev_server_accept);
+        int fd_listen = yev_get_fd(priv->yev_server_accept);
 
         while(child) {
             if(gobj_gclass_name(child) == C_CHANNEL) {
@@ -393,45 +393,14 @@ PRIVATE int mt_start(hgobj gobj)
                 gobj_write_bool_attr(clisrv, "__clisrv__", true);
                 gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
                 gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
-                gobj_write_integer_attr(clisrv, "fd_clisrv", fd_clisrv);
-
-                #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-                if(measuring_times & YEV_ACCEPT_TYPE) {
-                    MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() clisrv configured");
-                }
-                #endif
-                gobj_start(clisrv); // this call set_connected(clisrv);
-
-
-
-
-
-
-                // if(gobj_gclass_name(bottom_gobj) == C_TCP) {
-                //     // TODO in progress
-                //
-                //     yev_event_h yev = yev_dup_accept_event(priv->yev_server_accept, -1, gobj);
-                //     yev_start_event(yev);
-                //     dups++;
-                //     // gobj_log_error(gobj, 0,
-                //     //     "function",     "%s", __FUNCTION__,
-                //     //     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                //     //     "msg",          "%s", "new method NOT IMPLEMENTED",
-                //     //     "channel",      "%s", gobj_full_name(bottom_gobj),
-                //     //     NULL
-                //     // );
-                //
-                // } else {
-                //     gobj_log_error(gobj, 0,
-                //         "function",     "%s", __FUNCTION__,
-                //         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                //         "msg",          "%s", "Last bottom gobj must be C_TCP",
-                //         "channel",      "%s", gobj_full_name(bottom_gobj),
-                //         NULL
-                //     );
-                // }
-
+                gobj_write_integer_attr(clisrv, "fd_clisrv", -1);
+                gobj_write_integer_attr(clisrv, "fd_listen", fd_listen);
+                gobj_start(clisrv); // this create a yev_dup2_accept_event
             }
+
+            /*
+             *  Next child
+             */
             child = gobj_next_child(child);
         }
 

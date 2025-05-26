@@ -256,10 +256,11 @@ PUBLIC yev_event_h yev_dup_accept_event( // Create a duplicate of accept events 
     hgobj gobj
 );
 
-PUBLIC yev_event_h yev_dup2_accept_event( // Create a duplicate of accept events using the socket of yev_server_accept (created with yev_create_accept_event()), but managed in another callback of another child (usually C_TCP) gobj
-    yev_event_h yev_server_accept,
+PUBLIC yev_event_h yev_dup2_accept_event( // Create a duplicate of accept events using the listen socket (created with yev_create_accept_event()), but managed in another callback of another child (usually C_TCP) gobj
+    yev_loop_h yev_loop,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
-    hgobj child
+    int fd_listen,
+    hgobj gobj
 );
 
 PUBLIC yev_event_h yev_create_poll_event( // create the socket listening in yev_event->fd
