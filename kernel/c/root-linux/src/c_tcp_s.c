@@ -603,7 +603,17 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         #endif
         gobj_bottom = gobj_last_bottom_gobj(gobj_top);
         if(!gobj_bottom) {
-            gobj_bottom = gobj_top;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                "msg",          "%s", "TCP_S: Connection not accepted: no gobj_bottom found",
+                "msg2",         "%s", "🌐TCP_S: Connection not accepted: no gobj_bottom  found",
+                "lHost",        "%s", gobj_read_str_attr(gobj, "lHost"),
+                "lPort",        "%s", gobj_read_str_attr(gobj, "lPort"),
+                NULL
+            );
+            close(fd_clisrv);
+            return 0;
         }
 
         if(gobj_trace_level(gobj) & TRACE_ACCEPTED) {
