@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* jshint -W083 */
 
-// TODO WARNING remember exec "ulimit -n 200000"
+// WARNING remember exec "ulimit -n 200000"
 
 const net = require('net');
 const fs = require('fs');
@@ -91,9 +91,6 @@ if(args.msgfile) {
     };
 }
 
-const start = process.hrtime.bigint();
-
-let max_connections = args.connections;
 let cur_connections = 0;
 
 // Launch N connections
@@ -101,20 +98,11 @@ for(let i = 0; i < args.connections; i++) {
     const client = new net.Socket();
 
     client.connect(args.port, args.host, () => {
-        const start2 = process.hrtime.bigint();
         cur_connections++;
         const peer = `${client.remoteAddress}:${client.remotePort}`;
         const local = `${client.localAddress}:${client.localPort}`;
 
-        if(cur_connections >= max_connections) {
-            let end =  process.hrtime.bigint();
-            let total = Number(end - start)/1000000000;
-            console.log(`Connected ${i}: peer=${peer}, local=${local}, Total Duration: ${total} sec, ops ${max_connections/total}`);
-        } else {
-            let end2 =  process.hrtime.bigint();
-            let total = Number(end2 - start2)/1000000000;
-            console.log(`Connected ${i}: peer=${peer}, local=${local}, Duration: ${total} sec, ops ${1/total}`);
-        }
+        console.log(`Connected ${i}: peer=${peer}, local=${local}`);
 
         const thisMsg = JSON.parse(JSON.stringify(baseMessage));
         const hexId = i.toString(16).padStart(6, '0').toUpperCase();
@@ -146,5 +134,8 @@ for(let i = 0; i < args.connections; i++) {
 
     client.on('error', (err) => {
         console.error(`Connection ${i} error: ${err.message}`);
+    });
+    client.on('close', () => {
+        console.log(`Connection ${i} closed`);
     });
 }
