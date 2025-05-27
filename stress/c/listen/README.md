@@ -65,16 +65,16 @@ My laptop, 1 core:
     1310000 concurrent: internal 2.9 GB, total (Gnome system monitor) 4.2 GB
     1500000 concurrent: internal 3575529150 3.33 GB, total (Gnome system monitor) 4.8 GB, 24 minutos
 
-# Test in my laptop 27/May/2025
+# Test 27/May/2025: in ovh, 3 machines, C_TPC_S with legacy method 
 
 Server  - stress_listen yuno, with config 11000 concurrent connections, legacy method,
 Clients - 2 clients launching each one 5000 connections and disconnections in a loop and
 in different machines.
 
 Result:
-    All ok, re-reaching the 10000 connections.
-    It seems good response (TODO measure the time in the client side).
-    CPU 100%.
+    After of after, re-reaching the 10000 connections, many time lower than 10000.
+    It seems good response (?) (TODO measure the time in the client side).
+    CPU 100% permanent!
 
 Advantages:
     No problem with the overload of connections, they are reject intermediately.
@@ -143,3 +143,18 @@ Config:
                 }
             }
         }
+
+# Test 27/May/2025: in ovh, 3 machines, C_TPC_S with new method
+
+11000 maximum concurrent conections, atacking 2 clients with 5000 connections 
+HERE we don't have protections against overload, i.e. more than 11000 connections, 
+so the clients must wait timeout (2 minutes in my test) for receive a close of the socket by the kernel.
+
+JS1:
+/yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 37.187.89.46 -c 5000 -d 20
+JS2:
+/yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 37.187.89.46 -c 5000 -d 30
+
+Result:
+CPU with peaks of 60%, near all the time in 0% !!
+Near all the time with the 10000 connections actives. 
