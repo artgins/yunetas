@@ -802,8 +802,6 @@ PRIVATE void set_disconnected(hgobj gobj)
                 /*
                  *  New method
                  */
-                // TODO if(yev_get_result(priv->yev_accept)
-                printf("====> yev_get_result(priv->yev_accept) %d\n", yev_get_result(priv->yev_accept));
                 gobj_change_state(gobj, ST_DISCONNECTED);
                 yev_start_event(priv->yev_accept);
 
