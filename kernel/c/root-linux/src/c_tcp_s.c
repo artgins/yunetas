@@ -45,7 +45,7 @@ PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name--------------------flag----------------default---------description---------- */
 SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST, 0,              "url listening"),
-SDATA (DTP_INTEGER,     "backlog",              SDF_WR|SDF_PERSIST, "4096",         "Value for listen() backlog argument. It must be lower or equal to net.core.somaxconn. Change dynamically with 'sysctl -w net.core.somaxconn=?'. Change persistent with a file in /etc/sysctl.d/. Consult with 'cat /proc/sys/net/core/somaxconn'. WARNING without child_tree_filter (new method) must be 0 !"),
+SDATA (DTP_INTEGER,     "backlog",              SDF_WR|SDF_PERSIST, "4096",         "Value for listen() backlog argument. It must be lower or equal to net.core.somaxconn. Change dynamically with 'sysctl -w net.core.somaxconn=?'. Change persistent with a file in /etc/sysctl.d/. Consult with 'cat /proc/sys/net/core/somaxconn'."),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0,              "Share the port"),
 SDATA (DTP_INTEGER,     "use_dups",             SDF_WR|SDF_PERSIST, 0,              "Use yev_dup_accept_event() to set more accept yev_events, only with legacy method (with child_tree_filter). (I don't see more speed using it)"),
 SDATA (DTP_JSON,        "crypto",               SDF_WR|SDF_PERSIST, 0,              "Crypto config"),
