@@ -64,3 +64,82 @@ My laptop, 1 core:
     100000 concurrent: internal 2382831998 2.219 GB bytes, total (Gnome system monitor) 3.2 GB, 12 minutes 
     1310000 concurrent: internal 2.9 GB, total (Gnome system monitor) 4.2 GB
     1500000 concurrent: internal 3575529150 3.33 GB, total (Gnome system monitor) 4.8 GB, 24 minutos
+
+# Test in my laptop 27/May/2025
+
+Server  - stress_listen yuno, with config 11000 concurrent connections, legacy method,
+Clients - 2 clients launching each one 5000 connections and disconnections in a loop and
+in different machines.
+
+Result:
+    All ok, re-reaching the 10000 connections.
+    It seems good response (TODO measure the time in the client side).
+    CPU 100%.
+
+Advantages:
+    No problem with the overload of connections, they are reject intermediately.
+Cons:
+    Perhaps more slower than the new method (1 accept event by TCP gobj), or not.
+    Remember: legacy method is only one accept event for all TCP gobjs: own time to search one free.
+
+JS1:
+    /yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 37.187.89.46 -c 5000 -d 20
+JS2:
+    /yuneta/development/yunetas/stress/c/listen/stress-connections.js -h 37.187.89.46 -c 15000 -d 30
+
+Config:
+
+        {
+            'name': '__input_side__',
+            'gclass': 'C_IOGATE',
+            'autostart': false,
+            'autoplay': false,
+            'kw': {
+            },
+            'children': [
+                {
+                    'name': 'server_port',
+                    'gclass': 'C_TCP_S',
+                    'kw': {
+                        'url': '(^^__input_url__^^)',
+                        'backlog': 32767, #^^ new-method:32767, legacy: 32767
+                        'use_dups': 0,
+                        'child_tree_filter': {
+                            'op': 'find',
+                            'kw': {
+                                '__prefix_gobj_name__': 'input-',
+                                '__gclass_name__': 'C_CHANNEL',
+                                '__disabled__': false,
+                                'connected': false
+                            }
+                        }
+                    }
+                }
+            ],
+            '[^^children^^]': {
+                '__range__': [[1,11000]], #^^11000
+                '__vars__': {
+                },
+                '__content__': {
+                    'name': 'input-(^^__range__^^)',
+                    'gclass': 'C_CHANNEL',
+                    'children': [
+                        {
+                            'name': 'input-(^^__range__^^)',
+                            'gclass': 'C_PROT_TCP4H',
+                            'kw': {
+                            },
+                            'children': [
+                                #^^
+                                {
+                                    'name': 'input-(^^__range__^^)',
+                                    'gclass': 'C_TCP',
+                                    'kw': {
+                                    }
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        }
