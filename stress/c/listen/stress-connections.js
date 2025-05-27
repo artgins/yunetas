@@ -33,64 +33,69 @@ Options:
   -h, --host         Target host (default: 127.0.0.1)
   -p, --port         Target port (default: 7779)
   -c, --connections  Number of concurrent connections (default: 10)
-  -j, --job        Load the connection tube with a job, a loop of console.log("Nothing" 'job' times) (default: 0)
+  -j, --jobs         Load the connection tube with a job, a loop of console.log("Nothing") 'job' times (default: 0)
   -d, --disconnect   Seconds before closing each connection (default: 60, 0=no-disconnect)
       --help         Show this help message
 
 Each connection logs its local and remote address when connected,
-and closes automatically after the timeout.
+and closes automatically after the timeout. If -d > 0, connections are reopened.
 `);
     process.exit(0);
 }
 
-// Launch N connections
-let jobs = args.jobs;
-
 const start = process.hrtime.bigint();
-
-let max_connections = args.connections;
 let cur_connections = 0;
+const max_connections = args.connections;
+const jobs = args.jobs;
+const disconnect = args.disconnect;
 
-for(let i = 0; i < args.connections; i++) {
-    ((i) => {
-        const client = new net.Socket();
+function connect(i) {
+    const client = new net.Socket();
 
-        client.connect(args.port, args.host, () => {
-            const start2 = process.hrtime.bigint();
-            cur_connections++;
-            const peer = `${client.remoteAddress}:${client.remotePort}`;
-            const local = `${client.localAddress}:${client.localPort}`;
-            if(jobs) {
-                for(let j = 0; j<jobs; j++) {
-                    if(j < -1) {
-                        console.log("Nothing\r");
-                    }
-                }
+    const start2 = process.hrtime.bigint();
+
+    client.connect(args.port, args.host, () => {
+        cur_connections++;
+        const peer = `${client.remoteAddress}:${client.remotePort}`;
+        const local = `${client.localAddress}:${client.localPort}`;
+
+        if(jobs > 0) {
+            for(let j = 0; j < jobs; j++) {
+                console.log("Nothing\r");
             }
+        }
 
-            if(cur_connections >= max_connections) {
-                let end =  process.hrtime.bigint();
-                let total = Number(end - start)/1000000000;
-                console.log(`Connected ${i}: peer=${peer}, local=${local}, Jobs ${jobs}, Total Duration: ${total} sec, ops ${max_connections/total}`);
-            } else {
-                let end2 =  process.hrtime.bigint();
-                let total = Number(end2 - start2)/1000000000;
-                console.log(`Connected ${i}: peer=${peer}, local=${local}, Jobs ${jobs}, Duration: ${total} sec, ops ${1/total}`);
-            }
-            if(args.disconnect) {
-                setTimeout(() => {
-                    console.log(`Close Connection ${i}`);
-                    client.end();
-                }, args.disconnect * 1000);
-            }
-        });
+        if(cur_connections >= max_connections) {
+            const end = process.hrtime.bigint();
+            const total = Number(end - start) / 1e9;
+            console.log(`Connected ${i}: peer=${peer}, local=${local}, Jobs ${jobs}, Total Duration: ${total} sec, ops ${(max_connections / total).toFixed(2)}`);
+        } else {
+            const end2 = process.hrtime.bigint();
+            const total = Number(end2 - start2) / 1e9;
+            console.log(`Connected ${i}: peer=${peer}, local=${local}, Jobs ${jobs}, Duration: ${total} sec, ops ${(1 / total).toFixed(2)}`);
+        }
 
-        client.on('error', (err) => {
-            console.error(`Connection ${i} error: ${err.message}`);
-        });
+        if(disconnect > 0) {
+            setTimeout(() => {
+                console.log(`Close Connection ${i}`);
+                client.end();
+            }, disconnect * 1000);
+        }
+    });
 
-        client.on('close', () => {
-            console.log(`Connection ${i} closed`);
-        });
-    })(i);
+    client.on('error', (err) => {
+        console.error(`Connection ${i} error: ${err.message}`);
+    });
+
+    client.on('close', () => {
+        console.log(`Connection ${i} closed`);
+        if(disconnect > 0) {
+            setTimeout(() => connect(i), 0);  // immediate restart
+        }
+    });
+}
+
+// Launch all initial connections
+for(let i = 0; i < max_connections; i++) {
+    connect(i);
 }
