@@ -1240,10 +1240,10 @@ PUBLIC json_t * gobj_service_register(void); /* Get registered services: Return 
 /*
  *  Factory to create service gobj
  *  Used in entry_point, to run services
- *  Internally it uses gobj_create_tree0()
+ *  Internally it uses gobj_create_tree0() SEE OPTIONS
  *  The first gobj is marked as service
  */
-PUBLIC hgobj gobj_service_factory( // See the options in gobj_create_tree0()
+PUBLIC hgobj gobj_service_factory(
     const char *name,
     json_t * jn_service_config // owned
 );
@@ -1347,7 +1347,7 @@ PUBLIC hgobj gobj_create_pure_child(
         - Inherently SERVICE objects will ask if they are pure_child to use gobj_send_event()
             instead of gobj_publish_event()
 */
-PUBLIC hgobj gobj_create_tree0(
+PUBLIC hgobj gobj_create_tree0( // Use better gobj_service_factory() or gobj_create_tree()
     hgobj parent,
     json_t *jn_tree
 );
