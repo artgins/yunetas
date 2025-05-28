@@ -159,7 +159,7 @@ PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
 char *replace_string(const char *str, const char *old, const char *snew);
 
 /*------------------------------------*
- *  ### Json
+ *  json_config
  *------------------------------------*/
 /**
 
@@ -269,6 +269,10 @@ PUBLIC char *json_config( /* **free** the returned string with jsonp_free() */
     const char *parameter_config,
     pe_flag_t quit
 );
+
+/*------------------------------------*
+ *  ### Json
+ *------------------------------------*/
 
 /*
  *  If exclusive then let file opened and return the fd, else close the file
