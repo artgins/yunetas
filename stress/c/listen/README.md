@@ -158,3 +158,24 @@ JS2:
 Result:
 CPU with peaks of 60%, near all the time in 0% !!
 Near all the time with the 10000 connections actives. 
+
+Config:
+
+                {
+                    'name': 'server_port',
+                    'gclass': 'C_TCP_S',
+                    'kw': {
+                        'url': '(^^__input_url__^^)',
+                        'backlog': 32767, #^^ new-method:32767, legacy: 32767
+                        'use_dups': 0
+                    #^^    'child_tree_filter': {
+                    #^^        'op': 'find',
+                    #^^        'kw': {
+                    #^^            '__prefix_gobj_name__': 'input-',
+                    #^^            '__gclass_name__': 'C_CHANNEL',
+                    #^^            '__disabled__': false,
+                    #^^            'connected': false
+                    #^^        }
+                    #^^    }
+                    }
+                }
