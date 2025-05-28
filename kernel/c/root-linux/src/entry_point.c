@@ -768,6 +768,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *          Run
      *------------------------------------------------*/
+printf("--> Run\n"); // TODO TEST
     if(__as_daemon__) {
         daemon_run(
             process,

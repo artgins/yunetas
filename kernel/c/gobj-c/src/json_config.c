@@ -1060,24 +1060,27 @@ PUBLIC char *json_config(
     /*-----------------------------------------*
      *      Apply skeleton rules: {^^ ^^}
      *-----------------------------------------*/
+printf("-> expand_dict\n");  // TODO TEST
     expand_dict(jn_config, quit);
-//     PRINT_JSON("after expand dict ", jn_config);
+    // PRINT_JSON("after expand dict ", jn_config);
 
     /*-----------------------------------------*
      *      Apply skeleton rules: [^^ ^^]
      *-----------------------------------------*/
+printf("-> expand_list\n");  // TODO TEST
     expand_list(jn_config, quit);
-//     PRINT_JSON("after expand list ", jn_config);
+    // PRINT_JSON("after expand list ", jn_config);
 
     /*-----------------------------------------*
      *      Apply skeleton rules: (^^ ^^)
      *  with __json_config_variables__ dict
      *-----------------------------------------*/
+printf("-> expand vars\n"); // TODO TEST
     json_t *__json_config_variables__ = json_object_get(
         jn_config,
         "__json_config_variables__"
     );
-//     PRINT_JSON("variables", __json_config_variables__);
+    // PRINT_JSON("variables", __json_config_variables__);
     char *final_sconfig;
     if(__json_config_variables__) {
         json_incref(__json_config_variables__);
@@ -1105,6 +1108,7 @@ PUBLIC char *json_config(
     }
     json_decref(jn_config);
 
+printf("-> final config\n");  // TODO TEST
 //     printf("%s\n\n", final_sconfig);
 
     if(print_final_config || print_verbose_config) {
