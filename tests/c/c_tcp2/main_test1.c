@@ -9,7 +9,7 @@
  *          - In 1 second, connecting to pepon
  *          - In 1 seconds after connected ,dropping the connection.
  *          - After 3 disconnections, shutdown
- *          Copyright (c) 2024 by ArtGins.
+ *          Copyright (c) 2025 by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
@@ -204,23 +204,20 @@ static int register_yuno_and_more(void)
     /*------------------------------*
      *  Start test
      *------------------------------*/
-    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
+    json_t *errors_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s},{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",
         "msg", "Starting yuno",
         "msg", "addrinfo on listen",
         "msg", "Listening...",
         "msg", "Playing yuno",
         "msg", "Connected To",
-        "msg", "Clisrv accepted",
         "msg", "Connected From",
         "msg", "Disconnected To",
         "msg", "Disconnected From",
         "msg", "Connected To",
-        "msg", "Clisrv accepted",
         "msg", "Connected From",
         "msg", "Disconnected To",
         "msg", "Disconnected From",
         "msg", "Connected To",
-        "msg", "Clisrv accepted",
         "msg", "Connected From",
         "msg", "Disconnected To",
         "msg", "Disconnected From",
