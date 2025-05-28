@@ -1053,8 +1053,8 @@ typedef enum { // HACK strict ascendant value!, strings in gobj_flag_names
     gobj_flag_service           = 0x0004,   // Interface (events, attrs, commands, stats) available to external access
     gobj_flag_volatil           = 0x0008,
     gobj_flag_pure_child        = 0x0010,   // Pure child sends events directly to parent, others publish them
-    gobj_flag_autostart         = 0x0020,   // Set by gobj_create_tree0 too
-    gobj_flag_autoplay          = 0x0040,   // Set by gobj_create_tree0 too
+    gobj_flag_autostart         = 0x0020,   // Set by gobj_create_tree/gobj_service_factory too
+    gobj_flag_autoplay          = 0x0040,   // Set by gobj_create_tree/gobj_service_factory too
 } gobj_flag_t;
 
 
@@ -1243,7 +1243,7 @@ PUBLIC json_t * gobj_service_register(void); /* Get registered services: Return 
  *  Internally it uses gobj_create_tree0()
  *  The first gobj is marked as service
  */
-PUBLIC hgobj gobj_service_factory(
+PUBLIC hgobj gobj_service_factory( // See the options in gobj_create_tree0()
     const char *name,
     json_t * jn_service_config // owned
 );
@@ -1311,7 +1311,7 @@ PUBLIC hgobj gobj_create_pure_child(
         'as_service': false, || 'service': false,
         'autostart': true,
         'autoplay': true,
-        'disable': false,
+        'disabled': false,
         'pure_child': false
 
         // Attributes of the gobj
@@ -1347,13 +1347,16 @@ PUBLIC hgobj gobj_create_pure_child(
         - Inherently SERVICE objects will ask if they are pure_child to use gobj_send_event()
             instead of gobj_publish_event()
 */
-
 PUBLIC hgobj gobj_create_tree0(
     hgobj parent,
     json_t *jn_tree
 );
 
-PUBLIC hgobj gobj_create_tree( // Parse tree_config and call gobj_create_tree0()
+/*
+ *  Parse tree_config and call gobj_create_tree0()
+ *  Used by ycommand,ybatch,ystats,ytests,cli,...
+ */
+PUBLIC hgobj gobj_create_tree(
     hgobj parent,
     const char *tree_config,    // It can be json_config.
     const char *json_config_variables

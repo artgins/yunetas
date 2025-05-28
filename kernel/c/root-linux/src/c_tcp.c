@@ -15,11 +15,11 @@
 #include <ytls.h>
 #include <sys/poll.h>
 #include <yev_loop.h>
+#include <testing.h>
 #include "c_timer.h"
 #include "c_yuno.h"
 #include "c_tcp.h"
 
-#include <testing.h> // TODO TEST
 
 /*
     This gclass works with two type of TCP clients:

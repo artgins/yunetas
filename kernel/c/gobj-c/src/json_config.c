@@ -656,25 +656,28 @@ PRIVATE int expand_dict_matched_group_key(
  ***************************************************************************/
 PRIVATE int expand_dict(json_t *jn_dict, pe_flag_t quit)
 {
+    static pcre2_code_8 *re_expand_dict = NULL;
     int errornumber;
     PCRE2_SIZE erroroffset;
     const char *re_key = "\\{\\^\\^(.+?)\\^\\^\\}";
-    pcre2_code_8 *re = pcre2_compile_8(
-        (PCRE2_SPTR8)re_key,     /* the pattern */
-        PCRE2_ZERO_TERMINATED,  /* indicates pattern is zero-terminated */
-        0,                      /* default options */
-        &errornumber,           /* for error number */
-        &erroroffset,           /* for error offset */
-        NULL                    /* use default compile context */
-    );
-    if(!re) {
+    if(!re_expand_dict) {
+        re_expand_dict = pcre2_compile_8( // make static to gain speed, don't free
+            (PCRE2_SPTR8)re_key,     /* the pattern */
+            PCRE2_ZERO_TERMINATED,  /* indicates pattern is zero-terminated */
+            0,                      /* default options */
+            &errornumber,           /* for error number */
+            &erroroffset,           /* for error offset */
+            NULL                    /* use default compile context */
+        );
+    }
+    if(!re_expand_dict) {
         PCRE2_UCHAR8 buffer[256];
         pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer));
         print_error(
             quit,
             "PCRE2 compilation failed at offset %d: %s\n",
             (int)erroroffset,
-            buffer
+            (char *)buffer
         );
         return -1;
     }
@@ -682,12 +685,13 @@ PRIVATE int expand_dict(json_t *jn_dict, pe_flag_t quit)
      *  Using this function ensures that the block is exactly the right size for
      *  the number of capturing parentheses in the pattern.
      */
-    pcre2_match_data_8 *match_data = pcre2_match_data_create_from_pattern_8(re, NULL);
+    pcre2_match_data_8 *match_data = pcre2_match_data_create_from_pattern_8(re_expand_dict, NULL);
 
-    expand_dict_matched_group_key(jn_dict, re, match_data, quit);
+    expand_dict_matched_group_key(jn_dict, re_expand_dict, match_data, quit);
 
     pcre2_match_data_free_8(match_data);
-    pcre2_code_free_8(re);
+    pcre2_code_free_8(re_expand_dict); // make static to gain speed, don't free
+    re_expand_dict = NULL;
 
     return 0;
 }
@@ -802,25 +806,28 @@ PRIVATE int expand_list_matched_group_key(
  ***************************************************************************/
 PRIVATE int expand_list(json_t *jn_dict, pe_flag_t quit)
 {
+    static pcre2_code_8 *re_expand_list = NULL;
     int errornumber;
     PCRE2_SIZE erroroffset;
     const char *re_key = "\\[\\^\\^(.+?)\\^\\^\\]";
-    pcre2_code_8 *re = pcre2_compile_8(
-        (PCRE2_SPTR8)re_key,     /* the pattern */
-        PCRE2_ZERO_TERMINATED,  /* indicates pattern is zero-terminated */
-        0,                      /* default options */
-        &errornumber,           /* for error number */
-        &erroroffset,           /* for error offset */
-        NULL                    /* use default compile context */
-    );
-    if(!re) {
+    if(!re_expand_list) {
+        re_expand_list = pcre2_compile_8( // make static to gain speed, don't free
+            (PCRE2_SPTR8)re_key,     /* the pattern */
+            PCRE2_ZERO_TERMINATED,  /* indicates pattern is zero-terminated */
+            0,                      /* default options */
+            &errornumber,           /* for error number */
+            &erroroffset,           /* for error offset */
+            NULL                    /* use default compile context */
+        );
+    }
+    if(!re_expand_list) {
         PCRE2_UCHAR8 buffer[256];
         pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer));
         print_error(
             quit,
             "PCRE2 compilation failed at offset %d: %s\n",
             (int)erroroffset,
-            buffer
+            (char *)buffer
         );
         return -1;
     }
@@ -828,12 +835,13 @@ PRIVATE int expand_list(json_t *jn_dict, pe_flag_t quit)
      *  Using this function ensures that the block is exactly the right size for
      *  the number of capturing parentheses in the pattern.
      */
-    pcre2_match_data_8 *match_data = pcre2_match_data_create_from_pattern_8(re, NULL);
+    pcre2_match_data_8 *match_data = pcre2_match_data_create_from_pattern_8(re_expand_list, NULL);
 
-    expand_list_matched_group_key(jn_dict, re, match_data, quit);
+    expand_list_matched_group_key(jn_dict, re_expand_list, match_data, quit);
 
     pcre2_match_data_free_8(match_data);
-    pcre2_code_free_8(re);
+    pcre2_code_free_8(re_expand_list); // make static to gain speed, don't free
+    re_expand_list = NULL;
 
     return 0;
 }
@@ -844,6 +852,7 @@ PRIVATE int expand_list(json_t *jn_dict, pe_flag_t quit)
  ***************************************************************************/
 PRIVATE char * replace_vars(json_t *jn_dict, json_t *jn_vars, pe_flag_t quit)
 {
+    static pcre2_code_8 *re_replace_vars = NULL;
     size_t flags = JSON_INDENT(4);//|JSON_SORT_KEYS;
     char *rendered_str = json_dumps(jn_dict, flags);
     char *prendered_str = rendered_str;
@@ -852,22 +861,24 @@ PRIVATE char * replace_vars(json_t *jn_dict, json_t *jn_vars, pe_flag_t quit)
     int errornumber;
     PCRE2_SIZE erroroffset;
     const char *re_key = "(\\(\\^\\^.+?\\^\\^\\))";
-    pcre2_code_8 *re = pcre2_compile_8(
-        (PCRE2_SPTR8)re_key,     /* the pattern */
-        PCRE2_ZERO_TERMINATED,  /* indicates pattern is zero-terminated */
-        0,                      /* default options */
-        &errornumber,           /* for error number */
-        &erroroffset,           /* for error offset */
-        NULL                    /* use default compile context */
-    );
-    if(!re) {
+    if(!re_replace_vars) {
+        re_replace_vars = pcre2_compile_8( // make static to gain speed, don't free
+            (PCRE2_SPTR8)re_key,     /* the pattern */
+            PCRE2_ZERO_TERMINATED,  /* indicates pattern is zero-terminated */
+            0,                      /* default options */
+            &errornumber,           /* for error number */
+            &erroroffset,           /* for error offset */
+            NULL                    /* use default compile context */
+        );
+    }
+    if(!re_replace_vars) {
         PCRE2_UCHAR8 buffer[256];
         pcre2_get_error_message_8(errornumber, buffer, sizeof(buffer));
         print_error(
             quit,
             "PCRE2 compilation failed at offset %d: %s\n",
             (int)erroroffset,
-            buffer
+            (char *)buffer
         );
         return 0;
     }
@@ -875,12 +886,12 @@ PRIVATE char * replace_vars(json_t *jn_dict, json_t *jn_vars, pe_flag_t quit)
      *  Using this function ensures that the block is exactly the right size for
      *  the number of capturing parentheses in the pattern.
      */
-    pcre2_match_data_8 *match_data = pcre2_match_data_create_from_pattern_8(re, NULL);
+    pcre2_match_data_8 *match_data = pcre2_match_data_create_from_pattern_8(re_replace_vars, NULL);
 
     BOOL fin = false;
     while(!fin) {
         int rc = pcre2_match_8(
-            re,                 /* the compiled pattern */
+            re_replace_vars,            /* the compiled pattern */
             (PCRE2_SPTR8)prendered_str, /* the subject string */
             strlen(prendered_str),      /* the length of the subject */
             0,                  /* start at offset 0 in the subject */
@@ -942,7 +953,8 @@ PRIVATE char * replace_vars(json_t *jn_dict, json_t *jn_vars, pe_flag_t quit)
     }
 
     pcre2_match_data_free_8(match_data);
-    pcre2_code_free_8(re);
+    pcre2_code_free_8(re_replace_vars); // make static to gain speed, don't free
+    re_replace_vars = NULL;
 
 //     printf("rendered_str ====>\n%s\n", rendered_str);
     return rendered_str;
@@ -1062,7 +1074,7 @@ PUBLIC char *json_config(
      *-----------------------------------------*/
 printf("-> expand_dict\n");  // TODO TEST
     expand_dict(jn_config, quit);
-    // PRINT_JSON("after expand dict ", jn_config);
+    PRINT_JSON("after expand dict ", jn_config);
 
     /*-----------------------------------------*
      *      Apply skeleton rules: [^^ ^^]
