@@ -23,6 +23,8 @@ title: Yuneta Simplified
 
 An Asynchronous Development Framework 
 
+(this is version 7, version 6 [here](https://yuneta.com))
+
 ::::
 
 `Yuneta Simplified` is a **development framework** focused on **messaging** and **services**, based on 
