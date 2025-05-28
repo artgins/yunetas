@@ -71,8 +71,6 @@ PRIVATE int __auto_kill_time__ = 0;
 PRIVATE int __as_daemon__ = 0;
 PRIVATE int __assure_kill_time__ = 30;  // Let 30 seconds to stop a yuno
 
-PRIVATE int __print__ = 0;
-
 PRIVATE int (*__startup_persistent_attrs_fn__)(void) = 0;
 PRIVATE void (*__end_persistent_attrs_fn__)(void) = 0;
 PRIVATE int (*__load_persistent_attrs_fn__)(hgobj gobj, json_t *jn_attrs) = db_load_persistent_attrs;
@@ -370,6 +368,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     int (*register_yuno_and_more)(void), // HACK This function is executed on yunetas environment (mem, log, paths) BEFORE creating the yuno
     void (*cleaning_fn)(void) // HACK This function is executed after free all yuneta resources
 ) {
+    int __print__ = 0;
+
     snprintf(__argp_program_version__, sizeof(__argp_program_version__),
         "%s %s %s",
         APP_NAME,
