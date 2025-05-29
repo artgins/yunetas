@@ -427,27 +427,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     }
 
     /*------------------------------------------------*
-     *          Load json config
-     *------------------------------------------------*/
-    // WARNING too slow for big configurations!!
-    char *sconfig = json_config( // HACK I know that sconfig is malloc'ed
-        arguments.print_verbose_config,     // WARNING if true will exit(0)
-        arguments.print_final_config,       // WARNING if true will exit(0)
-        fixed_config,
-        variable_config,
-        arguments.use_config_file? arguments.config_json_file: 0,
-        arguments.parameter_config,
-        PEF_EXIT
-    );
-    if(!sconfig) {
-        print_error(
-            PEF_EXIT,
-            "json_config() of '%s' failed",
-            APP_NAME
-        );
-    }
-
-    /*------------------------------------------------*
      *          Setup memory
      *------------------------------------------------*/
     sys_malloc_fn_t malloc_func;
@@ -481,10 +460,18 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     glog_init();
     rotatory_start_up();
 
-    /*-------------------------------*
-     *      Re-alloc with gbmem
-     *-------------------------------*/
-    __jn_config__ = legalstring2json(sconfig, true); //
+    /*------------------------------------------------*
+     *          Load json config
+     *------------------------------------------------*/
+    __jn_config__ = json_config(
+        arguments.print_verbose_config,     // WARNING if true will exit(0)
+        arguments.print_final_config,       // WARNING if true will exit(0)
+        fixed_config,
+        variable_config,
+        arguments.use_config_file? arguments.config_json_file: 0,
+        arguments.parameter_config,
+        PEF_EXIT
+    );
     if(!__jn_config__) {
         print_error(
             PEF_EXIT,
@@ -492,7 +479,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             APP_NAME
         );
     }
-    free(sconfig);  // HACK I know that sconfig is malloc'ed
 
     /*------------------------------------------------*
      *          Load environment config
