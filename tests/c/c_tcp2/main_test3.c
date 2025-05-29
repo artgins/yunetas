@@ -106,14 +106,19 @@ PRIVATE char variable_config[]= "\
                 '__vars__': {                                       \n\
                 },                                                  \n\
                 '__content__': {                                    \n\
-                    'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
+                    'name': 'input-(^^__range__^^)', \n\
                     'gclass': 'C_CHANNEL',                          \n\
                     'children': [                                    \n\
                         {                                           \n\
-                            'name': '(^^__input_port__^^)-(^^__range__^^)', \n\
+                            'name': 'input-(^^__range__^^)', \n\
                             'gclass': 'C_PROT_TCP4H',               \n\
-                            'kw': {                                 \n\
-                            }                                       \n\
+                            'children': [                           \n\
+                                #^^                                 \n\
+                                {                                       \n\
+                                    'name': 'input-(^^__range__^^)',    \n\
+                                    'gclass': 'C_TCP'                   \n\
+                                }                                   \n\
+                            ]                                       \n\
                         }                                           \n\
                     ]                                               \n\
                 }                                                   \n\

@@ -128,15 +128,11 @@ PRIVATE char variable_config[]= "\
                         {                                           \n\
                             'name': 'input-(^^__range__^^)', \n\
                             'gclass': 'C_PROT_TCP4H',               \n\
-                            'kw': {                                 \n\
-                            },                                      \n\
                             'children': [                           \n\
                                 #^^                                 \n\
                                 {                                       \n\
                                     'name': 'input-(^^__range__^^)',    \n\
-                                    'gclass': 'C_TCP',                  \n\
-                                    'kw': {                             \n\
-                                    }                                   \n\
+                                    'gclass': 'C_TCP'                   \n\
                                 }                                   \n\
                             ]                                       \n\
                         }                                           \n\
