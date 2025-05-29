@@ -155,13 +155,10 @@ PUBLIC int idx_in_list(const char **list, const char *str, BOOL ignore_case);
 **rst**/
 PUBLIC BOOL str_in_list(const char **list, const char *str, BOOL ignore_case);
 
-// WARNING use **free()** to deallocated the returned string.
-char *replace_string(const char *str, const char *old, const char *snew);
-
 /*------------------------------------*
  *  json_config
  *------------------------------------*/
-/**
+/**rst**
 
     PUBLIC char *json_config(
         BOOL print_verbose_config,
@@ -202,6 +199,29 @@ PUBLIC json_t *json_config(
     const char *config_json_file,
     const char *parameter_config,
     pe_flag_t quit                  // What to do in case of error
+);
+
+/*------------------------------------*
+ *  json_replace_vars
+ *------------------------------------*/
+
+/**rst**
+    Main API: Replace (^^var^^) or
+    custom-delimited variables in jn_dict using jn_vars
+**rst**/
+PUBLIC json_t *json_replace_var_custom(
+    json_t *jn_dict, // owned
+    json_t *jn_vars, // owned
+    const char *open,
+    const char *close
+);
+
+/**rst**
+    Default version: uses (^^var^^)
+**rst**/
+PUBLIC json_t *json_replace_var(
+    json_t *jn_dict, // owned
+    json_t *jn_vars  // owned
 );
 
 /*------------------------------------*
