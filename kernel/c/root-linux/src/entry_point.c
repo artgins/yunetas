@@ -918,7 +918,7 @@ PRIVATE void process(
                 gobj_log_error(yuno, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "gobj_service_factory() FAILED",
+                    "msg",          "%s", "Cannot create factory service",
                     "service",      "%s", service_name,
                     NULL
                 );
