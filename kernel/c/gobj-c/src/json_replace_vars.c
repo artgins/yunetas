@@ -192,11 +192,15 @@ PUBLIC json_t *json_replace_var_custom(
 )
 {
     if(!json_is_object(jn_dict) || !json_is_object(jn_vars)) {
+        JSON_DECREF(jn_dict)
+        JSON_DECREF(jn_vars)
         return NULL;
     }
 
     subst_config_t *cfg = create_subst_config(open, close);
     if(!cfg) {
+        JSON_DECREF(jn_dict)
+        JSON_DECREF(jn_vars)
         return NULL;
     }
 
