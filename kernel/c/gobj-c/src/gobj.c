@@ -2592,6 +2592,11 @@ PRIVATE int json2sdata(
     The gobj is searched by his named-gobj or his gclass name.
     The parameter name in settings, must be a dot-named,
     with the first item being the named-gobj o gclass name.
+
+    TODO Only services can have config with attributes variables (template)
+        with global attributes belong to the service pass to the template.
+        (feed the template)
+        The non-service gobjs must be light, they can be thousands or more.
  *
  ***************************************************************************/
 PRIVATE int write_json_parameters(
