@@ -3613,7 +3613,7 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
                     "%s: gobj '%s' not found.", gobj_short_name(gobj), gobj_name_
                 ),
                 0,
-                gobj_global_variables()
+                0
             );
             JSON_DECREF(kw)
             return kw_response;
@@ -3723,7 +3723,7 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
                     "%s: event '%s' not found.", gobj_short_name(gobj), event_name
                 ),
                 0,
-                gobj_global_variables()
+                0
             );
             JSON_DECREF(kw)
             return kw_response;

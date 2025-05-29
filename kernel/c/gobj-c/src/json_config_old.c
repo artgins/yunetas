@@ -1060,14 +1060,12 @@ PUBLIC char *json_config(
     /*-----------------------------------------*
      *      Apply skeleton rules: {^^ ^^}
      *-----------------------------------------*/
-printf("-> expand_dict\n");
     expand_dict(jn_config, quit);
     // PRINT_JSON("after expand dict ", jn_config);
 
     /*-----------------------------------------*
      *      Apply skeleton rules: [^^ ^^]
      *-----------------------------------------*/
-printf("-> expand_list\n");
     expand_list(jn_config, quit);
     // PRINT_JSON("after expand list ", jn_config);
 

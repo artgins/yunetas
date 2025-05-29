@@ -1448,29 +1448,29 @@ PUBLIC json_t *kw_apply_json_config_variables(
     json_t *jn_global    // not owned
 )
 {
-    char *kw_ = json2str(kw);
-    char *jn_global_ = json2str(jn_global);
-    char *config = json_config(
-        0,
-        0,
-        0,              // fixed_config
-        kw_,            // variable_config
-        0,              // config_json_file
-        jn_global_,     // parameter_config
-        PEF_CONTINUE
-    );
-    jsonp_free(kw_);
-    jsonp_free(jn_global_);
-    if(!config) {
-        return 0;
-    }
-    json_t *kw_new = legalstring2json(config, true);
-    jsonp_free(config);
-
-    if(!kw_new) {
-        return 0;
-    }
-    return kw_new;
+    // char *kw_ = json2str(kw); TODO
+    // char *jn_global_ = json2str(jn_global);
+    // char *config = json_config(
+    //     0,
+    //     0,
+    //     0,              // fixed_config
+    //     kw_,            // variable_config
+    //     0,              // config_json_file
+    //     jn_global_,     // parameter_config
+    //     PEF_CONTINUE
+    // );
+    // jsonp_free(kw_);
+    // jsonp_free(jn_global_);
+    // if(!config) {
+    //     return 0;
+    // }
+    // json_t *kw_new = legalstring2json(config, true);
+    // jsonp_free(config);
+    //
+    // if(!kw_new) {
+    //     return 0;
+    // }
+    // return kw_new;
 }
 
 /***************************************************************************
@@ -1505,6 +1505,9 @@ PUBLIC json_t *gobj_service_register(void)
  *  Factory to create service gobj
  *  Used in entry_point, to run services
  *  Internally it uses gobj_create_tree0()
+A set of global variables returned by gobj_global_variables()
+    are added to ``__json_config_variables__``.
+
  ***************************************************************************/
 PUBLIC hgobj gobj_service_factory(
     const char *name,
@@ -2121,6 +2124,8 @@ PUBLIC hgobj gobj_create_tree0(
 
 /***************************************************************************
  *  Create gobj tree
+ *  Parse tree_config and call gobj_create_tree0()
+ *  Used by ycommand,ybatch,ystats,ytests,cli,...
  ***************************************************************************/
 PUBLIC hgobj gobj_create_tree(
     hgobj parent_,
@@ -2145,26 +2150,26 @@ PUBLIC hgobj gobj_create_tree(
     char *__json_config_variables__ = GBMEM_STRDUP(json_config_variables);
     helper_quote2doublequote(__json_config_variables__);
 
-    char *tree_config = json_config(
-        0,
-        0,
-        0,                          // fixed_config
-        config,                     // variable_config
-        0,                          // config_json_file
-        __json_config_variables__,  // parameter_config
-        PEF_CONTINUE
-    );
-    GBMEM_FREE(config)
-    GBMEM_FREE(__json_config_variables__)
-
-    json_t *jn_tree = legalstring2json(tree_config, true);
-    jsonp_free(tree_config) ;
-
-    if(!jn_tree) {
-        // error already logged
-        return 0;
-    }
-    return gobj_create_tree0(parent, jn_tree);
+    // char *tree_config = json_config( TODO
+    //     0,
+    //     0,
+    //     0,                          // fixed_config
+    //     config,                     // variable_config
+    //     0,                          // config_json_file
+    //     __json_config_variables__,  // parameter_config
+    //     PEF_CONTINUE
+    // );
+    // GBMEM_FREE(config)
+    // GBMEM_FREE(__json_config_variables__)
+    //
+    // json_t *jn_tree = legalstring2json(tree_config, true);
+    // jsonp_free(tree_config) ;
+    //
+    // if(!jn_tree) {
+    //     // error already logged
+    //     return 0;
+    // }
+    // return gobj_create_tree0(parent, jn_tree);
 }
 
 /***************************************************************************
