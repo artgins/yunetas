@@ -1358,8 +1358,8 @@ PUBLIC hgobj gobj_create_tree0( // Use better gobj_service_factory() or gobj_cre
  */
 PUBLIC hgobj gobj_create_tree(
     hgobj parent,
-    const char *tree_config,    // It can be json_config.
-    const char *json_config_variables
+    const char *tree_config,        // Can have comments #^^.
+    json_t *json_config_variables   // owned
 );
 
 

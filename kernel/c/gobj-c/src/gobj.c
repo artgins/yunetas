@@ -1448,29 +1448,10 @@ PUBLIC json_t *kw_apply_json_config_variables(
     json_t *jn_global    // not owned
 )
 {
-    // char *kw_ = json2str(kw); TODO
-    // char *jn_global_ = json2str(jn_global);
-    // char *config = json_config(
-    //     0,
-    //     0,
-    //     0,              // fixed_config
-    //     kw_,            // variable_config
-    //     0,              // config_json_file
-    //     jn_global_,     // parameter_config
-    //     PEF_CONTINUE
-    // );
-    // jsonp_free(kw_);
-    // jsonp_free(jn_global_);
-    // if(!config) {
-    //     return 0;
-    // }
-    // json_t *kw_new = legalstring2json(config, true);
-    // jsonp_free(config);
-    //
-    // if(!kw_new) {
-    //     return 0;
-    // }
-    // return kw_new;
+    return json_replace_var(
+        json_incref(kw),        // owned
+        json_incref(jn_global)  // owned
+    );
 }
 
 /***************************************************************************
@@ -2129,8 +2110,8 @@ PUBLIC hgobj gobj_create_tree0(
  ***************************************************************************/
 PUBLIC hgobj gobj_create_tree(
     hgobj parent_,
-    const char *tree_config_,
-    const char *json_config_variables
+    const char *tree_config,        // Can have comments #^^.
+    json_t *json_config_variables   // owned
 )
 {
     gobj_t *parent = parent_;
@@ -2144,32 +2125,26 @@ PUBLIC hgobj gobj_create_tree(
         return (hgobj) 0;
     }
 
-    char *config = GBMEM_STRDUP(tree_config_);
+    char *config = GBMEM_STRDUP(tree_config);
     helper_quote2doublequote(config);
 
-    char *__json_config_variables__ = GBMEM_STRDUP(json_config_variables);
-    helper_quote2doublequote(__json_config_variables__);
+    json_t *jn_tree_config = json_config(
+        0,
+        0,
+        0,          // fixed_config
+        config,     // variable_config
+        0,          // config_json_file
+        0,          // parameter_config
+        PEF_CONTINUE
+    );
+    GBMEM_FREE(config)
 
-    // char *tree_config = json_config( TODO
-    //     0,
-    //     0,
-    //     0,                          // fixed_config
-    //     config,                     // variable_config
-    //     0,                          // config_json_file
-    //     __json_config_variables__,  // parameter_config
-    //     PEF_CONTINUE
-    // );
-    // GBMEM_FREE(config)
-    // GBMEM_FREE(__json_config_variables__)
-    //
-    // json_t *jn_tree = legalstring2json(tree_config, true);
-    // jsonp_free(tree_config) ;
-    //
-    // if(!jn_tree) {
-    //     // error already logged
-    //     return 0;
-    // }
-    // return gobj_create_tree0(parent, jn_tree);
+    json_t *jn_tree_config2 = json_replace_var(
+        jn_tree_config,         // owned
+        json_config_variables   // owned
+    );
+
+    return gobj_create_tree0(parent, jn_tree_config2);
 }
 
 /***************************************************************************
