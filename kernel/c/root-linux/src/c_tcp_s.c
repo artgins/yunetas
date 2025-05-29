@@ -395,7 +395,7 @@ PRIVATE int mt_start(hgobj gobj)
                 gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
                 gobj_write_integer_attr(clisrv, "fd_clisrv", -1);
                 gobj_write_integer_attr(clisrv, "fd_listen", fd_listen);
-                gobj_start(clisrv); // this create a yev_dup2_accept_event
+                gobj_start(clisrv); // this will create a yev_dup2_accept_event
             }
 
             /*
@@ -455,37 +455,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
-
-/***************************************************************************
- *  Returns the first matched child.
- *  TODO improve to manage multiple connections quickly
- *      for example a two list? of connected and disconnected channels?
- ***************************************************************************/
-PUBLIC hgobj my_gobj_find_child(
-    hgobj gobj,
-    json_t *jn_filter  // owned
-)
-{
-    size_t n_children = gobj_child_size(gobj);
-    static hgobj child = NULL;
-
-    if(!child) {
-        child = gobj_first_child(gobj);
-    }
-    for(int i=0; i<n_children; i++) {
-        if(gobj_match_gobj(child, json_incref(jn_filter))) {
-            JSON_DECREF(jn_filter)
-            return child;
-        }
-        child = gobj_next_child(child);
-        if(!child) {
-            child = gobj_first_child(gobj);
-        }
-    }
-
-    JSON_DECREF(jn_filter)
-    return 0;
-}
 
 /***************************************************************************
  *  Accept cb
@@ -635,7 +604,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
         // obsolete: const char *op = kw_get_str(gobj, jn_child_tree_filter, "op", "find", 0);
         json_t *jn_filter = kw_get_dict(gobj, priv->child_tree_filter, "kw", json_object(), 0);
-        gobj_top = my_gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
+        gobj_top = gobj_find_child(gobj_parent(gobj), json_incref(jn_filter));
         if(!gobj_top) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,

@@ -104,7 +104,7 @@ PRIVATE char variable_config[]= "\
                     'kw': {                                         \n\
                         'url': '(^^__input_url__^^)',               \n\
                         'backlog': 32767, #^^ new-method:32767, legacy: 32767 \n\
-                        'use_dups': 0                             \n\
+                        'use_dups': 0                               \n\
 #^^                        'child_tree_filter': {                      \n\
 #^^                            'op': 'find',                           \n\
 #^^                            'kw': {                                 \n\
