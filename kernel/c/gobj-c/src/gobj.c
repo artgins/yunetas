@@ -1836,89 +1836,89 @@ PUBLIC hgobj gobj_create(
  *  Find a json value in the list.
  *  Return index or -1 if not found or the index relative to 0.
  ***************************************************************************/
-PRIVATE int json_list_find(json_t *list, json_t *value)
-{
-    size_t idx_found = -1;
-    size_t flags = JSON_COMPACT|JSON_ENCODE_ANY;//|JSON_SORT_KEYS;
-    size_t index;
-    json_t *_value;
-    char *s_found_value = json_dumps(value, flags);
-    if(s_found_value) {
-        json_array_foreach(list, index, _value) {
-            char *s_value = json_dumps(_value, flags);
-            if(s_value) {
-                if(strcmp(s_value, s_found_value)==0) {
-                    idx_found = index;
-                    jsonp_free(s_value);
-                    break;
-                } else {
-                    jsonp_free(s_value);
-                }
-            }
-        }
-        jsonp_free(s_found_value);
-    }
-    return idx_found;
-}
+// PRIVATE int json_list_find(json_t *list, json_t *value)
+// {
+//     size_t idx_found = -1;
+//     size_t flags = JSON_COMPACT|JSON_ENCODE_ANY;;
+//     size_t index;
+//     json_t *_value;
+//     char *s_found_value = json_dumps(value, flags);
+//     if(s_found_value) {
+//         json_array_foreach(list, index, _value) {
+//             char *s_value = json_dumps(_value, flags);
+//             if(s_value) {
+//                 if(strcmp(s_value, s_found_value)==0) {
+//                     idx_found = index;
+//                     jsonp_free(s_value);
+//                     break;
+//                 } else {
+//                     jsonp_free(s_value);
+//                 }
+//             }
+//         }
+//         jsonp_free(s_found_value);
+//     }
+//     return idx_found;
+// }
 
 /***************************************************************************
  *  Check if a list is a integer range:
  *      - must be a list of two integers (first < second)
  ***************************************************************************/
-PRIVATE BOOL json_is_range(json_t *list)
-{
-    if(json_array_size(list) != 2)
-        return false;
-
-    json_int_t first = json_integer_value(json_array_get(list, 0));
-    json_int_t second = json_integer_value(json_array_get(list, 1));
-    if(first <= second)
-        return true;
-    else
-        return false;
-}
+// PRIVATE BOOL json_is_range(json_t *list)
+// {
+//     if(json_array_size(list) != 2)
+//         return false;
+//
+//     json_int_t first = json_integer_value(json_array_get(list, 0));
+//     json_int_t second = json_integer_value(json_array_get(list, 1));
+//     if(first <= second) {
+//         return true;
+//     } else {
+//         return false;
+//     }
+// }
 
 /***************************************************************************
  *  Return a expanded integer range
  ***************************************************************************/
-PRIVATE json_t *json_range_list(json_t *list)
-{
-    if(!json_is_range(list))
-        return 0;
-    json_int_t first = json_integer_value(json_array_get(list, 0));
-    json_int_t second = json_integer_value(json_array_get(list, 1));
-    json_t *range = json_array();
-    for(int i=first; i<=second; i++) {
-        json_t *jn_int = json_integer(i);
-        json_array_append_new(range, jn_int);
-    }
-    return range;
-
-}
+// PRIVATE json_t *json_range_list(json_t *list)
+// {
+//     if(!json_is_range(list))
+//         return 0;
+//     json_int_t first = json_integer_value(json_array_get(list, 0));
+//     json_int_t second = json_integer_value(json_array_get(list, 1));
+//     json_t *range = json_array();
+//     for(int i=first; i<=second; i++) {
+//         json_t *jn_int = json_integer(i);
+//         json_array_append_new(range, jn_int);
+//     }
+//     return range;
+// }
 
 /***************************************************************************
  *  Extend array values.
  *  If as_set is true then not repeated values
  ***************************************************************************/
-PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set)
-{
-    if(!json_is_array(list) || !json_is_array(other)) {
-        return -1;
-    }
-    size_t index;
-    json_t *value;
-    json_array_foreach(other, index, value) {
-        if(as_set) {
-            int idx = json_list_find(list, value);
-            if(idx < 0) {
-                json_array_append(list, value);
-            }
-        } else {
-            json_array_append(list, value);
-        }
-    }
-    return 0;
-}
+// PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set)
+// {
+//     if(!json_is_array(list) || !json_is_array(other)) {
+//         return -1;
+//     }
+//     size_t index;
+//     json_t *value;
+//     json_array_foreach(other, index, value) {
+//         if(as_set) {
+//             int idx = json_list_find(list, value);
+//             if(idx < 0) {
+//                 json_array_append(list, value);
+//             }
+//         } else {
+//             json_array_append(list, value);
+//         }
+//     }
+//     return 0;
+// }
 
 /***************************************************************************
  *  Build a list (set) with lists of integer ranges.
@@ -1928,40 +1928,40 @@ PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set)
  *
  *  Return the json list
  ***************************************************************************/
-PRIVATE json_t *json_listsrange2set(json_t *listsrange)
-{
-    if(!json_is_array(listsrange)) {
-        return 0;
-    }
-    json_t *ln_list = json_array();
-
-    size_t index;
-    json_t *value;
-    json_array_foreach(listsrange, index, value) {
-        if(json_is_integer(value)) {
-            // add new integer item
-            if(json_list_find(ln_list, value)<0) {
-                json_array_append(ln_list, value);
-            }
-        } else if(json_is_array(value)) {
-            // add new integer list or integer range
-            if(json_is_range(value)) {
-                json_t *range = json_range_list(value);
-                if(range) {
-                    json_list_update(ln_list, range, true);
-                    json_decref(range);
-                }
-            } else {
-                json_list_update(ln_list, value, true);
-            }
-        } else {
-            // ignore the rest
-            continue;
-        }
-    }
-
-    return ln_list;
-}
+// PRIVATE json_t *json_listsrange2set(json_t *listsrange)
+// {
+//     if(!json_is_array(listsrange)) {
+//         return 0;
+//     }
+//     json_t *ln_list = json_array();
+//
+//     size_t index;
+//     json_t *value;
+//     json_array_foreach(listsrange, index, value) {
+//         if(json_is_integer(value)) {
+//             // add new integer item
+//             if(json_list_find(ln_list, value)<0) {
+//                 json_array_append(ln_list, value);
+//             }
+//         } else if(json_is_array(value)) {
+//             // add new integer list or integer range
+//             if(json_is_range(value)) {
+//                 json_t *range = json_range_list(value);
+//                 if(range) {
+//                     json_list_update(ln_list, range, true);
+//                     json_decref(range);
+//                 }
+//             } else {
+//                 json_list_update(ln_list, value, true);
+//             }
+//         } else {
+//             // ignore the rest
+//             continue;
+//         }
+//     }
+//
+//     return ln_list;
+// }
 
 /***************************************************************************
  *  Expand a dict group to a list [^^children^^]
@@ -1980,13 +1980,15 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
         );
         return -1;
     }
-    json_t *jn_set = json_listsrange2set(__range__);
 
-    json_t *value;
-    int index;
-    json_array_foreach(jn_set, index, value) {
+    // json_t *value; TODO TOO SLOW
+    // int index;
+    // json_t *jn_set = json_listsrange2set(__range__);
+    // json_array_foreach(jn_set, index, value) {
+    json_int_t max_range = json_integer_value(__range__);
+    for(json_int_t range=1; range<=max_range; range++) {
         char temp[64];
-        json_int_t range = json_integer_value(value);
+        // json_int_t range = json_integer_value(value);
         snprintf(temp, sizeof(temp), "%" JSON_INTEGER_FORMAT , range);
         json_object_set_new(__vars__, "__range__", json_string(temp));
         json_t *jn_new_content = json_deep_copy(__content__);
@@ -1998,7 +2000,8 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
             );
         }
     }
-    json_decref(jn_set);
+    // json_decref(jn_set);
+
     return 0;
 }
 
