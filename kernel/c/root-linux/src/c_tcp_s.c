@@ -332,7 +332,7 @@ PRIVATE int mt_start(hgobj gobj)
         hgobj parent = gobj_parent(gobj);
         hgobj child = gobj_first_child(parent);
         int fd_listen = yev_get_fd(priv->yev_server_accept);
-
+        int channels = 0;
         while(child) {
             if(gobj_gclass_name(child) == C_CHANNEL) {
                 hgobj gobj_bottom = gobj_last_bottom_gobj(child);
@@ -396,6 +396,7 @@ PRIVATE int mt_start(hgobj gobj)
                 gobj_write_integer_attr(clisrv, "fd_clisrv", -1);
                 gobj_write_integer_attr(clisrv, "fd_listen", fd_listen);
                 gobj_start(clisrv); // this will create a yev_dup2_accept_event
+                channels++;
             }
 
             /*
@@ -404,6 +405,15 @@ PRIVATE int mt_start(hgobj gobj)
             child = gobj_next_child(child);
         }
 
+        if(!channels) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "No channels found",
+                "url",          "%s", url,
+                NULL
+            );
+        }
     }
 
     return 0;
