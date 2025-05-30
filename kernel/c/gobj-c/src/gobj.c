@@ -1478,97 +1478,6 @@ PUBLIC json_t *gobj_service_register(void)
 }
 
 /***************************************************************************
- *  Factory to create service gobj
- *  Used in entry_point, to run services
- *  Internally it uses gobj_create_tree0()
-A set of global variables returned by gobj_global_variables()
-    are added to ``__json_config_variables__``.
-
- ***************************************************************************/
-PUBLIC hgobj gobj_service_factory(
-    const char *name,
-    json_t * jn_service_config  // owned
-)
-{
-    const char *gclass_name = kw_get_str(0, jn_service_config, "gclass", 0, 0);
-    if(empty_string(gclass_name)) {
-        gobj_log_error(0,0,
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "service gclass EMPTY",
-            "service",      "%s", name?name:"",
-            NULL
-        );
-        JSON_DECREF(jn_service_config)
-        return 0;
-    }
-
-    // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
-    gclass_name = old_to_new_gclass_name(gclass_name);
-
-    gclass_t *gclass = gclass_find_by_name(gclass_name);
-    if(!gclass) {
-        gobj_log_error(0, 0,
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "gclass NOT FOUND",
-            "service",      "%s", name?name:"",
-            "gclass",       "%s", gclass_name,
-            NULL
-        );
-        json_t *jn_gclasses = gclass_gclass_register();
-        gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
-        JSON_DECREF(jn_gclasses)
-        gobj_trace_json(0, jn_service_config, "gclass NOT FOUND");
-        JSON_DECREF(jn_service_config)
-        return 0;
-    }
-    const char *gobj_name = kw_get_str(0, jn_service_config, "name", 0, 0);
-
-    json_t *json_config_variables = extract_all_mine(
-        gclass_name,
-        gobj_name,
-        __jn_global_settings__
-    );
-    json_object_update_new(
-        json_config_variables,
-        gobj_global_variables()
-    );
-
-    if(__trace_gobj_create_delete2__(__yuno__)) {
-        trace_machine("🌞 %s^%s => service json_config_variables",
-            gclass_name,
-            gobj_name
-        );
-        gobj_trace_json(0, json_config_variables, "service json_config_variables");
-    }
-
-    json_t *kw_service_config = kw_apply_json_config_variables(
-        jn_service_config,      // owned
-        json_config_variables   // owned
-    );
-
-    json_object_set_new(kw_service_config, "service", json_true()); // Mark as service
-
-    if(__trace_gobj_create_delete2__(__yuno__)) {
-        trace_machine("🌞🌞 %s^%s => service final",
-            gclass_name,
-            gobj_name
-        );
-        gobj_trace_json(0, kw_service_config, "service final");
-    }
-
-    hgobj gobj = gobj_create_tree0(
-        __yuno__,
-        kw_service_config  // owned
-    );
-
-    return gobj;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC hgobj gobj_create2(
@@ -1937,7 +1846,7 @@ PUBLIC hgobj gobj_create(
 /***************************************************************************
  *  Create tree
  ***************************************************************************/
-PUBLIC hgobj gobj_create_tree0(
+PRIVATE hgobj gobj_create_tree0(
     hgobj parent_,
     json_t *jn_tree
 )
@@ -2088,6 +1997,96 @@ PUBLIC hgobj gobj_create_tree0(
 
     JSON_DECREF(jn_tree)
     return first_child;
+}
+
+/***************************************************************************
+ *  Factory to create service gobj
+ *  Used in entry_point, to run services
+ *  Internally it uses gobj_create_tree0()
+ *  A set of global variables returned by gobj_global_variables()
+ *  are added to ``__json_config_variables__``.
+ ***************************************************************************/
+PUBLIC hgobj gobj_service_factory(
+    const char *name,
+    json_t * jn_service_config  // owned
+)
+{
+    const char *gclass_name = kw_get_str(0, jn_service_config, "gclass", 0, 0);
+    if(empty_string(gclass_name)) {
+        gobj_log_error(0,0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "service gclass EMPTY",
+            "service",      "%s", name?name:"",
+            NULL
+        );
+        JSON_DECREF(jn_service_config)
+        return 0;
+    }
+
+    // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+    gclass_name = old_to_new_gclass_name(gclass_name);
+
+    gclass_t *gclass = gclass_find_by_name(gclass_name);
+    if(!gclass) {
+        gobj_log_error(0, 0,
+            "gobj",         "%s", __FILE__,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gclass NOT FOUND",
+            "service",      "%s", name?name:"",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        json_t *jn_gclasses = gclass_gclass_register();
+        gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
+        JSON_DECREF(jn_gclasses)
+        gobj_trace_json(0, jn_service_config, "gclass NOT FOUND");
+        JSON_DECREF(jn_service_config)
+        return 0;
+    }
+    const char *gobj_name = kw_get_str(0, jn_service_config, "name", 0, 0);
+
+    json_t *json_config_variables = extract_all_mine(
+        gclass_name,
+        gobj_name,
+        __jn_global_settings__
+    );
+    json_object_update_new(
+        json_config_variables,
+        gobj_global_variables()
+    );
+
+    if(__trace_gobj_create_delete2__(__yuno__)) {
+        trace_machine("🌞 %s^%s => service json_config_variables",
+            gclass_name,
+            gobj_name
+        );
+        gobj_trace_json(0, json_config_variables, "service json_config_variables");
+    }
+
+    json_t *kw_service_config = kw_apply_json_config_variables(
+        jn_service_config,      // owned
+        json_config_variables   // owned
+    );
+
+    json_object_set_new(kw_service_config, "service", json_true()); // Mark as service
+
+    if(__trace_gobj_create_delete2__(__yuno__)) {
+        trace_machine("🌞🌞 %s^%s => service final",
+            gclass_name,
+            gobj_name
+        );
+        gobj_trace_json(0, kw_service_config, "service final");
+    }
+
+    hgobj gobj = gobj_create_tree0(
+        __yuno__,
+        kw_service_config  // owned
+    );
+
+    return gobj;
 }
 
 /***************************************************************************

@@ -66,6 +66,8 @@ Change API
 
     gobj_start_up split in gobj_start_up and gobj_setup_memory
 
+    gobj_create_tree0() PRIVATE
+
 New API
 
     build_stats_response

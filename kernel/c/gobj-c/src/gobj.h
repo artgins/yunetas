@@ -1237,17 +1237,6 @@ PUBLIC const sdata_desc_t *gclass_command_desc(hgclass gclass, const char *name,
  *---------------------------------*/
 PUBLIC json_t * gobj_service_register(void); /* Get registered services: Return [{gclass:s, service:s}] */
 
-/*
- *  Factory to create service gobj
- *  Used in entry_point, to run services
- *  Internally it uses gobj_create_tree0() SEE OPTIONS
- *  The first gobj is marked as service
- */
-PUBLIC hgobj gobj_service_factory(
-    const char *name,
-    json_t * jn_service_config // owned
-);
-
 PUBLIC hgobj gobj_create(
     const char *gobj_name,
     gclass_name_t gclass_name,
@@ -1300,11 +1289,9 @@ PUBLIC hgobj gobj_create_pure_child(
 );
 
 /*
- *  'jn_tree' structure
+ *  OPTIONS 'service tree'
  *
     {
-        // Options to create the gobj
-
         'gclass': 'X',
         'name': 'x',
         'default_service': false,
@@ -1347,19 +1334,28 @@ PUBLIC hgobj gobj_create_pure_child(
         - Inherently SERVICE objects will ask if they are pure_child to use gobj_send_event()
             instead of gobj_publish_event()
 */
-PUBLIC hgobj gobj_create_tree0( // Use better gobj_service_factory() or gobj_create_tree()
-    hgobj parent,
-    json_t *jn_tree
+
+/*
+ *  Factory to create service gobj
+ *  Used in entry_point, to run services
+ *  SEE OPTIONS 'service tree'
+ *  The first gobj is marked as service
+ */
+PUBLIC hgobj gobj_service_factory(
+    const char *name,
+    json_t * jn_service_config // owned, binary json of 'service tree'
+    // get json_config_variables from global
 );
 
 /*
- *  Parse tree_config and call gobj_create_tree0()
+ *  Parse tree_config and build a service tree
+ *  SEE OPTIONS 'service tree'
  *  Used by ycommand,ybatch,ystats,ytests,cli,...
  */
 PUBLIC hgobj gobj_create_tree(
     hgobj parent,
-    const char *tree_config,        // Can have comments #^^.
-    json_t *json_config_variables   // owned
+    const char *tree_config,        // Can have comments #^^, string json of 'service tree'
+    json_t *json_config_variables   // owned, values to apply to attributes variables
 );
 
 
