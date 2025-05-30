@@ -274,6 +274,11 @@ PRIVATE int json2item(
     json_t *jn_value // not owned
 );
 
+PRIVATE hgobj gobj_create_tree0(
+    hgobj parent_,
+    json_t *jn_tree // owned
+);
+
 /***************************************************************
  *              Data
  ***************************************************************/
@@ -1434,22 +1439,6 @@ PRIVATE const char *old_to_new_gclass_name(const char *gclass_name)
 }
 
 /***************************************************************************
- *  ATTR:
-    HACK el eslabón perdido.
-    Return a new kw applying __json_config_variables__
- ***************************************************************************/
-PUBLIC json_t *kw_apply_json_config_variables(
-    json_t *kw,          // owned
-    json_t *jn_global    // owned
-)
-{
-    return json_replace_var(
-        kw,        // owned
-        jn_global  // owned
-    );
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_t *gobj_service_register(void)
@@ -1844,11 +1833,182 @@ PUBLIC hgobj gobj_create(
 }
 
 /***************************************************************************
+ *  Find a json value in the list.
+ *  Return index or -1 if not found or the index relative to 0.
+ ***************************************************************************/
+PRIVATE int json_list_find(json_t *list, json_t *value)
+{
+    size_t idx_found = -1;
+    size_t flags = JSON_COMPACT|JSON_ENCODE_ANY;//|JSON_SORT_KEYS;
+    size_t index;
+    json_t *_value;
+    char *s_found_value = json_dumps(value, flags);
+    if(s_found_value) {
+        json_array_foreach(list, index, _value) {
+            char *s_value = json_dumps(_value, flags);
+            if(s_value) {
+                if(strcmp(s_value, s_found_value)==0) {
+                    idx_found = index;
+                    jsonp_free(s_value);
+                    break;
+                } else {
+                    jsonp_free(s_value);
+                }
+            }
+        }
+        jsonp_free(s_found_value);
+    }
+    return idx_found;
+}
+
+/***************************************************************************
+ *  Check if a list is a integer range:
+ *      - must be a list of two integers (first < second)
+ ***************************************************************************/
+PRIVATE BOOL json_is_range(json_t *list)
+{
+    if(json_array_size(list) != 2)
+        return false;
+
+    json_int_t first = json_integer_value(json_array_get(list, 0));
+    json_int_t second = json_integer_value(json_array_get(list, 1));
+    if(first <= second)
+        return true;
+    else
+        return false;
+}
+
+/***************************************************************************
+ *  Return a expanded integer range
+ ***************************************************************************/
+PRIVATE json_t *json_range_list(json_t *list)
+{
+    if(!json_is_range(list))
+        return 0;
+    json_int_t first = json_integer_value(json_array_get(list, 0));
+    json_int_t second = json_integer_value(json_array_get(list, 1));
+    json_t *range = json_array();
+    for(int i=first; i<=second; i++) {
+        json_t *jn_int = json_integer(i);
+        json_array_append_new(range, jn_int);
+    }
+    return range;
+
+}
+
+/***************************************************************************
+ *  Extend array values.
+ *  If as_set is true then not repeated values
+ ***************************************************************************/
+PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set)
+{
+    if(!json_is_array(list) || !json_is_array(other)) {
+        return -1;
+    }
+    size_t index;
+    json_t *value;
+    json_array_foreach(other, index, value) {
+        if(as_set) {
+            int idx = json_list_find(list, value);
+            if(idx < 0) {
+                json_array_append(list, value);
+            }
+        } else {
+            json_array_append(list, value);
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Build a list (set) with lists of integer ranges.
+ *  [[#from, #to], [#from, #to], #integer, #integer, ...] -> list
+ *  WARNING: Arrays of two integers are considered range of integers.
+ *  Arrays of one or more of two integers are considered individual integers.
+ *
+ *  Return the json list
+ ***************************************************************************/
+PRIVATE json_t *json_listsrange2set(json_t *listsrange)
+{
+    if(!json_is_array(listsrange)) {
+        return 0;
+    }
+    json_t *ln_list = json_array();
+
+    size_t index;
+    json_t *value;
+    json_array_foreach(listsrange, index, value) {
+        if(json_is_integer(value)) {
+            // add new integer item
+            if(json_list_find(ln_list, value)<0) {
+                json_array_append(ln_list, value);
+            }
+        } else if(json_is_array(value)) {
+            // add new integer list or integer range
+            if(json_is_range(value)) {
+                json_t *range = json_range_list(value);
+                if(range) {
+                    json_list_update(ln_list, range, true);
+                    json_decref(range);
+                }
+            } else {
+                json_list_update(ln_list, value, true);
+            }
+        } else {
+            // ignore the rest
+            continue;
+        }
+    }
+
+    return ln_list;
+}
+
+/***************************************************************************
+ *  Expand a dict group to a list [^^children^^]
+ ***************************************************************************/
+PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
+{
+    json_t * __range__ = json_object_get(kw, "__range__");
+    json_t * __vars__ = json_object_get(kw, "__vars__");
+    json_t * __content__ = json_object_get(kw, "__content__");
+    if(!__range__ || !__vars__ || !__content__) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Expand [^^children^^] needs of __range__, __vars__ and __content__ keys",
+            NULL
+        );
+        return -1;
+    }
+    json_t *jn_set = json_listsrange2set(__range__);
+
+    json_t *value;
+    int index;
+    json_array_foreach(jn_set, index, value) {
+        char temp[64];
+        json_int_t range = json_integer_value(value);
+        snprintf(temp, sizeof(temp), "%" JSON_INTEGER_FORMAT , range);
+        json_object_set_new(__vars__, "__range__", json_string(temp));
+        json_t *jn_new_content = json_deep_copy(__content__);
+        json_t *jn_child_tree = json_replace_var(jn_new_content, json_incref(__vars__));
+        if(jn_child_tree) {
+            gobj_create_tree0(
+                gobj,
+                jn_child_tree  // owned
+            );
+        }
+    }
+    json_decref(jn_set);
+    return 0;
+}
+
+
+/***************************************************************************
  *  Create tree
  ***************************************************************************/
 PRIVATE hgobj gobj_create_tree0(
     hgobj parent_,
-    json_t *jn_tree
+    json_t *jn_tree // owned
 )
 {
     gobj_t *parent = parent_;
@@ -1961,6 +2121,9 @@ PRIVATE hgobj gobj_create_tree0(
         gobj_disable(first_child);
     }
 
+    /*
+     *  Children
+     */
     hgobj last_child = 0;
     json_t *jn_children = kw_get_list(parent_, jn_tree, "children", 0, 0);
     if(!jn_children) {
@@ -1993,6 +2156,14 @@ PRIVATE hgobj gobj_create_tree0(
     }
     if(json_array_size(jn_children) == 1) {
         gobj_set_bottom_gobj(first_child, last_child);
+    }
+
+    /*
+     *  [^^children^^]
+     */
+    json_t *jn_expand_children = kw_get_dict(parent_, jn_tree, "[^^children^^]", 0, 0);
+    if(jn_expand_children) {
+        expand_children_list(parent_, jn_expand_children);
     }
 
     JSON_DECREF(jn_tree)
@@ -2066,7 +2237,7 @@ PUBLIC hgobj gobj_service_factory(
         gobj_trace_json(0, json_config_variables, "service json_config_variables");
     }
 
-    json_t *kw_service_config = kw_apply_json_config_variables(
+    json_t *kw_service_config = json_replace_var(
         jn_service_config,      // owned
         json_config_variables   // owned
     );
@@ -2616,7 +2787,7 @@ PRIVATE int write_json_parameters(
             gobj_trace_json(0, jn_global_mine, "global_mine");
         }
 
-        json_t * new_kw = kw_apply_json_config_variables(
+        json_t * new_kw = json_replace_var(
             json_incref(kw),    // owned
             jn_global_mine      // owned
         );

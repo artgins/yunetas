@@ -183,7 +183,7 @@ static int register_yuno_and_more(void)
 
     // Samples of global traces
     // gobj_set_gobj_trace(0, "create_delete", true, 0);
-    gobj_set_gobj_trace(0, "create_delete2", true, 0);
+    // gobj_set_gobj_trace(0, "create_delete2", true, 0);
     // gobj_set_gobj_trace(0, "start_stop", true, 0);
     // gobj_set_gobj_trace(0, "subscriptions", true, 0);
     // gobj_set_gobj_trace(0, "machine", true, 0);
