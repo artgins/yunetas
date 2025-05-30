@@ -17,7 +17,6 @@
 
 // From jansson_private.h
 extern void jsonp_free(void *ptr);
-extern char *jsonp_strdup(const char *str);
 
 /***************************************************************************
  *              Constants
@@ -27,18 +26,6 @@ extern char *jsonp_strdup(const char *str);
 /***************************************************************************
  *              Structures
  ***************************************************************************/
-typedef enum {
-    OP_FILE = 1,
-    OP_STR,
-} OP;
-
-typedef struct op_s {
-    DL_ITEM_FIELDS
-    OP op;
-    char *lines;
-    FILE *file;
-} op_t;
-
 
 /***************************************************************************
  *              Prototypes
@@ -171,31 +158,42 @@ PRIVATE json_t * nonx_legalstring2json(const char *reference, const char *bf, pe
  *         < 0 error
  *         > 0 process json string
  ***************************************************************************/
-PRIVATE size_t on_load_file_callback(void *bf_, size_t bfsize, void *data)
+PRIVATE size_t on_load_file_callback(void *bf, size_t bfsize, void *data)
 {
     FILE *file = data;
-    char *bf = bf_;
+    char line[2*1024];
 
     /*-----------------------------------*
      *      Operation in file
      *-----------------------------------*/
-    if(!fgets(bf, (int)bfsize, file)) {
-        /*
-         */
-        return 0; /* end of file */
+    while(fgets(line, (int)sizeof(line), file)) {
+        left_justify(line);
+        if(!empty_string(line)) {
+            char *f = strstr(line, INLINE_COMMENT);
+            if(f) {
+                /*
+                 *  Remove comments
+                 */
+                *f = 0;
+            }
+        }
+        if(!empty_string(line)) {
+            int len = (int)strlen(line);
+            if(len > bfsize) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "Line too long to parse json",
+                    NULL
+                );
+                len = (int)bfsize;
+            }
+            memmove(bf, line, len);
+            return len;
+        }
     }
 
-    // TODO WARNING bf_ is 1024, lines bigger will fail
-    register char *p;
-    p = strstr(bf, INLINE_COMMENT);
-    if(p) {
-        /*
-         *  Remove comments
-         */
-        *(p+0) = '\n';
-        *(p+1) = 0;
-    }
-    return strlen(bf);
+    return 0; /* end of file */
 }
 
 /***************************************************************************
@@ -203,48 +201,42 @@ PRIVATE size_t on_load_file_callback(void *bf_, size_t bfsize, void *data)
  *         < 0 error
  *         > 0 process json string
  ***************************************************************************/
-PRIVATE size_t on_load_string_callback(void *bf_, size_t bfsize, void *data)
+PRIVATE size_t on_load_string_callback(void *bf, size_t bfsize, void *data)
 {
-    char *bf = bf_;
-    char **plines = data;
+    gbuffer_t *gbuf = data;
 
     /*-----------------------------------*
      *      Operation in string
      *-----------------------------------*/
-    // TODO WARNING bf_ is 1024, lines bigger will fail
-    char *p = *plines;
-    char *begin = p;
-    int maxlen = (int)bfsize;
-    while(p && *p && maxlen > 0) {
-        if(*p == '\n') {
-            break;
+    char *line;
+    while((line=gbuffer_getline(gbuf, '\n'))) {
+        left_justify(line);
+        if(!empty_string(line)) {
+            char *f = strstr(line, INLINE_COMMENT);
+            if(f) {
+                /*
+                 *  Remove comments
+                 */
+                *f = 0;
+            }
         }
-        p++;
-        maxlen--;
+        if(!empty_string(line)) {
+            int len = (int)strlen(line);
+            if(len > bfsize) {
+                gobj_log_error(0, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "msg",          "%s", "Line too long to parse json",
+                    NULL
+                );
+                len = (int)bfsize;
+            }
+            memmove(bf, line, len);
+            return len;
+        }
     }
-    int len = (int)(p-begin);
 
-    if(!len) {
-        /*
-         */
-        return 0;
-    }
-    if(*p == '\n') {
-        *plines = p+1;
-    } else {
-        *plines = p;
-    }
-    memmove(bf, begin, len);
-    p = strstr(bf, INLINE_COMMENT);
-    if(p) {
-        /*
-         *  Remove comments
-         */
-        *(p+0) = '\n';
-        *(p+1) = 0;
-        len = (int)strlen(bf);
-    }
-    return len;
+    return 0;
 }
 
 /***************************************************************************
@@ -256,9 +248,10 @@ PRIVATE json_t * x_legalstring2json(char* reference, const char* bf, pe_flag_t q
     size_t flags = 0;
     json_error_t error;
 
-    char *lines = strdup(bf);
-    char **plines = &lines;
-    json_t *jn_msg = json_load_callback(on_load_string_callback, plines, flags, &error);
+    gbuffer_t *gbuf = gbuffer_create(strlen(bf), strlen(bf));
+    gbuffer_append_string(gbuf, bf);
+
+    json_t *jn_msg = json_load_callback(on_load_string_callback, gbuf, flags, &error);
     if(!jn_msg) {
         print_error(
             quit,
@@ -274,7 +267,8 @@ PRIVATE json_t * x_legalstring2json(char* reference, const char* bf, pe_flag_t q
             bf
         );
     }
-    free(lines);
+
+    GBUFFER_DECREF(gbuf)
     return jn_msg;
 }
 
