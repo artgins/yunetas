@@ -179,3 +179,14 @@ Config:
                     #^^    }
                     }
                 }
+
+# Test 30/May/2025: __input_side__ with new [^^children^^]
+
+Fixed the slow start with thousands of children: 
+legagy __range__ = [[1,11000]] very SLOW
+Now you can use an integer
+
+            '[^^children^^]': {                                     \n\
+                '__range__': 11000, #^^11000                        \n\
+                '__vars__': {                                       \n\
+                },                                                  \n\
