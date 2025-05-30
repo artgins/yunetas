@@ -2007,28 +2007,28 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
  *  Create tree
  ***************************************************************************/
 PRIVATE hgobj gobj_create_tree0(
-    hgobj parent_,
+    hgobj parent__,
     json_t *jn_tree // owned
 )
 {
-    gobj_t *parent = parent_;
+    gobj_t *parent = parent__;
     gobj_flag_t gobj_flag = 0;
-    const char *gclass_name = kw_get_str(parent_, jn_tree, "gclass", "", KW_REQUIRED);
-    const char *name = kw_get_str(parent_, jn_tree, "name", "", 0);
-    BOOL default_service = kw_get_bool(parent_, jn_tree, "default_service", 0, 0);
-    BOOL as_service = kw_get_bool(parent_, jn_tree, "as_service", 0, 0) ||
-        kw_get_bool(parent_, jn_tree, "service", 0, 0);
-    BOOL autostart = kw_get_bool(parent_, jn_tree, "autostart", 0, 0);
-    BOOL autoplay = kw_get_bool(parent_, jn_tree, "autoplay", 0, 0);
-    BOOL disabled = kw_get_bool(parent_, jn_tree, "disabled", 0, 0);
-    BOOL pure_child = kw_get_bool(parent_, jn_tree, "pure_child", 0, 0);
+    const char *gclass_name = kw_get_str(parent, jn_tree, "gclass", "", KW_REQUIRED);
+    const char *name = kw_get_str(parent, jn_tree, "name", "", 0);
+    BOOL default_service = kw_get_bool(parent, jn_tree, "default_service", 0, 0);
+    BOOL as_service = kw_get_bool(parent, jn_tree, "as_service", 0, 0) ||
+        kw_get_bool(parent, jn_tree, "service", 0, 0);
+    BOOL autostart = kw_get_bool(parent, jn_tree, "autostart", 0, 0);
+    BOOL autoplay = kw_get_bool(parent, jn_tree, "autoplay", 0, 0);
+    BOOL disabled = kw_get_bool(parent, jn_tree, "disabled", 0, 0);
+    BOOL pure_child = kw_get_bool(parent, jn_tree, "pure_child", 0, 0);
 
     // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
     gclass_name = old_to_new_gclass_name(gclass_name);
 
     gclass_t *gclass = gclass_find_by_name(gclass_name);
     if(!gclass) {
-        gobj_log_error(parent_, 0,
+        gobj_log_error(parent, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gclass NOT FOUND",
@@ -2043,7 +2043,7 @@ PRIVATE hgobj gobj_create_tree0(
         return 0;
     }
     BOOL local_kw = false;
-    json_t *kw = kw_get_dict(parent_, jn_tree, "kw", 0, 0);
+    json_t *kw = kw_get_dict(parent, jn_tree, "kw", 0, 0);
     if(!kw) {
         local_kw = true;
         kw = json_object();
@@ -2055,14 +2055,14 @@ PRIVATE hgobj gobj_create_tree0(
                 json_object_set_new(kw, "subscriber", json_integer((json_int_t)(size_t)parent));
             }
         } else {
-            json_t *jn_subscriber = kw_get_dict_value(parent_, kw, "subscriber", 0, 0);
+            json_t *jn_subscriber = kw_get_dict_value(parent, kw, "subscriber", 0, 0);
             if(json_is_string(jn_subscriber)) {
                 const char *subscriber_name = json_string_value(jn_subscriber);
                 hgobj subscriber = gobj_find_service(subscriber_name, false);
                 if(subscriber) {
                     json_object_set_new(kw, "subscriber", json_integer((json_int_t)(size_t)subscriber));
                 } else {
-                    gobj_log_error(parent_, 0,
+                    gobj_log_error(parent, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                         "msg",          "%s", "subscriber service gobj NOT FOUND",
@@ -2073,7 +2073,7 @@ PRIVATE hgobj gobj_create_tree0(
                     );
                 }
             } else {
-                gobj_log_error(parent_, 0,
+                gobj_log_error(parent, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "subscriber json INVALID",
@@ -2104,9 +2104,9 @@ PRIVATE hgobj gobj_create_tree0(
         gobj_flag |= gobj_flag_pure_child;
     }
 
-    hgobj first_child = gobj_create2(name, gclass_name, kw, parent, gobj_flag);
-    if(!first_child) {
-        gobj_log_error(parent_, 0,
+    hgobj gobj = gobj_create2(name, gclass_name, kw, parent, gobj_flag);
+    if(!gobj) {
+        gobj_log_error(parent, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "_create_gobj() FAILED",
@@ -2118,17 +2118,17 @@ PRIVATE hgobj gobj_create_tree0(
         return 0;
     }
     if(disabled) {
-        gobj_disable(first_child);
+        gobj_disable(gobj);
     }
 
     /*
      *  Children
      */
     hgobj last_child = 0;
-    json_t *jn_children = kw_get_list(parent_, jn_tree, "children", 0, 0);
+    json_t *jn_children = kw_get_list(parent, jn_tree, "children", 0, 0);
     if(!jn_children) {
         // TODO remove when agent is migrated to YunetaS
-        jn_children = kw_get_list(parent_, jn_tree, "zchilds", 0, 0);
+        jn_children = kw_get_list(parent, jn_tree, "zchilds", 0, 0);
     }
 
     size_t index;
@@ -2139,11 +2139,11 @@ PRIVATE hgobj gobj_create_tree0(
         }
         json_incref(jn_child);
         last_child = gobj_create_tree0(
-            first_child,
+            gobj,
             jn_child
         );
         if(!last_child) {
-            gobj_log_error(parent_, 0,
+            gobj_log_error(parent, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "gobj_create_tree0() FAILED",
@@ -2155,19 +2155,19 @@ PRIVATE hgobj gobj_create_tree0(
         }
     }
     if(json_array_size(jn_children) == 1) {
-        gobj_set_bottom_gobj(first_child, last_child);
+        gobj_set_bottom_gobj(gobj, last_child);
     }
 
     /*
      *  [^^children^^]
      */
-    json_t *jn_expand_children = kw_get_dict(parent_, jn_tree, "[^^children^^]", 0, 0);
+    json_t *jn_expand_children = kw_get_dict(parent, jn_tree, "[^^children^^]", 0, 0);
     if(jn_expand_children) {
-        expand_children_list(parent_, jn_expand_children);
+        expand_children_list(gobj, jn_expand_children);
     }
 
     JSON_DECREF(jn_tree)
-    return first_child;
+    return gobj;
 }
 
 /***************************************************************************
