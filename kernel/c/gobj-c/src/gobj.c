@@ -1981,7 +1981,7 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
         return -1;
     }
 
-    // json_t *value; TODO TOO SLOW
+    // json_t *value; TODO TOO SLOW, leave the code to future revision
     // int index;
     // json_t *jn_set = json_listsrange2set(__range__);
     // json_array_foreach(jn_set, index, value) {
