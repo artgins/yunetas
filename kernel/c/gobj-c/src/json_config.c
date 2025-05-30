@@ -44,7 +44,6 @@ typedef struct op_s {
  *              Prototypes
  ***************************************************************************/
 PRIVATE int load_files(
-    dl_list_t *dl_op,
     json_t *jn_variable_config,
     const char *json_file,
     const char *json_file_type,
@@ -52,8 +51,8 @@ PRIVATE int load_files(
     int print_final_config,
     pe_flag_t quit
 );
-PRIVATE json_t *x_legalstring2json(dl_list_t *dl_op, char *reference, const char *bf, pe_flag_t quit);
-PRIVATE json_t *load_json_file(dl_list_t *dl_op, const char *path, pe_flag_t quit);
+PRIVATE json_t *x_legalstring2json(char *reference, const char *bf, pe_flag_t quit);
+PRIVATE json_t *load_json_file(const char *path, pe_flag_t quit);
 PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit);
 PRIVATE int json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite, pe_flag_t quit);
 PRIVATE int json_list_find(json_t *list, json_t *value);
@@ -64,7 +63,6 @@ PRIVATE int json_list_update(json_t* list, json_t* other, BOOL as_set, pe_flag_t
  *  Load json config from a file '' or from files ['','']
  ***************************************************************************/
 PRIVATE int load_files(
-    dl_list_t *dl_op,
     json_t *jn_variable_config,
     const char *json_file,
     const char *json_file_type,
@@ -92,7 +90,6 @@ PRIVATE int load_files(
             *  Only one file
             */
         json_t *jn_file = load_json_file(
-            dl_op,
             json_string_value(jn_files),
             quit
         );
@@ -113,7 +110,6 @@ PRIVATE int load_files(
         json_array_foreach(jn_files, index, value) {
             if(json_is_string(value)) {
                 json_t *jn_file = load_json_file(
-                    dl_op,
                     json_string_value(value),
                     quit
                 );
@@ -175,100 +171,94 @@ PRIVATE json_t * nonx_legalstring2json(const char *reference, const char *bf, pe
  *         < 0 error
  *         > 0 process json string
  ***************************************************************************/
-PRIVATE size_t on_load_op_callback(void *bf_, size_t bfsize, void *data)
+PRIVATE size_t on_load_file_callback(void *bf_, size_t bfsize, void *data)
 {
-    dl_list_t *dl_op = data;
+    FILE *file = data;
     char *bf = bf_;
 
-    op_t *op = dl_first(dl_op);
-    if(op->op == OP_STR) {
-        /*-----------------------------------*
-         *      Operation in string
-         *-----------------------------------*/
-        // TODO WARNING algoritmo mal: bf_ es 1024, en lineas mas grandes con comment fallaria
-        char *p = op->lines;
-        char *begin = p;
-        int maxlen = bfsize;
-        while(p && *p && maxlen > 0) {
-            if(*p == '\n') {
-                break;
-            }
-            p++;
-            maxlen--;
-        }
-        int len = p-begin;
-
-        if(!len) {
-            /*
-             */
-            return 0;
-        }
-        if(*p == '\n') {
-            op->lines = p+1;
-        } else {
-            op->lines = p;
-        }
-        memmove(bf, begin, len);
-        p = strstr(bf, INLINE_COMMENT);
-        if(p) {
-            /*
-             *  Remove comments
-             */
-            *(p+0) = '\n';
-            *(p+1) = 0;
-            len = strlen(bf);
-        }
-        return len;
-
-    } else {
-        /*-----------------------------------*
-         *      Operation in file
-         *-----------------------------------*/
-        if(!fgets(bf, bfsize, op->file)) {
-            /*
-             */
-            return 0; /* end of file */
-        }
-
-        // TODO WARNING algoritmo mal: bf_ es 1024, en lineas mas grandes con comment fallaria
-        register char *p;
-        p = strstr(bf, INLINE_COMMENT);
-        if(p) {
-            /*
-             *  Remove comments
-             */
-            *(p+0) = '\n';
-            *(p+1) = 0;
-        }
-        return strlen(bf);
+    /*-----------------------------------*
+     *      Operation in file
+     *-----------------------------------*/
+    if(!fgets(bf, (int)bfsize, file)) {
+        /*
+         */
+        return 0; /* end of file */
     }
+
+    // TODO WARNING bf_ is 1024, lines bigger will fail
+    register char *p;
+    p = strstr(bf, INLINE_COMMENT);
+    if(p) {
+        /*
+         *  Remove comments
+         */
+        *(p+0) = '\n';
+        *(p+1) = 0;
+    }
+    return strlen(bf);
+}
+
+/***************************************************************************
+ *  Return 0 end of file
+ *         < 0 error
+ *         > 0 process json string
+ ***************************************************************************/
+PRIVATE size_t on_load_string_callback(void *bf_, size_t bfsize, void *data)
+{
+    char *bf = bf_;
+    char **plines = data;
+
+    /*-----------------------------------*
+     *      Operation in string
+     *-----------------------------------*/
+    // TODO WARNING bf_ is 1024, lines bigger will fail
+    char *p = *plines;
+    char *begin = p;
+    int maxlen = (int)bfsize;
+    while(p && *p && maxlen > 0) {
+        if(*p == '\n') {
+            break;
+        }
+        p++;
+        maxlen--;
+    }
+    int len = (int)(p-begin);
+
+    if(!len) {
+        /*
+         */
+        return 0;
+    }
+    if(*p == '\n') {
+        *plines = p+1;
+    } else {
+        *plines = p;
+    }
+    memmove(bf, begin, len);
+    p = strstr(bf, INLINE_COMMENT);
+    if(p) {
+        /*
+         *  Remove comments
+         */
+        *(p+0) = '\n';
+        *(p+1) = 0;
+        len = (int)strlen(bf);
+    }
+    return len;
 }
 
 /***************************************************************************
  *  Convert a legal json string to json binary.
  *  legal json string: MUST BE an array [] or object {}
  ***************************************************************************/
-PRIVATE json_t * x_legalstring2json(dl_list_t* dl_op, char* reference, const char* bf, pe_flag_t quit)
+PRIVATE json_t * x_legalstring2json(char* reference, const char* bf, pe_flag_t quit)
 {
     size_t flags = 0;
     json_error_t error;
 
     char *lines = strdup(bf);
-    op_t *op = malloc(sizeof(op_t));
-    if(!op) {
-        print_error(
-            quit,
-            "No memory for %d bytes.\n",
-            (int)sizeof(op_t)
-        );
-        free(lines);
-        return 0;
-    }
-    memset(op, 0, sizeof(op_t));
-    op->op = OP_STR;
-    op->lines = lines;
-    dl_insert(dl_op, op);
-    json_t *jn_msg = json_load_callback(on_load_op_callback, dl_op, flags, &error);
+    char **plines = &lines;
+    json_t *jn_msg = json_load_callback(on_load_string_callback, plines, flags, &error);
     if(!jn_msg) {
         print_error(
             quit,
@@ -285,14 +275,13 @@ PRIVATE json_t * x_legalstring2json(dl_list_t* dl_op, char* reference, const cha
         );
     }
     free(lines);
-    dl_delete(dl_op, op, free);
     return jn_msg;
 }
 
 /***************************************************************************
  *  Load a extended json file
  ***************************************************************************/
-PRIVATE json_t *load_json_file(dl_list_t* dl_op, const char* path, pe_flag_t quit)
+PRIVATE json_t *load_json_file(const char* path, pe_flag_t quit)
 {
     if(access(path, 0)!=0) {
         print_error(
@@ -313,22 +302,7 @@ PRIVATE json_t *load_json_file(dl_list_t* dl_op, const char* path, pe_flag_t qui
 
     size_t flags=0;
     json_error_t error;
-
-    op_t *op = malloc(sizeof(op_t));
-    if(!op) {
-        print_error(
-            quit,
-            "No memory for %d bytes.\n",
-            (int)sizeof(op_t)
-        );
-        fclose(file);
-        return 0;
-    }
-    memset(op, 0, sizeof(op_t));
-    op->op = OP_FILE;
-    op->file = file;
-    dl_insert(dl_op, op);
-    json_t *jn_msg = json_load_callback(on_load_op_callback, dl_op, flags, &error);
+    json_t *jn_msg = json_load_callback(on_load_file_callback, file, flags, &error);
     if(!jn_msg) {
         print_error(
             quit,
@@ -343,7 +317,6 @@ PRIVATE json_t *load_json_file(dl_list_t* dl_op, const char* path, pe_flag_t qui
         );
     }
     fclose(file);
-    dl_delete(dl_op, op, free);
     return jn_msg;
 }
 
@@ -463,9 +436,6 @@ PUBLIC json_t *json_config(
     pe_flag_t quit                  // What to do in case of error
 )
 {
-    dl_list_t dl_op = {0};
-    dl_init(&dl_op, 0);
-
     size_t flags = JSON_INDENT(4);
     json_t *jn_config;
     json_t *jn_variable_config=NULL;
@@ -475,7 +445,6 @@ PUBLIC json_t *json_config(
      *--------------------------------------*/
     if(fixed_config && *fixed_config) {
         jn_config = x_legalstring2json(
-            &dl_op,
             "fixed_config",
             fixed_config,
             quit
@@ -494,7 +463,6 @@ PUBLIC json_t *json_config(
      *--------------------------------------*/
     if(variable_config && *variable_config) {
         jn_variable_config = x_legalstring2json(
-            &dl_op,
             "variable_config",
             variable_config,
             quit
@@ -513,7 +481,6 @@ PUBLIC json_t *json_config(
      *--------------------------------------*/
     if(config_json_file && *config_json_file) {
         load_files(
-            &dl_op,
             jn_variable_config,
             config_json_file,
             "config from json files",
@@ -528,7 +495,6 @@ PUBLIC json_t *json_config(
      *--------------------------------------*/
     if(parameter_config && *parameter_config) {
         json_t *jn_parameter_config = x_legalstring2json(
-            &dl_op,
             "config from command line parameter",
             parameter_config,
             quit
