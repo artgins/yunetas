@@ -1,0 +1,10 @@
+{
+    "__version__": "1",
+    "__description__": "initial load",
+    "global": {
+        "Emailsender.url": "smtps://xxx:465",
+        "Emailsender.username": "no-reply@xxx.com",
+        "Emailsender.password": "xxxxxx",
+        "Emailsender.from": "no-reply@xxx.com"
+    }
+}

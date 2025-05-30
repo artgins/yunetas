@@ -1,0 +1,17 @@
+{"command": "check-realm id=utilities.artgins.com"}
+
+{"command": "-install-binary id=emailsender     content64=$$(emailsender)"}
+{"command": "-install-binary id=logcenter       content64=$$(logcenter)"}
+
+{"command": "-create-config id=emailsender.artgins content64=$$(./emailsender.artgins.json)"}
+{"command": "-create-config id=logcenter.artgins content64=$$(./logcenter.artgins.json)"}
+
+{"command": "-create-yuno id=1 realm_id=utilities.artgins.com yuno_role=emailsender yuno_name=artgins must_play=1 yuno_tag=util"}
+{"command": "-create-yuno id=2 realm_id=utilities.artgins.com yuno_role=logcenter yuno_name=artgins must_play=1 yuno_tag=util"}
+
+{"command": "-install-binary id=stress_listen content64=$$(stress_listen)"}
+
+{"command": "-create-config id=stress_listen.10 content64=$$(./stress_listen.10.json)"}
+
+{"command": "-create-yuno id=10 realm_id=utilities.artgins.com yuno_role=stress_listen yuno_name=10 must_play=1"}
+
