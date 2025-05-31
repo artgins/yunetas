@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("{s:s}]",  // error_list
+    json_t *error_list = json_pack("[{s:s}]",  // error_list
         "msg", "Listen Connection Accepted"
     );
 
