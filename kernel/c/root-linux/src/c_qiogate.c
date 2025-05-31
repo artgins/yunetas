@@ -1128,12 +1128,9 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(src == priv->gobj_bottom_side) {
-        json_int_t channels_opened = kw_get_int(gobj, kw, "__temp__`channels_opened", 0, KW_REQUIRED);
-        if(channels_opened==0) {
-            clear_timeout(priv->timer);     // Active only when bottom side is open
-            priv->bottom_side_opened = false;
-            reset_soft_queue(gobj); // Resetea los timeout_ack y los MARK_PENDING_ACK
-        }
+        clear_timeout(priv->timer);     // Active only when bottom side is open
+        priv->bottom_side_opened = false;
+        reset_soft_queue(gobj); // Resetea los timeout_ack y los MARK_PENDING_ACK
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
