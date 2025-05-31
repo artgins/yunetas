@@ -919,6 +919,13 @@ typedef void (*mt_gobj_created_fn)(
     hgobj gobj,
     hgobj gobj_created
 );
+
+typedef void (*mt_set_bottom_gobj_fn)(
+    hgobj gobj,
+    hgobj new_bottom_gobj,
+    hgobj prev_bottom_gobj
+);
+
 typedef int (*mt_state_changed_fn)(
     hgobj gobj,
     gobj_event_t event,
@@ -989,7 +996,7 @@ typedef struct { // GClass methods (Yuneta framework methods)
     mt_trace_on_fn mt_trace_on;                 // Return webix
     mt_trace_off_fn mt_trace_off;               // Return webix
     mt_gobj_created_fn mt_gobj_created;         // ONLY for __yuno__.
-    future_method_fn mt_future33;
+    mt_set_bottom_gobj_fn mt_set_bottom_gobj;
     future_method_fn mt_future34;
     mt_publish_event_fn mt_publish_event;  // Return -1 (broke), 0 continue without publish, 1 continue and publish
     mt_publication_pre_filter_fn mt_publication_pre_filter; // Return -1,0,1
@@ -1528,7 +1535,7 @@ PUBLIC json_t * gobj_stats( // Call mt_stats() or build_stats()
     hgobj src
 );
 
-PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj); // inherit attributes
+PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj, hgobj bottom_gobj); // return previous bottom_gobj (MT)
 PUBLIC hgobj gobj_last_bottom_gobj(hgobj gobj); // inherit attributes
 PUBLIC hgobj gobj_bottom_gobj(hgobj gobj);
 

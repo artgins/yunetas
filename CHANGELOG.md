@@ -67,6 +67,13 @@ Change API
     gobj_start_up split in gobj_start_up and gobj_setup_memory
 
     gobj_create_tree0() PRIVATE
+    gobj_set_bottom_gobj()  return previous bottom_gobj MT (mt_set_bottom_gobj)
+        typedef void (*mt_set_bottom_gobj_fn)(
+            hgobj gobj,
+            hgobj new_bottom_gobj,
+            hgobj prev_bottom_gobj
+        );
+
 
 New API
 

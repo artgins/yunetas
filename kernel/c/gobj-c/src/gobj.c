@@ -5016,6 +5016,7 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
 
 /***************************************************************************
  *  Set manually the bottom gobj
+ *  return previous bottom_gobj MT (mt_set_bottom_gobj)
  ***************************************************************************/
 PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
 {
@@ -5037,6 +5038,9 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
             gobj->bottom_gobj?gobj_short_name(gobj->bottom_gobj):""
         );
     }
+
+    hgobj previous_bottom_gobj = 0;
+
     if(gobj->bottom_gobj) {
         /*
          *  En los gobj con manual start ellos suelen poner su bottom gobj.
@@ -5057,12 +5061,17 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
                 NULL
             );
         }
-        // anyway set -> NO! -> the already set has preference. New 8-10-2016
-        // anyway set -> YES! -> the new set has preference. New 27-Jan-2017
-        //return 0;
+        previous_bottom_gobj = gobj->bottom_gobj;
     }
+
+    // anyway set -> YES! -> the new set has preference. New 27-Jan-2017
     gobj->bottom_gobj = bottom_gobj;
-    return 0;
+
+    if(gobj->gclass->gmt->mt_set_bottom_gobj) {
+        gobj->gclass->gmt->mt_set_bottom_gobj(gobj, bottom_gobj, previous_bottom_gobj);
+    }
+
+    return previous_bottom_gobj;
 }
 
 /***************************************************************************
@@ -6774,8 +6783,8 @@ PRIVATE json_t *yunetamethods2json(const GMETHODS *gmt)
         json_array_append_new(jn_methods, json_string("mt_trace_off"));
     if(gmt->mt_gobj_created)
         json_array_append_new(jn_methods, json_string("mt_gobj_created"));
-    if(gmt->mt_future33)
-        json_array_append_new(jn_methods, json_string("mt_future33"));
+    if(gmt->mt_set_bottom_gobj)
+        json_array_append_new(jn_methods, json_string("mt_set_bottom_gobj"));
     if(gmt->mt_future34)
         json_array_append_new(jn_methods, json_string("mt_future34"));
     if(gmt->mt_publish_event)
