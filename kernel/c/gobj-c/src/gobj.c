@@ -2197,10 +2197,10 @@ PRIVATE hgobj gobj_create_tree0(
  ***************************************************************************/
 PUBLIC hgobj gobj_service_factory(
     const char *name,
-    json_t * jn_service_config  // owned
+    json_t *kw  // owned
 )
 {
-    const char *gclass_name = kw_get_str(0, jn_service_config, "gclass", 0, 0);
+    const char *gclass_name = kw_get_str(0, kw, "gclass", 0, 0);
     if(empty_string(gclass_name)) {
         gobj_log_error(0,0,
             "gobj",         "%s", __FILE__,
@@ -2210,7 +2210,7 @@ PUBLIC hgobj gobj_service_factory(
             "service",      "%s", name?name:"",
             NULL
         );
-        JSON_DECREF(jn_service_config)
+        JSON_DECREF(kw)
         return 0;
     }
 
@@ -2231,48 +2231,88 @@ PUBLIC hgobj gobj_service_factory(
         json_t *jn_gclasses = gclass_gclass_register();
         gobj_trace_json(0, jn_gclasses, "gclass NOT FOUND");
         JSON_DECREF(jn_gclasses)
-        gobj_trace_json(0, jn_service_config, "gclass NOT FOUND");
-        JSON_DECREF(jn_service_config)
+        gobj_trace_json(0, kw, "gclass NOT FOUND");
+        JSON_DECREF(kw)
         return 0;
     }
-    const char *gobj_name = kw_get_str(0, jn_service_config, "name", 0, 0);
+    const char *gobj_name = kw_get_str(0, kw, "name", 0, 0);
 
-    json_t *json_config_variables = extract_all_mine(
+    /*
+     *  Get any own config of global conf
+     */
+    json_t *jn_global_mine = extract_all_mine(
         gclass_name,
         gobj_name,
         __jn_global_settings__
     );
+
+    if(__trace_gobj_create_delete2__(__yuno__)) {
+        trace_machine("🌞 %s^%s => global_mine",
+            gclass_name,
+            gobj_name
+        );
+        gobj_trace_json(0, jn_global_mine, "global_mine");
+    }
+
+    /*
+     *  Extract special __json_config_variables__ if exits
+     */
+    json_t *__json_config_variables__ = kw_get_dict(0,
+        jn_global_mine,
+        "__json_config_variables__",
+        json_object(),
+        KW_EXTRACT
+    );
+
+    /*
+     *  Join kw with own global
+     */
     json_object_update_new(
-        json_config_variables,
+        kw,
+        jn_global_mine
+    );
+
+    /*
+     *  Join __json_config_variables__ with global variables
+     */
+    json_object_update_new(
+        __json_config_variables__,
         gobj_global_variables()
     );
 
+    json_object_set_new(kw, "service", json_true()); // Mark as service
+
     if(__trace_gobj_create_delete2__(__yuno__)) {
-        trace_machine("🌞 %s^%s => service json_config_variables",
+        trace_machine("🌞🌞 %s^%s => global_mine",
             gclass_name,
             gobj_name
         );
-        gobj_trace_json(0, json_config_variables, "service json_config_variables");
+        gobj_trace_json(0, kw, "kw with global_mine");
+        gobj_trace_json(0, __json_config_variables__, "__json_config_variables__");
     }
 
-    json_t *kw_service_config = json_replace_var(
-        jn_service_config,      // owned
-        json_config_variables   // owned
+    /*
+     *  Replace attribute vars
+     */
+    json_t * new_kw = json_replace_var(
+        kw,          // owned
+        __json_config_variables__   // owned
     );
 
-    json_object_set_new(kw_service_config, "service", json_true()); // Mark as service
-
+    /*
+     *  Final conf
+     */
     if(__trace_gobj_create_delete2__(__yuno__)) {
-        trace_machine("🌞🌞 %s^%s => service final",
+        trace_machine("🔰🔰🔰 %s^%s => final kw",
             gclass_name,
             gobj_name
         );
-        gobj_trace_json(0, kw_service_config, "service final");
+        gobj_trace_json(0, new_kw, "final kw");
     }
 
     hgobj gobj = gobj_create_tree0(
         __yuno__,
-        kw_service_config  // owned
+        new_kw  // owned
     );
 
     return gobj;
@@ -2662,7 +2702,7 @@ PRIVATE json_t *extract_all_mine(
         if(!pk) {
             continue;
         }
-        if(strcasecmp(pk, "kw")==0 || strcasecmp(pk, "__json_config_variables__")==0) {
+        if(strcasecmp(pk, "kw")==0) {
             json_object_update(kw_mine, jn_value);
         } else {
             json_object_set(kw_mine, pk, jn_value);
@@ -2769,6 +2809,10 @@ PRIVATE int write_json_parameters(
         /*
          *  Services only
          */
+
+        /*
+         *  Get any own config of global conf
+         */
         json_t *jn_global_mine = extract_all_mine(
             gobj->gclass->gclass_name,
             gobj->gobj_name,
@@ -2783,37 +2827,52 @@ PRIVATE int write_json_parameters(
             gobj_trace_json(0, jn_global_mine, "global_mine");
         }
 
-        json_object_update_new(
+        /*
+         *  Extract special __json_config_variables__ if exits
+         */
+        json_t *__json_config_variables__ = kw_get_dict(0,
             jn_global_mine,
+            "__json_config_variables__",
+            json_object(),
+            KW_EXTRACT
+        );
+
+        /*
+         *  Join kw with own global
+         */
+        json_object_update_new(
+            kw,
+            jn_global_mine
+        );
+
+        /*
+         *  Join __json_config_variables__ with global variables
+         */
+        json_object_update_new(
+            __json_config_variables__,
             gobj_global_variables()
         );
-        if(gobj_yuno()) {
-            json_object_update_new(
-                jn_global_mine,
-                json_pack("{s:s, s:b}",
-                    "__bind_ip__", gobj_read_str_attr(gobj_yuno(), "bind_ip"),
-                    "__multiple__", gobj_read_bool_attr(gobj_yuno(), "yuno_multiple")
-                )
-            );
-        }
 
         if(__trace_gobj_create_delete2__(gobj)) {
             trace_machine("🔰🔰 %s^%s => global_mine",
                 gobj->gclass->gclass_name,
                 gobj->gobj_name
             );
-            gobj_trace_json(0, jn_global_mine, "global_mine");
+            gobj_trace_json(0, kw, "kw with global_mine");
+            gobj_trace_json(0, __json_config_variables__, "__json_config_variables__");
         }
 
+        /*
+         *  Replace attribute vars
+         */
         json_t * new_kw = json_replace_var(
-            json_incref(kw),    // owned
-            jn_global_mine      // owned
+            json_incref(kw),            // owned
+            __json_config_variables__   // owned
         );
 
-        if(!new_kw) {
-            return -1;
-        }
-
+        /*
+         *  Final conf
+         */
         if(__trace_gobj_create_delete2__(gobj)) {
             trace_machine("🔰🔰🔰 %s^%s => final kw",
                 gobj->gclass->gclass_name,
@@ -6085,7 +6144,7 @@ PUBLIC const char * gobj_short_name(hgobj gobj_)
  ***************************************************************************/
 PUBLIC json_t *gobj_global_variables(void)
 {
-    return json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+    json_t *jn_global_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
         "__node_owner__", gobj_yuno_node_owner(),
         "__realm_id__", gobj_yuno_realm_id(),
         "__realm_owner__", gobj_yuno_realm_owner(),
@@ -6112,6 +6171,17 @@ PUBLIC json_t *gobj_global_variables(void)
         "__sys_machine__", ""
 #endif
     );
+
+    if(gobj_yuno()) {
+        json_object_update_new(
+            jn_global_variables,
+            json_pack("{s:s, s:b}",
+                "__bind_ip__", gobj_read_str_attr(gobj_yuno(), "bind_ip"),
+                "__multiple__", gobj_read_bool_attr(gobj_yuno(), "yuno_multiple")
+            )
+        );
+    }
+    return jn_global_variables;
 }
 
 /***************************************************************************
