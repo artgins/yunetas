@@ -2458,18 +2458,20 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     int fd = -1;
     for (rp = results; rp; rp = rp->ai_next) {
         print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(port));
-        gobj_log_debug(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "addrinfo found, to listen ",
-            "addrinfo",     "%s", saddr,
-            "ai_flags",     "%d", rp->ai_flags,
-            "ai_family",    "%d", rp->ai_family,
-            "ai_socktype",  "%d", rp->ai_socktype,
-            "ai_protocol",  "%d", rp->ai_protocol,
-            "ai_canonname", "%s", rp->ai_canonname,
-            NULL
-        );
+        if(trace_level & (TRACE_URING)) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "addrinfo found, to listen",
+                "addrinfo",     "%s", saddr,
+                "ai_flags",     "%d", rp->ai_flags,
+                "ai_family",    "%d", rp->ai_family,
+                "ai_socktype",  "%d", rp->ai_socktype,
+                "ai_protocol",  "%d", rp->ai_protocol,
+                "ai_canonname", "%s", rp->ai_canonname,
+                NULL
+            );
+        }
 
         fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
         if (fd == -1) {
@@ -2527,16 +2529,18 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         }
         set_nonblocking(fd);
 
-        gobj_log_info(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "addrinfo on listen",
-            "msg2",          "%s", "addrinfo on listen 🟦🟦🦻🦻🦻",
-            "url",          "%s", listen_url,
-            "addrinfo",     "%s", saddr,
-            "fd",           "%d", fd,
-            NULL
-        );
+        if(trace_level & (TRACE_URING)) {
+            gobj_log_info(gobj, 0,
+               "function",     "%s", __FUNCTION__,
+               "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+               "msg",          "%s", "addrinfo on listen",
+               "msg2",          "%s", "addrinfo on listen 🟦🟦🦻🦻🦻",
+               "url",          "%s", listen_url,
+               "addrinfo",     "%s", saddr,
+               "fd",           "%d", fd,
+               NULL
+           );
+        }
 
         ret = 0;    // Got a addr
         break;

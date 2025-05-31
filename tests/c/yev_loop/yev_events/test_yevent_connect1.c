@@ -257,8 +257,7 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "addrinfo on listen",
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}]",  // error_list
         "msg", "Connection Accepted",
         "msg", "Listen Connection Accepted",
         "msg", "Listen socket failed or stopped"

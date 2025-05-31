@@ -577,9 +577,8 @@ int main(int argc, char *argv[])
     json_t *error_list = json_pack("["
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
        "{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},{s:s},"
-       "{s:s},{s:s}"
+       "{s:s}"
         "]",  // error_list
-        "msg", "addrinfo on listen",
         "msg", "Client: Connection Accepted",
         "msg", "Server: Listen Connection Accepted",
         "msg", "client: send request 1",
