@@ -409,7 +409,7 @@ PRIVATE int mt_start(hgobj gobj)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "No channels found",
+                "msg",          "%s", "C_TCP_S new method: No channels found",
                 "url",          "%s", url,
                 NULL
             );
