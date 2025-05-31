@@ -334,7 +334,9 @@ PRIVATE int mt_start(hgobj gobj)
         int fd_listen = yev_get_fd(priv->yev_server_accept);
         int channels = 0;
         while(child) {
-            if(gobj_gclass_name(child) == C_CHANNEL) {
+            if(gobj_gclass_name(child) == C_CHANNEL ||
+                gobj_typeof_inherited_gclass(child, C_CHANNEL) // TODO review TODO in c_ievent_srv.c
+            ) {
                 hgobj gobj_bottom = gobj_last_bottom_gobj(child);
                 if(!gobj_bottom) {
                     gobj_log_error(gobj, 0,

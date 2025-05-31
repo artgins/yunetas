@@ -428,6 +428,8 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
     }
     KW_INCREF(kw)
+
+    // TODO cache if EV_SEND_MESSAGE or EV_TX_DATA, use new mt_set_bottom_gobj()
     if(gobj_has_event(gobj_bottom, EV_SEND_MESSAGE, 0)) {
         ret = gobj_send_event(gobj_bottom, EV_SEND_MESSAGE, kw, gobj);
     } else if(gobj_has_event(gobj_bottom, EV_TX_DATA, 0)) {

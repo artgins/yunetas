@@ -892,6 +892,10 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
 
 /***************************************************************************
  *
+TODO now the tube is C_IEVENT_SRV -> C_CHANNEL -> C_WEBSOCKET -> C_TCP
+     Wouldn't be more logical to be channel->ievent_srv?
+     Review too EV_ON_ID,EV_ON_ID_NAK when refactoring authz
+
  ***************************************************************************/
 PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
