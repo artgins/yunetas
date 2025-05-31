@@ -2530,7 +2530,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         set_nonblocking(fd);
 
         if(trace_level & (TRACE_URING)) {
-            gobj_log_info(gobj, 0,
+            gobj_log_debug(gobj, 0,
                "function",     "%s", __FUNCTION__,
                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                "msg",          "%s", "addrinfo on listen",
