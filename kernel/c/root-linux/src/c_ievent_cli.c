@@ -920,9 +920,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_short_name(src)
         );
         if((trace_level & TRACE_IEVENTS2)) {
-            trace_inter_event2(gobj, prefix, iev_event, kw);
+            trace_inter_event2(gobj, prefix, iev_event, iev_kw);
         } else if((trace_level & TRACE_IEVENTS)) {
-            trace_inter_event(gobj, prefix, iev_event, kw);
+            trace_inter_event(gobj, prefix, iev_event, iev_kw);
         } else if((trace_level & TRACE_IDENTITY_CARD)) {
             if(iev_event == EV_IDENTITY_CARD ||
                 iev_event == EV_IDENTITY_CARD_ACK ||
@@ -931,7 +931,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 iev_event == EV_PAUSE_YUNO ||
                 iev_event == EV_PAUSE_YUNO_ACK
                ) {
-                trace_inter_event2(gobj, prefix, iev_event, kw);
+                trace_inter_event2(gobj, prefix, iev_event, iev_kw);
             }
         }
     }
