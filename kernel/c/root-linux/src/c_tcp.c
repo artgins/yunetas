@@ -1269,9 +1269,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Clear buffer
                      *  Re-arm read
-                     *  Check ret is 0 because the EV_RX_DATA could provoke the destroying of gobj
+                     *  Check ret is 0 because the EV_RX_DATA could provoke
+                     *      stop or destroy of gobj
+                     *      or order to disconnect (EV_DROP)
+                     *  If try_to_stop_yevents() has been called (mt_stop, EV_DROP,...)
+                     *  this event will be in stopped state.
                      */
-                    if(ret == 0 && gobj_is_running(gobj)) {
+                    if(ret == 0 && !yev_event_is_stopped(yev_event)) {
                         gbuffer_clear(yev_get_gbuf(yev_event));
                         yev_start_event(yev_event);
                     }
