@@ -1151,10 +1151,12 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    const char *channel = kw_get_str(gobj, kw, "__temp__`channel", "", 0);
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
-
+    hgobj channel_gobj = gobj_bottom_gobj(gobj); // See firstly if it's a tube
     if(!channel_gobj) {
+        channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, 0);
+    }
+    if(!channel_gobj) {
+        const char *channel = kw_get_str(gobj, kw, "__temp__`channel", "", 0);
         if(!empty_string(channel)) {
             channel_gobj = gobj_child_by_name(gobj, channel);
             if(!channel_gobj) {
@@ -1186,6 +1188,14 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Drop all
      */
+    gobj_log_info(gobj, 0,
+        "gobj",         "%s", gobj_full_name(gobj),
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INFO,
+        "msg",          "%s", "Dropping all channels",
+        NULL
+    );
+
     json_t *jn_filter = json_pack("{s:s}",
         "__gclass_name__", C_CHANNEL
     );
