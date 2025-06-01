@@ -2041,7 +2041,7 @@ PRIVATE hgobj gobj_create_tree0(
     BOOL disabled = kw_get_bool(parent, jn_tree, "disabled", 0, 0);
     BOOL pure_child = kw_get_bool(parent, jn_tree, "pure_child", 0, 0);
 
-    // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS
+    // TODO IEvent_cli=C_IEVENT_CLI remove when agent is migrated to YunetaS V7
     gclass_name = old_to_new_gclass_name(gclass_name);
 
     gclass_t *gclass = gclass_find_by_name(gclass_name);
@@ -2172,9 +2172,6 @@ PRIVATE hgobj gobj_create_tree0(
             return 0;
         }
     }
-    if(json_array_size(jn_children) == 1) {
-        gobj_set_bottom_gobj(gobj, last_child);
-    }
 
     /*
      *  [^^children^^]
@@ -2182,6 +2179,10 @@ PRIVATE hgobj gobj_create_tree0(
     json_t *jn_expand_children = kw_get_dict(parent, jn_tree, "[^^children^^]", 0, 0);
     if(jn_expand_children) {
         expand_children_list(gobj, jn_expand_children);
+    } else {
+        if(json_array_size(jn_children) == 1) {
+            gobj_set_bottom_gobj(gobj, last_child);
+        }
     }
 
     JSON_DECREF(jn_tree)

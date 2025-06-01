@@ -286,7 +286,6 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
     struct termios termios_settings;
     if(tcgetattr(fd, &termios_settings)<0) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "tcgetattr() FAILED",
@@ -307,7 +306,6 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
     if(baudrate == -1) {
         baudrate = B9600;
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "path",         "%s", gobj_read_str_attr(gobj, "path"),
@@ -336,7 +334,6 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
         DEFAULTS
             parity = PARITY_NONE;
             gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Parity UNKNOWN",
@@ -360,7 +357,6 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             break;
         default:
             gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Bad bytesize",
@@ -383,7 +379,6 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             break;
         default:
             gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Bad stopbits",
@@ -456,7 +451,6 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
 
     if(tcsetattr(fd, TCSANOW, &termios_settings)<0) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "tcsetattr() FAILED",
@@ -480,7 +474,6 @@ PRIVATE int open_tty(hgobj gobj)
     const char *path = gobj_read_str_attr(gobj, "path");
     if(empty_string(path)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "path EMPTY",
@@ -492,7 +485,6 @@ PRIVATE int open_tty(hgobj gobj)
     int fd = open(path, O_RDWR, 0);
     if(fd < 0) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "Cannot open tty device",
@@ -510,7 +502,6 @@ PRIVATE int open_tty(hgobj gobj)
         return -1;
     } else {
         gobj_log_info(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "tty opened",

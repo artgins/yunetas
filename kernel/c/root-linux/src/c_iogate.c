@@ -1188,7 +1188,7 @@ PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Drop all
      */
-    gobj_log_info(gobj, 0,
+    gobj_log_debug(gobj, 0,
         "gobj",         "%s", gobj_full_name(gobj),
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,

@@ -90,7 +90,6 @@ PUBLIC json_t * command_parser(
 //                 src
 //           )) {
 //             log_error(0,
-//                 "gobj",         "%s", gobj_full_name(gobj),
 //                 "function",     "%s", __FUNCTION__,
 //                 "msgset",       "%s", MSGSET_AUTH_ERROR,
 //                 "msg",          "%s", "No permission to execute command",
