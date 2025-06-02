@@ -137,6 +137,11 @@ PRIVATE int close_fd_wr_files(
     json_t *topic,
     const char *key
 );
+PRIVATE int close_fd_rd_files(
+    hgobj gobj,
+    json_t *topic,
+    const char *key
+);
 
 PRIVATE int json_array_find_idx(
     json_t *jn_list,
@@ -2045,6 +2050,7 @@ PRIVATE int get_topic_rd_fd(
     );
 
     if(fd<=0) {
+        BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         const char *topic_dir = json_string_value(json_object_get(topic, "directory"));
         snprintf(full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename);
 
@@ -2052,8 +2058,28 @@ PRIVATE int get_topic_rd_fd(
          *      Open content file
          *-----------------------------*/
         fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
+        if(fd < 0) {
+            if(errno == EMFILE) {
+                struct rlimit rl = {0};
+                getrlimit(RLIMIT_NOFILE, &rl);
+
+                gobj_log_error(gobj, 0,
+                    "function",             "%s", __FUNCTION__,
+                    "msgset",               "%s", MSGSET_INTERNAL_ERROR,
+                    "path",                 "%s", full_path,
+                    "msg",                  "%s", "TOO MANY OPEN FILES 3",
+                    "current soft limit",   "%d", rl.rlim_cur,
+                    "current hard limit",   "%d", rl.rlim_max,
+                    NULL
+                );
+
+                close_fd_rd_files(gobj, topic, "");
+                fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
+            }
+        }
         if(fd<0) {
-            gobj_log_critical(gobj, 0,
+            gobj_log_critical(gobj,
+                master?kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED):0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot open file to read",
