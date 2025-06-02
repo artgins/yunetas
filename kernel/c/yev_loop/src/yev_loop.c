@@ -1835,6 +1835,14 @@ PUBLIC BOOL yev_event_is_running(yev_event_h yev_event)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC BOOL yev_event_is_idle(yev_event_h yev_event)
+{
+    return (((yev_event_t *)yev_event)->state==YEV_ST_IDLE)?true:false;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC void yev_destroy_event(yev_event_h yev_event_)
 {
     yev_event_t *yev_event = (yev_event_t *)yev_event_;

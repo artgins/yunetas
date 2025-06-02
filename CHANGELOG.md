@@ -97,6 +97,7 @@ New API
     set_measure_times
     get_measure_times
     yev_dup_accept_event
+    yev_event_is_idle
 
 Delete API
 

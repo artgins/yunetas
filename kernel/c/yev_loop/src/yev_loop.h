@@ -142,6 +142,7 @@ PUBLIC void yev_loop_reset_running(yev_loop_h yev_loop);
 PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event);
 PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event);
 PUBLIC BOOL yev_event_is_running(yev_event_h yev_event);
+PUBLIC BOOL yev_event_is_idle(yev_event_h yev_event);
 PUBLIC int yev_protocol_set_protocol_fill_hints_fn( // Set your own table of protocols
     yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn
 );
