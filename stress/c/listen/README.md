@@ -1,5 +1,17 @@
 # README
 
+## Help to debug
+
+HELP to debug
+To see the cpu and files opened 
+
+    pidstat -p <pid> 1 -u -v -d -h
+
+to see the systemcalls:
+
+    sudo strace -p <pid>
+    sudo strace -p <pid> -k     # to see the stack trace
+
 ## stress-connections.js
 
 stress connections with a javascript program using node.js
