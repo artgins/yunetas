@@ -2196,7 +2196,7 @@ PUBLIC int tranger2_append_record(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "jn_record NULL",
+            "msg",          "%s", "Cannot append record, jn_record NULL",
             "topic",        "%s", topic_name,
             NULL
         );
