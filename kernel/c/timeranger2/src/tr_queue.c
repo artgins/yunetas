@@ -771,8 +771,11 @@ PUBLIC int trq_check_backup(tr_queue trq_)
 {
     tr_queue_t *trq = trq_;
 
-    hgobj gobj = 0;
+    hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
     uint64_t backup_queue_size = kw_get_int(gobj, trq->topic, "backup_queue_size", 0, 0);
+
+    int x;
+    // TODO TOO SLOW!!
 
     if(backup_queue_size) {
         if(tranger2_topic_size(trq->tranger, trq->topic_name) >= backup_queue_size) {

@@ -16,6 +16,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <sys/resource.h>
+#include <fnmatch.h>
+#include <dirent.h>
 
 #include <ansi_escape_codes.h>
 #include <helpers.h>
@@ -1131,7 +1133,7 @@ PUBLIC json_t *tranger2_list_keys( // return is yours
         directory
     );
 
-    json_t *jn_keys = find_keys_in_disk(gobj, full_path, rkey);
+    json_t *jn_keys = find_keys_in_disk(gobj, full_path, rkey); // TODO BAD search in cache
     return jn_keys;
 }
 
@@ -1147,6 +1149,8 @@ PUBLIC uint64_t tranger2_topic_size(
     if(!topic) {
         return 0;
     }
+
+print_json2("XXXX", tranger); // TODO TEST
 
     json_t *jn_keys = tranger2_list_keys( // return is yours
         tranger,
@@ -4434,31 +4438,114 @@ PRIVATE json_t *find_keys_in_disk(
     const char *directory,
     const char *rkey
 )
-{
+{x
     json_t *jn_keys = json_array();
 
-    const char *pattern;
-    if(!empty_string(rkey)) {
-        pattern = rkey;
-    } else {
-        pattern = ".*";
-    }
-
-    int dirs_size;
-    char **dirs = get_ordered_filename_array(
-        gobj,
-        directory,
-        pattern,
-        WD_MATCH_DIRECTORY|WD_ONLY_NAMES,
-        &dirs_size
-    );
-
-    for(int i=0; i<dirs_size; i++) {
-        json_array_append_new(jn_keys, json_string(dirs[i]));
-    }
-    free_ordered_filename_array(dirs, dirs_size);
+    // const char *pattern;
+    // if(!empty_string(rkey)) {
+    //     pattern = rkey;
+    // } else {
+    //     pattern = ".*";
+    // }
+    //
+    // int dirs_size;
+    // char **dirs = get_ordered_filename_array(
+    //     gobj,
+    //     directory,
+    //     pattern,
+    //     WD_MATCH_DIRECTORY|WD_ONLY_NAMES,
+    //     &dirs_size
+    // );
+    //
+    // for(int i=0; i<dirs_size; i++) {
+    //     json_array_append_new(jn_keys, json_string(dirs[i]));
+    // }
+    // free_ordered_filename_array(dirs, dirs_size);
 
     return jn_keys;
+}
+
+/***************************************************************************
+ *  directory: path to search
+ *  rkey: shell pattern (can be NULL or "")
+ *  cb: callback called for each match
+ *  user_data: your data passed to cb
+ *
+ *  Return: number of matches found
+ ***************************************************************************/
+typedef int (*find_dir_cb_fn)(hgobj gobj, const char *dirname);
+int find_dirs_in_disk(
+    hgobj gobj,
+    const char *directory,
+    const char *rkey,
+    find_dir_cb_fn cb
+)
+{
+    DIR *dir;
+    struct dirent *entry;
+    struct stat st;
+    char path[PATH_MAX];
+    int match_count = 0;
+
+    dir = opendir(directory);
+    if(!dir) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "directory not found",
+            "path",         "%s", directory,
+           NULL
+        );
+        return 0;
+    }
+
+    while((entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.' &&
+          (entry->d_name[1] == '\0' ||
+           (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
+            continue;
+        }
+
+        int is_dir = 0;
+
+        #ifdef DT_DIR
+        if(entry->d_type == DT_DIR) {
+            is_dir = 1;
+        } else if(entry->d_type == DT_UNKNOWN) {
+            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+            if(stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+                is_dir = 1;
+            }
+        }
+        #else
+        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+        if(stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+            is_dir = 1;
+        }
+        #endif
+
+        if(!is_dir) {
+            continue;
+        }
+
+        // Pattern match
+        if(rkey && *rkey && fnmatch(rkey, entry->d_name, 0) != 0) {
+            continue;
+        }
+
+        // Call user callback
+        if(cb) {
+            if(cb(gobj, entry->d_name) != 0) {
+                break; // user requested stop
+            }
+        }
+
+        match_count++;
+    }
+
+    closedir(dir);
+
+    return match_count;
 }
 
 /***************************************************************************
@@ -4476,7 +4563,7 @@ PRIVATE int build_topic_cache_from_disk(
         directory
     );
 
-    json_t *jn_keys = find_keys_in_disk(gobj, full_path, NULL);
+    json_t *jn_keys = find_keys_in_disk(gobj, full_path, NULL); // TODO REAL search in disk
     json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, 0);
     int idx; json_t *jn_key;
     json_array_foreach(jn_keys, idx, jn_key) {

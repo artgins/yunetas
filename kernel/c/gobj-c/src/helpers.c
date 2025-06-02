@@ -19,6 +19,7 @@
 #include <time.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #include <yuneta_config.h>  /* don't remove */
 
@@ -2847,6 +2848,7 @@ PRIVATE int cmpstringp(const void *p1, const void *p2) {
  *  Return the ordered full tree filenames of root_dir
  *  WARNING free return array with free_ordered_filename_array()
  *  WARNING: here I don't use gbmem functions
+ *  NOTICE: Sometimes I reinvent the wheel: use glob() please.
  ****************************************************************************/
 struct myfiles_s {
     char **files;
@@ -2907,7 +2909,7 @@ PRIVATE BOOL _fill_array_cb(
     (*myfiles->idx)++;
     return true; // continue traversing tree
 }
-PUBLIC char **get_ordered_filename_array(
+PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of files
     hgobj gobj,
     const char *root_dir,
     const char *pattern,
