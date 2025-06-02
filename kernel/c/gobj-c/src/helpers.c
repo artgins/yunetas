@@ -474,12 +474,13 @@ PUBLIC int mkrdir(const char *path, int xpermission)
                 if(newdir(tmp, xpermission)<0) {
                     if(errno != EEXIST) {
                         gobj_log_error(0, 0,
-                           "function",     "%s", __FUNCTION__,
-                           "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                           "msg",          "%s", "newdir() FAILED",
-                           "path",         "%s", tmp,
-                           "errno",        "%s", strerror(errno),
-                           NULL
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "newdir() FAILED",
+                            "path",         "%s", tmp,
+                            "errno",        "%d", errno,
+                            "serrno",       "%s", strerror(errno),
+                            NULL
                         );
                         return -1;
                     }
@@ -487,12 +488,13 @@ PUBLIC int mkrdir(const char *path, int xpermission)
             } else if(stat(tmp, &st) != 0 && !S_ISDIR(st.st_mode)) {
                 // If it's not a directory, return an error
                 gobj_log_error(0, 0,
-                   "function",     "%s", __FUNCTION__,
-                   "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                   "msg",          "%s", "Not a directory",
-                   "path",         "%s", tmp,
-                   "errno",        "%s", strerror(errno),
-                   NULL
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "Not a directory",
+                    "path",         "%s", tmp,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
                 );
                 return -1;
             }
@@ -505,24 +507,26 @@ PUBLIC int mkrdir(const char *path, int xpermission)
         if(newdir(tmp, xpermission)<0) {
             if(errno != EEXIST) {
                 gobj_log_error(0, 0,
-                   "function",     "%s", __FUNCTION__,
-                   "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                   "msg",          "%s", "newdir() FAILED",
-                   "path",         "%s", tmp,
-                   "errno",        "%s", strerror(errno),
-                   NULL
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                    "msg",          "%s", "newdir() FAILED",
+                    "path",         "%s", tmp,
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
+                    NULL
                 );
                 return -1;
             }
         }
     } else if(stat(tmp, &st) != 0 && !S_ISDIR(st.st_mode)) {
         gobj_log_error(0, 0,
-           "function",     "%s", __FUNCTION__,
-           "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-           "msg",          "%s", "Not a directory",
-           "path",         "%s", tmp,
-           "errno",        "%s", strerror(errno),
-           NULL
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Not a directory",
+            "path",         "%s", tmp,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
         );
         return -1;
     }
@@ -552,7 +556,8 @@ PUBLIC int rmrdir(const char *path)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "remove() FAILED",
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             return -1;
@@ -565,8 +570,8 @@ PUBLIC int rmrdir(const char *path)
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "opendir() FAILED",
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             return -1;
@@ -596,7 +601,8 @@ PUBLIC int rmrdir(const char *path)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "rmdir() FAILED",
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             return -1;
@@ -1518,7 +1524,8 @@ PUBLIC json_t *load_persistent_json(
                 "msg2",         "%s", exclusive? "Check if someone has opened the file":"Check permissions",
                 "exclusive",    "%d", exclusive,
                 "path",         "%s", full_path,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -1574,7 +1581,8 @@ PUBLIC json_t *load_json_from_file(
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot open json file",
             "path",         "%s", full_path,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return 0;
@@ -1636,7 +1644,8 @@ PUBLIC int save_json_to_file(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot create directory",
                 "directory",    "%s", directory,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             JSON_DECREF(jn_data)
@@ -1677,7 +1686,8 @@ PUBLIC int save_json_to_file(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "Cannot write in json file",
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         JSON_DECREF(jn_data)
@@ -2641,7 +2651,7 @@ PRIVATE int _walk_tree(
                 "msg",          "%s", "opendir() FAILED",
                 "path",         "%s", root_dir,
                 "error",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
+                "serror",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -2671,7 +2681,7 @@ PRIVATE int _walk_tree(
                     "msg",          "%s", "stat() FAILED",
                     "path",         "%s", path,
                     "error",        "%d", errno,
-                    "strerror",     "%s", strerror(errno),
+                    "serror",       "%s", strerror(errno),
                     NULL
                 );
             }
@@ -2867,7 +2877,7 @@ PRIVATE BOOL _fill_array_cb(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "malloc() FAILED",
                 "error",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
+                "serror",       "%s", strerror(errno),
                NULL
             );
             return false; // don't continue traverse tree
@@ -2884,7 +2894,7 @@ PRIVATE BOOL _fill_array_cb(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "malloc() FAILED",
                 "error",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
+                "serror",       "%s", strerror(errno),
                NULL
             );
             return false; // don't continue traverse tree
@@ -2956,7 +2966,7 @@ PUBLIC char **get_ordered_filename_array(
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "malloc() FAILED",
             "error",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
+            "serror",       "%s", strerror(errno),
            NULL
         );
         regfree(&r);
