@@ -672,7 +672,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "path",         "%s", directory,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -786,7 +787,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "path",         "%s", full_path,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -803,7 +805,8 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
                 "path",         "%s", full_path,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot create TimeRanger subdir. mkrdir() FAILED",
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -1450,7 +1453,8 @@ PUBLIC json_t *tranger2_backup_topic(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "cannot backup topic",
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             "src",          "%s", directory,
             "dst",          "%s", backup_directory,
             NULL
@@ -1729,6 +1733,7 @@ PRIVATE char *get_file_id(
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gmtime() FAILED",
+            "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
         );
@@ -1820,7 +1825,8 @@ PRIVATE int create_file(
                     "path",         "%s", path_key,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                     "msg",          "%s", "Cannot create subdir. mkrdir() FAILED",
-                    "errno",        "%s", strerror(errno),
+                    "errno",        "%d", errno,
+                    "serrno",       "%s", strerror(errno),
                     NULL
                 );
             }
@@ -1978,7 +1984,8 @@ PRIVATE int get_topic_wr_fd( // optimized
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot open file to write",
                 "path",         "%s", full_path,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             return -1;
@@ -2051,7 +2058,8 @@ PRIVATE int get_topic_rd_fd(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot open file to read",
                 "path",         "%s", full_path,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             return -1;
@@ -2382,7 +2390,8 @@ PUBLIC int tranger2_append_record(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot append record, lseek() FAILED",
                 "topic",        "%s", topic_name,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             gobj_trace_json(gobj, jn_record, "Cannot append record, lseek() FAILED");
@@ -2446,7 +2455,8 @@ PUBLIC int tranger2_append_record(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot append record, write FAILED",
                 "topic",        "%s", topic_name,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             gobj_trace_json(gobj, jn_record, "Cannot append record, write FAILED");
@@ -2477,7 +2487,8 @@ PUBLIC int tranger2_append_record(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot append record, lseek() FAILED",
                 "topic",        "%s", topic_name,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             gobj_trace_json(gobj, jn_record, "Cannot append record, lseek() FAILED");
@@ -2507,7 +2518,8 @@ PUBLIC int tranger2_append_record(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot save record metadata, write FAILED",
                 "topic",        "%s", tranger2_topic_name(topic),
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             JSON_DECREF(jn_record)
@@ -2630,7 +2642,8 @@ PUBLIC int tranger2_delete_record(
                 "path",         "%s", path_key,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot delete subdir key. rmrdir() FAILED",
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
             // If cannot remove dir, don't remove from memory
@@ -2714,7 +2727,8 @@ PRIVATE int get_md_record_for_wr(
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot read record metadata, read FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             "offset",       "%lu", (unsigned long)offset,
             "md2_fd",       "%d", (int)md2_fd,
             "ln",           "%d", (int)ln,
@@ -2793,7 +2807,8 @@ PRIVATE int rewrite_md_to_file(
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot re-write record metadata, write FAILED",
             "topic",        "%s", tranger2_topic_name(topic),
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return -1;
@@ -2828,7 +2843,8 @@ PUBLIC int tranger2_write_user_flag(
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Cannot open topic",
             "topic",        "%s", topic_name,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return -1;
@@ -2891,7 +2907,8 @@ PUBLIC int tranger2_set_user_flag(
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Cannot open topic",
             "topic",        "%s", topic_name,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return -1;
@@ -2965,7 +2982,8 @@ PUBLIC uint16_t tranger2_read_user_flag(
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Cannot open topic",
             "topic",        "%s", topic_name,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return 0;
@@ -3835,7 +3853,8 @@ PRIVATE int master_to_update_client_load_record_callback(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "mkdir() FAILED",
                 "path",         "%s", full_path_dest,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -3880,7 +3899,8 @@ PRIVATE int master_to_update_client_load_record_callback(
                 "msg",          "%s", "link() FAILED",
                 "src",          "%s", full_path_orig,
                 "dst",          "%s", full_path_dest,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -3946,7 +3966,8 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "mkdir() FAILED",
             "path",         "%s", full_path,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
     }
@@ -4139,7 +4160,8 @@ PRIVATE int update_key_by_hard_link(
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "unlink() FAILED",
             "path",         "%s", path,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
     }
@@ -4718,7 +4740,8 @@ PRIVATE uint64_t load_first_and_last_record_md(
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot open md2 file",
             "path",         "%s", full_path,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return -1;
@@ -4745,7 +4768,8 @@ PRIVATE uint64_t load_first_and_last_record_md(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot read first record of md2 file",
                 "path",         "%s", full_path,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         } else if(ln==0) {
@@ -4767,7 +4791,8 @@ PRIVATE uint64_t load_first_and_last_record_md(
             "msg",          "%s", "Cannot read last record, md2 file corrupted",
             "path",         "%s", full_path,
             "offset",       "%ld", (long)offset,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
     }
@@ -4788,7 +4813,8 @@ PRIVATE uint64_t load_first_and_last_record_md(
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot read last record, lseek() FAILED",
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -4809,7 +4835,8 @@ PRIVATE uint64_t load_first_and_last_record_md(
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "Cannot read last record of md2 file",
                 "path",         "%s", full_path,
-                "errno",        "%s", strerror(errno),
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
                 NULL
             );
         }
@@ -7164,7 +7191,8 @@ PRIVATE int get_md_by_rowid(
             "key",          "%s", key,
             "rowid",        "%ld", (long)rowid,
             "relative_rowid","%ld", (long)relative_rowid,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         gobj_trace_json(gobj, segment,  "Cannot read record metadata, relative_rowid negative");
@@ -7252,7 +7280,8 @@ PRIVATE int read_md(
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             "key",          "%s", key,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return -1;
@@ -7272,7 +7301,8 @@ PRIVATE int read_md(
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             "key",          "%s", key,
             "rowid",        "%ld", (long)rowid,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return -1;
@@ -7409,7 +7439,8 @@ PRIVATE json_t *read_record_content(
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             "key",          "%s", key,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         return NULL;
@@ -7442,7 +7473,8 @@ PRIVATE json_t *read_record_content(
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
             "key",          "%s", key,
-            "errno",        "%s", strerror(errno),
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
             NULL
         );
         gbuffer_decref(gbuf);
