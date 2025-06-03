@@ -507,27 +507,6 @@ PUBLIC int walk_dir_tree(
     void *user_data
 );
 
-// PUBLIC int get_number_of_files(
-//     hgobj gobj,
-//     const char *root_dir,
-//     const char *pattern,
-//     wd_option opt
-// );
-
-/*
- * Return the ordered full tree filenames of root_dir
- * WARNING free the returned value (char **) with free_ordered_filename_array()
- * NOTICE: Sometimes I reinvent the wheel: use glob() please.
- */
-PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of files TODO delete
-    hgobj gobj,
-    const char *root_dir,
-    const char *pattern,
-    wd_option opt,
-    int *size
-);
-PUBLIC void free_ordered_filename_array(char **array, int size); // TODO delete
-
 /*---------------------------------*
  *  ### Time functions
  *---------------------------------*/

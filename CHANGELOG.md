@@ -76,6 +76,9 @@ Change API
 
     tranger2_list_keys()
 
+    get_ordered_filename_array() removed
+    free_ordered_filename_array() removed
+
 New API
 
     build_stats_response
