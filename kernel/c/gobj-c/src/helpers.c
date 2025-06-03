@@ -2845,7 +2845,7 @@ PRIVATE int dir_array_add(
     return 0;
 }
 
-PUBLIC size_t find_files_with_suffix_array(
+PUBLIC int find_files_with_suffix_array(
     hgobj gobj,
     const char *directory,
     const char *suffix,
@@ -2867,7 +2867,7 @@ PUBLIC size_t find_files_with_suffix_array(
             "serrno",       "%s", strerror(errno),
             NULL
         );
-        return 0;
+        return -1;
     }
 
     while((entry = readdir(dir)) != NULL) {
@@ -2917,7 +2917,7 @@ PUBLIC size_t find_files_with_suffix_array(
     }
 
     closedir(dir);
-    return da->count;
+    return 0;
 }
 
 PRIVATE int compare_strings(
@@ -2940,12 +2940,9 @@ PUBLIC void dir_array_sort(
 }
 
 /****************************************************************************
- *  Return the ordered full tree filenames of root_dir
- *  WARNING free return array with free_ordered_filename_array()
- *  WARNING: here I don't use gbmem functions
- *  NOTICE: Sometimes I reinvent the wheel: use glob() please.
+ *
  ****************************************************************************/
-PRIVATE BOOL _fill_array_cb(
+PRIVATE BOOL fill_array_cb(
     hgobj gobj,
     void *user_data,
     wd_found_type type,
@@ -2967,17 +2964,20 @@ PRIVATE BOOL _fill_array_cb(
     return true; // continue traversing tree
 }
 
-PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of files
+/****************************************************************************
+ *  Get ordered full tree filenames of root_dir
+ *  WARNING free return array with dir_array_free()
+ ****************************************************************************/
+PUBLIC int walk_dir_array(
     hgobj gobj,
     const char *root_dir,
     const char *pattern,
     wd_option opt,
-    size_t *size)
-{
+    dir_array_t *da
+) {
     regex_t r;
-    if(size) {
-        *size = 0; // initial 0
-    }
+
+    dir_array_init(da);
 
     if(!is_directory(root_dir)) {
         gobj_log_error(gobj, 0,
@@ -2987,7 +2987,7 @@ PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of f
             "path",         "%s", root_dir,
            NULL
         );
-        return NULL;
+        return -1;
     }
 
     int ret = regcomp(&r, pattern, REG_EXTENDED | REG_NOSUB);
@@ -2999,44 +2999,44 @@ PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of f
             "error",        "%d", ret,
            NULL
         );
-        return NULL;
+        return -1;
     }
 
     /*
      *  Fill the array
      */
-    dir_array_t da;
-    dir_array_init(&da);
-
-    _walk_tree(gobj, root_dir, &r, &da, opt, 0, _fill_array_cb);
+    _walk_tree(gobj, root_dir, &r, &da, opt, 0, fill_array_cb);
     regfree(&r);
+
+    return 0;
+}
+
+/****************************************************************************
+ *  Get ordered full tree filenames of root_dir
+ *  WARNING free return array with dir_array_free()
+ ****************************************************************************/
+PUBLIC int get_ordered_filename_array( // WARNING too slow for thousands of files
+    hgobj gobj,
+    const char *root_dir,
+    const char *pattern,
+    wd_option opt,
+    dir_array_t *da
+) {
+
+    int ret = walk_dir_array(
+        gobj,
+        root_dir,
+        pattern,
+        opt,
+        da
+    );
 
     /*
      *  Order the array
      */
-    dir_array_sort(&da);
+    dir_array_sort(da);
 
-    if(size) {
-        *size = da.count;
-    }
-    return da.items;
-}
-
-/****************************************************************************
- *  WARNING: here I don't use gbmem functions
- ****************************************************************************/
-PUBLIC void free_ordered_filename_array(char **array, int size)
-{
-    if(!array) {
-        return;
-    }
-    for(int i=0; i<size; i++) {
-        char *ptr = *(array+i);
-        if(ptr) {
-            GBMEM_FREE(ptr)
-        }
-    }
-    GBMEM_FREE(array)
+    return ret;
 }
 
 

@@ -76,7 +76,7 @@ Change API
 
     tranger2_list_keys()
 
-    get_ordered_filename_array() removed
+    get_ordered_filename_array() change
     free_ordered_filename_array() removed
 
 New API
@@ -102,6 +102,10 @@ New API
     get_measure_times
     yev_dup_accept_event
     yev_event_is_idle
+
+    find_files_with_suffix_array
+    dir_array_sort
+    dir_array_free
 
 Delete API
 
