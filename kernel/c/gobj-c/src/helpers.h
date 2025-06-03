@@ -534,7 +534,7 @@ typedef struct dir_array_s {
     size_t   capacity;
 } dir_array_t;
 
-PUBLIC int find_files_with_suffix_array( // Remember free dir_array_t with dir_array_free()
+PUBLIC size_t find_files_with_suffix_array( // Remember free dir_array_t with dir_array_free()
     hgobj gobj,
     const char *directory,
     const char *suffix,
@@ -554,7 +554,7 @@ PUBLIC void dir_array_free(
  * WARNING free the returned value (char **) with free_ordered_filename_array()
  * NOTICE: Sometimes I reinvent the wheel: alternative is glob().
  */
-PUBLIC char **get_ordered_filename_array(
+PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of files
     hgobj gobj,
     const char *root_dir,
     const char *pattern,

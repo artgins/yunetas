@@ -2761,11 +2761,11 @@ PUBLIC int walk_dir_tree(
 {
     regex_t r;
 
-    if(access(root_dir, 0)!=0) {
+    if(!is_directory(root_dir)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "directory not found",
+            "msg",          "%s", "Cannot open directory",
             "path",         "%s", root_dir,
            NULL
         );
@@ -2845,7 +2845,7 @@ PRIVATE int dir_array_add(
     return 0;
 }
 
-PUBLIC int find_files_with_suffix_array(
+PUBLIC size_t find_files_with_suffix_array(
     hgobj gobj,
     const char *directory,
     const char *suffix,
@@ -2853,7 +2853,6 @@ PUBLIC int find_files_with_suffix_array(
 )
 {
     struct dirent *entry;
-    int match_count = 0;
 
     dir_array_init(da);
 
@@ -2915,11 +2914,10 @@ PUBLIC int find_files_with_suffix_array(
         }
 
         dir_array_add(da, entry->d_name);
-        match_count++;
     }
 
     closedir(dir);
-    return match_count;
+    return da->count;
 }
 
 PRIVATE int compare_strings(
@@ -2941,27 +2939,12 @@ PUBLIC void dir_array_sort(
     }
 }
 
-// /****************************************************************************
-//  *  Compare function to sort
-//  ****************************************************************************/
-// PRIVATE int cmpstringp(const void *p1, const void *p2) {
-// /*  The actual arguments to this function are "pointers to
-//  *  pointers to char", but strcmp(3) arguments are "pointers
-//  *  to char", hence the following cast plus dereference
-//  */
-//     return strcmp(* (char * const *) p1, * (char * const *) p2);
-// }
-
 /****************************************************************************
  *  Return the ordered full tree filenames of root_dir
  *  WARNING free return array with free_ordered_filename_array()
  *  WARNING: here I don't use gbmem functions
  *  NOTICE: Sometimes I reinvent the wheel: use glob() please.
  ****************************************************************************/
-struct myfiles_s {
-    char **files;
-    int *idx;
-};
 PRIVATE BOOL _fill_array_cb(
     hgobj gobj,
     void *user_data,
@@ -2970,74 +2953,41 @@ PRIVATE BOOL _fill_array_cb(
     const char *directory,
     char *filename, // dname[256]
     int level,
-    wd_option opt)
-{
-    struct myfiles_s *myfiles = user_data;
-    char **files = myfiles->files;
-    int idx = *(myfiles->idx);
+    wd_option opt
+) {
+    dir_array_t *da = user_data;
 
-    size_t ln;
-    char *ptr;
     if(opt & WD_ONLY_NAMES) {
-        ln = strlen(filename);
-        ptr = GBMEM_MALLOC(ln+1);
-        if(!ptr) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "malloc() FAILED",
-                "error",        "%d", errno,
-                "serror",       "%s", strerror(errno),
-               NULL
-            );
-            return false; // don't continue traverse tree
-        }
-        memcpy(ptr, filename, ln);
-        ptr[ln] = 0;
+        dir_array_add(da, filename);
 
     } else {
-        ln = strlen(fullpath);
-        ptr = GBMEM_MALLOC(ln+1);
-        if(!ptr) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "malloc() FAILED",
-                "error",        "%d", errno,
-                "serror",       "%s", strerror(errno),
-               NULL
-            );
-            return false; // don't continue traverse tree
-        }
-        memcpy(ptr, fullpath, ln);
-        ptr[ln] = 0;
+        dir_array_add(da, fullpath);
     }
 
-    *(files+idx) = ptr;
-    (*myfiles->idx)++;
     return true; // continue traversing tree
 }
+
 PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of files
     hgobj gobj,
     const char *root_dir,
     const char *pattern,
     wd_option opt,
-    int *size)
+    size_t *size)
 {
     regex_t r;
     if(size) {
         *size = 0; // initial 0
     }
 
-    if(access(root_dir, 0)!=0) {
+    if(!is_directory(root_dir)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "directory not found",
+            "msg",          "%s", "Cannot open directory",
             "path",         "%s", root_dir,
            NULL
         );
-        return 0;
+        return NULL;
     }
 
     int ret = regcomp(&r, pattern, REG_EXTENDED | REG_NOSUB);
@@ -3049,61 +2999,27 @@ PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of f
             "error",        "%d", ret,
            NULL
         );
-        return 0;
+        return NULL;
     }
-    /*--------------------------------------------------------*
-     *  Order required, do some preprocessing:
-     *  - get nfiles: number of files
-     *  - alloc *system* memory for array of nfiles pointers
-     *  - fill array with file names
-     *  - order the array
-     *  - return the array
-     *  - the user must free with free_ordered_filename_array()
-     *--------------------------------------------------------*/
-    int nfiles = get_number_of_files(gobj, root_dir, pattern, opt);
-    if(!nfiles) {
-        regfree(&r);
-        return 0;
-    }
-
-    int ln = sizeof(char *) * (nfiles+1);
-    // TODO check if too much memory is required . Avoid use of swap memory.
-
-    char **files = GBMEM_MALLOC(ln);
-    if(!files) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "malloc() FAILED",
-            "error",        "%d", errno,
-            "serror",       "%s", strerror(errno),
-           NULL
-        );
-        regfree(&r);
-        return 0;
-    }
-    memset(files, 0, ln);
 
     /*
      *  Fill the array
      */
-    struct myfiles_s myfiles;
-    int idx = 0;
-    myfiles.files = files;
-    myfiles.idx = &idx;
+    dir_array_t da;
+    dir_array_init(&da);
 
-    _walk_tree(gobj, root_dir, &r, &myfiles, opt, 0, _fill_array_cb);
+    _walk_tree(gobj, root_dir, &r, &da, opt, 0, _fill_array_cb);
     regfree(&r);
 
     /*
      *  Order the array
      */
-    qsort(files, nfiles, sizeof(char *), cmpstringp);
+    dir_array_sort(&da);
 
     if(size) {
-        *size = nfiles;
+        *size = da.count;
     }
-    return files;
+    return da.items;
 }
 
 /****************************************************************************
