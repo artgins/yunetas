@@ -567,7 +567,7 @@ Example of use:
         gobj,
         "/yuneta/store",
         ".*\\.json",
-        WD_ONLY_NAMES,
+        WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
         &da
     );
     printf("Found %d files\n", da.count);
