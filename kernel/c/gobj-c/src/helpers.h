@@ -513,13 +513,13 @@ Example of use:
 
     dir_array_t da;
 
-    int count = find_files_with_suffix_array(
+    find_files_with_suffix_array(
         gobj,
         "/yuneta/store",
         ".json",
         &da
     );
-    printf("Found %d files\n", count);
+    printf("Found %d files\n", da.count);
 
     dir_array_sort(&da);
 
@@ -552,18 +552,34 @@ PUBLIC void dir_array_free(
 PUBLIC int walk_dir_array( // Remember to free 'da' with dir_array_free()
     hgobj gobj,
     const char *root_dir,
-    const char *pattern,
+    const char *re, // regular expression
     wd_option opt,
     dir_array_t *da
 );
 
 /*
  *  Get ordered full tree filenames of root_dir
+Example of use:
+
+    dir_array_t da;
+
+    get_ordered_filename_array(
+        gobj,
+        "/yuneta/store",
+        ".*\\.json",
+        WD_ONLY_NAMES,
+        &da
+    );
+    printf("Found %d files\n", da.count);
+
+    // Use the array
+
+    dir_array_free(&da);
  */
 PUBLIC int get_ordered_filename_array( // Remember to free 'da' with dir_array_free()
     hgobj gobj,
     const char *root_dir,
-    const char *pattern,
+    const char *re, // regular expression
     wd_option opt,
     dir_array_t *da
 );

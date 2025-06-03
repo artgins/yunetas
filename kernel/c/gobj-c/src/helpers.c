@@ -2971,7 +2971,7 @@ PRIVATE BOOL fill_array_cb(
 PUBLIC int walk_dir_array(
     hgobj gobj,
     const char *root_dir,
-    const char *pattern,
+    const char *re, // regular expression
     wd_option opt,
     dir_array_t *da
 ) {
@@ -2990,7 +2990,7 @@ PUBLIC int walk_dir_array(
         return -1;
     }
 
-    int ret = regcomp(&r, pattern, REG_EXTENDED | REG_NOSUB);
+    int ret = regcomp(&r, re, REG_EXTENDED | REG_NOSUB);
     if(ret!=0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -3018,7 +3018,7 @@ PUBLIC int walk_dir_array(
 PUBLIC int get_ordered_filename_array( // WARNING too slow for thousands of files
     hgobj gobj,
     const char *root_dir,
-    const char *pattern,
+    const char *re, // regular expression
     wd_option opt,
     dir_array_t *da
 ) {
@@ -3026,7 +3026,7 @@ PUBLIC int get_ordered_filename_array( // WARNING too slow for thousands of file
     int ret = walk_dir_array(
         gobj,
         root_dir,
-        pattern,
+        re,
         opt,
         da
     );
