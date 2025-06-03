@@ -4677,185 +4677,9 @@ PRIVATE json_t *get_last_cache_cell(
     return cache_cell;
 }
 
-
-
-
-
-
-
-
-/***************************************************************************
- *  find_files_with_suffix_array
- ***************************************************************************/
-typedef struct dir_array_s {
-    char    **items;
-    size_t   count;
-    size_t   capacity;
-} dir_array_t;
-
-PRIVATE void dir_array_init(
-    dir_array_t         *da
-)
-{
-    da->items = NULL;
-    da->count = 0;
-    da->capacity = 0;
-}
-
-PRIVATE void dir_array_free(
-    dir_array_t         *da
-)
-{
-    if(da->items) {
-        for(size_t i = 0; i < da->count; i++) {
-            free(da->items[i]);
-        }
-        free(da->items);
-    }
-    da->items = NULL;
-    da->count = 0;
-    da->capacity = 0;
-}
-
-PRIVATE void dir_array_add(
-    dir_array_t         *da,
-    const char          *name
-)
-{
-    if(da->count >= da->capacity) {
-        size_t new_capacity = (da->capacity == 0) ? 1024 : da->capacity * 2;
-        char **new_items = realloc(da->items, new_capacity * sizeof(char *));
-        if(!new_items) {
-            perror("realloc");
-            exit(1);
-        }
-        da->items = new_items;
-        da->capacity = new_capacity;
-    }
-
-    da->items[da->count] = strdup(name);
-    da->count++;
-}
-
-PRIVATE int find_files_with_suffix_array(
-    const char          *directory,
-    const char          *suffix,
-    dir_array_t         *da
-)
-{
-    DIR *dir;
-    struct dirent *entry;
-    int match_count = 0;
-
-    dir = opendir(directory);
-    if(!dir) {
-        perror("opendir");
-        return 0;
-    }
-
-    while((entry = readdir(dir)) != NULL) {
-        if(entry->d_name[0] == '.' &&
-          (entry->d_name[1] == '\0' ||
-           (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
-            continue;
-        }
-
-        int is_file = 0;
-
-        #ifdef DT_REG
-        if(entry->d_type == DT_REG) {
-            is_file = 1;
-        } else if(entry->d_type == DT_UNKNOWN) {
-            struct stat st;
-            char path[PATH_MAX];
-
-            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
-            if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
-                is_file = 1;
-            }
-        }
-        #else
-        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
-        if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
-            is_file = 1;
-        }
-        #endif
-
-        if(!is_file) {
-            continue;
-        }
-
-        if(suffix && *suffix) {
-            size_t name_len = strlen(entry->d_name);
-            size_t suffix_len = strlen(suffix);
-            if(name_len < suffix_len) {
-                continue;
-            }
-            if(strcmp(entry->d_name + name_len - suffix_len, suffix) != 0) {
-                continue;
-            }
-        }
-
-        dir_array_add(da, entry->d_name);
-        match_count++;
-    }
-
-    closedir(dir);
-    return match_count;
-}
-
-PRIVATE int compare_strings(
-    const void *a,
-    const void *b
-)
-{
-    const char *sa = *(const char **)a;
-    const char *sb = *(const char **)b;
-    return strcmp(sa, sb);
-}
-
-PRIVATE void dir_array_sort(
-    dir_array_t *da
-)
-{
-    if(da->count > 1) {
-        qsort(da->items, da->count, sizeof(char *), compare_strings);
-    }
-}
-
-
 /***************************************************************************
  *  Get range time of a key
  ***************************************************************************/
-// PRIVATE json_t *load_key_cache_from_disk(hgobj gobj, const char *directory, const char *key)
-// {
-//     // NEW KEY in CACHE
-//     json_t *key_cache = create_cache_key();
-//     json_t *cache_files = json_object_get(key_cache, "files");
-//
-//     int files_md_size;
-//     char **files_md = get_ordered_filename_array(
-//         gobj,
-//         directory,
-//         ".*\\.md2",
-//         WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
-//         &files_md_size
-//     );
-//     for(int i=0; i<files_md_size; i++) {
-//         char *filename = files_md[i];
-//         json_t *cache_cell = load_cache_cell_from_disk(
-//             gobj,
-//             directory,
-//             key,
-//             filename    // warning .md2 removed
-//         );
-//         json_array_append_new(cache_files, cache_cell);
-//     }
-//     free_ordered_filename_array(files_md, files_md_size);
-//
-//     return key_cache;
-// }
-
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,
     const char *topic_directory,
@@ -4869,9 +4693,9 @@ PRIVATE json_t *load_key_cache_from_disk(
     json_t *cache_files = json_object_get(key_cache, "files");
 
     dir_array_t da;
-    dir_array_init(&da);
 
     int count = find_files_with_suffix_array(
+        gobj,
         full_path,
         ".md2",
         &da

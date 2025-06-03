@@ -507,6 +507,62 @@ PUBLIC int walk_dir_tree(
     void *user_data
 );
 
+/*
+ *  find_files_with_suffix_array
+Example of use:
+
+    dir_array_t da;
+
+    int count = find_files_with_suffix_array(
+        gobj,
+        "/yuneta/store",
+        ".json",
+        &da
+    );
+    printf("Found %d files\n", count);
+
+    dir_array_sort(&da);
+
+    // Use the array
+
+    dir_array_free(&da);
+
+ */
+typedef struct dir_array_s {
+    char    **items;
+    size_t   count;
+    size_t   capacity;
+} dir_array_t;
+
+PUBLIC int find_files_with_suffix_array( // Remember free dir_array_t with dir_array_free()
+    hgobj gobj,
+    const char *directory,
+    const char *suffix,
+    dir_array_t *da
+);
+
+PUBLIC void dir_array_sort(
+    dir_array_t *da
+);
+
+PUBLIC void dir_array_free(
+    dir_array_t *da
+);
+
+/*
+ * Return the ordered full tree filenames of root_dir
+ * WARNING free the returned value (char **) with free_ordered_filename_array()
+ * NOTICE: Sometimes I reinvent the wheel: alternative is glob().
+ */
+PUBLIC char **get_ordered_filename_array(
+    hgobj gobj,
+    const char *root_dir,
+    const char *pattern,
+    wd_option opt,
+    int *size
+);
+PUBLIC void free_ordered_filename_array(char **array, int size); // TODO delete
+
 /*---------------------------------*
  *  ### Time functions
  *---------------------------------*/

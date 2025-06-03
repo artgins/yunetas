@@ -571,6 +571,8 @@ PUBLIC int rmrdir(const char *path)
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "Cannot open directory",
+                "path",         "%s", path,
                 "errno",        "%d", errno,
                 "serrno",       "%s", strerror(errno),
                 NULL
@@ -623,6 +625,15 @@ PUBLIC int rmrcontentdir(const char *root_dir)
     struct stat st;
 
     if (!(dir = opendir(root_dir))) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot open directory",
+            "path",         "%s", root_dir,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
         return -1;
     }
 
@@ -2649,7 +2660,7 @@ PRIVATE int _walk_tree(
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "opendir() FAILED",
+                "msg",          "%s", "Cannot open directory",
                 "path",         "%s", root_dir,
                 "error",        "%d", errno,
                 "serror",       "%s", strerror(errno),
@@ -2778,6 +2789,338 @@ PUBLIC int walk_dir_tree(
     ret = _walk_tree(gobj, root_dir, &r, user_data, opt, 0, cb);
     regfree(&r);
     return ret;
+}
+
+/***************************************************************************
+ *  find_files_with_suffix_array
+ ***************************************************************************/
+PRIVATE void dir_array_init(
+    dir_array_t         *da
+)
+{
+    da->items = NULL;
+    da->count = 0;
+    da->capacity = 0;
+}
+
+PUBLIC void dir_array_free(
+    dir_array_t         *da
+)
+{
+    if(da->items) {
+        for(size_t i = 0; i < da->count; i++) {
+            GBMEM_FREE(da->items[i]);
+        }
+        GBMEM_FREE(da->items);
+    }
+    da->items = NULL;
+    da->count = 0;
+    da->capacity = 0;
+}
+
+PRIVATE int dir_array_add(
+    dir_array_t         *da,
+    const char          *name
+)
+{
+    if(da->count >= da->capacity) {
+        size_t new_capacity = (da->capacity == 0) ? 1024 : da->capacity * 2;
+        char **new_items = GBMEM_REALLOC(da->items, new_capacity * sizeof(char *));
+        if(!new_items) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_MEMORY_ERROR,
+                "msg",          "%s", "No memory to dir_array",
+                "sizeof",       "%d", new_capacity * sizeof(char *),
+                NULL
+            );
+            return -1;
+        }
+        da->items = new_items;
+        da->capacity = new_capacity;
+    }
+
+    da->items[da->count] = GBMEM_STRDUP(name);
+    da->count++;
+    return 0;
+}
+
+PUBLIC int find_files_with_suffix_array(
+    hgobj gobj,
+    const char *directory,
+    const char *suffix,
+    dir_array_t *da
+)
+{
+    struct dirent *entry;
+    int match_count = 0;
+
+    dir_array_init(da);
+
+    DIR *dir = opendir(directory);
+    if(!dir) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Cannot open directory",
+            "path",         "%s", directory,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return 0;
+    }
+
+    while((entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.' &&
+          (entry->d_name[1] == '\0' ||
+           (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
+            continue;
+        }
+
+        int is_file = 0;
+
+        #ifdef DT_REG
+        if(entry->d_type == DT_REG) {
+            is_file = 1;
+        } else if(entry->d_type == DT_UNKNOWN) {
+            struct stat st;
+            char path[PATH_MAX];
+
+            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+            if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+                is_file = 1;
+            }
+        }
+        #else
+        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+        if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            is_file = 1;
+        }
+        #endif
+
+        if(!is_file) {
+            continue;
+        }
+
+        if(suffix && *suffix) {
+            size_t name_len = strlen(entry->d_name);
+            size_t suffix_len = strlen(suffix);
+            if(name_len < suffix_len) {
+                continue;
+            }
+            if(strcmp(entry->d_name + name_len - suffix_len, suffix) != 0) {
+                continue;
+            }
+        }
+
+        dir_array_add(da, entry->d_name);
+        match_count++;
+    }
+
+    closedir(dir);
+    return match_count;
+}
+
+PRIVATE int compare_strings(
+    const void *a,
+    const void *b
+)
+{
+    const char *sa = *(const char **)a;
+    const char *sb = *(const char **)b;
+    return strcmp(sa, sb);
+}
+
+PUBLIC void dir_array_sort(
+    dir_array_t *da
+)
+{
+    if(da->count > 1) {
+        qsort(da->items, da->count, sizeof(char *), compare_strings);
+    }
+}
+
+// /****************************************************************************
+//  *  Compare function to sort
+//  ****************************************************************************/
+// PRIVATE int cmpstringp(const void *p1, const void *p2) {
+// /*  The actual arguments to this function are "pointers to
+//  *  pointers to char", but strcmp(3) arguments are "pointers
+//  *  to char", hence the following cast plus dereference
+//  */
+//     return strcmp(* (char * const *) p1, * (char * const *) p2);
+// }
+
+/****************************************************************************
+ *  Return the ordered full tree filenames of root_dir
+ *  WARNING free return array with free_ordered_filename_array()
+ *  WARNING: here I don't use gbmem functions
+ *  NOTICE: Sometimes I reinvent the wheel: use glob() please.
+ ****************************************************************************/
+struct myfiles_s {
+    char **files;
+    int *idx;
+};
+PRIVATE BOOL _fill_array_cb(
+    hgobj gobj,
+    void *user_data,
+    wd_found_type type,
+    char *fullpath,
+    const char *directory,
+    char *filename, // dname[256]
+    int level,
+    wd_option opt)
+{
+    struct myfiles_s *myfiles = user_data;
+    char **files = myfiles->files;
+    int idx = *(myfiles->idx);
+
+    size_t ln;
+    char *ptr;
+    if(opt & WD_ONLY_NAMES) {
+        ln = strlen(filename);
+        ptr = GBMEM_MALLOC(ln+1);
+        if(!ptr) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "malloc() FAILED",
+                "error",        "%d", errno,
+                "serror",       "%s", strerror(errno),
+               NULL
+            );
+            return false; // don't continue traverse tree
+        }
+        memcpy(ptr, filename, ln);
+        ptr[ln] = 0;
+
+    } else {
+        ln = strlen(fullpath);
+        ptr = GBMEM_MALLOC(ln+1);
+        if(!ptr) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "malloc() FAILED",
+                "error",        "%d", errno,
+                "serror",       "%s", strerror(errno),
+               NULL
+            );
+            return false; // don't continue traverse tree
+        }
+        memcpy(ptr, fullpath, ln);
+        ptr[ln] = 0;
+    }
+
+    *(files+idx) = ptr;
+    (*myfiles->idx)++;
+    return true; // continue traversing tree
+}
+PUBLIC char **get_ordered_filename_array( // WARNING too slow for thousands of files
+    hgobj gobj,
+    const char *root_dir,
+    const char *pattern,
+    wd_option opt,
+    int *size)
+{
+    regex_t r;
+    if(size) {
+        *size = 0; // initial 0
+    }
+
+    if(access(root_dir, 0)!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "directory not found",
+            "path",         "%s", root_dir,
+           NULL
+        );
+        return 0;
+    }
+
+    int ret = regcomp(&r, pattern, REG_EXTENDED | REG_NOSUB);
+    if(ret!=0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "regcomp() FAILED",
+            "error",        "%d", ret,
+           NULL
+        );
+        return 0;
+    }
+    /*--------------------------------------------------------*
+     *  Order required, do some preprocessing:
+     *  - get nfiles: number of files
+     *  - alloc *system* memory for array of nfiles pointers
+     *  - fill array with file names
+     *  - order the array
+     *  - return the array
+     *  - the user must free with free_ordered_filename_array()
+     *--------------------------------------------------------*/
+    int nfiles = get_number_of_files(gobj, root_dir, pattern, opt);
+    if(!nfiles) {
+        regfree(&r);
+        return 0;
+    }
+
+    int ln = sizeof(char *) * (nfiles+1);
+    // TODO check if too much memory is required . Avoid use of swap memory.
+
+    char **files = GBMEM_MALLOC(ln);
+    if(!files) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "malloc() FAILED",
+            "error",        "%d", errno,
+            "serror",       "%s", strerror(errno),
+           NULL
+        );
+        regfree(&r);
+        return 0;
+    }
+    memset(files, 0, ln);
+
+    /*
+     *  Fill the array
+     */
+    struct myfiles_s myfiles;
+    int idx = 0;
+    myfiles.files = files;
+    myfiles.idx = &idx;
+
+    _walk_tree(gobj, root_dir, &r, &myfiles, opt, 0, _fill_array_cb);
+    regfree(&r);
+
+    /*
+     *  Order the array
+     */
+    qsort(files, nfiles, sizeof(char *), cmpstringp);
+
+    if(size) {
+        *size = nfiles;
+    }
+    return files;
+}
+
+/****************************************************************************
+ *  WARNING: here I don't use gbmem functions
+ ****************************************************************************/
+PUBLIC void free_ordered_filename_array(char **array, int size)
+{
+    if(!array) {
+        return;
+    }
+    for(int i=0; i<size; i++) {
+        char *ptr = *(array+i);
+        if(ptr) {
+            GBMEM_FREE(ptr)
+        }
+    }
+    GBMEM_FREE(array)
 }
 
 
@@ -4700,7 +5043,15 @@ PUBLIC void list_open_files(void)
     // Open the /proc/self/fd directory
     dir = opendir(fd_dir_path);
     if (dir == NULL) {
-        perror("opendir");
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Cannot open directory",
+            "path",         "%s", fd_dir_path,
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
         return;
     }
 
@@ -5609,10 +5960,10 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
     parser = GBMEM_MALLOC(sizeof(GHTTP_PARSER));
     if(!parser) {
         gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "no memory for sizeof(GHTTP_PARSER)",
-            "sizeof(GHTTP_PARSER)",  "%d", sizeof(GHTTP_PARSER),
+            "function",             "%s", __FUNCTION__,
+            "msgset",               "%s", MSGSET_MEMORY_ERROR,
+            "msg",                  "%s", "no memory for sizeof(GHTTP_PARSER)",
+            "sizeof(GHTTP_PARSER)", "%d", sizeof(GHTTP_PARSER),
             NULL);
         return 0;
     }
