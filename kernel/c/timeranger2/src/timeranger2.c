@@ -4694,7 +4694,7 @@ PRIVATE json_t *load_key_cache_from_disk(
 
     dir_array_t da;
 
-    int count = find_files_with_suffix_array(
+    find_files_with_suffix_array(
         gobj,
         full_path,
         ".md2",
@@ -4703,7 +4703,7 @@ PRIVATE json_t *load_key_cache_from_disk(
 
     dir_array_sort(&da);
 
-    for(int i=0; i<count; i++) {
+    for(int i=0; i<da.count; i++) {
         char *filename = da.items[i];
         json_t *cache_cell = load_cache_cell_from_disk(
             gobj,

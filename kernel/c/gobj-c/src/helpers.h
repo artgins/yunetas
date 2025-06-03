@@ -524,6 +524,10 @@ Example of use:
     dir_array_sort(&da);
 
     // Use the array
+    for(int i=0; i<da.count; i++) {
+        char *filename = da.items[i];
+        //...
+    }
 
     dir_array_free(&da);
 
@@ -573,8 +577,13 @@ Example of use:
     printf("Found %d files\n", da.count);
 
     // Use the array
+    for(int i=0; i<da.count; i++) {
+        char *filename = da.items[i];
+        //...
+    }
 
     dir_array_free(&da);
+
  */
 PUBLIC int get_ordered_filename_array( // Remember to free 'da' with dir_array_free()
     hgobj gobj,
