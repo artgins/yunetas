@@ -267,13 +267,10 @@ PUBLIC json_t *tranger2_list_topics( // return is yours
 
 /*
    Return list of keys of the topic
-        rkey    regular expression of key
-
 */
 PUBLIC json_t *tranger2_list_keys( // return is yours
     json_t *tranger,
-    const char *topic_name,
-    const char *rkey
+    const char *topic_name
 );
 
 /*

@@ -74,6 +74,7 @@ Change API
             hgobj prev_bottom_gobj
         );
 
+    tranger2_list_keys()
 
 New API
 

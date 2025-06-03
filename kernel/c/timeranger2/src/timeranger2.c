@@ -150,14 +150,8 @@ PRIVATE int json_array_find_idx(
     json_t *item
 );
 
-PRIVATE json_t *find_keys_in_disk(
-    hgobj gobj,
-    const char *directory,
-    const char *rkey
-);
 PRIVATE int build_topic_cache_from_disk(
     hgobj gobj,
-    json_t *tranger,
     json_t *topic
 );
 PRIVATE json_t *get_key_cache(
@@ -174,18 +168,18 @@ PRIVATE json_t *get_last_cache_cell(
 );
 PRIVATE json_t *load_key_cache_from_disk(
     hgobj gobj,
-    const char *directory,
+    const char *topic_directory,
     const char *key
 );
 PRIVATE json_t *load_cache_cell_from_disk(
     hgobj gobj,
-    const char *directory,
+    const char *topic_directory,
     const char *key,
     char *filename  // md2 filename with extension, WARNING modified, .md2 removed
 );
 PRIVATE uint64_t load_first_and_last_record_md(
     hgobj gobj,
-    const char *directory,
+    const char *topic_directory,
     const char *key,
     const char *filename,
     md2_record_t *md_first_record,
@@ -1017,7 +1011,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
     /*-------------------------------------*
      *  Load keys and metadata from disk
      *-------------------------------------*/
-    build_topic_cache_from_disk(gobj, tranger, topic);
+    build_topic_cache_from_disk(gobj, topic);
 
     /*
      *  Monitoring the disk to realtime disk lists
@@ -1116,24 +1110,24 @@ PUBLIC json_t *tranger2_list_topics( // return is yours
  ***************************************************************************/
 PUBLIC json_t *tranger2_list_keys( // return is yours
     json_t *tranger,
-    const char *topic_name,
-    const char *rkey
+    const char *topic_name
 )
 {
-    hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *topic = tranger2_topic( // WARNING returned json IS NOT YOURS
         tranger,
         topic_name
     );
 
-    const char *directory = kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED);
+    json_t *topic_cache = json_object_get(topic, "cache");
+    json_t *jn_keys = json_array();
 
-    char full_path[PATH_MAX];
-    snprintf(full_path, sizeof(full_path), "%s/keys",
-        directory
-    );
+    void *iter = json_object_iter(topic_cache);
+    while(iter) {
+        const char *key = json_object_iter_key(iter);
+        json_array_append_new(jn_keys, json_string(key));
+        iter = json_object_iter_next(topic_cache, iter);
+    }
 
-    json_t *jn_keys = find_keys_in_disk(gobj, full_path, rkey); // TODO BAD search in cache
     return jn_keys;
 }
 
@@ -1150,12 +1144,9 @@ PUBLIC uint64_t tranger2_topic_size(
         return 0;
     }
 
-print_json2("XXXX", tranger); // TODO TEST
-
     json_t *jn_keys = tranger2_list_keys( // return is yours
         tranger,
-        topic_name,
-        NULL
+        topic_name
     );
 
     uint64_t total = 0;
@@ -4034,7 +4025,10 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
     // TODO char *key = fs_event->user_data2;
 
     char full_path[PATH_MAX];
-    snprintf(full_path, sizeof(full_path), "%s/%s", fs_event->directory, fs_event->filename);
+    snprintf(full_path, sizeof(full_path), "%s/%s",
+        (char *)fs_event->directory,
+        (char *)fs_event->filename
+    );
 
     switch(fs_event->fs_type) {
         case FS_SUBDIR_CREATED_TYPE:
@@ -4283,10 +4277,10 @@ PRIVATE json_int_t update_new_records_from_disk(
     char *filename
 )
 {
-    const char *directory = json_string_value(json_object_get(topic, "directory"));
+    const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
     json_t *new_cache_cell = load_cache_cell_from_disk(
         gobj,
-        directory,
+        topic_directory,
         key,
         filename  // warning .md2 removed
     );
@@ -4431,74 +4425,86 @@ PRIVATE int publish_new_rt_disk_records(
 }
 
 /***************************************************************************
- *  Returns list of searched keys that exist on disk
  ***************************************************************************/
-PRIVATE json_t *find_keys_in_disk(
-    hgobj gobj,
-    const char *directory,
-    const char *rkey
-)
-{x
-    json_t *jn_keys = json_array();
-
-    // const char *pattern;
-    // if(!empty_string(rkey)) {
-    //     pattern = rkey;
-    // } else {
-    //     pattern = ".*";
-    // }
-    //
-    // int dirs_size;
-    // char **dirs = get_ordered_filename_array(
-    //     gobj,
-    //     directory,
-    //     pattern,
-    //     WD_MATCH_DIRECTORY|WD_ONLY_NAMES,
-    //     &dirs_size
-    // );
-    //
-    // for(int i=0; i<dirs_size; i++) {
-    //     json_array_append_new(jn_keys, json_string(dirs[i]));
-    // }
-    // free_ordered_filename_array(dirs, dirs_size);
-
-    return jn_keys;
-}
+// PRIVATE json_t *find_keys_in_disk(
+//     hgobj gobj,
+//     const char *directory,
+//     const char *rkey
+// )
+// {
+//     json_t *jn_keys = json_array();
+//
+//     const char *pattern;
+//     if(!empty_string(rkey)) {
+//         pattern = rkey;
+//     } else {
+//         pattern = ".*";
+//     }
+//
+//     int dirs_size;
+//     char **dirs = get_ordered_filename_array(
+//         gobj,
+//         directory,
+//         pattern,
+//         WD_MATCH_DIRECTORY|WD_ONLY_NAMES,
+//         &dirs_size
+//     );
+//
+//     for(int i=0; i<dirs_size; i++) {
+//         json_array_append_new(jn_keys, json_string(dirs[i]));
+//     }
+//     free_ordered_filename_array(dirs, dirs_size);
+//
+//     return jn_keys;
+// }
 
 /***************************************************************************
+ *  Returns list of keys that exist on disk
  *  directory: path to search
- *  rkey: shell pattern (can be NULL or "")
  *  cb: callback called for each match
- *  user_data: your data passed to cb
- *
- *  Return: number of matches found
+ *  Return: number of directories found
  ***************************************************************************/
-typedef int (*find_dir_cb_fn)(hgobj gobj, const char *dirname);
-int find_dirs_in_disk(
+struct find_keys_s {
+    hgobj gobj;
+    json_t *topic;
+    const char *directory;
+    const char *key;
+};
+
+typedef int (*find_keys_cb_fn)(struct find_keys_s *find_keys);
+
+PRIVATE int find_keys_in_disk(
     hgobj gobj,
-    const char *directory,
-    const char *rkey,
-    find_dir_cb_fn cb
+    json_t *topic,
+    find_keys_cb_fn cb
 )
 {
-    DIR *dir;
+    const char *directory = json_string_value(json_object_get(topic, "directory"));
     struct dirent *entry;
-    struct stat st;
-    char path[PATH_MAX];
     int match_count = 0;
+    char full_path[PATH_MAX];
+    snprintf(full_path, sizeof(full_path), "%s/keys",
+        directory
+    );
 
-    dir = opendir(directory);
+    DIR *dir = opendir(full_path);
     if(!dir) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "directory not found",
-            "path",         "%s", directory,
+            "msg",          "%s", "find tranger2 keys: directory not found",
+            "path",         "%s", full_path,
            NULL
         );
         return 0;
     }
 
+    struct find_keys_s find_keys = {
+        .gobj = gobj,
+        .topic = topic,
+        .directory = directory,
+        .key = 0
+    };
     while((entry = readdir(dir)) != NULL) {
         if(entry->d_name[0] == '.' &&
           (entry->d_name[1] == '\0' ||
@@ -4512,6 +4518,8 @@ int find_dirs_in_disk(
         if(entry->d_type == DT_DIR) {
             is_dir = 1;
         } else if(entry->d_type == DT_UNKNOWN) {
+            struct stat st;
+            char path[PATH_MAX];
             snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
             if(stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
                 is_dir = 1;
@@ -4528,16 +4536,10 @@ int find_dirs_in_disk(
             continue;
         }
 
-        // Pattern match
-        if(rkey && *rkey && fnmatch(rkey, entry->d_name, 0) != 0) {
-            continue;
-        }
-
         // Call user callback
-        if(cb) {
-            if(cb(gobj, entry->d_name) != 0) {
-                break; // user requested stop
-            }
+        find_keys.key = entry->d_name;
+        if(cb(&find_keys) < 0) {
+            break; // user requested stop
         }
 
         match_count++;
@@ -4552,29 +4554,24 @@ int find_dirs_in_disk(
  *  Load metadata of topic in cache:
  *      keys with its range of time available
  ***************************************************************************/
+PRIVATE int find_keys_cb(struct find_keys_s *find_keys)
+{
+    json_t *topic_cache = json_object_get(find_keys->topic, "cache");
+    json_t *key_cache = load_key_cache_from_disk(
+        find_keys->gobj,
+        find_keys->directory,
+        find_keys->key
+    );
+    json_object_set_new(topic_cache, find_keys->key, key_cache);
+    update_totals_of_key_cache(find_keys->gobj, find_keys->topic, find_keys->key);
+    return 0; // don't break
+}
+
 PRIVATE int build_topic_cache_from_disk(
     hgobj gobj,
-    json_t *tranger,
     json_t *topic
 ) {
-    const char *directory = json_string_value(json_object_get(topic, "directory"));
-    char full_path[PATH_MAX];
-    snprintf(full_path, sizeof(full_path), "%s/keys",
-        directory
-    );
-
-    json_t *jn_keys = find_keys_in_disk(gobj, full_path, NULL); // TODO REAL search in disk
-    json_t *topic_cache = kw_get_dict(gobj, topic, "cache", 0, 0);
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
-        json_t *key_cache = load_key_cache_from_disk(gobj, directory, key);
-        json_object_set_new(topic_cache, key, key_cache);
-        update_totals_of_key_cache(gobj, topic, key);
-    }
-
-    JSON_DECREF(jn_keys)
-    return 0;
+    return find_keys_in_disk(gobj, topic, find_keys_cb);
 }
 
 /***************************************************************************
@@ -4680,41 +4677,224 @@ PRIVATE json_t *get_last_cache_cell(
     return cache_cell;
 }
 
+
+
+
+
+
+
+
+/***************************************************************************
+ *  find_files_with_suffix_array
+ ***************************************************************************/
+typedef struct dir_array_s {
+    char    **items;
+    size_t   count;
+    size_t   capacity;
+} dir_array_t;
+
+PRIVATE void dir_array_init(
+    dir_array_t         *da
+)
+{
+    da->items = NULL;
+    da->count = 0;
+    da->capacity = 0;
+}
+
+PRIVATE void dir_array_free(
+    dir_array_t         *da
+)
+{
+    if(da->items) {
+        for(size_t i = 0; i < da->count; i++) {
+            free(da->items[i]);
+        }
+        free(da->items);
+    }
+    da->items = NULL;
+    da->count = 0;
+    da->capacity = 0;
+}
+
+PRIVATE void dir_array_add(
+    dir_array_t         *da,
+    const char          *name
+)
+{
+    if(da->count >= da->capacity) {
+        size_t new_capacity = (da->capacity == 0) ? 1024 : da->capacity * 2;
+        char **new_items = realloc(da->items, new_capacity * sizeof(char *));
+        if(!new_items) {
+            perror("realloc");
+            exit(1);
+        }
+        da->items = new_items;
+        da->capacity = new_capacity;
+    }
+
+    da->items[da->count] = strdup(name);
+    da->count++;
+}
+
+PRIVATE int find_files_with_suffix_array(
+    const char          *directory,
+    const char          *suffix,
+    dir_array_t         *da
+)
+{
+    DIR *dir;
+    struct dirent *entry;
+    int match_count = 0;
+
+    dir = opendir(directory);
+    if(!dir) {
+        perror("opendir");
+        return 0;
+    }
+
+    while((entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.' &&
+          (entry->d_name[1] == '\0' ||
+           (entry->d_name[1] == '.' && entry->d_name[2] == '\0'))) {
+            continue;
+        }
+
+        int is_file = 0;
+
+        #ifdef DT_REG
+        if(entry->d_type == DT_REG) {
+            is_file = 1;
+        } else if(entry->d_type == DT_UNKNOWN) {
+            struct stat st;
+            char path[PATH_MAX];
+
+            snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+            if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+                is_file = 1;
+            }
+        }
+        #else
+        snprintf(path, sizeof(path), "%s/%s", directory, entry->d_name);
+        if(stat(path, &st) == 0 && S_ISREG(st.st_mode)) {
+            is_file = 1;
+        }
+        #endif
+
+        if(!is_file) {
+            continue;
+        }
+
+        if(suffix && *suffix) {
+            size_t name_len = strlen(entry->d_name);
+            size_t suffix_len = strlen(suffix);
+            if(name_len < suffix_len) {
+                continue;
+            }
+            if(strcmp(entry->d_name + name_len - suffix_len, suffix) != 0) {
+                continue;
+            }
+        }
+
+        dir_array_add(da, entry->d_name);
+        match_count++;
+    }
+
+    closedir(dir);
+    return match_count;
+}
+
+PRIVATE int compare_strings(
+    const void *a,
+    const void *b
+)
+{
+    const char *sa = *(const char **)a;
+    const char *sb = *(const char **)b;
+    return strcmp(sa, sb);
+}
+
+PRIVATE void dir_array_sort(
+    dir_array_t *da
+)
+{
+    if(da->count > 1) {
+        qsort(da->items, da->count, sizeof(char *), compare_strings);
+    }
+}
+
+
 /***************************************************************************
  *  Get range time of a key
  ***************************************************************************/
-PRIVATE json_t *load_key_cache_from_disk(hgobj gobj, const char *directory, const char *key)
-{
+// PRIVATE json_t *load_key_cache_from_disk(hgobj gobj, const char *directory, const char *key)
+// {
+//     // NEW KEY in CACHE
+//     json_t *key_cache = create_cache_key();
+//     json_t *cache_files = json_object_get(key_cache, "files");
+//
+//     int files_md_size;
+//     char **files_md = get_ordered_filename_array(
+//         gobj,
+//         directory,
+//         ".*\\.md2",
+//         WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
+//         &files_md_size
+//     );
+//     for(int i=0; i<files_md_size; i++) {
+//         char *filename = files_md[i];
+//         json_t *cache_cell = load_cache_cell_from_disk(
+//             gobj,
+//             directory,
+//             key,
+//             filename    // warning .md2 removed
+//         );
+//         json_array_append_new(cache_files, cache_cell);
+//     }
+//     free_ordered_filename_array(files_md, files_md_size);
+//
+//     return key_cache;
+// }
+
+PRIVATE json_t *load_key_cache_from_disk(
+    hgobj gobj,
+    const char *topic_directory,
+    const char *key
+) {
     char full_path[PATH_MAX];
+    build_path(full_path, sizeof(full_path), topic_directory, "keys", key, NULL);
 
     // NEW KEY in CACHE
     json_t *key_cache = create_cache_key();
     json_t *cache_files = json_object_get(key_cache, "files");
 
-    build_path(full_path, sizeof(full_path), directory, "keys", key, NULL);
+    dir_array_t da;
+    dir_array_init(&da);
 
-    int files_md_size;
-    char **files_md = get_ordered_filename_array(
-        gobj,
+    int count = find_files_with_suffix_array(
         full_path,
-        ".*\\.md2",
-        WD_MATCH_REGULAR_FILE|WD_ONLY_NAMES,
-        &files_md_size
+        ".md2",
+        &da
     );
-    for(int i=0; i<files_md_size; i++) {
-        char *filename = files_md[i];
+
+    dir_array_sort(&da);
+
+    for(int i=0; i<count; i++) {
+        char *filename = da.items[i];
         json_t *cache_cell = load_cache_cell_from_disk(
             gobj,
-            directory,
+            topic_directory,
             key,
             filename    // warning .md2 removed
         );
         json_array_append_new(cache_files, cache_cell);
     }
-    free_ordered_filename_array(files_md, files_md_size);
+
+    dir_array_free(&da);
 
     return key_cache;
 }
+
 
 /***************************************************************************
  *  Update a cache cell with a new record metadata
@@ -4788,7 +4968,7 @@ PRIVATE json_t *update_cache_cell(
  ***************************************************************************/
 PRIVATE json_t *load_cache_cell_from_disk(
     hgobj gobj,
-    const char *directory,
+    const char *topic_directory,
     const char *key,
     char *filename  // md2 filename with extension, WARNING modified, .md2 removed
 )
@@ -4801,7 +4981,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
 
     uint64_t file_rows = load_first_and_last_record_md(
         gobj,
-        directory,
+        topic_directory,
         key,
         filename,
         &md_first_record,
@@ -4831,7 +5011,7 @@ PRIVATE json_t *load_cache_cell_from_disk(
  ***************************************************************************/
 PRIVATE uint64_t load_first_and_last_record_md(
     hgobj gobj,
-    const char *directory,
+    const char *topic_directory,
     const char *key,
     const char *filename,
     md2_record_t *md_first_record,
@@ -4845,7 +5025,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
      *  (name relative to time __t__)
      *----------------------------------*/
     char full_path[PATH_MAX];
-    build_path(full_path, sizeof(full_path), directory, "keys", key, filename, NULL);
+    build_path(full_path, sizeof(full_path), topic_directory, "keys", key, filename, NULL);
     int fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
     if(fd<0) {
         gobj_log_critical(gobj, 0,
@@ -5040,8 +5220,11 @@ PRIVATE json_int_t update_new_record_from_mem(
  *
  *  Return -1 if error and if successful return total rows ( > 0)
  ***************************************************************************/
-PRIVATE json_int_t update_totals_of_key_cache(hgobj gobj, json_t *topic, const char *key)
-{
+PRIVATE json_int_t update_totals_of_key_cache(
+    hgobj gobj,
+    json_t *topic,
+    const char *key
+) {
     // "cache`%s`files", key
     json_t *cache_files = json_object_get(
         json_object_get(
@@ -7731,8 +7914,7 @@ PUBLIC json_t *tranger2_open_list( // WARNING loading all records causes delay i
         tranger2_close_iterator(tranger, ll);
 
     } else {
-        const char *rkey = kw_get_str(gobj, match_cond, "rkey", "", 0); // "" is equivalent to ".*"
-        json_t *jn_keys = tranger2_list_keys(tranger, topic_name, rkey);
+        json_t *jn_keys = tranger2_list_keys(tranger, topic_name);
         if(json_array_size(jn_keys)>0) {
             /*
              *  Load from disk

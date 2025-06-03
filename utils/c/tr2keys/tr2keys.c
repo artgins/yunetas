@@ -383,8 +383,7 @@ PRIVATE int list_messages(void)
 
     json_t *jn_keys = tranger2_list_keys( // return is yours
         tranger,
-        arguments.topic,
-        arguments.rkey
+        arguments.topic
     );
     print_json2("Keys", jn_keys);
     JSON_DECREF(jn_keys)

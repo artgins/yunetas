@@ -532,8 +532,7 @@ PRIVATE int do_test(void)
         // Comprueba por tranger2
         json_t *jn_keys = tranger2_list_keys( // return is yours
             tranger,
-            "departments",
-            ""
+            "departments"
         );
         if(json_array_size(jn_keys) != 4) {
             printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
@@ -550,8 +549,7 @@ PRIVATE int do_test(void)
         // Comprueba por tranger2
         jn_keys = tranger2_list_keys( // return is yours
             tranger,
-            "users",
-            ""
+            "users"
         );
         if(json_array_size(jn_keys) != 8) {
             printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
@@ -608,8 +606,7 @@ PRIVATE int do_test(void)
             // Comprueba por tranger2
             json_t *jn_keys = tranger2_list_keys( // return is yours
                 tranger,
-                "departments",
-                ""
+                "departments"
             );
             if(json_array_size(jn_keys) != 4) {
                 printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
@@ -626,8 +623,7 @@ PRIVATE int do_test(void)
             // Comprueba por tranger2
             jn_keys = tranger2_list_keys( // return is yours
                 tranger,
-                "users",
-                ""
+                "users"
             );
             if(json_array_size(jn_keys) != 8) {
                 printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
@@ -737,8 +733,7 @@ PRIVATE int do_test(void)
         // Comprueba por tranger2
         json_t *jn_keys = tranger2_list_keys( // return is yours
             tranger,
-            "departments",
-            ""
+            "departments"
         );
         if(json_array_size(jn_keys) != 4) {
             printf("%s  --> ERROR departments!=4%s\n", On_Red BWhite,Color_Off);
@@ -755,8 +750,7 @@ PRIVATE int do_test(void)
         // Comprueba por tranger2
         jn_keys = tranger2_list_keys( // return is yours
             tranger,
-            "users",
-            ""
+            "users"
         );
         if(json_array_size(jn_keys) != 8) {
             printf("%s  --> ERROR users!=8 %s\n", On_Red BWhite,Color_Off);
