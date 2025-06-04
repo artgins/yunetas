@@ -773,24 +773,30 @@ PUBLIC int trq_check_backup(tr_queue trq_)
 
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
     uint64_t backup_queue_size = kw_get_int(gobj, trq->topic, "backup_queue_size", 0, 0);
-return 0;// TODO TEST
-    if(backup_queue_size) {
-        if(tranger2_topic_size(trq->tranger, trq->topic_name) >= backup_queue_size) {
-            char *topic_name = GBMEM_STRDUP(trq->topic_name);
-            if(topic_name) {
-                trq_set_first_rowid(trq, tranger2_topic_size(trq->tranger, trq->topic_name)); // WARNING danger change?!
-                trq->topic = tranger2_backup_topic(
-                    trq->tranger,
-                    topic_name,
-                    0,
-                    0,
-                    true,
-                    0
-                );
-                trq_set_first_rowid(trq, 0);
-                GBMEM_FREE(topic_name)
-            }
+
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+    MT_SET_COUNT(time_measure, 1)
+
+    if(backup_queue_size) { // TODO consume a lot of time
+        MT_PRINT_TIME(time_measure, "check backup trq 1")
+        uint64_t sz = tranger2_topic_size(trq->tranger, trq->topic_name);
+        MT_PRINT_TIME(time_measure, "check backup trq 2")
+        if(sz >= backup_queue_size) {
+            trq_set_first_rowid(trq, sz); // WARNING danger change?!
+            trq->topic = tranger2_backup_topic(
+                trq->tranger,
+                trq->topic_name,
+                0,
+                0,
+                true,
+                0
+            );
+            trq_set_first_rowid(trq, 0);
         }
     }
+
+    MT_PRINT_TIME(time_measure, "check backup trq 3")
+
     return 0;
 }

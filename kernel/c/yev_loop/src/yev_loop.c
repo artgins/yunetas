@@ -682,7 +682,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_times) {
             MT_START_TIME(yev_time_measure)
-            MT_INCREMENT_COUNT(yev_time_measure, 1)
+            MT_SET_COUNT(yev_time_measure, 1)
         }
 #endif
         if (err < 0) {
@@ -823,7 +823,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
     if(measuring_times) {
         MT_START_TIME(yev_time_measure)
-        MT_INCREMENT_COUNT(yev_time_measure, 1)
+        MT_SET_COUNT(yev_time_measure, 1)
     }
 #endif
 
