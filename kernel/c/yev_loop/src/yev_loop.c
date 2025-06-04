@@ -4,7 +4,7 @@
  *          Yunetas Event Loop
  *
  *          Copyright (c) 2023 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <liburing.h>
@@ -740,31 +740,12 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_times & yev_event_type) {
-            if(measuring_times & yev_event_type & YEV_CONNECT_TYPE) {
-                MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe YEV_CONNECT_TYPE");
-            }
-            if(measuring_times & yev_event_type & YEV_ACCEPT_TYPE) {
-                MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe YEV_ACCEPT_TYPE");
-            }
-            if(measuring_times & yev_event_type & YEV_READ_TYPE) {
-                MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe YEV_READ_TYPE");
-            }
-            if(measuring_times & yev_event_type & YEV_WRITE_TYPE) {
-                MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe YEV_WRITE_TYPE");
-            }
-            if(measuring_times & yev_event_type & YEV_TIMER_TYPE) {
-                MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe YEV_TIMER_TYPE");
-            }
-            if(measuring_times & yev_event_type & YEV_POLL_TYPE) {
-                MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe YEV_POLL_TYPE");
-            }
-
-            // char temp[80];
-            // snprintf(temp, sizeof(temp), "BEFORE callback_cqe(%s), res %d",
-            //     yev_event_type_name(yev_event),
-            //     cqe->res
-            // );
-            // MT_PRINT_TIME(yev_time_measure, temp);
+            char temp[80];
+            snprintf(temp, sizeof(temp), "BEFORE callback_cqe(%s), res %d",
+                yev_event_type_name(yev_event),
+                cqe->res
+            );
+            MT_PRINT_TIME(yev_time_measure, temp);
         }
 #endif
         if(callback_cqe(yev_loop, cqe)<0) {

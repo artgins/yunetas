@@ -4,7 +4,7 @@
  *          Yunetas Event Loop
  *
  *          Copyright (c) 2023 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
+ *          Copyright (c) 2024-2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
