@@ -23,7 +23,7 @@ const args = require('minimist')(argv.slice(2), {
     default: {
         host: '127.0.0.1',
         port: 7779,
-        connections: 100,
+        connections: 10,
         rate: 1,
         count: 0,  // 0 = unlimited
     },
@@ -92,9 +92,10 @@ if(args.msgfile) {
 }
 
 let cur_connections = 0;
+const max_connections = args.connections;
 
 // Launch N connections
-for(let i = 0; i < args.connections; i++) {
+function connect(i) {
     const client = new net.Socket();
 
     client.connect(args.port, args.host, () => {
@@ -137,5 +138,11 @@ for(let i = 0; i < args.connections; i++) {
     });
     client.on('close', () => {
         console.log(`Connection ${i} closed`);
+        setTimeout(() => connect(i), 2000);
     });
+}
+
+// Launch all initial connections
+for(let i = 0; i < max_connections; i++) {
+    connect(i);
 }
