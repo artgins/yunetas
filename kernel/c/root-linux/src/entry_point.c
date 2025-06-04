@@ -275,7 +275,6 @@ PRIVATE void daemon_catch_signals(void)
     sigaction(SIGALRM, &sigIntHandler, NULL);   // internal launch to assure kill
     sigaction(SIGQUIT, &sigIntHandler, NULL);
     sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
-//    sigaction(SIGTERM, &sigIntHandler, NULL);
 
     sigIntHandler.sa_handler = raise_sighandler;
     sigemptyset(&sigIntHandler.sa_mask);
