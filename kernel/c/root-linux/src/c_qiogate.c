@@ -79,6 +79,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
 SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             "1000",     "Timeout polling, in miliseconds"),
+SDATA (DTP_INTEGER,     "timeout_backup",   SDF_RD,             "10",        "Timeout to check backup, in seconds"),
 SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   0,          "Messages in queue"),
 SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   0,          "Messages pending of ack"),
 
@@ -126,8 +127,11 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    int32_t timeout_poll;
-    int32_t timeout_ack;
+    json_int_t timeout_poll;
+    json_int_t timeout_ack;
+    json_int_t timeout_backup;
+    time_t t_backup;
+
     hgobj timer;
 
     hgobj gobj_tranger_queues;
@@ -180,6 +184,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(timeout_poll,              gobj_read_integer_attr)
     SET_PRIV(timeout_ack,               gobj_read_integer_attr)
+    SET_PRIV(timeout_backup,            gobj_read_integer_attr)
     SET_PRIV(with_metadata,             gobj_read_bool_attr)
     SET_PRIV(alert_queue_size,          gobj_read_integer_attr)
     SET_PRIV(max_pending_acks,          gobj_read_integer_attr)
@@ -195,6 +200,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout_poll,            gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_ack,           gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_backup,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_pending_acks,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(drop_on_timeout_ack,   gobj_read_bool_attr)
@@ -1107,6 +1113,13 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         priv->bottom_side_opened = true;
         send_batch_messages(gobj, 0, true);  // On open send or resend
         set_timeout_periodic(priv->timer, priv->timeout_poll);
+
+        if(priv->timeout_backup > 0) {
+            priv->t_backup = start_sectimer(priv->timeout_backup);
+        } else {
+            priv->t_backup = 0;
+        }
+
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1217,9 +1230,12 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    if(trq_size(priv->trq_msgs)==0 && priv->pending_acks==0) {
-        // Check and do backup only when no message
-        trq_check_backup(priv->trq_msgs);
+    if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
+        if(trq_size(priv->trq_msgs)==0 && priv->pending_acks==0) {
+            // Check and do backup only when no message
+            trq_check_backup(priv->trq_msgs);
+        }
+        priv->t_backup = start_sectimer(priv->timeout_backup);
     }
 
     KW_DECREF(kw);
