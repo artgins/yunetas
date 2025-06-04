@@ -268,7 +268,7 @@ PUBLIC json_t *tranger2_list_topics( // return is yours
 /*
    Return list of keys of the topic
 */
-PUBLIC json_t *tranger2_list_keys( // return is yours
+PUBLIC json_t *tranger2_list_keys(// return is yours, WARNING fn slow for thousands of keys!
     json_t *tranger,
     const char *topic_name
 );
@@ -276,7 +276,7 @@ PUBLIC json_t *tranger2_list_keys( // return is yours
 /*
    Get topic size (number of records of all keys)
 */
-PUBLIC uint64_t tranger2_topic_size(
+PUBLIC uint64_t tranger2_topic_size( // WARNING fn slow for thousands of keys!
     json_t *tranger,
     const char *topic_name
 );

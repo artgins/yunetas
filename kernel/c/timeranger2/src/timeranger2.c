@@ -1104,15 +1104,11 @@ PUBLIC json_t *tranger2_list_topics( // return is yours
 
 /***************************************************************************
    Return list of keys of the topic
-    match_cond:
-        key
-        rkey    regular expression of key
  ***************************************************************************/
-PUBLIC json_t *tranger2_list_keys( // return is yours
+PUBLIC json_t *tranger2_list_keys(// return is yours, WARNING fn slow for thousands of keys!
     json_t *tranger,
     const char *topic_name
-)
-{
+) {
     json_t *topic = tranger2_topic( // WARNING returned json IS NOT YOURS
         tranger,
         topic_name
@@ -1134,28 +1130,35 @@ PUBLIC json_t *tranger2_list_keys( // return is yours
 /***************************************************************************
    Get topic size (number of records of all keys)
  ***************************************************************************/
-PUBLIC uint64_t tranger2_topic_size(
+PUBLIC uint64_t tranger2_topic_size( // WARNING fn slow for thousands of keys!
     json_t *tranger,
     const char *topic_name
 ) {
+
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
+    MT_SET_COUNT(time_measure, 1)
+    int keys = 0;
+
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         return 0;
     }
-
-    json_t *jn_keys = tranger2_list_keys( // return is yours
-        tranger,
-        topic_name
-    );
+    MT_PRINT_TIME(time_measure, "tranger2_topic_size 1")
 
     uint64_t total = 0;
-    int idx; json_t *jn_key;
-    json_array_foreach(jn_keys, idx, jn_key) {
-        const char *key = json_string_value(jn_key);
+    json_t *topic_cache = json_object_get(topic, "cache");
+    void *iter = json_object_iter(topic_cache);
+    while(iter) {
+        const char *key = json_object_iter_key(iter);
         total += get_topic_key_rows(gobj, topic, key);
+        keys++;
+        iter = json_object_iter_next(topic_cache, iter);
     }
-    json_decref(jn_keys);
+
+    MT_PRINT_TIME(time_measure, "tranger2_topic_size 2")
+    printf("Total keys %ld, rows %ld\n", (long)keys, (long)total);
 
     return total;
 }
@@ -7231,15 +7234,19 @@ PUBLIC int tranger2_iterator_last(
  ***************************************************************************/
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key)
 {
-    char path[PATH_MAX];
+    // char path[PATH_MAX];
+    //
+    // // Silence, please
+    //
+    // if(empty_string(key)) {
+    //     return 0;
+    // }
+    // snprintf(path, sizeof(path), "cache`%s`total`rows", key);
+    // return kw_get_int(gobj, topic, path, 0, 0);
 
-    // Silence, please
-
-    if(empty_string(key)) {
-        return 0;
-    }
-    snprintf(path, sizeof(path), "cache`%s`total`rows", key);
-    return kw_get_int(gobj, topic, path, 0, 0);
+    // No big difference using this
+    json_t *jn_rows = json_object_get(json_object_get(json_object_get(json_object_get(topic, "cache"), key),"total"), "rows");
+    return json_integer_value(jn_rows);
 }
 
 /***************************************************************************
