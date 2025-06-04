@@ -2734,7 +2734,7 @@ PUBLIC yev_event_h yev_dup2_accept_event(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC yev_event_h yev_create_poll_event( // create the socket listening in yev_event->fd
+PUBLIC yev_event_h yev_create_poll_event( // create a poll event of yev_event->fd
     yev_loop_h yev_loop_,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj,
