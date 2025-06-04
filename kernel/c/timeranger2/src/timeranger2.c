@@ -1134,18 +1134,11 @@ PUBLIC uint64_t tranger2_topic_size( // WARNING fn slow for thousands of keys!
     json_t *tranger,
     const char *topic_name
 ) {
-
-    time_measure_t time_measure;
-    MT_START_TIME(time_measure)
-    MT_SET_COUNT(time_measure, 1)
-    int keys = 0;
-
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     json_t *topic = tranger2_topic(tranger, topic_name);
     if(!topic) {
         return 0;
     }
-    MT_PRINT_TIME(time_measure, "tranger2_topic_size 1")
 
     uint64_t total = 0;
     json_t *topic_cache = json_object_get(topic, "cache");
@@ -1153,12 +1146,8 @@ PUBLIC uint64_t tranger2_topic_size( // WARNING fn slow for thousands of keys!
     while(iter) {
         const char *key = json_object_iter_key(iter);
         total += get_topic_key_rows(gobj, topic, key);
-        keys++;
         iter = json_object_iter_next(topic_cache, iter);
     }
-
-    MT_PRINT_TIME(time_measure, "tranger2_topic_size 2")
-    printf("Total keys %ld, rows %ld\n", (long)keys, (long)total);
 
     return total;
 }
