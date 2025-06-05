@@ -4536,8 +4536,8 @@ PRIVATE void load_stats(hgobj gobj)
     {
         double cpu_percent = cpu_usage_percent(&priv->last_cpu_ticks, &priv->last_ms);
         // Store as integer
-        uint32_t cpu_value = (uint32_t)(cpu_percent);
-        gobj_write_integer_attr(gobj, "cpu", cpu_value);
+        uint32_t cpu_usage = (uint32_t)(cpu_percent);
+        gobj_write_integer_attr(gobj, "cpu", cpu_usage);
     }
 
     /*---------------------------------------*
