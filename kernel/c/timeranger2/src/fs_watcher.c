@@ -349,6 +349,7 @@ PRIVATE int yev_callback(
                     fs_destroy_watcher_event(fs_event);
 
                 } else {
+                    // TODO too many yev_get_gbuf(yev_event)
                     size_t len = gbuffer_leftbytes(yev_get_gbuf(yev_event));
                     char *buffer = gbuffer_cur_rd_pointer(yev_get_gbuf(yev_event));
                     char *ptr = buffer;

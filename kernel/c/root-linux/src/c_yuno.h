@@ -50,6 +50,8 @@ PUBLIC int register_c_yuno(void);
  */
 PUBLIC void *yuno_event_loop(void);
 
+PUBLIC void set_yuno_must_die(void);
+
 /*--------------------------------------------------*
  *  Allowed ips for authz without jwt
  *      (in addition to local ip with yuneta user)

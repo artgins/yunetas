@@ -18,6 +18,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <signal.h>
+#include <sys/signalfd.h>
 #include <sys/statvfs.h>
 #include <sys/utsname.h>
 #include <sys/resource.h>
@@ -29,7 +31,6 @@
 #include <yev_loop.h>
 #include <rotatory.h>
 #include <tr_treedb.h>
-#include "entry_point.h"
 #include "yunetas_environment.h"
 #include "c_timer0.h"
 #include "cpu.h"
@@ -49,6 +50,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE int capture_signals(hgobj gobj);
 PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name);
 PRIVATE void remove_pid_file(void);
 PRIVATE int save_pid_in_file(hgobj gobj);
@@ -443,8 +445,8 @@ SDATA (DTP_INTEGER, "deep_trace",       SDF_WR|SDF_STATS|SDF_PERSIST,"0", "Deep 
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
 SDATA (DTP_INTEGER, "periodic_timeout", SDF_RD,         "1000",         "Timeout periodic, in miliseconds. This periodic timeout feeds C_TIMER, the precision is important, but affect to performance, many C_TIMER gobjs will be consumed a lot of CPU"),
-SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1",            "timeout (seconds) for publishing stats."),
-SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2",            "timeout (seconds) for rotatory flush"),
+SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1000",         "timeout (miliseconds) for publishing stats."),
+SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2000",         "timeout (miliseconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
@@ -489,14 +491,16 @@ typedef struct _PRIVATE_DATA {
     uint64_t last_cpu_ticks;
     uint64_t last_ms;
 
-    time_t t_flush;
-    time_t t_stats;
+    uint64_t t_flush;
+    uint64_t t_stats;
     time_t t_restart;
     json_int_t timeout_flush;
     json_int_t timeout_stats;
     json_int_t timeout_restart;
     json_int_t periodic_timeout;
     json_int_t limit_open_files;
+
+    yev_event_h yev_signal;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -514,13 +518,122 @@ PRIVATE hgclass __gclass__ = 0;
 /***************************************************************************
  *  yev_loop callback
  ***************************************************************************/
-PRIVATE int yev_loop_callback(yev_event_h yev_event) {
+PRIVATE int yev_loop_callback(yev_event_h yev_event)
+{
     if (!yev_event) {
         /*
          *  It's the timeout
          */
         return 0;  // don't break the loop, c_yuno is not using yev_loop_run with timeout, by now
     }
+
+    if(gobj_trace_level(0) & (TRACE_URING)) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
+        gobj_log_info(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "👁💥 yev callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
+            "flag",         "%j", jn_flags,
+            "fd",           "%d", yev_get_fd(yev_event),
+            "gbuffer",      "%p", yev_get_gbuf(yev_event),
+            "p",            "%p", yev_event,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
+    hgobj gobj = yev_get_gobj(yev_event);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    switch(yev_get_type(yev_event)) {
+        case YEV_READ_TYPE:
+            if(yev_event == priv->yev_signal) {
+                gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+                size_t len = gbuffer_leftbytes(gbuf);
+                if(len == sizeof(struct signalfd_siginfo)) {
+                    struct signalfd_siginfo *fdsi = gbuffer_cur_rd_pointer(gbuf);
+                    if(gobj_trace_level(0) & (TRACE_URING)) {
+                        gobj_log_info(0, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_YEV_LOOP,
+                            "msg",          "%s", "yev signal",
+                            "msg2",         "%s", "👁💥 yev signal",
+                            "signal",       "%d", fdsi->ssi_signo,
+                            NULL
+                        );
+                    }
+
+                    switch(fdsi->ssi_signo) {
+                        case SIGALRM:
+                        case SIGQUIT:
+                        case SIGINT:
+                            //quit_sighandler(fdsi.ssi_signo);
+                        {
+                            static int tries = 0;
+                            tries++;
+                            set_yuno_must_die();
+                            if(tries > 1) {
+                                // exit with 0 to avoid the watcher to relaunch the daemon
+                                _exit(0);
+                            }
+                        }
+                        break;
+
+                        case SIGUSR1:
+                            gobj_set_deep_tracing(-1);
+                        break;
+
+                        case SIGPIPE:
+                        case SIGTERM:
+                            // ignored
+                        default:
+                            // unexpected signal
+                            break;
+                    }
+
+                } else {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                        "msg",          "%s", "len != sizeof(struct signalfd_siginfo)",
+                        "len",          "%d", len,
+                        NULL
+                    );
+                }
+
+                /*
+                 *  Clear buffer
+                 *  Re-arm read
+                 */
+                if(gbuf) {
+                    gbuffer_clear(gbuf);
+                    yev_start_event(yev_event);
+                }
+            } else {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "what event?",
+                    NULL
+                );
+            }
+            break;
+
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "event type NOT IMPLEMENTED",
+                NULL
+            );
+            break;
+    }
+
     return 0;
 }
 
@@ -662,6 +775,11 @@ PRIVATE void mt_create(hgobj gobj)
         save_pid_in_file(gobj);
     }
 
+    /*-------------------------------*
+     *  Capture the signals to quit
+     *-------------------------------*/
+    capture_signals(gobj);
+
     SET_PRIV(periodic_timeout,      gobj_read_integer_attr)
     SET_PRIV(timeout_stats,         gobj_read_integer_attr)
     SET_PRIV(timeout_flush,         gobj_read_integer_attr)
@@ -712,14 +830,16 @@ PRIVATE int mt_start(hgobj gobj)
     set_timeout_periodic0(priv->gobj_timer, priv->periodic_timeout);
 
     if(priv->timeout_flush > 0) {
-        priv->t_flush = start_sectimer(priv->timeout_flush);
+        priv->t_flush = start_msectimer(priv->timeout_flush);
     }
     if(priv->timeout_stats > 0) {
-        priv->t_stats = start_sectimer(priv->timeout_stats);
+        priv->t_stats = start_msectimer(priv->timeout_stats);
     }
     if(priv->timeout_restart > 0) {
         priv->t_restart = start_sectimer(priv->timeout_restart);
     }
+
+    yev_start_event(priv->yev_signal);
 
     return 0;
 }
@@ -730,9 +850,12 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     /*
      *  When yuno stops, it's the death of the app
      */
+    yev_stop_event(priv->yev_signal);
+
     gobj_stop(priv->gobj_timer);
     gobj_stop_children(gobj);
     return 0;
@@ -745,6 +868,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    yev_destroy_event(priv->yev_signal);
+    priv->yev_signal = 0;
     yev_loop_destroy(priv->yev_loop);
 }
 
@@ -3922,6 +4047,79 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int catch_signals(hgobj gobj)
+{
+    sigset_t mask;
+    int sfd;
+
+    // Block signals so they aren’t handled via default signal handlers
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGPIPE);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGALRM);
+    sigaddset(&mask, SIGQUIT);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGUSR1);
+
+    if(sigprocmask(SIG_BLOCK, &mask, NULL) == -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "sigprocmask() FAILED",
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    // Create the signalfd
+    sfd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if(sfd == -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "signalfd() FAILED",
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    // Now the caller should monitor `sfd` (e.g., with poll()/epoll()/io_uring)
+    return sfd;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int capture_signals(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int sfd = catch_signals(gobj);
+
+    /*
+     *  Alloc buffer to read
+     */
+    size_t len = sizeof(struct signalfd_siginfo); // signalfd_siginfo is 128 bytes
+    gbuffer_t *gbuf = gbuffer_create(len, len);
+
+    priv->yev_signal = yev_create_read_event(
+        priv->yev_loop,
+        yev_loop_callback,
+        gobj,
+        sfd,
+        gbuf
+    );
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE void remove_pid_file(void)
 {
     if(!empty_string(pidfile)) {
@@ -4555,23 +4753,11 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->timeout_flush > 0 && test_sectimer(priv->t_flush)) {
-        priv->t_flush = start_sectimer(priv->timeout_flush);
+    if(priv->timeout_flush > 0 && test_msectimer(priv->t_flush)) {
         rotatory_flush(0);
+        priv->t_flush = start_msectimer(priv->timeout_flush);
     }
-    if(get_yuno_must_die()) {
-        gobj_log_info(gobj, 0,
-            "msgset",       "%s", MSGSET_STARTUP,
-            "msg",          "%s", "Exit to die",
-            "msg2",         "%s", "❌❌❌❌ Exit to die ❌❌❌❌",
-            NULL
-        );
-        gobj_set_exit_code(0);
-        rotatory_flush(0);
-        JSON_DECREF(kw)
-        yev_loop_reset_running(priv->yev_loop);
-        return 0;
-    }
+
     if(priv->timeout_restart > 0 && test_sectimer(priv->t_restart)) {
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_STARTUP,
@@ -4585,8 +4771,8 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
         return 0;
     }
 
-    if(priv->timeout_stats > 0 && test_sectimer(priv->t_stats)) {
-        priv->t_stats = start_sectimer(priv->timeout_stats);
+    if(priv->timeout_stats > 0 && test_msectimer(priv->t_stats)) {
+        priv->t_stats = start_msectimer(priv->timeout_stats);
         load_stats(gobj);
     }
 
@@ -4729,6 +4915,25 @@ PUBLIC void *yuno_event_loop(void)
     hgobj gobj = gobj_yuno();
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     return priv->yev_loop;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void set_yuno_must_die(void)
+{
+    hgobj gobj = gobj_yuno();
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_log_info(gobj, 0,
+        "msgset",       "%s", MSGSET_STARTUP,
+        "msg",          "%s", "Exit to die",
+        "msg2",         "%s", "❌❌❌❌ Exit to die ❌❌❌❌",
+        NULL
+    );
+    gobj_set_exit_code(0);
+    rotatory_flush(0);
+    yev_loop_reset_running(priv->yev_loop);
 }
 
 /***************************************************************************
