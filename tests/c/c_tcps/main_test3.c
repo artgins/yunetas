@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(4);
+    // set_auto_kill_time(4);
 
     /*------------------------------------------------*
      *          Start yuneta
