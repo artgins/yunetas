@@ -81,7 +81,7 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
 /***************************************************************************
  *
  ***************************************************************************/
-static int relauncher(
+PRIVATE int relauncher(
     void (*process) (
         const char *process_name,
         const char *work_dir,
