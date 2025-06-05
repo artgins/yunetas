@@ -4535,46 +4535,9 @@ PRIVATE void load_stats(hgobj gobj)
      *---------------------------------------*/
     {
         double cpu_percent = cpu_usage_percent(&priv->last_cpu_ticks, &priv->last_ms);
-
-        // Store as integer * 10 (optional)
-        uint32_t cpu_value = (uint32_t)(cpu_percent * 10.0);
-
+        // Store as integer
+        uint32_t cpu_value = (uint32_t)(cpu_percent);
         gobj_write_integer_attr(gobj, "cpu", cpu_value);
-    }
-    {
-        uint64_t cpu_ticks = cpu_usage();  // utime + stime, in jiffies
-        uint64_t ms = time_in_milliseconds_monotonic();
-        long ticks_per_sec = sysconf(_SC_CLK_TCK);
-
-        if(!priv->last_ms) {
-            priv->last_ms = ms;
-            priv->last_cpu_ticks = cpu_ticks;
-        } else {
-            uint64_t delta_ms = ms - priv->last_ms;
-
-            if(delta_ms > 0) {
-                uint64_t delta_cpu_ticks = cpu_ticks - priv->last_cpu_ticks;
-
-                // Convert delta time to seconds
-                double delta_seconds = (double)delta_ms / 1000.0;
-
-                // Convert process time from jiffies to seconds
-                double delta_cpu_seconds = (double)delta_cpu_ticks / (double)ticks_per_sec;
-
-                // CPU usage percentage (per core)
-                double cpu_usage_percent = (delta_cpu_seconds / delta_seconds) * 100.0;
-
-                // Store result (as integer * 10, for example → 1 decimal)
-                uint32_t cpu_value = (uint32_t)(cpu_usage_percent * 10.0);
-
-                // Save for next iteration
-                priv->last_ms = ms;
-                priv->last_cpu_ticks = cpu_ticks;
-
-                // Write to attribute
-                gobj_write_integer_attr(gobj, "cpu", cpu_value);
-            }
-        }
     }
 
     /*---------------------------------------*
