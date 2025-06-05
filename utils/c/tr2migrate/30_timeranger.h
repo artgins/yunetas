@@ -92,8 +92,8 @@ typedef enum { // WARNING table with name's strings in 30_timeranger.c
     sf0_int_key              = 0x00000004,
     sf0_zip_record           = 0x00000010,
     sf0_cipher_record        = 0x00000020,
-    sf0_t_ms                 = 0x00000100,   // record time in miliseconds
-    sf0_tm_ms                = 0x00000200,   // message time in miliseconds
+    sf0_t_ms                 = 0x00000100,   // record time in milliseconds
+    sf0_tm_ms                = 0x00000200,   // message time in milliseconds
     sf0_no_record_disk       = 0x00001000,
     sf0_no_md_disk           = 0x00002000,
     sf0_no_disk              = 0x00003000,   // sf_no_record_disk + sf_no_md_disk

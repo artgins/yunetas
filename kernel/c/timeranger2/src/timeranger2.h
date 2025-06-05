@@ -116,8 +116,8 @@ typedef enum { // WARNING table with name's strings in timeranger.c / sf_names
     sf_int_key              = 0x0004,
     sf_zip_record           = 0x0010,
     sf_cipher_record        = 0x0020,
-    sf_t_ms                 = 0x0100,   // record time in miliseconds
-    sf_tm_ms                = 0x0200,   // message time in miliseconds
+    sf_t_ms                 = 0x0100,   // record time in milliseconds
+    sf_tm_ms                = 0x0200,   // message time in milliseconds
     sf_deleted_record       = 0x0400,
     sf_loading_from_disk    = 0x1000,
 } system_flag2_t;

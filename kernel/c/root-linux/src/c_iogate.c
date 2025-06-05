@@ -1239,7 +1239,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Local stats
      */
-    uint64_t ms = time_in_miliseconds_monotonic();
+    uint64_t ms = time_in_milliseconds_monotonic();
     if(!priv->last_ms) {
         priv->last_ms = ms;
     }

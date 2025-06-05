@@ -79,6 +79,9 @@ Change API
     get_ordered_filename_array() change
     free_ordered_filename_array() removed
 
+    time_in_miliseconds_monotonic -> time_in_milliseconds_monotonic
+    time_in_miliseconds -> time_in_milliseconds
+
 New API
 
     build_stats_response

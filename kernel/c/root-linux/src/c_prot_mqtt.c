@@ -1743,7 +1743,7 @@ PRIVATE json_t *hash_password(
     json_t *credential_list = kw_get_list(gobj, credentials, "credentials", json_array(), KW_CREATE);
     json_t *credential = json_pack("{s:s, s:I, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
         "type", "password",
-        "createdDate", (json_int_t)time_in_miliseconds(),
+        "createdDate", (json_int_t)time_in_milliseconds(),
         "secretData",
             "value", hash_b64,
             "salt", salt_b64,

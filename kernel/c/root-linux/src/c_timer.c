@@ -3,7 +3,7 @@
  *
  *          GClass Timer
  *          High level, feed timers from periodic time of yuno
- *          IN SECONDS! although the parameter is in miliseconds (msec)
+ *          IN SECONDS! although the parameter is in milliseconds (msec)
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -31,7 +31,7 @@ PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_INTEGER, "subscriber",       0,              0,          "subscriber of output-events. Default if null is parent."),
 SDATA (DTP_BOOLEAN, "periodic",         SDF_RD,         "0",        "True for periodic timeouts"),
-SDATA (DTP_INTEGER, "msec",             SDF_RD,         "0",        "Timeout in miliseconds"),
+SDATA (DTP_INTEGER, "msec",             SDF_RD,         "0",        "Timeout in milliseconds"),
 SDATA_END()
 };
 

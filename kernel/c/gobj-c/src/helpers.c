@@ -4843,14 +4843,14 @@ PUBLIC BOOL test_sectimer(time_t value)
 }
 
 /****************************************************************************
- *   Arranca un timer de 'miliseconds' mili-segundos.
+ *   Arranca un timer de 'milliseconds' mili-segundos.
  *   El valor retornado es el que hay que usar en la funcion test_msectimer()
  *   para ver si el timer ha cumplido.
  ****************************************************************************/
-PUBLIC uint64_t start_msectimer(uint64_t miliseconds)
+PUBLIC uint64_t start_msectimer(uint64_t milliseconds)
 {
-    uint64_t ms = time_in_miliseconds_monotonic();
-    ms += miliseconds;
+    uint64_t ms = time_in_milliseconds_monotonic();
+    ms += milliseconds;
     return ms;
 }
 
@@ -4864,28 +4864,27 @@ PUBLIC BOOL test_msectimer(uint64_t value)
         return false;
     }
 
-    uint64_t ms = time_in_miliseconds_monotonic();
+    uint64_t ms = time_in_milliseconds_monotonic();
 
     return (ms>=value)? true:false;
 }
 
 /****************************************************************************
- *  Return MONOTONIC time in miliseconds
+ *  Return MONOTONIC_RAW time in milliseconds
  ****************************************************************************/
-PUBLIC uint64_t time_in_miliseconds_monotonic(void)
+PUBLIC uint64_t time_in_milliseconds_monotonic(void)
 {
     struct timespec spec;
 
-    clock_gettime(CLOCK_MONOTONIC, &spec); //Este no da el time from Epoch
+    clock_gettime(CLOCK_MONOTONIC_RAW, &spec);  // True monotonic (no NTP corrections)
 
-    // Convert to milliseconds
-    return ((uint64_t)spec.tv_sec)*1000 + ((uint64_t)spec.tv_nsec)/1000000;
+    return ((uint64_t)spec.tv_sec) * 1000 + ((uint64_t)spec.tv_nsec) / 1000000;
 }
 
 /****************************************************************************
  *  Current **real** time in milliseconds
  ****************************************************************************/
-PUBLIC uint64_t time_in_miliseconds(void)
+PUBLIC uint64_t time_in_milliseconds(void)
 {
     struct timespec spec;
 
@@ -4903,6 +4902,74 @@ PUBLIC uint64_t time_in_seconds(void)
     time_t __t__;
     time(&__t__);
     return (uint64_t) __t__;
+}
+
+/****************************************************************************
+ *  Return process CPU time (utime + stime) in jiffies
+ ****************************************************************************/
+PUBLIC uint64_t cpu_usage(void)
+{
+    FILE *fp = fopen("/proc/self/stat", "r");
+    if(!fp) {
+        return 0;
+    }
+
+    uint64_t utime = 0;
+    uint64_t stime = 0;
+
+    fscanf(fp,
+        "%*d %*s %*c %*d %*d %*d %*d %*d "
+        "%*u %*u %*u %*u %*u "
+        "%lu %lu",
+        &utime, &stime);
+
+    fclose(fp);
+
+    return utime + stime;
+}
+
+/***************************************************************************
+ *  Return CPU usage percent of the current process
+ *
+ *  Parameters:
+ *      last_cpu_ticks:  IN/OUT  previous cpu_ticks (jiffies)
+ *      last_ms:         IN/OUT  previous timestamp (milliseconds, monotonic)
+ *
+ *  Return:
+ *      CPU usage in percent (float, 0.0 to 100.0)
+ ***************************************************************************/
+PUBLIC double cpu_usage_percent(
+    uint64_t *last_cpu_ticks,
+    uint64_t *last_ms
+)
+{
+    uint64_t cpu_ticks = cpu_usage();  // utime + stime, in jiffies
+    uint64_t ms = time_in_milliseconds_monotonic();
+    long ticks_per_sec = sysconf(_SC_CLK_TCK);
+
+    if(*last_ms == 0) {
+        *last_ms = ms;
+        *last_cpu_ticks = cpu_ticks;
+        return 0.0;
+    }
+
+    uint64_t delta_ms = ms - *last_ms;
+    if(delta_ms == 0) {
+        return 0.0;
+    }
+
+    uint64_t delta_cpu_ticks = cpu_ticks - *last_cpu_ticks;
+
+    double delta_seconds = (double) delta_ms / 1000.0;
+    double delta_cpu_seconds = (double)delta_cpu_ticks / (double)ticks_per_sec;
+
+    double cpu_percent = (delta_cpu_seconds / delta_seconds) * 100.0;
+
+    // Update state for next call
+    *last_ms = ms;
+    *last_cpu_ticks = cpu_ticks;
+
+    return cpu_percent;
 }
 
 /***************************************************************************

@@ -78,7 +78,7 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             "1000",     "Timeout polling, in miliseconds"),
+SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             "1000",     "Timeout polling, in milliseconds"),
 SDATA (DTP_INTEGER,     "timeout_backup",   SDF_RD,             "10",        "Timeout to check backup, in seconds"),
 SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   0,          "Messages in queue"),
 SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   0,          "Messages pending of ack"),

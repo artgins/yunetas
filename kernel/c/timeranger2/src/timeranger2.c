@@ -2260,7 +2260,7 @@ PUBLIC int tranger2_append_record(
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
     if(!__t__) {
         if(system_flag & (sf_t_ms)) {
-            __t__ = time_in_miliseconds();
+            __t__ = time_in_milliseconds();
         } else {
             __t__ = time_in_seconds();
         }

@@ -31,6 +31,7 @@
 #include <yev_loop.h>
 #include <rotatory.h>
 #include <tr_treedb.h>
+#include <helpers.h>
 #include "yunetas_environment.h"
 #include "c_timer0.h"
 #include "cpu.h"
@@ -421,10 +422,9 @@ SDATA (DTP_BOOLEAN, "yuno_multiple",    SDF_RD,         "0",            "True wh
 SDATA (DTP_INTEGER, "keep_alive",       SDF_RD,         "60",           "Set keep-alive"),
 SDATA (DTP_INTEGER, "launch_id",        SDF_RD,         "0",            "Launch Id. Set by agent"),
 SDATA (DTP_STRING,  "start_date",       SDF_RD|SDF_STATS,"",            "Yuno starting date"),
+SDATA (DTP_INTEGER, "start_time",       SDF_RD,         "0",            "Yuno starting time"),
 SDATA (DTP_INTEGER, "uptime",           SDF_RD|SDF_STATS,"0",           "Yuno living time"),
-SDATA (DTP_INTEGER, "start_time",       SDF_RD|SDF_STATS,"0",           "Yuno starting time"),
-SDATA (DTP_INTEGER, "cpu_ticks",        SDF_RD|SDF_STATS,"0",           "Cpu ticks"),
-SDATA (DTP_INTEGER, "cpu",              SDF_RD|SDF_STATS,"0",           "Cpu percent"),
+SDATA (DTP_INTEGER, "cpu",              SDF_RD|SDF_STATS,"0",           "Cpu percent usage"),
 SDATA (DTP_INTEGER, "disk_size_in_gigas",SDF_RD|SDF_STATS,"0",          "Disk size of /yuneta"),
 SDATA (DTP_INTEGER, "disk_free_percent",SDF_RD|SDF_STATS, "0",          "Disk free of /yuneta"),
 
@@ -440,13 +440,13 @@ SDATA (DTP_JSON,    "allowed_ips",      SDF_PERSIST,    "{}",           "Allowed
 SDATA (DTP_JSON,    "denied_ips",       SDF_PERSIST,    "{}",           "Denied peer ip's if true, false not denied"),
 
 
-SDATA (DTP_INTEGER, "trace_machine_format", SDF_WR|SDF_STATS|SDF_PERSIST,"0", "trace machine format, 0 legacy default, 1 simpler"),
-SDATA (DTP_INTEGER, "deep_trace",       SDF_WR|SDF_STATS|SDF_PERSIST,"0", "Deep trace set or not set"),
+SDATA (DTP_INTEGER, "trace_machine_format", SDF_WR|SDF_PERSIST,"0",     "trace machine format, 0 legacy default, 1 simpler"),
+SDATA (DTP_INTEGER, "deep_trace",       SDF_WR|SDF_PERSIST,"0", "Deep trace set or not set"),
 SDATA (DTP_DICT,    "trace_levels",     SDF_PERSIST,    "{}",           "Trace levels"),
 SDATA (DTP_DICT,    "no_trace_levels",  SDF_PERSIST,    "{}",           "No trace levels"),
-SDATA (DTP_INTEGER, "periodic_timeout", SDF_RD,         "1000",         "Timeout periodic, in miliseconds. This periodic timeout feeds C_TIMER, the precision is important, but affect to performance, many C_TIMER gobjs will be consumed a lot of CPU"),
-SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1000",         "timeout (miliseconds) for publishing stats."),
-SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2000",         "timeout (miliseconds) for rotatory flush"),
+SDATA (DTP_INTEGER, "periodic_timeout", SDF_RD,         "1000",         "Timeout periodic, in milliseconds. This periodic timeout feeds C_TIMER, the precision is important, but affect to performance, many C_TIMER gobjs will be consumed a lot of CPU"),
+SDATA (DTP_INTEGER, "timeout_stats",    SDF_RD,         "1000",         "timeout (milliseconds) for publishing stats."),
+SDATA (DTP_INTEGER, "timeout_flush",    SDF_RD,         "2000",         "timeout (milliseconds) for rotatory flush"),
 SDATA (DTP_INTEGER, "timeout_restart",  SDF_PERSIST,    "0",            "timeout (seconds) to restart"),
 SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto play the yuno, don't use in yunos citizen, only in standalone or tests"),
 
@@ -4534,25 +4534,46 @@ PRIVATE void load_stats(hgobj gobj)
      *      cpu
      *---------------------------------------*/
     {
-        unsigned int pid = getpid();
-        uint64_t cpu_ticks;
-        cpu_usage(pid, 0, &cpu_ticks);
-        //uint64_t ms = time_in_miliseconds_monotonic();
-        time_t ms;  // Usando segundos no se pierde el uso de cpu
-        time(&ms);
+        double cpu_percent = cpu_usage_percent(&priv->last_cpu_ticks, &priv->last_ms);
+
+        // Store as integer * 10 (optional)
+        uint32_t cpu_value = (uint32_t)(cpu_percent * 10.0);
+
+        gobj_write_integer_attr(gobj, "cpu", cpu_value);
+    }
+    {
+        uint64_t cpu_ticks = cpu_usage();  // utime + stime, in jiffies
+        uint64_t ms = time_in_milliseconds_monotonic();
+        long ticks_per_sec = sysconf(_SC_CLK_TCK);
+
         if(!priv->last_ms) {
             priv->last_ms = ms;
-        }
-        uint32_t cpu_delta = 0;
-        uint64_t t = (ms - priv->last_ms);
-        if(t>0) {
-            cpu_delta = cpu_ticks - priv->last_cpu_ticks;
-            //cpu_delta *= 1000;
-            cpu_delta /= t;
-            priv->last_ms = ms;
             priv->last_cpu_ticks = cpu_ticks;
-            gobj_write_integer_attr(gobj, "cpu", cpu_delta);
-            gobj_write_integer_attr(gobj, "cpu_ticks", (json_int_t)cpu_ticks);
+        } else {
+            uint64_t delta_ms = ms - priv->last_ms;
+
+            if(delta_ms > 0) {
+                uint64_t delta_cpu_ticks = cpu_ticks - priv->last_cpu_ticks;
+
+                // Convert delta time to seconds
+                double delta_seconds = (double)delta_ms / 1000.0;
+
+                // Convert process time from jiffies to seconds
+                double delta_cpu_seconds = (double)delta_cpu_ticks / (double)ticks_per_sec;
+
+                // CPU usage percentage (per core)
+                double cpu_usage_percent = (delta_cpu_seconds / delta_seconds) * 100.0;
+
+                // Store result (as integer * 10, for example → 1 decimal)
+                uint32_t cpu_value = (uint32_t)(cpu_usage_percent * 10.0);
+
+                // Save for next iteration
+                priv->last_ms = ms;
+                priv->last_cpu_ticks = cpu_ticks;
+
+                // Write to attribute
+                gobj_write_integer_attr(gobj, "cpu", cpu_value);
+            }
         }
     }
 
@@ -4717,7 +4738,7 @@ PRIVATE void load_stats(hgobj gobj)
     }
 
     /*---------------------------------------*
-     *      Mem
+     *      Disk
      *---------------------------------------*/
     {
         struct statvfs st;
@@ -4776,8 +4797,8 @@ PRIVATE int ac_timeout_periodic(hgobj gobj, gobj_event_t event, json_t *kw, hgob
     }
 
     if(priv->timeout_stats > 0 && test_msectimer(priv->t_stats)) {
-        priv->t_stats = start_msectimer(priv->timeout_stats);
         load_stats(gobj);
+        priv->t_stats = start_msectimer(priv->timeout_stats);
     }
 
     // Let others uses the periodic timer, WARNING: avoid a lot of C_TIMER's, bad performance!

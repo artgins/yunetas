@@ -1995,7 +1995,7 @@ PUBLIC int tranger_append_record(
     uint32_t __system_flag__ = kw_get_int(0,topic, "system_flag", 0, KW_REQUIRED);
     if(!__t__) {
         if(__system_flag__ & (sf0_t_ms)) {
-            __t__ = time_in_miliseconds();
+            __t__ = time_in_milliseconds();
         } else {
             __t__ = time_in_seconds();
         }

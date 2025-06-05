@@ -810,11 +810,18 @@ PUBLIC char *tm2timestamp(char *bf, int bfsize, struct tm *tm);
 PUBLIC char *t2timestamp(char *bf, int bfsize, time_t t, BOOL local);
 PUBLIC time_t start_sectimer(time_t seconds);   /* value <=0 will disable the timer */
 PUBLIC BOOL   test_sectimer(time_t value);      /* Return TRUE if timer has finish */
-PUBLIC uint64_t start_msectimer(uint64_t miliseconds);   /* value <=0 will disable the timer */
+PUBLIC uint64_t start_msectimer(uint64_t milliseconds);   /* value <=0 will disable the timer */
 PUBLIC BOOL   test_msectimer(uint64_t value);           /* Return TRUE if timer has finish */
-PUBLIC uint64_t time_in_miliseconds_monotonic(void);   // Return MONOTONIC time in miliseconds
-PUBLIC uint64_t time_in_miliseconds(void);   // Return current **real** time in miliseconds
+PUBLIC uint64_t time_in_milliseconds_monotonic(void); // Return MONOTONIC time in milliseconds
+PUBLIC uint64_t time_in_milliseconds(void);   // Return current **real** time in milliseconds
 PUBLIC uint64_t time_in_seconds(void);       // Return current time in seconds (standart time(&t))
+
+PUBLIC uint64_t cpu_usage(void);
+PUBLIC double cpu_usage_percent(
+    uint64_t *last_cpu_ticks,
+    uint64_t *last_ms
+);
+
 PUBLIC uint64_t htonll(uint64_t value); /* Convert a 64-bit integer to network byte order*/
 PUBLIC uint64_t ntohll(uint64_t value); /* Convert a 64-bit integer to host byte order */
 PUBLIC void list_open_files(void);

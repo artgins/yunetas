@@ -155,7 +155,7 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     /*
      *  Local stats
      */
-    uint64_t ms = time_in_miliseconds_monotonic();
+    uint64_t ms = time_in_milliseconds_monotonic();
     if(!priv->last_ms) {
         priv->last_ms = ms;
     }

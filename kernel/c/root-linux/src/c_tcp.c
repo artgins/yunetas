@@ -106,8 +106,8 @@ SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verifi
 SDATA (DTP_BOOLEAN,  "no_tx_ready_event",SDF_RD,        0,          "Set true if you don't want EV_TX_READY event"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
-SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in miliseconds"),
-SDATA (DTP_INTEGER, "timeout_inactivity", SDF_WR|SDF_PERSIST, "-1", "Inactivity timeout in miliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
+SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
+SDATA (DTP_INTEGER, "timeout_inactivity", SDF_WR|SDF_PERSIST, "-1", "Inactivity timeout in milliseconds to close the connection. Reconnect when new data arrived. With -1 never close."),
 
 SDATA (DTP_INTEGER, "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
 SDATA (DTP_INTEGER, "rxBytes",          SDF_RSTATS,     "0", "Messages received"),

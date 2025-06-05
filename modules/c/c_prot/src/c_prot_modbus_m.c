@@ -363,7 +363,7 @@ SDATA_END()
 };
 PRIVATE const sdata_desc_t pm_timeout[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_INTEGER,   "timeout",      0,              "1000",      "Polling timeout in miliseconds"),
+SDATAPM (DTP_INTEGER,   "timeout",      0,              "1000",      "Polling timeout in milliseconds"),
 SDATA_END()
 };
 
@@ -373,7 +373,7 @@ PRIVATE const sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-----------json_fn---------description---------- */
 SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,        cmd_help,       "Command's help"),
 SDATACM (DTP_SCHEMA,    "dump_data",        0,          pm_dump_data,   cmd_dump_data,  "Dump slave data"),
-SDATACM (DTP_SCHEMA,    "set-poll-timeout", 0,          pm_timeout,     cmd_set_poll_timeout, "Set polling timeout (in miliseconds)"),
+SDATACM (DTP_SCHEMA,    "set-poll-timeout", 0,          pm_timeout,     cmd_set_poll_timeout, "Set polling timeout (in milliseconds)"),
 SDATA_END()
 };
 
@@ -384,7 +384,7 @@ PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,      "modbus_protocol",  SDF_RD,         "TCP",      "Modbus protocol: TCP,RTU,ASCII"),
 SDATA (DTP_JSON,        "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
-SDATA (DTP_INTEGER,     "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in miliseconds"),
+SDATA (DTP_INTEGER,     "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in milliseconds"),
 SDATA (DTP_INTEGER,     "timeout_response", SDF_PERSIST,    "10",       "Timeout response in seconds"),
 SDATA (DTP_POINTER,     "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
@@ -755,7 +755,7 @@ PRIVATE json_t *cmd_set_poll_timeout(hgobj gobj, const char *cmd, json_t *kw, hg
 //    return msg_iev_build_response(
 //        gobj,
 //        0,
-//        json_sprintf("Poll timeout = %d miliseconds", timeout),
+//        json_sprintf("Poll timeout = %d milliseconds", timeout),
 //        0,
 //        0,
 //        kw  // owned

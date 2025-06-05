@@ -12,7 +12,7 @@
             ...
         ]
                 being "$local_method" a local method of gobj_jobs
-                "exec_timeout" in miliseconds
+                "exec_timeout" in milliseconds
 
         "input_data": tasks can use for they want
         "output_data": tasks can use for they want

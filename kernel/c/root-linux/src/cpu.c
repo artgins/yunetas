@@ -58,7 +58,7 @@ unsigned int get_HZ(void)
 
 #if defined(__linux__)
     if ((ticks = sysconf(_SC_CLK_TCK)) == -1) {
-        perror("sysconf");
+        ticks = 0;
     }
 #endif
     hz = (unsigned int) ticks;
@@ -368,11 +368,11 @@ void read_uptime(unsigned long long *uptime)
     }
 
     sscanf(line, "%lu.%lu", &up_sec, &up_cent);
-    *uptime = (unsigned long long) up_sec * get_HZ() +
-              (unsigned long long) up_cent * get_HZ() / 100;
+    unsigned int HZ = get_HZ();
+    *uptime = (unsigned long long) up_sec * HZ +
+              (unsigned long long) up_cent * HZ / 100;
 
     fclose(fp);
-
 }
 
 /*
@@ -780,34 +780,6 @@ unsigned long free_ram_in_kb(void)
     read_meminfo(&st_mem);
 
     return st_mem.frmkb + st_mem.camkb; // Include cache memory too
-}
-
-/*
- ***************************************************************************
- *  Cpu usage
- ***************************************************************************
- */
-int cpu_usage(unsigned int pid, uint64_t *system_time, uint64_t *process_time)
-{
-    struct stats_cpu st_cpu;
-    unsigned long long uptime;
-    unsigned long long uptime0=0;
-    read_stat_cpu(&st_cpu, 0, &uptime, &uptime0);
-
-    if(system_time) {
-        *system_time = uptime;
-    }
-
-    struct pid_stats pst;
-    unsigned int thread_nr;
-    read_proc_pid_stat(pid, &pst, &thread_nr, 0);
-
-    uint64_t uptime_pid = pst.utime + pst.stime + pst.cutime + pst.cstime;
-    if(process_time) {
-        *process_time = uptime_pid;
-    }
-
-    return 0;
 }
 
 /*
