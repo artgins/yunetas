@@ -33,7 +33,6 @@ PUBLIC int daemon_run(
     const char *process_name,
     const char *work_dir,
     const char *domain_dir,
-    void (*catch_signals)(void),
     void (*cleaning_fn)(void)
 );
 

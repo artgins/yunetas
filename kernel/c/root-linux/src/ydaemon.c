@@ -1,8 +1,17 @@
-/*
- * Work inspired in daemon.c from NXWEB project.
- * https://bitbucket.org/yarosla/nxweb/overview
- * Copyright (c) 2011-2012 Yaroslav Stavnichiy <yarosla@gmail.com>
- */
+/****************************************************************************
+ *          ydaemon.c
+ *
+ *  Work inspired in daemon.c from NXWEB project.
+ *  https://bitbucket.org/yarosla/nxweb/overview
+ *  Copyright (c) 2011-2012 Yaroslav Stavnichiy <yarosla@gmail.com>
+ *
+ *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
+ *  Child → daemon_catch_signals_child() → installs signalfd() → clean shutdown → _exit().
+ *
+ *          Copyright (c) 2014-2018 Niyamaka.
+ *          Copyright (c) 2024-2025, ArtGins.
+ *          All Rights Reserved.
+ ****************************************************************************/
 #ifdef __linux__
 #include <glob.h>
 #include <stdio.h>
@@ -26,6 +35,20 @@ PRIVATE volatile int debug = 0;
 PRIVATE volatile int exit_code;
 PRIVATE volatile int signal_code;
 PRIVATE volatile int watcher_pid = 0;
+
+/***************************************************************************
+ *  Parent → daemon_catch_signals() → ignores signals → pure waitpid().
+ *  Child → daemon_catch_signals_child() → installs signalfd() → clean shutdown → _exit().
+ ***************************************************************************/
+PRIVATE void daemon_catch_signals(void)
+{
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGTERM, SIG_IGN);
+    signal(SIGALRM, SIG_IGN);
+    signal(SIGQUIT, SIG_IGN);
+    signal(SIGINT, SIG_IGN);     // ctrl+c
+    signal(SIGUSR1, SIG_IGN);
+}
 
 /***************************************************************************
  *  function like daemon() syscall
@@ -91,7 +114,6 @@ PRIVATE int relauncher(
     const char *process_name,
     const char *work_dir,
     const char *domain_dir,
-    void (*catch_signals)(void),
     void (*cleaning_fn)(void)
 ) {
     if(debug) {
@@ -125,7 +147,7 @@ PRIVATE int relauncher(
         /*------------------------*
          *  we are the parent
          *------------------------*/
-        catch_signals();
+        daemon_catch_signals();
         int status;
         if(waitpid(pid, &status, 0) == -1) {
             print_error(PEF_EXIT, "waitpid() failed, errno %d %s", errno, strerror(errno));
@@ -179,7 +201,6 @@ PRIVATE int relauncher(
          *  we are the child
          *  (return 0)
          *------------------------*/
-        catch_signals();
         gobj_trace_msg(0, "\n"); // Blank line
         char temp[120];
         snprintf(temp, sizeof(temp), "\n=====> Starting yuno '%s', times: %d, pid: %d\n",
@@ -243,14 +264,13 @@ PUBLIC int daemon_run(
     const char *process_name,
     const char *work_dir,
     const char *domain_dir,
-    void (*catch_signals)(void),
     void (*cleaning_fn)(void)
 )
 {
     int ret;
 
     continue_as_daemon(work_dir, process_name);
-    while((ret=relauncher(process, process_name, work_dir, domain_dir, catch_signals, cleaning_fn))<0) {
+    while((ret=relauncher(process, process_name, work_dir, domain_dir, cleaning_fn))<0) {
         // sleep 2 sec and launch again while relauncher return negative
         relaunch_times++;
         sleep(2);
@@ -341,7 +361,7 @@ PRIVATE int linux_search_process(
     pid_t pid;
     glob_t pglob;
     char *procname, *readbuf;
-    int buflen = strlen(process_name) + 2;
+    int buflen = (int)strlen(process_name) + 2;
     unsigned i;
 
     /* Get a list of all comm files. man 5 proc */

@@ -47,24 +47,9 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
 );
 
 /*
- *  Assure to kill yuno if doesn't respond to first kill order
- *  Default value: 5 seconds
- */
-PUBLIC void set_assure_kill_time(int seconds);
-
-/*
- *  For TEST: kill the yuno in `timeout` seconds.
+ *  For TEST: kill the yuno in `timeout` seconds, only if not running as daemon.
  */
 PUBLIC void set_auto_kill_time(int seconds);
-
-/*
- *  By defaul the daemons are quick death.
- *  If you want a ordered death, set this true.
- */
-PUBLIC void set_ordered_death(BOOL quick_death);
-
-PUBLIC void set_yuno_must_die(void);
-PUBLIC BOOL get_yuno_must_die(void);
 
 #ifdef __cplusplus
 }

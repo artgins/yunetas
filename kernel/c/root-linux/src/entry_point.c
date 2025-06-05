@@ -45,7 +45,6 @@
  *      Data
  ***************************************************************************/
 PRIVATE hgobj __yuno_gobj__ = 0;
-PRIVATE volatile BOOL __yuno_must_die__ = false;
 PRIVATE char __realm_id__[NAME_MAX] = {0};
 PRIVATE char __node_owner__[NAME_MAX] = {0};
 PRIVATE char __realm_owner__[NAME_MAX] = {0};
@@ -69,7 +68,6 @@ PRIVATE json_t *__jn_config__ = 0;
 
 PRIVATE int __auto_kill_time__ = 0;
 PRIVATE int __as_daemon__ = 0;
-PRIVATE int __assure_kill_time__ = 30;  // Let 30 seconds to stop a yuno
 
 PRIVATE int (*__startup_persistent_attrs_fn__)(void) = 0;
 PRIVATE void (*__end_persistent_attrs_fn__)(void) = 0;
@@ -110,7 +108,6 @@ struct arguments {
 /***************************************************************************
  *      Prototypes
  ***************************************************************************/
-PRIVATE void daemon_catch_signals(void);
 PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state);
 PRIVATE void process(
     const char *process_name,
@@ -209,78 +206,58 @@ PRIVATE error_t parse_opt(int key, char *arg, struct argp_state *state)
     return 0;
 }
 
-/***************************************************************************
- *      Signal handlers
- ***************************************************************************/
-PRIVATE void quit_sighandler(int sig)
-{
-    static int tries = 0;
-
-    /*
-     *  __yuno_gobj__ is 0 for watcher fork if we are running --stop
-     */
-    hgobj gobj = __yuno_gobj__;
-
-    if(gobj) {
-        tries++;
-        set_yuno_must_die();
-
-        if(!__auto_kill_time__) {
-            if(__assure_kill_time__ > 0)
-                alarm(__assure_kill_time__); // maximum time to be killed
-        }
-        if(tries > 1) {
-            // exit with 0 to avoid the watcher to relaunch the daemon
-            _exit(0);
-        }
-        return;
-    }
-
-    print_error(PEF_SYSLOG, "Signal handler without __yuno_gobj__, signal %d, pid %d", sig, getpid());
-}
-
-/***************************************************************************
- *      Signal handlers
- ***************************************************************************/
-PRIVATE void raise_sighandler(int sig)
-{
-    /*
-     *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
-     */
-    hgobj gobj = __yuno_gobj__;
-
-    if(gobj) {
-        gobj_set_deep_tracing(-1);
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", __FILE__,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_RUNTIME_ERROR,
-            "msg",          "%s", "Kill -10",
-            NULL
-        );
-    }
-}
-
-PRIVATE void daemon_catch_signals(void)
-{
-    struct sigaction sigIntHandler;
-
-    signal(SIGPIPE, SIG_IGN);
-    signal(SIGTERM, SIG_IGN);
-
-    memset(&sigIntHandler, 0, sizeof(sigIntHandler));
-    sigIntHandler.sa_handler = quit_sighandler;
-    sigemptyset(&sigIntHandler.sa_mask);
-    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
-    sigaction(SIGALRM, &sigIntHandler, NULL);   // internal launch to assure kill
-    sigaction(SIGQUIT, &sigIntHandler, NULL);
-    sigaction(SIGINT, &sigIntHandler, NULL);    // ctrl+c
-
-    sigIntHandler.sa_handler = raise_sighandler;
-    sigemptyset(&sigIntHandler.sa_mask);
-    sigIntHandler.sa_flags = SA_NODEFER|SA_RESTART;
-    sigaction(SIGUSR1, &sigIntHandler, NULL);   // deep tracing
-}
+// TODO pass to c_yuno.c
+// /***************************************************************************
+//  *      Signal handlers
+//  ***************************************************************************/
+// PRIVATE void quit_sighandler(int sig)
+// {
+//     static int tries = 0;
+//
+//     /*
+//      *  __yuno_gobj__ is 0 for watcher fork if we are running --stop
+//      */
+//     hgobj gobj = __yuno_gobj__;
+//
+//     if(gobj) {
+//         tries++;
+//         set_yuno_must_die();
+//
+//         if(!__auto_kill_time__) {
+//             if(__assure_kill_time__ > 0)
+//                 alarm(__assure_kill_time__); // maximum time to be killed
+//         }
+//         if(tries > 1) {
+//             // exit with 0 to avoid the watcher to relaunch the daemon
+//             _exit(0);
+//         }
+//         return;
+//     }
+//
+//     print_error(PEF_SYSLOG, "Signal handler without __yuno_gobj__, signal %d, pid %d", sig, getpid());
+// }
+//
+// /***************************************************************************
+//  *      Signal handlers
+//  ***************************************************************************/
+// PRIVATE void raise_sighandler(int sig)
+// {
+//     /*
+//      *  __yuno_gobj__ is 0 for watcher fork, if we are running --stop
+//      */
+//     hgobj gobj = __yuno_gobj__;
+//
+//     if(gobj) {
+//         gobj_set_deep_tracing(-1);
+//         gobj_log_error(0, LOG_OPT_TRACE_STACK,
+//             "gobj",         "%s", __FILE__,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_RUNTIME_ERROR,
+//             "msg",          "%s", "Kill -10",
+//             NULL
+//         );
+//     }
+// }
 
 /***************************************************************************
  *
@@ -759,13 +736,11 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             get_process_name(),
             work_dir,
             domain_dir,
-            daemon_catch_signals,
             cleaning_fn
         );
         return gobj_get_exit_code();
 
     } else {
-        daemon_catch_signals();
         if(__auto_kill_time__) {
             /* kill in x seconds, to debug exit in kdevelop */
             alarm(__auto_kill_time__);
@@ -788,6 +763,7 @@ PRIVATE void process(
     gobj_log_info(0,0,
         "msgset",       "%s", MSGSET_STARTUP,
         "msg",          "%s", "Starting yuno",
+        "process_name", "%s", process_name,
         "work_dir",     "%s", work_dir,
         "domain_dir",   "%s", domain_dir,
         "node_owner",   "%s", __node_owner__,
@@ -957,31 +933,7 @@ PRIVATE void process(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void set_assure_kill_time(int seconds)
-{
-    __assure_kill_time__ = seconds;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC void set_auto_kill_time(int seconds)
 {
     __auto_kill_time__ = seconds;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void set_yuno_must_die(void)
-{
-    __yuno_must_die__ = true;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC BOOL get_yuno_must_die(void)
-{
-    return __yuno_must_die__;
 }
