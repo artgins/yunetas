@@ -28,7 +28,7 @@ PRIVATE volatile int signal_code;
 PRIVATE volatile int watcher_pid = 0;
 
 /***************************************************************************
- *  funcion like daemon() syscall
+ *  function like daemon() syscall
  ***************************************************************************/
 PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
 {
@@ -73,9 +73,9 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
 
     /* Close out the standard file descriptors */
     // WARNING Removing this comments, --stop doesn't kill the daemon! why?
-//     close(STDIN_FILENO);
-//     close(STDOUT_FILENO);
-//     close(STDERR_FILENO);
+    // close(STDIN_FILENO);
+    // close(STDOUT_FILENO);
+    // close(STDERR_FILENO);
 }
 
 /***************************************************************************
@@ -266,7 +266,7 @@ PUBLIC int daemon_run(
         _exit(0);
     }
     if(debug) {
-        print_error(0, "daemon_run returning, process %s, pid %d",
+        print_error(0, "relauncher returning, process %s, pid %d",
             process_name,
             getpid()
         );

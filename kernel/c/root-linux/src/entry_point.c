@@ -230,7 +230,7 @@ PRIVATE void quit_sighandler(int sig)
                 alarm(__assure_kill_time__); // maximum time to be killed
         }
         if(tries > 1) {
-            // exit with 0 to avoid the watcher to relaunch the daemon daemon
+            // exit with 0 to avoid the watcher to relaunch the daemon
             _exit(0);
         }
         return;
