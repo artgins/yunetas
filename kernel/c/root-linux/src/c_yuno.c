@@ -550,70 +550,74 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
     hgobj gobj = yev_get_gobj(yev_event);
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
             if(yev_event == priv->yev_signal) {
-                gbuffer_t *gbuf = yev_get_gbuf(yev_event);
-                size_t len = gbuffer_leftbytes(gbuf);
-                if(len == sizeof(struct signalfd_siginfo)) {
-                    struct signalfd_siginfo *fdsi = gbuffer_cur_rd_pointer(gbuf);
-                    if(gobj_trace_level(0) & (TRACE_URING)) {
-                        gobj_log_info(0, 0,
+                if(yev_state == YEV_ST_IDLE) {
+                    gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+                    size_t len = gbuffer_leftbytes(gbuf);
+                    if(len == sizeof(struct signalfd_siginfo)) {
+                        struct signalfd_siginfo *fdsi = gbuffer_cur_rd_pointer(gbuf);
+                        if(gobj_trace_level(0) & (TRACE_URING)) {
+                            gobj_log_info(0, 0,
+                                "function",     "%s", __FUNCTION__,
+                                "msgset",       "%s", MSGSET_YEV_LOOP,
+                                "msg",          "%s", "yev signal",
+                                "msg2",         "%s", "👁💥 yev signal",
+                                "signal",       "%d", fdsi->ssi_signo,
+                                NULL
+                            );
+                        }
+
+                        switch(fdsi->ssi_signo) {
+                            case SIGALRM:
+                            case SIGQUIT:
+                            case SIGINT:
+                                //quit_sighandler(fdsi.ssi_signo);
+                            {
+                                static int tries = 0;
+                                tries++;
+                                set_yuno_must_die();
+                                if(tries > 1) {
+                                    // exit with 0 to avoid the watcher to relaunch the daemon
+                                    _exit(0);
+                                }
+                            }
+                            break;
+
+                            case SIGUSR1:
+                                gobj_set_deep_tracing(-1);
+                            break;
+
+                            case SIGPIPE:
+                            case SIGTERM:
+                                // ignored
+                            default:
+                                // unexpected signal
+                                break;
+                        }
+
+                    } else {
+                        gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_YEV_LOOP,
-                            "msg",          "%s", "yev signal",
-                            "msg2",         "%s", "👁💥 yev signal",
-                            "signal",       "%d", fdsi->ssi_signo,
+                            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                            "msg",          "%s", "len != sizeof(struct signalfd_siginfo)",
+                            "len",          "%d", len,
                             NULL
                         );
                     }
 
-                    switch(fdsi->ssi_signo) {
-                        case SIGALRM:
-                        case SIGQUIT:
-                        case SIGINT:
-                            //quit_sighandler(fdsi.ssi_signo);
-                        {
-                            static int tries = 0;
-                            tries++;
-                            set_yuno_must_die();
-                            if(tries > 1) {
-                                // exit with 0 to avoid the watcher to relaunch the daemon
-                                _exit(0);
-                            }
-                        }
-                        break;
-
-                        case SIGUSR1:
-                            gobj_set_deep_tracing(-1);
-                        break;
-
-                        case SIGPIPE:
-                        case SIGTERM:
-                            // ignored
-                        default:
-                            // unexpected signal
-                            break;
+                    /*
+                     *  Clear buffer
+                     *  Re-arm read
+                     */
+                    if(gbuf) {
+                        gbuffer_clear(gbuf);
+                        yev_start_event(yev_event);
                     }
-
-                } else {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                        "msg",          "%s", "len != sizeof(struct signalfd_siginfo)",
-                        "len",          "%d", len,
-                        NULL
-                    );
                 }
 
-                /*
-                 *  Clear buffer
-                 *  Re-arm read
-                 */
-                if(gbuf) {
-                    gbuffer_clear(gbuf);
-                    yev_start_event(yev_event);
-                }
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
