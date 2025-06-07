@@ -3251,9 +3251,8 @@ PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             continue;
         }
 
-        // Trim
-        while(*key == ' ' || *key == '\t') key++;
-        while(*value == ' ' || *value == '\t') value++;
+        left_justify(key);
+        left_justify(value);
 
         // If "processor", start a new object
         if(strcmp(key, "processor") == 0) {
@@ -3281,7 +3280,7 @@ PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     json_t *kw_response = build_command_response(
         gobj,
         0,
-        0,
+        json_sprintf("%d cores", (int)json_array_size(jn_list)),
         0,
         jn_list
     );
