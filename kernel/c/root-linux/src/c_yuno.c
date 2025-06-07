@@ -1353,6 +1353,8 @@ PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_object_set_new(jn_data, "process_memory", get_process_memory_info());
     json_object_set_new(jn_data, "machine_memory", get_machine_memory_info());
 
+    json_object_set_new(jn_data, "machine free mem in kb", json_integer((json_int_t)free_ram_in_kb()));
+
     json_t *kw_response = build_command_response(
         gobj,
         0,          // result
