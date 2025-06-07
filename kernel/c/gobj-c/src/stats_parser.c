@@ -178,11 +178,6 @@ PRIVATE json_t *_build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj sr
         json_object_set(jn_data, key, v);
     }
 
-    /*----------------------------*
-     *      Add extra
-     *----------------------------*/
-    json_object_set_new(jn_data, "__state__", json_string(gobj_current_state(gobj)));
-
     KW_DECREF(kw)
     return jn_data;
 }
