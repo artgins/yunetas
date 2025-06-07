@@ -4928,22 +4928,22 @@ PUBLIC uint64_t cpu_usage(void)
     return utime + stime;
 }
 
-/***************************************************************************
- *  Return CPU usage percent of the current process
+/****************************************************************************
+ *  Return CPU usage percent of current process over interval
  *
  *  Parameters:
- *      last_cpu_ticks:  IN/OUT  previous cpu_ticks (jiffies)
- *      last_ms:         IN/OUT  previous timestamp (milliseconds, monotonic)
+ *      last_cpu_ticks:  IN/OUT → previous cpu_ticks (jiffies)
+ *      last_ms:         IN/OUT → previous timestamp (milliseconds)
  *
  *  Return:
- *      CPU usage in percent (float, 0.0 to 100.0)
- ***************************************************************************/
+ *      CPU usage % (float), 0.0 - 100.0
+ ****************************************************************************/
 PUBLIC double cpu_usage_percent(
     uint64_t *last_cpu_ticks,
     uint64_t *last_ms
 )
 {
-    uint64_t cpu_ticks = cpu_usage();  // utime + stime, in jiffies
+    uint64_t cpu_ticks = cpu_usage();  // utime + stime in jiffies
     uint64_t ms = time_in_milliseconds_monotonic();
     long ticks_per_sec = sysconf(_SC_CLK_TCK);
 
@@ -4960,12 +4960,12 @@ PUBLIC double cpu_usage_percent(
 
     uint64_t delta_cpu_ticks = cpu_ticks - *last_cpu_ticks;
 
-    double delta_seconds = (double) delta_ms / 1000.0;
-    double delta_cpu_seconds = (double)delta_cpu_ticks / (double)ticks_per_sec;
+    // Expected jiffies for this interval
+    double expected_jiffies = (double)(delta_ms * ticks_per_sec) / 1000.0;
 
-    double cpu_percent = (delta_cpu_seconds / delta_seconds) * 100.0;
+    // CPU usage % of ONE core
+    double cpu_percent = ((double)delta_cpu_ticks / expected_jiffies) * 100.0;
 
-    // Update state for next call
     *last_ms = ms;
     *last_cpu_ticks = cpu_ticks;
 
