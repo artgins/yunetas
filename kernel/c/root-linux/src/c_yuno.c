@@ -40,7 +40,6 @@
 #include <helpers.h>
 #include "yunetas_environment.h"
 #include "c_timer0.h"
-#include "cpu.h"
 #include "msg_ievent.h"
 #include "c_yuno.h"
 
@@ -58,6 +57,11 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE unsigned int get_HZ(void);
+PRIVATE void read_uptime(unsigned long long *uptime);
+PRIVATE json_t *get_process_memory_info(void);
+PRIVATE json_t *get_machine_memory_info(void);
+
 PRIVATE int capture_signals(hgobj gobj);
 PRIVATE hgclass get_gclass_from_gobj(const char *gobj_name);
 PRIVATE void remove_pid_file(void);
@@ -1328,95 +1332,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     );
     JSON_DECREF(kw)
     return kw_response;
-}
-
-/***************************************************************************
- *  get_process_memory_info()
- *
- *  Returns json object:
- *  {
- *    "VmSize": N,   // virtual size in KB
- *    "VmRSS":  N    // resident size in KB
- *  }
- ***************************************************************************/
-PUBLIC json_t *get_process_memory_info(void)
-{
-    FILE *fp = fopen("/proc/self/status", "r");
-    if(!fp) {
-        return json_object();
-    }
-
-    json_t *jn_info = json_object();
-    char line[512];
-
-    while(fgets(line, sizeof(line), fp)) {
-        if(strncmp(line, "VmSize:", 7) == 0) {
-            left_justify(line+7);
-            json_object_set_new(jn_info, "VmSize", json_string(line + 7));
-        } else if(strncmp(line, "VmRSS:", 6) == 0) {
-            left_justify(line+6);
-            json_object_set_new(jn_info, "VmRSS", json_string(line + 6));
-        }
-    }
-
-    fclose(fp);
-    return jn_info;
-}
-
-/***************************************************************************
- *  get_machine_memory_info()
- *
- *  Returns json object:
- *  {
- *    "MemTotal":      N,   // total memory in KB
- *    "MemFree":       N,
- *    "MemAvailable":  N,
- *    "Buffers":       N,
- *    "Cached":        N,
- *    "SwapTotal":     N,
- *    "SwapFree":      N
- *  }
- ***************************************************************************/
-PUBLIC json_t *get_machine_memory_info(void)
-{
-    FILE *fp = fopen("/proc/meminfo", "r");
-    if(!fp) {
-        return json_object();
-    }
-
-    json_t *jn_info = json_object();
-    char line[512];
-
-    while(fgets(line, sizeof(line), fp)) {
-        char *p = strchr(line, ':');
-        if(!p) {
-            continue;
-        }
-        *p = 0;
-        char *key = line;
-        char *value = p+1;
-        left_justify(key);
-        left_justify(value);
-
-        if(strcmp(key, "MemTotal") == 0) {
-            json_object_set_new(jn_info, "MemTotal", json_string(value));
-        } else if(strcmp(key, "MemFree") == 0) {
-            json_object_set_new(jn_info, "MemFree", json_string(value));
-        } else if(strcmp(key, "MemAvailable") == 0) {
-            json_object_set_new(jn_info, "MemAvailable", json_string(value));
-        } else if(strcmp(key, "Buffers") == 0) {
-            json_object_set_new(jn_info, "Buffers", json_string(value));
-        } else if(strcmp(key, "Cached") == 0) {
-            json_object_set_new(jn_info, "Cached", json_string(value));
-        } else if(strcmp(key, "SwapTotal") == 0) {
-            json_object_set_new(jn_info, "SwapTotal", json_string(value));
-        } else if(strcmp(key, "SwapFree") == 0) {
-            json_object_set_new(jn_info, "SwapFree", json_string(value));
-        }
-    }
-
-    fclose(fp);
-    return jn_info;
 }
 
 /***************************************************************************
@@ -4175,6 +4090,139 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
 
 
 /***************************************************************************
+ * Read machine uptime, independently of the number of processors.
+ *
+ * OUT:
+ * @uptime  Uptime value in jiffies.
+ ***************************************************************************/
+PRIVATE void read_uptime(unsigned long long *uptime)
+{
+    FILE *fp;
+    char line[128];
+    unsigned long up_sec, up_cent;
+
+    if ((fp = fopen("/proc/uptime", "r")) == NULL)
+        return;
+
+    if (fgets(line, sizeof(line), fp) == NULL) {
+        fclose(fp);
+        return;
+    }
+
+    sscanf(line, "%lu.%lu", &up_sec, &up_cent);
+    unsigned int HZ = get_HZ();
+    *uptime = (unsigned long long) up_sec * HZ +
+              (unsigned long long) up_cent * HZ / 100;
+
+    fclose(fp);
+}
+/***************************************************************************
+ * Get number of clock ticks per second.
+ ***************************************************************************/
+PRIVATE unsigned int get_HZ(void)
+{
+    long ticks = 0;
+    unsigned int hz;
+
+#if defined(__linux__)
+    if ((ticks = sysconf(_SC_CLK_TCK)) == -1) {
+        ticks = 0;
+    }
+#endif
+    hz = (unsigned int) ticks;
+    return hz;
+}
+
+/***************************************************************************
+ *  get_process_memory_info()
+ *
+ *  Returns json object:
+ *  {
+ *    "VmSize": N,   // virtual size in KB
+ *    "VmRSS":  N    // resident size in KB
+ *  }
+ ***************************************************************************/
+PRIVATE json_t *get_process_memory_info(void)
+{
+    FILE *fp = fopen("/proc/self/status", "r");
+    if(!fp) {
+        return json_object();
+    }
+
+    json_t *jn_info = json_object();
+    char line[512];
+
+    while(fgets(line, sizeof(line), fp)) {
+        if(strncmp(line, "VmSize:", 7) == 0) {
+            left_justify(line+7);
+            json_object_set_new(jn_info, "VmSize", json_string(line + 7));
+        } else if(strncmp(line, "VmRSS:", 6) == 0) {
+            left_justify(line+6);
+            json_object_set_new(jn_info, "VmRSS", json_string(line + 6));
+        }
+    }
+
+    fclose(fp);
+    return jn_info;
+}
+
+/***************************************************************************
+ *  get_machine_memory_info()
+ *
+ *  Returns json object:
+ *  {
+ *    "MemTotal":      N,   // total memory in KB
+ *    "MemFree":       N,
+ *    "MemAvailable":  N,
+ *    "Buffers":       N,
+ *    "Cached":        N,
+ *    "SwapTotal":     N,
+ *    "SwapFree":      N
+ *  }
+ ***************************************************************************/
+PRIVATE json_t *get_machine_memory_info(void)
+{
+    FILE *fp = fopen("/proc/meminfo", "r");
+    if(!fp) {
+        return json_object();
+    }
+
+    json_t *jn_info = json_object();
+    char line[512];
+
+    while(fgets(line, sizeof(line), fp)) {
+        char *p = strchr(line, ':');
+        if(!p) {
+            continue;
+        }
+        *p = 0;
+        char *key = line;
+        char *value = p+1;
+        left_justify(key);
+        left_justify(value);
+
+        if(strcmp(key, "MemTotal") == 0) {
+            json_object_set_new(jn_info, "MemTotal", json_string(value));
+        } else if(strcmp(key, "MemFree") == 0) {
+            json_object_set_new(jn_info, "MemFree", json_string(value));
+        } else if(strcmp(key, "MemAvailable") == 0) {
+            json_object_set_new(jn_info, "MemAvailable", json_string(value));
+        } else if(strcmp(key, "Buffers") == 0) {
+            json_object_set_new(jn_info, "Buffers", json_string(value));
+        } else if(strcmp(key, "Cached") == 0) {
+            json_object_set_new(jn_info, "Cached", json_string(value));
+        } else if(strcmp(key, "SwapTotal") == 0) {
+            json_object_set_new(jn_info, "SwapTotal", json_string(value));
+        } else if(strcmp(key, "SwapFree") == 0) {
+            json_object_set_new(jn_info, "SwapFree", json_string(value));
+        }
+    }
+
+    fclose(fp);
+    return jn_info;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int catch_signals(hgobj gobj)
@@ -4985,5 +5033,55 @@ PUBLIC int remove_denied_ip(const char *ip)
         return gobj_save_persistent_attrs(gobj_yuno(), json_string("denied_ips"));
     } else {
         return -1;
+    }
+}
+
+/***************************************************************************
+ *  free_ram_in_kb()
+ *
+ *  Returns the current total free RAM in KB.
+ *
+ *  It uses MemAvailable from /proc/meminfo if present (modern kernels),
+ *  otherwise falls back to MemFree + Buffers + Cached.
+ ***************************************************************************/
+PUBLIC unsigned long free_ram_in_kb(void)
+{
+    FILE *fp = fopen("/proc/meminfo", "r");
+    if(!fp) {
+        return 0;
+    }
+
+    unsigned long mem_available = 0;
+    unsigned long mem_free = 0;
+    unsigned long buffers = 0;
+    unsigned long cached = 0;
+
+    char line[512];
+    while(fgets(line, sizeof(line), fp)) {
+        char key[64];
+        unsigned long value = 0;
+
+        if(sscanf(line, "%63[^:]: %lu", key, &value) != 2) {
+            continue;
+        }
+
+        if(strcmp(key, "MemAvailable") == 0) {
+            mem_available = value;
+            break;  // Prefer MemAvailable, stop parsing
+        } else if(strcmp(key, "MemFree") == 0) {
+            mem_free = value;
+        } else if(strcmp(key, "Buffers") == 0) {
+            buffers = value;
+        } else if(strcmp(key, "Cached") == 0) {
+            cached = value;
+        }
+    }
+
+    fclose(fp);
+
+    if(mem_available > 0) {
+        return mem_available;
+    } else {
+        return mem_free + buffers + cached;
     }
 }
