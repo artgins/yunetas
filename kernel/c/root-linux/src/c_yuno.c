@@ -950,16 +950,6 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         0,
         kw  // owned
     );
-
-    // TODO is ok build_command_response or msg_iev_build_response?
-    // json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    //  return build_command_response(
-    //      gobj,
-    //      0,
-    //      jn_resp,
-    //      0,
-    //      0
-    //  );
 }
 
 /***************************************************************************
@@ -3206,67 +3196,67 @@ PRIVATE json_t *cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, h
  ***************************************************************************/
 PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-//    int count;
-//    uv_cpu_info_t *cpu_infos;
-//    uv_cpu_info(&cpu_infos, &count);
-//
-//    json_t *jn_stats = json_array();
-//    uv_cpu_info_t *pcpu = cpu_infos;
-//    for(int i = 0; i<count; i++, pcpu++) {
-//        json_t *jn_cpu = json_object();
-//        json_array_append_new(
-//            jn_stats,
-//            jn_cpu
-//        );
-//        json_object_set_new(
-//            jn_cpu,
-//            "model",
-//            json_string(pcpu->model)
-//        );
-//        json_object_set_new(
-//            jn_cpu,
-//            "speed",
-//            json_integer(pcpu->speed)
-//        );
-//        /*
-//         *  This times are multiply of Clock system
-//         */
-//        json_object_set_new(
-//            jn_cpu,
-//            "time_user",
-//            json_integer(pcpu->cpu_times.user)
-//        );
-//        json_object_set_new(
-//            jn_cpu,
-//            "time_nice",
-//            json_integer(pcpu->cpu_times.nice)
-//        );
-//        json_object_set_new(
-//            jn_cpu,
-//            "time_sys",
-//            json_integer(pcpu->cpu_times.sys)
-//        );
-//        json_object_set_new(
-//            jn_cpu,
-//            "time_idle",
-//            json_integer(pcpu->cpu_times.idle)
-//        );
-//        json_object_set_new(
-//            jn_cpu,
-//            "time_irq",
-//            json_integer(pcpu->cpu_times.irq)
-//        );
-//    }
-//    uv_free_cpu_info(cpu_infos, count);
-//
-//    return msg_iev_build_webix(
-//        gobj,
-//        0,
-//        json_sprintf("Number of cpus: %d", count),
-//        0,
-//        jn_stats, // owned
-//        kw  // owned
-//    );
+    int count;
+    // uv_cpu_info_t *cpu_infos;
+    // uv_cpu_info(&cpu_infos, &count);
+    //
+    // json_t *jn_stats = json_array();
+    // uv_cpu_info_t *pcpu = cpu_infos;
+    // for(int i = 0; i<count; i++, pcpu++) {
+    //     json_t *jn_cpu = json_object();
+    //     json_array_append_new(
+    //         jn_stats,
+    //         jn_cpu
+    //     );
+    //     json_object_set_new(
+    //         jn_cpu,
+    //         "model",
+    //         json_string(pcpu->model)
+    //     );
+    //     json_object_set_new(
+    //         jn_cpu,
+    //         "speed",
+    //         json_integer(pcpu->speed)
+    //     );
+    //     /*
+    //      *  This times are multiply of Clock system
+    //      */
+    //     json_object_set_new(
+    //         jn_cpu,
+    //         "time_user",
+    //         json_integer(pcpu->cpu_times.user)
+    //     );
+    //     json_object_set_new(
+    //         jn_cpu,
+    //         "time_nice",
+    //         json_integer(pcpu->cpu_times.nice)
+    //     );
+    //     json_object_set_new(
+    //         jn_cpu,
+    //         "time_sys",
+    //         json_integer(pcpu->cpu_times.sys)
+    //     );
+    //     json_object_set_new(
+    //         jn_cpu,
+    //         "time_idle",
+    //         json_integer(pcpu->cpu_times.idle)
+    //     );
+    //     json_object_set_new(
+    //         jn_cpu,
+    //         "time_irq",
+    //         json_integer(pcpu->cpu_times.irq)
+    //     );
+    // }
+    // uv_free_cpu_info(cpu_infos, count);
+    //
+    // return msg_iev_build_webix(
+    //     gobj,
+    //     0,
+    //     json_sprintf("Number of cpus: %d", count),
+    //     0,
+    //     jn_stats, // owned
+    //     kw  // owned
+    // );
     json_t *kw_response = build_command_response(
         gobj,
         -1,
@@ -3283,82 +3273,82 @@ PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-//    int count;
-//    uv_interface_address_t *addresses;
-//    uv_interface_addresses(&addresses, &count);
-//
-//    json_t *jn_data = json_array();
-//    uv_interface_address_t *pif = addresses;
-//    for(int i = 0; i<count; i++, pif++) {
-//        json_t *jn_if = json_object();
-//        json_array_append_new(
-//            jn_data,
-//            jn_if
-//        );
-//        json_object_set_new(
-//            jn_if,
-//            "name",
-//            json_string(pif->name)
-//        );
-//        json_object_set_new(
-//            jn_if,
-//            "is_internal",
-//            pif->is_internal?json_true():json_false()
-//        );
-//
-//        char temp[64];
-//
-//        bin2hex(temp, sizeof(temp), (uint8_t *)pif->phys_addr, sizeof(pif->phys_addr));
-//        json_object_set_new(
-//            jn_if,
-//            "phys_addr",
-//            json_string(temp)
-//        );
-//
-//        // TODO how check if it's a ipv4 or ipv6?
-//        if(1 || !all_00(pif->address.address4.sin_zero, sizeof(pif->address.address4.sin_zero))) {
-//            uv_ip4_name(&pif->address.address4, temp, sizeof(temp));
-//            json_object_set_new(
-//                jn_if,
-//                "ip-v4",
-//                json_string(temp)
-//            );
-//        }
-//        if(1 || !all_00(pif->address.address6.sin6_addr.s6_addr, sizeof(pif->address.address6.sin6_addr.s6_addr))) {
-//            uv_ip6_name(&pif->address.address6, temp, sizeof(temp));
-//            json_object_set_new(
-//                jn_if,
-//                "ip-v6",
-//                json_string(temp)
-//            );
-//        }
-//        if(1 || !all_ff(pif->netmask.netmask4.sin_zero, sizeof(pif->netmask.netmask4.sin_zero))) {
-//            uv_ip4_name(&pif->netmask.netmask4, temp, sizeof(temp));
-//            json_object_set_new(
-//                jn_if,
-//                "mask-v4",
-//                json_string(temp)
-//            );
-//        }
-//        if(1 || !all_ff(pif->netmask.netmask6.sin6_addr.s6_addr, sizeof(pif->netmask.netmask6.sin6_addr.s6_addr))) {
-//            uv_ip6_name(&pif->netmask.netmask6, temp, sizeof(temp));
-//            json_object_set_new(
-//                jn_if,
-//                "mask-v6",
-//                json_string(temp)
-//            );
-//        }
-//    }
-//    uv_free_interface_addresses(addresses, count);
-//
-//    return msg_iev_build_webix(
-//        gobj,
-//        0,
-//        json_sprintf("Number of ifs: %d", count),
-//        0,
-//        jn_data, // owned
-//        kw  // owned
-//    );
+    int count;
+    // uv_interface_address_t *addresses;
+    // uv_interface_addresses(&addresses, &count);
+    //
+    // json_t *jn_data = json_array();
+    // uv_interface_address_t *pif = addresses;
+    // for(int i = 0; i<count; i++, pif++) {
+    //     json_t *jn_if = json_object();
+    //     json_array_append_new(
+    //         jn_data,
+    //         jn_if
+    //     );
+    //     json_object_set_new(
+    //         jn_if,
+    //         "name",
+    //         json_string(pif->name)
+    //     );
+    //     json_object_set_new(
+    //         jn_if,
+    //         "is_internal",
+    //         pif->is_internal?json_true():json_false()
+    //     );
+    //
+    //     char temp[64];
+    //
+    //     bin2hex(temp, sizeof(temp), (uint8_t *)pif->phys_addr, sizeof(pif->phys_addr));
+    //     json_object_set_new(
+    //         jn_if,
+    //         "phys_addr",
+    //         json_string(temp)
+    //     );
+    //
+    //     // TODO how check if it's a ipv4 or ipv6?
+    //     if(1 || !all_00(pif->address.address4.sin_zero, sizeof(pif->address.address4.sin_zero))) {
+    //         uv_ip4_name(&pif->address.address4, temp, sizeof(temp));
+    //         json_object_set_new(
+    //             jn_if,
+    //             "ip-v4",
+    //             json_string(temp)
+    //         );
+    //     }
+    //     if(1 || !all_00(pif->address.address6.sin6_addr.s6_addr, sizeof(pif->address.address6.sin6_addr.s6_addr))) {
+    //         uv_ip6_name(&pif->address.address6, temp, sizeof(temp));
+    //         json_object_set_new(
+    //             jn_if,
+    //             "ip-v6",
+    //             json_string(temp)
+    //         );
+    //     }
+    //     if(1 || !all_ff(pif->netmask.netmask4.sin_zero, sizeof(pif->netmask.netmask4.sin_zero))) {
+    //         uv_ip4_name(&pif->netmask.netmask4, temp, sizeof(temp));
+    //         json_object_set_new(
+    //             jn_if,
+    //             "mask-v4",
+    //             json_string(temp)
+    //         );
+    //     }
+    //     if(1 || !all_ff(pif->netmask.netmask6.sin6_addr.s6_addr, sizeof(pif->netmask.netmask6.sin6_addr.s6_addr))) {
+    //         uv_ip6_name(&pif->netmask.netmask6, temp, sizeof(temp));
+    //         json_object_set_new(
+    //             jn_if,
+    //             "mask-v6",
+    //             json_string(temp)
+    //         );
+    //     }
+    // }
+    // uv_free_interface_addresses(addresses, count);
+    //
+    // return msg_iev_build_webix(
+    //     gobj,
+    //     0,
+    //     json_sprintf("Number of ifs: %d", count),
+    //     0,
+    //     jn_data, // owned
+    //     kw  // owned
+    // );
     json_t *kw_response = build_command_response(
         gobj,
         -1,
@@ -3375,24 +3365,24 @@ PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-//    uv_utsname_t uname;
-//    uv_os_uname(&uname);
-//
-//    json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s}",
-//        "sysname", uname.sysname,
-//        "release", uname.release,
-//        "version", uname.version,
-//        "machine", uname.machine
-//    );
-//
-//    return msg_iev_build_webix(
-//        gobj,
-//        0,
-//        0,
-//        0,
-//        jn_data, // owned
-//        kw  // owned
-//    );
+    // uv_utsname_t uname;
+    // uv_os_uname(&uname);
+    //
+    // json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s}",
+    //     "sysname", uname.sysname,
+    //     "release", uname.release,
+    //     "version", uname.version,
+    //     "machine", uname.machine
+    // );
+    //
+    // return msg_iev_build_webix(
+    //     gobj,
+    //     0,
+    //     0,
+    //     0,
+    //     jn_data, // owned
+    //     kw  // owned
+    // );
     json_t *kw_response = build_command_response(
         gobj,
         -1,
@@ -4535,9 +4525,7 @@ PRIVATE void load_stats(hgobj gobj)
      *---------------------------------------*/
     {
         double cpu_percent = cpu_usage_percent(&priv->last_cpu_ticks, &priv->last_ms);
-        // Store as integer
-        uint32_t cpu_usage = (uint32_t)(cpu_percent);
-        gobj_write_integer_attr(gobj, "cpu", cpu_usage);
+        gobj_write_integer_attr(gobj, "cpu", (uint32_t)cpu_percent);
     }
 
     /*---------------------------------------*

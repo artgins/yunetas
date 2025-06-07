@@ -192,7 +192,6 @@ void read_meminfo(struct stats_memory *st_memory);
 void read_stat_cpu(struct stats_cpu *st_cpu, int nbr, unsigned long long *uptime, unsigned long long *uptime0);
 
 unsigned long free_ram_in_kb(void); /* Free memory in kB */
-uint64_t cpu_usage(void);
 int read_proc_pid_cmdline(unsigned int pid, struct pid_stats *pst, unsigned int tgid);
 
 #endif /* __linux__ */
