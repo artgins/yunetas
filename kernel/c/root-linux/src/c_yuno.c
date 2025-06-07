@@ -23,6 +23,12 @@
 #include <sys/statvfs.h>
 #include <sys/utsname.h>
 #include <sys/resource.h>
+#include <ifaddrs.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
 
 #include <kwid.h>
 #include <command_parser.h>
@@ -37,6 +43,7 @@
 #include "cpu.h"
 #include "msg_ievent.h"
 #include "c_yuno.h"
+
 
 /***************************************************************
  *              Constants
@@ -3192,169 +3199,215 @@ PRIVATE json_t *cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, h
 }
 
 /***************************************************************************
- *  Cpu's info
+ *  get_cpu_info()
+ *
+ *  Returns a json array with info about CPU cores.
+ *
+ *  Each object contains all fields from /proc/cpuinfo for the core.
+ *
+ *  Example:
+ *  [
+ *    {
+ *      "processor": 0,
+ *      "vendor_id": "GenuineIntel",
+ *      "cpu family": "6",
+ *      "model": "158",
+ *      "model name": "Intel(R) Core(TM) i7-9700 CPU @ 3.00GHz",
+ *      "stepping": "13",
+ *      "microcode": "0xde",
+ *      "cpu MHz": "3700.000",
+ *      "cache size": "12288 KB",
+ *      ...
+ *    },
+ *    ...
+ *  ]
  ***************************************************************************/
 PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    int count;
-    // uv_cpu_info_t *cpu_infos;
-    // uv_cpu_info(&cpu_infos, &count);
-    //
-    // json_t *jn_stats = json_array();
-    // uv_cpu_info_t *pcpu = cpu_infos;
-    // for(int i = 0; i<count; i++, pcpu++) {
-    //     json_t *jn_cpu = json_object();
-    //     json_array_append_new(
-    //         jn_stats,
-    //         jn_cpu
-    //     );
-    //     json_object_set_new(
-    //         jn_cpu,
-    //         "model",
-    //         json_string(pcpu->model)
-    //     );
-    //     json_object_set_new(
-    //         jn_cpu,
-    //         "speed",
-    //         json_integer(pcpu->speed)
-    //     );
-    //     /*
-    //      *  This times are multiply of Clock system
-    //      */
-    //     json_object_set_new(
-    //         jn_cpu,
-    //         "time_user",
-    //         json_integer(pcpu->cpu_times.user)
-    //     );
-    //     json_object_set_new(
-    //         jn_cpu,
-    //         "time_nice",
-    //         json_integer(pcpu->cpu_times.nice)
-    //     );
-    //     json_object_set_new(
-    //         jn_cpu,
-    //         "time_sys",
-    //         json_integer(pcpu->cpu_times.sys)
-    //     );
-    //     json_object_set_new(
-    //         jn_cpu,
-    //         "time_idle",
-    //         json_integer(pcpu->cpu_times.idle)
-    //     );
-    //     json_object_set_new(
-    //         jn_cpu,
-    //         "time_irq",
-    //         json_integer(pcpu->cpu_times.irq)
-    //     );
-    // }
-    // uv_free_cpu_info(cpu_infos, count);
-    //
-    // return msg_iev_build_webix(
-    //     gobj,
-    //     0,
-    //     json_sprintf("Number of cpus: %d", count),
-    //     0,
-    //     jn_stats, // owned
-    //     kw  // owned
-    // );
+    json_t *jn_list = json_array();
+
+    FILE *fp = fopen("/proc/cpuinfo", "r");
+    if(!fp) {
+        return jn_list;
+    }
+
+    json_t *jn_cpu = NULL;
+
+    char line[1024];
+    while(fgets(line, sizeof(line), fp)) {
+        // Blank line signals end of one processor block
+        if(line[0] == '\n' || line[0] == '\0') {
+            if(jn_cpu) {
+                json_array_append_new(jn_list, jn_cpu);
+                jn_cpu = NULL;
+            }
+            continue;
+        }
+
+        char *key = strtok(line, ":");
+        char *value = strtok(NULL, "\n");
+
+        if(!key || !value) {
+            continue;
+        }
+
+        // Trim
+        while(*key == ' ' || *key == '\t') key++;
+        while(*value == ' ' || *value == '\t') value++;
+
+        // If "processor", start a new object
+        if(strcmp(key, "processor") == 0) {
+            if(jn_cpu) {
+                json_array_append_new(jn_list, jn_cpu);
+            }
+            jn_cpu = json_object();
+            json_object_set_new(jn_cpu, "processor", json_integer(atoi(value)));
+            continue;
+        }
+
+        // Add other fields as strings
+        if(jn_cpu) {
+            json_object_set_new(jn_cpu, key, json_string(value));
+        }
+    }
+
+    // In case last processor did not end with blank line
+    if(jn_cpu) {
+        json_array_append_new(jn_list, jn_cpu);
+    }
+
+    fclose(fp);
+
     json_t *kw_response = build_command_response(
         gobj,
-        -1,
-        json_sprintf("Not implemented"),
         0,
-        0
+        0,
+        0,
+        jn_list
     );
     JSON_DECREF(kw)
     return kw_response;
 }
 
 /***************************************************************************
- *  Ifs's info
+ *  get_network_interfaces()
+ *
+ *  Returns a json array with info about network interfaces.
+ *
+ *  Example return:
+ *  [
+ *    {
+ *      "name": "lo",
+ *      "flags": 73,
+ *      "addresses": [
+ *        {
+ *          "family": "AF_INET",
+ *          "address": "127.0.0.1",
+ *          "netmask": "255.0.0.0"
+ *        },
+ *        {
+ *          "family": "AF_INET6",
+ *          "address": "::1",
+ *          "netmask": "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
+ *        }
+ *      ]
+ *    },
+ *    ...
+ *  ]
  ***************************************************************************/
 PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    int count;
-    // uv_interface_address_t *addresses;
-    // uv_interface_addresses(&addresses, &count);
-    //
-    // json_t *jn_data = json_array();
-    // uv_interface_address_t *pif = addresses;
-    // for(int i = 0; i<count; i++, pif++) {
-    //     json_t *jn_if = json_object();
-    //     json_array_append_new(
-    //         jn_data,
-    //         jn_if
-    //     );
-    //     json_object_set_new(
-    //         jn_if,
-    //         "name",
-    //         json_string(pif->name)
-    //     );
-    //     json_object_set_new(
-    //         jn_if,
-    //         "is_internal",
-    //         pif->is_internal?json_true():json_false()
-    //     );
-    //
-    //     char temp[64];
-    //
-    //     bin2hex(temp, sizeof(temp), (uint8_t *)pif->phys_addr, sizeof(pif->phys_addr));
-    //     json_object_set_new(
-    //         jn_if,
-    //         "phys_addr",
-    //         json_string(temp)
-    //     );
-    //
-    //     // TODO how check if it's a ipv4 or ipv6?
-    //     if(1 || !all_00(pif->address.address4.sin_zero, sizeof(pif->address.address4.sin_zero))) {
-    //         uv_ip4_name(&pif->address.address4, temp, sizeof(temp));
-    //         json_object_set_new(
-    //             jn_if,
-    //             "ip-v4",
-    //             json_string(temp)
-    //         );
-    //     }
-    //     if(1 || !all_00(pif->address.address6.sin6_addr.s6_addr, sizeof(pif->address.address6.sin6_addr.s6_addr))) {
-    //         uv_ip6_name(&pif->address.address6, temp, sizeof(temp));
-    //         json_object_set_new(
-    //             jn_if,
-    //             "ip-v6",
-    //             json_string(temp)
-    //         );
-    //     }
-    //     if(1 || !all_ff(pif->netmask.netmask4.sin_zero, sizeof(pif->netmask.netmask4.sin_zero))) {
-    //         uv_ip4_name(&pif->netmask.netmask4, temp, sizeof(temp));
-    //         json_object_set_new(
-    //             jn_if,
-    //             "mask-v4",
-    //             json_string(temp)
-    //         );
-    //     }
-    //     if(1 || !all_ff(pif->netmask.netmask6.sin6_addr.s6_addr, sizeof(pif->netmask.netmask6.sin6_addr.s6_addr))) {
-    //         uv_ip6_name(&pif->netmask.netmask6, temp, sizeof(temp));
-    //         json_object_set_new(
-    //             jn_if,
-    //             "mask-v6",
-    //             json_string(temp)
-    //         );
-    //     }
-    // }
-    // uv_free_interface_addresses(addresses, count);
-    //
-    // return msg_iev_build_webix(
-    //     gobj,
-    //     0,
-    //     json_sprintf("Number of ifs: %d", count),
-    //     0,
-    //     jn_data, // owned
-    //     kw  // owned
-    // );
+    struct ifaddrs *ifaddr, *ifa;
+    json_t *jn_list = json_array();
+
+    if(getifaddrs(&ifaddr) == -1) {
+        return jn_list;
+    }
+
+    for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+        if(!ifa->ifa_name) {
+            continue;
+        }
+
+        // Search for existing interface object
+        json_t *jn_iface = NULL;
+        size_t index;
+        json_t *value;
+        json_array_foreach(jn_list, index, value) {
+            const char *name = json_string_value(json_object_get(value, "name"));
+            if(name && strcmp(name, ifa->ifa_name) == 0) {
+                jn_iface = value;
+                break;
+            }
+        }
+
+        // Create new interface object if not found
+        if(!jn_iface) {
+            jn_iface = json_object();
+            json_object_set_new(jn_iface, "name", json_string(ifa->ifa_name));
+            json_object_set_new(jn_iface, "flags", json_integer(ifa->ifa_flags));
+            json_object_set_new(jn_iface, "addresses", json_array());
+            json_array_append_new(jn_list, jn_iface);
+        }
+
+        // Skip if no address
+        if(!ifa->ifa_addr) {
+            continue;
+        }
+
+        char addr_buf[INET6_ADDRSTRLEN] = {0};
+        char netmask_buf[INET6_ADDRSTRLEN] = {0};
+        char broadcast_buf[INET6_ADDRSTRLEN] = {0};
+        const char *family = NULL;
+
+        if(ifa->ifa_addr->sa_family == AF_INET) {
+            struct sockaddr_in *sa = (struct sockaddr_in *)ifa->ifa_addr;
+            inet_ntop(AF_INET, &(sa->sin_addr), addr_buf, sizeof(addr_buf));
+            family = "AF_INET";
+
+            if(ifa->ifa_netmask) {
+                struct sockaddr_in *nm = (struct sockaddr_in *)ifa->ifa_netmask;
+                inet_ntop(AF_INET, &(nm->sin_addr), netmask_buf, sizeof(netmask_buf));
+            }
+            if(ifa->ifa_broadaddr && (ifa->ifa_flags & IFF_BROADCAST)) {
+                struct sockaddr_in *ba = (struct sockaddr_in *)ifa->ifa_broadaddr;
+                inet_ntop(AF_INET, &(ba->sin_addr), broadcast_buf, sizeof(broadcast_buf));
+            }
+        } else if(ifa->ifa_addr->sa_family == AF_INET6) {
+            struct sockaddr_in6 *sa6 = (struct sockaddr_in6 *)ifa->ifa_addr;
+            inet_ntop(AF_INET6, &(sa6->sin6_addr), addr_buf, sizeof(addr_buf));
+            family = "AF_INET6";
+
+            if(ifa->ifa_netmask) {
+                struct sockaddr_in6 *nm6 = (struct sockaddr_in6 *)ifa->ifa_netmask;
+                inet_ntop(AF_INET6, &(nm6->sin6_addr), netmask_buf, sizeof(netmask_buf));
+            }
+        } else {
+            continue; // skip other families
+        }
+
+        // Add address info
+        json_t *jn_addr = json_object();
+        json_object_set_new(jn_addr, "family", json_string(family));
+        json_object_set_new(jn_addr, "address", json_string(addr_buf));
+        if(netmask_buf[0]) {
+            json_object_set_new(jn_addr, "netmask", json_string(netmask_buf));
+        }
+        if(broadcast_buf[0]) {
+            json_object_set_new(jn_addr, "broadcast", json_string(broadcast_buf));
+        }
+
+        json_array_append_new(json_object_get(jn_iface, "addresses"), jn_addr);
+    }
+
+    freeifaddrs(ifaddr);
+
     json_t *kw_response = build_command_response(
         gobj,
-        -1,
-        json_sprintf("Not implemented"),
         0,
-        0
+        0,
+        0,
+        jn_list
     );
     JSON_DECREF(kw)
     return kw_response;
@@ -3365,30 +3418,23 @@ PRIVATE json_t *cmd_info_ifs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_info_os(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    // uv_utsname_t uname;
-    // uv_os_uname(&uname);
-    //
-    // json_t *jn_data = json_pack("{s:s, s:s, s:s, s:s}",
-    //     "sysname", uname.sysname,
-    //     "release", uname.release,
-    //     "version", uname.version,
-    //     "machine", uname.machine
-    // );
-    //
-    // return msg_iev_build_webix(
-    //     gobj,
-    //     0,
-    //     0,
-    //     0,
-    //     jn_data, // owned
-    //     kw  // owned
-    // );
+    json_t *jn_data = json_object();
+
+    struct utsname buf;
+    if(uname(&buf) == 0) {
+        json_object_set_new(jn_data, "sysname", json_string(buf.sysname));
+        json_object_set_new(jn_data, "nodename", json_string(buf.nodename));
+        json_object_set_new(jn_data, "release", json_string(buf.release));
+        json_object_set_new(jn_data, "version", json_string(buf.version));
+        json_object_set_new(jn_data, "machine", json_string(buf.machine));
+    }
+
     json_t *kw_response = build_command_response(
         gobj,
-        -1,
-        json_sprintf("Not implemented"),
         0,
-        0
+        0,
+        0,
+        jn_data
     );
     JSON_DECREF(kw)
     return kw_response;
