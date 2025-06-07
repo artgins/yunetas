@@ -78,7 +78,7 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
-PRIVATE json_t *cmd_view_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -320,6 +320,7 @@ SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_auth
 SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,          cmd_info_cpus,              "Info of cpus"),
 SDATACM2(DTP_SCHEMA,    "info-ifs",                 SDF_AUTHZ_X, 0,      0,          cmd_info_ifs,               "Info of ifs"),
 SDATACM2(DTP_SCHEMA,    "info-os",                  SDF_AUTHZ_X, 0,      0,          cmd_info_os,                "Info os"),
+SDATACM2(DTP_SCHEMA,    "info-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_info_mem,               "Info yuno memory and system"),
 SDATACM2(DTP_SCHEMA,    "list-allowed-ips",         SDF_AUTHZ_X, 0,      0,          cmd_list_allowed_ips,       "List allowed ips"),
 SDATACM2(DTP_SCHEMA,    "add-allowed-ip",           SDF_AUTHZ_X, 0,      pm_add_allowed_ip,  cmd_add_allowed_ip, "Add a ip to allowed list"),
 SDATACM2(DTP_SCHEMA,    "remove-allowed-ip",        SDF_AUTHZ_X, 0,      pm_remove_allowed_ip, cmd_remove_allowed_ip, "Add a ip to allowed list"),
@@ -342,8 +343,6 @@ SDATACM2(DTP_SCHEMA,    "view-service-register",    SDF_AUTHZ_X, a_services,0,cm
 SDATACM2(DTP_SCHEMA,    "write-attr",               SDF_AUTHZ_X, 0,      pm_wr_attr, cmd_write_attr,             "Write a writable attribute)"),
 SDATACM2(DTP_SCHEMA,    "view-attrs",               SDF_AUTHZ_X, a_read_attrs,pm_gobj_def_name, cmd_view_attrs,  "View gobj's attrs"),
 SDATACM2(DTP_SCHEMA,    "view-attrs-schema",        SDF_AUTHZ_X, a_read_attrs2,pm_gobj_def_name, cmd_attrs_schema,"View gobj's attrs schema"),
-
-SDATACM2(DTP_SCHEMA,    "view-mem",                 SDF_AUTHZ_X, 0,      0,          cmd_view_mem,               "View yuno memory"),
 
 SDATACM2(DTP_SCHEMA,    "view-gclass",              SDF_AUTHZ_X, 0,      pm_gclass_name, cmd_view_gclass,        "View gclass description"),
 SDATACM2(DTP_SCHEMA,    "view-gobj",                SDF_AUTHZ_X, 0,      pm_gobj_def_name, cmd_view_gobj,        "View gobj"),
@@ -1332,9 +1331,98 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *  get_process_memory_info()
+ *
+ *  Returns json object:
+ *  {
+ *    "VmSize": N,   // virtual size in KB
+ *    "VmRSS":  N    // resident size in KB
+ *  }
+ ***************************************************************************/
+PUBLIC json_t *get_process_memory_info(void)
+{
+    FILE *fp = fopen("/proc/self/status", "r");
+    if(!fp) {
+        return json_object();
+    }
+
+    json_t *jn_info = json_object();
+    char line[512];
+
+    while(fgets(line, sizeof(line), fp)) {
+        if(strncmp(line, "VmSize:", 7) == 0) {
+            left_justify(line+7);
+            json_object_set_new(jn_info, "VmSize", json_string(line + 7));
+        } else if(strncmp(line, "VmRSS:", 6) == 0) {
+            left_justify(line+6);
+            json_object_set_new(jn_info, "VmRSS", json_string(line + 6));
+        }
+    }
+
+    fclose(fp);
+    return jn_info;
+}
+
+/***************************************************************************
+ *  get_machine_memory_info()
+ *
+ *  Returns json object:
+ *  {
+ *    "MemTotal":      N,   // total memory in KB
+ *    "MemFree":       N,
+ *    "MemAvailable":  N,
+ *    "Buffers":       N,
+ *    "Cached":        N,
+ *    "SwapTotal":     N,
+ *    "SwapFree":      N
+ *  }
+ ***************************************************************************/
+PUBLIC json_t *get_machine_memory_info(void)
+{
+    FILE *fp = fopen("/proc/meminfo", "r");
+    if(!fp) {
+        return json_object();
+    }
+
+    json_t *jn_info = json_object();
+    char line[512];
+
+    while(fgets(line, sizeof(line), fp)) {
+        char *p = strchr(line, ':');
+        if(!p) {
+            continue;
+        }
+        *p = 0;
+        char *key = line;
+        char *value = p+1;
+        left_justify(key);
+        left_justify(value);
+
+        if(strcmp(key, "MemTotal") == 0) {
+            json_object_set_new(jn_info, "MemTotal", json_string(value));
+        } else if(strcmp(key, "MemFree") == 0) {
+            json_object_set_new(jn_info, "MemFree", json_string(value));
+        } else if(strcmp(key, "MemAvailable") == 0) {
+            json_object_set_new(jn_info, "MemAvailable", json_string(value));
+        } else if(strcmp(key, "Buffers") == 0) {
+            json_object_set_new(jn_info, "Buffers", json_string(value));
+        } else if(strcmp(key, "Cached") == 0) {
+            json_object_set_new(jn_info, "Cached", json_string(value));
+        } else if(strcmp(key, "SwapTotal") == 0) {
+            json_object_set_new(jn_info, "SwapTotal", json_string(value));
+        } else if(strcmp(key, "SwapFree") == 0) {
+            json_object_set_new(jn_info, "SwapFree", json_string(value));
+        }
+    }
+
+    fclose(fp);
+    return jn_info;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *cmd_view_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     json_t *jn_data = json_object();
 #ifdef ESP_PLATFORM
@@ -1344,8 +1432,11 @@ PRIVATE json_t *cmd_view_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_object_set_new(jn_data, "HEAP free", json_integer(size));
 #endif
 
-    json_object_set_new(jn_data, "max_system_memory", json_integer((json_int_t)get_max_system_memory()));
-    json_object_set_new(jn_data, "cur_system_memory", json_integer((json_int_t)get_cur_system_memory()));
+    json_object_set_new(jn_data, "yuno max_system_memory", json_integer((json_int_t)get_max_system_memory()));
+    json_object_set_new(jn_data, "yuno cur_system_memory", json_integer((json_int_t)get_cur_system_memory()));
+
+    json_object_set_new(jn_data, "process_memory", get_process_memory_info());
+    json_object_set_new(jn_data, "machine_memory", get_machine_memory_info());
 
     json_t *kw_response = build_command_response(
         gobj,
