@@ -97,9 +97,9 @@ static int register_yuno_and_more(void)
      *          Traces
      *------------------------------------------------*/
     // Avoid timer trace, too much information
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", true);
-    gobj_set_global_no_trace("timer_periodic", true);
-    gobj_set_global_no_trace("timer", true);
+    // gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", true);
+    // gobj_set_global_no_trace("timer_periodic", true);
+    // gobj_set_global_no_trace("timer", true);
 
     // Samples of traces
     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", true);
@@ -115,9 +115,11 @@ static int register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "create_delete2", true, 0);
     // gobj_set_gobj_trace(0, "start_stop", true, 0);
     // gobj_set_gobj_trace(0, "subscriptions", true, 0);
-    // gobj_set_gobj_trace(0, "machine", true, 0);
+    gobj_set_gobj_trace(0, "machine", true, 0);
     // gobj_set_gobj_trace(0, "ev_kw", true, 0);
     // gobj_set_gobj_trace(0, "liburing", true, 0);
+
+    set_measure_times(-1);
 
     /*------------------------------*
      *  Start test

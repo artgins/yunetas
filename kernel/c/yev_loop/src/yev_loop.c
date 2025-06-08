@@ -92,8 +92,6 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
 );
 PRIVATE yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn = _yev_protocol_fill_hints;
 
-PRIVATE int measuring_times = 0;
-
 /***************************************************************************
  *
  ***************************************************************************/
@@ -3073,39 +3071,4 @@ PUBLIC int set_nonblocking(int fd)
     }
 
     return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void set_measure_times(int types) // Set the measure of times of types (-1 all)
-{
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    measuring_times = types;
-#else
-    gobj_log_error(0, LOG_OPT_TRACE_STACK,
-         "function",     "%s", __FUNCTION__,
-         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-         "msg",          "%s", "CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES not set",
-         NULL
-    );
-#endif
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int get_measure_times(void) // return yevent types measuring
-{
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    return measuring_times;
-#else
-    gobj_log_error(0, LOG_OPT_TRACE_STACK,
-         "function",     "%s", __FUNCTION__,
-         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-         "msg",          "%s", "CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES not set",
-         NULL
-    );
-    return measuring_times;
-#endif
 }

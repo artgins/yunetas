@@ -475,7 +475,6 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
     #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    int measuring_times = get_measure_times();
     if(measuring_times & YEV_ACCEPT_TYPE) {
         MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() entry");
     }

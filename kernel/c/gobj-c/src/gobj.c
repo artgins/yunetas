@@ -282,6 +282,10 @@ PRIVATE hgobj gobj_create_tree0(
 /***************************************************************
  *              Data
  ***************************************************************/
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+PUBLIC int measuring_times = 0;
+#endif
+
 PRIVATE int argc;
 PRIVATE char **argv;
 
@@ -7484,6 +7488,13 @@ PUBLIC int gobj_send_event(
      *      Exec the event
      *----------------------------------*/
     if(tracea) {
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        if(measuring_times) {
+            MT_PRINT_TIME(yev_time_measure, "gobj_send_event");
+        }
+#endif
+
         if(trace_machine_format) {
             trace_machine("🔄 %s%s%s %s%s %s%s%s",
                 On_Black RBlue,
@@ -12223,4 +12234,21 @@ PUBLIC size_t dl_size(dl_list_t *dl)
         return 0;
     }
     return dl->__itemsInContainer__;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void set_measure_times(int types) // Set the measure of times of types (-1 all)
+{
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    measuring_times = types;
+#else
+    gobj_log_error(0, LOG_OPT_TRACE_STACK,
+         "function",     "%s", __FUNCTION__,
+         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+         "msg",          "%s", "CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES not set",
+         NULL
+    );
+#endif
 }
