@@ -7367,6 +7367,11 @@ PUBLIC int gobj_send_event(
     json_t *kw,
     hgobj src_
 ) {
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    if(measuring_times) {
+        MT_PRINT_TIME(yev_time_measure, "⏩ gobj_send_event()");
+    }
+#endif
     if(dst_ == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -7488,13 +7493,6 @@ PUBLIC int gobj_send_event(
      *      Exec the event
      *----------------------------------*/
     if(tracea) {
-
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times) {
-            MT_PRINT_TIME(yev_time_measure, "gobj_send_event");
-        }
-#endif
-
         if(trace_machine_format) {
             trace_machine("🔄 %s%s%s %s%s %s%s%s",
                 On_Black RBlue,
@@ -7564,6 +7562,12 @@ PUBLIC int gobj_send_event(
     }
 
     __inside__ --;
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    if(measuring_times) {
+        MT_PRINT_TIME(yev_time_measure, "⏪ gobj_send_event()");
+    }
+#endif
 
     return ret;
 }
@@ -8725,6 +8729,12 @@ PUBLIC int gobj_publish_event(
 {
     gobj_t * publisher = publisher_;
 
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    if(measuring_times) {
+        MT_PRINT_TIME(yev_time_measure, "⏩ gobj_publish_event()");
+    }
+#endif
+
     if(!kw) {
         kw = json_object();
     }
@@ -9059,6 +9069,13 @@ PUBLIC int gobj_publish_event(
 
     JSON_DECREF(dl_subs)
     KW_DECREF(kw)
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    if(measuring_times) {
+        MT_PRINT_TIME(yev_time_measure, "⏪ gobj_publish_event()");
+    }
+#endif
+
     return ret;
 }
 
