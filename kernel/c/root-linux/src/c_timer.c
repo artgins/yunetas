@@ -85,11 +85,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(periodic,    gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(msec,      gobj_read_integer_attr)
-        if(priv->msec > 0) {
-            priv->t_flush = start_msectimer(priv->msec);
-        } else {
-            priv->t_flush = 0;
-        }
     END_EQ_SET_PRIV()
 }
 
@@ -326,6 +321,7 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
 
     gobj_write_bool_attr(gobj, "periodic", false);
     gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
+    gobj_start(gobj);
 }
 
 /***************************************************************************
@@ -361,6 +357,7 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
 
     gobj_write_bool_attr(gobj, "periodic", true);
     gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
+    gobj_start(gobj);
 }
 
 /***************************************************************************
@@ -395,4 +392,5 @@ PUBLIC void clear_timeout(hgobj gobj)
     }
 
     gobj_write_integer_attr(gobj, "msec", 0);    // This write stop timer
+    gobj_stop(gobj);
 }
