@@ -537,7 +537,8 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
         return 0;  // don't break the loop, c_yuno is not using yev_loop_run with timeout, by now
     }
 
-    if(gobj_trace_level(0) & (TRACE_URING)) {
+    uint32_t trace_level = gobj_global_trace_level();
+    if(trace_level & (TRACE_URING)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_info(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -569,7 +570,7 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event)
                     size_t len = gbuffer_leftbytes(gbuf);
                     if(len == sizeof(struct signalfd_siginfo)) {
                         struct signalfd_siginfo *fdsi = gbuffer_cur_rd_pointer(gbuf);
-                        if(gobj_trace_level(0) & (TRACE_URING)) {
+                        if(trace_level & (TRACE_URING)) {
                             gobj_log_info(0, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_YEV_LOOP,

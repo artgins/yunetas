@@ -526,7 +526,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*
      *  Info of "connected"
      */
-    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+    uint32_t trace_level = gobj_global_trace_level();
+    if(trace_level & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -602,7 +603,8 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
         }
         return;
     }
-    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
+    uint32_t trace_level = gobj_global_trace_level();
+    if(trace_level & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -619,7 +621,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
     }
 
     if(priv->tty_fd > 0) {
-        if(gobj_trace_level(gobj) & TRACE_URING) {
+        if(trace_level & TRACE_URING) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -670,7 +672,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 {
     hgobj gobj = yev_get_gobj(yev_event);
 
-    if(gobj_trace_level(gobj) & TRACE_URING) {
+    uint32_t trace_level = gobj_global_trace_level();
+    if(trace_level & TRACE_URING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -694,7 +697,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Disconnected
                      */
-                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                    if(trace_level & TRACE_URING) {
                         if(yev_get_result(yev_event) != -ECANCELED) {
                             gobj_log_info(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
@@ -713,7 +716,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     set_disconnected(gobj, strerror(-yev_get_result(yev_event)));
 
                 } else {
-                    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+                    if(trace_level & TRACE_TRAFFIC) {
                         gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s%s",
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
@@ -754,7 +757,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  Disconnected
                      */
-                    if(gobj_trace_level(gobj) & TRACE_URING) {
+                    if(trace_level & TRACE_URING) {
                         if(yev_get_result(yev_event) != -ECANCELED) {
                             gobj_log_info(gobj, 0,
                                 "function",     "%s", __FUNCTION__,

@@ -191,15 +191,15 @@ PUBLIC void yev_loop_destroy(yev_loop_h yev_loop_)
  ***************************************************************************/
 PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 {
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    if(measuring_times & YEV_TIMER_TYPE) {
+        MT_PRINT_TIME(yev_time_measure, "callback_cqe() entry");
+    }
+#endif
     if(!cqe) {
         /*
          *  It's the timeout, call the yev_loop callback, if return -1 the loop will break;
          */
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times & YEV_TIMER_TYPE) {
-            MT_PRINT_TIME(yev_time_measure, "callback_cqe() entry");
-        }
-#endif
         if(yev_loop->callback) {
             return yev_loop->callback(0);
         }
@@ -227,7 +227,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
     /*------------------------*
      *      Trace
      *------------------------*/
-    uint32_t trace_level = gobj_trace_level(gobj);
+    uint32_t trace_level = gobj_global_trace_level();
     if(trace_level) {
         if(((trace_level & TRACE_URING) && yev_event->type != YEV_TIMER_TYPE) ||
             ((trace_level & TRACE_URING_TIME) && yev_event->type == YEV_TIMER_TYPE)
@@ -732,7 +732,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         int yev_event_type = yev_event? yev_event->type:0;
         if(measuring_times & yev_event_type) {
             MT_PRINT_TIME(yev_time_measure, "next print: consume of mt_print_time");
-            MT_PRINT_TIME(yev_time_measure, "consume of mt_print_time");
+            MT_PRINT_TIME(yev_time_measure, "START yev_loop_run");
         }
 #endif
 
@@ -1201,7 +1201,7 @@ PUBLIC int yev_start_event(
     /*------------------------*
      *      Trace
      *------------------------*/
-    uint32_t trace_level = gobj_trace_level(gobj);
+    uint32_t trace_level = gobj_global_trace_level();
     if(trace_level & TRACE_URING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
@@ -1575,7 +1575,7 @@ PUBLIC int yev_start_timer_event(
     /*------------------------*
      *      Trace
      *------------------------*/
-    uint32_t trace_level = gobj_trace_level(gobj);
+    uint32_t trace_level = gobj_global_trace_level();
     if(trace_level & TRACE_URING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
         gobj_log_debug(gobj, 0,
@@ -1685,7 +1685,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
     yev_loop_t *yev_loop = yev_event->yev_loop;
     struct io_uring_sqe *sqe;
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
-    uint32_t trace_level = gobj_trace_level(gobj);
+    uint32_t trace_level = gobj_global_trace_level();
 
     /*------------------------*
      *      Trace
@@ -2101,7 +2101,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
     }
 
     hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
-    uint32_t trace_level = gobj_trace_level(gobj);
+    uint32_t trace_level = gobj_global_trace_level();
 
     char schema[16];
     char dst_host[120];

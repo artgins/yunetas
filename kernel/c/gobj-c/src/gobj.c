@@ -10915,6 +10915,18 @@ PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj)
 /****************************************************************************
  *  Return gobj trace level
  ****************************************************************************/
+PUBLIC uint32_t gobj_global_trace_level(void)
+{
+    if(__deep_trace__) {
+        return (uint32_t)-1;
+    }
+    return __global_trace_level__;
+}
+
+
+/****************************************************************************
+ *  Return gobj trace level
+ ****************************************************************************/
 PUBLIC uint32_t gobj_trace_level(hgobj gobj_)
 {
     gobj_t * gobj = gobj_;

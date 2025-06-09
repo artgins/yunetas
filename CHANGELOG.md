@@ -109,6 +109,8 @@ New API
     find_files_with_suffix_array
     dir_array_sort
     dir_array_free
+    gobj_global_trace_level(void)
+
 
 Delete API
 

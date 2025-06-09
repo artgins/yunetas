@@ -4876,7 +4876,7 @@ PUBLIC uint64_t time_in_milliseconds_monotonic(void)
 {
     struct timespec spec;
 
-    clock_gettime(CLOCK_MONOTONIC_RAW, &spec);  // True monotonic (no NTP corrections)
+    clock_gettime(CLOCK_MONOTONIC, &spec);
 
     return ((uint64_t)spec.tv_sec) * 1000 + ((uint64_t)spec.tv_nsec) / 1000000;
 }

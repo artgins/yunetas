@@ -2343,6 +2343,7 @@ PUBLIC json_t *gobj_get_gclass_trace_no_level_list(hgclass gclass);
 PUBLIC json_t *gobj_get_gobj_trace_level_tree(hgobj gobj);
 PUBLIC json_t *gobj_get_gobj_trace_no_level_tree(hgobj gobj);
 
+PUBLIC uint32_t gobj_global_trace_level(void);
 PUBLIC uint32_t gobj_trace_level(hgobj gobj);
 PUBLIC uint32_t gobj_trace_no_level(hgobj gobj);
 PUBLIC BOOL is_level_tracing(hgobj gobj, uint32_t level);

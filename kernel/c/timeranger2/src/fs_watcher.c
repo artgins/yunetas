@@ -153,7 +153,9 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     fs_event->fd = fd;
     fs_event->jn_tracked_paths = json_object();
 
-    if(gobj_trace_level(fs_event->gobj) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
+    uint32_t trace_level = gobj_global_trace_level();
+
+    if(trace_level & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -245,8 +247,9 @@ PRIVATE void fs_destroy_watcher_event(
     if(!fs_event) {
         return;
     }
+    uint32_t trace_level = gobj_global_trace_level();
 
-    if(gobj_trace_level(fs_event->gobj) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
+    if(trace_level & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
         gobj_log_debug(fs_event->gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -260,7 +263,7 @@ PRIVATE void fs_destroy_watcher_event(
     }
 
     if(fs_event->fd != -1) {
-        if(gobj_trace_level(0) & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
+        if(trace_level & (TRACE_URING|TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2|TRACE_FS)) {
             gobj_log_debug(fs_event->gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -304,7 +307,9 @@ PRIVATE int yev_callback(
     fs_event_t *fs_event = yev_get_user_data(yev_event);
     hgobj gobj = fs_event->gobj;
 
-    if(gobj_trace_level(gobj) & (TRACE_URING|TRACE_FS)) {
+    uint32_t trace_level = gobj_global_trace_level();
+
+    if(trace_level & (TRACE_URING|TRACE_FS)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -330,7 +335,7 @@ PRIVATE int yev_callback(
                     /*
                      *  Disconnected
                      */
-                    if(gobj_trace_level(gobj) & (TRACE_URING|TRACE_FS)) {
+                    if(trace_level & (TRACE_URING|TRACE_FS)) {
                         if(yev_get_result(yev_event) != -ECANCELED) {
                             gobj_log_info(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
@@ -396,7 +401,9 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
     const char *path;
     char full_path[PATH_MAX];
 
-    if(gobj_trace_level(gobj) & TRACE_FS) {
+    uint32_t trace_level = gobj_global_trace_level();
+
+    if(trace_level & TRACE_FS) {
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -558,7 +565,8 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
 
     json_object_set_new(fs_event->jn_tracked_paths, path, json_integer(wd));
 
-    if(gobj_trace_level(gobj) & TRACE_FS) {
+    uint32_t trace_level = gobj_global_trace_level();
+    if(trace_level & TRACE_FS) {
         gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_YEV_LOOP,
@@ -586,7 +594,8 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 
     json_object_del(fs_event->jn_tracked_paths, path);
 
-    if(gobj_trace_level(gobj) & TRACE_FS) {
+    uint32_t trace_level = gobj_global_trace_level();
+    if(trace_level & TRACE_FS) {
         gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_YEV_LOOP,
