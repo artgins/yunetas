@@ -297,7 +297,8 @@ PRIVATE int mt_start(hgobj gobj)
     /*
      *  Info of "listening..."
      */
-    if(gobj_trace_level(gobj) & TRACE_LISTEN) {
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_LISTEN) {
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Listening...",
@@ -492,7 +493,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int trace = (int)gobj_trace_level(gobj) & TRACE_URING;
+    uint32_t trace_level = gobj_trace_level(gobj);
+    int trace = trace_level & TRACE_URING;
     if(trace) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
@@ -649,7 +651,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             return 0;
         }
 
-        if(gobj_trace_level(gobj) & TRACE_ACCEPTED) {
+        if(trace_level & TRACE_ACCEPTED) {
             const char *top_tree = gobj_full_name(gobj_top);
             const char *bottom_tree = gobj_full_name(gobj_bottom);
             gobj_log_info(gobj, 0,
