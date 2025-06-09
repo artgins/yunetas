@@ -3,8 +3,11 @@
  *
  *          GClass Timer
  *          High level, feed timers from periodic time of yuno
+ *          ACCURACY IN SECONDS! although the parameter is in milliseconds (msec)
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Don't use gobj_start()/gobj_stop(), USE set_timeout..(), clear_timeout()
+ *
+ *          Copyright (c) 2024-2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

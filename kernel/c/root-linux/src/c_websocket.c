@@ -331,8 +331,6 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(bottom_gobj);
     }
 
-    gobj_start(priv->timer);
-
     return 0;
 }
 
@@ -348,10 +346,7 @@ PRIVATE int mt_stop(hgobj gobj)
             ws_close(gobj, STATUS_NORMAL, 0);
         }
     }
-    if(priv->timer) {
-        clear_timeout(priv->timer);
-        gobj_stop(priv->timer);
-    }
+    clear_timeout(priv->timer);
 
     hgobj tcp0 = gobj_bottom_gobj(gobj);
     if(tcp0) {
@@ -1620,9 +1615,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->timer) {
-        clear_timeout(priv->timer);
-    }
+    clear_timeout(priv->timer);
 
     priv->connected = 0;
     gobj_write_bool_attr(gobj, "connected", false);
@@ -1676,9 +1669,8 @@ PRIVATE int ac_process_handshake(hgobj gobj, const char *event, json_t *kw, hgob
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
 
-    if(priv->timer) {
-        clear_timeout(priv->timer);
-    }
+    clear_timeout(priv->timer);
+
     if (priv->iamServer) {
         /*
          * analyze the request and respond

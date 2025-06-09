@@ -510,8 +510,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     /*
      *  Info of "connected"
      */
-    uint32_t trace_level = gobj_global_trace_level();
-    if(trace_level & TRACE_CONNECT_DISCONNECT) {
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         if(IS_CLI) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -617,7 +616,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             return;
         }
 
-        ytls_set_trace(priv->ytls, priv->sskt, (trace_level & TRACE_TLS)?true:false);
+        ytls_set_trace(priv->ytls, priv->sskt, (gobj_trace_level(gobj) & TRACE_TLS)?true:false);
 
     } else {
         /*---------------------------*
@@ -688,8 +687,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint32_t trace_level = gobj_global_trace_level();
-    if(trace_level & (TRACE_CONNECT_DISCONNECT)) {
+    if(gobj_trace_level(gobj) & (TRACE_CONNECT_DISCONNECT)) {
         if(IS_CLI) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -719,7 +717,7 @@ PRIVATE void set_disconnected(hgobj gobj)
 
     if(priv->yev_connect) {
         if(yev_get_fd(priv->yev_connect) > 0) {
-            if(trace_level & TRACE_URING) {
+            if(gobj_trace_level(gobj) & TRACE_URING) {
                 gobj_log_debug(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -736,7 +734,7 @@ PRIVATE void set_disconnected(hgobj gobj)
         }
     } else {
         if(priv->fd_clisrv > 0) {
-            if(trace_level & TRACE_URING) {
+            if(gobj_trace_level(gobj) & TRACE_URING) {
                 gobj_log_debug(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -867,8 +865,7 @@ PRIVATE int write_data(hgobj gobj)
 
     gbuffer_t *gbuf = priv->gbuf_txing;
 
-    uint32_t trace_level = gobj_global_trace_level();
-    if(trace_level & TRACE_TRAFFIC) {
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
             gobj_short_name(gobj),
             gobj_read_str_attr(gobj, "sockname"),
@@ -1002,8 +999,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         return;
     }
 
-    uint32_t trace_level = gobj_global_trace_level();
-    if(trace_level & TRACE_URING) {
+    if(gobj_trace_level(gobj) & TRACE_URING) {
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1014,7 +1010,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     }
 
     if(priv->fd_clisrv > 0) {
-        if(trace_level & TRACE_URING) {
+        if(gobj_trace_level(gobj) & TRACE_URING) {
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1112,8 +1108,7 @@ int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
  ***************************************************************************/
 PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
 {
-    uint32_t trace_level = gobj_global_trace_level();
-    if(trace_level & TRACE_CONNECT_DISCONNECT) {
+    if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
         gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", error<0?"TLS handshake FAILS":"TLS Handshake OK",
@@ -1143,8 +1138,7 @@ PUBLIC int ytls_on_clear_data_callback(hgobj gobj, gbuffer_t *gbuf)
 {
     //PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint32_t trace_level = gobj_global_trace_level();
-    if(trace_level & TRACE_TRAFFIC) {
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "decrypted data");
     }
 
@@ -1168,8 +1162,7 @@ PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf)
 {
     //PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint32_t trace_level = gobj_global_trace_level();
-    if(trace_level & TRACE_TRAFFIC) {
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         gobj_trace_dump_gbuf(gobj, gbuf, "encrypted data");
     }
 
@@ -1194,8 +1187,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     hgobj gobj = yev_get_gobj(yev_event);
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint32_t trace_level = gobj_global_trace_level() & TRACE_URING;
-    int trace = (int)trace_level & TRACE_URING;
+    int trace = gobj_trace_level(gobj) & TRACE_URING;
     if(trace) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
@@ -1225,7 +1217,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /*
                      *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
                      */
-                    if(trace_level & TRACE_TRAFFIC) {
+                    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
                         gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s%s",
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
@@ -1326,7 +1318,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                          */
                         priv->txBytes += (json_int_t)yev_get_result(yev_event);
                         if(gbuffer_leftbytes(yev_get_gbuf(yev_event)) > 0) {
-                            if(trace_level & TRACE_MACHINE) {
+                            if(gobj_trace_level(gobj) & TRACE_MACHINE) {
                                 trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
                                     !gobj_is_running(gobj)?"!!":"",
                                     gobj_gclass_name(gobj), gobj_name(gobj),

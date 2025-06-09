@@ -5,7 +5,9 @@
  *          High level, feed timers from periodic time of yuno
  *          ACCURACY IN SECONDS! although the parameter is in milliseconds (msec)
  *
- *          Copyright (c) 2024, ArtGins.
+ *          Don't use gobj_start()/gobj_stop(), USE set_timeout..(), clear_timeout()
+ *
+ *          Copyright (c) 2024-2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <time.h>
@@ -168,6 +170,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             } else {
                 gobj_publish_event(gobj, ev, json_incref(kw));
             }
+            if(!priv->periodic) {
+                gobj_stop(gobj);
+            }
         }
     }
 
@@ -320,8 +325,21 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
     }
 
     gobj_write_bool_attr(gobj, "periodic", false);
-    gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
-    gobj_start(gobj);
+    gobj_write_integer_attr(gobj, "msec", msec);
+
+    if(priv->msec > 0) {
+        if(gobj_is_running(gobj)) {
+            priv->t_flush = start_msectimer(priv->msec);
+        } else {
+            gobj_start(gobj);
+        }
+
+    } else {
+        priv->t_flush = 0;
+        if(gobj_is_running(gobj)) {
+            gobj_stop(gobj);
+        }
+    }
 }
 
 /***************************************************************************
@@ -356,8 +374,21 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
     }
 
     gobj_write_bool_attr(gobj, "periodic", true);
-    gobj_write_integer_attr(gobj, "msec", msec);    // This write launch timer
-    gobj_start(gobj);
+    gobj_write_integer_attr(gobj, "msec", msec);
+
+    if(priv->msec > 0) {
+        if(gobj_is_running(gobj)) {
+            priv->t_flush = start_msectimer(priv->msec);
+        } else {
+            gobj_start(gobj);
+        }
+
+    } else {
+        priv->t_flush = 0;
+        if(gobj_is_running(gobj)) {
+            gobj_stop(gobj);
+        }
+    }
 }
 
 /***************************************************************************
@@ -391,6 +422,9 @@ PUBLIC void clear_timeout(hgobj gobj)
         );
     }
 
-    gobj_write_integer_attr(gobj, "msec", 0);    // This write stop timer
-    gobj_stop(gobj);
+    gobj_write_integer_attr(gobj, "msec", 0);
+    priv->t_flush = 0;
+    if(gobj_is_running(gobj)) {
+        gobj_stop(gobj);
+    }
 }
