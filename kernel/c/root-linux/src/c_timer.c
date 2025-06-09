@@ -3,7 +3,7 @@
  *
  *          GClass Timer
  *          High level, feed timers from periodic time of yuno
- *          IN SECONDS! although the parameter is in milliseconds (msec)
+ *          ACCURACY IN SECONDS! although the parameter is in milliseconds (msec)
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
@@ -248,7 +248,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_TIMEOUT,            EVF_OUTPUT_EVENT},
         {EV_TIMEOUT_PERIODIC,   EVF_OUTPUT_EVENT},
-        {EV_STOPPED,            EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

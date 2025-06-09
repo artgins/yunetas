@@ -676,7 +676,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_mqtt_clients;
     hgobj gobj_mqtt_users;
     hgobj timer;
-    char iamServer;         // What side? server or client
+    BOOL iamServer;         // What side? server or client
     int pingT;
 
     FRAME_HEAD frame_head;
@@ -761,7 +761,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->iamServer = gobj_read_bool_attr(gobj, "iamServer");
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     dl_init(&priv->dl_msgs_out, gobj);
     dl_init(&priv->dl_msgs_in, gobj);
