@@ -150,7 +150,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     uint32_t level = priv->periodic? TRACE_TIMER_PERIODIC:TRACE_TIMER;
-    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+    BOOL tracea = is_level_tracing(0, level);
 
     if(tracea) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
@@ -174,14 +174,24 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         json_decref(jn_flags);
     }
 
+    gobj_event_t event;
     if(!yev_event_is_stopped(yev_event)) {
         if(priv->periodic) {
-            gobj_send_event(gobj, EV_TIMEOUT_PERIODIC, 0, gobj);
+            event = EV_TIMEOUT_PERIODIC;
         } else {
-            gobj_send_event(gobj, EV_TIMEOUT, 0, gobj);
+            event = EV_TIMEOUT;
         }
     } else {
-        gobj_send_event(gobj, EV_STOPPED, 0, gobj);
+        event = EV_STOPPED;
+    }
+
+    /*
+     *  SERVICE subscription model
+     */
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), event, 0, gobj);
+    } else {
+        gobj_publish_event(gobj, event, 0);
     }
 
     return gobj_is_running(gobj)?0:-1;
@@ -193,39 +203,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     /***************************
                      *      Actions
                      ***************************/
-
-
-
-
-/***************************************************************************
- *  Resend to the parent
- ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    /*
-     *  SERVICE subscription model
-     */
-    if(gobj_is_pure_child(gobj)) {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    } else {
-        return gobj_publish_event(gobj, event, kw); // reuse kw
-    }
-}
-
-/***************************************************************************
- *  Resend to the parent
- ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
-{
-    /*
-     *  SERVICE subscription model
-     */
-    if(gobj_is_pure_child(gobj)) {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    } else {
-        return gobj_publish_event(gobj, event, kw); // reuse kw
-    }
-}
 
 
 
@@ -284,9 +261,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_TIMEOUT,                ac_timeout,         0},
-        {EV_TIMEOUT_PERIODIC,       ac_timeout,         0},
-        {EV_STOPPED,                ac_stopped,         0},
         {0,0,0}
     };
     states_t states[] = {

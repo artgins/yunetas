@@ -11490,10 +11490,10 @@ PUBLIC int gobj_set_gclass_no_trace(hgclass gclass_, const char *level, BOOL set
  ****************************************************************************/
 PRIVATE int _set_gobj_trace_no_level(hgobj gobj_, const char *level, BOOL set)
 {
-    gobj_t * gobj = gobj_;
-    if(!gobj) {
+    if(!gobj_) {
         return 0;
     }
+    gobj_t * gobj = gobj_;
     uint32_t bitmask = 0;
 
     if(empty_string(level)) {
@@ -11563,10 +11563,10 @@ PUBLIC char *tab(char *bf, int bflen)
  ****************************************************************************/
 PUBLIC int gobj_set_gobj_no_trace(hgobj gobj_, const char *level, BOOL set)
 {
-    gobj_t * gobj = gobj_;
-    if(!gobj) {
+    if(!gobj_) {
         return 0;
     }
+    gobj_t * gobj = gobj_;
     _set_gobj_trace_no_level(gobj, level, set);
 
     return 0;
@@ -11580,10 +11580,10 @@ PUBLIC BOOL is_level_tracing(hgobj gobj_, uint32_t level)
     if(__deep_trace__) {
         return true;
     }
-    gobj_t * gobj = gobj_;
-    if(!gobj) {
+    if(!gobj_) {
         return (__global_trace_level__ & level)? true:false;
     }
+    gobj_t * gobj = gobj_;
     uint32_t trace = __global_trace_level__ & level ||
         gobj->trace_level & level ||
         gobj->gclass->trace_level & level;
@@ -11599,10 +11599,10 @@ PUBLIC BOOL is_level_not_tracing(hgobj gobj_, uint32_t level)
     if(__deep_trace__ > 1) {
         return false;
     }
-    gobj_t * gobj = gobj_;
-    if(!gobj) {
+    if(!gobj_) {
         return (__global_trace_no_level__ & level)? true:false;
     }
+    gobj_t * gobj = gobj_;
     uint32_t no_trace = gobj->no_trace_level & level ||
         gobj->gclass->no_trace_level & level;
 
