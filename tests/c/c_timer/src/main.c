@@ -49,6 +49,7 @@ PRIVATE char variable_config[]= "\
         'autoplay': true,                                           \n\
         'required_services': [],                                    \n\
         'public_services': [],                                      \n\
+        'periodic_timeout': 100,                                    \n\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
@@ -119,7 +120,7 @@ static int register_yuno_and_more(void)
     // gobj_set_gobj_trace(0, "ev_kw", true, 0);
     // gobj_set_gobj_trace(0, "liburing", true, 0);
 
-    set_measure_times(-1);
+    // set_measure_times(-1);
 
     /*------------------------------*
      *  Start test
@@ -158,8 +159,8 @@ static void cleaning(void)
     MT_PRINT_TIME(time_measure, APP_NAME)
 
     double tm = mt_get_time(&time_measure);
-    if(!(tm >= 5 && tm < 6.1)) {
-        printf("%sERROR --> %s time %f (must be tm >= 5 && tm <= 6.1)\n", On_Red BWhite, Color_Off, tm);
+    if(!(tm >= 5 && tm < 5.2)) {
+        printf("%sERROR --> %s time %f (must be tm >= 5 && tm <= 5.2)\n", On_Red BWhite, Color_Off, tm);
         result += -1;
     }
 
