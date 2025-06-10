@@ -94,6 +94,14 @@ PUBLIC void mt_print_time(time_measure_t *time_measure, const char *prefix);
 
 PUBLIC double mt_get_time(time_measure_t *time_measure);
 
+PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
+PUBLIC int get_measure_times(void);
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+extern int measuring_cur_type;
+#endif
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -476,7 +476,7 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE int yev_callback(yev_event_h yev_event)
 {
     #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times & YEV_ACCEPT_TYPE) {
+    if(measuring_cur_type & YEV_ACCEPT_TYPE) {
         MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() entry");
     }
     #endif
@@ -567,7 +567,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     }
 
     #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times & YEV_ACCEPT_TYPE) {
+    if(measuring_cur_type & YEV_ACCEPT_TYPE) {
         MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() checks");
     }
     #endif
@@ -594,7 +594,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     }
 
     #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times & YEV_ACCEPT_TYPE) {
+    if(measuring_cur_type & YEV_ACCEPT_TYPE) {
         MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() only_allowed_ips");
     }
     #endif
@@ -632,7 +632,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             return 0;
         }
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times & YEV_ACCEPT_TYPE) {
+        if(measuring_cur_type & YEV_ACCEPT_TYPE) {
             MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() my_gobj_find_child");
         }
         #endif
@@ -666,7 +666,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         }
 
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times & YEV_ACCEPT_TYPE) {
+        if(measuring_cur_type & YEV_ACCEPT_TYPE) {
             MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() trace accepted");
         }
         #endif
@@ -708,7 +708,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             //  gobj_subscribe_event(clisrv, EV_STOPPED, kw_subs, gobj);
 
             #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            if(measuring_times & YEV_ACCEPT_TYPE) {
+            if(measuring_cur_type & YEV_ACCEPT_TYPE) {
                 MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() gobj_create_volatil");
             }
             #endif
@@ -717,7 +717,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         }
 
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times & YEV_ACCEPT_TYPE) {
+        if(measuring_cur_type & YEV_ACCEPT_TYPE) {
             MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() clisrv selected");
         }
         #endif
@@ -728,14 +728,14 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         gobj_write_integer_attr(clisrv, "fd_clisrv", fd_clisrv);
 
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times & YEV_ACCEPT_TYPE) {
+        if(measuring_cur_type & YEV_ACCEPT_TYPE) {
             MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() clisrv configured");
         }
         #endif
         gobj_start(clisrv); // this call set_connected(clisrv);
 
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times & YEV_ACCEPT_TYPE) {
+        if(measuring_cur_type & YEV_ACCEPT_TYPE) {
             MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() clisrv started");
         }
         #endif
@@ -759,7 +759,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     }
 
     #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times & YEV_ACCEPT_TYPE) {
+    if(measuring_cur_type & YEV_ACCEPT_TYPE) {
         MT_PRINT_TIME(yev_time_measure, "C_TCP_S yev_callback() end");
     }
     #endif

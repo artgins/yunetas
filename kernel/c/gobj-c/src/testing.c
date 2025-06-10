@@ -51,6 +51,11 @@ PRIVATE const char **ignore_keys = NULL;
 
 PUBLIC time_measure_t yev_time_measure;
 
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+PUBLIC int measuring_times = 0;
+PUBLIC int measuring_cur_type = 0;
+#endif
+
 /***************************************************************************
  *
  ***************************************************************************/
@@ -702,4 +707,38 @@ PUBLIC double mt_get_time(time_measure_t *time_measure)
     uint64_t elapsed_ns = end_ns - start_ns;
     double elapsed_sec = (double)elapsed_ns / 1e9;
     return elapsed_sec;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void set_measure_times(int types) // Set the measure of times of types (-1 all)
+{
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    measuring_times = types;
+#else
+    gobj_log_error(0, LOG_OPT_TRACE_STACK,
+         "function",     "%s", __FUNCTION__,
+         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+         "msg",          "%s", "CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES not set",
+         NULL
+    );
+#endif
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int get_measure_times(void)
+{
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    return measuring_times;
+#else
+    gobj_log_error(0, LOG_OPT_TRACE_STACK,
+         "function",     "%s", __FUNCTION__,
+         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+         "msg",          "%s", "CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES not set",
+         NULL
+    );
+#endif
 }

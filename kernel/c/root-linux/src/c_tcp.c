@@ -245,7 +245,7 @@ PRIVATE int mt_start(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times & (YEV_ACCEPT_TYPE|YEV_CONNECT_TYPE)) {
+    if(measuring_cur_type & (YEV_ACCEPT_TYPE|YEV_CONNECT_TYPE)) {
         MT_PRINT_TIME(yev_time_measure, "C_TCP mt_start entry");
     }
 #endif
@@ -310,7 +310,7 @@ PRIVATE int mt_start(hgobj gobj)
         }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        if(measuring_times & YEV_ACCEPT_TYPE) {
+        if(measuring_cur_type & YEV_ACCEPT_TYPE) {
             MT_PRINT_TIME(yev_time_measure, "C_TCP mt_start set_connected");
         }
 #endif
@@ -395,7 +395,7 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    if(measuring_times & (YEV_ACCEPT_TYPE|YEV_CONNECT_TYPE)) {
+    if(measuring_cur_type & (YEV_ACCEPT_TYPE|YEV_CONNECT_TYPE)) {
         MT_PRINT_TIME(yev_time_measure, "C_TCP mt_start end");
     }
 #endif

@@ -2694,9 +2694,6 @@ PUBLIC void gobj_trace_dump_full_gbuf(
 )  JANSSON_ATTRS((format(printf, 3, 4)));
 
 
-PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
-extern int measuring_times;
-
 #ifdef __cplusplus
 }
 #endif
