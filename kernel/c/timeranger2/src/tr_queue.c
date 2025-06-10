@@ -156,29 +156,6 @@ PUBLIC json_t * trq_topic(tr_queue trq)
 }
 
 /***************************************************************************
-    Set first rowid to search
- ***************************************************************************/
-PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
-{
-    register tr_queue_t *trq = trq_;
-    hgobj gobj = 0;
-
-    if(kw_get_bool(gobj, trq->tranger, "master", 0, KW_REQUIRED)) {
-        json_t *jn_topic_var = json_object();
-        json_object_set_new(
-            jn_topic_var,
-            "first_rowid",
-            json_integer((json_int_t)first_rowid)
-        );
-        tranger2_write_topic_var(
-            trq->tranger,
-            tranger2_topic_name(trq->topic),
-            jn_topic_var  // owned
-        );
-    }
-}
-
-/***************************************************************************
     New msg
  ***************************************************************************/
 PRIVATE q_msg_t *new_msg(
@@ -239,8 +216,6 @@ PRIVATE void free_msg(void *msg_)
 /***************************************************************************
 
  ***************************************************************************/
-static uint64_t first_rowid = 0;  // usado temporalmente
-
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -253,10 +228,6 @@ PRIVATE int load_record_callback(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     tr_queue_t *trq = (tr_queue_t *)(size_t)kw_get_int(gobj, list, "trq", 0, KW_REQUIRED);
-
-    if(first_rowid==0) {
-        first_rowid = rowid;
-    }
 
     new_msg(trq, key, rowid, md_record, jn_record);
 
@@ -285,13 +256,6 @@ PUBLIC int trq_load(tr_queue trq_)
         json_integer(TRQ_MSG_PENDING)
     );
 
-    uint64_t last_first_rowid = kw_get_int(gobj, trq->topic, "first_rowid", 0, 0);
-    if(last_first_rowid) {
-        if(last_first_rowid <= tranger2_topic_size(trq->tranger, trq->topic_name)) {
-            json_object_set_new(match_cond, "from_rowid", json_integer(last_first_rowid));
-        }
-    }
-
     /*
      *  We manage the callback, user not implied.
      *  Maintains a list of message's metadata.
@@ -302,8 +266,6 @@ PUBLIC int trq_load(tr_queue trq_)
         "load_record_callback",
         json_integer((json_int_t)(size_t)load_record_callback)
     );
-
-    first_rowid = 0;
 
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
@@ -329,14 +291,6 @@ PUBLIC int trq_load(tr_queue trq_)
         );
     }
     tranger2_close_list(trq->tranger, tr_list);
-
-    if(first_rowid==0) {
-        // No hay ningún msg pending, pon la última rowid
-        first_rowid = tranger2_topic_size(trq->tranger, trq->topic_name);
-    }
-    if(first_rowid) {
-        trq_set_first_rowid(trq, first_rowid);
-    }
 
     return 0;
 }
@@ -777,7 +731,6 @@ PUBLIC int trq_check_backup(tr_queue trq_)
     if(backup_queue_size) {
         uint64_t sz = tranger2_topic_size(trq->tranger, trq->topic_name);
         if(sz >= backup_queue_size) {
-            trq_set_first_rowid(trq, sz); // WARNING danger change?!
             trq->topic = tranger2_backup_topic(
                 trq->tranger,
                 trq->topic_name,
@@ -786,7 +739,6 @@ PUBLIC int trq_check_backup(tr_queue trq_)
                 true,
                 0
             );
-            trq_set_first_rowid(trq, 0);
         }
     }
 

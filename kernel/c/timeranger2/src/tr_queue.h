@@ -67,11 +67,6 @@ PUBLIC json_t * trq_tranger(tr_queue trq);
 PUBLIC json_t * trq_topic(tr_queue trq);
 
 /**
-    Set from_rowid to improve speed
-*/
-PUBLIC void trq_set_first_rowid(tr_queue trq, uint64_t first_rowid);
-
-/**
     Load pending messages, return a iter
 */
 PUBLIC int trq_load(tr_queue trq);

@@ -341,7 +341,6 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
      *      Ouput queue
      *--------------------------------*/
     open_queue(gobj);
-    trq_set_first_rowid(priv->trq_msgs, 0);
     trq_load_all(priv->trq_msgs, key, from_rowid, to_rowid);
 
     /*----------------------------------*
@@ -406,7 +405,6 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
      *      Ouput queue
      *--------------------------------*/
     open_queue(gobj);
-    trq_set_first_rowid(priv->trq_msgs, 0);
     trq_load_all(priv->trq_msgs, key, from_rowid, to_rowid);
 
     /*----------------------------------*
