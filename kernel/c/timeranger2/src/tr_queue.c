@@ -168,15 +168,6 @@ PRIVATE q_msg_t *new_msg(
 {
     hgobj gobj = 0;
 
-    if(!jn_record) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Json record is EMPTY",
-            NULL
-        );
-        return 0;
-    }
     /*
      *  Alloc memory
      */
