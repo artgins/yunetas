@@ -686,7 +686,7 @@ PUBLIC void mt_print_time(time_measure_t *time_measure, const char *label)
 
     double ops_per_sec = (elapsed_sec > 0.0) ? ((double)count / elapsed_sec) : 0.0;
 
-    printf("%s#TIME (count: %" PRIu64 "): elapsed %.9f s, ops/sec %.2f%s -> %s\n",
+    printf("%s#TIME (count: %" PRIu64 "): elapsed %.9f s, ops/sec %.2f%s : %s\n",
         On_Black RGreen,
         time_measure->count,
         elapsed_sec,
