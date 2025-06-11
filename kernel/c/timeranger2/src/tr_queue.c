@@ -248,7 +248,6 @@ PUBLIC int trq_load(tr_queue trq_)
     );
 
     json_object_set_new(match_cond, "only_md", json_true());
-    json_object_set_new(match_cond, "backward", json_true());
 
     /*
      *  We manage the callback, user not implied.
