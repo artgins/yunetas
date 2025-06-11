@@ -179,6 +179,7 @@ int do_test(void)
         "gate_events",
         "id",
         "tm",
+        "",
         sf_string_key,
         100000
     );

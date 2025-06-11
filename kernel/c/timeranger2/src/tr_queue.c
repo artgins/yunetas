@@ -55,6 +55,7 @@ PUBLIC tr_queue trq_open(
     const char *topic_name,
     const char *pkey,
     const char *tkey,
+    const char *filename_mask,
     system_flag2_t system_flag,
     size_t backup_queue_size
 )
@@ -77,6 +78,11 @@ PUBLIC tr_queue trq_open(
     trq->tranger = tranger;
     snprintf(trq->topic_name, sizeof(trq->topic_name), "%s", topic_name);
 
+    json_t *jn_topic_ext = json_object();
+    if(!empty_string(filename_mask)) {
+        json_object_set_new(jn_topic_ext, "filename_mask", json_string(filename_mask));
+    }
+
     /*-------------------------------*
      *  Open/Create topic
      *-------------------------------*/
@@ -85,7 +91,7 @@ PUBLIC tr_queue trq_open(
         topic_name,
         pkey,
         tkey,
-        NULL,
+        jn_topic_ext,
         system_flag,
         0,
         0

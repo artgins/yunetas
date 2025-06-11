@@ -88,6 +88,7 @@ SDATA (DTP_STRING,      "tranger_database", SDF_RD,             "",         "tra
 SDATA (DTP_STRING,      "topic_name",       SDF_RD,             "",         "trq_open topic_name"),
 SDATA (DTP_STRING,      "pkey",             SDF_RD,             "",         "trq_open pkey"),
 SDATA (DTP_STRING,      "tkey",             SDF_RD,             "",         "trq_open tkey"),
+SDATA (DTP_STRING,      "filename_mask",    SDF_RD,             "qfile",    "trq_open filename_mask"),
 SDATA (DTP_STRING,      "system_flag",      SDF_RD,             "",         "trq_open system_flag"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "0x0010",   "LOG_OPT_TRACE_STACK"),
 SDATA (DTP_STRING,      "alert_message",    SDF_WR|SDF_PERSIST, "ALERTA Encolamiento", "Alert message"),
@@ -567,11 +568,12 @@ PRIVATE int open_queue(hgobj gobj)
         topic_name,
         gobj_read_str_attr(gobj, "pkey"),
         gobj_read_str_attr(gobj, "tkey"),
+        gobj_read_str_attr(gobj, "filename_mask"),
         tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
 
-    trq_set_maximum_retries(priv->trq_msgs, gobj_read_integer_attr(gobj, "maximum_retries"));
+    trq_set_maximum_retries(priv->trq_msgs, (int)gobj_read_integer_attr(gobj, "maximum_retries"));
 
     return 0;
 }

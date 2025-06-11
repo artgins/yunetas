@@ -189,6 +189,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
         topic_name,
         "id",
         "tm",
+        "",
         sf_string_key,
         0
     );
