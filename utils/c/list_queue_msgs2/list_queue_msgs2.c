@@ -152,10 +152,10 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
 
     char *path = NULL;
     char *database = NULL;
-    char *topic = NULL;
+    char *topic_name = NULL;
 
     if(file_exists(path_tranger, "topic_desc.json")) {
-        topic = pop_last_segment(path_tranger);
+        topic_name = pop_last_segment(path_tranger);
         if(!file_exists(path_tranger, "__timeranger2__.json")) {
             fprintf(stderr, "Cannot find a timeranger2 in  %s\n\n", path_tranger);
             exit(-1);
@@ -166,6 +166,9 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
         fprintf(stderr, "Cannot find any topic in  %s\n\n", arguments->path);
         exit(-1);
     }
+
+    time_measure_t time_measure;
+    MT_START_TIME(time_measure)
 
     /*-------------------------------*
      *      Startup TimeRanger
@@ -183,7 +186,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
 
     tr_queue trq_output = trq_open(
         tranger,
-        topic,
+        topic_name,
         "id",
         "tm",
         sf_string_key,
@@ -193,12 +196,53 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
         exit(-1);
     }
 
+    /*
+        In the topic, here we have the cache of keys
+
+        "cache": {
+            "DVES_0012D8": {
+                "files": [
+                    {
+                        "id": "2025-06-10",
+                        "fr_t": 1749553992,
+                        "to_t": 1749555073,
+                        "fr_tm": 1749553992,
+                        "to_tm": 1749555073,
+                        "rows": 193
+                    }
+                ],
+                "total": {
+                    "fr_t": 1749553992,
+                    "to_t": 1749555073,
+                    "fr_tm": 1749553992,
+                    "to_tm": 1749555073,
+                    "rows": 193
+                }
+            },
+            ...
+        }
+    */
+
     if(arguments->all) {
         trq_load_all(trq_output, 0, 0, 0);
     } else {
         trq_load(trq_output);
     }
 
+    // size_t total_counter = trq_size(trq_output);
+    uint64_t total_counter = tranger2_topic_size(tranger, topic_name);
+
+    /*
+        In the topic, here we have the fd of files
+
+       "rd_fd_files": {
+            "DVES_0012D8": {
+                "2025-06-10.md2": 3
+            },
+
+        and the metadata & key of the records records in trq
+
+    */
     int counter = 0;
     q_msg msg;
     qmsg_foreach_forward(trq_output, msg) {
@@ -233,6 +277,12 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
             print_json2(temp, (json_t *)jn_gate_msg);
         }
     }
+
+    /*-------------------------------------*
+     *  Print times
+     *-------------------------------------*/
+    MT_SET_COUNT(time_measure, total_counter)
+    MT_PRINT_TIME(time_measure, "")
 
     if(counter > 0) {
         printf("%sTotal: %d records%s\n\n", On_Red BWhite, counter, Color_Off);

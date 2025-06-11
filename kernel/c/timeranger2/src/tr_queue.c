@@ -316,7 +316,11 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
             json_string(key)
         );
     }
-    json_object_set_new(match_cond, "load_record_callback", json_integer((json_int_t)(size_t)load_record_callback));
+    json_object_set_new(
+        match_cond,
+        "load_record_callback",
+        json_integer((json_int_t)(size_t)load_record_callback)
+    );
 
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
