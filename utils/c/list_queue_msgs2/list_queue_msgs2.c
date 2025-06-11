@@ -282,7 +282,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
      *  Print times
      *-------------------------------------*/
     MT_SET_COUNT(time_measure, total_counter)
-    MT_PRINT_TIME(time_measure, "")
+    MT_PRINT_TIME(time_measure, "list_queue_msgs2")
 
     if(counter > 0) {
         printf("%sTotal: %d records%s\n\n", On_Red BWhite, counter, Color_Off);
