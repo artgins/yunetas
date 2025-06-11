@@ -74,7 +74,7 @@ PUBLIC int trq_load(tr_queue trq);
 /**
     Load all messages, return a iter
 */
-PUBLIC int trq_load_all(tr_queue trq, const char *key, int64_t from_rowid, int64_t to_rowid);
+PUBLIC int trq_load_all(tr_queue trq, const char *key, int64_t from_t, int64_t to_t);
 
 /**
     Append a new message to queue

@@ -248,6 +248,7 @@ PUBLIC int trq_load(tr_queue trq_)
     );
 
     json_object_set_new(match_cond, "only_md", json_true());
+    json_object_set_new(match_cond, "backward", json_true());
 
     /*
      *  We manage the callback, user not implied.
@@ -268,11 +269,11 @@ PUBLIC int trq_load(tr_queue trq_)
     json_t *tr_list = tranger2_open_list(
         trq->tranger,
         trq->topic_name,
-        match_cond,  // owned
-        jn_extra,    // owned
-        NULL,   // rt_id    TODO
+        match_cond, // owned
+        jn_extra,   // owned
+        NULL,       // rt_id
         false,
-        NULL   // creator TODO
+        NULL        // creator
     );
     if(!tr_list) {
         gobj_log_error(gobj, 0,
@@ -291,16 +292,16 @@ PUBLIC int trq_load(tr_queue trq_)
 /***************************************************************************
 
  ***************************************************************************/
-PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int64_t to_rowid)
+PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_t, int64_t to_t)
 {
     register tr_queue_t *trq = trq_;
 
     json_t *match_cond = json_object();
-    if(from_rowid) {
-        json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
+    if(from_t) {
+        json_object_set_new(match_cond, "from_t", json_integer(from_t));
     }
-    if(to_rowid) {
-        json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
+    if(to_t) {
+        json_object_set_new(match_cond, "to_t", json_integer(to_t));
     }
     if(key) {
         json_object_set_new(
@@ -324,11 +325,11 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
     json_t *tr_list = tranger2_open_list(
         trq->tranger,
         trq->topic_name,
-        match_cond,  // owned
-        jn_extra,    // owned
-        NULL,   // rt_id    TODO
+        match_cond, // owned
+        jn_extra,   // owned
+        NULL,       // rt_id
         false,
-        NULL    // creator TODO
+        NULL        // creator
     );
     tranger2_close_list(trq->tranger, tr_list);
 
