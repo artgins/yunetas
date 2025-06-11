@@ -256,6 +256,8 @@ PUBLIC int trq_load(tr_queue trq_)
         json_integer(TRQ_MSG_PENDING)
     );
 
+    json_object_set_new(match_cond, "only_md", json_true());
+
     /*
      *  We manage the callback, user not implied.
      *  Maintains a list of message's metadata.
@@ -321,6 +323,8 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
         "load_record_callback",
         json_integer((json_int_t)(size_t)load_record_callback)
     );
+
+    json_object_set_new(match_cond, "only_md", json_true());
 
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
