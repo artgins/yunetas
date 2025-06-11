@@ -127,7 +127,7 @@ retry:
             goto retry;
         }
 
-        gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
+        gobj_log_critical(yuno, LOG_OPT_ABORT,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "Linux kernel without io_uring, cannot run yunetas",
@@ -155,7 +155,7 @@ retry:
     err = io_uring_queue_init_params(entries, &yev_loop->ring, &params);
     if (err < 0) {
         GBMEM_FREE(yev_loop)
-        gobj_log_critical(yuno, LOG_OPT_EXIT_ZERO,
+        gobj_log_critical(yuno, LOG_OPT_ABORT,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "Linux io_uring_queue_init_params() FAILED, cannot run yunetas",
