@@ -263,12 +263,14 @@ PRIVATE int list_topics(const char *path);
 /***************************************************************************
  *      Data
  ***************************************************************************/
-
 yev_loop_h yev_loop;
 int time2exit = 10;
 int total_counter = 0;
 int partial_counter = 0;
 json_t *match_cond = 0;
+
+int verbose = 0;
+BOOL table_mode = false;
 
 /***************************************************************************
  *
@@ -366,19 +368,9 @@ PRIVATE int load_record_callback(
 
     total_counter++;
     partial_counter++;
-    int verbose = arguments.verbose;
     char title[1024];
 
     tranger2_print_md1_record(title, sizeof(title), key, rowid, md_record, arguments.print_local_time);
-
-    BOOL table_mode = false;
-    if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
-        verbose = 3;
-        table_mode = true;
-    }
-    if(kw_has_key(match_cond, "filter")) {
-        verbose = 3;
-    }
 
     if(verbose < 0) {
         JSON_DECREF(jn_record)
@@ -995,6 +987,19 @@ int main(int argc, char *argv[])
             "filter",
             legalstring2json(arguments.filter, true)
         );
+    }
+
+    verbose = arguments.verbose;
+    if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
+        verbose = 3;
+        table_mode = true;
+    }
+    if(kw_has_key(match_cond, "filter")) {
+        verbose = 3;
+    }
+
+    if(verbose < 3) {
+        json_object_set_new(match_cond, "only_md", json_true());
     }
 
     char path[PATH_MAX];

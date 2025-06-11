@@ -386,6 +386,8 @@ PRIVATE int list_messages(void)
         arguments.topic
     );
     print_json2("Keys", jn_keys);
+    total_counter += json_array_size(jn_keys);
+
     JSON_DECREF(jn_keys)
     /*-------------------------------*
      *  Free resources
