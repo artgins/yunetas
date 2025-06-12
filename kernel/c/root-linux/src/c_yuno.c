@@ -30,6 +30,11 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 
+#include <sched.h>
+#include <sys/mman.h>
+#include <sys/prctl.h>     // for PR_CAPBSET_READ
+#include <linux/capability.h>  // for CAP_SYS_NICE, CAP_IPC_LOCK#include <sys/prctl.h>
+
 #include <kwid.h>
 #include <command_parser.h>
 #include <log_udp_handler.h>
@@ -57,6 +62,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE void boost_process_performance(int priority, int cpu_core);
 PRIVATE unsigned int get_HZ(void);
 PRIVATE void read_uptime(unsigned long long *uptime);
 PRIVATE json_t *get_process_memory_info(void);
@@ -463,6 +469,10 @@ SDATA (DTP_BOOLEAN, "autoplay",         SDF_RD,         "0",            "Auto pl
 SDATA (DTP_INTEGER, "io_uring_entries", SDF_RD,         "0",            "Entries for the SQ ring, multiply by 3 the maximum number of wanted connections. Default if 0 = 2400"),
 SDATA (DTP_INTEGER, "limit_open_files", SDF_PERSIST,    "20000",        "Limit open files"),
 SDATA (DTP_INTEGER, "limit_open_files_done", SDF_RD,    "",             "Limit open files done"),
+
+SDATA (DTP_INTEGER, "cpu_core",         SDF_WR|SDF_PERSIST, "0",        "Cpu core, used if > 0"),
+SDATA (DTP_INTEGER, "priority",         SDF_WR|SDF_PERSIST, "20",       "Process priority, BE CAREFUL"),
+
 SDATA_END()
 };
 
@@ -688,6 +698,15 @@ PRIVATE void mt_create(hgobj gobj)
     if (!atexit_registered) {
         atexit(remove_pid_file);
         atexit_registered = 1;
+    }
+
+    /*-----------------------------*
+     *  Set priority and cpu core
+     *-----------------------------*/
+    int priority = (int)gobj_read_integer_attr(gobj, "priority");
+    int cpu_core = (int)gobj_read_integer_attr(gobj, "cpu_core");
+    if(cpu_core > 0) {
+        boost_process_performance(priority, cpu_core);
     }
 
     /*--------------------------*
@@ -4092,6 +4111,78 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void boost_process_performance(int priority, int cpu_core)
+{
+    /*-----------------------------*
+     * 1. Check CAP_SYS_NICE
+     *-----------------------------*/
+    if(prctl(PR_CAPBSET_READ, CAP_SYS_NICE) == 1) {
+        struct sched_param param = { .sched_priority = priority };
+        if(sched_setscheduler(0, SCHED_RR, &param) < 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "sched_setscheduler() FAILED",
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+    } else {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Missing CAP_SYS_NICE (skipping sched_setscheduler)",
+            NULL
+        );
+    }
+
+    /*-----------------------------*
+     * 2. Set CPU affinity
+     *-----------------------------*/
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(cpu_core, &cpuset);
+
+    if(sched_setaffinity(0, sizeof(cpu_set_t), &cpuset) < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "sched_setaffinity() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    /*-----------------------------*
+     * 3. Check CAP_IPC_LOCK
+     *-----------------------------*/
+    if(prctl(PR_CAPBSET_READ, CAP_IPC_LOCK) == 1) {
+        if(mlockall(MCL_CURRENT | MCL_FUTURE) < 0) {
+            gobj_log_error(0, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "mlockall() FAILED",
+                "errno",        "%d", errno,
+                "serrno",       "%s", strerror(errno),
+                NULL
+            );
+        }
+    } else {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Missing CAP_IPC_LOCK (skipping mlockall)",
+            NULL
+        );
+    }
+}
+
 /***************************************************************************
  * Read machine uptime, independently of the number of processors.
  *
@@ -4119,6 +4210,7 @@ PRIVATE void read_uptime(unsigned long long *uptime)
 
     fclose(fp);
 }
+
 /***************************************************************************
  * Get number of clock ticks per second.
  ***************************************************************************/
