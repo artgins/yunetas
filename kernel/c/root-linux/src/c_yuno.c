@@ -62,6 +62,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE json_t *get_cpus(void);
 PRIVATE void boost_process_performance(int priority, int cpu_core);
 PRIVATE unsigned int get_HZ(void);
 PRIVATE void read_uptime(unsigned long long *uptime);
@@ -706,7 +707,11 @@ PRIVATE void mt_create(hgobj gobj)
     int priority = (int)gobj_read_integer_attr(gobj, "priority");
     int cpu_core = (int)gobj_read_integer_attr(gobj, "cpu_core");
     if(cpu_core > 0) {
-        boost_process_performance(priority, cpu_core);
+        json_t *jn_cpus = get_cpus();
+        if(json_array_size(jn_cpus)>= cpu_core-1) {
+            boost_process_performance(priority, cpu_core);
+        }
+        JSON_DECREF(jn_cpus)
     }
 
     /*--------------------------*
@@ -3252,59 +3257,7 @@ PRIVATE json_t *cmd_list_log_handlers(hgobj gobj, const char* cmd, json_t* kw, h
  ***************************************************************************/
 PRIVATE json_t *cmd_info_cpus(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *jn_list = json_array();
-
-    FILE *fp = fopen("/proc/cpuinfo", "r");
-    if(!fp) {
-        return jn_list;
-    }
-
-    json_t *jn_cpu = NULL;
-
-    char line[1024];
-    while(fgets(line, sizeof(line), fp)) {
-        // Blank line signals end of one processor block
-        if(line[0] == '\n' || line[0] == '\0') {
-            if(jn_cpu) {
-                json_array_append_new(jn_list, jn_cpu);
-                jn_cpu = NULL;
-            }
-            continue;
-        }
-
-        char *key = strtok(line, ":");
-        char *value = strtok(NULL, "\n");
-
-        if(!key || !value) {
-            continue;
-        }
-
-        left_justify(key);
-        left_justify(value);
-
-        // If "processor", start a new object
-        if(strcmp(key, "processor") == 0) {
-            if(jn_cpu) {
-                json_array_append_new(jn_list, jn_cpu);
-            }
-            jn_cpu = json_object();
-            json_object_set_new(jn_cpu, "processor", json_integer(atoi(value)));
-            continue;
-        }
-
-        // Add other fields as strings
-        if(jn_cpu) {
-            json_object_set_new(jn_cpu, key, json_string(value));
-        }
-    }
-
-    // In case last processor did not end with blank line
-    if(jn_cpu) {
-        json_array_append_new(jn_list, jn_cpu);
-    }
-
-    fclose(fp);
-
+    json_t *jn_list = get_cpus();
     json_t *kw_response = build_command_response(
         gobj,
         0,
@@ -4110,7 +4063,66 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
 
 
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *get_cpus(void)
+{
+    json_t *jn_list = json_array();
 
+    FILE *fp = fopen("/proc/cpuinfo", "r");
+    if(!fp) {
+        return jn_list;
+    }
+
+    json_t *jn_cpu = NULL;
+
+    char line[1024];
+    while(fgets(line, sizeof(line), fp)) {
+        // Blank line signals end of one processor block
+        if(line[0] == '\n' || line[0] == '\0') {
+            if(jn_cpu) {
+                json_array_append_new(jn_list, jn_cpu);
+                jn_cpu = NULL;
+            }
+            continue;
+        }
+
+        char *key = strtok(line, ":");
+        char *value = strtok(NULL, "\n");
+
+        if(!key || !value) {
+            continue;
+        }
+
+        left_justify(key);
+        left_justify(value);
+
+        // If "processor", start a new object
+        if(strcmp(key, "processor") == 0) {
+            if(jn_cpu) {
+                json_array_append_new(jn_list, jn_cpu);
+            }
+            jn_cpu = json_object();
+            json_object_set_new(jn_cpu, "processor", json_integer((json_int_t)atoi(value)));
+            continue;
+        }
+
+        // Add other fields as strings
+        if(jn_cpu) {
+            json_object_set_new(jn_cpu, key, json_string(value));
+        }
+    }
+
+    // In case last processor did not end with blank line
+    if(jn_cpu) {
+        json_array_append_new(jn_list, jn_cpu);
+    }
+
+    fclose(fp);
+
+    return jn_list;
+}
 
 /***************************************************************************
  *
