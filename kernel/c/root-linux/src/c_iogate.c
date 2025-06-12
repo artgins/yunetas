@@ -1257,50 +1257,6 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
     return 0;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  Local stats
-     */
-    uint64_t ms = time_in_milliseconds_monotonic();
-    if(!priv->last_ms) {
-        priv->last_ms = ms;
-    }
-    json_int_t t = (json_int_t)(ms - priv->last_ms);
-    if(t>0) {
-        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
-        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
-
-        txMsgsec *= 1000;
-        rxMsgsec *= 1000;
-        txMsgsec /= t;
-        rxMsgsec /= t;
-
-        json_int_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
-        json_int_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
-        if(txMsgsec > maxtxMsgsec) {
-            gobj_write_integer_attr(gobj, "maxtxMsgsec", txMsgsec);
-        }
-        if(rxMsgsec > maxrxMsgsec) {
-            gobj_write_integer_attr(gobj, "maxrxMsgsec", rxMsgsec);
-        }
-
-        gobj_write_integer_attr(gobj, "txMsgsec", txMsgsec);
-        gobj_write_integer_attr(gobj, "rxMsgsec", rxMsgsec);
-    }
-    priv->last_ms = ms;
-    priv->last_txMsgs = priv->txMsgs;
-    priv->last_rxMsgs = priv->rxMsgs;
-
-    JSON_DECREF(kw)
-    return 0;
-}
-
 
 /***************************************************************************
  *                          FSM
@@ -1367,7 +1323,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_DROP,               ac_drop,            0},
         {EV_ON_OPEN,            ac_on_open,         0},
         {EV_ON_CLOSE,           ac_on_close,        0},
-        {EV_TIMEOUT_PERIODIC,   ac_timeout,         0},
         {EV_STOPPED,            ac_stopped,         0},
         {0,0,0}
     };
@@ -1378,22 +1333,21 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
+        {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
         {EV_SEND_MESSAGE,           0},
         {EV_SEND_IEV,               0},
+        {EV_ON_IEV_MESSAGE,         0},
+        {EV_ON_COMMAND,             0},
         {EV_DROP,                   0},
 
-        {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
         {EV_ON_ID,                  EVF_OUTPUT_EVENT},
         {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
         {EV_ON_OPEN,                EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,               EVF_OUTPUT_EVENT},
 
-        {EV_ON_IEV_MESSAGE,         0},
-        {EV_ON_COMMAND,             0},
 
         // internal
         {EV_STOPPED,                0},
-        {EV_TIMEOUT_PERIODIC,       0},
 
         {0, 0}
     };

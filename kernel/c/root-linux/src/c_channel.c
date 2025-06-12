@@ -537,13 +537,13 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
+        {EV_SEND_MESSAGE,           0},
         {EV_ON_ID,                  EVF_OUTPUT_EVENT},
         {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
         {EV_ON_OPEN,                EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,               EVF_OUTPUT_EVENT},
 
         // top input
-        {EV_SEND_MESSAGE,           0},
         {EV_DROP,                   0},
 
         // internal

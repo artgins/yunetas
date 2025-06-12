@@ -444,6 +444,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = { // HACK System gclass, not public events
+        {EV_ON_MESSAGE,         EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
         {EV_RX_DATA,            0}, // TODO is necessary to define the internal or input events?
         {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
         {EV_CONNECTED,          0},
@@ -454,7 +455,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,            0},
         {EV_ON_OPEN,            EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,           EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
-        {EV_ON_MESSAGE,         EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
         {NULL, 0}
     };
 
