@@ -35,7 +35,7 @@ enum {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE json_t *local_stats(hgobj gobj, const char *stats);
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
 PRIVATE int open_queue(hgobj gobj);
 PRIVATE int close_queue(hgobj gobj);
 
@@ -267,7 +267,7 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    return local_stats(gobj, stats);
+    return local_stats(gobj, stats, kw, src);
 }
 
 
@@ -438,7 +438,7 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *local_stats(hgobj gobj, const char *stats)
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -449,6 +449,7 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats)
 
     json_object_update_new(jn_data, gobj_stats(priv->gobj_bottom_side, stats, 0, gobj));
 
+    KW_DECREF(kw)
     return jn_data;
 }
 

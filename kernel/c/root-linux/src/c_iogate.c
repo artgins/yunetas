@@ -26,7 +26,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE json_t *local_stats(hgobj gobj, const char *stats);
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
 PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
 
 /***************************************************************************
@@ -184,7 +184,7 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    return local_stats(gobj, stats);
+    return local_stats(gobj, stats, kw, src);
 }
 
 
@@ -646,7 +646,7 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE json_t *local_stats(hgobj gobj, const char *stats)
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -720,6 +720,7 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats)
     json_object_set_new(jn_data, "maxrxMsgsec", json_integer(priv->maxrxMsgsec));
     json_object_set_new(jn_data, "cpu", json_integer(priv->cpu_usage));
 
+    KW_DECREF(kw)
     return jn_data;
 }
 
