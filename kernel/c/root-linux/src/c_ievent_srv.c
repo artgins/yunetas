@@ -162,7 +162,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(client_yuno_service,   gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(this_service,          gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(gobj_service,          gobj_read_pointer_attr)
-    ELIF_EQ_SET_PRIV(subscriber,            gobj_read_pointer_attr)
     END_EQ_SET_PRIV()
 }
 

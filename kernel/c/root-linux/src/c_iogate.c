@@ -9,6 +9,7 @@
 #include <inttypes.h>
 
 #include <command_parser.h>
+#include <stats_parser.h>
 #include "msg_ievent.h"
 #include "c_timer.h"
 #include "c_channel.h"
@@ -25,6 +26,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats);
 PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
 
 /***************************************************************************
@@ -82,13 +84,6 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_BOOLEAN,     "persistent_channels",SDF_RD,           0,          "legacy, TODO remove"),
 SDATA (DTP_INTEGER,     "send_type",        SDF_RD,             0,          "Send type: 0 one dst, 1 all destinations"),
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             "1000",     "Timeout"),
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages received"),
-SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
-SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RD|SDF_RSTATS,  0,          "Max Messages by second"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
@@ -113,16 +108,24 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj cur_channel;
-    hgobj timer;
-    int32_t timeout;
 
-    hgobj subscriber;
     send_type_t send_type;
+
     json_int_t txMsgs;
     json_int_t rxMsgs;
     json_int_t last_txMsgs;
     json_int_t last_rxMsgs;
+
+    json_int_t txMsgsec;
+    json_int_t rxMsgsec;
+    json_int_t maxtxMsgsec;
+    json_int_t maxrxMsgsec;
+
     uint64_t last_ms;
+    uint64_t last_cpu_ticks;
+    uint64_t last_cpu_ms;
+    int cpu_usage;
+
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -144,8 +147,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
-
     /*
      *  SERVICE subscription model
      */
@@ -158,21 +159,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy-used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,                   gobj_read_integer_attr)
     SET_PRIV(send_type,                 gobj_read_integer_attr)
-    SET_PRIV(subscriber,                gobj_read_pointer_attr)
-}
-
-/***************************************************************************
- *      Framework Method writing
- ***************************************************************************/
-PRIVATE void mt_writing(hgobj gobj, const char *path)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    IF_EQ_SET_PRIV(timeout,                 gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(subscriber,            gobj_read_pointer_attr)
-    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -180,9 +167,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    set_timeout_periodic(priv->timer, priv->timeout);
-
     return 0;
 }
 
@@ -191,29 +175,16 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    clear_timeout(priv->timer);
     gobj_stop_children(gobj);
     return 0;
 }
 
 /***************************************************************************
- *      Framework Method reading
+ *      Framework Method stats
  ***************************************************************************/
-PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    SData_Value_t v = {0,{0}};
-    if(strcmp(name, "txMsgs")==0) {
-        v.found = 1;
-        v.v.i = priv->txMsgs;
-    } else if(strcmp(name, "rxMsgs")==0) {
-        v.found = 1;
-        v.v.i = priv->rxMsgs;
-    }
-    return v;
+    return local_stats(gobj, stats);
 }
 
 
@@ -270,10 +241,12 @@ PRIVATE int add_child_to_data(hgobj gobj, json_t *jn_data, hgobj child)
         if(!peername) {
             peername = "";
         }
-        txMsgs = gobj_read_integer_attr(child, "txMsgs");
-        rxMsgs = gobj_read_integer_attr(child, "rxMsgs");
-        txMsgsec = gobj_read_integer_attr(child, "txMsgsec");
-        rxMsgsec = gobj_read_integer_attr(child, "rxMsgsec");
+        json_t *jn_stats = gobj_stats(child, 0, 0, gobj);
+        txMsgs = kw_get_int(gobj, jn_stats, "txMsgs", 0, 0);
+        rxMsgs = kw_get_int(gobj, jn_stats, "rxMsgs", 0, 0);
+        txMsgsec = kw_get_int(gobj, jn_stats, "txMsgsec", 0, 0);
+        rxMsgsec = kw_get_int(gobj, jn_stats, "rxMsgsec", 0, 0);
+        JSON_DECREF(jn_stats)
     }
     return json_array_append_new(
         jn_data,
@@ -328,12 +301,9 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *channel = kw_get_str(gobj, kw, "channel_name", 0, 0);
     BOOL opened = kw_get_bool(gobj, kw, "opened", 0, KW_WILD_NUMBER);
     if(empty_string(channel)) {
-        json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", C_CHANNEL
-        );
         hgobj child = gobj_first_child(gobj);
         while(child) {
-            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            if(gobj_gclass(child) == C_CHANNEL) {
                 if(opened) {
                     if(gobj_read_bool_attr(child, "opened")) {
                         add_child_to_data(gobj, jn_data, child);
@@ -344,7 +314,6 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
             }
             child = gobj_next_child(child);
         }
-        JSON_DECREF(jn_filter)
 
     } else {
         regex_t _re_name;
@@ -359,12 +328,9 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
             );
         }
 
-        json_t *jn_filter = json_pack("{s:s}",
-            "__gclass_name__", C_CHANNEL
-        );
         hgobj child = gobj_first_child(gobj);
         while(child) {
-            if(gobj_match_gobj(child, json_incref(jn_filter))) {
+            if(gobj_gclass(child) == C_CHANNEL) {
                 const char *name = gobj_name(child);
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
                     continue;
@@ -379,7 +345,6 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
             }
             child = gobj_next_child(child);
         }
-        JSON_DECREF(jn_filter)
         regfree(&_re_name);
     }
 
@@ -677,6 +642,86 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(stats && strcmp(stats, "__reset__")==0) {
+        priv->txMsgs = 0;
+        priv->rxMsgs = 0;
+        priv->last_txMsgs = 0;
+        priv->last_rxMsgs = 0;
+
+        priv->txMsgsec = 0;
+        priv->rxMsgsec = 0;
+        priv->maxtxMsgsec = 0;
+        priv->maxrxMsgsec = 0;
+
+        priv->last_ms = 0;
+        priv->last_cpu_ticks = 0;
+        priv->last_cpu_ms = 0;
+        priv->cpu_usage = 0;
+    }
+
+    json_t *jn_data = json_object();
+
+    /*
+     *  Local stats
+     */
+    uint64_t ms = time_in_milliseconds_monotonic();
+    if(!priv->last_ms) {
+        priv->last_ms = ms;
+    }
+    json_int_t t = (json_int_t)(ms - priv->last_ms);
+    if(t>0) {
+        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
+        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
+
+        txMsgsec *= 1000;
+        rxMsgsec *= 1000;
+        txMsgsec /= t;
+        rxMsgsec /= t;
+
+        json_int_t maxtxMsgsec = priv->maxtxMsgsec;
+        json_int_t maxrxMsgsec = priv->maxrxMsgsec;
+        if(txMsgsec > maxtxMsgsec) {
+            priv->maxtxMsgsec =  txMsgsec;
+        }
+        if(rxMsgsec > maxrxMsgsec) {
+            priv->maxrxMsgsec = rxMsgsec;
+        }
+
+        priv->txMsgsec = txMsgsec;
+        priv->rxMsgsec = rxMsgsec;
+    }
+
+    /*---------------------------------------*
+     *      cpu
+     *---------------------------------------*/
+    {
+        double cpu_percent = cpu_usage_percent(&priv->last_cpu_ticks, &priv->last_cpu_ms);
+        // Store as integer
+        priv->cpu_usage = (int)(cpu_percent);
+    }
+
+    priv->last_ms = ms;
+    priv->last_txMsgs = priv->txMsgs;
+    priv->last_rxMsgs = priv->rxMsgs;
+
+    json_object_set_new(jn_data, "txMsgs", json_integer(priv->txMsgs));
+    json_object_set_new(jn_data, "rxMsgs", json_integer(priv->rxMsgs));
+    json_object_set_new(jn_data, "txMsgsec", json_integer(priv->txMsgsec));
+    json_object_set_new(jn_data, "rxMsgsec", json_integer(priv->rxMsgsec));
+    json_object_set_new(jn_data, "maxtxMsgsec", json_integer(priv->maxtxMsgsec));
+    json_object_set_new(jn_data, "maxrxMsgsec", json_integer(priv->maxrxMsgsec));
+    json_object_set_new(jn_data, "cpu", json_integer(priv->cpu_usage));
+
+    return jn_data;
+}
 
 /***************************************************************************
  *  Filter channels
@@ -1280,10 +1325,9 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
-    .mt_writing = mt_writing,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
-    .mt_reading = mt_reading,
+    .mt_stats = mt_stats,
 };
 
 /*---------------------------------------------*

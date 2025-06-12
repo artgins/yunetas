@@ -3499,7 +3499,7 @@ PUBLIC int gobj_reset_rstats_attrs(hgobj gobj)
 /***************************************************************************
  *  ATTR: read str
  ***************************************************************************/
-PUBLIC json_t *gobj_read_attr(
+PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
     hgobj gobj_,
     const char *name,
     hgobj src
@@ -11705,9 +11705,10 @@ PUBLIC void print_track_mem(void)
     }
 
     gobj_log_error(0, 0,
-        "function",             "%s", __FUNCTION__,
-        "msgset",               "%s", MSGSET_STATISTICS,
-        "msg",                  "%s", "print_track_mem(): system memory not free",
+        "function",         "%s", __FUNCTION__,
+        "msgset",           "%s", MSGSET_STATISTICS,
+        "msg",              "%s", "print_track_mem(): system memory not free",
+        "program",          "%s", argv? argv[0]: "",
         NULL
     );
 #ifdef CONFIG_TRACK_MEMORY

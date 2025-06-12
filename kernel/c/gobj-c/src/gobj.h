@@ -1528,7 +1528,7 @@ PUBLIC json_t *gobj_command( // With AUTHZ
 /*
  *  Return a dict with attrs marked with SDF_STATS and stats_metadata
  */
-PUBLIC json_t * gobj_stats( // Call mt_stats() or build_stats()
+PUBLIC json_t * gobj_stats( // Call mt_stats() or __global_stats_parser_fn__ (build_stats)
     hgobj gobj,
     const char* stats,
     json_t* kw,

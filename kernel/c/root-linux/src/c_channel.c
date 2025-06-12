@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include <command_parser.h>
+#include <stats_parser.h>
 #include "msg_ievent.h"
 #include "c_timer.h"
 #include "c_channel.h"
@@ -24,7 +25,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -37,12 +38,6 @@
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_BOOLEAN,     "opened",           SDF_RD,             0,          "Channel opened (opened is higher level than connected"),
-SDATA (DTP_INTEGER,     "txMsgs",           SDF_RSTATS,         0,          "Messages transmitted"),
-SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RSTATS,         0,          "Messages received"),
-SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RSTATS,         0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RSTATS,         0,          "Messages by second"),
-SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_RSTATS,         0,          "Max Messages by second"),
-SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_RSTATS,         0,          "Max Messages by second"),
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",         "Username"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -69,13 +64,16 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     json_int_t txMsgs;
     json_int_t rxMsgs;
+    json_int_t last_txMsgs;
+    json_int_t last_rxMsgs;
+
     json_int_t txMsgsec;
     json_int_t rxMsgsec;
     json_int_t maxtxMsgsec;
     json_int_t maxrxMsgsec;
-    json_int_t last_txMsgs;
-    json_int_t last_rxMsgs;
+
     uint64_t last_ms;
+
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -83,9 +81,9 @@ PRIVATE hgclass __gclass__ = 0;
 
 
 
-            /******************************
-             *      Framework Methods
-             ******************************/
+                    /******************************
+                     *      Framework Methods
+                     ******************************/
 
 
 
@@ -144,75 +142,12 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 /***************************************************************************
- *      Framework Method reading
+ *      Framework Method stats
  ***************************************************************************/
-PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    SData_Value_t v = {0,{0}};
-
-    /*
-     *  Local stats
-     */
-    uint64_t ms = time_in_milliseconds_monotonic();
-    if(!priv->last_ms) {
-        priv->last_ms = ms;
-    }
-    json_int_t t = (json_int_t)(ms - priv->last_ms);
-
-    if(t>=1000) {
-        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
-        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
-
-        txMsgsec *= 1000;
-        rxMsgsec *= 1000;
-        txMsgsec /= t;
-        rxMsgsec /= t;
-
-        if(txMsgsec > priv->maxtxMsgsec) {
-            priv->maxtxMsgsec = txMsgsec;
-        }
-        if(rxMsgsec > priv->maxrxMsgsec) {
-            priv->maxrxMsgsec = rxMsgsec;
-        }
-
-        priv->txMsgsec = txMsgsec;
-        priv->rxMsgsec = rxMsgsec;
-
-        priv->last_ms = ms;
-        priv->last_txMsgs = priv->txMsgs;
-        priv->last_rxMsgs = priv->rxMsgs;
-    }
-
-    if(strcmp(name, "txMsgs")==0) {
-        v.found = 1;
-        v.v.i = priv->txMsgs;
-
-    } else if(strcmp(name, "rxMsgs")==0) {
-        v.found = 1;
-        v.v.i = priv->rxMsgs;
-
-    } else if(strcmp(name, "txMsgsec")==0) {
-        v.found = 1;
-        v.v.i = priv->txMsgsec;
-
-    } else if(strcmp(name, "rxMsgsec")==0) {
-        v.found = 1;
-        v.v.i = priv->rxMsgsec;
-
-    } else if(strcmp(name, "maxtxMsgsec")==0) {
-        v.found = 1;
-        v.v.i = priv->maxtxMsgsec;
-
-    } else if(strcmp(name, "maxrxMsgsec")==0) {
-        v.found = 1;
-        v.v.i = priv->maxrxMsgsec;
-    }
-
-    return v;
+    return local_stats(gobj, stats);
 }
-
 
 
 
@@ -226,26 +161,68 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL all_children_closed(hgobj gobj)
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats)
 {
-    BOOL all_closed = true;
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    hgobj child = gobj_first_child(gobj);
+    if(stats && strcmp(stats, "__reset__")==0) {
+        priv->txMsgs = 0;
+        priv->rxMsgs = 0;
+        priv->last_txMsgs = 0;
+        priv->last_rxMsgs = 0;
 
-    while(child) {
-        if(gobj_gclass_name(child)==C_TIMER) {
-            child = gobj_next_child(child);
-            continue;
-        }
-        BOOL connected = gobj_read_bool_attr(child, "connected");
-        if(connected) {
-            return false;
-        }
+        priv->txMsgsec = 0;
+        priv->rxMsgsec = 0;
+        priv->maxtxMsgsec = 0;
+        priv->maxrxMsgsec = 0;
 
-        child = gobj_next_child(child);
+        priv->last_ms = 0;
     }
 
-    return all_closed;
+    json_t *jn_data = json_object();
+
+    /*
+     *  Local stats
+     */
+    uint64_t ms = time_in_milliseconds_monotonic();
+    if(!priv->last_ms) {
+        priv->last_ms = ms;
+    }
+    json_int_t t = (json_int_t)(ms - priv->last_ms);
+    if(t>0) {
+        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
+        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
+
+        txMsgsec *= 1000;
+        rxMsgsec *= 1000;
+        txMsgsec /= t;
+        rxMsgsec /= t;
+
+        json_int_t maxtxMsgsec = priv->maxtxMsgsec;
+        json_int_t maxrxMsgsec = priv->maxrxMsgsec;
+        if(txMsgsec > maxtxMsgsec) {
+            priv->maxtxMsgsec =  txMsgsec;
+        }
+        if(rxMsgsec > maxrxMsgsec) {
+            priv->maxrxMsgsec = rxMsgsec;
+        }
+
+        priv->txMsgsec = txMsgsec;
+        priv->rxMsgsec = rxMsgsec;
+    }
+
+    priv->last_ms = ms;
+    priv->last_txMsgs = priv->txMsgs;
+    priv->last_rxMsgs = priv->rxMsgs;
+
+    json_object_set_new(jn_data, "txMsgs", json_integer(priv->txMsgs));
+    json_object_set_new(jn_data, "rxMsgs", json_integer(priv->rxMsgs));
+    json_object_set_new(jn_data, "txMsgsec", json_integer(priv->txMsgsec));
+    json_object_set_new(jn_data, "rxMsgsec", json_integer(priv->rxMsgsec));
+    json_object_set_new(jn_data, "maxtxMsgsec", json_integer(priv->maxtxMsgsec));
+    json_object_set_new(jn_data, "maxrxMsgsec", json_integer(priv->maxrxMsgsec));
+
+    return jn_data;
 }
 
 
@@ -293,31 +270,26 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    if(all_children_closed(gobj)) {
-        if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
-            gobj_log_info(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_OPEN_CLOSE,
-                "msg",              "%s", "ON_CLOSE",
-                "tube",             "%s", gobj_name(src),
-                NULL
-            );
-        }
-        gobj_change_state(gobj, ST_CLOSED);
-        gobj_write_bool_attr(gobj, "opened", false);
-
-        /*
-         *  CHILD subscription model
-         */
-        if(gobj_is_service(gobj)) {
-            return gobj_publish_event(gobj, event, kw);  // reuse kw
-        } else {
-            return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-        }
+    if(gobj_trace_level(gobj) & TRACE_CONNECTION) {
+        gobj_log_info(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_OPEN_CLOSE,
+            "msg",              "%s", "ON_CLOSE",
+            "tube",             "%s", gobj_name(src),
+            NULL
+        );
     }
+    gobj_change_state(gobj, ST_CLOSED);
+    gobj_write_bool_attr(gobj, "opened", false);
 
-    JSON_DECREF(kw)
-    return 0;
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, event, kw);  // reuse kw
+    } else {
+        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+    }
 }
 
 /***************************************************************************
@@ -502,7 +474,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop = mt_stop,
     .mt_enable = mt_enable,
     .mt_disable = mt_disable,
-    .mt_reading = mt_reading,
+    .mt_stats = mt_stats,
 };
 
 /*------------------------*

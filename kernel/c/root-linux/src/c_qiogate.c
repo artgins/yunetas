@@ -20,7 +20,6 @@
 #include "c_timer.h"
 #include "c_qiogate.h"
 #include "c_tranger.h"
-#include "../../timeranger2/src/tr_queue.h"
 
 /***************************************************************************
  *              Constants
@@ -36,6 +35,7 @@ enum {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats);
 PRIVATE int open_queue(hgobj gobj);
 PRIVATE int close_queue(hgobj gobj);
 
@@ -56,8 +56,8 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_queue[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "key",          0,              0,          "Key"),
-SDATAPM (DTP_INTEGER,   "from-rowid",   0,              0,          "From rowid"),
-SDATAPM (DTP_INTEGER,   "to-rowid",     0,              0,          "To rowid"),
+SDATAPM (DTP_INTEGER,   "from-t",       0,              0,          "From t"),
+SDATAPM (DTP_INTEGER,   "to-t",         0,              0,          "To t"),
 SDATA_END()
 };
 
@@ -80,8 +80,6 @@ PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
 SDATA (DTP_INTEGER,     "timeout_poll",     SDF_RD,             "1000",     "Timeout polling, in milliseconds"),
 SDATA (DTP_INTEGER,     "timeout_backup",   SDF_RD,             "10",        "Timeout to check backup, in seconds"),
-SDATA (DTP_INTEGER,     "msgs_in_queue",    SDF_RD|SDF_STATS,   0,          "Messages in queue"),
-SDATA (DTP_INTEGER,     "pending_acks",     SDF_RD|SDF_STATS,   0,          "Messages pending of ack"),
 
 SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "tranger path"),
 SDATA (DTP_STRING,      "tranger_database", SDF_RD,             "",         "tranger database"),
@@ -209,21 +207,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 }
 
 /***************************************************************************
- *      Framework Method reading
- ***************************************************************************/
-PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    SData_Value_t v = {0,{0}};
-    if(strcmp(name, "msgs_in_queue")==0) {
-        v.found = 1;
-        v.v.i = (json_int_t)trq_size(priv->trq_msgs);
-    }
-    return v;
-}
-
-/***************************************************************************
  *      Framework Method destroy
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
@@ -279,12 +262,20 @@ PRIVATE int mt_stop(hgobj gobj)
     return 0;
 }
 
+/***************************************************************************
+ *      Framework Method stats
+ ***************************************************************************/
+PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
+{
+    return local_stats(gobj, stats);
+}
 
 
 
-            /***************************
-             *      Commands
-             ***************************/
+
+                    /***************************
+                     *      Commands
+                     ***************************/
 
 
 
@@ -325,13 +316,13 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
     }
 
     const char *key = kw_get_str(gobj, kw, "key", 0, 0);
-    int64_t from_rowid = kw_get_int(gobj, kw, "from-rowid", 0, KW_WILD_NUMBER);
-    int64_t to_rowid = kw_get_int(gobj, kw, "to-rowid", 0, KW_WILD_NUMBER);
-    if(from_rowid == 0) {
+    int64_t from_t = kw_get_int(gobj, kw, "from-t", 0, KW_WILD_NUMBER);
+    int64_t to_t = kw_get_int(gobj, kw, "to-t", 0, KW_WILD_NUMBER);
+    if(from_t == 0) {
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("Please, specify some from-rowid."),
+            json_sprintf("Please, specify some from-t."),
             0,
             0,
             kw  // owned
@@ -342,7 +333,7 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
      *      Ouput queue
      *--------------------------------*/
     open_queue(gobj);
-    trq_load_all(priv->trq_msgs, key, from_rowid, to_rowid);
+    trq_load_all(priv->trq_msgs, key, from_t, to_t);
 
     /*----------------------------------*
      *      Mark pending
@@ -389,13 +380,13 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
     }
 
     const char *key = kw_get_str(gobj, kw, "key", 0, 0);
-    int64_t from_rowid = kw_get_int(gobj, kw, "from-rowid", 0, KW_WILD_NUMBER);
-    int64_t to_rowid = kw_get_int(gobj, kw, "to-rowid", 0, KW_WILD_NUMBER);
-    if(from_rowid == 0) {
+    int64_t from_t = kw_get_int(gobj, kw, "from-t", 0, KW_WILD_NUMBER);
+    int64_t to_t = kw_get_int(gobj, kw, "to-t", 0, KW_WILD_NUMBER);
+    if(from_t == 0) {
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("Please, specify some from-rowid."),
+            json_sprintf("Please, specify some from-t."),
             0,
             0,
             kw  // owned
@@ -406,7 +397,7 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
      *      Ouput queue
      *--------------------------------*/
     open_queue(gobj);
-    trq_load_all(priv->trq_msgs, key, from_rowid, to_rowid);
+    trq_load_all(priv->trq_msgs, key, from_t, to_t);
 
     /*----------------------------------*
      *      Unmark pending
@@ -437,12 +428,29 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
 
 
 
-            /***************************
-             *      Local Methods
-             ***************************/
+                    /***************************
+                     *      Local Methods
+                     ***************************/
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *local_stats(hgobj gobj, const char *stats)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_data = json_object();
+
+    json_object_set_new(jn_data, "msgs_in_queue", json_integer((json_int_t)trq_size(priv->trq_msgs)));
+    json_object_set_new(jn_data, "pending_acks", json_integer((json_int_t)priv->pending_acks));
+
+    json_object_update_new(jn_data, gobj_stats(priv->gobj_bottom_side, stats, 0, gobj));
+
+    return jn_data;
+}
 
 /***************************************************************************
  *  Send alert
@@ -1199,7 +1207,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     KW_DECREF(kw);
-
     return 0;
 }
 
@@ -1261,10 +1268,10 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE const GMETHODS gmt = {
     .mt_create = mt_create,
     .mt_destroy = mt_destroy,
-    .mt_reading = mt_reading,
     .mt_writing = mt_writing,
     .mt_start = mt_start,
     .mt_stop = mt_stop,
+    .mt_stats = mt_stats,
 };
 
 /*------------------------*
