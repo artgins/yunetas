@@ -188,13 +188,11 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
     if(!priv->last_ms) {
         priv->last_ms = ms;
     }
-    json_int_t t = (json_int_t)(ms - priv->last_ms);
+    json_int_t t = (json_int_t)(ms - priv->last_ms)/1000;
     if(t>0) {
         json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
         json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
 
-        txMsgsec *= 1000;
-        rxMsgsec *= 1000;
         txMsgsec /= t;
         rxMsgsec /= t;
 
