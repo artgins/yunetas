@@ -122,9 +122,6 @@ typedef struct _PRIVATE_DATA {
     json_int_t maxrxMsgsec;
 
     uint64_t last_ms;
-    uint64_t last_cpu_ticks;
-    uint64_t last_cpu_ms;
-    int cpu_usage;
 
 } PRIVATE_DATA;
 
@@ -662,9 +659,6 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
         priv->maxrxMsgsec = 0;
 
         priv->last_ms = 0;
-        priv->last_cpu_ticks = 0;
-        priv->last_cpu_ms = 0;
-        priv->cpu_usage = 0;
     }
 
     json_t *jn_data = json_object();
@@ -699,15 +693,6 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
         priv->rxMsgsec = rxMsgsec;
     }
 
-    /*---------------------------------------*
-     *      cpu
-     *---------------------------------------*/
-    {
-        double cpu_percent = cpu_usage_percent(&priv->last_cpu_ticks, &priv->last_cpu_ms);
-        // Store as integer
-        priv->cpu_usage = (int)(cpu_percent);
-    }
-
     priv->last_ms = ms;
     priv->last_txMsgs = priv->txMsgs;
     priv->last_rxMsgs = priv->rxMsgs;
@@ -718,7 +703,6 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
     json_object_set_new(jn_data, "rxMsgsec", json_integer(priv->rxMsgsec));
     json_object_set_new(jn_data, "maxtxMsgsec", json_integer(priv->maxtxMsgsec));
     json_object_set_new(jn_data, "maxrxMsgsec", json_integer(priv->maxrxMsgsec));
-    json_object_set_new(jn_data, "cpu", json_integer(priv->cpu_usage));
 
     KW_DECREF(kw)
     return jn_data;

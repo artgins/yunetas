@@ -444,10 +444,10 @@ PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src
 
     json_t *jn_data = json_object();
 
+    json_object_update_new(jn_data, gobj_stats(priv->gobj_bottom_side, stats, 0, gobj));
+
     json_object_set_new(jn_data, "msgs_in_queue", json_integer((json_int_t)trq_size(priv->trq_msgs)));
     json_object_set_new(jn_data, "pending_acks", json_integer((json_int_t)priv->pending_acks));
-
-    json_object_update_new(jn_data, gobj_stats(priv->gobj_bottom_side, stats, 0, gobj));
 
     KW_DECREF(kw)
     return jn_data;
