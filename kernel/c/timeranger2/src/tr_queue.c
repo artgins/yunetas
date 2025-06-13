@@ -287,7 +287,13 @@ PUBLIC int trq_load(tr_queue trq_)
 
     json_object_set_new(match_cond, "only_md", json_true());
 
-    uint64_t last_first_rowid = kw_get_int(gobj, trq->topic, "first_rowid", 0, 0);
+    uint64_t last_first_rowid = kw_get_int(
+        gobj,
+        trq->topic,
+        "first_rowid",  // get from topic_var (trq_set_first_rowid)
+        0,
+        0
+    );
     if(last_first_rowid) {
         if(last_first_rowid <= tranger2_topic_size(trq->tranger, trq->topic_name)) {
             json_object_set_new(match_cond, "from_rowid", json_integer((json_int_t)last_first_rowid));
@@ -373,11 +379,11 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
     json_t *tr_list = tranger2_open_list(
         trq->tranger,
         trq->topic_name,
-        match_cond,  // owned
-        jn_extra,    // owned
-        NULL,   // rt_id    TODO
+        match_cond, // owned
+        jn_extra,   // owned
+        NULL,       // rt_id
         false,
-        NULL    // creator TODO
+        NULL        // creator
     );
     tranger2_close_list(trq->tranger, tr_list);
 
@@ -814,7 +820,7 @@ PUBLIC json_t *trq_answer(
 }
 
 /***************************************************************************
- *  Check if backup is needed.
+ *  Do backup
  ***************************************************************************/
 PUBLIC int trq_check_backup(tr_queue trq_)
 {
@@ -826,6 +832,7 @@ PUBLIC int trq_check_backup(tr_queue trq_)
     if(backup_queue_size) {
         uint64_t sz = tranger2_topic_size(trq->tranger, trq->topic_name);
         if(sz >= backup_queue_size) {
+            trq_set_first_rowid(trq, sz);
             trq->topic = tranger2_backup_topic(
                 trq->tranger,
                 trq->topic_name,
@@ -834,6 +841,7 @@ PUBLIC int trq_check_backup(tr_queue trq_)
                 true,
                 0
             );
+            trq_set_first_rowid(trq, 0);
         }
     }
 

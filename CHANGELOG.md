@@ -111,7 +111,7 @@ New API
     dir_array_sort
     dir_array_free
     gobj_global_trace_level(void)
-
+    trq_load_all_by_time
 
 Delete API
 
