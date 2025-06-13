@@ -190,7 +190,7 @@ PRIVATE json_int_t update_new_record_from_mem(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
-    const char *key_value,
+    const char *key,
     md2_record_t *md_record
 );
 PRIVATE json_int_t update_totals_of_key_cache(
