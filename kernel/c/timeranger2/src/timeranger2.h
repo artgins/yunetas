@@ -113,6 +113,7 @@ extern "C"{
 
 typedef enum { /* WARNING table with name's strings in timeranger.c / sf_names */
     sf_string_key           = 0x0001,
+    sf_rowid_key            = 0x0002,
     sf_int_key              = 0x0004,
     sf_zip_record           = 0x0010,
     sf_cipher_record        = 0x0020,

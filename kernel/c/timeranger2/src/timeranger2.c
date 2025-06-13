@@ -49,7 +49,7 @@ PRIVATE const char *topic_fields[] = {
 
 PRIVATE const char *sf_names[16+1] = {
     "sf_string_key",            // 0x0001
-    "",                         // 0x0002
+    "sf_rowid_key",             // 0x0002
     "sf_int_key",               // 0x0004
     "",                         // 0x0008
     "sf2_zip_record",           // 0x0010
