@@ -177,9 +177,7 @@ int do_test(void)
     tr_queue trq_msgs = trq_open(
         tranger,
         "gate_events",
-        "id",
         "tm",
-        "",
         sf_string_key,
         100000
     );

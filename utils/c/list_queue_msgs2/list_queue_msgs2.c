@@ -187,9 +187,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
     tr_queue trq_output = trq_open(
         tranger,
         topic_name,
-        "id",
         "tm",
-        "",
         sf_string_key,
         0
     );

@@ -40,10 +40,8 @@ typedef void *q_msg;
 PUBLIC tr_queue trq_open(
     json_t *tranger,
     const char *topic_name,
-    const char *pkey,
     const char *tkey,
-    const char *filename_mask,
-    system_flag2_t system_flag,
+    system_flag2_t system_flag, // KEY_TYPE_MASK2 forced to sf_rowid_key
     size_t backup_queue_size
 );
 

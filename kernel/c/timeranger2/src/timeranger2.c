@@ -2288,7 +2288,6 @@ PUBLIC int tranger2_append_record(
     /*-----------------------------------*
      *  Get the primary-key
      *-----------------------------------*/
-    //const char *pkey = kw_get_str(gobj, topic, "pkey", "", KW_REQUIRED);
     const char *pkey = json_string_value(json_object_get(topic, "pkey"));
     system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
 
@@ -2298,7 +2297,6 @@ PUBLIC int tranger2_append_record(
     switch(system_flag_key_type) {
         case sf_string_key:
             {
-                //key_value = kw_get_str(gobj, jn_record, pkey, 0, 0);
                 key_value = json_string_value(json_object_get(jn_record, pkey));
                 if(empty_string(key_value)) {
                     gobj_log_error(gobj, 0,
@@ -2334,16 +2332,15 @@ PUBLIC int tranger2_append_record(
 
         case sf_int_key:
             {
-                //uint64_t i = (uint64_t)kw_get_int(
-                //    gobj,
-                //    jn_record,
-                //    pkey,
-                //    0,
-                //    KW_REQUIRED|KW_WILD_NUMBER
-                //);
                 uint64_t i = json_integer_value(json_object_get(jn_record, pkey));
                 snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19, i);
                 key_value = key_int;
+            }
+            break;
+
+        case sf_rowid_key:
+            {
+                key_value = empty_string(pkey)?"__rowid__":pkey;
             }
             break;
 
@@ -2367,17 +2364,14 @@ PUBLIC int tranger2_append_record(
     /*--------------------------------------------*
      *  Get and save the t-key if exists
      *--------------------------------------------*/
-    //const char *tkey = kw_get_str(gobj, topic, "tkey", "", KW_REQUIRED);
     const char *tkey = json_string_value(json_object_get(topic, "tkey"));
     if(!empty_string(tkey)) {
-        //json_t *jn_tval = kw_get_dict_value(gobj, jn_record, tkey, 0, 0);
         json_t *jn_tval = json_object_get(jn_record, tkey);
         if(!jn_tval) {
             md_record.__tm__ = 0; // No tkey value, mark with 0
         } else {
             if(json_is_string(jn_tval)) {
-                timestamp_t timestamp;
-                timestamp = approxidate(json_string_value(jn_tval));
+                timestamp_t timestamp = approxidate(json_string_value(jn_tval));
                 if(system_flag & sf_tm_ms) {
                     timestamp *= 1000;
                 }

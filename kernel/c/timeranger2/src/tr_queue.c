@@ -54,10 +54,8 @@ PRIVATE void free_msg(void *msg_);
 PUBLIC tr_queue trq_open(
     json_t *tranger,
     const char *topic_name,
-    const char *pkey,
     const char *tkey,
-    const char *filename_mask,
-    system_flag2_t system_flag,
+    system_flag2_t system_flag, // KEY_TYPE_MASK2 forced to sf_rowid_key
     size_t backup_queue_size
 )
 {
@@ -80,9 +78,10 @@ PUBLIC tr_queue trq_open(
     snprintf(trq->topic_name, sizeof(trq->topic_name), "%s", topic_name);
 
     json_t *jn_topic_ext = json_object();
-    if(!empty_string(filename_mask)) {
-        json_object_set_new(jn_topic_ext, "filename_mask", json_string(filename_mask));
-    }
+    json_object_set_new(jn_topic_ext, "filename_mask", json_string("queue"));
+
+    system_flag &= KEY_TYPE_MASK2;
+    system_flag |= sf_rowid_key;
 
     /*-------------------------------*
      *  Open/Create topic
@@ -90,7 +89,7 @@ PUBLIC tr_queue trq_open(
     trq->topic = tranger2_create_topic( // IDEMPOTENT function
         trq->tranger,
         topic_name,
-        pkey,
+        "__queue__",
         tkey,
         jn_topic_ext,
         system_flag,
