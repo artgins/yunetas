@@ -699,7 +699,7 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
         if(!system_flag_key_type) {
             if(!empty_string(pkey)) {
-                system_flag |= sf_string_key;
+                system_flag |= sf_string_key;   // set default
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
