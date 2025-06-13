@@ -701,7 +701,17 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             if(!empty_string(pkey)) {
                 system_flag |= sf_string_key;
             } else {
-                system_flag |= sf_int_key;
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                    "database",     "%s", kw_get_str(gobj, tranger, "directory", "", KW_REQUIRED),
+                    "msg",          "%s", "tranger_create_topic(): What key type?",
+                    NULL
+                );
+                JSON_DECREF(jn_cols)
+                JSON_DECREF(jn_var)
+                JSON_DECREF(jn_topic_ext)
+                return 0;
             }
         }
         kw_get_int(gobj, jn_topic_desc, "system_flag", system_flag, KW_CREATE);
