@@ -68,14 +68,19 @@ PUBLIC json_t * trq_tranger(tr_queue trq);
 PUBLIC json_t * trq_topic(tr_queue trq);
 
 /**
-    Load pending messages, return a iter
+    Load pending messages
 */
 PUBLIC int trq_load(tr_queue trq);
 
 /**
-    Load all messages, return a iter
+    Load all messages, filtering by rowid
 */
-PUBLIC int trq_load_all(tr_queue trq, const char *key, int64_t from_t, int64_t to_t);
+PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int64_t to_rowid);
+
+/**
+    Load all messages, filtering by time
+*/
+PUBLIC int trq_load_all_by_time(tr_queue trq, const char *key, int64_t from_t, int64_t to_t);
 
 /**
     Append a new message to queue

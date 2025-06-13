@@ -23,7 +23,6 @@ typedef struct {
     char topic_name[128];
     int maximum_retries;
     dl_list_t dl_q_msg;
-    uint64_t first_rowid;
 } tr_queue_t;
 
 typedef struct {
@@ -56,7 +55,6 @@ PUBLIC tr_queue trq_open(
     const char *topic_name,
     const char *pkey,
     const char *tkey,
-    const char *filename_mask,
     system_flag2_t system_flag,
     size_t backup_queue_size
 )
@@ -79,11 +77,6 @@ PUBLIC tr_queue trq_open(
     trq->tranger = tranger;
     snprintf(trq->topic_name, sizeof(trq->topic_name), "%s", topic_name);
 
-    json_t *jn_topic_ext = json_object();
-    if(!empty_string(filename_mask)) {
-        json_object_set_new(jn_topic_ext, "filename_mask", json_string(filename_mask));
-    }
-
     /*-------------------------------*
      *  Open/Create topic
      *-------------------------------*/
@@ -92,7 +85,7 @@ PUBLIC tr_queue trq_open(
         topic_name,
         pkey,
         tkey,
-        jn_topic_ext,
+        NULL,
         system_flag,
         0,
         0
@@ -170,8 +163,6 @@ PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
     register tr_queue_t *trq = trq_;
     hgobj gobj = 0;
 
-    trq->first_rowid = first_rowid;
-
     if(kw_get_bool(gobj, trq->tranger, "master", 0, KW_REQUIRED)) {
         json_t *jn_topic_var = json_object();
         json_object_set_new(
@@ -179,7 +170,6 @@ PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
             "first_rowid",
             json_integer((json_int_t)first_rowid)
         );
-        // first_rowid will be set in trq->topic too
         tranger2_write_topic_var(
             trq->tranger,
             tranger2_topic_name(trq->topic),
@@ -201,6 +191,15 @@ PRIVATE q_msg_t *new_msg(
 {
     hgobj gobj = 0;
 
+    if(!jn_record) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Json record is EMPTY",
+            NULL
+        );
+        return 0;
+    }
     /*
      *  Alloc memory
      */
@@ -240,6 +239,8 @@ PRIVATE void free_msg(void *msg_)
 /***************************************************************************
 
  ***************************************************************************/
+static uint64_t first_rowid = 0;  // usado temporalmente
+
 PRIVATE int load_record_callback(
     json_t *tranger,
     json_t *topic,
@@ -253,9 +254,8 @@ PRIVATE int load_record_callback(
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
     tr_queue_t *trq = (tr_queue_t *)(size_t)kw_get_int(gobj, list, "trq", 0, KW_REQUIRED);
 
-    if(trq->first_rowid==0) {
-        // The first record called is the first pending record
-        trq->first_rowid = rowid;
+    if(first_rowid==0) {
+        first_rowid = rowid;
     }
 
     new_msg(trq, key, rowid, md_record, jn_record);
@@ -285,12 +285,10 @@ PUBLIC int trq_load(tr_queue trq_)
         json_integer(TRQ_MSG_PENDING)
     );
 
-    json_object_set_new(match_cond, "only_md", json_true());
-
     uint64_t last_first_rowid = kw_get_int(gobj, trq->topic, "first_rowid", 0, 0);
     if(last_first_rowid) {
         if(last_first_rowid <= tranger2_topic_size(trq->tranger, trq->topic_name)) {
-            json_object_set_new(match_cond, "from_rowid", json_integer((json_int_t)last_first_rowid));
+            json_object_set_new(match_cond, "from_rowid", json_integer(last_first_rowid));
         }
     }
 
@@ -305,7 +303,7 @@ PUBLIC int trq_load(tr_queue trq_)
         json_integer((json_int_t)(size_t)load_record_callback)
     );
 
-    trq->first_rowid = 0;
+    first_rowid = 0;
 
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
@@ -315,11 +313,11 @@ PUBLIC int trq_load(tr_queue trq_)
     json_t *tr_list = tranger2_open_list(
         trq->tranger,
         trq->topic_name,
-        match_cond, // owned
-        jn_extra,   // owned
-        NULL,       // rt_id
+        match_cond,  // owned
+        jn_extra,    // owned
+        NULL,   // rt_id    TODO
         false,
-        NULL        // creator
+        NULL   // creator TODO
     );
     if(!tr_list) {
         gobj_log_error(gobj, 0,
@@ -332,12 +330,12 @@ PUBLIC int trq_load(tr_queue trq_)
     }
     tranger2_close_list(trq->tranger, tr_list);
 
-    if(trq->first_rowid==0) {
-        // No pending msg, set the last rowid
-        trq->first_rowid = tranger2_topic_size(trq->tranger, trq->topic_name);
+    if(first_rowid==0) {
+        // No hay ningún msg pending, pon la última rowid
+        first_rowid = tranger2_topic_size(trq->tranger, trq->topic_name);
     }
-    if(trq->first_rowid) {
-        trq_set_first_rowid(trq, trq->first_rowid);
+    if(first_rowid) {
+        trq_set_first_rowid(trq, first_rowid);
     }
 
     return 0;
@@ -378,53 +376,6 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
         NULL,   // rt_id    TODO
         false,
         NULL    // creator TODO
-    );
-    tranger2_close_list(trq->tranger, tr_list);
-
-    return 0;
-}
-
-/***************************************************************************
-
- ***************************************************************************/
-PUBLIC int trq_load_all_by_time(tr_queue trq_, const char *key, int64_t from_t, int64_t to_t)
-{
-    register tr_queue_t *trq = trq_;
-
-    json_t *match_cond = json_object();
-    if(from_t) {
-        json_object_set_new(match_cond, "from_t", json_integer(from_t));
-    }
-    if(to_t) {
-        json_object_set_new(match_cond, "to_t", json_integer(to_t));
-    }
-    if(key) {
-        json_object_set_new(
-            match_cond,
-            "key",
-            json_string(key)
-        );
-    }
-    json_object_set_new(
-        match_cond,
-        "load_record_callback",
-        json_integer((json_int_t)(size_t)load_record_callback)
-    );
-
-    json_object_set_new(match_cond, "only_md", json_true());
-
-    json_t *jn_extra = json_pack("{s:s, s:I}",
-        "topic_name", trq->topic_name,
-        "trq", (json_int_t)(size_t)trq
-    );
-    json_t *tr_list = tranger2_open_list(
-        trq->tranger,
-        trq->topic_name,
-        match_cond, // owned
-        jn_extra,   // owned
-        NULL,       // rt_id
-        false,
-        NULL        // creator
     );
     tranger2_close_list(trq->tranger, tr_list);
 
@@ -826,6 +777,7 @@ PUBLIC int trq_check_backup(tr_queue trq_)
     if(backup_queue_size) {
         uint64_t sz = tranger2_topic_size(trq->tranger, trq->topic_name);
         if(sz >= backup_queue_size) {
+            trq_set_first_rowid(trq, sz); // WARNING danger change?!
             trq->topic = tranger2_backup_topic(
                 trq->tranger,
                 trq->topic_name,
@@ -834,6 +786,7 @@ PUBLIC int trq_check_backup(tr_queue trq_)
                 true,
                 0
             );
+            trq_set_first_rowid(trq, 0);
         }
     }
 
