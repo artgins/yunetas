@@ -653,6 +653,11 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
             return 0;
         }
 
+        system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
+        if(system_flag_key_type & sf_rowid_key) {
+            pkey = "__rowid__";
+        }
+
         if(empty_string(pkey)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -696,7 +701,6 @@ PUBLIC json_t *tranger2_create_topic( // WARNING returned json IS NOT YOURS
         kw_get_str(gobj, jn_topic_desc, "pkey", pkey, KW_CREATE);
         kw_get_str(gobj, jn_topic_desc, "tkey", tkey, KW_CREATE);
 
-        system_flag2_t system_flag_key_type = system_flag & KEY_TYPE_MASK2;
         if(!system_flag_key_type) {
             if(!empty_string(pkey)) {
                 system_flag |= sf_string_key;   // set default
@@ -2340,7 +2344,8 @@ PUBLIC int tranger2_append_record(
 
         case sf_rowid_key:
             {
-                key_value = empty_string(pkey)?"__rowid__":pkey;
+                key_value = "__rowid__";
+                json_object_set_new(jn_record, "__rowid__", json_string("__rowid__"));
             }
             break;
 
@@ -2496,6 +2501,7 @@ PUBLIC int tranger2_append_record(
     json_int_t g_rowid = 0;
     json_int_t i_rowid = 0;
     int md2_fd = get_topic_wr_fd(gobj, tranger, topic, key_value, false, __t__);
+
     if(md2_fd >= 0) {
         off_t offset = lseek(md2_fd, 0, SEEK_END);
         if(offset < 0) {
@@ -2547,6 +2553,19 @@ PUBLIC int tranger2_append_record(
          *  Update cache
          */
         g_rowid = update_new_record_from_mem(gobj, tranger, topic, key_value, &md_record);
+        if(system_flag_key_type & sf_rowid_key) {
+            if(g_rowid != i_rowid) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_JSON_ERROR,
+                    "msg",          "%s", "g_rowid != i_rowid",
+                    "topic",        "%s", topic_name,
+                    "g_rowid",      "%lu", (unsigned long) g_rowid,
+                    "i_rowid",      "%lu", (unsigned long) i_rowid,
+                    NULL
+                );
+            }
+        }
     }
 
     // TEST performance with sf_save_md_in_record 98000
@@ -8035,7 +8054,7 @@ PUBLIC void tranger2_print_md0_record(
 
     system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
 
-    if(key_type & (sf_int_key|sf_string_key)) {
+    if(key_type & (sf_int_key|sf_string_key|sf_rowid_key)) {
         snprintf(bf, bfsize,
             "rowid(g,i):%"JSON_INTEGER_FORMAT", %"PRIu64", "
             "t:%"PRIu64" %s, "
@@ -8099,7 +8118,7 @@ PUBLIC void tranger2_print_md1_record(
 
     system_flag2_t key_type = system_flag & KEY_TYPE_MASK2;
 
-    if(key_type & (sf_int_key|sf_string_key)) {
+    if(key_type & (sf_int_key|sf_string_key|sf_rowid_key)) {
         snprintf(bf, bfsize,
             "rowid(g,i):%"JSON_INTEGER_FORMAT", %"PRIu64", "
             "uflag:0x%"PRIX32", sflag:0x%"PRIX32", "

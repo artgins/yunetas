@@ -100,7 +100,7 @@ static int test(tr_queue trq_msgs, int caso)
 
                 if(trq_check_pending_rowid(
                     trq_msgs,
-                    key,        // In tranger2 ('key', '__t__', 'rowid') is required
+                    "__rowid__",    // In tranger2 ('key', '__t__', 'rowid') is required
                     __t__,
                     md_rowid
                 )!=0) {
@@ -178,7 +178,7 @@ int do_test(void)
         tranger,
         "gate_events",
         "tm",
-        sf_string_key,
+        0,
         100000
     );
 

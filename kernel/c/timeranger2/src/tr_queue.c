@@ -89,7 +89,7 @@ PUBLIC tr_queue trq_open(
     trq->topic = tranger2_create_topic( // IDEMPOTENT function
         trq->tranger,
         topic_name,
-        "__queue__",
+        "",
         tkey,
         jn_topic_ext,
         system_flag,
@@ -475,9 +475,7 @@ PUBLIC q_msg trq_append2(
      */
     json_t *topic = tranger2_topic(trq->tranger, trq->topic_name);
     const char *pkey = json_string_value(json_object_get(topic, "pkey"));
-    const char *key = json_string_value(json_object_get(jn_msg, pkey));
 
-    JSON_INCREF(jn_msg);
     md2_record_ex_t md_record;
     tranger2_append_record(
         trq->tranger,
@@ -485,8 +483,10 @@ PUBLIC q_msg trq_append2(
         t,      // __t__
         TRQ_MSG_PENDING,    // __flag__
         &md_record,
-        jn_msg // owned
+        json_incref(jn_msg) // owned
     );
+
+    const char *key = json_string_value(json_object_get(jn_msg, pkey));
     q_msg_t *msg = new_msg(
         trq,
         key,
