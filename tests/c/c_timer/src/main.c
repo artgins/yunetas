@@ -164,7 +164,7 @@ static void cleaning(void)
         result += -1;
     }
 
-    result += test_json(NULL);  // NULL: we want to check only the logs
+    result += test_json(NULL);  //  NULL: we want to check only the logs
 }
 
 /***************************************************************************
