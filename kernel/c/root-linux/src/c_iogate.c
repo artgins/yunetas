@@ -26,7 +26,6 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src);
 PRIVATE json_t *channels_opened(hgobj gobj, const char *lmethod, json_t *kw, hgobj src);
 
 /***************************************************************************
@@ -181,7 +180,65 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    return local_stats(gobj, stats, kw, src);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(stats && strcmp(stats, "__reset__")==0) {
+        priv->txMsgs = 0;
+        priv->rxMsgs = 0;
+        priv->last_txMsgs = 0;
+        priv->last_rxMsgs = 0;
+
+        priv->txMsgsec = 0;
+        priv->rxMsgsec = 0;
+        priv->maxtxMsgsec = 0;
+        priv->maxrxMsgsec = 0;
+
+        priv->last_ms = 0;
+    }
+
+    json_t *jn_data = json_object();
+
+    /*
+     *  Local stats
+     */
+    uint64_t ms = time_in_milliseconds_monotonic();
+    if(!priv->last_ms) {
+        priv->last_ms = ms;
+    }
+    json_int_t t = (json_int_t)(ms - priv->last_ms)/1000;
+    if(t>0) {
+        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
+        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
+
+        txMsgsec /= t;
+        rxMsgsec /= t;
+
+        json_int_t maxtxMsgsec = priv->maxtxMsgsec;
+        json_int_t maxrxMsgsec = priv->maxrxMsgsec;
+        if(txMsgsec > maxtxMsgsec) {
+            priv->maxtxMsgsec =  txMsgsec;
+        }
+        if(rxMsgsec > maxrxMsgsec) {
+            priv->maxrxMsgsec = rxMsgsec;
+        }
+
+        priv->txMsgsec = txMsgsec;
+        priv->rxMsgsec = rxMsgsec;
+    }
+
+    priv->last_ms = ms;
+    priv->last_txMsgs = priv->txMsgs;
+    priv->last_rxMsgs = priv->rxMsgs;
+
+    json_object_set_new(jn_data, "txMsgs", json_integer(priv->txMsgs));
+    json_object_set_new(jn_data, "rxMsgs", json_integer(priv->rxMsgs));
+    json_object_set_new(jn_data, "txMsgsec", json_integer(priv->txMsgsec));
+    json_object_set_new(jn_data, "rxMsgsec", json_integer(priv->rxMsgsec));
+    json_object_set_new(jn_data, "maxtxMsgsec", json_integer(priv->maxtxMsgsec));
+    json_object_set_new(jn_data, "maxrxMsgsec", json_integer(priv->maxrxMsgsec));
+
+    KW_DECREF(kw)
+    return jn_data;
 }
 
 
@@ -639,72 +696,6 @@ PRIVATE json_t *cmd_reset_stats_channels(hgobj gobj, const char *cmd, json_t *kw
 
 
 
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *local_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(stats && strcmp(stats, "__reset__")==0) {
-        priv->txMsgs = 0;
-        priv->rxMsgs = 0;
-        priv->last_txMsgs = 0;
-        priv->last_rxMsgs = 0;
-
-        priv->txMsgsec = 0;
-        priv->rxMsgsec = 0;
-        priv->maxtxMsgsec = 0;
-        priv->maxrxMsgsec = 0;
-
-        priv->last_ms = 0;
-    }
-
-    json_t *jn_data = json_object();
-
-    /*
-     *  Local stats
-     */
-    uint64_t ms = time_in_milliseconds_monotonic();
-    if(!priv->last_ms) {
-        priv->last_ms = ms;
-    }
-    json_int_t t = (json_int_t)(ms - priv->last_ms)/1000;
-    if(t>0) {
-        json_int_t txMsgsec = priv->txMsgs - priv->last_txMsgs;
-        json_int_t rxMsgsec = priv->rxMsgs - priv->last_rxMsgs;
-
-        txMsgsec /= t;
-        rxMsgsec /= t;
-
-        json_int_t maxtxMsgsec = priv->maxtxMsgsec;
-        json_int_t maxrxMsgsec = priv->maxrxMsgsec;
-        if(txMsgsec > maxtxMsgsec) {
-            priv->maxtxMsgsec =  txMsgsec;
-        }
-        if(rxMsgsec > maxrxMsgsec) {
-            priv->maxrxMsgsec = rxMsgsec;
-        }
-
-        priv->txMsgsec = txMsgsec;
-        priv->rxMsgsec = rxMsgsec;
-    }
-
-    priv->last_ms = ms;
-    priv->last_txMsgs = priv->txMsgs;
-    priv->last_rxMsgs = priv->rxMsgs;
-
-    json_object_set_new(jn_data, "txMsgs", json_integer(priv->txMsgs));
-    json_object_set_new(jn_data, "rxMsgs", json_integer(priv->rxMsgs));
-    json_object_set_new(jn_data, "txMsgsec", json_integer(priv->txMsgsec));
-    json_object_set_new(jn_data, "rxMsgsec", json_integer(priv->rxMsgsec));
-    json_object_set_new(jn_data, "maxtxMsgsec", json_integer(priv->maxtxMsgsec));
-    json_object_set_new(jn_data, "maxrxMsgsec", json_integer(priv->maxrxMsgsec));
-
-    KW_DECREF(kw)
-    return jn_data;
-}
 
 /***************************************************************************
  *  Filter channels
