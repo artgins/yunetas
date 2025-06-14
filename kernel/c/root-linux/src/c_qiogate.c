@@ -93,7 +93,6 @@ SDATA (DTP_INTEGER,     "maximum_retries",  SDF_WR|SDF_PERSIST, 0,          "Max
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_WR|SDF_PERSIST, "1000000",  "Do backup at this size"),
 SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, "2000",     "Limit alert queue size"),
 SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, "60",       "Timeout ack in seconds"),
-SDATA (DTP_BOOLEAN,     "drop_on_timeout_ack",SDF_WR|SDF_PERSIST, "1",      "On ack timeout => True: drop connection, False: resend message"),
 
 SDATA (DTP_BOOLEAN,     "with_metadata",    SDF_RD,             0,          "Don't filter metadata"),
 SDATA (DTP_BOOLEAN,     "disable_alert",    SDF_WR|SDF_PERSIST, 0,          "Disable alert"),
@@ -144,7 +143,6 @@ typedef struct _PRIVATE_DATA {
     uint32_t pending_acks;
     uint32_t max_pending_acks;
 
-    BOOL drop_on_timeout_ack;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -186,7 +184,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(with_metadata,             gobj_read_bool_attr)
     SET_PRIV(alert_queue_size,          gobj_read_integer_attr)
     SET_PRIV(max_pending_acks,          gobj_read_integer_attr)
-    SET_PRIV(drop_on_timeout_ack,       gobj_read_bool_attr)
     SET_PRIV(disable_alert,             gobj_read_bool_attr)
 }
 
@@ -202,7 +199,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(timeout_backup,        gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_pending_acks,      gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(drop_on_timeout_ack,   gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(disable_alert,         gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
@@ -760,15 +756,14 @@ PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg msg)
  *  Send batch of messages to bottom side
  *  ``id``  is 0 when calling from timer
  *          or not 0 when calling from receiving message
- *  // reenvia al abrir la salida
- *  // reenvia al recibir (único con id):   -> (*) ->
- *  // reenvia al recibir ack:                 (*) <->
- *  // reenvia por timeout periódico           (*) ->
+ *  // re-send al abrir la salida
+ *  // re-send al recibir (único con id):   -> (*) ->
+ *  // re-send al recibir ack:                 (*) <->
+ *  // re-send por timeout periódico           (*) ->
  ***************************************************************************/
 PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    void *(*discard_message)(hgobj gobj, q_msg msg) = 0;
 
     if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
 //        gobj_trace_msg(gobj, "======BATCH======> %s - msg %s, retransmit %s", gobj_name(gobj), msg?"True":"False", retransmit?"True":"False");
@@ -803,28 +798,12 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
             if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
                 gobj_trace_msg(gobj, "     (1) ->  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
             }
-            int ret = send_message_to_bottom_side(gobj, msg);
-            if(ret == 0) {
-                priv->pending_acks++;
-                trq_set_soft_mark(msg, MARK_PENDING_ACK, true);
-                trq_set_ack_timer(msg, priv->timeout_ack);
-                return 1; // Sent one message
+            send_message_to_bottom_side(gobj, msg);
+            priv->pending_acks++;
+            trq_set_soft_mark(msg, MARK_PENDING_ACK, true);
+            trq_set_ack_timer(msg, priv->timeout_ack);
+            return 1; // Sent one message
 
-            } else {
-                // Error sending the message
-                if(discard_message) { // TODO like georeverse
-                    if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
-                        gobj_trace_msg(gobj, "     (1) xx!  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
-                    }
-                    discard_message(gobj, msg);
-                    return 0;
-                } else {
-                    if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
-                        gobj_trace_msg(gobj, "     (1) xx  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
-                    }
-                    return -1;
-                }
-            }
         } else {
             // Max pending reached
             if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
@@ -870,23 +849,15 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
                 // Timeout reached
                 trq_add_retries(msg, 1);
                 if(trq_test_retries(msg)) {
-                    // No more retries
-                    if(discard_message) {
-                        if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
-                            gobj_trace_msg(gobj, "     (+) XX  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
-                        }
-                        discard_message(gobj, msg);
-                    } else {
-                        gobj_log_error(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                            "msg",          "%s", "queue with max retries but without discard method",
-                            "rowid",        "%ld", (unsigned long)rowid,
-                            NULL
-                        );
-                        if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
-                            gobj_trace_msg(gobj, "     (+) XX! - rowid %"PRIu64", t %"PRIu64"", rowid, t);
-                        }
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "queue with max retries but without discard method",
+                        "rowid",        "%ld", (unsigned long)rowid,
+                        NULL
+                    );
+                    if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
+                        gobj_trace_msg(gobj, "     (+) XX! - rowid %"PRIu64", t %"PRIu64"", rowid, t);
                     }
                 } else {
                     // Timeout reached, resend, infinity retry or max retry not reached
@@ -895,23 +866,9 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
                     if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
                         gobj_trace_msg(gobj, "     (+) ->  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
                     }
-                    int ret = send_message_to_bottom_side(gobj, msg);
-                    if (ret == 0) {
-                        trq_set_ack_timer(msg, priv->timeout_ack);
-                        sent++;
-                    } else {
-                        if(discard_message) {
-                            if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
-                                gobj_trace_msg(gobj, "     (+) xx  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
-                            }
-                            discard_message(gobj, msg);
-                        } else {
-                            if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
-                                gobj_trace_msg(gobj, "     (+) xx! - rowid %"PRIu64", t %"PRIu64"", rowid, t);
-                            }
-                            return -1;
-                        }
-                    }
+                    send_message_to_bottom_side(gobj, msg);
+                    trq_set_ack_timer(msg, priv->timeout_ack);
+                    sent++;
                 }
             }
         } else {
@@ -922,25 +879,11 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg, BOOL retransmit)
                 if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
                     gobj_trace_msg(gobj, "     (-) ->  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
                 }
-                int ret = send_message_to_bottom_side(gobj, msg);
-                if(ret == 0) {
-                    sent++;
-                    priv->pending_acks++;
-                    trq_set_soft_mark(msg, MARK_PENDING_ACK, true);
-                    trq_set_ack_timer(msg, priv->timeout_ack);
-                } else {
-                    if(discard_message) {
-                        if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
-                            gobj_trace_msg(gobj, "     (-) xx  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
-                        }
-                        discard_message(gobj, msg);
-                    } else {
-                        if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
-                            gobj_trace_msg(gobj, "     (-) xx! - rowid %"PRIu64", t %"PRIu64"", rowid, t);
-                        }
-                        return -1;
-                    }
-                }
+                send_message_to_bottom_side(gobj, msg);
+                sent++;
+                priv->pending_acks++;
+                trq_set_soft_mark(msg, MARK_PENDING_ACK, true);
+                trq_set_ack_timer(msg, priv->timeout_ack);
             } else {
                 // Max pending reached
                 if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
@@ -1215,23 +1158,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->bottom_side_opened) {
-        int ret = send_batch_messages(gobj, 0, true); // Resend by periodic timeout
-        if(ret < 0) {
-            if(priv->drop_on_timeout_ack) {
-                if(gobj_trace_level(gobj) & (TRACE_MESSAGES|TRACE_QUEUE_PROT)) {
-                    gobj_trace_msg(gobj, "QIOGATE drop %s", gobj_short_name(priv->gobj_bottom_side));
-                }
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "Dropping by timeout ack",
-                    "gobj_bottom",  "%s", gobj_short_name(priv->gobj_bottom_side),
-                    NULL
-                );
-
-                gobj_send_event(priv->gobj_bottom_side, EV_DROP, 0, gobj);
-            }
-        }
+        send_batch_messages(gobj, 0, true); // Resend by periodic timeout
     }
 
     if(priv->timeout_backup > 0 && test_sectimer(priv->t_backup)) {
