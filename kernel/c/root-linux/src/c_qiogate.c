@@ -909,8 +909,12 @@ PRIVATE int dequeue_msg(
 /***************************************************************************
  *  Process ACK message
  ***************************************************************************/
-PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
+PRIVATE int process_ack(
+    hgobj gobj,
+    const char *event,
+    json_t *kw, // owned
+    hgobj src
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
@@ -952,6 +956,7 @@ PRIVATE int process_ack(hgobj gobj, const char *event, json_t *kw, hgobj src)
     dequeue_msg(gobj, __t__, rowid, result);
 
     JSON_DECREF(jn_ack_message)
+
     KW_DECREF(kw)
 
     if(priv->bottom_side_opened) {

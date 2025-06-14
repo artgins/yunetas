@@ -32,7 +32,6 @@ typedef struct {
     tr_queue_t *trq;
     md2_record_ex_t md_record;
     uint64_t mark;          // soft mark.
-    json_t *jn_record;
     json_int_t rowid;
 } q_msg_t;
 
@@ -220,7 +219,6 @@ PRIVATE q_msg_t *new_msg(
         );
     }
     memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
-    msg->jn_record = 0; // Cárgalo solo cuando se use, jn_record;
     JSON_DECREF(jn_record);
     msg->trq = trq;
     msg->rowid = rowid;
@@ -236,7 +234,6 @@ PRIVATE q_msg_t *new_msg(
 PRIVATE void free_msg(void *msg_)
 {
     q_msg_t *msg = msg_;
-    JSON_DECREF(msg->jn_record);
     memset(msg, 0, sizeof(q_msg_t));
     GBMEM_FREE(msg);
 }
@@ -616,30 +613,27 @@ PUBLIC md2_record_ex_t *trq_msg_md(q_msg msg_)
     register q_msg_t *msg = msg_;
     return &msg->md_record;
 }
-PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT YOURS!!
+PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is YOURS!!
 {
     register q_msg_t *msg = msg_;
 
-    if(!msg->jn_record) {
-        // Load the message
-        msg->jn_record = tranger2_read_record_content( // return is yours
-            msg->trq->tranger,
-            msg->trq->topic,
-            "",
-            &msg->md_record
+    json_t *jn_record = tranger2_read_record_content( // return is yours
+        msg->trq->tranger,
+        msg->trq->topic,
+        "",
+        &msg->md_record
+    );
+    if(!jn_record) {
+        hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "jn_msg NULL",
+            "topic",        "%s", msg->trq->topic_name,
+            NULL
         );
-        if(!msg->jn_record) {
-            hgobj gobj = (hgobj)json_integer_value(json_object_get(msg->trq->tranger, "gobj"));
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "jn_msg NULL",
-                "topic",        "%s", msg->trq->topic_name,
-                NULL
-            );
-        }
     }
-    return msg->jn_record;
+    return jn_record;
 }
 
 PUBLIC json_int_t trq_msg_rowid(q_msg msg_)
