@@ -140,6 +140,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_bottom_side;
     BOOL bottom_side_opened;
 
+    BOOL disable_alert;
     uint32_t pending_acks;
     uint32_t max_pending_acks;
 
@@ -186,6 +187,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(alert_queue_size,          gobj_read_integer_attr)
     SET_PRIV(max_pending_acks,          gobj_read_integer_attr)
     SET_PRIV(drop_on_timeout_ack,       gobj_read_bool_attr)
+    SET_PRIV(disable_alert,             gobj_read_bool_attr)
 }
 
 /***************************************************************************
@@ -201,6 +203,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(alert_queue_size,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_pending_acks,      gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(drop_on_timeout_ack,   gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(disable_alert,         gobj_read_bool_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -643,7 +646,7 @@ PRIVATE q_msg enqueue_message(
         return 0;
     }
 
-    if(!gobj_read_bool_attr(gobj, "disable_alert")) {
+    if(!priv->disable_alert) {
         if(priv->alert_queue_size > 0 && trq_size(priv->trq_msgs) >= priv->alert_queue_size) {
             if(trq_size(priv->trq_msgs) % priv->alert_queue_size == 0) {
                 char subject[280];
