@@ -2398,6 +2398,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gobj ALREADY DESTROYING",
+            "shutdowning",  "%d", gobj_is_shutdowning(),
             NULL
         );
         return;

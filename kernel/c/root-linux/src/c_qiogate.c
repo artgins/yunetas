@@ -56,8 +56,8 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_queue[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "key",          0,              0,          "Key"),
-SDATAPM (DTP_INTEGER,   "from-t",       0,              0,          "From t"),
-SDATAPM (DTP_INTEGER,   "to-t",         0,              0,          "To t"),
+SDATAPM (DTP_INTEGER,   "from-rowid",   0,              0,          "From rowid"),
+SDATAPM (DTP_INTEGER,   "to-rowid",     0,              0,          "To rowid"),
 SDATA_END()
 };
 
@@ -315,14 +315,13 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
         );
     }
 
-    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
-    int64_t from_t = kw_get_int(gobj, kw, "from-t", 0, KW_WILD_NUMBER);
-    int64_t to_t = kw_get_int(gobj, kw, "to-t", 0, KW_WILD_NUMBER);
-    if(from_t == 0) {
+    int64_t from_rowid = kw_get_int(gobj, kw, "from-rowid", 0, KW_WILD_NUMBER);
+    int64_t to_rowid = kw_get_int(gobj, kw, "to-rowid", 0, KW_WILD_NUMBER);
+    if(from_rowid == 0) {
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("Please, specify some from-t."),
+            json_sprintf("Please, specify some from-rowid."),
             0,
             0,
             kw  // owned
@@ -333,7 +332,7 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
      *      Ouput queue
      *--------------------------------*/
     open_queue(gobj);
-    trq_load_all(priv->trq_msgs, key, from_t, to_t);
+    trq_load_all(priv->trq_msgs, from_rowid, to_rowid);
 
     /*----------------------------------*
      *      Mark pending
@@ -379,14 +378,13 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
         );
     }
 
-    const char *key = kw_get_str(gobj, kw, "key", 0, 0);
-    int64_t from_t = kw_get_int(gobj, kw, "from-t", 0, KW_WILD_NUMBER);
-    int64_t to_t = kw_get_int(gobj, kw, "to-t", 0, KW_WILD_NUMBER);
-    if(from_t == 0) {
+    int64_t from_rowid = kw_get_int(gobj, kw, "from-rowid", 0, KW_WILD_NUMBER);
+    int64_t to_rowid = kw_get_int(gobj, kw, "to-rowid", 0, KW_WILD_NUMBER);
+    if(from_rowid == 0) {
         return msg_iev_build_response(
             gobj,
             0,
-            json_sprintf("Please, specify some from-t."),
+            json_sprintf("Please, specify some from-rowid."),
             0,
             0,
             kw  // owned
@@ -397,7 +395,7 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
      *      Ouput queue
      *--------------------------------*/
     open_queue(gobj);
-    trq_load_all(priv->trq_msgs, key, from_t, to_t);
+    trq_load_all(priv->trq_msgs, from_rowid, to_rowid);
 
     /*----------------------------------*
      *      Unmark pending

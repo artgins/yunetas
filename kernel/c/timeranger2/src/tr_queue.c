@@ -351,7 +351,7 @@ PUBLIC int trq_load(tr_queue trq_)
 /***************************************************************************
 
  ***************************************************************************/
-PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int64_t to_rowid)
+PUBLIC int trq_load_all(tr_queue trq_, int64_t from_rowid, int64_t to_rowid)
 {
     register tr_queue_t *trq = trq_;
 
@@ -361,13 +361,6 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
     }
     if(to_rowid) {
         json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
-    }
-    if(key) {
-        json_object_set_new(
-            match_cond,
-            "key",
-            json_string(key)
-        );
     }
     json_object_set_new(match_cond, "load_record_callback", json_integer((json_int_t)(size_t)load_record_callback));
 
@@ -392,7 +385,7 @@ PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int6
 /***************************************************************************
 
  ***************************************************************************/
-PUBLIC int trq_load_all_by_time(tr_queue trq_, const char *key, int64_t from_t, int64_t to_t)
+PUBLIC int trq_load_all_by_time(tr_queue trq_, int64_t from_t, int64_t to_t)
 {
     register tr_queue_t *trq = trq_;
 
@@ -402,13 +395,6 @@ PUBLIC int trq_load_all_by_time(tr_queue trq_, const char *key, int64_t from_t, 
     }
     if(to_t) {
         json_object_set_new(match_cond, "to_t", json_integer(to_t));
-    }
-    if(key) {
-        json_object_set_new(
-            match_cond,
-            "key",
-            json_string(key)
-        );
     }
     json_object_set_new(
         match_cond,

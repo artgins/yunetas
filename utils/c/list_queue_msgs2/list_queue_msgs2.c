@@ -223,7 +223,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
     */
 
     if(arguments->all) {
-        trq_load_all(trq_output, 0, 0, 0);
+        trq_load_all(trq_output, 0, 0);
     } else {
         trq_load(trq_output);
     }

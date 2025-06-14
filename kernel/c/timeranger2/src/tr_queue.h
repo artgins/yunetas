@@ -73,12 +73,12 @@ PUBLIC int trq_load(tr_queue trq);
 /**
     Load all messages, filtering by rowid
 */
-PUBLIC int trq_load_all(tr_queue trq_, const char *key, int64_t from_rowid, int64_t to_rowid);
+PUBLIC int trq_load_all(tr_queue trq_, int64_t from_rowid, int64_t to_rowid);
 
 /**
     Load all messages, filtering by time
 */
-PUBLIC int trq_load_all_by_time(tr_queue trq, const char *key, int64_t from_t, int64_t to_t);
+PUBLIC int trq_load_all_by_time(tr_queue trq, int64_t from_t, int64_t to_t);
 
 /**
     Append a new message to queue
