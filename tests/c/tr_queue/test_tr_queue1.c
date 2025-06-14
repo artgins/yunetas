@@ -35,7 +35,7 @@ PRIVATE int global_result = 0;
 /***************************************************************************
  *
  ***************************************************************************/
-static int test(tr_queue trq_msgs, int caso)
+static int test(tr_queue_t *trq_msgs, int caso)
 {
     int result = 0;
 
@@ -80,7 +80,7 @@ static int test(tr_queue trq_msgs, int caso)
                 /*
                  *  Enqueue
                  */
-                q_msg msg = trq_append2(
+                q_msg_t *msg = trq_append2(
                     trq_msgs,
                     t,
                     kw
@@ -94,7 +94,7 @@ static int test(tr_queue trq_msgs, int caso)
                 md2_record_ex_t *md_record_ex = trq_msg_md(msg);
                 uint64_t md_rowid = md_record_ex->rowid;
 
-                q_msg msg2 = trq_get_by_rowid(trq_msgs, rowid);
+                q_msg_t *msg2 = trq_get_by_rowid(trq_msgs, rowid);
                 trq_unload_msg(msg2, 0);
 
                 if(trq_check_pending_rowid(
@@ -172,7 +172,7 @@ int do_test(void)
     /*------------------------------*
      *  Open the queue
      *------------------------------*/
-    tr_queue trq_msgs = trq_open(
+    tr_queue_t *trq_msgs = trq_open(
         tranger,
         "gate_events",
         "tm",

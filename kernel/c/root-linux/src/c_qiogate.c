@@ -695,11 +695,12 @@ PRIVATE int reset_soft_queue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    q_msg_t *msg;
-    qmsg_foreach_forward(priv->trq_msgs, msg) {
-        trq_set_soft_mark(msg, MARK_PENDING_ACK, false);
+    if(priv->trq_msgs) { // 0 if not running
+        q_msg_t *msg;
+        qmsg_foreach_forward(priv->trq_msgs, msg) {
+            trq_set_soft_mark(msg, MARK_PENDING_ACK, false);
+        }
     }
-
     priv->pending_acks = 0;
     priv->last_msg_sent = 0;
 
@@ -864,6 +865,9 @@ PRIVATE int dequeue_msg(
 
     q_msg_t *msg = trq_get_by_rowid(priv->trq_msgs, rowid);
     if(msg) {
+        if(priv->last_msg_sent == msg) {
+            priv->last_msg_sent = 0;
+        }
         uint64_t tt = trq_msg_time(msg);
         if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
             gobj_trace_msg(gobj, "     ( ) <-  - rowid %"PRIu64", t %"PRIu64" ACK", rowid, tt);
