@@ -779,7 +779,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
             }
         }
 
-        if((priv->pending_acks) < priv->max_pending_acks) {
+        if(priv->max_pending_acks==0 || priv->pending_acks < priv->max_pending_acks) {
             if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
                 gobj_trace_msg(gobj, "     (1) ->  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
             }
@@ -830,7 +830,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
             /*
              *  Send new msgs without MARK_PENDING_ACK
              */
-            if((priv->pending_acks) < priv->max_pending_acks) {
+            if(priv->max_pending_acks==0 ||  priv->pending_acks < priv->max_pending_acks) {
                 if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
                     gobj_trace_msg(gobj, "     (-) ->  - rowid %"PRIu64", t %"PRIu64"", rowid, t);
                 }
