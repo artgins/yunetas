@@ -130,10 +130,10 @@ typedef struct _PRIVATE_DATA {
 
     hgobj gobj_tranger_queues;
     json_t *tranger;
-    tr_queue trq_msgs;
+    tr_queue_t *trq_msgs;
     int32_t alert_queue_size;
     BOOL with_metadata;
-    q_msg last_msg_sent;
+    q_msg_t *last_msg_sent;
 
     hgobj gobj_bottom_side;
     BOOL bottom_side_opened;
@@ -343,7 +343,7 @@ PRIVATE json_t *cmd_queue_mark_pending(hgobj gobj, const char *cmd, json_t *kw, 
      *      Mark pending
      *----------------------------------*/
     int count = 0;
-    q_msg msg;
+    q_msg_t *msg;
     qmsg_foreach_forward(priv->trq_msgs, msg) {
         count++;
         trq_set_hard_flag(msg, TRQ_MSG_PENDING, 1);
@@ -406,7 +406,7 @@ PRIVATE json_t *cmd_queue_mark_notpending(hgobj gobj, const char *cmd, json_t *k
      *      Unmark pending
      *----------------------------------*/
     int count = 0;
-    q_msg msg;
+    q_msg_t *msg;
     qmsg_foreach_forward(priv->trq_msgs, msg) {
         count++;
         trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0);
@@ -590,7 +590,7 @@ PRIVATE int close_queue(hgobj gobj)
 /***************************************************************************
  *  Enqueue message
  ***************************************************************************/
-PRIVATE q_msg enqueue_message(
+PRIVATE q_msg_t *enqueue_message(
     hgobj gobj,
     json_t *kw  // not owned
 )
@@ -614,7 +614,7 @@ PRIVATE q_msg enqueue_message(
     } else {
         kw_clean_clone = kw_incref(kw);
     }
-    q_msg msg = trq_append(
+    q_msg_t *msg = trq_append(
         priv->trq_msgs,
         kw_clean_clone
     );
@@ -695,7 +695,7 @@ PRIVATE int reset_soft_queue(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    q_msg msg;
+    q_msg_t *msg;
     qmsg_foreach_forward(priv->trq_msgs, msg) {
         trq_set_soft_mark(msg, MARK_PENDING_ACK, false);
     }
@@ -709,7 +709,7 @@ PRIVATE int reset_soft_queue(hgobj gobj)
 /***************************************************************************
  *  Send message to bottom side
  ***************************************************************************/
-PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg msg)
+PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg_t *msg)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -749,7 +749,7 @@ PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg msg)
  *  // re-send al recibir ack:                 (*) <->
  *  // re-send por timeout periódico           (*) ->
  ***************************************************************************/
-PRIVATE int send_batch_messages(hgobj gobj, q_msg msg)
+PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -767,8 +767,8 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg)
          *  Check: no send if the previous to last has no MARK_PENDING_ACK
          *  (the last is this message)
          */
-        q_msg last_msg = trq_last_msg(priv->trq_msgs);
-        q_msg prev_last_msg = trq_prev_msg(last_msg);
+        q_msg_t *last_msg = trq_last_msg(priv->trq_msgs);
+        q_msg_t *prev_last_msg = trq_prev_msg(last_msg);
         if(prev_last_msg) {
             if(!(trq_get_soft_mark(prev_last_msg) & MARK_PENDING_ACK)) {
                 if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
@@ -800,7 +800,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg msg)
      *      Sending batch messages
      *----------------------------------*/
     int sent = 0;
-    q_msg n;
+    q_msg_t * n;
 
     if(priv->last_msg_sent) {
         msg = priv->last_msg_sent;
@@ -862,7 +862,7 @@ PRIVATE int dequeue_msg(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    q_msg msg = trq_get_by_rowid(priv->trq_msgs, rowid);
+    q_msg_t *msg = trq_get_by_rowid(priv->trq_msgs, rowid);
     if(msg) {
         uint64_t tt = trq_msg_time(msg);
         if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
@@ -1060,7 +1060,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    q_msg msg = enqueue_message(
+    q_msg_t *msg = enqueue_message(
         gobj,
         kw  // not owned
     );

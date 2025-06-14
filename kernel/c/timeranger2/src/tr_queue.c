@@ -17,23 +17,6 @@
 /***************************************************************
  *              Structures
  ***************************************************************/
-typedef struct {
-    json_t *tranger;
-    json_t *topic;
-    char topic_name[128];
-    int maximum_retries;
-    dl_list_t dl_q_msg;
-    uint64_t first_rowid;
-} tr_queue_t;
-
-typedef struct {
-    DL_ITEM_FIELDS
-
-    tr_queue_t *trq;
-    md2_record_ex_t md_record;
-    uint64_t mark;          // soft mark.
-    json_int_t rowid;
-} q_msg_t;
 
 /***************************************************************
  *              Prototypes
@@ -47,7 +30,7 @@ PRIVATE void free_msg(void *msg_);
 /***************************************************************************
     Open queue
  ***************************************************************************/
-PUBLIC tr_queue trq_open(
+PUBLIC tr_queue_t *trq_open(
     json_t *tranger,
     const char *topic_name,
     const char *tkey,
@@ -118,51 +101,17 @@ PUBLIC tr_queue trq_open(
 /***************************************************************************
     Close queue (After close the queue remember tranger2_shutdown())
  ***************************************************************************/
-PUBLIC void trq_close(tr_queue trq)
+PUBLIC void trq_close(tr_queue_t * trq)
 {
     dl_flush(&((tr_queue_t *)trq)->dl_q_msg, free_msg);
     GBMEM_FREE(trq);
 }
 
 /***************************************************************************
-    Return size of queue (messages in queue)
- ***************************************************************************/
-PUBLIC size_t trq_size(tr_queue trq)
-{
-    if(!trq) {
-        return 0;
-    }
-    return dl_size(&((tr_queue_t *)trq)->dl_q_msg);
-}
-
-/***************************************************************************
-    Return tranger of queue
- ***************************************************************************/
-PUBLIC json_t * trq_tranger(tr_queue trq)
-{
-    if(!trq) {
-        return 0;
-    }
-    return ((tr_queue_t *)trq)->tranger;
-}
-
-/***************************************************************************
-    Return topic of queue
- ***************************************************************************/
-PUBLIC json_t * trq_topic(tr_queue trq)
-{
-    if(!trq) {
-        return 0;
-    }
-    return ((tr_queue_t *)trq)->topic;
-}
-
-/***************************************************************************
     Set first rowid to search
  ***************************************************************************/
-PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
+PUBLIC void trq_set_first_rowid(tr_queue_t * trq, uint64_t first_rowid)
 {
-    register tr_queue_t *trq = trq_;
     hgobj gobj = 0;
 
     trq->first_rowid = first_rowid;
@@ -264,9 +213,8 @@ PRIVATE int load_record_callback(
     return 0;
 }
 
-PUBLIC int trq_load(tr_queue trq_)
+PUBLIC int trq_load(tr_queue_t * trq)
 {
-    register tr_queue_t *trq = trq_;
     hgobj gobj = 0;
 
     if(!trq) {
@@ -353,10 +301,8 @@ PUBLIC int trq_load(tr_queue trq_)
 /***************************************************************************
 
  ***************************************************************************/
-PUBLIC int trq_load_all(tr_queue trq_, int64_t from_rowid, int64_t to_rowid)
+PUBLIC int trq_load_all(tr_queue_t * trq, int64_t from_rowid, int64_t to_rowid)
 {
-    register tr_queue_t *trq = trq_;
-
     json_t *match_cond = json_object();
     if(from_rowid) {
         json_object_set_new(match_cond, "from_rowid", json_integer(from_rowid));
@@ -387,10 +333,8 @@ PUBLIC int trq_load_all(tr_queue trq_, int64_t from_rowid, int64_t to_rowid)
 /***************************************************************************
 
  ***************************************************************************/
-PUBLIC int trq_load_all_by_time(tr_queue trq_, int64_t from_t, int64_t to_t)
+PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t)
 {
-    register tr_queue_t *trq = trq_;
-
     json_t *match_cond = json_object();
     if(from_t) {
         json_object_set_new(match_cond, "from_t", json_integer(from_t));
@@ -425,26 +369,14 @@ PUBLIC int trq_load_all_by_time(tr_queue trq_, int64_t from_t, int64_t to_t)
 }
 
 /***************************************************************************
-    Append a pending message to queue
- ***************************************************************************/
-PUBLIC q_msg trq_append(
-    tr_queue trq,
-    json_t *jn_msg  // owned
-)
-{
-    return trq_append2(trq, 0, jn_msg);
-}
-
-/***************************************************************************
     Append a new message to queue simulating t
  ***************************************************************************/
-PUBLIC q_msg trq_append2(
-    tr_queue trq_,
+PUBLIC q_msg_t *trq_append2(
+    tr_queue_t * trq,
     json_int_t t,   // __t__
     json_t *jn_msg  // owned
 )
 {
-    register tr_queue_t *trq = trq_;
     hgobj gobj = 0;
 
     if(!jn_msg || jn_msg->refcount <= 0) {
@@ -480,7 +412,7 @@ PUBLIC q_msg trq_append2(
 /***************************************************************************
     Get a message from iter by his rowid
  ***************************************************************************/
-PUBLIC q_msg trq_get_by_rowid(tr_queue trq, uint64_t rowid)
+PUBLIC q_msg_t *trq_get_by_rowid(tr_queue_t * trq, uint64_t rowid)
 {
     register q_msg_t *msg;
 
@@ -497,13 +429,11 @@ PUBLIC q_msg trq_get_by_rowid(tr_queue trq, uint64_t rowid)
     Check pending status of a rowid (low level)
  ***************************************************************************/
 PUBLIC int trq_check_pending_rowid(
-    tr_queue trq_,
+    tr_queue_t * trq,
     uint64_t __t__,
     uint64_t rowid
 )
 {
-    register tr_queue_t *trq = trq_;
-
     uint32_t __user_flag__ = tranger2_read_user_flag(
         trq->tranger,
         trq->topic_name,
@@ -522,10 +452,8 @@ PUBLIC int trq_check_pending_rowid(
 /***************************************************************************
     Unload a message from iter
  ***************************************************************************/
-PUBLIC void trq_unload_msg(q_msg msg_, int32_t result)
+PUBLIC void trq_unload_msg(q_msg_t *msg, int32_t result)
 {
-    q_msg_t *msg = msg_;
-
     trq_set_hard_flag(msg, TRQ_MSG_PENDING, 0);
 
     dl_delete(&msg->trq->dl_q_msg, msg, free_msg);
@@ -535,10 +463,8 @@ PUBLIC void trq_unload_msg(q_msg msg_, int32_t result)
     Put a hard flag in a message.
     You must flag a message after append it if you want recover it in the next open.
  ***************************************************************************/
-PUBLIC int trq_set_hard_flag(q_msg msg_, uint32_t hard_mark, BOOL set)
+PUBLIC int trq_set_hard_flag(q_msg_t *msg, uint32_t hard_mark, BOOL set)
 {
-    register q_msg_t *msg = msg_;
-
     return tranger2_set_user_flag(
         msg->trq->tranger,
         tranger2_topic_name(msg->trq->topic),
@@ -553,7 +479,7 @@ PUBLIC int trq_set_hard_flag(q_msg msg_, uint32_t hard_mark, BOOL set)
 /***************************************************************************
     Set soft mark
  ***************************************************************************/
-PUBLIC uint64_t trq_set_soft_mark(q_msg msg, uint64_t soft_mark, BOOL set)
+PUBLIC uint64_t trq_set_soft_mark(q_msg_t *msg, uint64_t soft_mark, BOOL set)
 {
     if(set) {
         /*
@@ -571,52 +497,10 @@ PUBLIC uint64_t trq_set_soft_mark(q_msg msg, uint64_t soft_mark, BOOL set)
 }
 
 /***************************************************************************
-    Get soft mark
- ***************************************************************************/
-PUBLIC uint64_t trq_get_soft_mark(q_msg msg)
-{
-    return ((q_msg_t *)msg)->mark;
-}
-
-/***************************************************************************
-    Walk over instances
- ***************************************************************************/
-PUBLIC q_msg trq_first_msg(tr_queue trq)
-{
-    if(!trq) {
-        return 0;
-    }
-    return dl_first(&((tr_queue_t *)trq)->dl_q_msg);
-}
-PUBLIC q_msg trq_last_msg(tr_queue trq)
-{
-    if(!trq) {
-        return 0;
-    }
-    return dl_last(&((tr_queue_t *)trq)->dl_q_msg);
-}
-
-PUBLIC q_msg trq_next_msg(q_msg msg)
-{
-    return dl_next(msg);
-}
-PUBLIC q_msg trq_prev_msg(q_msg msg)
-{
-    return dl_prev(msg);
-}
-
-/***************************************************************************
     Get info of message
  ***************************************************************************/
-PUBLIC md2_record_ex_t *trq_msg_md(q_msg msg_)
+PUBLIC json_t *trq_msg_json(q_msg_t *msg) // Load the message, Return json is YOURS!!
 {
-    register q_msg_t *msg = msg_;
-    return &msg->md_record;
-}
-PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is YOURS!!
-{
-    register q_msg_t *msg = msg_;
-
     json_t *jn_record = tranger2_read_record_content( // return is yours
         msg->trq->tranger,
         msg->trq->topic,
@@ -636,25 +520,12 @@ PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is YOUR
     return jn_record;
 }
 
-PUBLIC json_int_t trq_msg_rowid(q_msg msg_)
-{
-    register q_msg_t *msg = msg_;
-    if(!msg) {
-        return 0;
-    }
-    return msg->rowid;
-}
-PUBLIC uint64_t trq_msg_time(q_msg msg_)
-{
-    register q_msg_t *msg = msg_;
-    return msg->md_record.__t__;
-}
 
-//PUBLIC BOOL trq_msg_is_t_ms(q_msg msg)
+//PUBLIC BOOL trq_msg_is_t_ms(q_msg_t *msg)
 //{
 //    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?true:false;
 //}
-//PUBLIC BOOL trq_msg_is_tm_ms(q_msg msg)
+//PUBLIC BOOL trq_msg_is_tm_ms(q_msg_t *msg)
 //{
 //    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_tm_ms)?true:false;
 //}
@@ -722,10 +593,8 @@ PUBLIC json_t *trq_answer(
 /***************************************************************************
  *  Do backup
  ***************************************************************************/
-PUBLIC int trq_check_backup(tr_queue trq_)
+PUBLIC int trq_check_backup(tr_queue_t * trq)
 {
-    tr_queue_t *trq = trq_;
-
     hgobj gobj = (hgobj)json_integer_value(json_object_get(trq->tranger, "gobj"));
     uint64_t backup_queue_size = kw_get_int(gobj, trq->topic, "backup_queue_size", 0, 0);
 

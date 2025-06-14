@@ -184,7 +184,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
         exit(-1);
     }
 
-    tr_queue trq_output = trq_open(
+    tr_queue_t *trq_output = trq_open(
         tranger,
         topic_name,
         "tm",
@@ -243,7 +243,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
 
     */
     int counter = 0;
-    q_msg msg;
+    q_msg_t *msg;
     qmsg_foreach_forward(trq_output, msg) {
         counter++;
         if(arguments->verbose == 1) {
