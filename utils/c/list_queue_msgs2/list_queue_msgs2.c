@@ -252,7 +252,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
             tranger2_print_md1_record(
                 temp,
                 sizeof(temp),
-                trq_msg_key(msg),
+                "",
                 trq_msg_rowid(msg),
                 md_record,
                 arguments->print_local_time
@@ -267,7 +267,7 @@ PRIVATE int list_queue_msgs(struct arguments *arguments)
             tranger2_print_md1_record(
                 temp,
                 sizeof(temp),
-                trq_msg_key(msg),
+                "",
                 trq_msg_rowid(msg),
                 md_record,
                 arguments->print_local_time

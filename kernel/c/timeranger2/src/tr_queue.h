@@ -103,17 +103,11 @@ PUBLIC q_msg trq_append2(
 PUBLIC q_msg trq_get_by_rowid(tr_queue trq, uint64_t rowid);
 
 /**
-    Get number of messages from iter by his key
-*/
-PUBLIC int trq_size_by_key(tr_queue trq, const char *key);
-
-/**
     Check pending status of a rowid (low level)
     Return -1 if rowid not exists, 1 if pending, 0 if not pending
 */
 PUBLIC int trq_check_pending_rowid(
     tr_queue trq_,
-    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
     uint64_t rowid
 );
@@ -142,41 +136,6 @@ PUBLIC uint64_t trq_set_soft_mark(q_msg msg, uint64_t soft_mark, BOOL set);
 PUBLIC uint64_t trq_get_soft_mark(q_msg msg);
 
 /**
-    Set ack timer
-*/
-PUBLIC time_t trq_set_ack_timer(q_msg msg, time_t seconds);
-
-/**
-    Clear ack timer
-*/
-PUBLIC void trq_clear_ack_timer(q_msg msg);
-
-/**
-    Test ack timer
-*/
-PUBLIC BOOL trq_test_ack_timer(q_msg msg);
-
-/**
-    Set maximum retries
-*/
-PUBLIC void trq_set_maximum_retries(tr_queue trq, int maximum_retries);
-
-/**
-    Add retries
-*/
-PUBLIC void trq_add_retries(q_msg msg, int retries);
-
-/**
-    Clear retries
-*/
-PUBLIC void trq_clear_retries(q_msg msg);
-
-/**
-    Test retries
-*/
-PUBLIC BOOL trq_test_retries(q_msg msg);
-
-/**
     Walk over instances
 */
 #define qmsg_foreach_forward(trq, msg) \
@@ -189,10 +148,6 @@ PUBLIC BOOL trq_test_retries(q_msg msg);
         msg!=0 ; \
         msg = n, n = trq_next_msg(msg))
 
-#define qmsg_foreach_backward(trq, msg) \
-    for(msg = trq_last_msg(trq); \
-        msg!=0 ; \
-        msg = trq_prev_msg(msg))
 
 /**
  *  Example
@@ -215,7 +170,6 @@ PUBLIC md2_record_ex_t *trq_msg_md(q_msg msg);
 PUBLIC json_int_t trq_msg_rowid(q_msg msg);
 PUBLIC json_t *trq_msg_json(q_msg msg); // Load the message, Return json is NOT YOURS!!
 PUBLIC uint64_t trq_msg_time(q_msg msg);
-PUBLIC const char *trq_msg_key(q_msg msg);
 
 /**
     Metadata

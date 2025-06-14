@@ -2886,6 +2886,11 @@ PUBLIC int tranger2_write_user_flag(
         return -1;
     }
 
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    if(system_flag & sf_rowid_key) {
+        key = "__rowid__";
+    }
+
     off_t offset;
     md2_record_t md_record;
     int md_fd = get_md_record_for_wr(
@@ -2948,6 +2953,11 @@ PUBLIC int tranger2_set_user_flag(
             NULL
         );
         return -1;
+    }
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    if(system_flag & sf_rowid_key) {
+        key = "__rowid__";
     }
 
     off_t offset;
@@ -3023,6 +3033,11 @@ PUBLIC uint16_t tranger2_read_user_flag(
             NULL
         );
         return 0;
+    }
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    if(system_flag & sf_rowid_key) {
+        key = "__rowid__";
     }
 
     off_t offset;
@@ -7486,8 +7501,14 @@ PUBLIC json_t *tranger2_read_record_content( // return is yours
         );
         return NULL;
     }
+
+    system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
+    if(system_flag & sf_rowid_key) {
+        key = "__rowid__";
+    }
+
     if(empty_string(key)) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "What key?",

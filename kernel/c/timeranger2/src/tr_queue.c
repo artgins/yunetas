@@ -32,11 +32,8 @@ typedef struct {
     tr_queue_t *trq;
     md2_record_ex_t md_record;
     uint64_t mark;          // soft mark.
-    time_t timeout_ack;
-    int retries;
     json_t *jn_record;
     json_int_t rowid;
-    char key[RECORD_KEY_VALUE_MAX];
 } q_msg_t;
 
 /***************************************************************
@@ -192,7 +189,6 @@ PUBLIC void trq_set_first_rowid(tr_queue trq_, uint64_t first_rowid)
  ***************************************************************************/
 PRIVATE q_msg_t *new_msg(
     tr_queue_t *trq,
-    const char *key,
     json_int_t rowid,
     const md2_record_ex_t *md_record,
     json_t *jn_record // owned
@@ -213,12 +209,21 @@ PRIVATE q_msg_t *new_msg(
         );
         return 0;
     }
+    if(rowid != md_record->rowid) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "rowid NOT MATCH",
+            "rowid",        "%d", (int)rowid,
+            "md_rowid",     "%d", (int)md_record->rowid,
+            NULL
+        );
+    }
     memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
     msg->jn_record = 0; // Cárgalo solo cuando se use, jn_record;
     JSON_DECREF(jn_record);
     msg->trq = trq;
     msg->rowid = rowid;
-    snprintf(msg->key, sizeof(msg->key), "%s", key);
 
     dl_add(&trq->dl_q_msg, msg);
 
@@ -257,7 +262,7 @@ PRIVATE int load_record_callback(
         trq->first_rowid = rowid;
     }
 
-    new_msg(trq, key, rowid, md_record, jn_record);
+    new_msg(trq, rowid, md_record, jn_record);
 
     return 0;
 }
@@ -456,12 +461,6 @@ PUBLIC q_msg trq_append2(
         return 0;
     }
 
-    /*
-     *  Get the pkey, must be a string key.
-     */
-    json_t *topic = tranger2_topic(trq->tranger, trq->topic_name);
-    const char *pkey = json_string_value(json_object_get(topic, "pkey"));
-
     md2_record_ex_t md_record;
     tranger2_append_record(
         trq->tranger,
@@ -472,10 +471,8 @@ PUBLIC q_msg trq_append2(
         json_incref(jn_msg) // owned
     );
 
-    const char *key = json_string_value(json_object_get(jn_msg, pkey));
     q_msg_t *msg = new_msg(
         trq,
-        key,
         (json_int_t)md_record.rowid,
         &md_record,
         jn_msg  // owned
@@ -500,29 +497,12 @@ PUBLIC q_msg trq_get_by_rowid(tr_queue trq, uint64_t rowid)
 }
 
 /***************************************************************************
-    Get number of messages from iter by his key
- ***************************************************************************/
-PUBLIC int trq_size_by_key(tr_queue trq, const char *key)
-{
-    register q_msg_t *msg;
-    int n = 0;
-    qmsg_foreach_forward(trq, msg) {
-        if(strcmp(msg->key, key)==0) {
-            n++;
-        }
-    }
-
-    return n;
-}
-
-/***************************************************************************
     Check pending status of a rowid (low level)
  ***************************************************************************/
 PUBLIC int trq_check_pending_rowid(
     tr_queue trq_,
-    const char *key,        // In tranger2 ('key', '__t__', 'rowid') is required
     uint64_t __t__,
-    uint64_t rowid      // must be file rowid, not global topic rowid
+    uint64_t rowid
 )
 {
     register tr_queue_t *trq = trq_;
@@ -530,7 +510,7 @@ PUBLIC int trq_check_pending_rowid(
     uint32_t __user_flag__ = tranger2_read_user_flag(
         trq->tranger,
         trq->topic_name,
-        key,
+        "",
         __t__,
         rowid
     );
@@ -565,7 +545,7 @@ PUBLIC int trq_set_hard_flag(q_msg msg_, uint32_t hard_mark, BOOL set)
     return tranger2_set_user_flag(
         msg->trq->tranger,
         tranger2_topic_name(msg->trq->topic),
-        msg->key,
+        "",
         msg->md_record.__t__,
         msg->md_record.rowid,
         hard_mark,
@@ -599,67 +579,6 @@ PUBLIC uint64_t trq_set_soft_mark(q_msg msg, uint64_t soft_mark, BOOL set)
 PUBLIC uint64_t trq_get_soft_mark(q_msg msg)
 {
     return ((q_msg_t *)msg)->mark;
-}
-
-/***************************************************************************
-    Set ack timer
- ***************************************************************************/
-PUBLIC time_t trq_set_ack_timer(q_msg msg, time_t seconds)
-{
-    ((q_msg_t *)msg)->timeout_ack = start_sectimer(seconds);
-    return ((q_msg_t *)msg)->timeout_ack;
-}
-
-/***************************************************************************
-    Clear ack timer
- ***************************************************************************/
-PUBLIC void trq_clear_ack_timer(q_msg msg)
-{
-    ((q_msg_t *)msg)->timeout_ack = -1;
-}
-
-/***************************************************************************
-    Test ack timer
- ***************************************************************************/
-PUBLIC BOOL trq_test_ack_timer(q_msg msg)
-{
-    return test_sectimer(((q_msg_t *)msg)->timeout_ack);
-}
-
-/***************************************************************************
-    Set maximum retries
- ***************************************************************************/
-PUBLIC void trq_set_maximum_retries(tr_queue trq, int maximum_retries)
-{
-    ((tr_queue_t *)trq)->maximum_retries = maximum_retries;
-}
-
-/***************************************************************************
-    Add retries
- ***************************************************************************/
-PUBLIC void trq_add_retries(q_msg msg, int retries)
-{
-    ((q_msg_t *)msg)->retries += retries;
-}
-
-/***************************************************************************
-    Clear retries
- ***************************************************************************/
-PUBLIC void trq_clear_retries(q_msg msg)
-{
-    ((q_msg_t *)msg)->retries = 0;
-}
-
-/***************************************************************************
-    Test retries
- ***************************************************************************/
-PUBLIC BOOL trq_test_retries(q_msg msg)
-{
-    if( ((q_msg_t *)msg)->trq->maximum_retries <= 0) {
-        // No retries no test true
-        return 0;
-    }
-    return (((q_msg_t *)msg)->retries >= ((q_msg_t *)msg)->trq->maximum_retries)?true:false;
 }
 
 /***************************************************************************
@@ -706,7 +625,7 @@ PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT 
         msg->jn_record = tranger2_read_record_content( // return is yours
             msg->trq->tranger,
             msg->trq->topic,
-            msg->key,
+            "",
             &msg->md_record
         );
         if(!msg->jn_record) {
@@ -716,7 +635,6 @@ PUBLIC json_t *trq_msg_json(q_msg msg_) // Load the message, Return json is NOT 
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "jn_msg NULL",
                 "topic",        "%s", msg->trq->topic_name,
-                "key",          "%s", msg->key,
                 NULL
             );
         }
@@ -736,11 +654,6 @@ PUBLIC uint64_t trq_msg_time(q_msg msg_)
 {
     register q_msg_t *msg = msg_;
     return msg->md_record.__t__;
-}
-PUBLIC const char *trq_msg_key(q_msg msg_)
-{
-    register q_msg_t *msg = msg_;
-    return msg->key;
 }
 
 //PUBLIC BOOL trq_msg_is_t_ms(q_msg msg)
@@ -797,8 +710,16 @@ PUBLIC json_t *trq_answer(
     json_t *kw_response = json_object();
     json_t *__md__ = trq_get_metadata(jn_message);
     if(__md__) {
-        json_object_set_new(kw_response, __MD_TRQ__, kw_duplicate(gobj, __md__));
+        json_object_set(kw_response, __MD_TRQ__, __md__);
         trq_set_metadata(kw_response, "result", json_integer(result));
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "queue message without metadata",
+            NULL
+        );
+        gobj_trace_json(gobj, jn_message, "queue message without metadata");
     }
 
     return kw_response;

@@ -95,12 +95,10 @@ static int test(tr_queue trq_msgs, int caso)
                 uint64_t md_rowid = md_record_ex->rowid;
 
                 q_msg msg2 = trq_get_by_rowid(trq_msgs, rowid);
-                trq_clear_ack_timer(msg2);
                 trq_unload_msg(msg2, 0);
 
                 if(trq_check_pending_rowid(
                     trq_msgs,
-                    "__rowid__",    // In tranger2 ('key', '__t__', 'rowid') is required
                     __t__,
                     md_rowid
                 )!=0) {
