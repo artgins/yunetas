@@ -239,11 +239,10 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     /*--------------------------------*
-     *      Ouput queue
+     *      Output queue
      *--------------------------------*/
     open_queue(gobj);
     trq_load(priv->trq_msgs);
-    //gobj_set_qs(QS_INTERNAL_QUEUE, trq_size(priv->trq_msgs)); // TODO gestiona colas múltiples
 
     return 0;
 }
