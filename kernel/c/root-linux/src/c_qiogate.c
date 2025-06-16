@@ -87,7 +87,7 @@ SDATA (DTP_STRING,      "tkey",             SDF_RD,             "",         "trq
 SDATA (DTP_STRING,      "system_flag",      SDF_RD,             "",         "trq_open system_flag"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "0x0010",   "LOG_OPT_TRACE_STACK"),
 SDATA (DTP_STRING,      "alert_message",    SDF_WR|SDF_PERSIST, "ALERTA Encolamiento", "Alert message"),
-SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, "1000",     "Maximum messages pending of ack"),
+SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, "10000",    "Maximum messages pending of ack"),
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_WR|SDF_PERSIST, "1000000",  "Do backup at this size"),
 SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, "2000",     "Limit alert queue size"),
 SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, "60",       "Timeout ack in seconds"),
