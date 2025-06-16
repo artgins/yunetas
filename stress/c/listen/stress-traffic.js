@@ -138,11 +138,19 @@ function connect(i) {
     });
     client.on('close', () => {
         console.log(`Connection ${i} closed`);
-        setTimeout(() => connect(i), 2000);
+        setTimeout(() => connect(i), 5000);
     });
 }
 
-// Launch all initial connections
-for(let i = 0; i < max_connections; i++) {
-    connect(i);
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+async function main() {
+    for(let i = 0; i < max_connections; i++) {
+        connect(i);
+        await sleep(0);
+    }
+}
+
+main();
