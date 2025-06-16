@@ -1167,7 +1167,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         ac_on_message,          0},
         {EV_ON_OPEN,            ac_on_open,             0},
         {EV_ON_CLOSE,           ac_on_close,            0},
-        {EV_TIMEOUT_PERIODIC,   ac_timeout,             0},
+        {EV_TIMEOUT,            ac_timeout,             0},
         {EV_STOPPED,            ac_stopped,             0},
         {0,0,0}
     };
@@ -1183,7 +1183,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,            0},
         {EV_ON_CLOSE,           0},
         // bottom input
-        {EV_TIMEOUT_PERIODIC,   0},
+        {EV_TIMEOUT,            0},
         {EV_STOPPED,            0},
         {0, 0}
     };
