@@ -4823,7 +4823,7 @@ PRIVATE void load_stats(hgobj gobj)
      *      uptime
      *---------------------------------------*/
     {
-        unsigned long long uptime;
+        unsigned long long uptime=0;
         read_uptime(&uptime);
         gobj_write_integer_attr(
             gobj,
@@ -5140,55 +5140,5 @@ PUBLIC int remove_denied_ip(const char *ip)
         return gobj_save_persistent_attrs(gobj_yuno(), json_string("denied_ips"));
     } else {
         return -1;
-    }
-}
-
-/***************************************************************************
- *  free_ram_in_kb()
- *
- *  Returns the current total free RAM in KB.
- *
- *  It uses MemAvailable from /proc/meminfo if present (modern kernels),
- *  otherwise falls back to MemFree + Buffers + Cached.
- ***************************************************************************/
-PUBLIC unsigned long free_ram_in_kb(void)
-{
-    FILE *fp = fopen("/proc/meminfo", "r");
-    if(!fp) {
-        return 0;
-    }
-
-    unsigned long mem_available = 0;
-    unsigned long mem_free = 0;
-    unsigned long buffers = 0;
-    unsigned long cached = 0;
-
-    char line[512];
-    while(fgets(line, sizeof(line), fp)) {
-        char key[64];
-        unsigned long value = 0;
-
-        if(sscanf(line, "%63[^:]: %lu", key, &value) != 2) {
-            continue;
-        }
-
-        if(strcmp(key, "MemAvailable") == 0) {
-            mem_available = value;
-            break;  // Prefer MemAvailable, stop parsing
-        } else if(strcmp(key, "MemFree") == 0) {
-            mem_free = value;
-        } else if(strcmp(key, "Buffers") == 0) {
-            buffers = value;
-        } else if(strcmp(key, "Cached") == 0) {
-            cached = value;
-        }
-    }
-
-    fclose(fp);
-
-    if(mem_available > 0) {
-        return mem_available;
-    } else {
-        return mem_free + buffers + cached;
     }
 }

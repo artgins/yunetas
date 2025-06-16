@@ -2028,7 +2028,7 @@ PRIVATE json_t * _duplicate_array(json_t *kw, const char **keys, int underscores
     size_t idx;
     json_t *value;
     json_array_foreach(kw, idx, value) {
-        json_t *new_value;
+        json_t *new_value = 0;
         json_type type = json_typeof(value);
         switch(type) {
         case JSON_OBJECT:
@@ -2091,7 +2091,7 @@ PRIVATE json_t * _duplicate_object(json_t *kw, const char **keys, int underscore
         if(keys && !str_in_list(keys, key, false)) {
             continue;
         }
-        json_t *new_value;
+        json_t *new_value = 0;
         json_type type = json_typeof(value);
         switch(type) {
         case JSON_OBJECT:

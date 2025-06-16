@@ -764,7 +764,8 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             priv->content_received += data_read;
 #ifdef __linux__
             if(priv->fp > 0) {
-                write(priv->fp, ota_write_data, data_read);
+                if(write(priv->fp, ota_write_data, data_read)<0) {
+                }
             }
 #endif
 #ifdef ESP_PLATFORM

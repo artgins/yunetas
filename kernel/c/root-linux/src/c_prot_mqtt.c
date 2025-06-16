@@ -6668,7 +6668,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint16_t mid;
+    uint16_t mid = 0;
     uint8_t qos;
     int *granted_qos;
     int qos_count;
@@ -6752,7 +6752,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint16_t mid;
+    uint16_t mid = 0;
     int rc;
     json_t *properties = NULL;
 

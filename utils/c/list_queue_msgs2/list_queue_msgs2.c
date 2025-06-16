@@ -21,7 +21,6 @@
 #include <helpers.h>
 #include <timeranger2.h>
 #include <tr_queue.h>
-#include <cpu.h>
 #include <yev_loop.h>
 
 /***************************************************************************

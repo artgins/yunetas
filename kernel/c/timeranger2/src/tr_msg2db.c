@@ -328,7 +328,7 @@ PUBLIC json_t *msg2db_open_db(
     /*------------------------------*
      *  Open "system" lists
      *------------------------------*/
-    char path[NAME_MAX];
+    char path[2*NAME_MAX];
 
     /*------------------------------*
      *  Open "user" lists

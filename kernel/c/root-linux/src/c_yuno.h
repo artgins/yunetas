@@ -65,8 +65,6 @@ PUBLIC BOOL is_ip_denied(const char *peername);
 PUBLIC int add_denied_ip(const char *ip, BOOL denied); // denied: TRUE to deny, FALSE to not deny
 PUBLIC int remove_denied_ip(const char *ip); // Remove from interna list
 
-PUBLIC unsigned long free_ram_in_kb(void);
-
 #ifdef __cplusplus
 }
 #endif

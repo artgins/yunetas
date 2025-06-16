@@ -1066,3 +1066,5 @@ PUBLIC void istream_clear(// reset wr/rd
 PUBLIC BOOL istream_is_completed(
     istream_h istream
 );
+
+PUBLIC unsigned long free_ram_in_kb(void);

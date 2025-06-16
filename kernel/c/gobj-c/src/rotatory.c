@@ -531,7 +531,7 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
             }
         }
 
-        char lastpath[NAME_MAX];
+        char lastpath[2*NAME_MAX+2];
         strncpy(lastpath, hr->path, sizeof(lastpath)-1);
         snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
         if(access(hr->path, 0)!=0) {

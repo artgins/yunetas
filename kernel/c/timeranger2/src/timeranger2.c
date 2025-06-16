@@ -1768,7 +1768,7 @@ PRIVATE char *get_t_filename(
     uint64_t __t__ // WARNING must be in seconds!
 )
 {
-    char filename[NAME_MAX];
+    char filename[2*NAME_MAX];
     get_file_id(filename, sizeof(filename), tranger, topic, __t__);
 
     snprintf(bf, bfsize, "%s.%s",

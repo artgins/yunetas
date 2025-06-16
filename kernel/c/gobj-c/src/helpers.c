@@ -3960,7 +3960,7 @@ static enum date_mode_type parse_date_type(const char *format, const char **end)
 
 PUBLIC void parse_date_format(const char *format, struct date_mode *mode)
 {
-    const char *p;
+    const char *p=NULL;
 
     /* "auto:foo" is "if tty/pager, then foo, otherwise normal" */
     if (skip_prefix(format, "auto:", &p)) {
@@ -4917,12 +4917,13 @@ PUBLIC uint64_t cpu_usage(void)
     uint64_t utime = 0;
     uint64_t stime = 0;
 
-    fscanf(fp,
+    int res = fscanf(fp,
         "%*d %*s %*c %*d %*d %*d %*d %*d "
         "%*u %*u %*u %*u %*u "
         "%lu %lu",
-        &utime, &stime);
-
+        &utime, &stime
+    );
+    if(res < 0) {}
     fclose(fp);
 
     return utime + stime;
@@ -5116,7 +5117,7 @@ PUBLIC const char *get_hostname(void)
 #ifdef __linux__
         FILE *file = fopen("/etc/hostname", "r");
         if(file) {
-            fgets(hostname, sizeof(hostname), file);
+            if(fgets(hostname, sizeof(hostname), file)) {};
             fclose(file);
             left_justify(hostname);
         }
@@ -5544,7 +5545,8 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
     if (execvp(program, argv) == -1) {
         int err = errno;  // Capture the execvp error code
         print_error(0, "launch_program() execvp failed '%s', errno %d '%s'", program, err, strerror(err));
-        write(pipe_fd[1], &err, sizeof(err));  // Send error to parent
+        int ret = write(pipe_fd[1], &err, sizeof(err));  // Send error to parent
+        if(ret < 0) {}
         exit(EXIT_FAILURE);
     }
 
@@ -6827,4 +6829,54 @@ PUBLIC BOOL istream_is_completed(istream_h istream)
         return false;
     }
     return ist->completed;
+}
+
+/***************************************************************************
+ *  free_ram_in_kb()
+ *
+ *  Returns the current total free RAM in KB.
+ *
+ *  It uses MemAvailable from /proc/meminfo if present (modern kernels),
+ *  otherwise falls back to MemFree + Buffers + Cached.
+ ***************************************************************************/
+PUBLIC unsigned long free_ram_in_kb(void)
+{
+    FILE *fp = fopen("/proc/meminfo", "r");
+    if(!fp) {
+        return 0;
+    }
+
+    unsigned long mem_available = 0;
+    unsigned long mem_free = 0;
+    unsigned long buffers = 0;
+    unsigned long cached = 0;
+
+    char line[512];
+    while(fgets(line, sizeof(line), fp)) {
+        char key[64];
+        unsigned long value = 0;
+
+        if(sscanf(line, "%63[^:]: %lu", key, &value) != 2) {
+            continue;
+        }
+
+        if(strcmp(key, "MemAvailable") == 0) {
+            mem_available = value;
+            break;  // Prefer MemAvailable, stop parsing
+        } else if(strcmp(key, "MemFree") == 0) {
+            mem_free = value;
+        } else if(strcmp(key, "Buffers") == 0) {
+            buffers = value;
+        } else if(strcmp(key, "Cached") == 0) {
+            cached = value;
+        }
+    }
+
+    fclose(fp);
+
+    if(mem_available > 0) {
+        return mem_available;
+    } else {
+        return mem_free + buffers + cached;
+    }
 }
