@@ -87,7 +87,7 @@ SDATA (DTP_STRING,      "tkey",             SDF_RD,             "",         "trq
 SDATA (DTP_STRING,      "system_flag",      SDF_RD,             "",         "trq_open system_flag"),
 SDATA (DTP_INTEGER,     "on_critical_error",SDF_RD,             "0x0010",   "LOG_OPT_TRACE_STACK"),
 SDATA (DTP_STRING,      "alert_message",    SDF_WR|SDF_PERSIST, "ALERTA Encolamiento", "Alert message"),
-SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, "1",        "Maximum messages pending of ack"),
+SDATA (DTP_INTEGER,     "max_pending_acks", SDF_WR|SDF_PERSIST, "1000",     "Maximum messages pending of ack"),
 SDATA (DTP_INTEGER,     "backup_queue_size",SDF_WR|SDF_PERSIST, "1000000",  "Do backup at this size"),
 SDATA (DTP_INTEGER,     "alert_queue_size", SDF_WR|SDF_PERSIST, "2000",     "Limit alert queue size"),
 SDATA (DTP_INTEGER,     "timeout_ack",      SDF_WR|SDF_PERSIST, "60",       "Timeout ack in seconds"),
@@ -989,7 +989,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(src == priv->gobj_bottom_side) {
         priv->bottom_side_opened = true;
         send_batch_messages(gobj, 0);  // On open send or resend
-        set_timeout_periodic(priv->timer, priv->timeout_poll);
+        set_timeout(priv->timer, priv->timeout_poll);
 
         if(priv->timeout_backup > 0) {
             priv->t_backup = start_sectimer(priv->timeout_backup);
@@ -1097,6 +1097,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
         priv->t_backup = start_sectimer(priv->timeout_backup);
     }
+
+    set_timeout(priv->timer, priv->timeout_poll);
 
     KW_DECREF(kw);
     return 0;
