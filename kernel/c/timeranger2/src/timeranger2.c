@@ -1768,7 +1768,7 @@ PRIVATE char *get_t_filename(
     uint64_t __t__ // WARNING must be in seconds!
 )
 {
-    char filename[2*NAME_MAX];
+    char filename[NAME_MAX];
     get_file_id(filename, sizeof(filename), tranger, topic, __t__);
 
     snprintf(bf, bfsize, "%s.%s",
@@ -1917,8 +1917,8 @@ PRIVATE int get_topic_wr_fd( // optimized
 )
 {
     char full_path[PATH_MAX];
-    char relative_path[NAME_MAX*2];
-    char filename[NAME_MAX];
+    char relative_path[PATH_MAX];
+    char filename[NAME_MAX*2];
 
     system_flag2_t system_flag = json_integer_value(json_object_get(topic, "system_flag"));
 
@@ -3914,7 +3914,7 @@ PRIVATE int master_to_update_client_load_record_callback(
     /*
      *  Create the hard link for the md2 file
      */
-    char filename[NAME_MAX];
+    char filename[NAME_MAX*2];
     system_flag2_t system_flag = md_record_ex->system_flag;
 
     get_t_filename(
@@ -8186,7 +8186,7 @@ PUBLIC void tranger2_print_md2_record(
     uint64_t offset = md_record_ex->__offset__;
     uint64_t size = md_record_ex->__size__;
 
-    char filename[NAME_MAX];
+    char filename[NAME_MAX*2];
     get_t_filename(
         filename,
         sizeof(filename),

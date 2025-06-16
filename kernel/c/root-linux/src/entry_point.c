@@ -60,7 +60,7 @@ PRIVATE char __yuno_version__[NAME_MAX] = {0};
 PRIVATE char __argp_program_version__[NAME_MAX] = {0};
 PRIVATE char __app_doc__[NAME_MAX] = {0};
 PRIVATE char __app_datetime__[NAME_MAX] = {0};
-PRIVATE char __process_name__[64] = {0};
+PRIVATE char __process_name__[2*NAME_MAX] = {0};
 
 
 PRIVATE json_t *__jn_config__ = 0;
