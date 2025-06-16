@@ -1,3 +1,3 @@
 #!/bin/bash
 
-ystats -o 10 -S __input_side__
+ystats -o 10
