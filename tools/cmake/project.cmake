@@ -72,43 +72,100 @@ list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE_DIR}/tools/cmake")
 list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs")
 set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs")
 
-set(INC_DEST_DIR ${CMAKE_INSTALL_PREFIX}/include)
-set(LIB_DEST_DIR ${CMAKE_INSTALL_PREFIX}/lib)
-set(BIN_DEST_DIR ${CMAKE_INSTALL_PREFIX}/bin)
-set(YUNOS_DEST_DIR ${CMAKE_INSTALL_PREFIX}/yunos)
+set(INC_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/include)
+set(LIB_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/lib)
+set(BIN_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/bin)
+set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
 
-add_definitions(-D_GNU_SOURCE)
-add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
+#----------------------------------------#
+#   Global definitions and include paths
+#----------------------------------------#
+add_definitions(
+    -D_GNU_SOURCE
+    -D_LARGEFILE_SOURCE
+    -D_FILE_OFFSET_BITS=64
+)
 
 include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
-link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
-
 include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
+
+link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
 link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 
-# Specify C standard
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-    add_definitions(-DDEBUG)
-    # TODO check if -fno-stack-protector is only for esp32
-    add_compile_options(-std=c99 -Wall -Wextra -Wno-type-limits -Wno-sign-compare -g3 -fno-pie -fno-stack-protector -Wno-unused-parameter -fPIC)
-    add_link_options(-no-pie)
-else()
-    add_compile_options(-std=c99 -Wall -Wextra -Wno-type-limits -Wno-sign-compare -g3 -O -fno-pie -fno-stack-protector -Wno-unused-parameter -fPIC)
-    add_link_options(-no-pie)
+#----------------------------------------#
+#   Default to Debug if not specified
+#----------------------------------------#
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
-#if (CMAKE_C_COMPILER_ID STREQUAL "Clang")
-#    MESSAGE("=================> Clang")
-#else()
-#    MESSAGE("=================> NOT CLang")
-#endif()
-#
-#MESSAGE(STATUS "DIR ${CMAKE_CURRENT_SOURCE_DIR}")
-#MESSAGE(STATUS "COMPILER_ID ${CMAKE_C_COMPILER_ID}")
-#MESSAGE(STATUS "COMPILER ${CMAKE_C_COMPILER}")
+#----------------------------------------#
+#   Common compile flags
+#----------------------------------------#
+set(COMMON_C_FLAGS
+    -Wall
+    -Wextra
+    -Wno-type-limits
+    -Wno-sign-compare
+    -Wno-unused-parameter
+    -fPIC
+)
+
+#----------------------------------------#
+#   Per build type
+#----------------------------------------#
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Configuring for DEBUG (test environment)")
+    add_definitions(-DDEBUG)
+    set(EXTRA_C_FLAGS
+        -g3
+    )
+elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    message(STATUS "Configuring for RELWITHDEBINFO (production environment)")
+    set(EXTRA_C_FLAGS
+        -O2
+        -g
+    )
+else()
+    message(STATUS "Configuring for ${CMAKE_BUILD_TYPE}")
+    set(EXTRA_C_FLAGS "")
+endif()
+
+#----------------------------------------#
+#   Compiler specific flags
+#----------------------------------------#
+if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    message(STATUS "Using Clang compiler")
+    set(COMPILER_C_FLAGS
+        -fno-pie
+        -fno-stack-protector
+    )
+    set(COMPILER_LINK_FLAGS
+        -no-pie
+    )
+elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    message(STATUS "Using GCC compiler")
+    set(COMPILER_C_FLAGS
+        -fno-pie
+        -fno-stack-protector
+    )
+    set(COMPILER_LINK_FLAGS
+        -no-pie
+    )
+else()
+    message(WARNING "Unknown compiler: ${CMAKE_C_COMPILER_ID}")
+    set(COMPILER_C_FLAGS "")
+    set(COMPILER_LINK_FLAGS "")
+endif()
+
+#----------------------------------------#
+#   Apply flags globally
+#----------------------------------------#
+add_compile_options(${COMMON_C_FLAGS} ${EXTRA_C_FLAGS} ${COMPILER_C_FLAGS})
+add_link_options(${COMPILER_LINK_FLAGS})
 
 #----------------------------------------#
 #   Libraries
@@ -136,7 +193,7 @@ set(YUNETAS_C_PROT_LIBS
     libyunetas-c_prot.a
 )
 
-if (CONFIG_YTLS_USE_OPENSSL)
+if(CONFIG_YTLS_USE_OPENSSL)
     set(OPENSSL_LIBS
         libjwt.a
         libssl.a
@@ -147,7 +204,7 @@ else()
     set(OPENSSL_LIBS "")
 endif()
 
-if (CONFIG_YTLS_USE_MBEDTLS)
+if(CONFIG_YTLS_USE_MBEDTLS)
     set(MBEDTLS_LIBS
         libjwt.a
         libmbedtls.a
@@ -158,7 +215,7 @@ else()
     set(MBEDTLS_LIBS "")
 endif()
 
-if (CONFIG_DEBUG_WITH_BACKTRACE)
+if(CONFIG_DEBUG_WITH_BACKTRACE)
     set(DEBUG_LIBS
         libbacktrace.a
     )
