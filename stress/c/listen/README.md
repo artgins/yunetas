@@ -202,3 +202,18 @@ Now you can use an integer
                 '__range__': 11000, #^^11000                        \n\
                 '__vars__': {                                       \n\
                 },                                                  \n\
+
+
+# Test 16/Jun/2025
+
+    Two process with 5.000 connections and 50.000 msg/seg each one: 100.000 msg/seg
+        ./stress-traffic.js -c 5000 -r 10
+        ./stress-traffic.js -c 5000 -r 10
+
+        cpu 100%
+
+    With 90.000 msg/seg
+        ./stress-traffic.js -c 5000 -r 9
+        ./stress-traffic.js -c 5000 -r 9
+
+        cpu 80%

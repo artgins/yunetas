@@ -76,8 +76,11 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
 
     hgobj gobj_input_side;
-    json_int_t txMsgs;
-    json_int_t rxMsgs;
+
+    uint64_t last_cpu_ticks;
+    uint64_t last_cpu_ms;
+    int cpu_usage;
+
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -165,6 +168,41 @@ PRIVATE int mt_pause(hgobj gobj)
 
     return 0;
 }
+
+/***************************************************************************
+ *      Framework Method stats
+ ***************************************************************************/
+PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    json_t *jn_data = json_object();
+
+    json_object_set_new(
+        jn_data,
+        "input_side",
+        gobj_stats(priv->gobj_input_side, stats, json_incref(kw), src)
+    );
+
+    /*---------------------------------------*
+     *      cpu
+     *---------------------------------------*/
+    {
+        double cpu_percent = cpu_usage_percent(&priv->last_cpu_ticks, &priv->last_cpu_ms);
+        json_object_set_new(jn_data, "cpu", json_integer((json_int_t)cpu_percent));
+    }
+
+    KW_DECREF(kw)
+
+    return build_stats_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data, owned
+    );
+}
+
 
 
 
@@ -262,10 +300,6 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->rxMsgs++;
-
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
@@ -313,11 +347,12 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create = mt_create,
-    .mt_start = mt_start,
-    .mt_stop = mt_stop,
-    .mt_play = mt_play,
-    .mt_pause = mt_pause,
+    .mt_create  = mt_create,
+    .mt_start   = mt_start,
+    .mt_stop    = mt_stop,
+    .mt_play    = mt_play,
+    .mt_pause   = mt_pause,
+    .mt_stats   = mt_stats,
 };
 
 /*------------------------*

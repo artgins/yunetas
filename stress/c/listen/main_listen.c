@@ -66,6 +66,8 @@ PRIVATE char variable_config[]= "\
         },                                                          \n\
         'io_uring_entries': 32768,                                  \n\
         'limit_open_files': 200000,                                 \n\
+        'cpu_core': 4,                                              \n\
+        'priority': 20,                                             \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\
         'i18n_domain': 'test_timer',                                \n\
         'trace_levels': {                                           \n\
