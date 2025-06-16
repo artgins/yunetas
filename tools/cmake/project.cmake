@@ -92,7 +92,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     add_definitions(-DDEBUG)
-# TODO check if -fno-stack-protector is only for esp32
+    # TODO check if -fno-stack-protector is only for esp32
     add_compile_options(-std=c99 -Wall -Wextra -Wno-type-limits -Wno-sign-compare -g3 -fno-pie -fno-stack-protector -Wno-unused-parameter -fPIC)
     add_link_options(-no-pie)
 else()
