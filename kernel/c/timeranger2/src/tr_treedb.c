@@ -220,7 +220,7 @@ PUBLIC json_t *treedb_get_id_index( // WARNING Return is NOT YOURS
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    char path[NAME_MAX];
+    char path[NAME_MAX*2];
     build_id_index_path(path, sizeof(path), treedb_name, topic_name);
     json_t *indexx = kw_get_dict(
         gobj,
@@ -965,7 +965,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *------------------------------*/
     char rt_id[2*NAME_MAX];
     if(1) {
-        char path[NAME_MAX];
+        char path[NAME_MAX*2];
         build_id_index_path(path, sizeof(path), treedb_name, snaps_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
@@ -1017,7 +1017,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
      *      __graphs__
      *------------------------------*/
     if(1) {
-        char path[NAME_MAX];
+        char path[NAME_MAX*2];
         build_id_index_path(path, sizeof(path), treedb_name, graphs_topic_name);
         kw_get_dict_value(gobj, tranger, path, json_object(), KW_CREATE);
 
@@ -1393,7 +1393,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
     /*------------------------------------*
      *      Open "user" lists
      *------------------------------------*/
-    char path[NAME_MAX];
+    char path[NAME_MAX*2];
 
     /*----------------------*
      *   Main index: "id"
@@ -1677,7 +1677,7 @@ PUBLIC json_t *treedb_topics(
 
     json_t *topic_list = json_array();
 
-    char list_id[NAME_MAX];
+    char list_id[NAME_MAX*2];
     const char *topic_name; json_t *topic_records;
     json_object_foreach(treedb, topic_name, topic_records) {
         if(!json_is_object(topic_records)) {
