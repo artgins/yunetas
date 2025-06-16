@@ -1182,7 +1182,6 @@ PRIVATE int b64_encode_string(
     unsigned char triple[3];
     int i;
     int len;
-    int line = 0;
     int done = 0;
 
     while (in_len) {
@@ -1209,7 +1208,6 @@ PRIVATE int b64_encode_string(
         *out++ = (len > 2 ? encode[triple[2] & 0x3f] : '=');
 
         done += 4;
-        line += 4;
     }
 
     if (done + 1 >= out_size)

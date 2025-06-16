@@ -65,8 +65,6 @@ PRIVATE int yev_loop_callback(yev_event_h yev_event) {
  ***************************************************************************/
 PRIVATE int yev_server_callback(yev_event_h yev_event)
 {
-    static int rx_counter = 0;
-
     if(!yev_event) {
         /*
          *  It's the timeout
@@ -98,7 +96,6 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                     /*
                      *  Data from the client
                      */
-                    rx_counter++;
                     msg = "Server: Message from the client";
                     gbuffer_t *gbuf_rx = yev_get_gbuf(yev_event);
                     /*
@@ -211,8 +208,6 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
  ***************************************************************************/
 PRIVATE int yev_client_callback(yev_event_h yev_event)
 {
-    static int rx_counter = 0;
-
     if(!yev_event) {
         /*
          *  It's the timeout
@@ -272,7 +267,6 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
 
         case YEV_READ_TYPE:
             {
-                rx_counter++;
                 if(yev_state == YEV_ST_IDLE) {
                     /*
                      *  Data from the server

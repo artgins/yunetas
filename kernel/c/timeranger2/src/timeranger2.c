@@ -6180,7 +6180,7 @@ PRIVATE BOOL tranger2_match_metadata(
         json_object_get(match_cond, "not_user_flag")
     );
     if(not_user_flag) {
-        if((md_record_ex->user_flag == not_user_flag)) {
+        if(md_record_ex->user_flag == not_user_flag) {
             return false;
         }
     }

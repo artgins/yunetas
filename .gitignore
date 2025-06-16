@@ -5,6 +5,7 @@ chatgpt/
 
 cmake-build-debug-clang/
 cmake-build-debug-musl/
+cmake-build-relwithdebinfo/
 
 ./kernel/c/root-linux-ext-libs/build/
 ./kernel/c/root-linux-ext-libs/jansson-artgins
