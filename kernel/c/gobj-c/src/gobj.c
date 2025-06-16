@@ -11921,7 +11921,6 @@ PRIVATE void *_mem_calloc(size_t n, size_t size)
 PUBLIC char *gobj_strndup(const char *str, size_t size)
 {
     char *s;
-    size_t len;
 
     /*-----------------------------------------*
      *     Check null string
@@ -11939,16 +11938,15 @@ PUBLIC char *gobj_strndup(const char *str, size_t size)
     /*-----------------------------------------*
      *     Alloca memoria
      *-----------------------------------------*/
-    len = size;
-    s = (char *)sys_malloc_fn(len+1);
+    s = (char *)sys_malloc_fn(size+1);
     if(!s) {
         return NULL;
     }
 
     /*-----------------------------------------*
-     *     Copia el substring
+     *     Copy the substring
      *-----------------------------------------*/
-    strncpy(s, str, len);
+    memmove(s, str, size);
 
     return s;
 }
