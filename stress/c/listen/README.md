@@ -217,3 +217,9 @@ Now you can use an integer
         ./stress-traffic.js -c 5000 -r 9
 
         cpu 80%
+
+    With 100.000 msg/seg and compiler CLANG and PROD compiling: 100.000 msg/seg
+        ./stress-traffic.js -c 5000 -r 10
+        ./stress-traffic.js -c 5000 -r 10
+
+        cpu 87%
