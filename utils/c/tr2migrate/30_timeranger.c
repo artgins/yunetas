@@ -708,9 +708,9 @@ PRIVATE int open_topic_idx_fd(json_t *tranger, json_t *topic)
     );
     int fd;
     if(master) {
-        fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
+        fd = open(full_path, O_RDWR|O_NOFOLLOW, 0);
     } else {
-        fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
+        fd = open(full_path, O_RDONLY, 0);
     }
     if(fd<0) {
         gobj_log_critical(0, kw_get_int(0,tranger, "on_critical_error", 0, KW_REQUIRED),
@@ -1818,9 +1818,9 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
 
     if(fd<0) {
         if(master) {
-            fd = open(full_path, O_RDWR|O_LARGEFILE|O_NOFOLLOW, 0);
+            fd = open(full_path, O_RDWR|O_NOFOLLOW, 0);
         } else {
-            fd = open(full_path, O_RDONLY|O_LARGEFILE, 0);
+            fd = open(full_path, O_RDONLY, 0);
         }
         if(fd<0) {
             gobj_log_critical(0, kw_get_int(0,tranger, "on_critical_error", 0, KW_REQUIRED),

@@ -43,7 +43,7 @@ int open_exclusive(
 
 * - `flags`
   - `int`
-  - Flags for opening the file. If set to 0, default flags (`O_RDWR | O_LARGEFILE | O_NOFOLLOW`) are used.
+  - Flags for opening the file. If set to 0, default flags (`O_RDWR | O_NOFOLLOW`) are used.
 
 * - `permission`
   - `int`

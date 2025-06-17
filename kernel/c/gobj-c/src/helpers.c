@@ -46,7 +46,6 @@
 
 #ifdef ESP_PLATFORM
     #include <esp_log.h>
-    #define O_LARGEFILE 0
     #define fstat64 fstat
     #define stat64 stat
     #define syslog(priority, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_ERROR, "yuneta", format, ##__VA_ARGS__)
@@ -256,7 +255,7 @@ PUBLIC int newdir(const char *path, int xpermission)
  ***************************************************************************/
 PUBLIC int newfile(const char *path, int rpermission, BOOL overwrite)
 {
-    int flags = O_CREAT|O_RDWR|O_LARGEFILE;
+    int flags = O_CREAT|O_RDWR;
 
     if(!umask_cleared) {
         umask(0);
@@ -277,7 +276,7 @@ PUBLIC int newfile(const char *path, int rpermission, BOOL overwrite)
 PUBLIC int open_exclusive(const char *path, int flags, int rpermission)
 {
     if(!flags) {
-        flags = O_RDWR|O_LARGEFILE|O_NOFOLLOW;
+        flags = O_RDWR|O_NOFOLLOW;
     }
 
     int fp = open(path, flags, rpermission);
