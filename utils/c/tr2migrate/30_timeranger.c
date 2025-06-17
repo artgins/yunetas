@@ -87,6 +87,22 @@ PRIVATE const char *sf0_names[32+1] = {
 /***************************************************************
  *              Structures
  ***************************************************************/
+#ifndef tranger_backup_deleting_callback_t
+typedef BOOL (*tranger_backup_deleting_callback_t)( // Return TRUE if you control the backup
+    json_t *tranger,
+    const char *topic_name,
+    const char *path
+);
+#endif
+PUBLIC json_t *tranger_backup_topic(
+    json_t *tranger,
+    const char *topic_name,
+    const char *backup_path,
+    const char *backup_name,
+    BOOL overwrite_backup,
+    tranger_backup_deleting_callback_t tranger_backup_deleting_callback
+);
+
 
 /***************************************************************
  *              Prototypes

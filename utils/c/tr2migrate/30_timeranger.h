@@ -247,20 +247,6 @@ PUBLIC int tranger_delete_topic(
    Return the new topic
 **rst**/
 
-typedef BOOL (*tranger_backup_deleting_callback_t)( // Return TRUE if you control the backup
-    json_t *tranger,
-    const char *topic_name,
-    const char *path
-);
-PUBLIC json_t *tranger_backup_topic(
-    json_t *tranger,
-    const char *topic_name,
-    const char *backup_path,
-    const char *backup_name,
-    BOOL overwrite_backup,
-    tranger_backup_deleting_callback_t tranger_backup_deleting_callback
-);
-
 /**rst**
    Write topic var
 **rst**/

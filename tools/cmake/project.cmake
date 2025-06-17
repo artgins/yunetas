@@ -82,8 +82,6 @@ set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
 #----------------------------------------#
 add_compile_definitions(
     _GNU_SOURCE
-#    _LARGEFILE_SOURCE
-#    _FILE_OFFSET_BITS=64
 )
 
 include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
@@ -92,7 +90,7 @@ include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
 link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
 link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 #----------------------------------------#

@@ -16,15 +16,44 @@ fi
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
-sudo apt install clang
-sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
-sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/clang 100
-sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100
-sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/clang++ 100
-sudo update-alternatives --config cc
-sudo update-alternatives --config c++
-sudo update-alternatives --config gcc
-sudo update-alternatives --config g++
+#!/bin/bash
+set -e
+
+# Path to .config file (relative to where this script is located)
+CONFIG_FILE="$(dirname "$0")/../../../.config"
+
+# Helper to check if a config option is enabled
+config_enabled() {
+    grep -q "^$1=y" "$CONFIG_FILE"
+}
+
+# Detect selected compiler
+if config_enabled CONFIG_USE_COMPILER_CLANG; then
+    CC_PATH="/usr/bin/clang"
+    NAME="clang"
+    PRIORITY=100
+elif config_enabled CONFIG_USE_COMPILER_GCC; then
+    CC_PATH="/usr/bin/gcc"
+    NAME="gcc"
+    PRIORITY=90
+elif config_enabled CONFIG_USE_COMPILER_MUSL; then
+    CC_PATH="/usr/bin/musl-gcc"
+    NAME="musl-gcc"
+    PRIORITY=80
+else
+    echo "❌ No compiler selected in $CONFIG_FILE"
+    exit 1
+fi
+
+echo "🔧 Selecting compiler: $NAME ($CC_PATH)"
+
+# Register the alternative if needed
+sudo update-alternatives --install /usr/bin/cc cc "$CC_PATH" "$PRIORITY" || true
+sudo update-alternatives --install /usr/bin/gcc gcc "$CC_PATH" "$PRIORITY" || true
+
+# Set it as default
+sudo update-alternatives --set cc "$CC_PATH"
+sudo update-alternatives --set gcc "$CC_PATH"
 
 rm -rf build/
 mkdir build
