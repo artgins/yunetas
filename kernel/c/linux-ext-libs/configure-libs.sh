@@ -11,12 +11,32 @@ VERSION="1.2"
 
 source ./repos2clone.sh
 
-[ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
-
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
-export CFLAGS="-std=gnu99 -Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
+export CFLAGS="-Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
+
+[ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
+
+# Detect selected compiler
+if config_enabled CONFIG_USE_COMPILER_CLANG; then
+    CC_PATH="/usr/bin/clang"
+    NAME="clang"
+    PRIORITY=100
+elif config_enabled CONFIG_USE_COMPILER_GCC; then
+    CC_PATH="/usr/bin/gcc"
+    NAME="gcc"
+    PRIORITY=90
+elif config_enabled CONFIG_USE_COMPILER_MUSL; then
+    CC_PATH="/usr/bin/musl-gcc"
+    NAME="musl-gcc"
+    PRIORITY=80
+else
+    echo "❌ No compiler selected in $CONFIG_FILE"
+    exit 1
+fi
+
+echo "🔧 Selecting compiler: $NAME ($CC_PATH)"
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -45,7 +65,7 @@ cd build
 
 git checkout "$TAG_JANSSON"
 
-cmake -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" -DJANSSON_BUILD_DOCS=OFF ..
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" -DJANSSON_BUILD_DOCS=OFF ..
 make
 make install
 cd ..
@@ -74,7 +94,7 @@ cd build
 
 git checkout "$TAG_MBEDTLS"
 
-cmake -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
   -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
 make
 make install
@@ -113,7 +133,7 @@ git submodule update --init
 
 mkdir -p build
 cd build
-cmake -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DBUILD_STATIC_LIBS=ON \
     -DBUILD_SHARED_LIBS=OFF \
     -DPCRE2_BUILD_PCRE2_16=ON \
@@ -140,7 +160,6 @@ git checkout "$TAG_LIBJWT"
 cmake -G "Ninja" \
     -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DBUILD_EXAMPLES=OFF \
-    -DCMAKE_C_FLAGS="$CFLAGS" \
     ..
 
 ninja
@@ -200,7 +219,7 @@ cd build
 
 git checkout "$TAG_ARGP_STANDALONE"
 
-cmake -DCMAKE_C_FLAGS="$CFLAGS" -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}"  ..
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}"  ..
 make
 make install
 cd ..
