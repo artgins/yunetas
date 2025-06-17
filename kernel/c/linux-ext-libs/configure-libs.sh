@@ -3,16 +3,18 @@
 #
 #   version 1.1
 #       upgrade to liburing-2.9
+#   version 1.2
+#       upgrade to liburing-2.11
 #
 
-VERSION="1.1"
+VERSION="1.2"
 
 source ./repos2clone.sh
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
-export CFLAGS="-Wno-error=char-subscripts -g3 -ggdb -fPIC"
+export CFLAGS="-Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -133,7 +135,7 @@ cd build
 
 git checkout "$TAG_LIBJWT"
 
-CFLAGS="-I${YUNETA_INSTALL_PREFIX}/include ${CFLAGS}"
+#CFLAGS="-I${YUNETA_INSTALL_PREFIX}/include ${CFLAGS}"
 cmake -G "Ninja" \
     -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DBUILD_EXAMPLES=OFF \
