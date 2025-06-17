@@ -135,7 +135,6 @@ cd build
 
 git checkout "$TAG_LIBJWT"
 
-#CFLAGS="-I${YUNETA_INSTALL_PREFIX}/include ${CFLAGS}"
 cmake -G "Ninja" \
     -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DBUILD_EXAMPLES=OFF \

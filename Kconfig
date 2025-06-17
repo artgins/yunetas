@@ -21,11 +21,6 @@ config USE_COMPILER_GCC
     help
         Select this option to use GCC as the compiler.
 
-config USE_COMPILER_MUSL
-    bool "Use Musl compiler"
-    help
-        Select this option to use Musl as the compiler.
-
 endchoice
 
 #------------------------------#

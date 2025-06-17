@@ -16,6 +16,16 @@ fi
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
+sudo apt install clang
+sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang 100
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/clang 100
+sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++ 100
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/clang++ 100
+sudo update-alternatives --config cc
+sudo update-alternatives --config c++
+sudo update-alternatives --config gcc
+sudo update-alternatives --config g++
+
 rm -rf build/
 mkdir build
 cd build
