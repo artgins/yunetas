@@ -16,45 +16,81 @@ fi
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
-#!/bin/bash
-set -e
+#----------------------------------------#
+#       Select compiler
+#----------------------------------------#
 
-# Path to .config file (relative to where this script is located)
 CONFIG_FILE="$(dirname "$0")/../../../.config"
 
-# Helper to check if a config option is enabled
-config_enabled() {
-    grep -q "^$1=y" "$CONFIG_FILE"
-}
+# Load selected compiler from config
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "❌ .config file not found: $CONFIG_FILE"
+    exit 1
+fi
 
-# Detect selected compiler
-if config_enabled CONFIG_USE_COMPILER_CLANG; then
-    CC_PATH="/usr/bin/clang"
-    NAME="clang"
+if grep -q '^CONFIG_USE_COMPILER_CLANG=y' "$CONFIG_FILE"; then
+    COMPILER="clang"
     PRIORITY=100
-elif config_enabled CONFIG_USE_COMPILER_GCC; then
-    CC_PATH="/usr/bin/gcc"
-    NAME="gcc"
+elif grep -q '^CONFIG_USE_COMPILER_GCC=y' "$CONFIG_FILE"; then
+    COMPILER="gcc"
     PRIORITY=90
-elif config_enabled CONFIG_USE_COMPILER_MUSL; then
-    CC_PATH="/usr/bin/musl-gcc"
-    NAME="musl-gcc"
+elif grep -q '^CONFIG_USE_COMPILER_MUSL=y' "$CONFIG_FILE"; then
+    COMPILER="musl-gcc"
     PRIORITY=80
 else
     echo "❌ No compiler selected in $CONFIG_FILE"
     exit 1
 fi
 
-echo "🔧 Selecting compiler: $NAME ($CC_PATH)"
+# Resolve real path to compiler binary
+CC_PATH=$(command -v "$COMPILER" || true)
+if [[ -z "$CC_PATH" || ! -x "$CC_PATH" ]]; then
+    echo "❌ Compiler binary '$COMPILER' not found in PATH"
+    exit 1
+fi
 
-# Register the alternative if needed
-sudo update-alternatives --install /usr/bin/cc cc "$CC_PATH" "$PRIORITY" || true
-sudo update-alternatives --install /usr/bin/gcc gcc "$CC_PATH" "$PRIORITY" || true
+echo "========================================="
+echo "🔧 Selecting compiler: $COMPILER ($CC_PATH)"
+echo "========================================="
 
-# Set it as default
-sudo update-alternatives --set cc "$CC_PATH"
-sudo update-alternatives --set gcc "$CC_PATH"
+# Function to safely register and set a compiler alternative
+register_and_set() {
+    local alt="$1"
+    local path="$2"
+    local priority="$3"
 
+    local alt_link="/usr/bin/$alt"
+    local resolved_link resolved_target
+    resolved_link=$(readlink -f "$alt_link" 2>/dev/null || true)
+    resolved_target=$(readlink -f "$path" 2>/dev/null || true)
+
+    # Skip if already pointing directly to the correct binary
+    if [[ "$resolved_link" == "$resolved_target" ]]; then
+        echo "⚠️  Skipping registration: $alt_link already points to $path"
+        return
+    fi
+
+    # Register if not already known
+    if ! update-alternatives --query "$alt" 2>/dev/null | grep -q "Value: $path"; then
+        echo "➕ Registering $alt → $path"
+        sudo update-alternatives --install "$alt_link" "$alt" "$path" "$priority"
+    fi
+
+    echo "✅ Setting $alt to $path"
+    sudo update-alternatives --set "$alt" "$path"
+}
+
+# Register and set for cc and gcc
+register_and_set cc "$CC_PATH" "$PRIORITY"
+register_and_set gcc "$CC_PATH" "$PRIORITY"
+
+echo "🧪 Compiler links:"
+echo "  cc  -> $(readlink -f "$(command -v cc)")"
+echo "  gcc -> $(readlink -f "$(command -v gcc)")"
+
+#----------------------------------------#
+#       Remove build
+#----------------------------------------#
 rm -rf build/
 mkdir build
 cd build

@@ -10,33 +10,12 @@
 VERSION="1.2"
 
 source ./repos2clone.sh
-
-#  Exit immediately if a command exits with a non-zero status.
-set -e
-
 export CFLAGS="-Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
 
 [ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
 
-# Detect selected compiler
-if config_enabled CONFIG_USE_COMPILER_CLANG; then
-    CC_PATH="/usr/bin/clang"
-    NAME="clang"
-    PRIORITY=100
-elif config_enabled CONFIG_USE_COMPILER_GCC; then
-    CC_PATH="/usr/bin/gcc"
-    NAME="gcc"
-    PRIORITY=90
-elif config_enabled CONFIG_USE_COMPILER_MUSL; then
-    CC_PATH="/usr/bin/musl-gcc"
-    NAME="musl-gcc"
-    PRIORITY=80
-else
-    echo "❌ No compiler selected in $CONFIG_FILE"
-    exit 1
-fi
-
-echo "🔧 Selecting compiler: $NAME ($CC_PATH)"
+#  Exit immediately if a command exits with a non-zero status.
+set -e
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
