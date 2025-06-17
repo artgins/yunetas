@@ -82,6 +82,8 @@ set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
 #----------------------------------------#
 add_compile_definitions(
     _GNU_SOURCE
+#    _LARGEFILE_SOURCE
+#    _FILE_OFFSET_BITS=64
 )
 
 include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")

@@ -582,7 +582,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
                 yev_callback,
                 gobj,
                 fd,
-                POLLRDHUP | POLLHUP | POLLERR
+                POLLHUP | POLLERR | POLLRDHUP // POLLRDHUP not available if _GNU_SOURCE not defined
             );
         }
 
