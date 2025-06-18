@@ -85,7 +85,7 @@ PRIVATE int load_files(
             json_dumpf(jn_file, stdout, flags);
             printf("\n");
         }
-        json_dict_recursive_update(jn_variable_config, jn_file, true, quit);
+        json_dict_recursive_update(jn_variable_config, jn_file, TRUE, quit);
         json_decref(jn_file);
 
     } else if(json_is_array(jn_files)) {
@@ -105,7 +105,7 @@ PRIVATE int load_files(
                     json_dumpf(jn_file, stdout, flags);
                     printf("\n");
                 }
-                json_dict_recursive_update(jn_variable_config, jn_file, true, quit);
+                json_dict_recursive_update(jn_variable_config, jn_file, TRUE, quit);
                 json_decref(jn_file);
             }
         }
@@ -316,7 +316,7 @@ PRIVATE json_t *load_json_file(const char* path, pe_flag_t quit)
 
 /***************************************************************************
  *  Update keys and values, recursive through all objects
- *  If overwrite is false then not update existing keys (protected write)
+ *  If overwrite is FALSE then not update existing keys (protected write)
  ***************************************************************************/
 PRIVATE int json_dict_recursive_update(
     json_t *object,
@@ -345,7 +345,7 @@ PRIVATE int json_dict_recursive_update(
                  *  WARNING
                  *  In configuration consider the lists as set (no repeated items).
                  */
-                json_list_update(dvalue, value, true, quit);
+                json_list_update(dvalue, value, TRUE, quit);
             }
         } else {
             if(overwrite) {
@@ -391,7 +391,7 @@ PRIVATE int json_list_find(json_t *list, json_t *value)
 
 /***************************************************************************
  *  Extend array values.
- *  If as_set is true then not repeated values
+ *  If as_set is TRUE then not repeated values
  ***************************************************************************/
 PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set, pe_flag_t quit)
 {
@@ -421,8 +421,8 @@ PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set, pe_flag_t
  *
  ***************************************************************************/
 PUBLIC json_t *json_config(
-    BOOL print_verbose_config,      // WARNING, if true will exit(0)
-    BOOL print_final_config,        // WARNING, if true will exit(0)
+    BOOL print_verbose_config,      // WARNING, if TRUE will exit(0)
+    BOOL print_final_config,        // WARNING, if TRUE will exit(0)
     const char *fixed_config,
     const char *variable_config,
     const char *config_json_file,
@@ -498,14 +498,14 @@ PUBLIC json_t *json_config(
             json_dumpf(jn_parameter_config, stdout, flags);
             printf("\n");
         }
-        json_dict_recursive_update(jn_variable_config, jn_parameter_config, true, quit);
+        json_dict_recursive_update(jn_variable_config, jn_parameter_config, TRUE, quit);
         json_decref(jn_parameter_config);
     }
 
     /*------------------------------*
      *      Merge the config
      *------------------------------*/
-    json_dict_recursive_update(jn_config, jn_variable_config, false, quit);
+    json_dict_recursive_update(jn_config, jn_variable_config, FALSE, quit);
     json_decref(jn_variable_config);
     if(print_verbose_config) {
         printf("Merged configuration ===>\n");

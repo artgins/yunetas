@@ -20,7 +20,7 @@ Example of id_token
   "session_state": "8d192831-cfe1-4a25-a42e-4ea71f6f555d",
   "at_hash": "vZbI642n7QbXGHK0MMqsDw",
   "acr": "1",
-  "email_verified": true,
+  "email_verified": TRUE,
   "name": "Yuneta Admin",
   "preferred_username": "yuneta_admin@mulesol.es",
   "locale": "es",
@@ -89,7 +89,7 @@ Example of access_token
     }
   },
   "scope": "openid profile offline_access email",
-  "email_verified": true,
+  "email_verified": TRUE,
   "name": "Yuneta Admin",
   "preferred_username": "yuneta_admin@mulesol.es",
   "locale": "es",
@@ -283,7 +283,7 @@ PRIVATE int mt_start(hgobj gobj)
         priv->port, sizeof(priv->port),
         priv->path, sizeof(priv->path),
         priv->query, sizeof(priv->query),
-        false
+        FALSE
     );
     if(r < 0) {
         gobj_log_error(gobj, 0,
@@ -298,10 +298,10 @@ PRIVATE int mt_start(hgobj gobj)
     if(strlen(priv->path) > 0 && priv->path[strlen(priv->path)-1]=='/') {
         priv->path[strlen(priv->path)-1] = 0;
     }
-    //BOOL secure = false;
+    //BOOL secure = FALSE;
     json_t *jn_crypto = json_null();
     if(strcasecmp(priv->schema, "https")==0 || strcasecmp(priv->schema, "wss")==0) {
-        //secure = true;
+        //secure = TRUE;
         jn_crypto = gobj_read_json_attr(gobj, "crypto");
     }
 
@@ -354,7 +354,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     hgobj gobj_task = gobj_create(gobj_name(gobj), C_TASK, kw_task, gobj);
     gobj_subscribe_event(gobj_task, EV_END_TASK, 0, gobj);
-    gobj_set_volatil(gobj_task, true); // auto-destroy
+    gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
     /*-----------------------*
      *      Start task

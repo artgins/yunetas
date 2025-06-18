@@ -672,7 +672,7 @@ PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 //    }
 //
 //    if(slave_id != -1) {
-//        slave_data_t *pslv = get_slave_data(gobj, slave_id, false);
+//        slave_data_t *pslv = get_slave_data(gobj, slave_id, FALSE);
 //        if(!pslv) {
 //            return msg_iev_build_response(
 //                gobj,
@@ -1385,7 +1385,7 @@ PRIVATE int build_slave_data(hgobj gobj)
     }
     char temp[128];
     char nice[64];
-    nice_size(nice, sizeof(nice), (uint64_t)array_size, false);
+    nice_size(nice, sizeof(nice), (uint64_t)array_size, FALSE);
     snprintf(temp, sizeof(temp), "Allocating Modbus Array of %s (%d) bytes, %d slaves",
         nice,
         array_size,
@@ -1479,7 +1479,7 @@ PRIVATE int build_slave_data(hgobj gobj)
                     pslv,
                     object_type,
                     address+i,
-                    true
+                    TRUE
                 );
                 if(!cell_control) {
                     // Error already logged
@@ -1730,7 +1730,7 @@ PRIVATE BOOL send_request(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(json_array_size(priv->jn_request_queue)==0) {
-        return false;
+        return FALSE;
     }
 
     json_t *jn_current_request = json_array_get(priv->jn_request_queue, 0);
@@ -1750,7 +1750,7 @@ PRIVATE BOOL send_request(hgobj gobj)
     // Set response timeout
     set_timeout(priv->gobj_timer, priv->timeout_response*1000);
 
-    return true;
+    return TRUE;
 }
 
 /***************************************************************************
@@ -1870,7 +1870,7 @@ PRIVATE int framehead_consume(hgobj gobj, FRAME_HEAD *frame, istream_h istream, 
         }
     }
 
-    frame->header_complete = true;
+    frame->header_complete = TRUE;
     return total_consumed;
 }
 
@@ -1988,13 +1988,13 @@ PRIVATE int store_slave_bit(
     int address,
     int value
 ) {
-    slave_data_t *pslv = get_slave_data(gobj, slave_id, true);
+    slave_data_t *pslv = get_slave_data(gobj, slave_id, TRUE);
     if(!pslv) {
         // Error already logged
         return -1;
     }
     //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
-    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, false);
+    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
     if(!cell_control) {
         // Error already logged
         return -1;
@@ -2015,13 +2015,13 @@ PRIVATE int store_slave_word(
     int address,
     uint8_t *bf
 ) {
-    slave_data_t *pslv = get_slave_data(gobj, slave_id, true);
+    slave_data_t *pslv = get_slave_data(gobj, slave_id, TRUE);
     if(!pslv) {
         // Error already logged
         return -1;
     }
     //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
-    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, false);
+    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
     if(!cell_control) {
         // Error already logged
         return -1;
@@ -2191,7 +2191,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
                     int temp = bf[i];
 
                     for (int bit = 0x01; (bit & 0xff) && (pos < req_size);) {
-                        BOOL value = (temp & bit) ? true : false;
+                        BOOL value = (temp & bit) ? TRUE : FALSE;
                         store_slave_bit(
                             gobj,
                             slave_id,
@@ -2214,7 +2214,7 @@ PRIVATE int store_modbus_response_data(hgobj gobj, uint8_t *bf, int len)
                     int temp = bf[i];
 
                     for (int bit = 0x01; (bit & 0xff) && (pos < req_size);) {
-                        BOOL value = (temp & bit) ? true : false;
+                        BOOL value = (temp & bit) ? TRUE : FALSE;
                         store_slave_bit(
                             gobj,
                             slave_id,
@@ -2622,7 +2622,7 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
     endian_format_t endian_format = get_endian_format(gobj, endian);
 
     //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
-    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, false);
+    cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
     if(!cell_control) {
         // Error already logged
         return jn_value;
@@ -2839,7 +2839,7 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
 
                 for(int i=0; i<size; i++) {
                     uint16_t *pv = 0;
-                    cell_control_t *cell2 = get_cell_control(gobj, pslv, object_type, address+i, false);
+                    cell_control_t *cell2 = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
                     switch(object_type) {
                         case TYPE_INPUT_REGISTER:
                             pv = &cell2->input_register;
@@ -2884,7 +2884,7 @@ PRIVATE int build_message_to_publish(hgobj gobj)
     size_t idx_slaves; json_t *jn_slave;
     json_array_foreach(priv->slaves_, idx_slaves, jn_slave) {
         int slave_id = (int)kw_get_int(gobj, jn_slave, "id", 0, KW_REQUIRED);
-        slave_data_t *pslv = get_slave_data(gobj, slave_id, true);
+        slave_data_t *pslv = get_slave_data(gobj, slave_id, TRUE);
         if(!pslv) {
             continue;
         }
@@ -3029,7 +3029,7 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
 
     for(int i=0; i<compound_value; i++) {
         //cell_control_t *cell_control = &pslv->control[object_type][address+i]; XXX
-        cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address+i, false);
+        cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
         if(!cell_control || !cell_control->control.value_busy) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -3080,7 +3080,7 @@ PRIVATE int check_conversion_variables(hgobj gobj)
     size_t idx_slaves; json_t *jn_slave;
     json_array_foreach(priv->slaves_, idx_slaves, jn_slave) {
         int slave_id = (int)kw_get_int(gobj, jn_slave, "id", 0, KW_REQUIRED);
-        slave_data_t *pslv = get_slave_data(gobj, slave_id, true);
+        slave_data_t *pslv = get_slave_data(gobj, slave_id, TRUE);
         if(!pslv) {
             continue;
         }
@@ -3145,7 +3145,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     gobj_change_state(gobj, ST_CONNECTED);
 
-    priv->inform_on_close = true;
+    priv->inform_on_close = TRUE;
     gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
     set_timeout(priv->gobj_timer, 1*1000);
@@ -3170,7 +3170,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
 
     if(priv->inform_on_close) {
-        priv->inform_on_close = false;
+        priv->inform_on_close = FALSE;
         gobj_publish_event(gobj, EV_ON_CLOSE, 0);
     }
 
@@ -3193,9 +3193,9 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*---------------------------------------------*
      *
      *---------------------------------------------*/
-    BOOL response_completed = false;
+    BOOL response_completed = FALSE;
     int lnn;
-    BOOL fin = false;
+    BOOL fin = FALSE;
     while(!fin && (lnn=(int)gbuffer_leftbytes(gbuf))>0) {
         char *bf = gbuffer_cur_rd_pointer(gbuf);
 
@@ -3206,7 +3206,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 if (n <= 0) {
                     // Some error in parsing
                     // on error do break the connection
-                    fin = true;
+                    fin = TRUE;
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
@@ -3222,7 +3222,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 if(priv->frame_head.header_complete) {
                     if(priv->frame_head.payload_length <= 0) {
                         // Error already logged. Can be an exception
-                        response_completed = true;
+                        response_completed = TRUE;
                         break;
                     }
 
@@ -3243,7 +3243,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                             "payload_length", "%d", priv->frame_head.payload_length,
                             NULL
                         );
-                        response_completed = true;
+                        response_completed = TRUE;
                         break;
                     }
                     istream_read_until_num_bytes(
@@ -3269,8 +3269,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                        );
                     }
                     frame_completed(gobj);
-                    response_completed = true;
-                    fin = true;
+                    response_completed = TRUE;
+                    fin = TRUE;
                 }
             }
             break;

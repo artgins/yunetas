@@ -252,7 +252,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             NULL
         );
     }
-    gobj_write_bool_attr(gobj, "opened", true);
+    gobj_write_bool_attr(gobj, "opened", TRUE);
 
     /*
      *  CHILD subscription model
@@ -279,7 +279,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
     gobj_change_state(gobj, ST_CLOSED);
-    gobj_write_bool_attr(gobj, "opened", false);
+    gobj_write_bool_attr(gobj, "opened", FALSE);
 
     /*
      *  CHILD subscription model

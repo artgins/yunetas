@@ -147,7 +147,7 @@ int do_test(void)
         yev_callback,
         server_url,     // listen_url,
         0,              // backlog,
-        false,          // shared
+        FALSE,          // shared
         AF_INET,        // ai_family AF_UNSPEC
         AI_ADDRCONFIG,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
         0
@@ -268,7 +268,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
     time_measure_t time_measure;

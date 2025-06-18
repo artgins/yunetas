@@ -63,7 +63,7 @@ PRIVATE int load_rango_callback(
             key,
             rowid,
             md_record,
-            false
+            FALSE
         );
         printf("%s\n", temp);
     }
@@ -102,7 +102,7 @@ PRIVATE int search_data(
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
     json_int_t from_rowid = FROM_ROWID;
@@ -276,7 +276,7 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -573,10 +573,10 @@ PRIVATE int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
-    result += debug_json("tranger", tranger, false);
+    result += debug_json("tranger", tranger, FALSE);
 
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs

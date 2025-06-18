@@ -130,7 +130,7 @@ PUBLIC int udpc_start_up(const char *process_name, const char *hostname, int pid
     __pid__ = pid;
 
     dl_init(&dl_clients, 0);
-    __initialized__ = true;
+    __initialized__ = TRUE;
     return 0;
 }
 
@@ -232,7 +232,7 @@ PUBLIC udpc_t udpc_open(
         uc->port, sizeof(uc->port),
         0, 0,
         0, 0,
-        false
+        FALSE
     );
     if(ret < 0) {
         free(uc->buffer);
@@ -666,7 +666,7 @@ PRIVATE void udp_tx_ev_loop_callback(
             if(errno != ENOMEM) {
                 close(uc->_s);
                 uc->_s = 0;
-                uc->disabled = true; // Wait to network on, yuno must re-open
+                uc->disabled = TRUE; // Wait to network on, yuno must re-open
             }
         }
     } else {

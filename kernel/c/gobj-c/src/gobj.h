@@ -41,7 +41,6 @@
 
 #pragma once
 
-#include <stdbool.h>
 #include <string.h>
 #include <time.h>
 #include <regex.h>
@@ -58,15 +57,15 @@ extern "C"{
  *              Constants
  ***************************************************************/
 #ifndef BOOL
-# define BOOL   bool
+# define BOOL   int
 #endif
 
 #ifndef FALSE
-# define FALSE  false
+# define FALSE  0
 #endif
 
 #ifndef TRUE
-# define TRUE   true
+# define TRUE   1
 #endif
 
 #define PRIVATE static
@@ -148,22 +147,22 @@ int main(int argc, char **argv) {
 
 /** Begin a switch for the string x */
 #define SWITCHS(x) \
-    { regmatch_t pmatch[1]; (void)pmatch; const char *__sw = (x); bool __done = false; bool __cont = false; \
+    { regmatch_t pmatch[1]; (void)pmatch; const char *__sw = (x); BOOL __done = FALSE; BOOL __cont = FALSE; \
         regex_t __regex; regcomp(&__regex, ".*", 0); do {
 
 /** Check if the string matches the cases argument (case sensitive) */
 #define CASES(x)    } if ( __cont || !strcmp ( __sw, x ) ) \
-    { __done = true; __cont = true;
+    { __done = TRUE; __cont = TRUE;
 
 /** Check if the string matches the icases argument (case insensitive) */
 #define ICASES(x)    } if ( __cont || !strcasecmp ( __sw, x ) ) { \
-    __done = true; __cont = true;
+    __done = TRUE; __cont = TRUE;
 
 /** Check if the string matches the specified regular expression using regcomp(3) */
 #define CASES_RE(x,flags) } regfree ( &__regex ); if ( __cont || ( \
   0 == regcomp ( &__regex, x, flags ) && \
   0 == regexec ( &__regex, __sw, ARRAY_SIZE(pmatch), pmatch, 0 ) ) ) { \
-    __done = true; __cont = true;
+    __done = TRUE; __cont = TRUE;
 
 /** Default behaviour */
 #define DEFAULTS } if ( !__done || __cont ) {
@@ -184,9 +183,9 @@ static inline BOOL empty_json(const json_t *jn)
     if((json_is_array(jn) && json_array_size(jn)==0) ||
         (json_is_object(jn) && json_object_size(jn)==0) ||
         json_is_null(jn)) {
-        return true;
+        return TRUE;
     } else {
-        return false;
+        return FALSE;
     }
 }
 

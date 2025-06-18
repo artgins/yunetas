@@ -332,20 +332,20 @@ PUBLIC int test_users(
             "t",
             NULL
         };
-        json_t *expected = string2json(helper_quote2doublequote(foto_final_users), true);
+        json_t *expected = string2json(helper_quote2doublequote(foto_final_users), TRUE);
         set_expected_results( // Check that no logs happen
             test,   // test name
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
 
         const char *operation = "create"; // "update" TODO
 
-        json_t *jn_users_file = string2json(helper_quote2doublequote(users_file), true);
+        json_t *jn_users_file = string2json(helper_quote2doublequote(users_file), TRUE);
         json_t *jn_treedbs = kw_get_dict(gobj, jn_users_file, "treedbs", 0, KW_REQUIRED);
         JSON_INCREF(jn_treedbs)
         if(load_treedbs(tranger, jn_treedbs, operation)<0) {

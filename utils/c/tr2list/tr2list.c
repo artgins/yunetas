@@ -269,7 +269,7 @@ int partial_counter = 0;
 json_t *match_cond = 0;
 
 int verbose = 0;
-BOOL table_mode = false;
+BOOL table_mode = FALSE;
 
 /***************************************************************************
  *
@@ -294,7 +294,7 @@ PRIVATE BOOL list_db_cb(
     printf("TimeRanger ==> '%s'\n", fullpath);
     list_topics(topic_path);
 
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int list_databases(const char *path)
@@ -331,7 +331,7 @@ PRIVATE BOOL list_topic_cb(
     } else {
         printf("        %s\n", directory);
     }
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int list_topics(const char *path)
@@ -362,7 +362,7 @@ PRIVATE int load_record_callback(
     json_t *jn_record  // must be owned
 )
 {
-    static BOOL first_time = true;
+    static BOOL first_time = TRUE;
     hgobj gobj = (hgobj)kw_get_int(0, tranger, "gobj", 0, KW_REQUIRED);
 
     total_counter++;
@@ -402,7 +402,7 @@ PRIVATE int load_record_callback(
 
     if(kw_has_key(match_cond, "filter")) {
         json_t *fields2match = kw_get_dict(gobj, match_cond, "filter", 0, KW_REQUIRED);
-        json_t *record1 = kw_clone_by_keys(gobj, json_incref(jn_record), json_incref(fields2match), false);
+        json_t *record1 = kw_clone_by_keys(gobj, json_incref(jn_record), json_incref(fields2match), FALSE);
         if(!json_equal(
             record1,        // NOT owned
             fields2match    // NOT owned
@@ -443,7 +443,7 @@ PRIVATE int load_record_callback(
             int len;
             int col;
             if(first_time) {
-                first_time = false;
+                first_time = FALSE;
                 col = 0;
                 json_object_foreach(jn_record, key, jn_value) {
                     len = (int)strlen(key);
@@ -524,7 +524,7 @@ PRIVATE int list_messages(void)
     json_t *topic = tranger2_open_topic(
         tranger,
         arguments.topic,
-        false
+        FALSE
     );
     if(!topic) {
         fprintf(stderr, "Can't open topic %s\n\n", arguments.topic);
@@ -559,7 +559,7 @@ PRIVATE int list_messages(void)
             json_incref(match_cond), // owned
             NULL,   // extra
             NULL,   // rt_id
-            false,  // rt_by_disk
+            FALSE,  // rt_by_disk
             NULL    // creator
         );
         tranger2_close_list(tranger, rt);
@@ -631,7 +631,7 @@ PRIVATE BOOL list_recursive_topic_cb(
         );
     }
 
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int list_recursive_topics(void)
@@ -687,7 +687,7 @@ PRIVATE BOOL search_topic_cb(
         }
     }
 
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int search_topics(void)
@@ -720,7 +720,7 @@ PRIVATE BOOL search_by_databases_cb(
 
     search_topics();
 
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int search_by_databases()
@@ -754,7 +754,7 @@ PRIVATE BOOL search_by_paths_cb(
 
     search_by_databases();
 
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int search_by_paths(void)
@@ -883,7 +883,7 @@ int main(int argc, char *argv[])
     gobj_setup_memory(
         MEM_MAX_BLOCK,  // max_block, largest memory block
         MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
-        false,
+        FALSE,
         0,
         0
     );
@@ -984,14 +984,14 @@ int main(int argc, char *argv[])
         json_object_set_new(
             match_cond,
             "filter",
-            legalstring2json(arguments.filter, true)
+            legalstring2json(arguments.filter, TRUE)
         );
     }
 
     verbose = arguments.verbose;
     if(!empty_string(arguments.mode) || !empty_string(arguments.fields)) {
         verbose = 3;
-        table_mode = true;
+        table_mode = TRUE;
     }
     if(kw_has_key(match_cond, "filter")) {
         verbose = 3;

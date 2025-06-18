@@ -40,7 +40,7 @@ static int test1_true(void)
 
     json_t *kw = json_pack("{s:s, s:b, s:i, s:f}",
         "string", "s",
-        "bool",  true,
+        "bool",  TRUE,
         "integer", 123,
         "real", 1.5
     );
@@ -58,7 +58,7 @@ static int test1_true(void)
     }
 
     jn_filter = json_pack("{s:b}",
-        "bool", true
+        "bool", TRUE
     );
     matched = kw_match_simple(kw, jn_filter);
     if(!matched) {
@@ -83,7 +83,7 @@ static int test1_true(void)
 
     jn_filter = json_pack("{s:s, s:b, s:i, s:f}",
         "string", "s",
-        "bool",  true,
+        "bool",  TRUE,
         "integer", 123,
         "real", 1.5
     );
@@ -94,7 +94,7 @@ static int test1_true(void)
 
     jn_filter = json_pack("[{s:s, s:b}, {s:i, s:f}]",
         "string", "s",
-        "bool",  true,
+        "bool",  TRUE,
         "integer", 123,
         "real", 1.5
     );
@@ -123,11 +123,11 @@ static int test1_false(void)
 {
     int result = 0;
     json_t *jn_filter = 0;
-    BOOL matched = false;
+    BOOL matched = FALSE;
 
     json_t *kw = json_pack("{s:s, s:b, s:i, s:f}",
         "string", "s",
-        "bool",  true,
+        "bool",  TRUE,
         "integer", 123,
         "real", 1.5
     );
@@ -141,7 +141,7 @@ static int test1_false(void)
     }
 
     jn_filter = json_pack("{s:b}",
-        "bool", false
+        "bool", FALSE
     );
     matched = kw_match_simple(kw, jn_filter);
     if(matched) {
@@ -166,7 +166,7 @@ static int test1_false(void)
 
     jn_filter = json_pack("{s:s, s:b, s:i, s:f}",
         "string", "ss",
-        "bool",  true,
+        "bool",  TRUE,
         "integer", 123,
         "real", 1.5
     );
@@ -177,7 +177,7 @@ static int test1_false(void)
 
     jn_filter = json_pack("[{s:s, s:b}, {s:i, s:f}]",
         "string", "sa",
-        "bool",  true,
+        "bool",  TRUE,
         "integer", 123,
         "real", 1.55
     );
@@ -210,12 +210,12 @@ static int test2_true(void)
     json_t *kw = json_pack("{s:{s:s, s:b, s:i, s:f}, s:[{s:s, s:b}, {s:i, s:f}]}",
         "object",
             "string1", "string1",
-            "true",  true,
+            "true",  TRUE,
             "integer", 123,
             "real", 1.5,
         "list",
             "string2", "string2",
-            "false",  false,
+            "false",  FALSE,
             "integer", 456,
             "real", 2.6
     );
@@ -228,10 +228,10 @@ static int test2_true(void)
     jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:s, s:b}]}",
         "object",
             "string1", "string1",
-            "true",  true,
+            "true",  TRUE,
         "list",
             "string2", "string2",
-            "false",  false
+            "false",  FALSE
 );
     matched = kw_match_simple(kw, jn_filter);
     if(!matched) {
@@ -241,7 +241,7 @@ static int test2_true(void)
     jn_filter = json_pack("{s:{s:s, s:b}, s:[{}, {s:i, s:f}]}",
         "object",
             "string1", "string1",
-            "true",  true,
+            "true",  TRUE,
         "list",
             "integer", 1235,
             "real", 1.55
@@ -254,10 +254,10 @@ static int test2_true(void)
     jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:s, s:b}, {s:i, s:f}]}",
         "object",
             "string1", "string1",
-            "true",  true,
+            "true",  TRUE,
         "list",
             "string2", "string2",
-            "false",  false,
+            "false",  FALSE,
             "integer", 4563,
             "real", 2.6
     );
@@ -281,12 +281,12 @@ static int test2_false(void)
     json_t *kw = json_pack("{s:{s:s, s:b, s:i, s:f}, s:[{s:s, s:b, s:i, s:f}]}",
         "object",
             "string1", "string1",
-            "true",  true,
+            "true",  TRUE,
             "integer", 123,
             "real", 1.5,
         "list",
             "string2", "string2",
-            "false",  false,
+            "false",  FALSE,
             "integer", 456,
             "real", 2.6
     );
@@ -294,7 +294,7 @@ static int test2_false(void)
     jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
         "object",
             "string1", "string1",
-            "true",  true,
+            "true",  TRUE,
         "list",
             "integer", 456,
             "real", 2.6
@@ -307,7 +307,7 @@ static int test2_false(void)
     jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
         "object",
             "string1", "string2",
-            "true",  true,
+            "true",  TRUE,
         "list",
             "integer", 456,
             "real", 2.6
@@ -320,7 +320,7 @@ static int test2_false(void)
     jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
         "object",
             "string1", "string1",
-            "true",  false,
+            "true",  FALSE,
         "list",
             "integer", 456,
             "real", 2.6
@@ -333,7 +333,7 @@ static int test2_false(void)
     jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
         "object",
             "string1", "string1",
-            "true",  true,
+            "true",  TRUE,
         "list",
             "integer", 4566,
             "real", 2.6
@@ -346,7 +346,7 @@ static int test2_false(void)
     jn_filter = json_pack("{s:{s:s, s:b}, s:[{s:i, s:f}]}",
         "object",
             "string1", "string1",
-            "true",  true,
+            "true",  TRUE,
         "list",
             "integer", 456,
             "real", 2.66
@@ -383,7 +383,7 @@ int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
     result += test_json(NULL);  // NULL: we want to check only the logs
 
@@ -416,7 +416,7 @@ int main(int argc, char *argv[])
     );
 
 //    gobj_set_deep_tracing(2);           // TODO TEST
-//    gobj_set_global_trace(0, true);     // TODO TEST
+//    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
     unsigned long memory_check_list[] = {0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);

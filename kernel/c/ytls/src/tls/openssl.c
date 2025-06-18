@@ -161,7 +161,7 @@ PRIVATE api_tls_t api_tls = {
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE BOOL __initialized__ = false;
+PRIVATE BOOL __initialized__ = FALSE;
 
 /***************************************************************************
  *
@@ -337,7 +337,7 @@ PRIVATE hytls init(
      *      Init OPENSSL
      *--------------------------------*/
     if(!__initialized__) {
-        __initialized__ = true;
+        __initialized__ = TRUE;
         SSL_library_init();
         OpenSSL_add_all_algorithms();
     }
@@ -615,7 +615,7 @@ PRIVATE void free_secure_filter(hsskt sskt_)
 PRIVATE void set_trace(hsskt sskt_, BOOL set)
 {
     sskt_t *sskt = sskt_;
-    sskt->ytls->trace = set?true:false;
+    sskt->ytls->trace = set?TRUE:FALSE;
 
     if(sskt->ytls->trace) {
         SSL_CTX_set_msg_callback(sskt->ytls->ctx, ssl_tls_trace);
@@ -691,7 +691,7 @@ PRIVATE int do_handshake(hsskt sskt_)
             a TLS/SSL connection has been established.
         */
         if(!sskt->handshake_informed) {
-            sskt->handshake_informed = true;
+            sskt->handshake_informed = TRUE;
             sskt->on_handshake_done_cb(sskt->user_data, 0);
         }
     }

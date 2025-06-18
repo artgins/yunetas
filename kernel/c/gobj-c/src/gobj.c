@@ -492,15 +492,15 @@ SDATA_END()
 
 
 /***************************************************************************
- *  Must trace? TODO set false in non-debug compilation
+ *  Must trace? TODO set FALSE in non-debug compilation
  ***************************************************************************/
 PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
 {
     if(__deep_trace__) {
-        return true;
+        return TRUE;
     }
     if(!gobj) {
-        return false;
+        return FALSE;
     }
     uint32_t trace =
         __global_trace_level__ & TRACE_MACHINE ||
@@ -509,19 +509,19 @@ PRIVATE inline BOOL is_machine_tracing(gobj_t * gobj, gobj_event_t event)
         ((__global_trace_level__ & TRACE_TIMER_PERIODIC) && event == EV_TIMEOUT_PERIODIC) ||
         ((__global_trace_level__ & TRACE_TIMER) && event == EV_TIMEOUT);
 
-    return trace?true:false;
+    return trace?TRUE:FALSE;
 }
 
 /***************************************************************************
- *  Must no trace? TODO set false in non-debug compilation
+ *  Must no trace? TODO set FALSE in non-debug compilation
  ***************************************************************************/
 PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj, gobj_event_t event)
 {
     if(__deep_trace__ > 1) {
-        return false;
+        return FALSE;
     }
     if(!gobj) {
-        return true;
+        return TRUE;
     }
     uint32_t no_trace =
         __global_trace_no_level__ & TRACE_MACHINE ||
@@ -530,7 +530,7 @@ PRIVATE inline BOOL is_machine_not_tracing(gobj_t * gobj, gobj_event_t event)
         ((__global_trace_no_level__ & TRACE_TIMER_PERIODIC) && event == EV_TIMEOUT_PERIODIC) ||
         ((__global_trace_no_level__ & TRACE_TIMER) && event == EV_TIMEOUT);
 
-    return no_trace?true:false;
+    return no_trace?TRUE:FALSE;
 }
 
 /***************************************************************************
@@ -611,7 +611,7 @@ PUBLIC int gobj_start_up(
         (decref_fn_t)gbuffer_decref
     );
 
-    __initialized__ = true;
+    __initialized__ = TRUE;
 
     return 0;
 }
@@ -731,7 +731,7 @@ PUBLIC void gobj_end(void)
 
     comm_prot_free();
 
-    __initialized__ = false;
+    __initialized__ = FALSE;
 }
 
 
@@ -890,7 +890,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
             gclass_unregister(gclass);
             return NULL;
         }
-        gclass->fsm_checked = true;
+        gclass->fsm_checked = TRUE;
     }
 
     return gclass;
@@ -1174,12 +1174,12 @@ PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass_)
 BOOL gclass_has_attr(hgclass gclass, const char* name)
 {
     if(!gclass) { // WARNING must be a silence function!
-        return false;
+        return FALSE;
     }
     if(empty_string(name)) {
-        return false;
+        return FALSE;
     }
-    return gclass_attr_desc(gclass, name, false)?true:false;
+    return gclass_attr_desc(gclass, name, FALSE)?TRUE:FALSE;
 }
 
 /***************************************************************************
@@ -1379,12 +1379,12 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
         // event_flag_t event_type.event_flag;
 
         if(!(event_->event_type.event_flag & EVF_OUTPUT_EVENT)) {
-            BOOL found = false;
+            BOOL found = FALSE;
             state = dl_first(&gclass->dl_states);
             while(state) {
                 event_action_t *ev_ac = _find_event_action(state, event_->event_type.event_name);
                 if(ev_ac) {
-                    found = true;
+                    found = TRUE;
                 }
                 state = dl_next(state);
             }
@@ -1527,7 +1527,7 @@ PUBLIC hgobj gobj_create2(
     }
 
     if(gobj_flag & (gobj_flag_service)) {
-        if(gobj_find_service(gobj_name, false)) {
+        if(gobj_find_service(gobj_name, FALSE)) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -1868,14 +1868,14 @@ PRIVATE int json_list_find(json_t *list, json_t *value)
 PRIVATE BOOL json_is_range(json_t *list)
 {
     if(json_array_size(list) != 2)
-        return false;
+        return FALSE;
 
     json_int_t first = json_integer_value(json_array_get(list, 0));
     json_int_t second = json_integer_value(json_array_get(list, 1));
     if(first <= second) {
-        return true;
+        return TRUE;
     } else {
-        return false;
+        return FALSE;
     }
 }
 
@@ -1898,7 +1898,7 @@ PRIVATE json_t *json_range_list(json_t *list)
 
 /***************************************************************************
  *  Extend array values.
- *  If as_set is true then not repeated values
+ *  If as_set is TRUE then not repeated values
  ***************************************************************************/
 PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set)
 {
@@ -1948,11 +1948,11 @@ PRIVATE json_t *json_listsrange2set(json_t *listsrange)
             if(json_is_range(value)) {
                 json_t *range = json_range_list(value);
                 if(range) {
-                    json_list_update(ln_list, range, true);
+                    json_list_update(ln_list, range, TRUE);
                     json_decref(range);
                 }
             } else {
-                json_list_update(ln_list, value, true);
+                json_list_update(ln_list, value, TRUE);
             }
         } else {
             // ignore the rest
@@ -2060,10 +2060,10 @@ PRIVATE hgobj gobj_create_tree0(
         JSON_DECREF(jn_tree)
         return 0;
     }
-    BOOL local_kw = false;
+    BOOL local_kw = FALSE;
     json_t *kw = kw_get_dict(parent, jn_tree, "kw", 0, 0);
     if(!kw) {
-        local_kw = true;
+        local_kw = TRUE;
         kw = json_object();
     }
 
@@ -2076,7 +2076,7 @@ PRIVATE hgobj gobj_create_tree0(
             json_t *jn_subscriber = kw_get_dict_value(parent, kw, "subscriber", 0, 0);
             if(json_is_string(jn_subscriber)) {
                 const char *subscriber_name = json_string_value(jn_subscriber);
-                hgobj subscriber = gobj_find_service(subscriber_name, false);
+                hgobj subscriber = gobj_find_service(subscriber_name, FALSE);
                 if(subscriber) {
                     json_object_set_new(kw, "subscriber", json_integer((json_int_t)(size_t)subscriber));
                 } else {
@@ -2464,8 +2464,8 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     /*--------------------------------*
      *      Delete subscriptions
      *--------------------------------*/
-    gobj_unsubscribe_list(gobj, json_incref(gobj->dl_subscriptions), true);
-    gobj_unsubscribe_list(gobj, json_incref(gobj->dl_subscribings), true);
+    gobj_unsubscribe_list(gobj, json_incref(gobj->dl_subscriptions), TRUE);
+    gobj_unsubscribe_list(gobj, json_incref(gobj->dl_subscribings), TRUE);
 
     /*--------------------------------*
      *      Delete from parent
@@ -2762,7 +2762,7 @@ PRIVATE int json2sdata(
     const char *key;
     json_t *jn_value;
     json_object_foreach(kw, key, jn_value) {
-        const sdata_desc_t *it = gclass_attr_desc(gobj->gclass, key, false);
+        const sdata_desc_t *it = gclass_attr_desc(gobj->gclass, key, FALSE);
         if(!it) {
             if(not_found_cb) {
                 not_found_cb(gobj, key);
@@ -3097,9 +3097,9 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             break;
         case DTP_BOOLEAN:
             jn_value = json_boolean(svalue);
-            if(strcasecmp(svalue, "true")==0) {
+            if(strcasecmp(svalue, "TRUE")==0) {
                 jn_value = json_true();
-            } else if(strcasecmp(svalue, "false")==0) {
+            } else if(strcasecmp(svalue, "FALSE")==0) {
                 jn_value = json_false();
             } else {
                 jn_value = atoi(svalue)? json_true(): json_false();
@@ -3112,14 +3112,14 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             jn_value = json_real(atof(svalue));
             break;
         case DTP_LIST:
-            jn_value = anystring2json(svalue, strlen(svalue), false);
+            jn_value = anystring2json(svalue, strlen(svalue), FALSE);
             if(!json_is_array(jn_value)) {
                 JSON_DECREF(jn_value)
                 jn_value = json_array();
             }
             break;
         case DTP_DICT:
-            jn_value = anystring2json(svalue, strlen(svalue), false);
+            jn_value = anystring2json(svalue, strlen(svalue), FALSE);
             if(!json_is_object(jn_value)) {
                 JSON_DECREF(jn_value)
                 jn_value = json_object();
@@ -3127,7 +3127,7 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             break;
         case DTP_JSON:
             if(!empty_string(svalue)) {
-                jn_value = anystring2json(svalue, strlen(svalue), false);
+                jn_value = anystring2json(svalue, strlen(svalue), FALSE);
             } else {
                 jn_value = json_null();
             }
@@ -3195,9 +3195,9 @@ PRIVATE int json2item(
             } else {
                 char *s = json2uglystr(jn_value_);
                 if(s) {
-                    if(strcasecmp(s, "true")==0) {
+                    if(strcasecmp(s, "TRUE")==0) {
                         jn_value2 = json_true();
-                    } else if(strcasecmp(s, "false")==0) {
+                    } else if(strcasecmp(s, "FALSE")==0) {
                         jn_value2 = json_false();
                     } else {
                         jn_value2 = atoi(s)? json_true(): json_false();
@@ -3234,7 +3234,7 @@ PRIVATE int json2item(
             } else if(json_is_string(jn_value_)) {
                 char *s = json2uglystr(jn_value_);
                 if(s) {
-                    jn_value2 = string2json(s, true);
+                    jn_value2 = string2json(s, TRUE);
                     GBMEM_FREE(s)
                 }
             }
@@ -3258,7 +3258,7 @@ PRIVATE int json2item(
             } else if(json_is_string(jn_value_)) {
                 char *s = json2uglystr(jn_value_);
                 if(s) {
-                    jn_value2 = string2json(s, true);
+                    jn_value2 = string2json(s, TRUE);
                     GBMEM_FREE(s)
                 }
             }
@@ -3422,7 +3422,7 @@ PUBLIC const sdata_desc_t *gobj_attr_desc(hgobj gobj_, const char *attr, BOOL ve
  ***************************************************************************/
 PUBLIC data_type_t gobj_attr_type(hgobj gobj, const char *name)
 {
-    const sdata_desc_t *sdata_desc = gobj_attr_desc(gobj, name, false);
+    const sdata_desc_t *sdata_desc = gobj_attr_desc(gobj, name, FALSE);
     if(sdata_desc) {
         return sdata_desc->type;
     } else {
@@ -3436,13 +3436,13 @@ PUBLIC data_type_t gobj_attr_type(hgobj gobj, const char *name)
 PUBLIC BOOL gobj_has_attr(hgobj hgobj, const char *name)
 {
     if(!hgobj) { // WARNING must be a silence function!
-        return false;
+        return FALSE;
     }
     if(empty_string(name)) {
-        return false;
+        return FALSE;
     }
     gobj_t *gobj = (gobj_t *)hgobj;
-    return gclass_attr_desc(gobj->gclass, name, false)?true:false;
+    return gclass_attr_desc(gobj->gclass, name, FALSE)?TRUE:FALSE;
 }
 
 /***************************************************************************
@@ -3450,11 +3450,11 @@ PUBLIC BOOL gobj_has_attr(hgobj hgobj, const char *name)
  ***************************************************************************/
 PUBLIC BOOL gobj_is_readable_attr(hgobj gobj, const char *name)
 {
-    const sdata_desc_t *it = gobj_attr_desc(gobj, name, true);
+    const sdata_desc_t *it = gobj_attr_desc(gobj, name, TRUE);
     if(it && it->flag & (ATTR_READABLE)) {
-        return true;
+        return TRUE;
     } else {
-        return false;
+        return FALSE;
     }
 }
 
@@ -3463,11 +3463,11 @@ PUBLIC BOOL gobj_is_readable_attr(hgobj gobj, const char *name)
  ***************************************************************************/
 PUBLIC BOOL gobj_is_writable_attr(hgobj gobj, const char *name)
 {
-    const sdata_desc_t *it = gobj_attr_desc(gobj, name, true);
+    const sdata_desc_t *it = gobj_attr_desc(gobj, name, TRUE);
     if(it && it->flag & (ATTR_WRITABLE)) {
-        return true;
+        return TRUE;
     } else {
-        return false;
+        return FALSE;
     }
 }
 
@@ -3507,7 +3507,7 @@ PUBLIC json_t *gobj_read_attr( // Return is NOT yours!
 ) {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         // TODO must be a item2json, to call mt_reading
         json_t *jn_value = json_object_get(hs, name);
@@ -3597,7 +3597,7 @@ PUBLIC int gobj_write_attr(
         );
     }
     json_t *hs = gobj_hsdata(gobj);
-    const sdata_desc_t *it = gobj_attr_desc(gobj, path, true);
+    const sdata_desc_t *it = gobj_attr_desc(gobj, path, TRUE);
     int ret = json2item(gobj, hs, it, jn_value);
 
     JSON_DECREF(jn_value)
@@ -3619,7 +3619,7 @@ PUBLIC int gobj_write_attrs(
     const char *attr;
     json_t *jn_value;
     json_object_foreach(kw, attr, jn_value) {
-        const sdata_desc_t *it = gobj_attr_desc(gobj, attr, true);
+        const sdata_desc_t *it = gobj_attr_desc(gobj, attr, TRUE);
         if(!it) {
             continue;
         }
@@ -3701,12 +3701,12 @@ PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name)
     gobj_t *gobj = gobj_;
 
     if(gobj_has_attr(gobj, name)) {
-        return true;
+        return TRUE;
     } else if(gobj && gobj->bottom_gobj) {
         return gobj_has_bottom_attr(gobj->bottom_gobj, name);
     }
 
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -3720,7 +3720,7 @@ PUBLIC const char *gobj_read_str_attr(hgobj gobj_, const char *name)
         return gobj_current_state(gobj);
     }
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3764,7 +3764,7 @@ PUBLIC BOOL gobj_read_bool_attr(hgobj gobj_, const char *name)
         }
     }
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3800,7 +3800,7 @@ PUBLIC json_int_t gobj_read_integer_attr(hgobj gobj_, const char *name)
         return gobj_trace_level(gobj);
     }
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3832,7 +3832,7 @@ PUBLIC double gobj_read_real_attr(hgobj gobj_, const char *name)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3864,7 +3864,7 @@ PUBLIC json_t *gobj_read_json_attr(hgobj gobj_, const char *name) // WARNING ret
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3896,7 +3896,7 @@ PUBLIC void *gobj_read_pointer_attr(hgobj gobj_, const char *name)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         if(gobj->gclass->gmt->mt_reading) {
             if(!(gobj->obflag & obflag_destroyed)) {
@@ -3928,7 +3928,7 @@ PUBLIC int gobj_write_str_attr(hgobj gobj_, const char *name, const char *value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         // WARNING value == 0  -> json_null()
         int ret = json_object_set_new(hs, name, value?json_string(value):json_null());
@@ -3959,7 +3959,7 @@ PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *value
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         char *value = GBMEM_STRNDUP(value_, len);
         if(!value) {
@@ -4006,7 +4006,7 @@ PUBLIC int gobj_write_bool_attr(hgobj gobj_, const char *name, BOOL value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         int ret = json_object_set_new(hs, name, json_boolean(value));
         if(gobj->gclass->gmt->mt_writing) {
@@ -4036,7 +4036,7 @@ PUBLIC int gobj_write_integer_attr(hgobj gobj_, const char *name, json_int_t val
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         int ret = json_object_set_new(hs, name, json_integer(value));
         if(gobj->gclass->gmt->mt_writing) {
@@ -4066,7 +4066,7 @@ PUBLIC int gobj_write_real_attr(hgobj gobj_, const char *name, double value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         int ret = json_object_set_new(hs, name, json_real(value));
         if(gobj->gclass->gmt->mt_writing) {
@@ -4096,7 +4096,7 @@ PUBLIC int gobj_write_json_attr(hgobj gobj_, const char *name, json_t *jn_value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         int ret = json_object_set(hs, name, jn_value);
         if(gobj->gclass->gmt->mt_writing) {
@@ -4127,7 +4127,7 @@ PUBLIC int gobj_write_new_json_attr(hgobj gobj_, const char *name, json_t *jn_va
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         int ret = json_object_set_new(hs, name, jn_value);
         if(gobj->gclass->gmt->mt_writing) {
@@ -4158,7 +4158,7 @@ PUBLIC int gobj_write_pointer_attr(hgobj gobj_, const char *name, void *value)
 {
     gobj_t *gobj = gobj_;
 
-    json_t *hs = gobj_hsdata2(gobj, name, false);
+    json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
         int ret = json_object_set_new(hs, name, json_integer((json_int_t)(size_t)value));
         if(gobj->gclass->gmt->mt_writing) {
@@ -4341,7 +4341,7 @@ PUBLIC int gobj_start(hgobj gobj_)
 //        monitor_gobj(MTOR_GOBJ_START, gobj);
 //    }
 
-    gobj->running = true;
+    gobj->running = TRUE;
 
     int ret = 0;
     if(gobj->gclass->gmt->mt_start) {
@@ -4485,7 +4485,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
 //        monitor_gobj(MTOR_GOBJ_STOP, gobj);
 //    }
 
-    gobj->running = false;
+    gobj->running = FALSE;
 
     int ret = 0;
     if(gobj->gclass->gmt->mt_stop) {
@@ -4643,12 +4643,12 @@ PUBLIC int gobj_play(hgobj gobj_)
 //    if(__trace_gobj_monitor__(gobj)) {
 //        monitor_gobj(MTOR_GOBJ_PLAY, gobj);
 //    }
-    gobj->playing = true;
+    gobj->playing = TRUE;
 
     if(gobj->gclass->gmt->mt_play) {
         int ret = gobj->gclass->gmt->mt_play(gobj);
         if(ret < 0) {
-            gobj->playing = false;
+            gobj->playing = FALSE;
         }
         return ret;
     } else {
@@ -4702,7 +4702,7 @@ PUBLIC int gobj_pause(hgobj gobj_)
 //    if(__trace_gobj_monitor__(gobj)) {
 //        monitor_gobj(MTOR_GOBJ_PAUSE, gobj);
 //    }
-    gobj->playing = false;
+    gobj->playing = FALSE;
 
     if(gobj->gclass->gmt->mt_pause) {
         return gobj->gclass->gmt->mt_pause(gobj);
@@ -4748,7 +4748,7 @@ PUBLIC int gobj_disable(hgobj gobj_)
         );
         return -1;
     }
-    gobj->disabled = true;
+    gobj->disabled = TRUE;
     if(gobj->gclass->gmt->mt_disable) {
         return gobj->gclass->gmt->mt_disable(gobj);
     } else {
@@ -4782,7 +4782,7 @@ PUBLIC int gobj_enable(hgobj gobj_)
         );
         return -1;
     }
-    gobj->disabled = false;
+    gobj->disabled = FALSE;
     if(gobj->gclass->gmt->mt_enable) {
         return gobj->gclass->gmt->mt_enable(gobj);
     } else {
@@ -5432,7 +5432,7 @@ PUBLIC BOOL gobj_match_gobj(
     if(__inherited_gclass_name__) {
         if(!gobj_typeof_inherited_gclass(gobj, __inherited_gclass_name__)) {
             JSON_DECREF(jn_filter) // clone
-            return false;
+            return FALSE;
         }
         json_object_del(jn_filter, "__inherited_gclass_name__");
     }
@@ -5440,14 +5440,14 @@ PUBLIC BOOL gobj_match_gobj(
     if(__gclass_name__) {
         if(!gobj_typeof_gclass(gobj, __gclass_name__)) {
             JSON_DECREF(jn_filter) // clone
-            return false;
+            return FALSE;
         }
         json_object_del(jn_filter, "__gclass_name__");
     }
     if(__state__) {
         if(strcasecmp(__state__, gobj_current_state(gobj))!=0) {
             JSON_DECREF(jn_filter) // clone
-            return false;
+            return FALSE;
         }
         json_object_del(jn_filter, "__state__");
     }
@@ -5456,11 +5456,11 @@ PUBLIC BOOL gobj_match_gobj(
         BOOL disabled = kw_get_bool(gobj, jn_filter, "__disabled__", 0, 0);
         if(disabled && !gobj_is_disabled(gobj)) {
             JSON_DECREF(jn_filter) // clone
-            return false;
+            return FALSE;
         }
         if(!disabled && gobj_is_disabled(gobj)) {
             JSON_DECREF(jn_filter) // clone
-            return false;
+            return FALSE;
         }
         json_object_del(jn_filter, "__disabled__");
     }
@@ -5469,7 +5469,7 @@ PUBLIC BOOL gobj_match_gobj(
         const char *child_name = gobj_name(gobj);
         if(strcmp(__gobj_name__, child_name)!=0) {
             JSON_DECREF(jn_filter) // clone
-            return false;
+            return FALSE;
         }
         json_object_del(jn_filter, "__gobj_name__");
     }
@@ -5478,7 +5478,7 @@ PUBLIC BOOL gobj_match_gobj(
         const char *child_name = gobj_name(gobj);
         if(strncmp(__prefix_gobj_name__, child_name, strlen(__prefix_gobj_name__))!=0) {
             JSON_DECREF(jn_filter) // clone
-            return false;
+            return FALSE;
         }
         json_object_del(jn_filter, "__prefix_gobj_name__");
     }
@@ -5486,14 +5486,14 @@ PUBLIC BOOL gobj_match_gobj(
     const char *key;
     json_t *jn_value;
 
-    BOOL matched = true;
+    BOOL matched = TRUE;
     json_object_foreach(jn_filter, key, jn_value) {
-        json_t *hs = gobj_hsdata2(gobj, key, false);
+        json_t *hs = gobj_hsdata2(gobj, key, FALSE);
         if(hs) {
             json_t *jn_var1 = json_object_get(hs, key);
             int cmp = cmp_two_simple_json(jn_var1, jn_value);
             if(cmp!=0) {
-                matched = false;
+                matched = FALSE;
                 break;
             }
         }
@@ -6221,9 +6221,9 @@ PUBLIC BOOL gobj_is_destroying(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     if(!gobj_ || gobj->obflag & (obflag_destroyed|obflag_destroying)) {
-        return true;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -6233,7 +6233,7 @@ PUBLIC BOOL gobj_is_running(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     if(gobj_is_destroying(gobj)) {
-        return false;
+        return FALSE;
     }
     return gobj->running;
 }
@@ -6246,7 +6246,7 @@ PUBLIC BOOL gobj_is_playing(hgobj gobj_)
     gobj_t *gobj = gobj_;
 
     if(gobj_is_destroying(gobj)) {
-        return false;
+        return FALSE;
     }
     return gobj->playing;
 }
@@ -6259,9 +6259,9 @@ PUBLIC BOOL gobj_is_service(hgobj gobj_)
     gobj_t *gobj = gobj_;
 
     if(gobj && (gobj->gobj_flag & (gobj_flag_service))) {
-        return true;
+        return TRUE;
     } else {
-        return false;
+        return FALSE;
     }
 }
 
@@ -6271,7 +6271,7 @@ PUBLIC BOOL gobj_is_service(hgobj gobj_)
 PUBLIC BOOL gobj_is_disabled(hgobj gobj)
 {
     if(gobj_is_destroying(gobj)) {
-        return true;
+        return TRUE;
     }
     return ((gobj_t *)gobj)->disabled;
 }
@@ -6283,9 +6283,9 @@ PUBLIC BOOL gobj_is_volatil(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     if(gobj->gobj_flag & gobj_flag_volatil) {
-        return true;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -6310,9 +6310,9 @@ PUBLIC BOOL gobj_is_pure_child(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     if(gobj->gobj_flag & gobj_flag_pure_child) {
-        return true;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -6322,9 +6322,9 @@ PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj_)
 {
     gobj_t *gobj = gobj_;
     if(gobj && gobj->parent && gobj->parent->bottom_gobj == gobj) {
-        return true;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -6333,9 +6333,9 @@ PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj_)
 PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name)
 {
     if(strcasecmp(((gobj_t *)gobj)->gclass->gclass_name, gclass_name)==0) {
-        return true;
+        return TRUE;
     } else {
-        return false;
+        return FALSE;
     }
 }
 
@@ -6348,12 +6348,12 @@ PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj_, const char *gclass_name)
 
     while(gobj) {
         if(strcasecmp(gclass_name, gobj->gclass->gclass_name)==0) {
-            return true;
+            return TRUE;
         }
         gobj = gobj->bottom_gobj;
     }
 
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -6455,7 +6455,7 @@ PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag)
     if(!gbuf) {
         return 0;
     }
-    BOOL add_sep = false;
+    BOOL add_sep = FALSE;
 
     char **name = (char **)sdata_flag_names;
     while(*name) {
@@ -6464,7 +6464,7 @@ PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag)
                 gbuffer_append(gbuf, "|", 1);
             }
             gbuffer_append(gbuf, *name, strlen(*name));
-            add_sep = true;
+            add_sep = TRUE;
         }
         flag = flag >> 1;
         name++;
@@ -7583,7 +7583,7 @@ PUBLIC BOOL gobj_change_state(
             "msg",          "%s", "hgobj NULL",
             NULL
         );
-        return false;
+        return FALSE;
     }
 
     gobj_t *gobj = (gobj_t *)hgobj;
@@ -7595,11 +7595,11 @@ PUBLIC BOOL gobj_change_state(
             "msg",          "%s", "gobj DESTROYED",
             NULL
         );
-        return false;
+        return FALSE;
     }
 
     if(gobj->current_state->state_name == state_name) {
-        return false;
+        return FALSE;
     }
     state_t *new_state = _find_state(gobj->gclass, state_name);
     if(!new_state) {
@@ -7611,13 +7611,13 @@ PUBLIC BOOL gobj_change_state(
             "state_name",   "%s", state_name,
             NULL
         );
-        return false;
+        return FALSE;
     }
     gobj->last_state = gobj->current_state;
     gobj->current_state = new_state;
 
     BOOL tracea = is_machine_tracing(gobj, EV_STATE_CHANGED);
-    BOOL tracea_states = __trace_gobj_states__(gobj)?true:false;
+    BOOL tracea_states = __trace_gobj_states__(gobj)?TRUE:FALSE;
     if(tracea || tracea_states) {
         if(trace_machine_format) {
             // No trace state
@@ -7653,7 +7653,7 @@ PUBLIC BOOL gobj_change_state(
         gobj_publish_event(gobj, EV_STATE_CHANGED, kw_st);
     }
 
-    return true;
+    return TRUE;
 }
 
 /***************************************************************************
@@ -7682,9 +7682,9 @@ PUBLIC BOOL gobj_in_this_state(hgobj hgobj, gobj_state_t state)
 {
     gobj_t *gobj = (gobj_t *)hgobj;
     if(gobj->current_state->state_name == state) {
-        return true;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -7696,9 +7696,9 @@ PUBLIC BOOL gobj_has_state(hgobj gobj_, gobj_state_t gobj_state)
 
     state_t *state = _find_state(gobj->gclass, gobj_state);
     if(state) {
-        return true;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -7706,15 +7706,15 @@ PUBLIC BOOL gobj_has_state(hgobj gobj_, gobj_state_t gobj_state)
  ***************************************************************************/
 PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)
 {
-    event_type_t *event_type = gobj_event_type(gobj, event, false);
+    event_type_t *event_type = gobj_event_type(gobj, event, FALSE);
     if(!event_type) {
-        return false;
+        return FALSE;
     }
 
     if(event_flag && !(event_type->event_flag & event_flag)) {
-        return false;
+        return FALSE;
     }
-    return true;
+    return TRUE;
 }
 
 /***************************************************************************
@@ -7722,20 +7722,20 @@ PUBLIC BOOL gobj_has_event(hgobj gobj, gobj_event_t event, event_flag_t event_fl
  ***************************************************************************/
 PUBLIC BOOL gobj_has_output_event(hgobj gobj, gobj_event_t event, event_flag_t event_flag)
 {
-    event_type_t *event_type = gobj_event_type(gobj, event, false);
+    event_type_t *event_type = gobj_event_type(gobj, event, FALSE);
     if(!event_type) {
-        return false;
+        return FALSE;
     }
 
     if(event_flag && !(event_type->event_flag & event_flag)) {
-        return false;
+        return FALSE;
     }
 
     if(!(event_type->event_flag & EVF_OUTPUT_EVENT)) {
-        return false;
+        return FALSE;
     }
 
-    return true;
+    return TRUE;
 }
 
 /***************************************************************************
@@ -7984,21 +7984,21 @@ PRIVATE BOOL _match_subscription(
     if(publisher) {
         gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
         if(publisher != publisher_) {
-            return false;
+            return FALSE;
         }
     }
 
     if(subscriber) {
         gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
         if(subscriber != subscriber_) {
-            return false;
+            return FALSE;
         }
     }
 
     if(event) {
         gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
         if(event != event_) {
-            return false;
+            return FALSE;
         }
     }
 
@@ -8006,44 +8006,44 @@ PRIVATE BOOL _match_subscription(
         json_t *kw_config = kw_get_dict(0, subs, "__config__", 0, 0);
         if(json_size(kw_config)>0) {
             if(!json_is_identical(kw_config, __config__)) {
-                return false;
+                return FALSE;
             }
         } else {
-            return false;
+            return FALSE;
         }
     }
     if(json_size(__global__)>0) {
         json_t *kw_global = kw_get_dict(0, subs, "__global__", 0, 0);
         if(json_size(kw_global)>0) {
             if(!json_is_identical(kw_global, __global__)) {
-                return false;
+                return FALSE;
             }
         } else {
-            return false;
+            return FALSE;
         }
     }
     if(json_size(__local__)>0) {
         json_t *kw_local = kw_get_dict(0, subs, "__local__", 0, 0);
         if(json_size(kw_local)>0) {
             if(!json_is_identical(kw_local, __local__)) {
-                return false;
+                return FALSE;
             }
         } else {
-            return false;
+            return FALSE;
         }
     }
     if(json_size(__filter__)>0) {
         json_t *kw_filter = kw_get_dict_value(0, subs, "__filter__", 0, 0);
         if(json_size(kw_filter)>0) {
             if(!json_is_identical(kw_filter, __filter__)) {
-                return false;
+                return FALSE;
             }
         } else {
-            return false;
+            return FALSE;
         }
     }
 
-    return true;
+    return TRUE;
 }
 
 /***************************************************************************
@@ -8341,7 +8341,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
             "subscriber",   "%s", gobj_full_name(subscriber),
             NULL
         );
-        gobj_unsubscribe_list(publisher, json_incref(dl_subs), false);
+        gobj_unsubscribe_list(publisher, json_incref(dl_subs), FALSE);
     }
     JSON_DECREF(dl_subs)
 
@@ -8426,7 +8426,7 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
             subs
         );
         if(result < 0) {
-            _delete_subscription(publisher, subs, true, true);
+            _delete_subscription(publisher, subs, TRUE, TRUE);
             subs = 0;
         }
     }
@@ -8533,7 +8533,7 @@ PUBLIC int gobj_unsubscribe_event(
 
     size_t idx; json_t *subs;
     json_array_foreach(dl_subs, idx, subs) {
-        _delete_subscription(publisher, subs, false, false);
+        _delete_subscription(publisher, subs, FALSE, FALSE);
         deleted++;
     }
 
@@ -8568,7 +8568,7 @@ PUBLIC int gobj_unsubscribe_list(
 
     size_t idx; json_t *subs=0;
     json_array_foreach(dl, idx, subs) {
-        _delete_subscription(gobj, subs, force, false);
+        _delete_subscription(gobj, subs, force, FALSE);
     }
     JSON_DECREF(dl_subs)
     JSON_DECREF(dl)
@@ -8774,7 +8774,7 @@ PUBLIC int gobj_publish_event(
      *  Event must be in output event list
      *  You can avoid this with gcflag_no_check_output_events flag
      *--------------------------------------------------------------*/
-    event_type_t *ev = gobj_event_type(publisher, event, true);
+    event_type_t *ev = gobj_event_type(publisher, event, TRUE);
     if(!(ev && ev->event_flag & (EVF_SYSTEM_EVENT|EVF_OUTPUT_EVENT))) {
         /*
          *  HACK ev can be null,
@@ -8960,7 +8960,7 @@ PUBLIC int gobj_publish_event(
             /*
              *  Check if System event: don't send it if subscriber has not it
              */
-            event_type_t *ev_ = gobj_event_type(subscriber, event, true);
+            event_type_t *ev_ = gobj_event_type(subscriber, event, TRUE);
             if(ev_) {
                 if(ev_->event_flag & EVF_SYSTEM_EVENT) {
                     if(!gobj_has_event(subscriber, ev_->event_name, 0)) {
@@ -9096,7 +9096,7 @@ PUBLIC int gobj_publish_event(
             "username": ""      // username authenticated
         }
 
- *  HACK if there is no authentication parser the authentication is true
+ *  HACK if there is no authentication parser the authentication is TRUE
     and the username is the current system user
  *  WARNING Becare and use no parser only in local services!
  ***************************************************************************/
@@ -9227,7 +9227,7 @@ PUBLIC json_t *gobj_authz(
 
 /****************************************************************************
  *  Return if user has authz in gobj in context
- *  HACK if there is no authz checker the authz is true
+ *  HACK if there is no authz checker the authz is TRUE
  ****************************************************************************/
 PUBLIC BOOL gobj_user_has_authz(
     hgobj gobj_,
@@ -9246,7 +9246,7 @@ PUBLIC BOOL gobj_user_has_authz(
             NULL
         );
         KW_DECREF(kw)
-        return false;
+        return FALSE;
     }
 
     /*----------------------------------------------------*
@@ -9280,7 +9280,7 @@ PUBLIC BOOL gobj_user_has_authz(
     }
 
     KW_DECREF(kw)
-    return true; // HACK if there is no authz checker the authz is true
+    return TRUE; // HACK if there is no authz checker the authz is TRUE
 }
 
 /****************************************************************************
@@ -9305,9 +9305,9 @@ PUBLIC const sdata_desc_t *authz_get_level_desc(
          *  Alias have precedence if there is no json_fn authz function.
          *  It's the combination to redirect the authz as `name` event,
          */
-        BOOL alias_checked = false;
+        BOOL alias_checked = FALSE;
         if(!pcmd->json_fn && pcmd->alias) {
-            alias_checked = true;
+            alias_checked = TRUE;
             const char **alias = pcmd->alias;
             while(alias && *alias) {
                 if(strcasecmp(*alias, auth)==0) {
@@ -9347,7 +9347,7 @@ PUBLIC json_t *gobj_build_authzs_doc(
     const char *service = kw_get_str(gobj, kw, "service", "", 0);
 
     if(!empty_string(service)) {
-        hgobj service_gobj = gobj_find_service(service, false);
+        hgobj service_gobj = gobj_find_service(service, FALSE);
         if(!service_gobj) {
             return json_sprintf("Service not found: '%s'", service);
         }
@@ -9371,7 +9371,7 @@ PUBLIC json_t *gobj_build_authzs_doc(
     int idx; json_t *jn_service;
     json_array_foreach(jn_services, idx, jn_service) {
         const char *service_ = json_string_value(jn_service);
-        hgobj gobj_service = gobj_find_service(service_, true);
+        hgobj gobj_service = gobj_find_service(service_, TRUE);
         if(gobj_service) {
             if(gclass_authz_desc(gobj_gclass(gobj_service))) {
                 json_t *l = authzs_list(gobj_service, authz);
@@ -10330,7 +10330,7 @@ PUBLIC json_t *gobj_node_children( // Return MUST be decref
 
 /***************************************************************************
  *  Return a hierarchical tree of the self-link topic
- *  If "webix" option is true return webix style (dict-list),
+ *  If "webix" option is TRUE return webix style (dict-list),
  *      else list of dict's
  *  __path__ field in all records (id`id`... style)
  *  If root node is not specified then the first with no parent is used
@@ -11575,17 +11575,17 @@ PUBLIC int gobj_set_gobj_no_trace(hgobj gobj_, const char *level, BOOL set)
 PUBLIC BOOL is_level_tracing(hgobj gobj_, uint32_t level)
 {
     if(__deep_trace__) {
-        return true;
+        return TRUE;
     }
     if(!gobj_) {
-        return (__global_trace_level__ & level)? true:false;
+        return (__global_trace_level__ & level)? TRUE:FALSE;
     }
     gobj_t * gobj = gobj_;
     uint32_t trace = __global_trace_level__ & level ||
         gobj->trace_level & level ||
         gobj->gclass->trace_level & level;
 
-    return trace?true:false;
+    return trace?TRUE:FALSE;
 }
 
 /***************************************************************************
@@ -11594,16 +11594,16 @@ PUBLIC BOOL is_level_tracing(hgobj gobj_, uint32_t level)
 PUBLIC BOOL is_level_not_tracing(hgobj gobj_, uint32_t level)
 {
     if(__deep_trace__ > 1) {
-        return false;
+        return FALSE;
     }
     if(!gobj_) {
-        return (__global_trace_no_level__ & level)? true:false;
+        return (__global_trace_no_level__ & level)? TRUE:FALSE;
     }
     gobj_t * gobj = gobj_;
     uint32_t no_trace = gobj->no_trace_level & level ||
         gobj->gclass->no_trace_level & level;
 
-    return no_trace?true:false;
+    return no_trace?TRUE:FALSE;
 }
 
 
@@ -12036,9 +12036,9 @@ PUBLIC void *dl_prev(void *curr)
 
 /***************************************************************
  *  Check if a new item has links: MUST have NO links
- *  Return true if it has links
+ *  Return TRUE if it has links
  ***************************************************************/
-static bool check_links(register dl_item_t *item)
+static BOOL check_links(register dl_item_t *item)
 {
     if(item->__prev__ || item->__next__ || item->__dl__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -12047,16 +12047,16 @@ static bool check_links(register dl_item_t *item)
             "msg",          "%s", "Wrong dl_item_t, WITH links",
             NULL
         );
-        return true;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************
  *  Check if a item has no links: MUST have links
- *  Return true if it has not links
+ *  Return TRUE if it has not links
  ***************************************************************/
-static bool check_no_links(register dl_item_t *item)
+static BOOL check_no_links(register dl_item_t *item)
 {
     if(!item->__dl__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -12065,9 +12065,9 @@ static bool check_no_links(register dl_item_t *item)
             "msg",          "%s", "Wrong dl_item_t, WITHOUT links",
             NULL
         );
-        return true;
+        return TRUE;
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************

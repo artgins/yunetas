@@ -204,9 +204,9 @@ PUBLIC BOOL treedb_is_treedbs_topic(
 )
 {
     if(!treedb_get_id_index(tranger, treedb_name, topic_name)) {
-        return false;
+        return FALSE;
     }
-    return true;
+    return TRUE;
 }
 
 /***************************************************************************
@@ -667,7 +667,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
 
     if(options && strstr(options,"persistent")) {
         do {
-            BOOL recreating = false;
+            BOOL recreating = FALSE;
             if(file_exists(schema_full_path, 0)) {
                 json_t *old_jn_schema = load_json_from_file(
                     gobj,
@@ -688,7 +688,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                     schema_version = schema_old_version;
                     break; // Nothing to do
                 } else {
-                    recreating = true;
+                    recreating = TRUE;
                     schema_version = schema_new_version;
                     JSON_DECREF(old_jn_schema)
                 }
@@ -710,8 +710,8 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
                 (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
                 (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
                 (log_opt_t)kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                true, // Create file if not exists or overwrite.
-                false, // only_read
+                TRUE, // Create file if not exists or overwrite.
+                FALSE, // only_read
                 jn_schema     // owned
             );
 
@@ -1150,7 +1150,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
             json_incref(pkey2s),
             kwid_new_dict(gobj, schema_topic, KW_VERBOSE, "cols"), // owned
             snap_tag,
-            false // create_schema
+            FALSE // create_schema
         );
     }
 
@@ -1382,8 +1382,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
             (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
             (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
             (log_opt_t)kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-            true, // Create the file if not exists or overwrite.
-            false, // only_read
+            TRUE, // Create the file if not exists or overwrite.
+            FALSE, // only_read
             jn_schema     // owned
         );
     } else {
@@ -1834,7 +1834,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
                     json_array_foreach(value, idx, v) {
                         switch(json_typeof(v)) {
                         case JSON_STRING:
-                            if(!json_str_in_list(gobj, desc_enum, json_string_value(v), true)) {
+                            if(!json_str_in_list(gobj, desc_enum, json_string_value(v), TRUE)) {
                                 gobj_log_error(gobj, 0,
                                     "function",     "%s", __FUNCTION__,
                                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -1871,7 +1871,7 @@ PRIVATE int check_desc_field(json_t *desc, json_t *dato)
                 }
                 break;
             case JSON_STRING:
-                if(!json_str_in_list(gobj, desc_enum, json_string_value(value), true)) {
+                if(!json_str_in_list(gobj, desc_enum, json_string_value(value), TRUE)) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -2488,13 +2488,13 @@ PRIVATE int set_tranger_field_value(
         }
     }
 
-    BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?true:false;
-    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?true:false;
-    BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?true:false;
-    BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
-    BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
-    BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?true:false;
-    BOOL is_template = kw_has_word(gobj, desc_flag, "template", 0)?true:false;
+    BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
+    BOOL is_enum = kw_has_word(gobj, desc_flag, "enum", 0)?TRUE:FALSE;
+    BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+    BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+    BOOL is_now = kw_has_word(gobj, desc_flag, "now", 0)?TRUE:FALSE;
+    BOOL is_template = kw_has_word(gobj, desc_flag, "template", 0)?TRUE:FALSE;
     if(!(is_persistent || is_hook || is_fkey)) {
         // Not save to tranger
         return 0;
@@ -2675,7 +2675,7 @@ PRIVATE int set_tranger_field_value(
                         json_object_set(record, field, value);
 
                     } else if(JSON_TYPEOF(value, JSON_STRING)) {
-                        json_t *v = legalstring2json(json_string_value(value), false);
+                        json_t *v = legalstring2json(json_string_value(value), FALSE);
                         if(json_is_array(v)) {
                             json_object_set_new(record, field, v);
                         } else {
@@ -2708,7 +2708,7 @@ PRIVATE int set_tranger_field_value(
                 json_object_set(record, field, value);
 
             } else if(JSON_TYPEOF(value, JSON_STRING)) {
-                json_t *v = legalstring2json(json_string_value(value), false);
+                json_t *v = legalstring2json(json_string_value(value), FALSE);
                 if(json_is_array(v)) {
                     json_object_set_new(record, field, v);
                 } else {
@@ -2727,7 +2727,7 @@ PRIVATE int set_tranger_field_value(
                 json_object_set(record, field, value);
 
             } else if(JSON_TYPEOF(value, JSON_STRING)) {
-                json_t *v = legalstring2json(json_string_value(value), false);
+                json_t *v = legalstring2json(json_string_value(value), FALSE);
                 if(json_is_object(v)) {
                     json_object_set_new(record, field, v);
                 } else {
@@ -2979,9 +2979,9 @@ PUBLIC int set_volatil_values(
             continue;
         }
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?true:false;
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if((is_persistent || is_hook || is_fkey)) {
             continue;
         }
@@ -3030,8 +3030,8 @@ PRIVATE int set_missing_values(
             continue;
         }
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if((is_hook || is_fkey)) {
             continue;
         }
@@ -3422,7 +3422,7 @@ PUBLIC BOOL decode_parent_ref(
     }
 
     if(!(pref && strchr(pref, '^'))) {
-        return false;
+        return FALSE;
     }
     int list_size;
     const char **ss = split2(pref, "^", &list_size);
@@ -3435,7 +3435,7 @@ PUBLIC BOOL decode_parent_ref(
             NULL
         );
         split_free2(ss);
-        return false;
+        return FALSE;
     }
 
     if(topic_name) {
@@ -3449,7 +3449,7 @@ PUBLIC BOOL decode_parent_ref(
     }
 
     split_free2(ss);
-    return true;
+    return TRUE;
 
 }
 
@@ -3467,7 +3467,7 @@ PUBLIC BOOL decode_child_ref(
     *topic_name = *id = 0;
 
     if(!(pref && strchr(pref, '^'))) {
-        return false;
+        return FALSE;
     }
     int list_size;
     const char **ss = split2(pref, "^", &list_size);
@@ -3480,14 +3480,14 @@ PUBLIC BOOL decode_child_ref(
             NULL
         );
         split_free2(ss);
-        return false;
+        return FALSE;
     }
 
     snprintf(topic_name, topic_name_size, "%s", ss[0]);
     snprintf(id, id_size, "%s", ss[1]);
 
     split_free2(ss);
-    return true;
+    return TRUE;
 
 }
 
@@ -3504,10 +3504,10 @@ PRIVATE BOOL is_fkey_registered(
     json_object_foreach(fkey_desc, parent_topic_name, jn_parent_field_name) {
         const char *hook_name = json_string_value(jn_parent_field_name);
         if(strcmp(parent_topic_name, parent_topic_name_)==0 && strcmp(hook_name, hook_name_)==0) {
-            return true;
+            return TRUE;
         }
     }
-    return false;
+    return FALSE;
 }
 
 /***************************************************************************
@@ -3681,8 +3681,8 @@ PRIVATE int load_links(
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_child_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_child_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(!is_fkey) {
             continue;
         }
@@ -4043,17 +4043,17 @@ PRIVATE json_t *get_fkey_refs(
 PRIVATE BOOL json_empty(json_t *value)
 {
     if(!value) {
-        return true;
+        return TRUE;
     }
     switch(json_typeof(value)) {
     case JSON_ARRAY:
-        return json_array_size(value)==0?true:false;
+        return json_array_size(value)==0?TRUE:FALSE;
     case JSON_OBJECT:
-        return json_object_size(value)==0?true:false;
+        return json_object_size(value)==0?TRUE:FALSE;
     case JSON_STRING:
-        return strlen(json_string_value(value))==0?true:false;
+        return strlen(json_string_value(value))==0?TRUE:FALSE;
     default:
-        return true;
+        return TRUE;
     }
 }
 
@@ -4075,7 +4075,7 @@ PRIVATE json_t *get_node_down_refs(  // Return MUST be decref
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         if(!is_hook) {
             continue;
         }
@@ -4124,7 +4124,7 @@ PRIVATE json_t *get_node_up_refs(  // Return MUST be decref
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(!is_fkey) {
             continue;
         }
@@ -4233,7 +4233,7 @@ PRIVATE BOOL copy_inherit_fields(
     json_t *primary_node  // NOT owned
 )
 {
-    BOOL ret = false;
+    BOOL ret = FALSE;
 
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
@@ -4244,13 +4244,13 @@ PRIVATE BOOL copy_inherit_fields(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        return false;
+        return FALSE;
     }
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_inherit = kw_has_word(gobj, desc_flag, "inherit", 0)?true:false;
+        BOOL is_inherit = kw_has_word(gobj, desc_flag, "inherit", 0)?TRUE:FALSE;
         if(!is_inherit) {
             continue;
         }
@@ -4261,7 +4261,7 @@ PRIVATE BOOL copy_inherit_fields(
         json_t *cell = kw_get_dict_value(gobj, primary_node, col_name, 0, 0);
         if(cell) {
             json_object_set(secondary_node, col_name, cell);
-            ret = true;
+            ret = TRUE;
         }
     }
 
@@ -4280,7 +4280,7 @@ PRIVATE BOOL inherit_links(
     json_t *primary_node  // NOT owned
 )
 {
-    BOOL ret = false;
+    BOOL ret = FALSE;
 
     json_t *cols = tranger2_dict_topic_desc_cols(tranger, topic_name);
     if(!cols) {
@@ -4291,13 +4291,13 @@ PRIVATE BOOL inherit_links(
             "topic_name",   "%s", topic_name,
             NULL
         );
-        return false;
+        return FALSE;
     }
 
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(!is_fkey) {
             continue;
         }
@@ -4319,10 +4319,10 @@ PRIVATE BOOL inherit_links(
                 const char *ref = json_string_value(fkey);
                 if(json_is_array(cell)) {
                     json_array_append_new(cell, json_string(ref));
-                    ret = true;
+                    ret = TRUE;
                 } else if(json_is_string(cell)) {
                     json_object_set_new(secondary_node, col_name, json_string(ref));
-                    ret = true;
+                    ret = TRUE;
                 }
             }
         }
@@ -4401,13 +4401,13 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*-----------------------------------*
      *  Single: exists already the id?
      *-----------------------------------*/
-    BOOL save_pkey = false;
-    BOOL save_id = false;
+    BOOL save_pkey = FALSE;
+    BOOL save_id = FALSE;
     json_t *pkey2_list = json_array(); // collect pkeys to save
 
     json_t *prev_record = exist_primary_node(indexx, id);
     if(!prev_record) {
-        save_id = true;
+        save_id = TRUE;
     }
     /*-----------------------------------*
      *  Look for a secondary key change
@@ -4436,7 +4436,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         );
         if(!exist_secondary_node(indexy, id, pkey2_value)) {
             // Not exist
-            save_pkey = true;
+            save_pkey = TRUE;
             json_array_append_new(pkey2_list, json_string(pkey2_name));
         }
     }
@@ -4459,14 +4459,14 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
     /*----------------------------------------*
      *  Create the tranger record to create
      *----------------------------------------*/
-    json_t *record = record2tranger(gobj, tranger, topic_name, kw, true);
+    json_t *record = record2tranger(gobj, tranger, topic_name, kw, TRUE);
     if(!record) {
         // Error already logged
         JSON_DECREF(pkey2_list)
         JSON_DECREF(kw)
         return 0;
     }
-    BOOL links_inherited = false;
+    BOOL links_inherited = FALSE;
     if(save_pkey && prev_record) {
         /*
          *  Si es un nodo secundario, copia los links del primario.
@@ -4703,7 +4703,7 @@ PUBLIC int treedb_save_node(
     /*---------------------------------------*
      *  Create the tranger record to update
      *---------------------------------------*/
-    json_t *record = record2tranger(gobj, tranger, topic_name, node, false);
+    json_t *record = record2tranger(gobj, tranger, topic_name, node, FALSE);
     if(!record) {
         // Error already logged
         return -1;
@@ -4845,8 +4845,8 @@ PUBLIC json_t *treedb_update_node( // WARNING Return is NOT YOURS, pure node
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         if(!(is_fkey || is_hook)) {
             json_t *new_value = kw_get_dict_value(gobj, kw, col_name, 0, 0);
             if(new_value) {
@@ -4934,7 +4934,7 @@ PUBLIC int treedb_delete_node(
     /*-------------------------------*
      *  Check hooks and fkeys
      *-------------------------------*/
-    BOOL to_delete = true;
+    BOOL to_delete = TRUE;
 
     /*-------------------------------*
      *      Childs
@@ -4969,7 +4969,7 @@ PUBLIC int treedb_delete_node(
              */
             json_t *down_refs_ = get_node_down_refs(gobj, tranger, node);
             if(json_array_size(down_refs_)>0) {
-                to_delete = false;
+                to_delete = FALSE;
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -4982,7 +4982,7 @@ PUBLIC int treedb_delete_node(
             JSON_DECREF(down_refs_);
 
         } else {
-            to_delete = false;
+            to_delete = FALSE;
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5001,11 +5001,11 @@ PUBLIC int treedb_delete_node(
     json_t *up_refs = get_node_up_refs(gobj, tranger, node);
     if(json_array_size(up_refs)>0) {
         if(force) {
-            if(treedb_clean_node(tranger, node, false)<0) {
-                to_delete = false;
+            if(treedb_clean_node(tranger, node, FALSE)<0) {
+                to_delete = FALSE;
             }
         } else {
-            to_delete = false;
+            to_delete = FALSE;
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5239,7 +5239,7 @@ PUBLIC int treedb_delete_instance(
     /*-------------------------------*
      *  Check hooks and fkeys
      *-------------------------------*/
-    BOOL to_delete = true;
+    BOOL to_delete = TRUE;
 
     /*-------------------------------*
      *      Childs
@@ -5274,7 +5274,7 @@ PUBLIC int treedb_delete_instance(
              */
             json_t *down_refs_ = get_node_down_refs(gobj, tranger, node);
             if(json_array_size(down_refs_)>0) {
-                to_delete = false;
+                to_delete = FALSE;
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5287,7 +5287,7 @@ PUBLIC int treedb_delete_instance(
             JSON_DECREF(down_refs_)
 
         } else {
-            to_delete = false;
+            to_delete = FALSE;
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5306,11 +5306,11 @@ PUBLIC int treedb_delete_instance(
     json_t *up_refs = get_node_up_refs(gobj, tranger, node);
     if(json_array_size(up_refs)>0) {
         if(force) {
-            if(treedb_clean_node(tranger, node, false)<0) {
-                to_delete = false;
+            if(treedb_clean_node(tranger, node, FALSE)<0) {
+                to_delete = FALSE;
             }
         } else {
-            to_delete = false;
+            to_delete = FALSE;
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
@@ -5336,7 +5336,7 @@ PUBLIC int treedb_delete_instance(
      *  List of deleted id's in memory
      *  (borrar un id record en tranger, y el resto?)
      *-------------------------------------------------*/
-    if(0) { // TODO tranger2_delete_soft_record(tranger, topic_name, __rowid__, true)==0) {
+    if(0) { // TODO tranger2_delete_soft_record(tranger, topic_name, __rowid__, TRUE)==0) {
         /*-------------------------------*
          *  Trace
          *-------------------------------*/
@@ -5550,7 +5550,7 @@ PRIVATE int search_and_remove_wrong_up_ref(
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(!is_fkey) {
             continue;
         }
@@ -5756,7 +5756,7 @@ PRIVATE int _link_nodes(
         );
     }
 
-    BOOL is_child_hook = kw_has_word(gobj, child_col_flag, "hook", 0)?true:false;
+    BOOL is_child_hook = kw_has_word(gobj, child_col_flag, "hook", 0)?TRUE:FALSE;
 
     json_t *child_data = kw_get_dict_value(gobj, child_node, child_field, 0, 0);
     if(!child_data) {
@@ -6141,9 +6141,9 @@ PRIVATE int _unlink_nodes(
         );
     }
 
-    BOOL is_child_hook = false;
+    BOOL is_child_hook = FALSE;
     if(kw_has_word(gobj, child_col_flag, "hook", 0)) {
-        is_child_hook = true;
+        is_child_hook = TRUE;
     }
 
     json_t *child_data = kw_get_dict_value(gobj, child_node, child_field, 0, 0);
@@ -6211,12 +6211,12 @@ PRIVATE int _unlink_nodes(
         {
             if(is_child_hook) {
                 // link: json_array_append(parent_hook_data, child_data);
-                BOOL found = false;
+                BOOL found = FALSE;
                 int idx; json_t *data;
                 json_array_foreach(parent_hook_data, idx, data) {
                     if(child_data == data) {
                         json_array_remove(parent_hook_data, idx);
-                        found = true;
+                        found = TRUE;
                         break;
                     }
                 }
@@ -6236,12 +6236,12 @@ PRIVATE int _unlink_nodes(
                 }
             } else {
                 // link: json_array_append(parent_hook_data, child_node);
-                BOOL found = false;
+                BOOL found = FALSE;
                 int idx; json_t *data;
                 json_array_foreach(parent_hook_data, idx, data) {
                     if(child_node == data) {
                         json_array_remove(parent_hook_data, idx);
-                        found = true;
+                        found = TRUE;
                         break;
                     }
                 }
@@ -6298,13 +6298,13 @@ PRIVATE int _unlink_nodes(
                 parent_id,
                 hook_name
             );
-            BOOL found = false;
+            BOOL found = FALSE;
             int idx; json_t *data;
             json_array_foreach(child_data, idx, data) {
                 if(json_typeof(data)==JSON_STRING) {
                     if(strcmp(pref, json_string_value(data))==0) {
                         json_array_remove(child_data, idx);
-                        found = true;
+                        found = TRUE;
                         break;
                     }
                 }
@@ -6435,7 +6435,7 @@ PUBLIC int treedb_clean_node(
     const char *topic_name = kw_get_str(gobj, node, "__md_treedb__`topic_name", 0, 0);
 
     int ret = 0;
-    BOOL to_save = false;
+    BOOL to_save = FALSE;
     json_t *up_refs = get_node_up_refs(gobj, tranger, node);
     if(json_array_size(up_refs)>0) {
         int idx; json_t *old_fkey;
@@ -6507,7 +6507,7 @@ PUBLIC int treedb_clean_node(
                 NULL
             );
         } else {
-            to_save = true;
+            to_save = TRUE;
         }
         JSON_DECREF(up_refs_)
     }
@@ -6568,7 +6568,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
         return -1;
     }
 
-    BOOL to_save = false;
+    BOOL to_save = FALSE;
     char parent_topic_name[NAME_MAX];
     char parent_id[NAME_MAX];
     char hook_name[NAME_MAX];
@@ -6576,7 +6576,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(!is_fkey) {
             continue; // Not a fkey, continue
         }
@@ -6675,7 +6675,7 @@ PUBLIC int treedb_autolink( // use fkeys fields of kw to auto-link
                 parent_node,    // NOT owned
                 node      // NOT owned
             )==0) {
-                to_save = true;
+                to_save = TRUE;
             } else {
                 // Error already logged
                 json_decref(jn_fkeys);
@@ -6777,9 +6777,9 @@ PRIVATE BOOL id_in_fkeys(const char *id, json_t *jn_fkey_value)
             0, 0
         );
         if(strcmp(id, parent_id)==0) {
-            return true;
+            return TRUE;
         } else {
-            return false;
+            return FALSE;
         }
 
     } else if(json_is_array(jn_fkey_value)) {
@@ -6796,10 +6796,10 @@ PRIVATE BOOL id_in_fkeys(const char *id, json_t *jn_fkey_value)
                 0, 0
             );
             if(strcmp(id, parent_id)==0) {
-                return true;
+                return TRUE;
             }
         }
-        return false;
+        return FALSE;
 
     } else if(json_is_object(jn_fkey_value)) {
         /*---------------*
@@ -6814,14 +6814,14 @@ PRIVATE BOOL id_in_fkeys(const char *id, json_t *jn_fkey_value)
                 0, 0
             );
             if(strcmp(id, parent_id)==0) {
-                return true;
+                return TRUE;
             }
         }
-        return false;
+        return FALSE;
 
     } else {
         // What fuck?
-        return false;
+        return FALSE;
     }
 }
 
@@ -6846,14 +6846,14 @@ PRIVATE BOOL match_fkey(json_t *jn_filter_value, json_t *jn_fkey_value)
          *---------------------------*/
         if(json_array_size(jn_filter_value)==0) {
             // Empty pass all
-            return true;
+            return TRUE;
         }
-        BOOL match = false;
+        BOOL match = FALSE;
         int x; json_t *jn_filter_v;
         json_array_foreach(jn_filter_value, x, jn_filter_v) {
             const char *id = json_string_value(jn_filter_v);
             if(id_in_fkeys(id, jn_fkey_value)) {
-                match = true;
+                match = TRUE;
                 break;
             }
         }
@@ -6866,13 +6866,13 @@ PRIVATE BOOL match_fkey(json_t *jn_filter_value, json_t *jn_fkey_value)
          *---------------------------*/
         if(json_object_size(jn_filter_value)==0) {
             // Empty pass all
-            return true;
+            return TRUE;
         }
-        BOOL match = true;
+        BOOL match = TRUE;
         const char *id; json_t *jn_filter_v;
         json_object_foreach(jn_filter_value, id, jn_filter_v) {
             if(!id_in_fkeys(id, jn_fkey_value)) {
-                match = false;
+                match = FALSE;
                 break;
             }
         }
@@ -6880,7 +6880,7 @@ PRIVATE BOOL match_fkey(json_t *jn_filter_value, json_t *jn_fkey_value)
 
     } else {
         // What merde?
-        return false;
+        return FALSE;
     }
 }
 
@@ -6907,14 +6907,14 @@ PRIVATE BOOL match_hook(json_t *jn_filter_value, json_t *jn_hook_value)
          *---------------------------*/
         if(json_array_size(jn_filter_value)==0) {
             // Empty pass all
-            return true;
+            return TRUE;
         }
-        BOOL match = false;
+        BOOL match = FALSE;
         int x; json_t *jn_filter_v;
         json_array_foreach(jn_filter_value, x, jn_filter_v) {
             const char *id = json_string_value(jn_filter_v);
             if(kwid_match_id(gobj, jn_hook_value, id)) {
-                match = true;
+                match = TRUE;
                 break;
             }
         }
@@ -6927,13 +6927,13 @@ PRIVATE BOOL match_hook(json_t *jn_filter_value, json_t *jn_hook_value)
          *---------------------------*/
         if(json_object_size(jn_filter_value)==0) {
             // Empty pass all
-            return true;
+            return TRUE;
         }
-        BOOL match = true;
+        BOOL match = TRUE;
         const char *id; json_t *jn_filter_v;
         json_object_foreach(jn_filter_value, id, jn_filter_v) {
             if(!kwid_match_id(gobj, jn_hook_value, id)) {
-                match = false;
+                match = FALSE;
                 break;
             }
         }
@@ -6941,7 +6941,7 @@ PRIVATE BOOL match_hook(json_t *jn_filter_value, json_t *jn_hook_value)
 
     } else {
         // What fuck?
-        return false;
+        return FALSE;
     }
 }
 
@@ -6957,12 +6957,12 @@ PRIVATE BOOL match_node_simple(
     hgobj gobj = 0;
 
     if(json_object_size(jn_filter)==0) {
-        // A empty object at first level evaluate as true.
-        return true;
+        // A empty object at first level evaluate as TRUE.
+        return TRUE;
     }
 
-    // Not Empty object evaluate as true, until a NOT match condition occurs.
-    BOOL matched = true;
+    // Not Empty object evaluate as TRUE, until a NOT match condition occurs.
+    BOOL matched = TRUE;
 
     const char *col_name;
     json_t *jn_filter_value;
@@ -6994,8 +6994,8 @@ PRIVATE BOOL match_node_simple(
             continue; // Never must occur
         }
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         if(is_fkey) {
             matched = match_fkey(jn_filter_value, jn_record_value);
             if(!matched) {
@@ -7013,12 +7013,12 @@ PRIVATE BOOL match_node_simple(
                     jn_record_value, // NOT owned
                     json_incref(jn_filter_value) // owned
                 )) {
-                    matched = false;
+                    matched = FALSE;
                     break;
                 }
             } else {
                 if(cmp_two_simple_json(jn_record_value, jn_filter_value)!=0) {
-                    matched = false;
+                    matched = FALSE;
                     break;
                 }
             }
@@ -7174,10 +7174,10 @@ PUBLIC json_t *node_collapsed_view( // Return MUST be decref
     const char *col_name; json_t *col;
     json_object_foreach(topic_desc, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
-        BOOL is_rowid = kw_has_word(gobj, desc_flag, "rowid", 0)?true:false;
-        BOOL is_required = kw_has_word(gobj, desc_flag, "required", 0)?true:false;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
+        BOOL is_rowid = kw_has_word(gobj, desc_flag, "rowid", 0)?TRUE:FALSE;
+        BOOL is_required = kw_has_word(gobj, desc_flag, "required", 0)?TRUE:FALSE;
         json_t *field_data = kw_get_dict_value(gobj, node, col_name, 0, is_required?KW_REQUIRED:0);
         if(!field_data) {
             // Something wrong?
@@ -7333,7 +7333,7 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
         gobj,
         jn_filter,     // owned
         kw_incref(topic_desc), // owned
-        false
+        FALSE
     );
 
     /*-------------------------------*
@@ -7470,7 +7470,7 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
         gobj,
         jn_filter,     // owned
         kw_incref(topic_desc), // owned
-        false
+        FALSE
     );
 
     /*-------------------------------*
@@ -7827,7 +7827,7 @@ PUBLIC json_t *treedb_parent_refs( // Return MUST be decref
         return 0;
     }
     json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-    BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+    BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
     if(!is_fkey) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7874,8 +7874,8 @@ PUBLIC json_t *treedb_list_parents( // Return MUST be decref
     json_t *tranger,
     const char *fkey, // must be a fkey field
     json_t *node, // not owned
-    BOOL collapsed_view, // true return collapsed views
-    json_t *jn_options // owned, fkey,hook options when collapsed_view is true
+    BOOL collapsed_view, // TRUE return collapsed views
+    json_t *jn_options // owned, fkey,hook options when collapsed_view is TRUE
 ) {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
@@ -7991,7 +7991,7 @@ PRIVATE json_t *_list_children(
         return 0;
     }
     json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-    BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
+    BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
     if(!is_hook) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -8326,7 +8326,7 @@ PUBLIC json_t *treedb_get_topic_links(
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if(is_fkey) {
             json_array_append_new(jn_list, json_string(col_name));
         }
@@ -8367,7 +8367,7 @@ PUBLIC json_t *treedb_get_topic_hooks(
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
         if(is_hook) {
             json_array_append_new(jn_list, json_string(col_name));
         }
@@ -8793,7 +8793,7 @@ PUBLIC json_t *create_template_record(
             col,
             new_record,
             value,
-            true
+            TRUE
         );
     }
 

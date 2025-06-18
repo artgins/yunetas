@@ -64,7 +64,7 @@ SDATA_END()
 PRIVATE const sdata_desc_t pm_download_firmware[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "url_ota",      0,              "",         "url_ota, immediately begin download and install firmware"),
-SDATAPM (DTP_BOOLEAN,   "force",        0,              "false",    "Force loading of another yuno_role"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              "FALSE",    "Force loading of another yuno_role"),
 SDATA_END()
 };
 
@@ -85,7 +85,7 @@ PRIVATE const sdata_desc_t attrs_table[] = {
 SDATA (DTP_STRING,  "url_ota",          SDF_WR,                 "",     "OTA url"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,            "",     "SSL server certificate, PEM format"),
 SDATA (DTP_INTEGER, "ota_state",        SDF_RD|SDF_STATS,       "",     "Image state"),
-SDATA (DTP_BOOLEAN, "force",            0,                      "false", "Force loading of another yuno_role"),
+SDATA (DTP_BOOLEAN, "force",            0,                      "FALSE", "Force loading of another yuno_role"),
 SDATA (DTP_INTEGER, "timeout_validate", SDF_PERSIST,           "60000", "timeout to invalidate new imag"),
 SDATA_END()
 };
@@ -149,7 +149,7 @@ PRIVATE void mt_create(hgobj gobj)
      *      Http client
      *------------------------------*/
     json_t *kw = json_pack("{s:b, s:s, s:I}",
-        "raw_body_data", true,
+        "raw_body_data", TRUE,
         "url", "",
         "subscriber", (json_int_t)(size_t)gobj
     );
@@ -175,7 +175,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*------------------------------*
      *      Periodic timeout
      *------------------------------*/
-    priv->gobj_controlcenter_c = gobj_find_service("controlcenter_c", true);
+    priv->gobj_controlcenter_c = gobj_find_service("controlcenter_c", TRUE);
     gobj_subscribe_event(priv->gobj_controlcenter_c, EV_ON_OPEN, NULL, gobj);
 }
 
@@ -397,7 +397,7 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
         port, sizeof(port),
         priv->binary_file, sizeof(priv->binary_file),
         0, 0,
-        false
+        FALSE
     )<0) {
         json_t *kw_response = build_command_response(
             gobj,
@@ -511,7 +511,7 @@ PRIVATE int get_binary_file(
 #ifdef ESP_PLATFORM
 PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
 {
-    BOOL image_checked = false;
+    BOOL image_checked = FALSE;
 
     esp_app_desc_t new_app_info;
     if (data_read < sizeof(esp_image_header_t) + sizeof(esp_image_segment_header_t) + sizeof(esp_app_desc_t)) {
@@ -522,7 +522,7 @@ PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
             "msg2",         "%s", "🌀👎file message data TOO SHORT",
             NULL
         );
-        return false;
+        return FALSE;
     }
 
     // check current version with downloading
@@ -544,7 +544,7 @@ PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
             "other",        "%s", new_app_info.project_name,
             NULL
         );
-        return false;
+        return FALSE;
     }
 
     gobj_log_info(gobj, 0,
@@ -566,7 +566,7 @@ PRIVATE BOOL check_image(hgobj gobj, char *ota_write_data, size_t data_read)
         // Allow write the same version
     }
 
-    image_checked = true;
+    image_checked = TRUE;
 
     return image_checked;
 }
@@ -652,7 +652,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
         priv->update_partition = NULL;
         priv->update_handle = 0;
-        priv->image_header_was_checked = false;
+        priv->image_header_was_checked = FALSE;
 #endif
         gobj_change_state(gobj, ST_DISCONNECTED);
         gobj_stop(priv->gobj_http_cli_ota);
@@ -709,7 +709,7 @@ PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
 #ifdef __linux__
         const char *filename = basename(priv->binary_file);
-        priv->fp = newfile(filename, 02770, true);
+        priv->fp = newfile(filename, 02770, TRUE);
 #endif
     } else {
         gobj_log_error(gobj, 0,

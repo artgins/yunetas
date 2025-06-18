@@ -138,7 +138,7 @@ PUBLIC json_t *msg2db_open_db(
 
     if(options && strstr(options,"persistent")) {
         do {
-            BOOL recreating = false;
+            BOOL recreating = FALSE;
             if(file_exists(schema_full_path, 0)) {
                 json_t *old_jn_schema = load_json_from_file(
                     gobj,
@@ -163,7 +163,7 @@ PUBLIC json_t *msg2db_open_db(
                     schema_version = schema_old_version;
                     break; // Nothing to do
                 } else {
-                    recreating = true;
+                    recreating = TRUE;
                     schema_version = schema_old_version;
                     JSON_DECREF(old_jn_schema);
                 }
@@ -185,8 +185,8 @@ PUBLIC json_t *msg2db_open_db(
                 (int)kw_get_int(gobj, tranger, "xpermission", 0, KW_REQUIRED),
                 (int)kw_get_int(gobj, tranger, "rpermission", 0, KW_REQUIRED),
                 kw_get_int(gobj, tranger, "on_critical_error", 0, KW_REQUIRED),
-                true, // Create file if not exists or overwrite.
-                false, // only_read
+                TRUE, // Create file if not exists or overwrite.
+                FALSE, // only_read
                 jn_schema     // owned
             );
 
@@ -530,8 +530,8 @@ PRIVATE int set_tranger_field_value(
         }
     }
 
-    BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?true:false;
-    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?true:false;
+    BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+    BOOL wild_conversion = kw_has_word(gobj, desc_flag, "wild", 0)?TRUE:FALSE;
     if(!(is_persistent)) {
         // Not save to tranger
         return 0;
@@ -777,9 +777,9 @@ PRIVATE int _set_volatil_values(
             continue;
         }
         json_t *desc_flag = kw_get_dict_value(gobj, col, "flag", 0, 0);
-        BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?true:false;
-        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?true:false;
-        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?true:false;
+        BOOL is_persistent = kw_has_word(gobj, desc_flag, "persistent", 0)?TRUE:FALSE;
+        BOOL is_hook = kw_has_word(gobj, desc_flag, "hook", 0)?TRUE:FALSE;
+        BOOL is_fkey = kw_has_word(gobj, desc_flag, "fkey", 0)?TRUE:FALSE;
         if((is_persistent || is_hook || is_fkey)) {
             continue;
         }

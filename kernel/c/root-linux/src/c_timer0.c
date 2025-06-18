@@ -338,7 +338,7 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     gobj_write_integer_attr(gobj, "msec", msec);
-    gobj_write_bool_attr(gobj, "periodic", false);
+    gobj_write_bool_attr(gobj, "periodic", FALSE);
 
     if(tracea) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(priv->yev_event));
@@ -358,7 +358,7 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
         json_decref(jn_flags);
     }
 
-    yev_start_timer_event(priv->yev_event, msec, false);
+    yev_start_timer_event(priv->yev_event, msec, FALSE);
 }
 
 /***************************************************************************
@@ -382,7 +382,7 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
     BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
 
     gobj_write_integer_attr(gobj, "msec", msec);
-    gobj_write_bool_attr(gobj, "periodic", true);
+    gobj_write_bool_attr(gobj, "periodic", TRUE);
 
     if(tracea) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(priv->yev_event));
@@ -402,7 +402,7 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
         json_decref(jn_flags);
     }
 
-    yev_start_timer_event(priv->yev_event, msec, true);
+    yev_start_timer_event(priv->yev_event, msec, TRUE);
 }
 
 /***************************************************************************

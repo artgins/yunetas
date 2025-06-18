@@ -279,7 +279,7 @@ PRIVATE int open_tranger(hgobj gobj)
         match_cond,             // match_cond, owned
         NULL,                   // extra
         "",                     // rt_id
-        false,                  // rt_by_disk
+        FALSE,                  // rt_by_disk
         NULL                    // creator
     );
 
@@ -336,7 +336,7 @@ PRIVATE int ac_timeout_to_connect(hgobj gobj, const char *event, json_t *kw, hgo
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->gobj_output_side = gobj_find_service("__output_side__", true);
+    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
     gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
     gobj_start_tree(priv->gobj_output_side);
 
@@ -398,7 +398,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    json_t *jn_record = gbuf2json(gbuffer_incref(gbuf), true);
+    json_t *jn_record = gbuf2json(gbuffer_incref(gbuf), TRUE);
     gbuffer_reset_rd(gbuf);
     md2_record_ex_t md_record;
     tranger2_append_record(priv->tranger2, TOPIC_NAME, 0, 0, &md_record, jn_record);

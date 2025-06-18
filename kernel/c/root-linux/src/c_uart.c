@@ -192,12 +192,12 @@ PRIVATE int mt_stop(hgobj gobj)
 
     gobj_stop(priv->gobj_timer);
 
-    BOOL change_to_wait_stopped = false;
+    BOOL change_to_wait_stopped = FALSE;
 
     if(priv->yev_client_rx) {
         yev_stop_event(priv->yev_client_rx);
         if(yev_event_is_stopping(priv->yev_client_rx)) {
-            change_to_wait_stopped = true;
+            change_to_wait_stopped = TRUE;
         }
     }
 
@@ -569,7 +569,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 
     yev_start_event(priv->yev_client_rx);
 
-    priv->inform_disconnection = true;
+    priv->inform_disconnection = TRUE;
 
     /*
      *  Publish
@@ -652,7 +652,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
      *  Info of "disconnected"
      */
     if(priv->inform_disconnection) {
-        priv->inform_disconnection = false;
+        priv->inform_disconnection = FALSE;
 
         /*
          *  CHILD subscription model

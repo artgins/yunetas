@@ -76,7 +76,7 @@ int do_test(void)
         ),
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -101,9 +101,9 @@ int do_test(void)
         set_expected_results(
             "check__timeranger2__.json",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), true),
+            string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
-            true
+            TRUE
         );
         result += test_json_file(file);
     }
@@ -148,9 +148,9 @@ int do_test(void)
         set_expected_results(
             "check_topic_desc.json",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), true),
+            string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
-            true
+            TRUE
         );
         result += test_json_file(file);
     }
@@ -170,9 +170,9 @@ int do_test(void)
         set_expected_results(
             "check_topic_cols.json",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), true),
+            string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
-            true
+            TRUE
         );
         result += test_json_file(file);
     }
@@ -190,9 +190,9 @@ int do_test(void)
         set_expected_results(
             "check_topic_var.json",      // test name
             NULL,
-            string2json(helper_quote2doublequote(expected), true),
+            string2json(helper_quote2doublequote(expected), TRUE),
             NULL,
-            true
+            TRUE
         );
         result += test_json_file(file);
     }
@@ -244,7 +244,7 @@ int do_test(void)
             "__timeranger2__.json",
             NULL
         };
-        json_t *expected_ = string2json(helper_quote2doublequote(expected), true);
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
         if(!expected_) {
             result += -1;
         }
@@ -253,7 +253,7 @@ int do_test(void)
             NULL,
             expected_,
             ignore_keys,
-            true
+            TRUE
         );
         result += test_json(json_incref(tranger));
     }
@@ -268,7 +268,7 @@ int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
     tranger2_close_topic(tranger, TOPIC_NAME);
@@ -304,7 +304,7 @@ int do_test(void)
             "__timeranger2__.json",
             NULL
         };
-        json_t *expected_ = string2json(helper_quote2doublequote(expected), true);
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
         if(!expected_) {
             result += -1;
         }
@@ -313,7 +313,7 @@ int do_test(void)
             NULL,
             expected_,
             ignore_keys,
-            true
+            TRUE
         );
         result += test_json(json_incref(tranger));
     }
@@ -348,7 +348,7 @@ int do_test(void)
             NULL
         };
 
-        json_t *expected_ = string2json(helper_quote2doublequote(expected), true);
+        json_t *expected_ = string2json(helper_quote2doublequote(expected), TRUE);
         if(!expected_) {
             result += -1;
         }
@@ -360,7 +360,7 @@ int do_test(void)
             ),
             expected_,
             ignore_keys,
-            true
+            TRUE
         );
 
         json_t *jn_tr = json_pack("{s:s, s:s, s:b, s:i}",
@@ -378,7 +378,7 @@ int do_test(void)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         tranger2_shutdown(tr);
         result += test_json(NULL);  // NULL: we want to check only the logs
@@ -392,7 +392,7 @@ int do_test(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -426,7 +426,7 @@ int main(int argc, char *argv[])
     );
 
 //    gobj_set_deep_tracing(2);           // TODO TEST
-//    gobj_set_global_trace(0, true);     // TODO TEST
+//    gobj_set_global_trace(0, TRUE);     // TODO TEST
 
     unsigned long memory_check_list[] = {1377, 0}; // WARNING: list ended with 0
     set_memory_check_list(memory_check_list);

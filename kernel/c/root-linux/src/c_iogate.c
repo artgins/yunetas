@@ -539,7 +539,7 @@ PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, h
         hgobj child = gobj_first_child(gobj);
         while(child) {
             if(gobj_match_gobj(child, json_incref(jn_filter))) {
-                gobj_set_gobj_trace(child, "", true, 0);
+                gobj_set_gobj_trace(child, "", TRUE, 0);
             }
             child = gobj_next_child(child);
         }
@@ -568,7 +568,7 @@ PRIVATE json_t *cmd_trace_on_channels(hgobj gobj, const char *cmd, json_t *kw, h
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
                     continue;
                 }
-                gobj_set_gobj_trace(child, "", true, 0);
+                gobj_set_gobj_trace(child, "", TRUE, 0);
             }
             child = gobj_next_child(child);
         }
@@ -592,7 +592,7 @@ PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, 
         hgobj child = gobj_first_child(gobj);
         while(child) {
             if(gobj_match_gobj(child, json_incref(jn_filter))) {
-                gobj_set_gobj_trace(child, "", false, 0);
+                gobj_set_gobj_trace(child, "", FALSE, 0);
             }
             child = gobj_next_child(child);
         }
@@ -621,7 +621,7 @@ PRIVATE json_t *cmd_trace_off_channels(hgobj gobj, const char *cmd, json_t *kw, 
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
                     continue;
                 }
-                gobj_set_gobj_trace(child, "", false, 0);
+                gobj_set_gobj_trace(child, "", FALSE, 0);
             }
             child = gobj_next_child(child);
         }
@@ -1053,7 +1053,7 @@ PRIVATE int ac_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Need to recover the good pointer, it lost at pass as json string
      *  (pass as integer is a solution, but by now, repeat
      */
-    gobj_event_t iev_event = gclass_find_public_event(iev_event_, true);
+    gobj_event_t iev_event = gclass_find_public_event(iev_event_, TRUE);
 
     json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
 

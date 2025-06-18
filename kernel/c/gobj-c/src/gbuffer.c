@@ -100,7 +100,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
             "max_memory_size",  "%ld", gbuf->max_memory_size,
             NULL
         );
-        return false;
+        return FALSE;
     }
 
     /*
@@ -115,7 +115,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
             "more",         "%d", (int)more,
             NULL
         );
-        return false;
+        return FALSE;
     }
     gbuf->data = new_buf;
     gbuf->data_size = more;
@@ -129,7 +129,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
             NULL
         );
     }
-    return true;
+    return TRUE;
 }
 
 /***************************************************************************

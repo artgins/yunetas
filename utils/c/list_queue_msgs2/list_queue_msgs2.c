@@ -379,7 +379,7 @@ int main(int argc, char *argv[])
     gobj_setup_memory(
         MEM_MAX_BLOCK,  // max_block, largest memory block
         MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
-        false,
+        FALSE,
         0,
         0
     );

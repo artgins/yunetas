@@ -273,7 +273,7 @@ PUBLIC int trq_load(tr_queue_t * trq)
         match_cond, // owned
         jn_extra,   // owned
         NULL,       // rt_id
-        false,
+        FALSE,
         NULL        // creator
     );
     if(!tr_list) {
@@ -322,7 +322,7 @@ PUBLIC int trq_load_all(tr_queue_t * trq, int64_t from_rowid, int64_t to_rowid)
         match_cond, // owned
         jn_extra,   // owned
         NULL,       // rt_id
-        false,
+        FALSE,
         NULL        // creator
     );
     tranger2_close_list(trq->tranger, tr_list);
@@ -360,7 +360,7 @@ PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t)
         match_cond, // owned
         jn_extra,   // owned
         NULL,       // rt_id
-        false,
+        FALSE,
         NULL        // creator
     );
     tranger2_close_list(trq->tranger, tr_list);
@@ -523,11 +523,11 @@ PUBLIC json_t *trq_msg_json(q_msg_t *msg) // Load the message, Return json is YO
 
 //PUBLIC BOOL trq_msg_is_t_ms(q_msg_t *msg)
 //{
-//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?true:false;
+//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_t_ms)?true:FALSE;
 //}
 //PUBLIC BOOL trq_msg_is_tm_ms(q_msg_t *msg)
 //{
-//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_tm_ms)?true:false;
+//    return (((q_msg_t *)msg)->md_record.__system_flag__ & sf_tm_ms)?true:FALSE;
 //}
 
 
@@ -607,7 +607,7 @@ PUBLIC int trq_check_backup(tr_queue_t * trq)
                 trq->topic_name,
                 0,
                 0,
-                true,
+                TRUE,
                 0
             );
             trq_set_first_rowid(trq, 0);

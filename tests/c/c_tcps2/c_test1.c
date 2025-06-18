@@ -141,7 +141,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     gobj_play(priv->pepon);
 
-    priv->gobj_output_side = gobj_find_service("__output_side__", true);
+    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
     gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
 
     set_timeout(priv->timer, 1000);

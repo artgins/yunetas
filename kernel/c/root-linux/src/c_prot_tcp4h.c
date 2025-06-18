@@ -210,7 +210,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_write_bool_attr(gobj, "connected", true);
+    gobj_write_bool_attr(gobj, "connected", TRUE);
 
     /*
      *  CHILD subscription model
@@ -227,7 +227,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    gobj_write_bool_attr(gobj, "connected", false);
+    gobj_write_bool_attr(gobj, "connected", FALSE);
 
     /*
      *  CHILD subscription model
@@ -453,7 +453,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 //    KW_DECREF(kw)
 //    return 0;
 
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     size_t len = gbuffer_leftbytes(gbuf);
     gbuffer_t *new_gbuf;
     HEADER_ERPL4 header_erpl4;

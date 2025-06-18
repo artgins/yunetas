@@ -163,7 +163,7 @@ yev_loop_h yev_loop;
 //    } else {
 //        printf("        %s\n", directory);
 //    }
-//    return true; // to continue
+//    return TRUE; // to continue
 //}
 //
 //PRIVATE int list_topics(const char *path)
@@ -238,7 +238,7 @@ PRIVATE int copy_file(const char *source, const char *destination)
         return -1;
     }
 
-    if ((output = newfile(destination, 0660, false)) == -1) {
+    if ((output = newfile(destination, 0660, FALSE)) == -1) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -343,7 +343,7 @@ PRIVATE BOOL copy_files_first_level_cb(
                 NULL
             );
             gobj_set_exit_code(-1);
-            return false;
+            return FALSE;
         }
 
         json_t *jn_tranger = json_pack("{s:s, s:s, s:i, s:i, s:i, s:b}",
@@ -363,7 +363,7 @@ PRIVATE BOOL copy_files_first_level_cb(
         if(!tranger2) {
             exit(-1);
         }
-        return true; // to continue
+        return TRUE; // to continue
 
     } else {
         build_path(path_source, sizeof(path_source), directory, name, NULL);
@@ -373,7 +373,7 @@ PRIVATE BOOL copy_files_first_level_cb(
         exit(-1);
     }
 
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int copy_files_first_level(char *source, char *destine)
@@ -452,7 +452,7 @@ PRIVATE BOOL copy_topics_cb(
             "path",         "%s", path_source,
             NULL
         );
-        return true;
+        return TRUE;
     }
 
     /*
@@ -478,7 +478,7 @@ PRIVATE BOOL copy_topics_cb(
     json_t *topic1 = tranger_open_topic( // WARNING returned json IS NOT YOURS
         tranger1,
         name,
-        true
+        TRUE
     );
     if(!topic1) {
         exit(-1);
@@ -511,7 +511,7 @@ PRIVATE BOOL copy_topics_cb(
 
     printf("Migrated topic: %s, records: %ld\n", topic_name, topic_records);
 
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int copy_topics(char *source, char *destine)
@@ -621,7 +621,7 @@ int main(int argc, char *argv[])
     gobj_setup_memory(
         MEM_MAX_BLOCK,  // max_block, largest memory block
         MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
-        false,
+        FALSE,
         0,
         0
     );

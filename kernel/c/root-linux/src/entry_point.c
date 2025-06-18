@@ -86,7 +86,7 @@ uint64_t MEM_MAX_BLOCK = 16*1024LL*1024LL;         /* largest memory block */
 uint64_t MEM_SUPERBLOCK = 16*1024LL*1024LL;        /* super-block size */
 uint64_t MEM_MAX_SYSTEM_MEMORY = 64*1024LL*1024LL; /* maximum core memory */
 
-BOOL USE_OWN_SYSTEM_MEMORY = false;
+BOOL USE_OWN_SYSTEM_MEMORY = FALSE;
 
 /***************************************************************************
  *      Structures
@@ -398,7 +398,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(arguments.print_verbose_config ||
             arguments.print_final_config ||
             arguments.print_role) {
-        __print__ = true;
+        __print__ = TRUE;
     }
 
     /*------------------------------------------------*
@@ -439,8 +439,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
      *          Load json config
      *------------------------------------------------*/
     __jn_config__ = json_config(
-        arguments.print_verbose_config,     // WARNING if true will exit(0)
-        arguments.print_final_config,       // WARNING if true will exit(0)
+        arguments.print_verbose_config,     // WARNING if TRUE will exit(0)
+        arguments.print_final_config,       // WARNING if TRUE will exit(0)
         fixed_config,
         variable_config,
         arguments.use_config_file? arguments.config_json_file: 0,
@@ -527,7 +527,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                 const char *filename_mask = kw_get_str(0, kw, "filename_mask", 0, 0);
                 if(!empty_string(filename_mask)) {
                     char temp[NAME_MAX];
-                    char *path = yuneta_log_file(temp, sizeof(temp), filename_mask, true);
+                    char *path = yuneta_log_file(temp, sizeof(temp), filename_mask, TRUE);
                     if(path) {
                         size_t bf_size = 0;                     // 0 = default 64K
                         int max_megas_rotatoryfile_size = 0;    // 0 = default 8 Megas
@@ -544,7 +544,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                             min_free_disk_percentage,
                             xpermission,
                             rpermission,
-                            true    // exit on failure
+                            TRUE    // exit on failure
                         );
                         gobj_log_add_handler(key, handler_type, handler_options, hr);
                     }
@@ -571,7 +571,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                         bf_size,
                         udp_frame_size,
                         output_format,
-                        true    // exit on failure
+                        TRUE    // exit on failure
                     );
                     if(udpc) {
                         gobj_log_add_handler(key, "udp", handler_options, udpc);

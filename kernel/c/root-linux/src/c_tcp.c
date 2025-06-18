@@ -85,25 +85,25 @@ PRIVATE int ytls_on_encrypted_data_callback(hgobj gobj, gbuffer_t *gbuf);
  *---------------------------------------------*/
 PRIVATE const sdata_desc_t attrs_table[] = { // WARNING repeated in c_tcp/c_esp_transport
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
-SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "false",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is true to know if this is a server (client channel) tcp gobj."),
+SDATA (DTP_BOOLEAN, "__clisrv__",       SDF_STATS,      "FALSE",    "Client of tcp server. This tcp obj is created or configured by C_TCP_S, Check if the '__clisrv__' is TRUE to know if this is a server (client channel) tcp gobj."),
 SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to connect in the case of tcp gobj client. Check if the 'url' is not empty to know if this is a client tcp gobj."),
-SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "false",    "Set true if you want connect manually"),
-SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "true",     "Set true if you want check early disconnections with POLLRDHUP | POLLHUP | POLLERR"),
-SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "false",    "True if schema is secure. Set internally if client, externally is clisrv"),
+SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "FALSE",    "Set TRUE if you want connect manually"),
+SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "TRUE",     "Set TRUE if you want check early disconnections with POLLRDHUP | POLLHUP | POLLERR"),
+SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "FALSE",    "True if schema is secure. Set internally if client, externally is clisrv"),
 SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
 SDATA (DTP_INTEGER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
 SDATA (DTP_INTEGER, "fd_listen",        0,              0,          "socket accept listen"),
 
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
-SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
-SDATA (DTP_BOOLEAN, "secure_connected", SDF_VOLATIL|SDF_STATS, "false", "Connection state"),
+SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "FALSE", "Connection state. Important filter!"),
+SDATA (DTP_BOOLEAN, "secure_connected", SDF_VOLATIL|SDF_STATS, "FALSE", "Connection state"),
 SDATA (DTP_STRING,  "schema",           SDF_RD,         "",         "schema, decoded from url. Set internally"),
 SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Access with token JWT"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
-SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "true",     "Skip verification of cert common name"),
+SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "TRUE",     "Skip verification of cert common name"),
 
-SDATA (DTP_BOOLEAN,  "no_tx_ready_event",SDF_RD,        0,          "Set true if you don't want EV_TX_READY event"),
+SDATA (DTP_BOOLEAN,  "no_tx_ready_event",SDF_RD,        0,          "Set TRUE if you don't want EV_TX_READY event"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
@@ -337,7 +337,7 @@ PRIVATE int mt_start(hgobj gobj)
             port, sizeof(port),
             0, 0,
             0, 0,
-            false
+            FALSE
         )<0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -504,7 +504,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "connected", true);
+    gobj_write_bool_attr(gobj, "connected", TRUE);
     get_peer_and_sock_name(gobj, fd);
 
     /*
@@ -601,7 +601,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
          **---------------------------*/
         gobj_change_state(gobj, ST_WAIT_HANDSHAKE);
 
-        priv->inform_disconnection = false;
+        priv->inform_disconnection = FALSE;
 
         priv->sskt = ytls_new_secure_filter(
             priv->ytls,
@@ -617,7 +617,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             return;
         }
 
-        ytls_set_trace(priv->ytls, priv->sskt, (trace_level & TRACE_TLS)?true:false);
+        ytls_set_trace(priv->ytls, priv->sskt, (trace_level & TRACE_TLS)?TRUE:FALSE);
 
     } else {
         /*---------------------------*
@@ -625,7 +625,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
          **---------------------------*/
         gobj_change_state(gobj, ST_CONNECTED);
 
-        priv->inform_disconnection = true;
+        priv->inform_disconnection = TRUE;
 
         /*
          *  Publish
@@ -654,8 +654,8 @@ PRIVATE void set_secure_connected(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "secure_connected", true);
-    priv->inform_disconnection = true;
+    gobj_write_bool_attr(gobj, "secure_connected", TRUE);
+    priv->inform_disconnection = TRUE;
 
     gobj_change_state(gobj, ST_CONNECTED);
 
@@ -765,8 +765,8 @@ PRIVATE void set_disconnected(hgobj gobj)
         priv->sskt = 0;
     }
 
-    gobj_write_bool_attr(gobj, "connected", false);
-    gobj_write_bool_attr(gobj, "secure_connected", false);
+    gobj_write_bool_attr(gobj, "connected", FALSE);
+    gobj_write_bool_attr(gobj, "secure_connected", FALSE);
 
     /*
      *  Clean tx messages
@@ -778,7 +778,7 @@ PRIVATE void set_disconnected(hgobj gobj)
      *  Info of "disconnected"
      */
     if(priv->inform_disconnection) {
-        priv->inform_disconnection = false;
+        priv->inform_disconnection = FALSE;
         /*
          *  CHILD subscription model
          */
@@ -996,7 +996,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL to_wait_stopped = false;
+    BOOL to_wait_stopped = FALSE;
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
         return;
@@ -1033,7 +1033,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_connect)) {
             yev_stop_event(priv->yev_connect);
             if(!yev_event_is_stopped(priv->yev_connect)) {
-                to_wait_stopped = true;
+                to_wait_stopped = TRUE;
             }
         }
     }
@@ -1042,7 +1042,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_reading)) {
             yev_stop_event(priv->yev_reading);
             if(!yev_event_is_stopped(priv->yev_reading)) {
-                to_wait_stopped = true;
+                to_wait_stopped = TRUE;
             }
         }
     }
@@ -1051,7 +1051,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_poll)) {
             yev_stop_event(priv->yev_poll);
             if(!yev_event_is_stopped(priv->yev_poll)) {
-                to_wait_stopped = true;
+                to_wait_stopped = TRUE;
             }
         }
     }
@@ -1060,13 +1060,13 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         if(!yev_event_is_stopped(priv->yev_accept)) {
             yev_stop_event(priv->yev_accept);
             if(!yev_event_is_stopped(priv->yev_accept)) {
-                to_wait_stopped = true;
+                to_wait_stopped = TRUE;
             }
         }
     }
 
     if(priv->tx_in_progress > 0) {
-        to_wait_stopped = true;
+        to_wait_stopped = TRUE;
     }
 
     if(to_wait_stopped) {
@@ -1546,14 +1546,14 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     }
 
     if(yev_get_flag(priv->yev_connect) & YEV_FLAG_USE_TLS) {
-        gobj_write_bool_attr(gobj, "use_ssl", true);
+        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
     } else {
-        gobj_write_bool_attr(gobj, "use_ssl", false);
+        gobj_write_bool_attr(gobj, "use_ssl", FALSE);
     }
     if(priv->use_ssl) {
         if(!priv->ytls) {
             json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
-            priv->ytls = ytls_init(gobj, jn_crypto, false);
+            priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
 
             // TODO connection with certificate
             //  const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");

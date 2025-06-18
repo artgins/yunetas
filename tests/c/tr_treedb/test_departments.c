@@ -74,7 +74,7 @@ PUBLIC int test_departments(
                 "tag", 0,
                 "g_rowid", 1,
                 "i_rowid", 1,
-                "pure_node", true
+                "pure_node", TRUE
         );
 
         const char *ignore_keys[]= {
@@ -86,7 +86,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected,   // expected
             ignore_keys, // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
 
         time_measure_t time_measure;
@@ -114,7 +114,7 @@ PUBLIC int test_departments(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -159,7 +159,7 @@ PUBLIC int test_departments(
                 "tag", 0,
                 "g_rowid", 1,
                 "i_rowid", 1,
-                "pure_node", true
+                "pure_node", TRUE
 
         );
         const char *ignore_keys[]= {
@@ -171,7 +171,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys, // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
 
         time_measure_t time_measure;
@@ -208,7 +208,7 @@ PUBLIC int test_departments(
                 "tag", 0,
                 "g_rowid", 1,
                 "i_rowid", 1,
-                "pure_node", true
+                "pure_node", TRUE
         );
         const char *ignore_keys[]= {
             "t",
@@ -219,7 +219,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys, // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
 
         time_measure_t time_measure;
@@ -248,7 +248,7 @@ PUBLIC int test_departments(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -288,7 +288,7 @@ PUBLIC int test_departments(
                         "tag", 0,
                         "g_rowid", 1,
                         "i_rowid", 1,
-                        "pure_node", true,
+                        "pure_node", TRUE,
             "managers",
             "users",
             "__md_treedb__",
@@ -299,7 +299,7 @@ PUBLIC int test_departments(
                 "tag", 0,
                 "g_rowid", 1,
                 "i_rowid", 1,
-                "pure_node", true
+                "pure_node", TRUE
         );
 
         const char *ignore_keys[]= {
@@ -311,7 +311,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected,  // expected
             ignore_keys,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -351,7 +351,7 @@ PUBLIC int test_departments(
             ),
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -397,7 +397,7 @@ PUBLIC int test_departments(
                 "tag", 0,
                 "g_rowid", 1,
                 "i_rowid", 1,
-                "pure_node", true
+                "pure_node", TRUE
         );
 
         const char *ignore_keys[]= {
@@ -409,7 +409,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -451,7 +451,7 @@ PUBLIC int test_departments(
                         "tag", 0,
                         "g_rowid", 1,
                         "i_rowid", 1,
-                        "pure_node", true,
+                        "pure_node", TRUE,
             "managers",
             "users",
             "__md_treedb__",
@@ -462,7 +462,7 @@ PUBLIC int test_departments(
                 "tag", 0,
                 "g_rowid", 1,
                 "i_rowid", 1,
-                "pure_node", true
+                "pure_node", TRUE
         );
 
         const char *ignore_keys[]= {
@@ -474,7 +474,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -527,7 +527,7 @@ PUBLIC int test_departments(
                 "tag", 0,
                 "g_rowid", 1,
                 "i_rowid", 1,
-                "pure_node", true
+                "pure_node", TRUE
         );
 
         const char *ignore_keys[]= {
@@ -539,7 +539,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -583,7 +583,7 @@ PUBLIC int test_departments(
                         "tag", 0,
                         "g_rowid", 1,
                         "i_rowid", 1,
-                        "pure_node", true,
+                        "pure_node", TRUE,
                 "development",
                     "id", "development",
                     "name", "Desarrollo",
@@ -599,7 +599,7 @@ PUBLIC int test_departments(
                         "tag", 0,
                         "g_rowid", 1,
                         "i_rowid", 1,
-                        "pure_node", true,
+                        "pure_node", TRUE,
             "managers",
             "users",
             "__md_treedb__",
@@ -610,7 +610,7 @@ PUBLIC int test_departments(
                 "tag", 0,
                 "g_rowid", 1,
                 "i_rowid", 1,
-                "pure_node", true
+                "pure_node", TRUE
         );
 
         const char *ignore_keys[]= {
@@ -622,7 +622,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             expected, // expected
             ignore_keys,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -655,7 +655,7 @@ PUBLIC int test_departments(
             NULL,   // error's list
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)
@@ -709,7 +709,7 @@ PUBLIC int test_departments_final(
 ) {
     int result = 0;
 
-    json_t *jn_foto_final = string2json(helper_quote2doublequote(foto_final_departments), true);
+    json_t *jn_foto_final = string2json(helper_quote2doublequote(foto_final_departments), TRUE);
     if(!jn_foto_final) {
         result += -1;
     }
@@ -724,7 +724,7 @@ PUBLIC int test_departments_final(
             NULL,   // error's list
             jn_foto_final,  // expected
             ignore_keys,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         time_measure_t time_measure;
         MT_START_TIME(time_measure)

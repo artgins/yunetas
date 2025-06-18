@@ -87,7 +87,7 @@ PRIVATE json_t *_build_stats(hgobj gobj, const char *stats, json_t *kw, hgobj sr
     // TODO check "__reset_stats__" authz
     // TODO check "__read_stats__" authz
 
-    const sdata_desc_t *sdesc = gobj_attr_desc(gobj, NULL, false);
+    const sdata_desc_t *sdesc = gobj_attr_desc(gobj, NULL, FALSE);
     const sdata_desc_t *it;
     if(stats && strcmp(stats, "__reset__")==0) {
         /*-------------------------*

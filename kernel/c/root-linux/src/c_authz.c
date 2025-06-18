@@ -209,13 +209,13 @@ SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Ini
 /*
  *  HACK WARNING 2024-Nov-13: use of "tranger_path" to determine if this instance is master or not.
  *  If tranger_path is empty, then
- *      the class uses yuneta_realm_store_dir() to setup the tranger "authzs" as master true
+ *      the class uses yuneta_realm_store_dir() to setup the tranger "authzs" as master TRUE
  *  if it's not empty:
  *      use master as set externally
  */
 SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "",         "Tranger path, internal value (or not)"),
 SDATA (DTP_STRING,      "authz_yuno_role",  SDF_RD,             "",         "If tranger_path is empty you can force the yuno_role where build the authz. If authz_yuno_role is empty get it from this yuno."),
-SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, if tranger_path is empty is set to true internally"),
+SDATA (DTP_BOOLEAN,     "master",           SDF_RD,             "0",        "the master is the only that can write, if tranger_path is empty is set to TRUE internally"),
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,          "subscriber of output-events. Not a child gobj."),
@@ -278,7 +278,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Chequea schema fichador, exit si falla.
      */
-    json_t *jn_treedb_schema = legalstring2json(treedb_schema_authzs, true);
+    json_t *jn_treedb_schema = legalstring2json(treedb_schema_authzs, TRUE);
     if(parse_schema(jn_treedb_schema)<0) {
         /*
          *  Exit if schema fails
@@ -339,7 +339,7 @@ PRIVATE void mt_create(hgobj gobj)
             gobj_yuno_realm_owner(),
             gobj_yuno_realm_id(),
             "authzs",
-            true
+            TRUE
         );
         gobj_write_str_attr(gobj, "tranger_path", path_);
         path = gobj_read_str_attr(gobj, "tranger_path");
@@ -490,7 +490,7 @@ PRIVATE int mt_stop(hgobj gobj)
             "aud": ["realm-management", "account"],
             "azp": "yunetacontrol",
             "email": "ginsmar@mulesol.es",
-            "email_verified": true,
+            "email_verified": TRUE,
             "exp": 1666336696,
             "family_name": "Martínez",
             "given_name": "Ginés",
@@ -512,7 +512,7 @@ PRIVATE int mt_stop(hgobj gobj)
             "aud": "990339570472-k6nqn1tpmitg8pui82bfaun3jrpmiuhs.apps.googleusercontent.com",
             "azp": "990339570472-k6nqn1tpmitg8pui82bfaun3jrpmiuhs.apps.googleusercontent.com",
             "email": "ginsmar@gmail.com",
-            "email_verified": true,
+            "email_verified": TRUE,
             "exp": 1666341427,
             "given_name": "Gins",
             "iat": 1666337827,
@@ -540,7 +540,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         "",
         KW_REQUIRED
     );
-    if(!gobj_find_service(dst_service, false)) {
+    if(!gobj_find_service(dst_service, FALSE)) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
@@ -582,7 +582,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         struct passwd *pw = getpwuid(getuid());
         username = pw->pw_name;
 
-        json_t *user = identify_system_user(gobj, &username, true, false);
+        json_t *user = identify_system_user(gobj, &username, TRUE, FALSE);
         if(!user) {
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -714,7 +714,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *  Get username and validate against our system
      *-------------------------------------------------*/
     username = kw_get_str(gobj, jwt_payload, "email", "", KW_REQUIRED);
-    BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", false, KW_REQUIRED);
+    BOOL email_verified = kw_get_bool(gobj, jwt_payload, "email_verified", FALSE, KW_REQUIRED);
     if(!email_verified) {
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -2046,7 +2046,7 @@ PRIVATE const char *get_validation_status(unsigned status)
 PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, const char **status)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL validated = false;
+    BOOL validated = FALSE;
     *jwt_payload = NULL;
 
     jwt_t *jwt=0;
@@ -2072,7 +2072,7 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
 
         char *s = jwt_get_grants_json(jwt, NULL);
         if(s) {
-            *jwt_payload = legalstring2json(s, true);
+            *jwt_payload = legalstring2json(s, TRUE);
             jwt_free_str(s);
         }
 
@@ -2080,7 +2080,7 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
         jwt_valid_set_now(jwt_valid, time(NULL));
 
         if(jwt_validate(jwt, jwt_valid)==0) {
-            validated = true;
+            validated = TRUE;
             *status = get_validation_status(jwt_valid_get_status(jwt_valid));
         } else {
             *status = get_validation_status(jwt_valid_get_status(jwt_valid));
@@ -2367,7 +2367,7 @@ PRIVATE json_t *append_permission(
             if(strcmp(service, dst_service)==0 || strcmp(service, "*")==0
             ) {
                 const char *permission = kw_get_str(gobj, role, "permission", "", KW_REQUIRED);
-                BOOL deny = kw_get_bool(gobj, role, "deny", false, KW_REQUIRED);
+                BOOL deny = kw_get_bool(gobj, role, "deny", FALSE, KW_REQUIRED);
                 if(!empty_string(permission)) {
                     json_object_set_new(
                         services_roles,
@@ -2380,7 +2380,7 @@ PRIVATE json_t *append_permission(
                 int idx; json_t *jn_permission;
                 json_array_foreach(permissions, idx, jn_permission) {
                     permission = kw_get_str(gobj, jn_permission, "permission", "", KW_REQUIRED);
-                    deny = kw_get_bool(gobj, jn_permission, "deny", false, KW_REQUIRED);
+                    deny = kw_get_bool(gobj, jn_permission, "deny", FALSE, KW_REQUIRED);
                     if(!empty_string(permission)) {
                         json_object_set_new(
                             services_roles,
@@ -2937,7 +2937,7 @@ PUBLIC int register_c_authz(void)
  ***************************************************************************/
 PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hgobj src)
 {
-    hgobj gobj = gobj_find_service_by_gclass(C_AUTHZ, true);
+    hgobj gobj = gobj_find_service_by_gclass(C_AUTHZ, TRUE);
     if(!gobj) {
         /*
          *  HACK if this function is called is because the authz system is configured in setup.
@@ -2950,7 +2950,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
             NULL
         );
         KW_DECREF(kw)
-        return false;
+        return FALSE;
     }
 
     const char *__username__ = kw_get_str(gobj, kw, "__username__", 0, 0);
@@ -2965,7 +2965,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
                 NULL
             );
             KW_DECREF(kw)
-            return false;
+            return FALSE;
         }
     }
 
@@ -2973,7 +2973,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
     if(!jn_authz_desc) {
         // Error already logged
         KW_DECREF(kw)
-        return false;
+        return FALSE;
     }
 
     json_t *user_authzs = get_user_permissions(
@@ -2984,7 +2984,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
         kw // not owned
     );
 
-    BOOL allow = false;
+    BOOL allow = FALSE;
     const char *authz_; json_t *jn_allow;
     json_object_foreach(user_authzs, authz_, jn_allow) {
         if(strcmp(authz_, "*")==0 || strcmp(authz_, authz)==0) {
@@ -3014,7 +3014,7 @@ PUBLIC BOOL authz_checker(hgobj gobj_to_check, const char *authz, json_t *kw, hg
  ***************************************************************************/
 PUBLIC json_t *authenticate_parser(hgobj gobj_service, json_t *kw, hgobj src)
 {
-    hgobj gobj = gobj_find_service_by_gclass(C_AUTHZ, true);
+    hgobj gobj = gobj_find_service_by_gclass(C_AUTHZ, TRUE);
     if(!gobj) {
         /*
          *  HACK if this function is called is because the authz system is configured in setup.

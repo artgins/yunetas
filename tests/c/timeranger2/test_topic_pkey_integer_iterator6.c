@@ -207,7 +207,7 @@ PRIVATE int rt_disk_record_callback(
             key,
             rowid,
             md_record,
-            false
+            FALSE
         );
         //printf("BY DISK: %s\n", temp);
     }
@@ -246,7 +246,7 @@ PRIVATE int do_test(json_t *tranger)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         MT_START_TIME(time_measure)
 
@@ -289,7 +289,7 @@ PRIVATE int do_test(json_t *tranger)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
 
         MT_START_TIME(time_measure) /* HACK the time starts when receiving the first record, set in callback */
@@ -351,7 +351,7 @@ PRIVATE int do_test(json_t *tranger)
             NULL,   // error's list, It must not be any log error
             NULL,   // expected, NULL: we want to check only the logs
             NULL,   // ignore_keys
-            true    // verbose
+            TRUE    // verbose
         );
         tranger2_close_list(tranger, list);
         result += test_json(NULL);  // NULL: we want to check only the logs
@@ -392,7 +392,7 @@ PRIVATE json_t *open_tranger(void)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
     json_t *jn_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path_root,
@@ -420,7 +420,7 @@ PRIVATE int close_tranger(json_t *tranger)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
     if(tranger2_get_iterator_by_id(tranger, TOPIC_NAME, "it_by_mem", "")) {
         result += tranger2_close_iterator(
@@ -446,10 +446,10 @@ PRIVATE int close_tranger(json_t *tranger)
         NULL,   // error's list, It must not be any log error
         NULL,   // expected, NULL: we want to check only the logs
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
-    result += debug_json("tranger", tranger, false);
+    result += debug_json("tranger", tranger, FALSE);
 
     tranger2_shutdown(tranger);
     result += test_json(NULL);  // NULL: we want to check only the logs
@@ -520,10 +520,10 @@ int main(int argc, char *argv[])
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
     //gobj_set_deep_tracing(2);
-    //gobj_set_global_trace(0, true);
+    //gobj_set_global_trace(0, TRUE);
 
-    // gobj_set_gobj_trace(0, "liburing", true, 0);
-    // gobj_set_gobj_trace(0, "fs", true, 0);
+    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
+    // gobj_set_gobj_trace(0, "fs", TRUE, 0);
 
     /*--------------------------------*
      *      Startup gobj

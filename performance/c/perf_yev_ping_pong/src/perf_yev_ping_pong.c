@@ -23,7 +23,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-BOOL dump = false;
+BOOL dump = FALSE;
 int time2exit = 5;
 
 const char *server_url = "tcp://localhost:2222";
@@ -145,11 +145,11 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                     }
 
                     char nice[64];
-                    nice_size(nice, sizeof(nice), msg_per_second, false);
+                    nice_size(nice, sizeof(nice), msg_per_second, FALSE);
                     printf("\n" Erase_Whole_Line Move_Horizontal, 1);
                     printf("Msg/sec    : %s\n", nice);
                     printf(Erase_Whole_Line Move_Horizontal, 1);
-                    nice_size(nice, sizeof(nice), bytes_per_second, false);
+                    nice_size(nice, sizeof(nice), bytes_per_second, FALSE);
                     printf("Bytes/sec  : %s\n", nice);
                     printf(Cursor_Up, 3);
                     printf(Move_Horizontal, 1);
@@ -451,7 +451,7 @@ int do_test(void)
         yev_server_callback,
         server_url,     // server_url,
         0,              // backlog, default 512
-        false,          // shared
+        FALSE,          // shared
         AF_INET,        // ai_family AF_UNSPEC
         AI_ADDRCONFIG,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
         NULL
@@ -593,7 +593,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
     result += do_test();

@@ -130,7 +130,7 @@ int do_test(void)
     /*--------------------------------*
      *      Start timer 1 second
      *--------------------------------*/
-    yev_start_timer_event(yev_event_once, 1*1000, false);
+    yev_start_timer_event(yev_event_once, 1*1000, FALSE);
 
     /*--------------------------------*
      *  Process ring queue
@@ -229,7 +229,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
     time_measure_t time_measure;

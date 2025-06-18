@@ -284,7 +284,7 @@ PRIVATE void mt_create(hgobj gobj)
      *-------------------------------*/
     helper_quote2doublequote(treedb_system_schema);
     json_t *jn_treedb_system_schema;
-    jn_treedb_system_schema = legalstring2json(treedb_system_schema, true);
+    jn_treedb_system_schema = legalstring2json(treedb_system_schema, TRUE);
     if(!jn_treedb_system_schema) {
         exit(-1);
     }
@@ -640,7 +640,7 @@ PRIVATE json_t *cmd_close_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     /*----------------------*
      *  Close gclass Node
      *----------------------*/
-    hgobj gobj_client_node = gobj_find_service(treedb_name, false);
+    hgobj gobj_client_node = gobj_find_service(treedb_name, FALSE);
     if(!gobj_client_node) {
         return msg_iev_build_response(
             gobj,
@@ -754,7 +754,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    hgobj gobj_client_node = gobj_find_service(treedb_name, false);
+    hgobj gobj_client_node = gobj_find_service(treedb_name, FALSE);
     if(!gobj_client_node) {
         return msg_iev_build_response(
             gobj,
@@ -777,7 +777,7 @@ PRIVATE json_t *cmd_create_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_incref(pkey2s_), // owned, string or dict of string | [strings]
         json_incref(cols_), // owned
         0,          // snap_tag
-        false       // create_schema
+        FALSE       // create_schema
     );
 
     return msg_iev_build_response(gobj,
@@ -812,7 +812,7 @@ PRIVATE json_t *cmd_delete_topic(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
 
-    hgobj gobj_client_node = gobj_find_service(treedb_name, false);
+    hgobj gobj_client_node = gobj_find_service(treedb_name, FALSE);
     if(!gobj_client_node) {
         return msg_iev_build_response(
             gobj,

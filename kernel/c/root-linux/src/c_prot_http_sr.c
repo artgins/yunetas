@@ -92,7 +92,7 @@ PRIVATE void mt_create(hgobj gobj)
         NULL,                   // on_header_event
         NULL,                   // on_body_event
         EV_ON_MESSAGE,
-        gobj_is_service(gobj)?false:true // true: use gobj_send_event, false: use gobj_publish_event
+        gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
     );
 
     /*
@@ -209,7 +209,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_write_bool_attr(gobj, "connected", true);
+    gobj_write_bool_attr(gobj, "connected", TRUE);
 
     ghttp_parser_reset(priv->parsing_request);
 
@@ -240,7 +240,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(gobj_is_volatil(src)) {
         gobj_set_bottom_gobj(gobj, 0);
     }
-    gobj_write_bool_attr(gobj, "connected", false);
+    gobj_write_bool_attr(gobj, "connected", FALSE);
 
     /*
      *  CHILD subscription model
@@ -261,7 +261,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
 PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
     if(gobj_trace_level(gobj) & TRAFFIC) {
         //log_debug_gbuf(LOG_DUMP_INPUT, gbuf, "%s", gobj_short_name(gobj));

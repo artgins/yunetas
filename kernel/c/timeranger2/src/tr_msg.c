@@ -182,7 +182,7 @@ PRIVATE int load_record_callback(
      *  Check active
      *  The last-loaded msg will be the active msg
      */
-    BOOL is_active = true;
+    BOOL is_active = TRUE;
 
     /*
      *  Filter by callback
@@ -462,7 +462,7 @@ PUBLIC json_t *trmsg_data_tree(
                 gobj,
                 jn_active, "__md_tranger__`g_rowid", 0, KW_REQUIRED
             );
-            BOOL active_found = false;
+            BOOL active_found = FALSE;
             int idx; json_t *instance;
             json_array_foreach(instances, idx, instance) {
                 if(!active_found) {
@@ -472,7 +472,7 @@ PUBLIC json_t *trmsg_data_tree(
                     );
                     if(instance_rowid == active_rowid) {
                         // Active record is already added and it's the root (with 'data' hook)
-                        active_found = true;
+                        active_found = TRUE;
                         continue;
                     }
                 }

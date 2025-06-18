@@ -147,7 +147,7 @@ PRIVATE int mt_play(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     // set_timeout(priv->timer, 1000); // timeout to connecting
-    priv->gobj_input_side = gobj_find_service("__input_side__", true);
+    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
 
     gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 

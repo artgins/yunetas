@@ -59,7 +59,7 @@ PRIVATE json_t *load_json(
 )
 {
     char filename[PATH_MAX];
-    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", false);
+    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", FALSE);
 
     if(!is_regular_file(filename)) {
         // No persistent attrs saved
@@ -81,7 +81,7 @@ PRIVATE int save_json(
 )
 {
     char filename[NAME_MAX];
-    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", true);
+    get_persist_filename(gobj, filename, sizeof(filename), "persistent-attrs", TRUE);
 
     int ret = json_dump_file(
         jn,
@@ -116,7 +116,7 @@ PUBLIC int db_load_persistent_attrs(
             gobj,
             jn_file,    // owned
             keys,       // owned
-            false
+            FALSE
         );
 
         gobj_write_attrs(gobj, attrs, SDF_PERSIST, 0);
@@ -137,7 +137,7 @@ PUBLIC int db_save_persistent_attrs(
         gobj,
         jn_attrs,   // owned
         keys,       // owned
-        false
+        FALSE
     );
 
     json_t *jn_file = load_json(gobj);
@@ -167,7 +167,7 @@ PUBLIC int db_remove_persistent_attrs(
         gobj,
         jn_file,    // owned
         keys,       // owned
-        false
+        FALSE
     );
 
     save_json(
@@ -191,7 +191,7 @@ PUBLIC json_t *db_list_persistent_attrs(
         gobj,
         jn_file,    // owned
         keys,       // owned
-        false
+        FALSE
     );
     return attrs;
 }

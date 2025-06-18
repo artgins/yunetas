@@ -51,7 +51,7 @@ SDATA (DTP_INTEGER,     "use_dups",             SDF_WR|SDF_PERSIST, 0,          
 SDATA (DTP_JSON,        "crypto",               SDF_WR|SDF_PERSIST, 0,              "Crypto config"),
 SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0,              "Only allowed ips"),
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0,              "Trace TLS"),
-SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "false",        "True if schema is secure. Set internally"),
+SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,             "FALSE",        "True if schema is secure. Set internally"),
 SDATA (DTP_STRING,      "lHost",                SDF_RD,             0,              "Listening ip, got internally from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,             0,              "Listening port, got internally from url"),
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,             "1",            "Exit if Listen failed"),
@@ -216,7 +216,7 @@ PRIVATE int mt_start(hgobj gobj)
         port, sizeof(port),
         0, 0,
         0, 0,
-        false
+        FALSE
     )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -283,12 +283,12 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     if(yev_get_flag(priv->yev_server_accept) & YEV_FLAG_USE_TLS) {
-        priv->use_ssl = true;
-        gobj_write_bool_attr(gobj, "use_ssl", true);
+        priv->use_ssl = TRUE;
+        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
 
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
         json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace_tls));
-        priv->ytls = ytls_init(gobj, jn_crypto, true);
+        priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
     }
 
     gobj_write_str_attr(gobj, "lHost", host);
@@ -393,7 +393,7 @@ PRIVATE int mt_start(hgobj gobj)
                     clisrv = gobj_bottom;
                 }
 
-                gobj_write_bool_attr(clisrv, "__clisrv__", true);
+                gobj_write_bool_attr(clisrv, "__clisrv__", TRUE);
                 gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
                 gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
                 gobj_write_integer_attr(clisrv, "fd_clisrv", -1);
@@ -724,7 +724,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
         gobj_write_pointer_attr(clisrv, "ytls", priv->ytls);
         gobj_write_bool_attr(clisrv, "use_ssl", priv->use_ssl);
-        gobj_write_bool_attr(clisrv, "__clisrv__", true);
+        gobj_write_bool_attr(clisrv, "__clisrv__", TRUE);
         gobj_write_integer_attr(clisrv, "fd_clisrv", fd_clisrv);
 
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES

@@ -105,7 +105,7 @@ int do_test(void)
     yev_event_periodic = yev_create_timer_event(yev_loop, yev_callback, NULL);
 
     gobj_trace_msg(0, "start time-periodic %d seconds", 1);
-    yev_start_timer_event(yev_event_periodic, 1*1000, true);
+    yev_start_timer_event(yev_event_periodic, 1*1000, TRUE);
 
     yev_loop_run(yev_loop, -1);
     gobj_trace_msg(0, "Quiting of main yev_loop_run()");
@@ -195,7 +195,7 @@ int main(int argc, char *argv[])
         ),
         NULL,  // expected
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
     time_measure_t time_measure;

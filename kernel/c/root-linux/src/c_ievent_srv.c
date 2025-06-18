@@ -336,7 +336,7 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
      *  Put the ievent if it doesn't come with it,
      *  if it does come with it, it's because it will be a response
      */
-    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, false);
+    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, FALSE);
     if(jn_request) {
         /*
          *      __RESPONSE__
@@ -565,13 +565,13 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     json_t *dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
 
-    gobj_unsubscribe_list(gobj, dl_s, false);
+    gobj_unsubscribe_list(gobj, dl_s, FALSE);
 
     /*
      *  Route (channel) close.
      */
     if(priv->inform_on_close) {
-        priv->inform_on_close = false;
+        priv->inform_on_close = FALSE;
         json_t *kw_on_close = json_pack("{s:s, s:s, s:s, s:s}",
             "client_yuno_name", gobj_read_str_attr(gobj, "client_yuno_name"),
             "client_yuno_role", gobj_read_str_attr(gobj, "client_yuno_role"),
@@ -589,7 +589,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*----------------------------*
      *      Reset "client data"
      *----------------------------*/
-    gobj_write_bool_attr(gobj, "authenticated", false);
+    gobj_write_bool_attr(gobj, "authenticated", FALSE);
     gobj_write_str_attr(gobj, "client_yuno_role", "");
     gobj_write_str_attr(gobj, "client_yuno_service", "");
     gobj_write_str_attr(gobj, "client_yuno_name", "");
@@ -633,7 +633,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
     /*
      *  Final point of the request
      */
-    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, true);
+    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, TRUE);
     if(!jn_request) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -730,7 +730,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
     /*-----------------------------------*
      *  Find wanted service. Required.
      *-----------------------------------*/
-    hgobj gobj_service = gobj_find_service(iev_dst_service, false);
+    hgobj gobj_service = gobj_find_service(iev_dst_service, FALSE);
     if (!gobj_service) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -783,7 +783,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             gobj,
             kw,
             jn_resp,
-            true
+            TRUE
         );
 
         // TODO why don't send a mark in the message, the when transmit is done, drop the connection?
@@ -808,7 +808,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *      Save "client data"
      *      Set connection name if name is empty
      *----------------------------------------------*/
-    gobj_write_bool_attr(gobj, "authenticated", true);
+    gobj_write_bool_attr(gobj, "authenticated", TRUE);
     gobj_write_str_attr(gobj, "client_yuno_role", iev_src_role);
     gobj_write_str_attr(gobj, "client_yuno_service", iev_src_service);
     if(empty_string(iev_src_yuno)) {
@@ -847,7 +847,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
         gobj,
         kw,
         jn_resp,
-        true
+        TRUE
     );
 
     send_static_iev(
@@ -861,7 +861,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
      *  Publish the new client
      *-----------------------------------------------------------*/
     if(!priv->inform_on_close) {
-        priv->inform_on_close = true;
+        priv->inform_on_close = TRUE;
         json_t *kw_on_open = json_pack("{s:s, s:s, s:s, s:O}",
             "client_yuno_name", gobj_read_str_attr(gobj, "client_yuno_name"),
             "client_yuno_role", gobj_read_str_attr(gobj, "client_yuno_role"),
@@ -895,7 +895,7 @@ TODO now the tube is C_IEVENT_SRV -> C_CHANNEL -> C_WEBSOCKET -> C_TCP
 PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, false);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -914,7 +914,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gbuffer_incref(gbuf);
 
     gobj_event_t iev_event;
-    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, true);
+    json_t *iev_kw = iev_create_from_gbuffer(gobj, &iev_event, gbuf, TRUE);
     if(!iev_kw) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1001,12 +1001,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*-----------------------------------------------------------*
      *  Get inter-event routing information.
      *  Version > 2.4.0
-     *  Cambio msg_iev_get_stack(, , true->false)
+     *  Cambio msg_iev_get_stack(, , TRUE->FALSE)
      *  porque el yuno puede informar autónomamente
      *  de un cambio de play->pause, y entonces viene sin stack,
      *  porque no es una petición que salga del agente.
      *-----------------------------------------------------------*/
-    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, false);
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, FALSE);
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1053,7 +1053,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *----------------------------------------*/
     const char *iev_dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
     // TODO check if it's a required service authorized
-    hgobj gobj_service = gobj_find_service(iev_dst_service, false);
+    hgobj gobj_service = gobj_find_service(iev_dst_service, FALSE);
     if(!gobj_service) {
         gobj_service = priv->gobj_service;
     }
@@ -1201,7 +1201,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj,
                 iev_kw,
                 0,
-                true
+                TRUE
             );
 
             json_object_del(iev_kw, "__md_iev__");
@@ -1384,7 +1384,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj,
             kw,             // owned, kw request, used to extract ONLY __md_iev__
             kw_response,    // like owned, is returned!, created if null, the body of answer message
-            true            // reverse_dst
+            TRUE            // reverse_dst
         );
 
         return send_static_iev(gobj,
@@ -1400,7 +1400,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*-----------------------------------------------------------*
      *  Get inter-event routing information.
      *-----------------------------------------------------------*/
-    // json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, false);
+    // json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, FALSE);
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1414,7 +1414,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(empty_string(service)) {
         gobj_service = priv->gobj_service;
     } else {
-        gobj_service = gobj_find_service(service, false);
+        gobj_service = gobj_find_service(service, FALSE);
         if(!gobj_service) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1435,7 +1435,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj,
                 kw,             // owned, kw request, used to extract ONLY __md_iev__
                 kw_response,    // like owned, is returned!, created if null, the body of answer message
-                true            // reverse_dst
+                TRUE            // reverse_dst
             );
 
             return send_static_iev(gobj,
@@ -1452,7 +1452,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *stats = kw_get_str(gobj, kw, "__stats__", 0, 0); // v6
     if(!stats) {
         // v7
-        json_t *__stats__ = msg_iev_get_stack(gobj, kw, "__stats__", true);
+        json_t *__stats__ = msg_iev_get_stack(gobj, kw, "__stats__", TRUE);
         stats = kw_get_str(gobj, __stats__, "stats", "", KW_REQUIRED);
     }
 
@@ -1477,7 +1477,7 @@ PRIVATE int ac_mt_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj,
             kw,
             kw_response,
-            true
+            TRUE
         );
 
         return send_static_iev(gobj,
@@ -1524,7 +1524,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj,
             kw,             // owned, kw request, used to extract ONLY __md_iev__
             kw_response,    // like owned, is returned!, created if null, the body of answer message
-            true            // reverse_dst
+            TRUE            // reverse_dst
         );
 
         return send_static_iev(gobj,
@@ -1540,7 +1540,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*-----------------------------------------------------------*
      *  Get inter-event routing information.
      *-----------------------------------------------------------*/
-    // json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, false);
+    // json_t *jn_ievent_id = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, FALSE);
 
     /*----------------------------------------*
      *  Check dst role^name
@@ -1554,7 +1554,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(empty_string(service)) {
         gobj_service = priv->gobj_service;
     } else {
-        gobj_service = gobj_find_service(service, false);
+        gobj_service = gobj_find_service(service, FALSE);
         if(!gobj_service) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1575,7 +1575,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj,
                 kw,             // owned, kw request, used to extract ONLY __md_iev__
                 kw_response,    // like owned, is returned!, created if null, the body of answer message
-                true            // reverse_dst
+                TRUE            // reverse_dst
             );
 
             return send_static_iev(gobj,
@@ -1593,7 +1593,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *command = kw_get_str(gobj, kw, "__command__", 0, 0); // v6
     if(!command) {
         // v7
-        json_t *__command__ = msg_iev_get_stack(gobj, kw, "__command__", true);
+        json_t *__command__ = msg_iev_get_stack(gobj, kw, "__command__", TRUE);
         command = kw_get_str(gobj, __command__, "command", "", KW_REQUIRED);
     }
 
@@ -1618,7 +1618,7 @@ PRIVATE int ac_mt_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj,
             kw,
             kw_response,
-            true
+            TRUE
         );
 
         return send_static_iev(gobj,

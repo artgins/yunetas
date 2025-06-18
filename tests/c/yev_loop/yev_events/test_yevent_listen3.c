@@ -127,7 +127,7 @@ int do_test(void)
         yev_callback,
         server_url,     // listen_url,
         0,              // backlog,
-        false,          // shared
+        FALSE,          // shared
         AF_INET,        // ai_family AF_UNSPEC
         AI_ADDRCONFIG,  // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
         0
@@ -153,7 +153,7 @@ int do_test(void)
     /*--------------------------------*
      *  Launch a client to connect us
      *--------------------------------*/
-    int pid_telnet = launch_daemon(true, "telnet", "localhost", "3333", NULL);
+    int pid_telnet = launch_daemon(TRUE, "telnet", "localhost", "3333", NULL);
 
     /*--------------------------------*
      *  Process ring queue
@@ -217,7 +217,7 @@ int main(int argc, char *argv[])
 
     yuno_catch_signals();
 
-    // gobj_set_gobj_trace(0, "liburing", true, 0);
+    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
 
     /*--------------------------------*
      *      Log handlers
@@ -249,7 +249,7 @@ int main(int argc, char *argv[])
         error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
-        true    // verbose
+        TRUE    // verbose
     );
 
     time_measure_t time_measure;

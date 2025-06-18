@@ -40,7 +40,7 @@ PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
-SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "false",    "Publish raw partial data of body or full body at the end"),
+SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "FALSE",    "Publish raw partial data of body or full body at the end"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
@@ -95,7 +95,7 @@ PRIVATE void mt_create(hgobj gobj)
             NULL,                   // on_header_event
             NULL,                   // on_body_event
             EV_ON_MESSAGE,          // on_message_event ==> publish the full message in a gbuffer
-            gobj_is_service(gobj)?false:true // true: use gobj_send_event, false: use gobj_publish_event
+            gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
         );
     } else {
         priv->parsing_response = ghttp_parser_create(
@@ -104,7 +104,7 @@ PRIVATE void mt_create(hgobj gobj)
             EV_ON_HEADER,           // on_header_event
             EV_ON_MESSAGE,          // on_body_event  ==> publish the partial message with original buffer pointer
             NULL,                   // on_message_event
-            gobj_is_service(gobj)?false:true // true: use gobj_send_event, false: use gobj_publish_event
+            gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
         );
     }
 

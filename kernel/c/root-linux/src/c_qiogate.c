@@ -455,7 +455,7 @@ PRIVATE int send_alert(hgobj gobj, const char *subject, const char *message)
     }
     const char *from = gobj_read_str_attr(gobj, "alert_from");
     const char *to = gobj_read_str_attr(gobj, "alert_to");
-    hgobj gobj_emailsender = gobj_find_service("emailsender", false);
+    hgobj gobj_emailsender = gobj_find_service("emailsender", FALSE);
     if(!gobj_emailsender) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -698,7 +698,7 @@ PRIVATE int reset_soft_queue(hgobj gobj)
     if(priv->trq_msgs) { // 0 if not running
         q_msg_t *msg;
         qmsg_foreach_forward(priv->trq_msgs, msg) {
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, false);
+            trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
         }
     }
     priv->pending_acks = 0;
@@ -785,7 +785,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
             }
             send_message_to_bottom_side(gobj, msg);
             priv->pending_acks++;
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, true);
+            trq_set_soft_mark(msg, MARK_PENDING_ACK, TRUE);
             return 1; // Sent one message
 
         } else {
@@ -837,7 +837,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
                 send_message_to_bottom_side(gobj, msg);
                 sent++;
                 priv->pending_acks++;
-                trq_set_soft_mark(msg, MARK_PENDING_ACK, true);
+                trq_set_soft_mark(msg, MARK_PENDING_ACK, TRUE);
             } else {
                 // Max pending reached
                 if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
@@ -874,7 +874,7 @@ PRIVATE int dequeue_msg(
         }
 
         if((trq_get_soft_mark(msg) & MARK_PENDING_ACK)) {
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, false);
+            trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
 
             if (priv->pending_acks > 0) {
                 priv->pending_acks--;
@@ -987,7 +987,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src == priv->gobj_bottom_side) {
-        priv->bottom_side_opened = true;
+        priv->bottom_side_opened = TRUE;
         send_batch_messages(gobj, 0);  // On open send or resend
         set_timeout(priv->timer, priv->timeout_poll);
 
@@ -1019,7 +1019,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     if(src == priv->gobj_bottom_side) {
         clear_timeout(priv->timer);     // Active only when bottom side is open
-        priv->bottom_side_opened = false;
+        priv->bottom_side_opened = FALSE;
         reset_soft_queue(gobj); // Resetea los timeout_ack y los MARK_PENDING_ACK
     } else {
         gobj_log_error(gobj, 0,

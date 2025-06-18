@@ -16,7 +16,7 @@
  ***************************************************************************/
 PUBLIC int register_prot(void)
 {
-    static BOOL initialized = false;
+    static BOOL initialized = FALSE;
     if(initialized) {
         return -1;
     }
@@ -24,7 +24,7 @@ PUBLIC int register_prot(void)
     register_c_ota();
     register_c_prot_modbus_m();
 
-    initialized = true;
+    initialized = TRUE;
 
     return 0;
 }

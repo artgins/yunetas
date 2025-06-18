@@ -144,7 +144,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
     if(priv->persistent) {
         yuneta_store_dir(
-            priv->path_database, sizeof(priv->path_database), "resources", path_service, true
+            priv->path_database, sizeof(priv->path_database), "resources", path_service, TRUE
         );
     }
 }
@@ -202,8 +202,8 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw, json_t *jn_options)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL volatil = jn_options?kw_get_bool(gobj, jn_options, "volatil", 0, 0):false;
-    BOOL update = jn_options?kw_get_bool(gobj, jn_options, "update", 0, 0):false;
+    BOOL volatil = jn_options?kw_get_bool(gobj, jn_options, "volatil", 0, 0):FALSE;
+    BOOL update = jn_options?kw_get_bool(gobj, jn_options, "update", 0, 0):FALSE;
 
     if(!kw) {
         kw = json_object();
@@ -457,7 +457,7 @@ PRIVATE void *mt_list_resource(
                         gobj,
                         json_incref(record),     // owned
                         json_incref(jn_options),   // owned
-                        false
+                        FALSE
                     );
                     json_array_append_new(list, new_record);
                 } else {
@@ -470,7 +470,7 @@ PRIVATE void *mt_list_resource(
                     gobj,
                     json_incref(record),     // owned
                     json_incref(jn_options),   // owned
-                    false
+                    FALSE
                 );
                 json_array_append_new(list, new_record);
             } else {
@@ -570,7 +570,7 @@ PRIVATE BOOL load_resource_cb(
             NULL
         );
     }
-    return true; // to continue
+    return TRUE; // to continue
 }
 
 PRIVATE int load_persistent_resources(hgobj gobj)

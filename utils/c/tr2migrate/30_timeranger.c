@@ -257,8 +257,8 @@ PUBLIC json_t *tranger_startup(
             "__timeranger__.json",
             on_critical_error,
             &fd,
-            master? true:false, //exclusive
-            true // silence
+            master? TRUE:FALSE, //exclusive
+            TRUE // silence
         );
         if(!jn_disk_tranger) {
             jn_disk_tranger = load_persistent_json(0,
@@ -266,8 +266,8 @@ PUBLIC json_t *tranger_startup(
                 "__timeranger__.json",
                 on_critical_error,
                 &fd,
-                false, // exclusive
-                true // silence
+                FALSE, // exclusive
+                TRUE // silence
             );
             if(jn_disk_tranger) {
                 gobj_log_warning(0, 0,
@@ -288,7 +288,7 @@ PUBLIC json_t *tranger_startup(
                     NULL
                 );
             }
-            master = false;
+            master = FALSE;
             json_object_set_new(tranger, "master", json_false());
         }
         json_object_update_existing(tranger, jn_disk_tranger);
@@ -323,8 +323,8 @@ PUBLIC json_t *tranger_startup(
             xpermission,
             rpermission,
             on_critical_error,
-            true,   //create
-            true,  //only_read
+            TRUE,   //create
+            TRUE,  //only_read
             jn_tranger_  // owned
         );
         // Re-open
@@ -333,8 +333,8 @@ PUBLIC json_t *tranger_startup(
             "__timeranger__.json",
             on_critical_error,
             &fd,
-            master? true:false, //exclusive
-            true // silence
+            master? TRUE:FALSE, //exclusive
+            TRUE // silence
         );
         if(!jn_disk_tranger) {
             jn_disk_tranger = load_persistent_json(0,
@@ -342,8 +342,8 @@ PUBLIC json_t *tranger_startup(
                 "__timeranger__.json",
                 on_critical_error,
                 &fd,
-                false, //exclusive
-                true // silence
+                FALSE, //exclusive
+                TRUE // silence
             );
 
             if(jn_disk_tranger) {
@@ -365,7 +365,7 @@ PUBLIC json_t *tranger_startup(
                     NULL
                 );
             }
-            master = false;
+            master = FALSE;
             json_object_set_new(tranger, "master", json_false());
         }
 
@@ -419,7 +419,7 @@ PUBLIC system_flag_t tranger_str2system_flag(const char *system_flag)
     const char **names = split2(system_flag, "|, ", &list_size);
 
     for(int i=0; i<list_size; i++) {
-        int idx = idx_in_list(sf0_names, *(names +i), true);
+        int idx = idx_in_list(sf0_names, *(names +i), TRUE);
         if(idx > 0) {
             bitmask |= 1 << (idx-1);
         }
@@ -526,7 +526,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             directory,
             "topic_idx.md"
         );
-        int fp = newfile(full_path, (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED), false);
+        int fp = newfile(full_path, (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED), FALSE);
         if(fp < 0) {
             gobj_log_error(0, kw_get_int(0,tranger, "on_critical_error", 0, KW_REQUIRED),
                 "gobj",         "%s", __FILE__,
@@ -570,8 +570,8 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
             (int)kw_get_int(0,tranger, "xpermission", 0, KW_REQUIRED),
             (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED),
             kw_get_int(0,tranger, "on_critical_error", 0, KW_REQUIRED),
-            master? true:false, //create
-            true,  //only_read
+            master? TRUE:FALSE, //create
+            TRUE,  //only_read
             topic_desc  // owned
         );
 
@@ -707,7 +707,7 @@ PUBLIC json_t *tranger_create_topic( // WARNING returned json IS NOT YOURS
     JSON_DECREF(jn_cols);
     JSON_DECREF(jn_var);
 
-    return tranger_open_topic(tranger, topic_name, true);
+    return tranger_open_topic(tranger, topic_name, TRUE);
 }
 
 /***************************************************************************
@@ -955,8 +955,8 @@ PUBLIC json_t *tranger_open_topic( // WARNING returned json IS NOT YOURS
         "topic_desc.json",
         kw_get_int(0,tranger, "on_critical_error", 0, KW_REQUIRED),
         0,
-        false, // exclusive
-        false // silence
+        FALSE, // exclusive
+        FALSE // silence
     );
 
     /*
@@ -1047,7 +1047,7 @@ PUBLIC json_t *tranger_topic( // WARNING returned json IS NOT YOURS
 {
     json_t *topic = kw_get_subdict_value(0, tranger, "topics", topic_name, 0, 0);
     if(!topic) {
-        topic = tranger_open_topic(tranger, topic_name, false);
+        topic = tranger_open_topic(tranger, topic_name, FALSE);
         if(!topic) {
             gobj_log_error(0, 0,
                 "gobj",         "%s", __FILE__,
@@ -1253,7 +1253,7 @@ PUBLIC int tranger_delete_topic(
    Backup topic and re-create it.
    If ``backup_path`` is empty then it will be used the topic path
    If ``backup_name`` is empty then it will be used ``topic_name``.bak
-   If overwrite_backup is true and backup exists then it will be overwrited.
+   If overwrite_backup is TRUE and backup exists then it will be overwrited.
    Return the new topic
  ***************************************************************************/
 PUBLIC json_t *tranger_backup_topic(
@@ -1329,7 +1329,7 @@ PUBLIC json_t *tranger_backup_topic(
                 "path",         "%s", backup_directory,
                 NULL
             );
-            BOOL notmain = false;
+            BOOL notmain = FALSE;
             if(tranger_backup_deleting_callback) {
                 notmain = tranger_backup_deleting_callback(tranger, topic_name, backup_directory);
             }
@@ -1360,8 +1360,8 @@ PUBLIC json_t *tranger_backup_topic(
         "topic_desc.json",
         0,
         0,
-        false, // exclusive
-        false // silence
+        FALSE, // exclusive
+        FALSE // silence
     );
     if(!topic_desc) {
         gobj_log_error(0, 0,
@@ -1510,8 +1510,8 @@ PUBLIC int tranger_write_topic_var(
         (int)kw_get_int(0,tranger, "xpermission", 0, KW_REQUIRED),
         (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED),
         0,
-        master? true:false, //create
-        false,  //only_read
+        master? TRUE:FALSE, //create
+        FALSE,  //only_read
         topic_var  // owned
     );
 
@@ -1585,8 +1585,8 @@ PUBLIC int tranger_write_topic_cols(
         (int)kw_get_int(0,tranger, "xpermission", 0, KW_REQUIRED),
         (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED),
         0,
-        master? true:false, //create
-        false,  //only_read
+        master? TRUE:FALSE, //create
+        FALSE,  //only_read
         jn_topic_cols  // owned
     );
 
@@ -1778,7 +1778,7 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
             return -1;
         }
 
-        int fp = newfile(full_path, (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED), false);
+        int fp = newfile(full_path, (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED), FALSE);
         if(fp < 0) {
             if(errno == EMFILE) {
                 gobj_log_error(0, 0,
@@ -1791,7 +1791,7 @@ PRIVATE int get_content_fd(json_t *tranger, json_t *topic, uint64_t __t__)
                 );
                 close_fd_opened_files(topic);
 
-                fp = newfile(full_path, (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED), false);
+                fp = newfile(full_path, (int)kw_get_int(0,tranger, "rpermission", 0, KW_REQUIRED), FALSE);
                 if(fp < 0) {
                     gobj_log_critical(0, kw_get_int(0,tranger, "on_critical_error", 0, KW_REQUIRED),
                         "gobj",         "%s", __FILE__,
@@ -2534,7 +2534,7 @@ PUBLIC int tranger_delete_record(
         topic,
         rowid,
         &md_record,
-        true
+        TRUE
     )!=0) {
         // Error already logged
         return -1;
@@ -2641,7 +2641,7 @@ PUBLIC int tranger_write_mark1(
         topic,
         rowid,
         &md_record,
-        true
+        TRUE
     )!=0) {
         return -1;
     }
@@ -2694,7 +2694,7 @@ PUBLIC int tranger_write_user_flag(
         topic,
         rowid,
         &md_record,
-        true
+        TRUE
     )!=0) {
         return -1;
     }
@@ -2738,7 +2738,7 @@ PUBLIC int tranger_set_user_flag(
         topic,
         rowid,
         &md_record,
-        true
+        TRUE
     )!=0) {
         return -1;
     }
@@ -2791,7 +2791,7 @@ PUBLIC uint32_t tranger_read_user_flag(
         topic,
         rowid,
         &md_record,
-        true
+        TRUE
     )!=0) {
         gobj_log_error(0, 0,
             "gobj",         "%s", __FILE__,
@@ -2874,26 +2874,26 @@ PUBLIC json_t *tranger_open_list(
     BOOL only_md = kw_get_bool(0,match_cond, "only_md", 0, 0);
     BOOL backward = kw_get_bool(0,match_cond, "backward", 0, 0);
 
-    BOOL end = false;
+    BOOL end = FALSE;
     md_record_t md_record;
     memset(&md_record, 0, sizeof(md_record_t));
     if(!backward) {
         json_int_t from_rowid = kw_get_int(0,match_cond, "from_rowid", 0, 0);
         if(from_rowid>0) {
-            end = tranger_get_record(tranger, topic, from_rowid, &md_record, true);
+            end = tranger_get_record(tranger, topic, from_rowid, &md_record, TRUE);
         } else if(from_rowid<0 && (__last_rowid__ + from_rowid)>0) {
             from_rowid = __last_rowid__ + from_rowid;
-            end = tranger_get_record(tranger, topic, from_rowid, &md_record, true);
+            end = tranger_get_record(tranger, topic, from_rowid, &md_record, TRUE);
         } else {
             end = tranger_first_record(tranger, topic, &md_record);
         }
     } else {
         json_int_t to_rowid = kw_get_int(0,match_cond, "to_rowid", 0, 0);
         if(to_rowid>0) {
-            end = tranger_get_record(tranger, topic, to_rowid, &md_record, true);
+            end = tranger_get_record(tranger, topic, to_rowid, &md_record, TRUE);
         } else if(to_rowid<0 && (__last_rowid__ + to_rowid)>0) {
             to_rowid = __last_rowid__ + to_rowid;
-            end = tranger_get_record(tranger, topic, to_rowid, &md_record, true);
+            end = tranger_get_record(tranger, topic, to_rowid, &md_record, TRUE);
         } else {
             end = tranger_last_record(tranger, topic, &md_record);
         }
@@ -3103,7 +3103,7 @@ PUBLIC int tranger_get_record(
         }
     }
 
-    FILE *file = get_topic_idx_file(tranger, topic, false);
+    FILE *file = get_topic_idx_file(tranger, topic, FALSE);
     if(file) {
         /*----------------------------------*
          *      topic idx by file
@@ -3333,7 +3333,7 @@ PUBLIC json_t *tranger_read_record_content(
         jn_record = json_object();
         gbuffer_decref(gbuf);
     } else {
-        jn_record = anystring2json(p, strlen(p), false);
+        jn_record = anystring2json(p, strlen(p), FALSE);
         gbuffer_decref(gbuf);
         if(!jn_record) {
             gobj_log_critical(0, 0, // Let continue, will be a message lost
@@ -3367,12 +3367,12 @@ PUBLIC BOOL tranger_match_record(
 )
 {
     if(end) {
-        *end = false;
+        *end = FALSE;
     }
 
     if(!match_cond || (json_object_size(match_cond)==0 && json_array_size(match_cond)==0)) {
         // No conditions, match all
-        return true;
+        return TRUE;
     }
     md_record_t md_record_last;
     tranger_last_record(tranger, topic, &md_record_last);
@@ -3388,38 +3388,38 @@ PUBLIC BOOL tranger_match_record(
             switch(json_type) {
             case JSON_OBJECT:
                 {
-                    BOOL some = false;
+                    BOOL some = FALSE;
                     const char *key_; json_t *jn_value;
                     json_object_foreach(json_object_get(match_cond, "key"), key_, jn_value) {
                         if(md_record->key.i == atoi(key_)) {
-                            some = true;
-                            break; // Con un match de key ya es true
+                            some = TRUE;
+                            break; // Con un match de key ya es TRUE
                         }
                     }
                     if(!some) {
-                        return false;
+                        return FALSE;
                     }
                 }
                 break;
             case JSON_ARRAY:
                 {
-                    BOOL some = false;
+                    BOOL some = FALSE;
                     int idx; json_t *jn_value;
                     json_array_foreach(json_object_get(match_cond, "key"), idx, jn_value) {
                         if(json_is_integer(jn_value)) {
                             if(md_record->key.i == json_integer_value(jn_value)) {
-                                some = true;
-                                break; // Con un match de key ya es true
+                                some = TRUE;
+                                break; // Con un match de key ya es TRUE
                             }
                         } else if(json_is_string(jn_value)) {
                             if(md_record->key.i == atoi(json_string_value(jn_value))) {
-                                some = true;
-                                break; // Con un match de key ya es true
+                                some = TRUE;
+                                break; // Con un match de key ya es TRUE
                             }
                         }
                     }
                     if(!some) {
-                        return false;
+                        return FALSE;
                     }
                 }
                 break;
@@ -3427,7 +3427,7 @@ PUBLIC BOOL tranger_match_record(
                 {
                     json_int_t key = kw_get_int(0,match_cond, "key", 0, KW_REQUIRED|KW_WILD_NUMBER);
                     if(md_record->key.i != key) {
-                        return false;
+                        return FALSE;
                     }
                 }
                 break;
@@ -3437,22 +3437,22 @@ PUBLIC BOOL tranger_match_record(
             switch(json_type) {
             case JSON_OBJECT:
                 {
-                    BOOL some = false;
+                    BOOL some = FALSE;
                     const char *key_; json_t *jn_value;
                     json_object_foreach(json_object_get(match_cond, "key"), key_, jn_value) {
                         if(strncmp(md_record->key.s, key_, sizeof(md_record->key.s)-1)==0) {
-                            some = true;
-                            break; // Con un match de key ya es true
+                            some = TRUE;
+                            break; // Con un match de key ya es TRUE
                         }
                     }
                     if(!some) {
-                        return false;
+                        return FALSE;
                     }
                 }
                 break;
             case JSON_ARRAY:
                 {
-                    BOOL some = false;
+                    BOOL some = FALSE;
                     int idx; json_t *jn_value;
                     json_array_foreach(json_object_get(match_cond, "key"), idx, jn_value) {
                         if(json_is_string(jn_value)) {
@@ -3460,15 +3460,15 @@ PUBLIC BOOL tranger_match_record(
                                     md_record->key.s,
                                     json_string_value(jn_value),
                                     sizeof(md_record->key.s)-1)==0) {
-                                some = true;
-                                break; // Con un match de key ya es true
+                                some = TRUE;
+                                break; // Con un match de key ya es TRUE
                             }
                         } else {
-                            return false;
+                            return FALSE;
                         }
                     }
                     if(!some) {
-                        return false;
+                        return FALSE;
                     }
                 }
                 break;
@@ -3476,16 +3476,16 @@ PUBLIC BOOL tranger_match_record(
                 {
                     const char *key = kw_get_str(0, match_cond, "key", 0, 0);
                     if(!key) {
-                        return false;
+                        return FALSE;
                     }
                     if(strncmp(md_record->key.s, key, sizeof(md_record->key.s)-1)!=0) {
-                        return false;
+                        return FALSE;
                     }
                 }
                 break;
             }
         } else {
-            return false;
+            return FALSE;
         }
     }
 
@@ -3493,20 +3493,20 @@ PUBLIC BOOL tranger_match_record(
         if(md_record->__system_flag__ & sf0_string_key) {
             const char *rkey = kw_get_str(0, match_cond, "rkey", 0, 0);
             if(!rkey) {
-                return false;
+                return FALSE;
             }
 
             regex_t _re_name;
             if(regcomp(&_re_name, rkey, REG_EXTENDED | REG_NOSUB)!=0) {
-                return false;
+                return FALSE;
             }
             int ret = regexec(&_re_name, md_record->key.s, 0, 0, 0);
             regfree(&_re_name);
             if(ret!=0) {
-                return false;
+                return FALSE;
             }
         } else {
-            return false;
+            return FALSE;
         }
     }
 
@@ -3516,20 +3516,20 @@ PUBLIC BOOL tranger_match_record(
             if(md_record->__rowid__ < from_rowid) {
                 if(backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         } else {
             uint64_t x = __last_rowid__ + from_rowid;
             if(md_record->__rowid__ <= x) {
                 if(backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         }
     }
@@ -3540,20 +3540,20 @@ PUBLIC BOOL tranger_match_record(
             if(md_record->__rowid__ > to_rowid) {
                 if(!backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         } else {
             uint64_t x = __last_rowid__ + to_rowid;
             if(md_record->__rowid__ > x) {
                 if(!backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         }
     }
@@ -3574,20 +3574,20 @@ PUBLIC BOOL tranger_match_record(
             if(md_record->__t__ < from_t) {
                 if(backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         } else {
             uint64_t x = __last_t__ + from_t;
             if(md_record->__t__ <= x) {
                 if(backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         }
     }
@@ -3608,20 +3608,20 @@ PUBLIC BOOL tranger_match_record(
             if(md_record->__t__ > to_t) {
                 if(!backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         } else {
             uint64_t x = __last_t__ + to_t;
             if(md_record->__t__ > x) {
                 if(!backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         }
     }
@@ -3645,20 +3645,20 @@ PUBLIC BOOL tranger_match_record(
             if(md_record->__tm__ < from_tm) {
                 if(backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         } else {
             uint64_t x = __last_tm__ + from_tm;
             if(md_record->__tm__ <= x) {
                 if(backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         }
     }
@@ -3682,20 +3682,20 @@ PUBLIC BOOL tranger_match_record(
             if(md_record->__tm__ > to_tm) {
                 if(!backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         } else {
             uint64_t x = __last_tm__ + to_tm;
             if(md_record->__tm__ > x) {
                 if(!backward) {
                     if(end) {
-                        *end = true;
+                        *end = TRUE;
                     }
                 }
-                return false;
+                return FALSE;
             }
         }
     }
@@ -3703,26 +3703,26 @@ PUBLIC BOOL tranger_match_record(
     if(kw_has_key(match_cond, "user_flag")) {
         uint32_t user_flag = kw_get_int(0,match_cond, "user_flag", 0, 0);
         if((md_record->__user_flag__ != user_flag)) {
-            return false;
+            return FALSE;
         }
     }
     if(kw_has_key(match_cond, "not_user_flag")) {
         uint32_t not_user_flag = kw_get_int(0,match_cond, "not_user_flag", 0, 0);
         if((md_record->__user_flag__ == not_user_flag)) {
-            return false;
+            return FALSE;
         }
     }
 
     if(kw_has_key(match_cond, "user_flag_mask_set")) {
         uint32_t user_flag_mask_set = kw_get_int(0,match_cond, "user_flag_mask_set", 0, 0);
         if((md_record->__user_flag__ & user_flag_mask_set) != user_flag_mask_set) {
-            return false;
+            return FALSE;
         }
     }
     if(kw_has_key(match_cond, "user_flag_mask_notset")) {
         uint32_t user_flag_mask_notset = kw_get_int(0,match_cond, "user_flag_mask_notset", 0, 0);
         if((md_record->__user_flag__ | ~user_flag_mask_notset) != ~user_flag_mask_notset) {
-            return false;
+            return FALSE;
         }
     }
 
@@ -3730,22 +3730,22 @@ PUBLIC BOOL tranger_match_record(
         if(md_record->__system_flag__ & (sf0_int_key|sf0_rowid_key)) {
             json_int_t notkey = kw_get_int(0,match_cond, "key", 0, KW_REQUIRED|KW_WILD_NUMBER);
             if(md_record->key.i == notkey) {
-                return false;
+                return FALSE;
             }
         } else if(md_record->__system_flag__ & sf0_string_key) {
             const char *notkey = kw_get_str(0, match_cond, "key", 0, 0);
             if(!notkey) {
-                return false;
+                return FALSE;
             }
             if(strncmp(md_record->key.s, notkey, sizeof(md_record->key.s)-1)==0) {
-                return false;
+                return FALSE;
             }
         } else {
-            return false;
+            return FALSE;
         }
     }
 
-    return true;
+    return TRUE;
 }
 
 /***************************************************************************
@@ -3765,7 +3765,7 @@ PUBLIC int tranger_find_record(
     }
     BOOL backward = kw_get_bool(0,match_cond, "backward", 0, 0);
 
-    BOOL end = false;
+    BOOL end = FALSE;
     if(!backward) {
         end = tranger_first_record(tranger, topic, md_record);
     } else {
@@ -3804,7 +3804,7 @@ PUBLIC int tranger_first_record(
         topic,
         rowid,
         md_record,
-        false
+        FALSE
     )<0) {
         return -1;
     }
@@ -3844,7 +3844,7 @@ PUBLIC int tranger_last_record(
         topic,
         rowid,
         md_record,
-        false
+        FALSE
     )<0) {
         return -1;
     }
@@ -3886,7 +3886,7 @@ PUBLIC int tranger_next_record(
         topic,
         rowid,
         md_record,
-        false
+        FALSE
     )<0) {
         return -1;
     }
@@ -3930,7 +3930,7 @@ PUBLIC int tranger_prev_record(
         topic,
         rowid,
         md_record,
-        false
+        FALSE
     )<0) {
         return -1;
     }

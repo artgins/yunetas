@@ -205,7 +205,7 @@ PRIVATE int ac_timeout_to_connect(hgobj gobj, const char *event, json_t *kw, hgo
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->gobj_output_side = gobj_find_service("__output_side__", true);
+    priv->gobj_output_side = gobj_find_service("__output_side__", TRUE);
     gobj_subscribe_event(priv->gobj_output_side, NULL, 0, gobj);
     gobj_start_tree(priv->gobj_output_side);
 

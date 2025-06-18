@@ -98,7 +98,7 @@ PUBLIC int rotatory_start_up(void)
     }
 
     dl_init(&dl_clients, 0);
-    __initialized__ = true;
+    __initialized__ = TRUE;
     return 0;
 }
 
@@ -112,7 +112,7 @@ PUBLIC void rotatory_end(void)
     while((hr=dl_first(&dl_clients))) {
         rotatory_close(hr);
     }
-    __initialized__ = false;
+    __initialized__ = FALSE;
 }
 
 /*****************************************************************
@@ -237,7 +237,7 @@ PUBLIC hrotatory_h rotatory_open(
     _translate_mask(hr);
     snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
     if(access(hr->path, 0)!=0) {
-        int fd = newfile(hr->path, hr->rpermission, false);
+        int fd = newfile(hr->path, hr->rpermission, FALSE);
         if(fd < 0) {
             print_error(
                 hr->pe_flag,
@@ -436,7 +436,7 @@ PRIVATE void _rotatory_flush(rotatory_log_t *hr)
 }
 
 /*****************************************************************
- *  Return true is filename has changed
+ *  Return TRUE is filename has changed
  *****************************************************************/
 PRIVATE BOOL _get_rotatory_filename(rotatory_log_t *hr)
 {
@@ -535,7 +535,7 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
         strncpy(lastpath, hr->path, sizeof(lastpath)-1);
         snprintf(hr->path, sizeof(hr->path), "%s/%s", hr->log_directory, hr->filename);
         if(access(hr->path, 0)!=0) {
-            int fd = newfile(hr->path, hr->rpermission, false);
+            int fd = newfile(hr->path, hr->rpermission, FALSE);
             if(fd < 0) {
                 print_error(
                     hr->pe_flag,
