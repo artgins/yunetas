@@ -71,7 +71,7 @@ register_and_set() {
     # Register if not already known
     if ! update-alternatives --query "$alt" 2>/dev/null | grep -q "Value: $path"; then
         echo "➕ Registering $alt → $path"
-        sudo update-alternatives --install "$alt_link" "$alt" "$path"
+        sudo update-alternatives --install "$alt_link" "$alt" "$path" 100
     fi
 
     echo "✅ Setting $alt to $path"
@@ -80,8 +80,9 @@ register_and_set() {
 
 # Register and set for cc and gcc
 register_and_set cc "$CC_PATH"
+register_and_set gcc "$CC_PATH"
 
 echo "🧪 Compiler links:"
-echo "  cc  -> $(readlink -f "$(command -v cc)")"
-
+#echo "  cc  -> $(readlink -f "$(command -v cc)")"
 echo "  cc  -> $(cc --version)"
+echo "  gcc  -> $(gcc --version)"

@@ -17,6 +17,13 @@ export CFLAGS="-Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
+export CC=musl-gcc
+
+#export CFLAGS="-O2 -I/usr/src/linux-headers-6.8.0-59/include"
+#CFLAGS+=" -I/lib/modules/$(uname -r)/build/include"
+#export CFLAGS
+export LDFLAGS="-static"
+
 #-----------------------------------------------------#
 #   Get yunetas base path:
 #   - defined in environment variable YUNETAS_BASE
@@ -38,125 +45,131 @@ mkdir -p "$YUNETA_INSTALL_PREFIX"
 #------------------------------------------
 #   Jansson
 #------------------------------------------
-echo "===================== JANSSON ======================="
-cd build/jansson
-mkdir -p build
-cd build
-
-git checkout "$TAG_JANSSON"
-
-cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" -DJANSSON_BUILD_DOCS=OFF ..
-make
-make install
-cd ..
-cd ../..
+#echo "===================== JANSSON ======================="
+#cd build/jansson
+#mkdir -p build
+#cd build
+#
+#git checkout "$TAG_JANSSON"
+#
+#cmake .. \
+#    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+#    -DJANSSON_BUILD_DOCS=OFF \
+#    -DJANSSON_BUILD_SHARED_LIBS=OFF
+#
+#make
+#make install
+#cd ..
+#cd ../..
 
 #------------------------------------------
 #   liburing
 #------------------------------------------
-echo "===================== liburing ======================="
-cd build/liburing
+#echo "===================== liburing ======================="
+#cd build/liburing
+#
+#git checkout "$TAG_LIBURING"
+#
+#./configure \
+#    --prefix="${YUNETA_INSTALL_PREFIX}"
+#
+#make
+#make install
+#cd ../..
 
-git checkout "$TAG_LIBURING"
+##------------------------------------------
+##   mbedtls
+##------------------------------------------
+#echo "===================== MBEDTLS ======================="
+#cd build/mbedtls
+#mkdir -p build
+#cd build
+#
+#git checkout "$TAG_MBEDTLS"
+#
+#cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+#  -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
+#make
+#make install
+#cd ..
+#cd ../..
 
-./configure --prefix="${YUNETA_INSTALL_PREFIX}"
-make
-make install
-cd ../..
+##------------------------------------------
+##   openssl
+##------------------------------------------
+#echo "===================== OPENSSL ======================="
+#cd build/openssl
+#
+#git checkout "$TAG_OPENSSL"
+#
+#./config \
+#    --prefix="${YUNETA_INSTALL_PREFIX}" \
+#    --openssldir=/yuneta/bin/ssl3 \
+#    --libdir=lib \
+#    -fPIC \
+#    no-tests \
+#    no-shared \
+#    no-docs \
+#    enable-ssl-trace
+#make
+#make install
+#cd ../..
+#
+##------------------------------------------
+##   PCRE
+##------------------------------------------
+#echo "===================== PCRE2 ======================="
+#cd build/pcre2
+#
+#git checkout "$TAG_PCRE2"
+#git submodule update --init
+#
+#mkdir -p build
+#cd build
+#cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+#    -DBUILD_STATIC_LIBS=ON \
+#    -DBUILD_SHARED_LIBS=OFF \
+#    -DPCRE2_BUILD_PCRE2_16=ON \
+#    -DPCRE2_BUILD_PCRE2_32=ON \
+#    -DPCRE2_STATIC_PIC=ON \
+#    -DPCRE2_SUPPORT_JIT=ON \
+#    ..
+#
+#make
+#make install
+#cd ..
+#cd ../..
 
-#------------------------------------------
-#   mbedtls
-#------------------------------------------
-echo "===================== MBEDTLS ======================="
-cd build/mbedtls
-mkdir -p build
-cd build
-
-git checkout "$TAG_MBEDTLS"
-
-cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
-  -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
-make
-make install
-cd ..
-cd ../..
-
-#------------------------------------------
-#   openssl
-#------------------------------------------
-echo "===================== OPENSSL ======================="
-cd build/openssl
-
-git checkout "$TAG_OPENSSL"
-
-./config \
-    --prefix="${YUNETA_INSTALL_PREFIX}" \
-    --openssldir=/yuneta/bin/ssl3 \
-    --libdir=lib \
-    -fPIC \
-    no-tests \
-    no-shared \
-    no-docs \
-    enable-ssl-trace
-make
-make install
-cd ../..
-
-#------------------------------------------
-#   PCRE
-#------------------------------------------
-echo "===================== PCRE2 ======================="
-cd build/pcre2
-
-git checkout "$TAG_PCRE2"
-git submodule update --init
-
-mkdir -p build
-cd build
-cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
-    -DBUILD_STATIC_LIBS=ON \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DPCRE2_BUILD_PCRE2_16=ON \
-    -DPCRE2_BUILD_PCRE2_32=ON \
-    -DPCRE2_STATIC_PIC=ON \
-    -DPCRE2_SUPPORT_JIT=ON \
-    ..
-
-make
-make install
-cd ..
-cd ../..
-
-#------------------------------------------
-#   libjwt
-#------------------------------------------
-echo "===================== LIBJWT ======================="
-cd build/libjwt
-mkdir -p build
-cd build
-
-git checkout "$TAG_LIBJWT"
-
-cmake -G "Ninja" \
-    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
-    -DBUILD_EXAMPLES=OFF \
-    ..
-
-ninja
-ninja install
-cd ..
-cd ../..
-
-#------------------------------------------
-#   libbacktrace
-#------------------------------------------
-echo "===================== libbacktrace ======================="
-cd build/libbacktrace
-
-./configure --prefix="${YUNETA_INSTALL_PREFIX}"
-make
-make install
-cd ../..
+##------------------------------------------
+##   libjwt
+##------------------------------------------
+#echo "===================== LIBJWT ======================="
+#cd build/libjwt
+#mkdir -p build
+#cd build
+#
+#git checkout "$TAG_LIBJWT"
+#
+#cmake -G "Ninja" \
+#    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+#    -DBUILD_EXAMPLES=OFF \
+#    ..
+#
+#ninja
+#ninja install
+#cd ..
+#cd ../..
+#
+##------------------------------------------
+##   libbacktrace
+##------------------------------------------
+#echo "===================== libbacktrace ======================="
+#cd build/libbacktrace
+#
+#./configure --prefix="${YUNETA_INSTALL_PREFIX}"
+#make
+#make install
+#cd ../..
 
 
 #------------------------------------------
