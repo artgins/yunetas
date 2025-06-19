@@ -11,8 +11,12 @@ else
     YUNETAS_BASE_DIR="/yuneta/development/yunetas"
 fi
 
-#sudo apt reinstall gcc musl musl-dev musl-tools clang
-#sudo apt reinstall gcc
+#----------------------------------------#
+#       Select compiler
+#----------------------------------------#
+sudo update-alternatives --remove-all gcc
+sudo update-alternatives --remove-all cc
+sudo apt reinstall gcc musl musl-dev musl-tools clang
 
 #----------------------------------------#
 #       Select compiler
