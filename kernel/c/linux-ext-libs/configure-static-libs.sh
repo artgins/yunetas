@@ -19,9 +19,8 @@ set -e
 
 export CC=musl-gcc
 
-#export CFLAGS="-O2 -I/usr/src/linux-headers-6.8.0-59/include"
-#CFLAGS+=" -I/lib/modules/$(uname -r)/build/include"
-#export CFLAGS
+CFLAGS+=" -I/lib/modules/$(uname -r)/build/include"
+export CFLAGS
 export LDFLAGS="-static"
 
 #-----------------------------------------------------#
@@ -43,7 +42,7 @@ YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs_ext"
 mkdir -p "$YUNETA_INSTALL_PREFIX"
 
 #------------------------------------------
-#   Jansson
+#   Jansson OK
 #------------------------------------------
 #echo "===================== JANSSON ======================="
 #cd build/jansson
@@ -63,23 +62,8 @@ mkdir -p "$YUNETA_INSTALL_PREFIX"
 #cd ../..
 
 #------------------------------------------
-#   liburing
+#   mbedtls OK
 #------------------------------------------
-#echo "===================== liburing ======================="
-#cd build/liburing
-#
-#git checkout "$TAG_LIBURING"
-#
-#./configure \
-#    --prefix="${YUNETA_INSTALL_PREFIX}"
-#
-#make
-#make install
-#cd ../..
-
-##------------------------------------------
-##   mbedtls
-##------------------------------------------
 #echo "===================== MBEDTLS ======================="
 #cd build/mbedtls
 #mkdir -p build
@@ -94,30 +78,9 @@ mkdir -p "$YUNETA_INSTALL_PREFIX"
 #cd ..
 #cd ../..
 
-##------------------------------------------
-##   openssl
-##------------------------------------------
-#echo "===================== OPENSSL ======================="
-#cd build/openssl
-#
-#git checkout "$TAG_OPENSSL"
-#
-#./config \
-#    --prefix="${YUNETA_INSTALL_PREFIX}" \
-#    --openssldir=/yuneta/bin/ssl3 \
-#    --libdir=lib \
-#    -fPIC \
-#    no-tests \
-#    no-shared \
-#    no-docs \
-#    enable-ssl-trace
-#make
-#make install
-#cd ../..
-#
-##------------------------------------------
-##   PCRE
-##------------------------------------------
+#------------------------------------------
+#   PCRE OK
+#------------------------------------------
 #echo "===================== PCRE2 ======================="
 #cd build/pcre2
 #
@@ -140,8 +103,34 @@ mkdir -p "$YUNETA_INSTALL_PREFIX"
 #cd ..
 #cd ../..
 
+#------------------------------------------
+#   libbacktrace OK
+#------------------------------------------
+#echo "===================== libbacktrace ======================="
+#cd build/libbacktrace
+#
+#./configure --prefix="${YUNETA_INSTALL_PREFIX}"
+#make
+#make install
+#cd ../..
+
+#------------------------------------------
+#   liburing ERROR
+#------------------------------------------
+echo "===================== liburing ======================="
+cd build/liburing
+
+git checkout "$TAG_LIBURING"
+
+./configure \
+    --prefix="${YUNETA_INSTALL_PREFIX}"
+
+make
+make install
+cd ../..
+
 ##------------------------------------------
-##   libjwt
+##   libjwt ERROR
 ##------------------------------------------
 #echo "===================== LIBJWT ======================="
 #cd build/libjwt
@@ -159,14 +148,24 @@ mkdir -p "$YUNETA_INSTALL_PREFIX"
 #ninja install
 #cd ..
 #cd ../..
-#
+
 ##------------------------------------------
-##   libbacktrace
+##   openssl ERROR
 ##------------------------------------------
-#echo "===================== libbacktrace ======================="
-#cd build/libbacktrace
+#echo "===================== OPENSSL ======================="
+#cd build/openssl
 #
-#./configure --prefix="${YUNETA_INSTALL_PREFIX}"
+#git checkout "$TAG_OPENSSL"
+#
+#./config \
+#    --prefix="${YUNETA_INSTALL_PREFIX}" \
+#    --openssldir=/yuneta/bin/ssl3 \
+#    --libdir=lib \
+#    -fPIC \
+#    no-tests \
+#    no-shared \
+#    no-docs \
+#    enable-ssl-trace
 #make
 #make install
 #cd ../..
