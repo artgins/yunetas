@@ -468,7 +468,7 @@ PRIVATE void set_trace(hsskt sskt_, BOOL set)
 {
     sskt_t *sskt = (sskt_t *)sskt_;
     ytls_t *ytls = sskt->ytls;
-    ytls->trace = set ? true : false;
+    ytls->trace = set ? TRUE : FALSE;
 
     if (ytls->trace) {
         // Enable debug callback
@@ -534,7 +534,7 @@ PRIVATE int do_handshake(hsskt sskt_)
     flush_encrypted_data(sskt);
 
     if (!sskt->handshake_informed) {
-        sskt->handshake_informed = true;
+        sskt->handshake_informed = TRUE;
         sskt->on_handshake_done_cb(sskt->user_data, 0); // Indicate success
     }
 
@@ -675,7 +675,7 @@ PRIVATE int flush_clear_data(sskt_t *sskt)
         gobj_trace_msg(gobj, "------- flush_clear_data(), userp %p", sskt->user_data);
     }
 
-    while (true) {
+    while (TRUE) {
         gbuffer_t *gbuf = gbuffer_create(sskt->ytls->rx_buffer_size, sskt->ytls->rx_buffer_size);
         if (!gbuf) {
             gobj_log_error(gobj, 0,

@@ -124,10 +124,26 @@ git checkout "$TAG_LIBURING"
 
 ./configure \
     --prefix="${YUNETA_INSTALL_PREFIX}" \
-    --cc=gcc
+    --cc=clang
 
 make
 make install
+cd ../..
+
+#------------------------------------------
+#   argp-standalone
+#------------------------------------------
+echo "===================== ARGP-STANDALONE ======================="
+cd build/argp-standalone
+mkdir -p build
+cd build
+
+git checkout "$TAG_ARGP_STANDALONE"
+
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}"  ..
+make
+make install
+cd ..
 cd ../..
 
 #------------------------------------------
@@ -164,7 +180,7 @@ cd ../..
 ##git checkout "$TAG_LIBJWT"
 #cmake \
 #    -DCMAKE_TOOLCHAIN_FILE=../../musl-toolchain.cmake \
-#    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+#    -DCMAKE_INSTALL_PREFIX:PATH="/yuneta/development/outputs_ext" \
 #    -DEXCLUDE_DEPRECATED=TRUE \
 #    -DWITH_GNUTLS=OFF \
 #    -DWITH_MBEDTLS=ON \

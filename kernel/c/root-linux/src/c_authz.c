@@ -309,7 +309,6 @@ PRIVATE void mt_create(hgobj gobj)
 
     jwt_set_alloc(
         malloc_func,
-        realloc_func,
         free_func
     );
     create_jwt_validations(gobj);
