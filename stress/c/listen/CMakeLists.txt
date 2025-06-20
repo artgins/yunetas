@@ -38,10 +38,25 @@ foreach(test ${SRCS})
         ${YUNETAS_KERNEL_LIBS}
         ${YUNETAS_EXTERNAL_LIBS}
         ${YUNETAS_PCRE_LIBS}
-        ${OPENSSL_LIBS}
-        ${MBEDTLS_LIBS}
-        ${DEBUG_LIBS}
     )
+
+    if(CONFIG_YTLS_USE_MBEDTLS)
+        target_link_libraries(${binary}
+            ${MBEDTLS_LIBS}
+        )
+    endif()
+
+    if(CONFIG_YTLS_USE_OPENSSL)
+        target_link_libraries(${binary}
+            ${OPENSSL_LIBS}
+        )
+    endif()
+
+    if(CONFIG_DEBUG_WITH_BACKTRACE)
+        target_link_libraries(${binary}
+            ${DEBUG_LIBS}
+        )
+    endif()
 
 endforeach()
 
