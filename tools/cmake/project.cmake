@@ -84,11 +84,19 @@ add_compile_definitions(
     _GNU_SOURCE
 )
 
-include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
-include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
+if(DEFINE_STATIC_YUNO)
+    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/include")
+    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/lib")
+    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_static/include")
+    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_static/lib")
+    add_link_options(-static)
+else()
+    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
+    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
+    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
+    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
+endif()
 
-link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
-link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)

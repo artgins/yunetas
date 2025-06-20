@@ -132,37 +132,6 @@ cd ..
 cd ../..
 
 #------------------------------------------
-#   openresty
-#------------------------------------------
-echo "===================== OPENRESTY ======================="
-cd build/openresty
-
-git checkout "v$TAG_OPENRESTY"
-
-make
-cd "openresty-$TAG_OPENRESTY"
-
-./configure \
-    --prefix=/yuneta/bin/openresty \
-    --with-http_ssl_module \
-    --with-http_realip_module \
-    --with-stream \
-    --with-stream_ssl_module \
-    --with-http_stub_status_module \
-    --with-pcre-jit \
-    --with-openssl=../../openssl \
-    --with-openssl-opt=no-tests \
-    --with-openssl-opt=no-shared \
-    --with-openssl-opt=no-docs \
-    --with-http_v2_module \
-    --with-http_gzip_static_module
-
-gmake
-gmake install
-cd ..
-cd ../..
-
-#------------------------------------------
 #   libbacktrace
 #------------------------------------------
 echo "===================== libbacktrace ======================="
@@ -212,9 +181,43 @@ make install
 cd ..
 cd ../..
 
+#------------------------------------------
+#   openresty
+#------------------------------------------
+echo "===================== OPENRESTY ======================="
+cd build/openresty
+
+git checkout "v$TAG_OPENRESTY"
+
+export CC=gcc
+
+make
+cd "openresty-$TAG_OPENRESTY"
+
+./configure \
+    --prefix=/yuneta/bin/openresty \
+    --with-http_ssl_module \
+    --with-http_realip_module \
+    --with-stream \
+    --with-stream_ssl_module \
+    --with-http_stub_status_module \
+    --with-pcre-jit \
+    --with-openssl=../../openssl \
+    --with-openssl-opt=no-tests \
+    --with-openssl-opt=no-shared \
+    --with-openssl-opt=no-docs \
+    --with-http_v2_module \
+    --with-http_gzip_static_module
+
+gmake
+gmake install
+cd ..
+cd ../..
+
 
 #------------------------------------------
 #   Save the version installed
 #------------------------------------------
+echo "Version $VERSION installed"
 echo "$VERSION" > VERSION_INSTALLED.txt
 echo "" >> VERSION_INSTALLED.txt

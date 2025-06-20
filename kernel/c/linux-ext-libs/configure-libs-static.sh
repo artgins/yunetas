@@ -173,5 +173,6 @@ cd ../..
 #------------------------------------------
 #   Save the version installed
 #------------------------------------------
+echo "Version $VERSION installed"
 echo "$VERSION" > VERSION_INSTALLED_STATIC.txt
 echo "" >> VERSION_INSTALLED_STATIC.txt
