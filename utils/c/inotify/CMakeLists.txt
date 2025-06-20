@@ -37,11 +37,25 @@ target_link_libraries(${PROJECT_NAME}
     libjansson.a
     liburing.a
     libpcre2-8.a
-    libcrypto.a
-    libbacktrace.a
-
-    pthread dl  # used by openssl
 )
+
+if(CONFIG_YTLS_USE_MBEDTLS)
+    target_link_libraries(${PROJECT_NAME}
+        ${MBEDTLS_LIBS}
+    )
+endif()
+
+if(CONFIG_YTLS_USE_OPENSSL)
+    target_link_libraries(${PROJECT_NAME}
+        ${OPENSSL_LIBS}
+    )
+endif()
+
+if(CONFIG_DEBUG_WITH_BACKTRACE)
+    target_link_libraries(${PROJECT_NAME}
+        ${DEBUG_LIBS}
+    )
+endif()
 
 
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
