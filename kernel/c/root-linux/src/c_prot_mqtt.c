@@ -22,8 +22,13 @@
 #include <endian.h>
 #include <time.h>
 #include <arpa/inet.h>
+
+#ifdef CONFIG_YTLS_USE_OPENSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
+#else
+    // #error "TODO IMPLEMENT MBEDTLS"
+#endif
 
 #include <kwid.h>
 
@@ -1629,6 +1634,7 @@ PRIVATE int check_passwd(
     json_int_t iterations
 )
 {
+#ifdef CONFIG_YTLS_USE_OPENSSL
     const EVP_MD *digest;
     unsigned char hash_[EVP_MAX_MD_SIZE+1];
     unsigned int hash_len_ = EVP_MAX_MD_SIZE;
@@ -1665,6 +1671,9 @@ PRIVATE int check_passwd(
     if(hash_len_ == strlen(hash) && memcmp(hash, hash_, hash_len_)==0) {
         return 0;
     }
+#else
+    // #error "TODO IMPLEMENT MBEDTLS"
+#endif
 
     return -1;
 }
@@ -1694,6 +1703,7 @@ PRIVATE json_t *hash_password(
     int iterations
 )
 {
+#ifdef CONFIG_YTLS_USE_OPENSSL
     #define SALT_LEN 12
     unsigned int hash_len;
     unsigned char hash[64]; /* For SHA512 */
@@ -1758,6 +1768,9 @@ PRIVATE json_t *hash_password(
     GBUFFER_DECREF(gbuf_salt);
 
     return credentials;
+#else
+    // #error "TODO IMPLEMENT MBEDTLS"
+#endif
 }
 
 /***************************************************************************
