@@ -9,7 +9,7 @@ set -e
 #   Jansson
 #------------------------------------------
 echo "===================== JANSSON ======================="
-cd build/jansson
+cd build_static/jansson
 cd build
 make install
 cd ..
@@ -19,7 +19,7 @@ cd ../..
 #   liburing
 #------------------------------------------
 echo "===================== liburing ======================="
-cd build/liburing
+cd build_static/liburing
 make install
 cd ../..
 
@@ -27,36 +27,17 @@ cd ../..
 #   mbedtls
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
-cd build/mbedtls
+cd build_static/mbedtls
 cd build
 make install
 cd ..
 cd ../..
 
 #------------------------------------------
-#   openssl
-#------------------------------------------
-echo "===================== OPENSSL ======================="
-cd build/openssl
-make install
-cd ../..
-
-#------------------------------------------
 #   PCRE
 #------------------------------------------
 echo "===================== PCRE ======================="
-cd build/pcre2/build
-make install
-cd ..
-cd ../..
-
-#------------------------------------------
-#   openresty
-#------------------------------------------
-echo "===================== OPENRESTY ======================="
-cd build/openresty
-cd "openresty-$TAG_OPENRESTY"
-
+cd build_static/pcre2/build
 make install
 cd ..
 cd ../..
@@ -65,7 +46,7 @@ cd ../..
 #   libbacktrace
 #------------------------------------------
 echo "===================== libbacktrace ======================="
-cd build/libbacktrace
+cd build_static/libbacktrace
 make install
 cd ../..
 
@@ -73,7 +54,7 @@ cd ../..
 #   argp-standalone
 #------------------------------------------
 echo "===================== ARGP-STANDALONE ======================="
-cd build/argp-standalone
+cd build_static/argp-standalone
 cd build
 make install
 cd ..
@@ -82,7 +63,7 @@ cd ../..
 #------------------------------------------
 #   libjwt
 #------------------------------------------
-cd build/libjwt
+cd build_static/libjwt
 cd build
 make install
 cd ..

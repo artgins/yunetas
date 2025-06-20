@@ -11,7 +11,7 @@ TAG_LIBURING="liburing-2.11"
 TAG_MBEDTLS="v3.6.2"
 TAG_OPENSSL="openssl-3.4.1"
 TAG_PCRE2="pcre2-10.45"
-TAG_LIBJWT="v2.1.2"
+TAG_LIBJWT="v3.2.1"
 TAG_OPENRESTY="1.27.1.2"    # warning: without the initial 'v'
 TAG_ARGP_STANDALONE="v1.1.4"
 

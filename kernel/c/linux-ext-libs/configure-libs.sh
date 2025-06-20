@@ -10,7 +10,9 @@
 VERSION="1.2"
 
 source ./repos2clone.sh
-export CFLAGS="-Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
+export CFLAGS+=" -Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
+
+export CC=clang
 
 [ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
 
@@ -34,6 +36,8 @@ fi
 PARENT_DIR=$(dirname "$YUNETAS_BASE_DIR")
 YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs_ext"
 mkdir -p "$YUNETA_INSTALL_PREFIX"
+
+export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 
 #------------------------------------------
 #   Jansson
@@ -128,26 +132,6 @@ cd ..
 cd ../..
 
 #------------------------------------------
-#   libjwt
-#------------------------------------------
-echo "===================== LIBJWT ======================="
-cd build/libjwt
-mkdir -p build
-cd build
-
-git checkout "$TAG_LIBJWT"
-
-cmake -G "Ninja" \
-    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
-    -DBUILD_EXAMPLES=OFF \
-    ..
-
-ninja
-ninja install
-cd ..
-cd ../..
-
-#------------------------------------------
 #   openresty
 #------------------------------------------
 echo "===================== OPENRESTY ======================="
@@ -202,6 +186,29 @@ git checkout "$TAG_ARGP_STANDALONE"
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}"  ..
 make
 make install
+cd ..
+cd ../..
+
+#------------------------------------------
+#   libjwt
+#------------------------------------------
+echo "===================== LIBJWT ======================="
+cd build/libjwt
+mkdir -p build
+cd build
+
+git checkout "$TAG_LIBJWT"
+
+cmake \
+    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DEXCLUDE_DEPRECATED=TRUE \
+    -DWITH_GNUTLS=OFF \
+    -DWITH_MBEDTLS=ON \
+    ..
+
+make
+make install
+
 cd ..
 cd ../..
 
