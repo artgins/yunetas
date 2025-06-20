@@ -15,6 +15,10 @@ TAG_LIBJWT="v3.2.1"
 TAG_OPENRESTY="1.27.1.2"    # warning: without the initial 'v'
 TAG_ARGP_STANDALONE="v1.1.4"
 
+#TAG_LIBJWT="v1.17.2"
+#TAG_LIBJWT="v2.1.2"
+#TAG_LIBJWT="v3.2.1"
+
 #------------------------------------------
 #   RESPOS
 #------------------------------------------

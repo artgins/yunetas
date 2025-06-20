@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.5)
 include(CheckIncludeFiles)
 include(CheckSymbolExists)
 
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+
 #--------------------------------------------------#
 #   Check YUNETAS_BASE_DIR
 #--------------------------------------------------#
@@ -66,40 +69,39 @@ get_filename_component(YUNETAS_PARENT_BASE_DIR "${YUNETAS_BASE_DIR}" DIRECTORY)
 list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE_DIR}/tools/cmake")
 
 #----------------------------------------#
-#   Add system prefix and install prefix
-#   In `outputs` of parent
-#----------------------------------------#
-list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs")
-set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs")
-
-set(INC_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/include)
-set(LIB_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/lib)
-set(BIN_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/bin)
-set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
-
-#----------------------------------------#
 #   Global definitions and include paths
 #----------------------------------------#
 add_compile_definitions(
     _GNU_SOURCE
 )
 
-if(DEFINE_STATIC_YUNO)
+if(AS_STATIC)
+    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
+    set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
+
     include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/include")
     link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/lib")
     include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_static/include")
     link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_static/lib")
     add_link_options(-static)
 else()
+    list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs")
+    set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs")
+
     include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
     link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
     include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
     link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 endif()
 
-
-set(CMAKE_C_STANDARD 99)
-set(CMAKE_C_STANDARD_REQUIRED ON)
+#----------------------------------------#
+#   Add system prefix and install prefix
+#   In `outputs` of parent
+#----------------------------------------#
+set(INC_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/include)
+set(LIB_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/lib)
+set(BIN_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/bin)
+set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
 
 #----------------------------------------#
 #   Default to Debug if not specified
@@ -197,32 +199,20 @@ set(YUNETAS_C_PROT_LIBS
     libyunetas-c_prot.a
 )
 
-if(CONFIG_YTLS_USE_OPENSSL)
-    set(OPENSSL_LIBS
-        libjwt.a
-        libssl.a
-        libcrypto.a
-        pthread dl
-    )
-else()
-    set(OPENSSL_LIBS "")
-endif()
+set(OPENSSL_LIBS
+    libjwt.a
+    libssl.a
+    libcrypto.a
+    pthread dl
+)
 
-if(CONFIG_YTLS_USE_MBEDTLS)
-    set(MBEDTLS_LIBS
-        libjwt.a
-        libmbedtls.a
-        libmbedx509.a
-        libmbedcrypto.a
-    )
-else()
-    set(MBEDTLS_LIBS "")
-endif()
+set(MBEDTLS_LIBS
+    libjwt.a
+    libmbedtls.a
+    libmbedx509.a
+    libmbedcrypto.a
+)
 
-if(CONFIG_DEBUG_WITH_BACKTRACE)
-    set(DEBUG_LIBS
-        libbacktrace.a
-    )
-else()
-    set(DEBUG_LIBS "")
-endif()
+set(DEBUG_LIBS
+    libbacktrace.a
+)

@@ -34,8 +34,6 @@ if grep -q '^CONFIG_USE_COMPILER_CLANG=y' "$CONFIG_FILE"; then
     COMPILER="clang"
 elif grep -q '^CONFIG_USE_COMPILER_GCC=y' "$CONFIG_FILE"; then
     COMPILER="gcc"
-elif grep -q '^CONFIG_USE_COMPILER_MUSL=y' "$CONFIG_FILE"; then
-    COMPILER="musl-gcc"
 else
     echo "❌ No compiler selected in $CONFIG_FILE"
     exit 1

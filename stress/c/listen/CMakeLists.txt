@@ -42,7 +42,6 @@ foreach(test ${SRCS})
         ${MBEDTLS_LIBS}
         ${DEBUG_LIBS}
     )
-#    add_test("${current_directory_name}/${test}" ${binary})
 
 endforeach()
 
