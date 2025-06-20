@@ -11,6 +11,11 @@ choice
     prompt "Compiler Selection"
     default USE_COMPILER_CLANG
 
+config USE_COMPILER_MUSL
+    bool "Use Musl compiler"
+    help
+        Select this option to use Musl as the compiler.
+
 config USE_COMPILER_CLANG
     bool "Use Clang compiler"
     help
@@ -21,11 +26,6 @@ config USE_COMPILER_GCC
     help
         Select this option to use GCC as the compiler.
 
-
-config USE_COMPILER_MUSL
-    bool "Use Musl compiler"
-    help
-        Select this option to use Musl as the compiler.
 
 endchoice
 

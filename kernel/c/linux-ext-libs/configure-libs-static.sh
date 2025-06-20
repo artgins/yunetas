@@ -10,11 +10,11 @@
 VERSION="1.2-s"
 
 source ./repos2clone-static.sh
-CFLAGS+=" -Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
+CFLAGS=" -Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
 export CFLAGS
 
 export CC=musl-gcc
-export LDFLAGS+="-static"
+export LDFLAGS="-static"
 
 [ -f "./VERSION_INSTALLED_STATIC.txt" ] && rm "./VERSION_INSTALLED_STATIC.txt"
 

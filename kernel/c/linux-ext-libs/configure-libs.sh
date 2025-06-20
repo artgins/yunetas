@@ -10,7 +10,7 @@
 VERSION="1.2"
 
 source ./repos2clone.sh
-export CFLAGS+=" -Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
+export CFLAGS=" -Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
 
 export CC=clang
 
