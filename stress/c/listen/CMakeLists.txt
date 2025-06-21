@@ -1,9 +1,8 @@
 ##############################################
 #   CMake
 ##############################################
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(stress_listen C)
-get_filename_component(current_directory_name ${CMAKE_CURRENT_SOURCE_DIR} NAME)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -33,6 +32,9 @@ SET(COMMON
 foreach(test ${SRCS})
     set(binary "stress_${test}")
     add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
+
+    # These linker flags ensure no shared libs are pulled in
+    target_link_options(${binary} PRIVATE -static -no-pie -Wl,-Bstatic)
 
     target_link_libraries(${binary}
         ${YUNETAS_KERNEL_LIBS}

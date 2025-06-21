@@ -20,17 +20,14 @@ include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-
 SET (YUNO_SRCS
     tr2list.c
-)
-SET (YUNO_HDRS
 )
 
 ##############################################
 #   yuno
 ##############################################
-add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+add_executable(${PROJECT_NAME} ${YUNO_SRCS})
 
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
