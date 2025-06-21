@@ -28,7 +28,7 @@ SET (YUNO_SRCS
 ##############################################
 #   yuno
 ##############################################
-add_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}

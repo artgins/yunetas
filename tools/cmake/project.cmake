@@ -1,3 +1,6 @@
+##############################################
+#   project.cmake
+##############################################
 cmake_minimum_required(VERSION 3.5)
 
 include(CheckIncludeFiles)
@@ -55,6 +58,21 @@ if(EXISTS ${CONFIG_FILE})
 else()
     message(FATAL_ERROR ".config file not found at ${CONFIG_FILE}")
 endif()
+
+
+#--------------------------------------------------#
+#   Wrapp add_yuno_executable
+#--------------------------------------------------#
+function(add_yuno_executable name)
+    add_executable(${name} ${ARGN})
+    if(AS_STATIC)
+        set_target_properties(${name} PROPERTIES
+            LINK_SEARCH_START_STATIC TRUE
+            LINK_SEARCH_END_STATIC TRUE
+        )
+    endif()
+endfunction()
+
 
 #--------------------------------------------------#
 #   Get the parent of YUNETAS_BASE

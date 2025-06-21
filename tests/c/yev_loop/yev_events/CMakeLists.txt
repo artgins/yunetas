@@ -43,7 +43,7 @@ set(SRCS
 ##############################################
 foreach(test ${SRCS})
     set(binary "${test}")
-    add_executable(${binary} "${test}.c")
+    add_yuno_executable(${binary} "${test}.c")
 
     target_link_libraries(${binary}
         ${YUNETAS_KERNEL_LIBS}

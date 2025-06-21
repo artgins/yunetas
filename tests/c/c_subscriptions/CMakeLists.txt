@@ -33,7 +33,7 @@ SET(COMMON
 ##############################################
 foreach(test ${SRCS})
     set(binary "test_subs_${test}")
-    add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
+    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
     target_link_libraries(${binary}
         ${YUNETAS_KERNEL_LIBS}

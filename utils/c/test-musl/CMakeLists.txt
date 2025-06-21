@@ -26,7 +26,7 @@ SET(SRCS
 ##############################################
 #   Tests
 ##############################################
-add_executable(${PROJECT_NAME} ${SRCS})
+add_yuno_executable(${PROJECT_NAME} ${SRCS})
 
 if(AS_STATIC)
     # Enforce full static link flags globally
@@ -34,8 +34,6 @@ if(AS_STATIC)
         LINK_SEARCH_START_STATIC TRUE
         LINK_SEARCH_END_STATIC TRUE
     )
-    # These linker flags ensure no shared libs are pulled in
-    target_link_options(${PROJECT_NAME} PRIVATE -static -no-pie -Wl,-Bstatic)
 endif()
 
 target_link_libraries(${PROJECT_NAME}

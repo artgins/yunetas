@@ -31,7 +31,7 @@ SET(COMMON
 ##############################################
 foreach(test ${SRCS})
     set(binary "stress_${test}")
-    add_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
+    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
     # These linker flags ensure no shared libs are pulled in
     target_link_options(${binary} PRIVATE -static -no-pie -Wl,-Bstatic)

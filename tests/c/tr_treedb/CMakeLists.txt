@@ -34,7 +34,7 @@ set(SRCS
 ##############################################
 #   Binary
 ##############################################
-add_executable(${PROJECT_NAME} ${SRCS})
+add_yuno_executable(${PROJECT_NAME} ${SRCS})
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}

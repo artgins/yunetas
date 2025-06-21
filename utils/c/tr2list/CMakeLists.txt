@@ -26,7 +26,7 @@ SET (YUNO_SRCS
 ##############################################
 #   yuno
 ##############################################
-add_executable(${PROJECT_NAME} ${YUNO_SRCS})
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS})
 
 if(AS_STATIC)
     # Enforce full static link flags globally
