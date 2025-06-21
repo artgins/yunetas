@@ -28,14 +28,15 @@ SET(SRCS
 ##############################################
 add_executable(${PROJECT_NAME} ${SRCS})
 
-# Enforce full static link flags globally
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    LINK_SEARCH_START_STATIC TRUE
-    LINK_SEARCH_END_STATIC TRUE
-)
-
-# These linker flags ensure no shared libs are pulled in
-target_link_options(${PROJECT_NAME} PRIVATE -static -no-pie -Wl,-Bstatic)
+if(AS_STATIC)
+    # Enforce full static link flags globally
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+    # These linker flags ensure no shared libs are pulled in
+    target_link_options(${PROJECT_NAME} PRIVATE -static -no-pie -Wl,-Bstatic)
+endif()
 
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
