@@ -9,8 +9,9 @@ build_static/
 cmake-build-debug-clang/
 cmake-build-debug-musl/
 cmake-build-relwithdebinfo/
-build.sin-configurar/
+cmake-build-debug-static/
 
+build.sin-configurar/
 external-libs/liburing/
 external-libs/projects_with_liburing/
 \.venv/
