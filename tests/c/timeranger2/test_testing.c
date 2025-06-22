@@ -72,11 +72,11 @@ int do_test(void)
         { \
             'topics': { \
                 'XXX': { \
-                    'topic_name': '%s', \
+                    'topic_name': 's', \
                     'pkey': 'id', \
                     'tkey': 'tm', \
                     'system_flag': 4, \
-                    'filename_mask': '%%Y-%%m-%%d', \
+                    'filename_mask': 'xxY-xxm-xxd', \
                     'xpermission': 1472, \
                     'rpermission': 384, \
                     'cols': { \
@@ -84,7 +84,7 @@ int do_test(void)
                         'tm': 0, \
                         'content': '' \
                     }, \
-                    'directory': '%s', \
+                    'directory': 'xs', \
                     'wr_fd_files': {\
                         '0000000000000000001': { \
                             '2000-01-02.json': 99999, \
@@ -156,7 +156,7 @@ int do_test(void)
                         { \
                             'id': 'list1', \
                             'creator': '', \
-                            'topic_name': '%s', \
+                            'topic_name': 'xs', \
                             'key': '', \
                             'match_cond': {}, \
                             'load_record_callback': 99999, \
@@ -165,7 +165,7 @@ int do_test(void)
                         { \
                             'id': 'list2', \
                             'creator': '', \
-                            'topic_name': '%s', \
+                            'topic_name': 'xs', \
                             'key': '0000000000000000001', \
                             'match_cond': {}, \
                             'load_record_callback': 99999, \
@@ -177,7 +177,7 @@ int do_test(void)
                 } \
             } \
         } \
-        ", TOPIC_NAME, path_topic, TOPIC_NAME, TOPIC_NAME);
+        ");
 
         const char *ignore_keys[]= {
             NULL
