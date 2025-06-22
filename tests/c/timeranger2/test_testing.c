@@ -74,12 +74,12 @@ int do_test(void)
                 'XXX': { \
                     'wr_fd_files': {\
                         '0000000000000000001': { \
-                            '2000-01-02.json': 99999, \
-                            '2000-01-02.md2': 99999 \
+                            '2000-01-02.json': 999991, \
+                            '2000-01-02.md2': 999992 \
                         }, \
                         '0000000000000000002': { \
-                            '2000-01-02.json': 99999, \
-                            '2000-01-02.md2': 99999 \
+                            '2000-01-02.json': 999993, \
+                            '2000-01-02.md2': 999994 \
                         } \
                     }, \
                     'lists': [ \
@@ -87,18 +87,14 @@ int do_test(void)
                             'id': 'list1', \
                             'creator': '', \
                             'topic_name': 'xs', \
-                            'key': '', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999, \
                             'list_type': 'rt_mem'\
                         }, \
                         { \
                             'id': 'list2', \
                             'creator': '', \
                             'topic_name': 'xs', \
-                            'key': '', \
                             'match_cond': {}, \
-                            'load_record_callback': 99999, \
                             'list_type': 'rt_mem' \
                         } \
                     ], \
