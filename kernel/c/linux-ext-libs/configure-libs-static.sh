@@ -5,16 +5,17 @@
 #       upgrade to liburing-2.9
 #   version 1.2
 #       upgrade to liburing-2.11
+#   version 1.3
+#       using musl-gcc
 #
 
-VERSION="1.2-s"
+VERSION="1.3-s"
 
 source ./repos2clone-static.sh
-CFLAGS=" -Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
-export CFLAGS
 
-export CC=musl-gcc
-export LDFLAGS="-static"
+export CC=/usr/local/bin/musl-gcc
+export CFLAGS="-Wno-error=char-subscripts -O2 -DNDEBUG"
+export LDFLAGS="-static -no-pie"
 
 [ -f "./VERSION_INSTALLED_STATIC.txt" ] && rm "./VERSION_INSTALLED_STATIC.txt"
 
