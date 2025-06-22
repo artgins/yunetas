@@ -1,0 +1,36 @@
+# CMake generated Testfile for 
+# Source directory: /yuneta/development/yunetas/tests/c/yev_loop/yev_events
+# Build directory: /yuneta/development/yunetas/cmake-build-debug-static/tests/c/yev_loop/yev_events
+# 
+# This file includes the relevant testing commands required for 
+# testing this directory and lists subdirectories to be tested as well.
+add_test(yev_events/test_yevent_listen1 "test_yevent_listen1")
+set_tests_properties(yev_events/test_yevent_listen1 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_listen2 "test_yevent_listen2")
+set_tests_properties(yev_events/test_yevent_listen2 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_listen3 "test_yevent_listen3")
+set_tests_properties(yev_events/test_yevent_listen3 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_listen4 "test_yevent_listen4")
+set_tests_properties(yev_events/test_yevent_listen4 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_connect1 "test_yevent_connect1")
+set_tests_properties(yev_events/test_yevent_connect1 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_connect2 "test_yevent_connect2")
+set_tests_properties(yev_events/test_yevent_connect2 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_traffic1 "test_yevent_traffic1")
+set_tests_properties(yev_events/test_yevent_traffic1 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_traffic2 "test_yevent_traffic2")
+set_tests_properties(yev_events/test_yevent_traffic2 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_traffic3 "test_yevent_traffic3")
+set_tests_properties(yev_events/test_yevent_traffic3 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_traffic4 "test_yevent_traffic4")
+set_tests_properties(yev_events/test_yevent_traffic4 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_traffic5 "test_yevent_traffic5")
+set_tests_properties(yev_events/test_yevent_traffic5 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_traffic6 "test_yevent_traffic6")
+set_tests_properties(yev_events/test_yevent_traffic6 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_timer_once1 "test_yevent_timer_once1")
+set_tests_properties(yev_events/test_yevent_timer_once1 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_timer_once2 "test_yevent_timer_once2")
+set_tests_properties(yev_events/test_yevent_timer_once2 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")
+add_test(yev_events/test_yevent_timer_periodic1 "test_yevent_timer_periodic1")
+set_tests_properties(yev_events/test_yevent_timer_periodic1 PROPERTIES  _BACKTRACE_TRIPLES "/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;56;add_test;/yuneta/development/yunetas/tests/c/yev_loop/yev_events/CMakeLists.txt;0;")

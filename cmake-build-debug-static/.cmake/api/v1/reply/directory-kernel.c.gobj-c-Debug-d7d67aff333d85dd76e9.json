@@ -1,0 +1,82 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"kernel/c/gobj-c/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 62,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 64,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/include",
+			"paths" : 
+			[
+				"kernel/c/gobj-c/src/ansi_escape_codes.h",
+				"kernel/c/gobj-c/src/00_http_parser.h",
+				"kernel/c/gobj-c/src/00_security.h",
+				"kernel/c/gobj-c/src/gobj.h",
+				"kernel/c/gobj-c/src/log_udp_handler.h",
+				"kernel/c/gobj-c/src/helpers.h",
+				"kernel/c/gobj-c/src/kwid.h",
+				"kernel/c/gobj-c/src/command_parser.h",
+				"kernel/c/gobj-c/src/stats_parser.h",
+				"kernel/c/gobj-c/src/testing.h",
+				"kernel/c/gobj-c/src/rotatory.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/lib",
+			"paths" : 
+			[
+				"kernel/c/gobj-c/libyunetas-gobj.a"
+			],
+			"targetId" : "yunetas-gobj::@9f82f4bac576c8acf97b",
+			"targetIndex" : 67,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yunetas-gobj::@9f82f4bac576c8acf97b",
+				"index" : 67
+			},
+			"destination" : "/yuneta/development/outputs_static/lib",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "kernel/c/gobj-c",
+		"source" : "kernel/c/gobj-c"
+	}
+}

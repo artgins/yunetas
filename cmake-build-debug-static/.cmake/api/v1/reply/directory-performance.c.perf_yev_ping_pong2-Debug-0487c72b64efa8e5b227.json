@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"performance/c/perf_yev_ping_pong2/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 65,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/bin",
+			"paths" : 
+			[
+				"performance/c/perf_yev_ping_pong2/perf_yev_ping_pong2"
+			],
+			"targetId" : "perf_yev_ping_pong2::@85202f67c27d342b2896",
+			"targetIndex" : 8,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "perf_yev_ping_pong2::@85202f67c27d342b2896",
+				"index" : 8
+			},
+			"destination" : "/yuneta/development/outputs_static/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "performance/c/perf_yev_ping_pong2",
+		"source" : "performance/c/perf_yev_ping_pong2"
+	}
+}

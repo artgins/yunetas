@@ -1,0 +1,75 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"modules/c/c_prot/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 49,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 51,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/include",
+			"paths" : 
+			[
+				"modules/c/c_prot/src/yunetas_c_prot.h",
+				"modules/c/c_prot/src/register_prot.h",
+				"modules/c/c_prot/src/c_prot_modbus_m.h",
+				"modules/c/c_prot/src/c_ota.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/lib",
+			"paths" : 
+			[
+				"modules/c/c_prot/libyunetas-c_prot.a"
+			],
+			"targetId" : "yunetas-c_prot::@85c8b8c1c771ce00cd12",
+			"targetIndex" : 64,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yunetas-c_prot::@85c8b8c1c771ce00cd12",
+				"index" : 64
+			},
+			"destination" : "/yuneta/development/outputs_static/lib",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "modules/c/c_prot",
+		"source" : "modules/c/c_prot"
+	}
+}

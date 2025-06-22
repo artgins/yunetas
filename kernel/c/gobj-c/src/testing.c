@@ -140,6 +140,13 @@ PRIVATE BOOL match_record(
     BOOL ret = TRUE;
     json_t *record = json_deep_copy(record_);
     json_t *expected = json_deep_copy(expected_);
+
+// TODO TEST
+char *px = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
+printf("match_record: %s\n", px);
+debug_json("record", record, TRUE);
+debug_json("expected", expected, TRUE);
+
     if(!record) {
         if(verbose) {
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
@@ -262,8 +269,20 @@ PRIVATE BOOL match_record(
                                 break;
                             }
 
+printf("match_RECORD: %s, del ====> key %s\n", px, key);
+debug_json("record", record, TRUE);
+debug_json("expected", expected, TRUE);
+printf("key %s %p\n", key, key);
                             json_object_del(record, key);
+debug_json("record X", record, TRUE);
+debug_json("expected X", expected, TRUE);
+printf("key %s %p\n", key, key);
                             json_object_del(expected, key);
+
+printf("match_record: %s, del <==== key %s\n", px, key);
+debug_json("record", record, TRUE);
+debug_json("expected", expected, TRUE);
+printf("key %s %p\n", key, key);
 
                         } else {
                             if(ignore_keys && str_in_list(ignore_keys, key, FALSE)) {
@@ -336,6 +355,13 @@ PRIVATE BOOL match_list(
     BOOL ret = TRUE;
     json_t *list = json_deep_copy(list_);
     json_t *expected = json_deep_copy(expected_);
+
+// TODO TEST
+char *px = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
+printf("match_LIST: %s\n", px);
+debug_json("record", list, TRUE);
+debug_json("expected", expected, TRUE);
+
     if(!list) {
         if(verbose) {
             char *p = gbuf_path?gbuffer_cur_rd_pointer(gbuf_path):"";
@@ -486,7 +512,7 @@ PRIVATE BOOL match_list(
 PUBLIC void set_expected_results(
     const char *name_,
     json_t *errors_list,
-    json_t *expected_,
+    json_t *expected_, // owned
     const char **ignore_keys_,
     BOOL verbose_
 )

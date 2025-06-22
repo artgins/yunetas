@@ -26,7 +26,7 @@ PUBLIC int capture_log_write(void* v, int priority, const char* bf, size_t len);
 PUBLIC void set_expected_results(
     const char *name,
     json_t *errors_list,
-    json_t *expected,
+    json_t *expected,  // owned
     const char **ignore_keys,
     BOOL verbose
 );

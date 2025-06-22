@@ -1,0 +1,102 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"kernel/c/root-linux/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 102,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 104,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/include",
+			"paths" : 
+			[
+				"kernel/c/root-linux/src/c_yuno.h",
+				"kernel/c/root-linux/src/c_timer0.h",
+				"kernel/c/root-linux/src/c_timer.h",
+				"kernel/c/root-linux/src/c_tcp.h",
+				"kernel/c/root-linux/src/c_tcp_s.h",
+				"kernel/c/root-linux/src/c_uart.h",
+				"kernel/c/root-linux/src/c_channel.h",
+				"kernel/c/root-linux/src/c_iogate.h",
+				"kernel/c/root-linux/src/c_qiogate.h",
+				"kernel/c/root-linux/src/c_mqiogate.h",
+				"kernel/c/root-linux/src/c_ievent_srv.h",
+				"kernel/c/root-linux/src/c_ievent_cli.h",
+				"kernel/c/root-linux/src/c_prot_http_cl.h",
+				"kernel/c/root-linux/src/c_prot_http_sr.h",
+				"kernel/c/root-linux/src/c_prot_mqtt.h",
+				"kernel/c/root-linux/src/c_prot_tcp4h.h",
+				"kernel/c/root-linux/src/c_websocket.h",
+				"kernel/c/root-linux/src/c_authz.h",
+				"kernel/c/root-linux/src/c_task.h",
+				"kernel/c/root-linux/src/c_task_authenticate.h",
+				"kernel/c/root-linux/src/c_tranger.h",
+				"kernel/c/root-linux/src/c_node.h",
+				"kernel/c/root-linux/src/c_treedb.h",
+				"kernel/c/root-linux/src/c_resource2.h",
+				"kernel/c/root-linux/src/yunetas_environment.h",
+				"kernel/c/root-linux/src/dbsimple.h",
+				"kernel/c/root-linux/src/entry_point.h",
+				"kernel/c/root-linux/src/msg_ievent.h",
+				"kernel/c/root-linux/src/yunetas_register.h",
+				"kernel/c/root-linux/src/ydaemon.h",
+				"kernel/c/root-linux/src/yunetas.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/lib",
+			"paths" : 
+			[
+				"kernel/c/root-linux/libyunetas-core-linux.a"
+			],
+			"targetId" : "yunetas-core-linux::@14ba5b28d30b66a226f8",
+			"targetIndex" : 65,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yunetas-core-linux::@14ba5b28d30b66a226f8",
+				"index" : 65
+			},
+			"destination" : "/yuneta/development/outputs_static/lib",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "kernel/c/root-linux",
+		"source" : "kernel/c/root-linux"
+	}
+}

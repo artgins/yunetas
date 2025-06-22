@@ -1,0 +1,85 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"utils/c/tr2keys/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 81,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 89,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/bin",
+			"paths" : 
+			[
+				"utils/c/tr2keys/tr2keys"
+			],
+			"targetId" : "tr2keys::@7bb4bbcb6770abc42d0b",
+			"targetIndex" : 59,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "tr2keys::@7bb4bbcb6770abc42d0b",
+				"index" : 59
+			},
+			"destination" : "/yuneta/development/outputs_static/bin",
+			"type" : "cxxModuleBmi"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/bin",
+			"paths" : 
+			[
+				"utils/c/tr2keys/tr2keys"
+			],
+			"targetId" : "tr2keys::@7bb4bbcb6770abc42d0b",
+			"targetIndex" : 59,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "tr2keys::@7bb4bbcb6770abc42d0b",
+				"index" : 59
+			},
+			"destination" : "/yuneta/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "utils/c/tr2keys",
+		"source" : "utils/c/tr2keys"
+	}
+}

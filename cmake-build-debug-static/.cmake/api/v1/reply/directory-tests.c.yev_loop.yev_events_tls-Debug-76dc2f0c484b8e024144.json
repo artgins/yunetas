@@ -1,0 +1,14 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : [],
+		"files" : [],
+		"nodes" : []
+	},
+	"installers" : [],
+	"paths" : 
+	{
+		"build" : "tests/c/yev_loop/yev_events_tls",
+		"source" : "tests/c/yev_loop/yev_events_tls"
+	}
+}

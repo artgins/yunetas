@@ -1,0 +1,85 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"utils/c/list_queue_msgs2/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 60,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 68,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs_static/bin",
+			"paths" : 
+			[
+				"utils/c/list_queue_msgs2/list_queue_msgs2"
+			],
+			"targetId" : "list_queue_msgs2::@4aa7cde092bb294c7f1f",
+			"targetIndex" : 2,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "list_queue_msgs2::@4aa7cde092bb294c7f1f",
+				"index" : 2
+			},
+			"destination" : "/yuneta/development/outputs_static/bin",
+			"type" : "cxxModuleBmi"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/bin",
+			"paths" : 
+			[
+				"utils/c/list_queue_msgs2/list_queue_msgs2"
+			],
+			"targetId" : "list_queue_msgs2::@4aa7cde092bb294c7f1f",
+			"targetIndex" : 2,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "list_queue_msgs2::@4aa7cde092bb294c7f1f",
+				"index" : 2
+			},
+			"destination" : "/yuneta/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "utils/c/list_queue_msgs2",
+		"source" : "utils/c/list_queue_msgs2"
+	}
+}
