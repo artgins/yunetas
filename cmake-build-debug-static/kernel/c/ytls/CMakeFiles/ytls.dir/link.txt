@@ -1,2 +1,0 @@
-/usr/bin/ar qc libytls.a CMakeFiles/ytls.dir/src/ytls.c.o CMakeFiles/ytls.dir/src/tls/openssl.c.o CMakeFiles/ytls.dir/src/tls/mbedtls.c.o
-/usr/bin/ranlib libytls.a

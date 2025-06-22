@@ -1,2 +1,0 @@
-/usr/bin/ar qc libyunetas-c_prot.a "CMakeFiles/yunetas-c_prot.dir/src/register_prot.c.o" "CMakeFiles/yunetas-c_prot.dir/src/c_prot_modbus_m.c.o" "CMakeFiles/yunetas-c_prot.dir/src/c_ota.c.o"
-/usr/bin/ranlib libyunetas-c_prot.a

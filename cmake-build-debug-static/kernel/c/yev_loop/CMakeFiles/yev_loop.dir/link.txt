@@ -1,2 +1,0 @@
-/usr/bin/ar qc libyev_loop.a CMakeFiles/yev_loop.dir/src/yev_loop.c.o
-/usr/bin/ranlib libyev_loop.a
