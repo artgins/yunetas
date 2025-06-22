@@ -82,7 +82,7 @@ cd ../..
 #   openssl
 #------------------------------------------
 echo "===================== OPENSSL ======================="
-cd build/openssl
+cd build_static/openssl
 
 git checkout "$TAG_OPENSSL"
 
@@ -181,7 +181,7 @@ cmake \
     -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DEXCLUDE_DEPRECATED=TRUE \
     -DWITH_GNUTLS=OFF \
-    -DWITH_MBEDTLS=OFF \
+    -DWITH_MBEDTLS=ON \
     ..
 
 make
