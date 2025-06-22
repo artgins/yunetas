@@ -11,7 +11,7 @@ TAG_LIBURING="liburing-2.11"
 TAG_MBEDTLS="v3.6.2"    # last versions failing
 TAG_OPENSSL="openssl-3.4.1"
 TAG_PCRE2="pcre2-10.45"
-TAG_LIBJWT="x3.2.1a"
+TAG_LIBJWT="x3.2.1b"
 TAG_ARGP_STANDALONE="v1.1.5"
 
 #TAG_LIBJWT="x3.2.1a"
