@@ -72,7 +72,7 @@ int do_test(void)
         { \
             'topics': { \
                 'XXX': { \
-                    'wr_fd_files': {\
+                    'wr_f': {\
                         '0001': { \
                             '2000': 0, \
                             '2001': 0 \
@@ -84,22 +84,22 @@ int do_test(void)
                     }, \
                     'lists': [ \
                         { \
-                            'id': 'list1', \
+                            'id': '', \
                             'creator': 0, \
                             'topic_name': 0, \
-                            'match_cond': {}, \
+                            'match_cond': {'x':0}, \
                             'list_type': 0 \
                         }, \
                         { \
-                            'id': 'list2', \
+                            'id': '', \
                             'creator': 0, \
                             'topic_name': 0, \
-                            'match_cond': {}, \
+                            'match_cond': {'x':0}, \
                             'list_type': 0 \
                         } \
                     ], \
-                    'disks': [], \
-                    'iterators': [] \
+                    'disks': {'x':0}, \
+                    'iterators': {'x':0} \
                 } \
             } \
         } \
