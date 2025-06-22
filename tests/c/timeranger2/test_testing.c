@@ -82,10 +82,6 @@ int do_test(void)
                             '2000-01-02.md2': 99999 \
                         } \
                     }, \
-\
-\
-\
-\
                     'lists': [ \
                         { \
                             'id': 'list1', \
@@ -100,7 +96,7 @@ int do_test(void)
                             'id': 'list2', \
                             'creator': '', \
                             'topic_name': 'xs', \
-                            'key': '0000000000000000001', \
+                            'key': '', \
                             'match_cond': {}, \
                             'load_record_callback': 99999, \
                             'list_type': 'rt_mem' \
