@@ -70,8 +70,8 @@ int do_test(void)
         char expected[32*1024];
         snprintf(expected, sizeof(expected), "\
         { \
-            'topi': { \
-                '0': { \
+            'topi': [ \
+                { \
                     'don0': {\
                         '0001': { \
                             '2000': 0, \
@@ -99,7 +99,7 @@ int do_test(void)
                     'don3': {}, \
                     'don4': {} \
                 } \
-            } \
+            ] \
         } \
         ");
 
