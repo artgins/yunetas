@@ -79,6 +79,27 @@ cd ..
 cd ../..
 
 #------------------------------------------
+#   openssl
+#------------------------------------------
+echo "===================== OPENSSL ======================="
+cd build/openssl
+
+git checkout "$TAG_OPENSSL"
+
+./config \
+    --prefix="${YUNETA_INSTALL_PREFIX}" \
+    --openssldir=/yuneta/bin/ssl3 \
+    --libdir=lib \
+    -fPIC \
+    no-tests \
+    no-shared \
+    no-docs \
+    enable-ssl-trace
+make
+make install
+cd ../..
+
+#------------------------------------------
 #   PCRE OK
 #------------------------------------------
 echo "===================== PCRE2 ======================="
@@ -160,7 +181,7 @@ cmake \
     -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DEXCLUDE_DEPRECATED=TRUE \
     -DWITH_GNUTLS=OFF \
-    -DWITH_MBEDTLS=ON \
+    -DWITH_MBEDTLS=OFF \
     ..
 
 make
@@ -168,7 +189,6 @@ make install
 
 cd ..
 cd ../..
-
 
 #------------------------------------------
 #   Save the version installed

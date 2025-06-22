@@ -1881,7 +1881,7 @@ PRIVATE int create_jwt_validations(hgobj gobj)
     return 0;
 }
 
-#ifdef PEPE
+// #ifdef PEPE
 /***************************************************************************
  *  jn_pkey is duplicate json of a entry in jwt_public_keys
  *
@@ -1971,8 +1971,9 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
     return 0;
 }
 
-#endif
+// #endif
 
+#ifdef PEPE
 /***************************************************************************
  *  jn_pkey is duplicate json of a entry in jwt_public_keys
  *
@@ -2079,6 +2080,7 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
 
     return 0;
 }
+#endif
 
 /***************************************************************************
  *  Function to convert to PEM format
@@ -2113,39 +2115,39 @@ PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
 PRIVATE const char *get_validation_status(unsigned status)
 {
     const char *s = "";
-    // switch(status) {
-    //     case JWT_VALIDATION_SUCCESS:
-    //         s = "JWT_VALIDATION_SUCCESS";
-    //         break;
-    //     case JWT_VALIDATION_ALG_MISMATCH:
-    //         s = "JWT_VALIDATION_ALG_MISMATCH";
-    //         break;
-    //     case JWT_VALIDATION_EXPIRED:
-    //         s = "JWT_VALIDATION_EXPIRED";
-    //         break;
-    //     case JWT_VALIDATION_TOO_NEW:
-    //         s = "JWT_VALIDATION_TOO_NEW";
-    //         break;
-    //     case JWT_VALIDATION_ISS_MISMATCH:
-    //         s = "JWT_VALIDATION_ISS_MISMATCH";
-    //         break;
-    //     case JWT_VALIDATION_SUB_MISMATCH:
-    //         s = "JWT_VALIDATION_SUB_MISMATCH";
-    //         break;
-    //     case JWT_VALIDATION_AUD_MISMATCH:
-    //         s = "JWT_VALIDATION_AUD_MISMATCH";
-    //         break;
-    //     case JWT_VALIDATION_GRANT_MISSING:
-    //         s = "JWT_VALIDATION_GRANT_MISSING";
-    //         break;
-    //     case JWT_VALIDATION_GRANT_MISMATCH:
-    //         s = "JWT_VALIDATION_GRANT_MISMATCH";
-    //         break;
-    //     default:
-    //     case JWT_VALIDATION_ERROR:
-    //         s = "JWT_VALIDATION_ERROR";
-    //         break;
-    // }
+    switch(status) {
+        case JWT_VALIDATION_SUCCESS:
+            s = "JWT_VALIDATION_SUCCESS";
+            break;
+        case JWT_VALIDATION_ALG_MISMATCH:
+            s = "JWT_VALIDATION_ALG_MISMATCH";
+            break;
+        case JWT_VALIDATION_EXPIRED:
+            s = "JWT_VALIDATION_EXPIRED";
+            break;
+        case JWT_VALIDATION_TOO_NEW:
+            s = "JWT_VALIDATION_TOO_NEW";
+            break;
+        case JWT_VALIDATION_ISS_MISMATCH:
+            s = "JWT_VALIDATION_ISS_MISMATCH";
+            break;
+        case JWT_VALIDATION_SUB_MISMATCH:
+            s = "JWT_VALIDATION_SUB_MISMATCH";
+            break;
+        case JWT_VALIDATION_AUD_MISMATCH:
+            s = "JWT_VALIDATION_AUD_MISMATCH";
+            break;
+        case JWT_VALIDATION_GRANT_MISSING:
+            s = "JWT_VALIDATION_GRANT_MISSING";
+            break;
+        case JWT_VALIDATION_GRANT_MISMATCH:
+            s = "JWT_VALIDATION_GRANT_MISMATCH";
+            break;
+        default:
+        case JWT_VALIDATION_ERROR:
+            s = "JWT_VALIDATION_ERROR";
+            break;
+    }
     return s;
 }
 
@@ -2169,41 +2171,41 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
         }
         const char *pkey = kw_get_str(gobj, jn_validation, "pkey", "", KW_REQUIRED);
         // TODO
-        // int ret = jwt_decode(
-        //     &jwt,
-        //     token,
-        //     (const unsigned char *)pkey,
-        //     (int)strlen(pkey)
-        // );
-        // if(ret != 0) {
-        //     *status = "NO OAuth2 Issuer found";
-        //     continue;
-        // }
-        //
-        // char *s = jwt_get_grants_json(jwt, NULL);
-        // if(s) {
-        //     *jwt_payload = legalstring2json(s, TRUE);
-        //     jwt_free_str(s);
-        // }
-        //
-        // jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(gobj, jn_validation, "jwt_valid", 0, KW_REQUIRED);
-        // jwt_valid_set_now(jwt_valid, time(NULL));
-        //
-        // if(jwt_validate(jwt, jwt_valid)==0) {
-        //     validated = TRUE;
-        //     *status = get_validation_status(jwt_valid_get_status(jwt_valid));
-        // } else {
-        //     *status = get_validation_status(jwt_valid_get_status(jwt_valid));
-        //     gobj_log_info(gobj, 0,
-        //         "function",         "%s", __FUNCTION__,
-        //         "msgset",           "%s", MSGSET_INFO,
-        //         "msg",              "%s", "jwt invalid",
-        //         "status",           "%s", *status,
-        //         NULL
-        //     );
-        //     gobj_trace_json(gobj, *jwt_payload, "jwt invalid");
-        // }
-        // jwt_free(jwt);
+        int ret = jwt_decode(
+            &jwt,
+            token,
+            (const unsigned char *)pkey,
+            (int)strlen(pkey)
+        );
+        if(ret != 0) {
+            *status = "NO OAuth2 Issuer found";
+            continue;
+        }
+
+        char *s = jwt_get_grants_json(jwt, NULL);
+        if(s) {
+            *jwt_payload = legalstring2json(s, TRUE);
+            jwt_free_str(s);
+        }
+
+        jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(gobj, jn_validation, "jwt_valid", 0, KW_REQUIRED);
+        jwt_valid_set_now(jwt_valid, time(NULL));
+
+        if(jwt_validate(jwt, jwt_valid)==0) {
+            validated = TRUE;
+            *status = get_validation_status(jwt_valid_get_status(jwt_valid));
+        } else {
+            *status = get_validation_status(jwt_valid_get_status(jwt_valid));
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "jwt invalid",
+                "status",           "%s", *status,
+                NULL
+            );
+            gobj_trace_json(gobj, *jwt_payload, "jwt invalid");
+        }
+        jwt_free(jwt);
         break;
     }
 
