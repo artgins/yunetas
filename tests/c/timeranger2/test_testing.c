@@ -72,7 +72,7 @@ int do_test(void)
         { \
             'topics': { \
                 'XXX': { \
-                    'wr_f': {\
+                    'done': {\
                         '0001': { \
                             '2000': 0, \
                             '2001': 0 \
@@ -82,24 +82,24 @@ int do_test(void)
                             '2001': 0 \
                         } \
                     }, \
-                    'lists': [ \
+                    'done1': [ \
                         { \
                             'id': '', \
-                            'creator': 0, \
-                            'topic_name': 0, \
-                            'match_cond': {'x':0}, \
-                            'list_type': 0 \
+                            'crea': 0, \
+                            'topi': 0, \
+                            'clas': {}, \
+                            'list': 0 \
                         }, \
                         { \
                             'id': '', \
-                            'creator': 0, \
-                            'topic_name': 0, \
-                            'match_cond': {'x':0}, \
-                            'list_type': 0 \
+                            'crea': 0, \
+                            'topi': 0, \
+                            'clas': {}, \
+                            'list': 0 \
                         } \
                     ], \
-                    'disks': {'x':0}, \
-                    'iterators': {'x':0} \
+                    'done3': {}, \
+                    'done4': {} \
                 } \
             } \
         } \
