@@ -33,9 +33,6 @@ foreach(test ${SRCS})
     set(binary "stress_${test}")
     add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
 
-    # These linker flags ensure no shared libs are pulled in
-    target_link_options(${binary} PRIVATE -static -no-pie -Wl,-Bstatic)
-
     target_link_libraries(${binary}
         ${YUNETAS_KERNEL_LIBS}
         ${YUNETAS_EXTERNAL_LIBS}
@@ -48,11 +45,11 @@ foreach(test ${SRCS})
         )
     endif()
 
-    if(CONFIG_YTLS_USE_OPENSSL)
+#    if(CONFIG_YTLS_USE_OPENSSL) TODO openssl needs yet
         target_link_libraries(${binary}
             ${OPENSSL_LIBS}
         )
-    endif()
+#    endif()
 
     if(CONFIG_DEBUG_WITH_BACKTRACE)
         target_link_libraries(${binary}

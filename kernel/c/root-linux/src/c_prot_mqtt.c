@@ -28,6 +28,8 @@
 #include <openssl/rand.h>
 #else
     // #error "TODO IMPLEMENT MBEDTLS"
+#include <openssl/ssl.h>
+#include <openssl/rand.h>
 #endif
 
 #include <kwid.h>

@@ -57,14 +57,22 @@ PUBLIC hytls ytls_init(
 #endif
 
         DEFAULTS
-            break;
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+                "msg",              "%s", "tls_library NOT DEFINED",
+                "library",          "%s", tls_library,
+                NULL
+            );
+        break;
     } SWITCHS_END;
 
     if(!api_tls) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_INTERNAL_ERROR,
-            "msg",              "%s", "tls_library NOT DEFINED",
+            "msg",              "%s", "api_tls() FAILED",
+            "library",          "%s", tls_library,
             NULL
         );
         return 0;

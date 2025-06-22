@@ -64,8 +64,10 @@ endif()
 #   Wrapp add_yuno_executable
 #--------------------------------------------------#
 function(add_yuno_executable name)
+    message(STATUS "Add executable: ${name}")
     add_executable(${name} ${ARGN})
     if(AS_STATIC)
+        message(STATUS "is AS_STATIC: ${name}")
         set_target_properties(${name} PROPERTIES
             LINK_SEARCH_START_STATIC TRUE
             LINK_SEARCH_END_STATIC TRUE
