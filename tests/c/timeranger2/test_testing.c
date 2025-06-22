@@ -84,14 +84,12 @@ int do_test(void)
                     }, \
                     'done1': [ \
                         { \
-                            'id': '', \
                             'crea': 0, \
                             'topi': 0, \
                             'clas': {}, \
                             'list': 0 \
                         }, \
                         { \
-                            'id': '', \
                             'crea': 0, \
                             'topi': 0, \
                             'clas': {}, \
