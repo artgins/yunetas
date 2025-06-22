@@ -74,28 +74,28 @@ int do_test(void)
                 'XXX': { \
                     'wr_fd_files': {\
                         '0001': { \
-                            '2000-01': '1', \
-                            '2000-01.md2': 2 \
+                            '2000': 0, \
+                            '2001': 0 \
                         }, \
                         '0002': { \
-                            '2000-01': 3, \
-                            '2000-01.md2': 4 \
+                            '2000': 0, \
+                            '2001': 0 \
                         } \
                     }, \
                     'lists': [ \
                         { \
                             'id': 'list1', \
-                            'creator': '', \
-                            'topic_name': '', \
+                            'creator': 0, \
+                            'topic_name': 0, \
                             'match_cond': {}, \
-                            'list_type': 'rt_mem'\
+                            'list_type': 0 \
                         }, \
                         { \
                             'id': 'list2', \
-                            'creator': '', \
-                            'topic_name': '', \
+                            'creator': 0, \
+                            'topic_name': 0, \
                             'match_cond': {}, \
-                            'list_type': 'rt_mem' \
+                            'list_type': 0 \
                         } \
                     ], \
                     'disks': [], \
