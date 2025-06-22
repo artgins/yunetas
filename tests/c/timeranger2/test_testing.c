@@ -74,31 +74,32 @@ int do_test(void)
                 'XXX': { \
                     'wr_fd_files': {\
                         '0000000000000000001': { \
-                            '2000-01-02.json': 999991, \
-                            '2000-01-02.md2': 999992 \
+                            '2000-01-02': '1', \
+                            '2000-01-02.md2': 2 \
                         }, \
                         '0000000000000000002': { \
-                            '2000-01-02.json': 999993, \
-                            '2000-01-02.md2': 999994 \
+                            '2000-01-02': 3, \
+                            '2000-01-02.md2': 4 \
                         } \
                     }, \
                     'lists': [ \
                         { \
                             'id': 'list1', \
                             'creator': '', \
-                            'topic_name': 'xs', \
+                            'topic_name': '', \
                             'match_cond': {}, \
                             'list_type': 'rt_mem'\
                         }, \
                         { \
                             'id': 'list2', \
                             'creator': '', \
-                            'topic_name': 'xs', \
+                            'topic_name': '', \
                             'match_cond': {}, \
                             'list_type': 'rt_mem' \
                         } \
                     ], \
-                    'disks': [] \
+                    'disks': [], \
+                    'iterators': [] \
                 } \
             } \
         } \
