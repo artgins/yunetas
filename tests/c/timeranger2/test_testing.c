@@ -98,8 +98,7 @@ int do_test(void)
                             'list_type': 'rt_mem' \
                         } \
                     ], \
-                    'disks': [], \
-                    'iterators': [] \
+                    'disks': [] \
                 } \
             } \
         } \
