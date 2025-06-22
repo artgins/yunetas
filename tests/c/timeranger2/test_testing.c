@@ -70,9 +70,9 @@ int do_test(void)
         char expected[32*1024];
         snprintf(expected, sizeof(expected), "\
         { \
-            'topics': { \
-                'XXX': { \
-                    'done': {\
+            'topi': { \
+                '0': { \
+                    'don0': {\
                         '0001': { \
                             '2000': 0, \
                             '2001': 0 \
@@ -82,22 +82,22 @@ int do_test(void)
                             '2001': 0 \
                         } \
                     }, \
-                    'done1': [ \
+                    'don1': [ \
                         { \
-                            'crea': 0, \
-                            'topi': 0, \
-                            'clas': {}, \
-                            'list': 0 \
+                            'ala1': 0, \
+                            'ala2': 0, \
+                            'ala3': {}, \
+                            'ala4': 0 \
                         }, \
                         { \
-                            'crea': 0, \
-                            'topi': 0, \
-                            'clas': {}, \
-                            'list': 0 \
+                            'ala1': 0, \
+                            'ala2': 0, \
+                            'ala3': {}, \
+                            'ala4': 0 \
                         } \
                     ], \
-                    'done3': {}, \
-                    'done4': {} \
+                    'don3': {}, \
+                    'don4': {} \
                 } \
             } \
         } \
