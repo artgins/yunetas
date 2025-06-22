@@ -393,9 +393,9 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             {
                 if(cur_state == YEV_ST_IDLE) {
                     // HACK res == 0 when connected
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, true);
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, TRUE);
                 } else {
-                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, false);
+                    yev_set_flag(yev_event, YEV_FLAG_CONNECTED, FALSE);
                     if(yev_event->fd > 0) {
                         if(gobj_trace_level(0) & (TRACE_URING)) {
                             gobj_log_debug(gobj, 0,
@@ -643,7 +643,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         );
         return -1;
     }
-    __inside_loop__ = true;
+    __inside_loop__ = TRUE;
 
     /*------------------------------------------*
      *      Infinite loop
@@ -660,7 +660,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
     }
 
     struct io_uring_cqe *cqe;
-    yev_loop->running = true;
+    yev_loop->running = TRUE;
     while(yev_loop->running) {
         int err;
         if(timeout_in_seconds > 0) {
@@ -806,7 +806,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         );
         return -1;
     }
-    __inside_loop__ = true;
+    __inside_loop__ = TRUE;
 
     if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
         gobj_log_debug(0, 0,
@@ -879,7 +879,7 @@ PUBLIC int yev_loop_stop(yev_loop_h yev_loop_)
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
 
     if(!yev_loop->stopping) {
-        yev_loop->stopping = true;
+        yev_loop->stopping = TRUE;
         if(gobj_trace_level(0) & TRACE_URING) {
             gobj_log_debug(0, 0,
                 "function",     "%s", __FUNCTION__,
@@ -946,13 +946,13 @@ PRIVATE int _yev_protocol_fill_hints( // fill hints according the schema
         ICASES("wss")
             hints->ai_socktype = SOCK_STREAM; /* TCP socket */
             hints->ai_protocol = IPPROTO_TCP;
-            *secure = true;
+            *secure = TRUE;
             break;
 
         ICASES("udps")
             hints->ai_socktype = SOCK_DGRAM; /* UDP socket */
             hints->ai_protocol = IPPROTO_UDP;
-            *secure = true;
+            *secure = TRUE;
             break;
         ICASES("udp")
             hints->ai_socktype = SOCK_DGRAM; /* UDP socket */
@@ -1813,7 +1813,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
  ***************************************************************************/
 PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event)
 {
-    return (((yev_event_t *)yev_event)->state==YEV_ST_STOPPED)?true:false;
+    return (((yev_event_t *)yev_event)->state==YEV_ST_STOPPED)?TRUE:FALSE;
 }
 
 /***************************************************************************
@@ -1821,7 +1821,7 @@ PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event)
  ***************************************************************************/
 PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event)
 {
-    return (((yev_event_t *)yev_event)->state==YEV_ST_CANCELING)?true:false;
+    return (((yev_event_t *)yev_event)->state==YEV_ST_CANCELING)?TRUE:FALSE;
 }
 
 /***************************************************************************
@@ -1829,7 +1829,7 @@ PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event)
  ***************************************************************************/
 PUBLIC BOOL yev_event_is_running(yev_event_h yev_event)
 {
-    return (((yev_event_t *)yev_event)->state==YEV_ST_RUNNING)?true:false;
+    return (((yev_event_t *)yev_event)->state==YEV_ST_RUNNING)?TRUE:FALSE;
 }
 
 /***************************************************************************
@@ -1837,7 +1837,7 @@ PUBLIC BOOL yev_event_is_running(yev_event_h yev_event)
  ***************************************************************************/
 PUBLIC BOOL yev_event_is_idle(yev_event_h yev_event)
 {
-    return (((yev_event_t *)yev_event)->state==YEV_ST_IDLE)?true:false;
+    return (((yev_event_t *)yev_event)->state==YEV_ST_IDLE)?TRUE:FALSE;
 }
 
 /***************************************************************************
