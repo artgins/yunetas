@@ -1292,6 +1292,8 @@ PUBLIC int yev_start_event(
                         "event_type",   "%s", yev_event_type_name(yev_event),
                         "yev_state",    "%s", yev_get_state_name(yev_event),
                         "p",            "%p", yev_event,
+                        "sock_info",    "%d", yev_event->sock_info?1:0,
+                        "addrlen",      "%d", (int)yev_event->sock_info->addrlen,
                         NULL
                     );
                     return -1;
@@ -2477,6 +2479,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
                 "ai_socktype",  "%d", rp->ai_socktype,
                 "ai_protocol",  "%d", rp->ai_protocol,
                 "ai_canonname", "%s", rp->ai_canonname,
+                "ai_addrlen",   "%d", (int)rp->ai_addrlen,
                 NULL
             );
         }
@@ -2569,15 +2572,15 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         ret = -1;
     }
 
-    freeaddrinfo(results);
-
     if(ret == -1) {
+        freeaddrinfo(results);
         return NULL;
     }
 
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
         // Error already logged
+        freeaddrinfo(results);
         return NULL;
     }
 
@@ -2588,6 +2591,19 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
     if(rp && rp->ai_addrlen <= sizeof(yev_event->sock_info->addr)) {
         memcpy(&yev_event->sock_info->addr, rp->ai_addr, rp->ai_addrlen);
         yev_event->sock_info->addrlen = (socklen_t) rp->ai_addrlen;
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_LIBURING_ERROR,
+            "msg",          "%s", "Cannot copy ai_addr to sock_info",
+            "url",          "%s", listen_url,
+            "host",         "%s", host,
+            "port",         "%s", port,
+            "rp found",     "%d", rp?1:0,
+            "ai_addrlen",   "%d", (int)rp->ai_addrlen,
+            "addr size",    "%d", (int)sizeof(yev_event->sock_info->addr),
+            NULL
+        );
     }
 
     if(secure) {
@@ -2612,6 +2628,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         );
         json_decref(jn_flags);
     }
+    freeaddrinfo(results);
 
     return yev_event;
 }

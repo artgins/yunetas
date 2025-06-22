@@ -507,7 +507,7 @@ int do_test(void)
 
     // Get current limit
     if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
-        printf("Current limit: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
+        printf("Current limit: soft = %ld, hard = %ld\n", (long)rl.rlim_cur, (long)rl.rlim_max);
     } else {
         result += -1;
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Error getrlimit()");
@@ -517,7 +517,7 @@ int do_test(void)
     rl.rlim_cur = 2000;  // Set soft limit
     rl.rlim_max = 2000;  // Set hard limit
     if (setrlimit(RLIMIT_NOFILE, &rl) == 0) {
-        printf("New limit set: soft = %ld, hard = %ld\n", rl.rlim_cur, rl.rlim_max);
+        printf("New limit set: soft = %ld, hard = %ld\n", (long)rl.rlim_cur, (long)rl.rlim_max);
     } else {
         result += -1;
         printf("%sERROR%s --> %s\n", On_Red BWhite, Color_Off, "Error setrlimit()");
