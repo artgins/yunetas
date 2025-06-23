@@ -424,9 +424,7 @@ PRIVATE sys_free_fn_t sys_free_fn = _mem_free;
 PRIVATE size_t __max_block__ = 16*1024L*1024L;     /* largest memory block, default for no-using apps*/
 PRIVATE size_t __max_system_memory__ = 64*1024L*1024L;   /* maximum core memory, default for no-using apps */
 
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
 PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
-#endif
 
 /*---------------------------------------------*
  *      Global authz levels TODO review all authz
@@ -6368,11 +6366,7 @@ PUBLIC size_t get_max_system_memory(void)
 }
 PUBLIC size_t get_cur_system_memory(void)
 {
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     return __cur_system_memory__;
-#else
-    return 0;
-#endif
 }
 
 /***************************************************************************
@@ -11673,6 +11667,7 @@ PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
 PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
 PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
 
+#pragma pack(1)
 #ifdef CONFIG_DEBUG_TRACK_MEMORY
     PRIVATE size_t mem_ref = 0;
     PRIVATE dl_list_t dl_busy_mem = {0};
@@ -11684,21 +11679,21 @@ PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
     } track_mem_t;
 
     unsigned long *memory_check_list = 0;
-#define TRACK_MEM sizeof(track_mem_t)
 #else
-    // typedef struct {
-    //     size_t size;
-    // } track_mem_t;
+    typedef struct {
+        int size;
+    } track_mem_t;
 #endif
+#pragma pack()
 
-
+#define TRACK_MEM sizeof(track_mem_t)
 
 /***********************************************************************
  *      Set mem ref list to check
  ***********************************************************************/
 PUBLIC void set_memory_check_list(unsigned long *memory_check_list_)
 {
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
+#ifdef CONFIG_TRACK_MEMORY
     memory_check_list = memory_check_list_;
 #endif
 }
@@ -11708,7 +11703,6 @@ PUBLIC void set_memory_check_list(unsigned long *memory_check_list_)
  ***********************************************************************/
 PUBLIC void print_track_mem(void)
 {
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     if(!__cur_system_memory__) {
         return;
     }
@@ -11720,6 +11714,7 @@ PUBLIC void print_track_mem(void)
         "program",          "%s", argv? argv[0]: "",
         NULL
     );
+#ifdef CONFIG_TRACK_MEMORY
     track_mem_t *track_mem = dl_first(&dl_busy_mem);
     while(track_mem) {
         gobj_log_debug(0,0,
@@ -11739,7 +11734,7 @@ PUBLIC void print_track_mem(void)
 /***********************************************************************
  *
  ***********************************************************************/
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
+#ifdef CONFIG_TRACK_MEMORY
 PRIVATE void check_failed_list(track_mem_t *track_mem)
 {
     for(int xx=0; memory_check_list && memory_check_list[xx]!=0; xx++) {
@@ -11763,10 +11758,9 @@ PRIVATE void check_failed_list(track_mem_t *track_mem)
  ***********************************************************************/
 PRIVATE void *_mem_malloc(size_t size)
 {
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     size_t extra = TRACK_MEM;
     size += extra;
-#endif
+
     if(size > __max_block__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -11779,7 +11773,6 @@ PRIVATE void *_mem_malloc(size_t size)
         return NULL;
     }
 
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     __cur_system_memory__ += size;
 
     if(__cur_system_memory__ > __max_system_memory__) {
@@ -11790,8 +11783,6 @@ PRIVATE void *_mem_malloc(size_t size)
             NULL
         );
     }
-#endif
-
     char *pm = calloc(1, size);
     if(!pm) {
 #ifdef ESP_PLATFORM
@@ -11806,16 +11797,17 @@ PRIVATE void *_mem_malloc(size_t size)
             NULL
         );
     }
-
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     track_mem_t *pm_ = (track_mem_t*)pm;
     pm_->size = size;
+
+#ifdef CONFIG_TRACK_MEMORY
     pm_->ref = ++mem_ref;
     dl_add(&dl_busy_mem, pm_);
 
     check_failed_list(pm_);
-    pm += extra;
 #endif
+
+    pm += extra;
 
     return pm;
 }
@@ -11826,9 +11818,8 @@ PRIVATE void *_mem_malloc(size_t size)
 PRIVATE void _mem_free(void *p)
 {
     if(!p) {
-        return; // El comportamiento como free() es que no salga error;
+        return; // El comportamiento como free() es que no salga error; lo quito por libuv (uv_try_write)
     }
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     size_t extra = TRACK_MEM;
 
     char *pm = p;
@@ -11837,13 +11828,12 @@ PRIVATE void _mem_free(void *p)
     track_mem_t *pm_ = (track_mem_t*)pm;
     size_t size = pm_->size;
 
+#ifdef CONFIG_TRACK_MEMORY
     dl_delete(&dl_busy_mem, pm_, 0);
-    __cur_system_memory__ -= size;
-    free(pm);
-#else
-    free(p);
 #endif
 
+    __cur_system_memory__ -= size;
+    free(pm);
 }
 
 /***************************************************************************
@@ -11858,7 +11848,6 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
         return _mem_malloc(new_size);
     }
 
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     size_t extra = TRACK_MEM;
     new_size += extra;
 
@@ -11868,23 +11857,24 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     track_mem_t *pm_ = (track_mem_t*)pm;
     size_t size = pm_->size;
 
+#ifdef CONFIG_TRACK_MEMORY
     dl_delete(&dl_busy_mem, pm_, 0);
-    __cur_system_memory__ -= size;
 #endif
+
+    __cur_system_memory__ -= size;
 
     if(new_size > __max_block__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "SIZE GREATER THAN MAX_BLOCK",
-            "size",         "%ld", (long)new_size,
+            "size",         "%ld", (long)size,
             "max_block",    "%d", (int)__max_block__,
             NULL
         );
         return NULL;
     }
 
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     __cur_system_memory__ += new_size;
     if(__cur_system_memory__ > __max_system_memory__) {
         gobj_log_critical(0, LOG_OPT_ABORT,
@@ -11894,11 +11884,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
             NULL
         );
     }
-
     char *pm__ = realloc(pm, new_size);
-#else
-    char *pm__ = realloc(p, new_size);
-#endif
     if(!pm__) {
         gobj_log_critical(0, LOG_OPT_ABORT,
             "function",             "%s", __FUNCTION__,
@@ -11908,20 +11894,18 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
             NULL
         );
     }
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
     pm = pm__;
 
     pm_ = (track_mem_t*)pm;
     pm_->size = new_size;
 
+#ifdef CONFIG_TRACK_MEMORY
     pm_->ref = ++mem_ref;
     dl_add(&dl_busy_mem, pm_);
-    pm += extra;
-    return pm;
-#else
-    return pm__;
 #endif
 
+    pm += extra;
+    return pm;
 }
 
 /***************************************************************************
