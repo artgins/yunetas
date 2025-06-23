@@ -12,8 +12,6 @@ VERSION="1.3"
 source ./repos2clone.sh
 export CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
 
-export CC=clang
-
 [ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
 
 #  Exit immediately if a command exits with a non-zero status.
