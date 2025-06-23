@@ -11,15 +11,39 @@ choice
     prompt "Compiler Selection"
     default USE_COMPILER_CLANG
 
-config USE_COMPILER_CLANG
-    bool "Use Clang compiler"
+config USE_COMPILER_MUSL
+    bool "Musl compiler"
     help
-        Select this option to use Clang as the compiler.
+        Select Musl as the compiler.
+
+config USE_COMPILER_CLANG
+    bool "Clang compiler"
+    help
+        Select Clang as the compiler.
 
 config USE_COMPILER_GCC
-    bool "Use GCC compiler"
+    bool "GCC compiler"
     help
-        Select this option to use GCC as the compiler.
+        Select GCC as the compiler.
+
+endchoice
+
+#------------------------------#
+#   Compiler Build
+#------------------------------#
+choice
+    prompt "Compiler Build"
+    default BUILD_PROD
+
+config BUILD_PROD
+    bool "Build production"
+    help
+        Select build production.
+
+config BUILD_DEBUG
+    bool "Build debug"
+    help
+        Select build debug.
 
 endchoice
 

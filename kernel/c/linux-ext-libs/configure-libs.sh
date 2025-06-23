@@ -7,10 +7,10 @@
 #       upgrade to liburing-2.11
 #
 
-VERSION="1.2"
+VERSION="1.3"
 
 source ./repos2clone.sh
-export CFLAGS=" -Wno-error=char-subscripts -O3 -g -ggdb -fPIC"
+export CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
 
 export CC=clang
 
