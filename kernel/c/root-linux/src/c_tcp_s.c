@@ -288,6 +288,8 @@ PRIVATE int mt_start(hgobj gobj)
 
         json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
         json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace_tls));
+
+        EXEC_AND_RESET(ytls_cleanup, priv->ytls)
         priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
     }
 
@@ -453,8 +455,6 @@ PRIVATE int mt_stop(hgobj gobj)
             }
         }
     }
-
-    EXEC_AND_RESET(ytls_cleanup, priv->ytls)
 
     return 0;
 }

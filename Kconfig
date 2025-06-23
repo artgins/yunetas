@@ -11,11 +11,6 @@ choice
     prompt "Compiler Selection"
     default USE_COMPILER_CLANG
 
-config USE_COMPILER_MUSL
-    bool "Musl compiler"
-    help
-        Select Musl as the compiler.
-
 config USE_COMPILER_CLANG
     bool "Clang compiler"
     help
@@ -26,24 +21,30 @@ config USE_COMPILER_GCC
     help
         Select GCC as the compiler.
 
+config USE_COMPILER_MUSL
+    bool "Musl compiler"
+    help
+        Select Musl as the compiler.
+
 endchoice
 
 #------------------------------#
-#   Compiler Build
+#   Build Configuration
 #------------------------------#
 choice
-    prompt "Compiler Build"
-    default BUILD_PROD
+    prompt "Build Type"
+    default BUILD_TYPE_RELEASE
 
-config BUILD_PROD
-    bool "Build production"
+config BUILD_TYPE_RELEASE
+    bool "Release"
     help
-        Select build production.
+        Enable compiler optimizations for production builds.
 
-config BUILD_DEBUG
-    bool "Build debug"
+config BUILD_TYPE_DEBUG
+    bool "Debug"
     help
-        Select build debug.
+        Enable debug symbols and runtime checks for development
+        and debugging purposes. Optimizations are reduced.
 
 endchoice
 
@@ -83,7 +84,7 @@ config DEBUG_PRINT_YEV_LOOP_TIMES
         Enable print of elapsed times of several points in yev_loop
 
 config DEBUG_TRACK_MEMORY
-    bool "Enable track memory"
+    bool "Enable track memory (WARNING: don't use with musl)"
     default n
     help
         Enable track memory to find leaks

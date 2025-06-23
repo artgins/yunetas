@@ -11,6 +11,7 @@ VERSION="1.3"
 
 source ./repos2clone.sh
 export CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
+export CC=cc
 
 [ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
 

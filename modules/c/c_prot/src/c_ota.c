@@ -11,6 +11,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <unistd.h>
+#include <libgen.h>
 
 #include <c_timer.h>
 #include <c_prot_http_cl.h>
