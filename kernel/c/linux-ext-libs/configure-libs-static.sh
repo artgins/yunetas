@@ -171,12 +171,16 @@ cd ../..
 #------------------------------------------
 #   libjwt ERROR
 #------------------------------------------
-echo "===================== LIBJWT ======================="
+echo "===================== LIBJWT ======================= $TAG_LIBJWT"
 cd build_static/libjwt
 mkdir -p build
 cd build
 
+cp ../include/jwt_export.h .
+
 git checkout "$TAG_LIBJWT"
+
+cp ../include/jwt_export.h .
 
 cmake \
     -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
@@ -184,6 +188,8 @@ cmake \
     -DWITH_GNUTLS=OFF \
     -DWITH_MBEDTLS=ON \
     ..
+
+cp ../include/jwt_export.h .
 
 make
 make install
