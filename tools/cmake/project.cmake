@@ -9,6 +9,8 @@ include(CheckSymbolExists)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+message(STATUS "Using $ENV{CC} compiler")
+
 #--------------------------------------------------#
 #   Check YUNETAS_BASE_DIR
 #--------------------------------------------------#
@@ -139,6 +141,8 @@ set(COMMON_C_FLAGS
     -Wno-sign-compare
     -Wno-unused-parameter
     -fPIC
+    -fno-pie
+    #    -fno-stack-protector
 )
 
 #----------------------------------------#
@@ -153,52 +157,20 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     message(STATUS "Configuring for RELWITHDEBINFO (production environment, speed-focused)")
     add_definitions(-DNDEBUG)
-    set(EXTRA_C_FLAGS -O3 -g)
+    set(EXTRA_C_FLAGS -O2 -g)
 else()
     message(STATUS "Configuring for ${CMAKE_BUILD_TYPE}")
     set(EXTRA_C_FLAGS "")
 endif()
 
-#----------------------------------------#
-#   Compiler specific flags
-#----------------------------------------#
-if(AS_STATIC)
-    message(STATUS "Using $ENV{CC} compiler")
-    set(COMPILER_C_FLAGS
-        -fno-pie
-        -fno-stack-protector
-    )
-    set(COMPILER_LINK_FLAGS
-        -no-pie
-    )
-elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message(STATUS "Using Clang $ENV{CC} compiler")
-    set(COMPILER_C_FLAGS
-        -fno-pie
-        -fno-stack-protector
-    )
-    set(COMPILER_LINK_FLAGS
-        -no-pie
-    )
-elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    message(STATUS "Using GCC $ENV{CC} compiler")
-    set(COMPILER_C_FLAGS
-        -fno-pie
-        -fno-stack-protector
-    )
-    set(COMPILER_LINK_FLAGS
-        -no-pie
-    )
-else()
-    message(WARNING "Unknown compiler: ${CMAKE_C_COMPILER_ID}")
-    set(COMPILER_C_FLAGS "")
-    set(COMPILER_LINK_FLAGS "")
-endif()
+add_compile_options(${COMMON_C_FLAGS} ${EXTRA_C_FLAGS})
 
 #----------------------------------------#
-#   Apply flags globally
+#   Compiler link flags
 #----------------------------------------#
-add_compile_options(${COMMON_C_FLAGS} ${EXTRA_C_FLAGS} ${COMPILER_C_FLAGS})
+set(COMPILER_LINK_FLAGS
+    -no-pie
+)
 add_link_options(${COMPILER_LINK_FLAGS})
 
 #----------------------------------------#
