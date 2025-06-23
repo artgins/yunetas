@@ -40,6 +40,8 @@ PARENT_DIR=$(dirname "$YUNETAS_BASE_DIR")
 YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs_ext_static"
 mkdir -p "$YUNETA_INSTALL_PREFIX"
 
+MUSL_TOOLCHAIN="$YUNETAS_BASE_DIR/tools/cmake/musl-toolchain.cmake"
+
 export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 
 #------------------------------------------
@@ -57,7 +59,8 @@ cmake .. \
     -DJANSSON_BUILD_DOCS=OFF \
     -DJANSSON_BUILD_SHARED_LIBS=OFF \
     -DJANSSON_EXAMPLES=OFF \
-    -DJANSSON_WITHOUT_TESTS=ON
+    -DJANSSON_WITHOUT_TESTS=ON \
+    -DCMAKE_TOOLCHAIN_FILE="${MUSL_TOOLCHAIN}"
 
 make
 make install
@@ -75,7 +78,8 @@ cd build
 git checkout "$TAG_MBEDTLS"
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
-  -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
+    -DCMAKE_TOOLCHAIN_FILE="${MUSL_TOOLCHAIN}" \
+    -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
 make
 make install
 cd ..
@@ -120,6 +124,7 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DPCRE2_BUILD_PCRE2_32=ON \
     -DPCRE2_STATIC_PIC=ON \
     -DPCRE2_SUPPORT_JIT=ON \
+    -DCMAKE_TOOLCHAIN_FILE="${MUSL_TOOLCHAIN}" \
     ..
 
 make
@@ -163,7 +168,9 @@ cd build
 
 git checkout "$TAG_ARGP_STANDALONE"
 
-cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}"  ..
+cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
+    -DCMAKE_TOOLCHAIN_FILE="${MUSL_TOOLCHAIN}" \
+    ..
 make
 make install
 cd ..
@@ -188,6 +195,7 @@ cmake \
     -DEXCLUDE_DEPRECATED=TRUE \
     -DWITH_GNUTLS=OFF \
     -DWITH_MBEDTLS=ON \
+    -DCMAKE_TOOLCHAIN_FILE="${MUSL_TOOLCHAIN}" \
     ..
 
 cp ../include/jwt_export.h .
