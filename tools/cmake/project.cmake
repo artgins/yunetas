@@ -12,16 +12,16 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 message(STATUS "Using $ENV{CC} compiler")
 
 #--------------------------------------------------#
-#   Check YUNETAS_BASE_DIR
+#   Check YUNETAS_BASE
 #--------------------------------------------------#
-if("${YUNETAS_BASE_DIR}" STREQUAL "")
-    message(FATAL_ERROR "YUNETAS_BASE_DIR is empty. Define it in environment.")
+if("${YUNETAS_BASE}" STREQUAL "")
+    message(FATAL_ERROR "YUNETAS_BASE is empty. Define it in environment.")
 endif()
 
 #--------------------------------------------------#
 #   Include .config file
 #--------------------------------------------------#
-set(CONFIG_FILE ${YUNETAS_BASE_DIR}/.config)
+set(CONFIG_FILE ${YUNETAS_BASE}/.config)
 
 if(EXISTS ${CONFIG_FILE})
     message(STATUS "${PROJECT_NAME}: Loading Kconfig-style variables from ${CONFIG_FILE}")
@@ -83,12 +83,12 @@ endfunction()
 #   where the project code can be
 #   and where the output of yunetas is installed
 #--------------------------------------------------#
-get_filename_component(YUNETAS_PARENT_BASE_DIR "${YUNETAS_BASE_DIR}" DIRECTORY)
+get_filename_component(YUNETAS_PARENT_BASE_DIR "${YUNETAS_BASE}" DIRECTORY)
 
 #----------------------------------------#
 #   Add tools/cmake to the module path
 #----------------------------------------#
-list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE_DIR}/tools/cmake")
+list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE}/tools/cmake")
 
 #----------------------------------------#
 #   Global definitions and include paths

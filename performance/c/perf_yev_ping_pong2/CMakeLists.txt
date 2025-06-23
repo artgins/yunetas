@@ -10,11 +10,11 @@ project(perf_yev_ping_pong2 C)
 #   - else default "/yuneta/development/yunetas"
 #-----------------------------------------------------#
 if(DEFINED ENV{YUNETAS_BASE})
-    set(YUNETAS_BASE_DIR $ENV{YUNETAS_BASE})
+    set(YUNETAS_BASE $ENV{YUNETAS_BASE})
 else()
-    set(YUNETAS_BASE_DIR "/yuneta/development/yunetas")
+    set(YUNETAS_BASE "/yuneta/development/yunetas")
 endif()
-include("${YUNETAS_BASE_DIR}/tools/cmake/project.cmake")
+include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
 ##############################################
 #   Source
