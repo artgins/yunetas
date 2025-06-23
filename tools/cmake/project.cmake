@@ -162,8 +162,17 @@ endif()
 #----------------------------------------#
 #   Compiler specific flags
 #----------------------------------------#
-if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
-    message(STATUS "Using Clang compiler")
+if(AS_STATIC)
+    message(STATUS "Using $ENV{CC} compiler")
+    set(COMPILER_C_FLAGS
+        -fno-pie
+        -fno-stack-protector
+    )
+    set(COMPILER_LINK_FLAGS
+        -no-pie
+    )
+elseif(CMAKE_C_COMPILER_ID STREQUAL "Clang")
+    message(STATUS "Using Clang $ENV{CC} compiler")
     set(COMPILER_C_FLAGS
         -fno-pie
         -fno-stack-protector
@@ -172,7 +181,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang")
         -no-pie
     )
 elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    message(STATUS "Using GCC compiler")
+    message(STATUS "Using GCC $ENV{CC} compiler")
     set(COMPILER_C_FLAGS
         -fno-pie
         -fno-stack-protector
