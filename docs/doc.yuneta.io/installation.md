@@ -13,6 +13,9 @@
 - [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) (future)
 - [openssl](https://www.openssl.org/)
 - [pcre2](https://github.com/PCRE2Project/pcre2)
+- [libbacktrace](https://github.com/ianlancetaylor/libbacktrace)
+- [argp-standalone](https://github.com/artgins/argp-standalone.git)
+
 
 **Dependencies** for deploying in Linux: 
 - [nginx](https://nginx.org)
@@ -182,6 +185,22 @@ The script source `yunetas-env.sh` also sources the file
 
 where you can place your own scripts.
 
+### Configuring (Kconfig)
+
+Configuration options are defined in ``Kconfig`` file.
+The output from Kconfig is a header file ``yuneta_config.h`` with macros that can be tested at build time.
+
+Goto `yunetas` directory:
+
+    cd ~/yunetaprojects/yunetas
+
+Use this utility to edit the Kconfig file and to select the compiler, build type, etc:
+
+    menuconfig
+
+> ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the .config file is required.
+
+
 ## Install dependencies
 
 Firstly, install yuneta dependencies:
@@ -192,32 +211,21 @@ Goto `linux-ext-libs` directory:
 
 Extract, compile and install:
 
+    # Version non-static
     ./extrae.sh
     ./configure-libs.sh
 
+    # Version static
+    ./extrae-static.sh
+    ./configure-libs-static.sh
 
 ## Compile Yunetas
-
-### Configuring (Kconfig)
-
-Configuration options are defined in ``Kconfig`` file.
-The output from Kconfig is a header file ``yuneta_config.h`` with macros that can be tested at build time.
-
-Goto `yunetas` directory:
-
-    cd ~/yunetaprojects/yunetas
-
-Use this utility to edit the Kconfig file:
-
-    menuconfig
-
-> ⚠️ **Warning:** Save the configuration, otherwise the compilation will fail, the .config file is required.
 
 ### Compiling and Installing Yunetas
 
 To build and install yunetas:
 
-    yunetas init-debug # or init-prod
+    yunetas init
     yunetas build
 
 
