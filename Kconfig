@@ -36,7 +36,7 @@ choice
     default BUILD_TYPE_RELEASE
 
 config BUILD_TYPE_RELEASE
-    bool "Release"
+    bool "Production"
     help
         Enable compiler optimizations for production builds.
 

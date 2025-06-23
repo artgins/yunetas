@@ -223,3 +223,33 @@ Now you can use an integer
         ./stress-traffic.js -c 5000 -r 10
 
         cpu 87%
+
+# Test 23/Jun/2025
+
+    Compiled with sucessful the static binaries with musl
+
+    Times of tests: CLang prod/test, Gcc prod/test, Musl prod/test
+
+## Test results of clang_prod
+```{include} ./test_results_clang_prod.md
+```
+
+## Test results of clang_debug
+```{include} ./test_results_clang_debug.md
+```
+
+## Test results of gcc_prod
+```{include} ./test_results_gcc_prod.md
+```
+
+## Test results of gcc_debug
+```{include} ./test_results_gcc_debug.md
+```
+
+## Test results of musl_prod
+```{include} ./test_results_musl_prod.md
+```
+
+## Test results of musl_debug
+```{include} ./test_results_musl_debug.md
+```
