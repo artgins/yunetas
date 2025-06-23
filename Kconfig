@@ -9,7 +9,7 @@ mainmenu "Yunetas Kernel Configuration"
 #------------------------------#
 choice
     prompt "Compiler Selection"
-    default USE_COMPILER_CLANG
+    default USE_COMPILER_GCC
 
 config USE_COMPILER_CLANG
     bool "Clang compiler"
