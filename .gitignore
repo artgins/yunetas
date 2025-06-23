@@ -10,6 +10,7 @@ cmake-build-relwithdebinfo/
 cmake-build-debug-static/
 
 build.sin-configurar/
+build_static.sin-configurar/
 ./kernel/c/root-linux-ext-libs/build/
 ./kernel/c/root-linux-ext-libs/jansson-artgins
 .venv/

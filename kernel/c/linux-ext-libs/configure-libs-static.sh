@@ -55,7 +55,9 @@ git checkout "$TAG_JANSSON"
 cmake .. \
     -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DJANSSON_BUILD_DOCS=OFF \
-    -DJANSSON_BUILD_SHARED_LIBS=OFF
+    -DJANSSON_BUILD_SHARED_LIBS=OFF \
+    -DJANSSON_EXAMPLES=OFF \
+    -DJANSSON_WITHOUT_TESTS=ON
 
 make
 make install
@@ -145,8 +147,7 @@ cd build_static/liburing
 git checkout "$TAG_LIBURING"
 
 ./configure \
-    --prefix="${YUNETA_INSTALL_PREFIX}" \
-    --cc=clang
+    --prefix="${YUNETA_INSTALL_PREFIX}"
 
 make
 make install
@@ -169,7 +170,7 @@ cd ..
 cd ../..
 
 #------------------------------------------
-#   libjwt ERROR
+#   libjwt
 #------------------------------------------
 echo "===================== LIBJWT ======================= $TAG_LIBJWT"
 cd build_static/libjwt
