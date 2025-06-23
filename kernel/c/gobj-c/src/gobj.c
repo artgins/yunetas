@@ -33,7 +33,7 @@ extern void jsonp_free(void *ptr);
 /***************************************************************
  *              Constants
  ***************************************************************/
-#define CONFIG_TRACK_MEMORY  // TODO move to menuconfig
+//#define CONFIG_DEBUG_TRACK_MEMORY  // Defined in menuconfig
 
 #ifdef ESP_PLATFORM
     #define GOBJ_NAME_MAX 15
@@ -11666,7 +11666,7 @@ PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
 PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
 PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
 
-#ifdef CONFIG_TRACK_MEMORY
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
     PRIVATE size_t mem_ref = 0;
     PRIVATE dl_list_t dl_busy_mem = {0};
 
@@ -11691,7 +11691,7 @@ PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
  ***********************************************************************/
 PUBLIC void set_memory_check_list(unsigned long *memory_check_list_)
 {
-#ifdef CONFIG_TRACK_MEMORY
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
     memory_check_list = memory_check_list_;
 #endif
 }
@@ -11712,7 +11712,7 @@ PUBLIC void print_track_mem(void)
         "program",          "%s", argv? argv[0]: "",
         NULL
     );
-#ifdef CONFIG_TRACK_MEMORY
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
     track_mem_t *track_mem = dl_first(&dl_busy_mem);
     while(track_mem) {
         gobj_log_debug(0,0,
@@ -11732,7 +11732,7 @@ PUBLIC void print_track_mem(void)
 /***********************************************************************
  *
  ***********************************************************************/
-#ifdef CONFIG_TRACK_MEMORY
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
 PRIVATE void check_failed_list(track_mem_t *track_mem)
 {
     for(int xx=0; memory_check_list && memory_check_list[xx]!=0; xx++) {
@@ -11798,7 +11798,7 @@ PRIVATE void *_mem_malloc(size_t size)
     track_mem_t *pm_ = (track_mem_t*)pm;
     pm_->size = size;
 
-#ifdef CONFIG_TRACK_MEMORY
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
     pm_->ref = ++mem_ref;
     dl_add(&dl_busy_mem, pm_);
 
@@ -11826,7 +11826,7 @@ PRIVATE void _mem_free(void *p)
     track_mem_t *pm_ = (track_mem_t*)pm;
     size_t size = pm_->size;
 
-#ifdef CONFIG_TRACK_MEMORY
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
     dl_delete(&dl_busy_mem, pm_, 0);
 #endif
 
@@ -11855,7 +11855,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     track_mem_t *pm_ = (track_mem_t*)pm;
     size_t size = pm_->size;
 
-#ifdef CONFIG_TRACK_MEMORY
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
     dl_delete(&dl_busy_mem, pm_, 0);
 #endif
 
@@ -11897,7 +11897,7 @@ PRIVATE void *_mem_realloc(void *p, size_t new_size)
     pm_ = (track_mem_t*)pm;
     pm_->size = new_size;
 
-#ifdef CONFIG_TRACK_MEMORY
+#ifdef CONFIG_DEBUG_TRACK_MEMORY
     pm_->ref = ++mem_ref;
     dl_add(&dl_busy_mem, pm_);
 #endif

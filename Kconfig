@@ -56,7 +56,13 @@ config DEBUG_PRINT_YEV_LOOP_TIMES
     bool "Print times of yev_loop"
     default n
     help
-        Print elapsed times of several points in yev_loop
+        Enable print of elapsed times of several points in yev_loop
+
+config DEBUG_TRACK_MEMORY
+    bool "Enable track memory"
+    default n
+    help
+        Enable track memory to find leaks
 
 endmenu
 

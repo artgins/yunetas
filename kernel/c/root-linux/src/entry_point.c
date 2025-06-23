@@ -13,6 +13,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <limits.h>
+#include <libgen.h>
 #include <argp-standalone.h>
 
 #include <command_parser.h>
