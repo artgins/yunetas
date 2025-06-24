@@ -8,6 +8,7 @@ cmake-build-debug-clang/
 cmake-build-debug-musl/
 cmake-build-relwithdebinfo/
 cmake-build-debug-static/
+cmake-build-default/
 
 build.sin-configurar/
 build_static.sin-configurar/
