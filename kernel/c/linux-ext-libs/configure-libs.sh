@@ -188,9 +188,6 @@ cd build/openresty
 
 git checkout "v$TAG_OPENRESTY"
 
-export CC=gcc
-
-make
 cd "openresty-$TAG_OPENRESTY"
 
 ./configure \
