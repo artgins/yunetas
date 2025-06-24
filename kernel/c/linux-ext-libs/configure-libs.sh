@@ -188,6 +188,7 @@ cd build/openresty
 
 git checkout "v$TAG_OPENRESTY"
 
+make
 cd "openresty-$TAG_OPENRESTY"
 
 ./configure \
