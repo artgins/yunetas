@@ -13,7 +13,7 @@ VERSION="1.3-s"
 
 source ./repos2clone-static.sh
 
-export CC=/usr/local/bin/musl-gcc
+export CC=/usr/bin/musl-gcc
 export CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
 export LDFLAGS="-static -no-pie"
 
