@@ -1,12 +1,12 @@
 C Project
 =========
 
-Name: tranger2_list
+Name: keycloak_pkey_to_jwks
 
 Description
 ===========
 
-List records of timeranger2 database.
+Convert a pkey (raw base64url-encoded modulus) public key from keycloak to JWKS
 
 License
 -------

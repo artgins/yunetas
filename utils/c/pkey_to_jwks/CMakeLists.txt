@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(pkey_to_jwks C)
+project(keycloak_pkey_to_jwks C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -20,7 +20,7 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    pkey_to_jwks.c
+    keycloak_pkey_to_jwks.c
 )
 
 ##############################################
