@@ -1974,9 +1974,36 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
 #endif
 
 /***************************************************************************
- *  jn_pkey is duplicate json of a entry in jwt_public_keys
+ *  Function to convert to PEM format
+ ***************************************************************************/
+PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
+{
+    const char *header = "-----BEGIN PUBLIC KEY-----\n";
+    const char *tail = "-----END PUBLIC KEY-----\n";
+
+    size_t l = pkey_len + strlen(header) + strlen(tail) + pkey_len/64 + 1;
+    gbuffer_t *gbuf = gbuffer_create(l, l);
+    if(!gbuf) {
+        // Error already logged
+        return NULL;
+    }
+
+    gbuffer_append_string(gbuf, header);
+    const char *p = pkey;
+    size_t lines = pkey_len/64 + ((pkey_len % 64)?1:0);
+    for(size_t i=0; i<lines; i++) {
+        p += gbuffer_append(gbuf, (void *)p, MIN(64, strlen(p)));
+        gbuffer_append_char(gbuf, '\n');
+    }
+    gbuffer_append_string(gbuf, tail);
+
+    return gbuf;
+}
+
+/***************************************************************************
+ *  jn_validation is duplicate json of a entry in jwt_public_keys
  *
- *  jn_pkey: {
+ *  jn_validation: {
  *      iss: str, // Issuer, this claim identifies the entity that issued the JWT
  *      description: str,
  *      algorithm: str, Encryption algorithm
@@ -2023,35 +2050,33 @@ PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
-            "msg",          "%s", "Failed to allocate JWT checker",
+            "msg",          "%s", "jwt_checker_new() FAILED",
             NULL
         );
         return -1;
     }
 
-    // TODO
-    // jwt_checker_set_time(checker, time(NULL));
-    //
-    // // Set issuer expectation if present and not wildcard
-    // if (!empty_string(iss) && strcmp(iss, "*") != 0) {
-    //     jwt_checker_add_expected_claim(checker, "iss", iss, strlen(iss));
-    // }
-    //
-    // // Load the public key
-    // if (jwt_checker_load_pubkey(checker, pkey, strlen(pkey)) < 0) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_CONFIGURATION_ERROR,
-    //         "msg",          "%s", "Failed to load public key into checker",
-    //         "pkey",         "%s", pkey,
-    //         NULL
-    //     );
-    //     jwt_checker_free(checker);
-    //     return -1;
-    // }
-    //
-    // // Set algorithm
-    // jwt_checker_set_alg(checker, alg);
+    /* Setup validator */
+    jwk_set_t *jwk_set = jwks_create(pkey);
+    const jwk_item_t *item = jwks_item_get(jwk_set, 0);
+    int ret = jwt_checker_setkey(checker, alg, item);
+    if (ret < 0) {
+        const char *serror = jwt_checker_error_msg(checker);
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
+            "msg",              "%s", "jwt_checker_setkey() FAILED",
+            "algorithm",        "%s", algorithm,
+            "serror",           "%s", serror,
+            NULL
+        );
+    } else {
+        ret += jwt_checker_time_leeway(checker, JWT_CLAIM_NBF, 0);
+        ret += jwt_checker_time_leeway(checker, JWT_CLAIM_EXP, 0);
+        if(!empty_string(iss) && strcmp(iss, "*")!=0) {
+            ret += jwt_checker_claim_set(checker, JWT_CLAIM_ISS, iss);
+        }
+    }
 
     // Store checker pointer in JSON object
     json_object_set_new(jn_validation, "jwt_checker", json_integer((json_int_t)(uintptr_t)checker));
@@ -2081,84 +2106,16 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
 }
 
 /***************************************************************************
- *  Function to convert to PEM format
- ***************************************************************************/
-PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
-{
-    const char *header = "-----BEGIN PUBLIC KEY-----\n";
-    const char *tail = "-----END PUBLIC KEY-----\n";
-
-    size_t l = pkey_len + strlen(header) + strlen(tail) + pkey_len/64 + 1;
-    gbuffer_t *gbuf = gbuffer_create(l, l);
-    if(!gbuf) {
-        // Error already logged
-        return NULL;
-    }
-
-    gbuffer_append_string(gbuf, header);
-    const char *p = pkey;
-    size_t lines = pkey_len/64 + ((pkey_len % 64)?1:0);
-    for(size_t i=0; i<lines; i++) {
-        p += gbuffer_append(gbuf, (void *)p, MIN(64, strlen(p)));
-        gbuffer_append_char(gbuf, '\n');
-    }
-    gbuffer_append_string(gbuf, tail);
-
-    return gbuf;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char *get_validation_status(unsigned status)
-{
-    const char *s = "";
-    // switch(status) {
-    //     case JWT_VALIDATION_SUCCESS:
-    //         s = "JWT_VALIDATION_SUCCESS";
-    //         break;
-    //     case JWT_VALIDATION_ALG_MISMATCH:
-    //         s = "JWT_VALIDATION_ALG_MISMATCH";
-    //         break;
-    //     case JWT_VALIDATION_EXPIRED:
-    //         s = "JWT_VALIDATION_EXPIRED";
-    //         break;
-    //     case JWT_VALIDATION_TOO_NEW:
-    //         s = "JWT_VALIDATION_TOO_NEW";
-    //         break;
-    //     case JWT_VALIDATION_ISS_MISMATCH:
-    //         s = "JWT_VALIDATION_ISS_MISMATCH";
-    //         break;
-    //     case JWT_VALIDATION_SUB_MISMATCH:
-    //         s = "JWT_VALIDATION_SUB_MISMATCH";
-    //         break;
-    //     case JWT_VALIDATION_AUD_MISMATCH:
-    //         s = "JWT_VALIDATION_AUD_MISMATCH";
-    //         break;
-    //     case JWT_VALIDATION_GRANT_MISSING:
-    //         s = "JWT_VALIDATION_GRANT_MISSING";
-    //         break;
-    //     case JWT_VALIDATION_GRANT_MISMATCH:
-    //         s = "JWT_VALIDATION_GRANT_MISMATCH";
-    //         break;
-    //     default:
-    //     case JWT_VALIDATION_ERROR:
-    //         s = "JWT_VALIDATION_ERROR";
-    //         break;
-    // }
-    return s;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, const char **status)
-{
+PRIVATE BOOL verify_token(
+    hgobj gobj,
+    const char *token,
+    json_t **jwt_payload,
+    const char **status
+) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL validated = FALSE;
-    *jwt_payload = NULL;
-
-    jwt_t *jwt=0;
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
@@ -2167,43 +2124,24 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
             *status = "NO OAuth2 Issuer found";
             continue;
         }
-        const char *pkey = kw_get_str(gobj, jn_validation, "pkey", "", KW_REQUIRED);
-        // TODO
-        // int ret = jwt_decode(
-        //     &jwt,
-        //     token,
-        //     (const unsigned char *)pkey,
-        //     (int)strlen(pkey)
-        // );
-        // if(ret != 0) {
-        //     *status = "NO OAuth2 Issuer found";
-        //     continue;
-        // }
-        //
-        // char *s = jwt_get_grants_json(jwt, NULL);
-        // if(s) {
-        //     *jwt_payload = legalstring2json(s, TRUE);
-        //     jwt_free_str(s);
-        // }
-        //
-        // jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(gobj, jn_validation, "jwt_valid", 0, KW_REQUIRED);
-        // jwt_valid_set_now(jwt_valid, time(NULL));
-        //
-        // if(jwt_validate(jwt, jwt_valid)==0) {
-        //     validated = TRUE;
-        //     *status = get_validation_status(jwt_valid_get_status(jwt_valid));
-        // } else {
-        //     *status = get_validation_status(jwt_valid_get_status(jwt_valid));
-        //     gobj_log_info(gobj, 0,
-        //         "function",         "%s", __FUNCTION__,
-        //         "msgset",           "%s", MSGSET_INFO,
-        //         "msg",              "%s", "jwt invalid",
-        //         "status",           "%s", *status,
-        //         NULL
-        //     );
-        //     gobj_trace_json(gobj, *jwt_payload, "jwt invalid");
-        // }
-        // jwt_free(jwt);
+        jwt_checker_t *checker = (jwt_checker_t *)(intptr_t)
+            kw_get_int(gobj, jn_validation, "jwt_checker", 0, KW_REQUIRED);
+
+        int ret = jwt_checker_verify(checker, token);
+        *status = jwt_checker_error_msg(checker);
+        if(ret == 0) {
+            validated = TRUE;
+        } else {
+            *status = jwt_checker_error_msg(checker);
+            gobj_log_info(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_INFO,
+                "msg",              "%s", "jwt invalid",
+                "status",           "%s", *status,
+                NULL
+            );
+            gobj_trace_json(gobj, *jwt_payload, "jwt invalid");
+        }
         break;
     }
 

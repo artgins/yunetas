@@ -33,8 +33,6 @@ extern void jsonp_free(void *ptr);
 /***************************************************************
  *              Constants
  ***************************************************************/
-//#define CONFIG_DEBUG_TRACK_MEMORY  // Don't touch, Defined in menuconfig
-
 #ifdef ESP_PLATFORM
     #define GOBJ_NAME_MAX 15
 #else
@@ -11668,7 +11666,7 @@ PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
 PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
 
 #pragma pack(1)
-#ifdef CONFIG_DEBUG_TRACK_MEMORY
+#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
     PRIVATE size_t mem_ref = 0;
     PRIVATE dl_list_t dl_busy_mem = {0};
 
