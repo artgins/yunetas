@@ -195,24 +195,40 @@ set(YUNETAS_PCRE_LIBS
     libpcre2-8.a
 )
 
-set(YUNETAS_C_PROT_LIBS
-    libyunetas-c_prot.a
-)
+if (CONFIG_C_PROT)
+    set(YUNETAS_C_PROT_LIBS
+        libyunetas-c_prot.a
+    )
+else()
+    set(YUNETAS_C_PROT_LIBS "")
+endif()
 
-set(OPENSSL_LIBS
-    libjwt-y.a
-    libssl.a
-    libcrypto.a
-    pthread dl
-)
+if (CONFIG_HAVE_OPENSSL)
+    set(OPENSSL_LIBS
+        libjwt-y.a
+        libssl.a
+        libcrypto.a
+        pthread dl
+    )
+else()
+    set(OPENSSL_LIBS "")
+endif()
 
-set(MBEDTLS_LIBS
-    libjwt-y.a
-    libmbedtls.a
-    libmbedx509.a
-    libmbedcrypto.a
-)
+if (CONFIG_HAVE_MBEDTLS)
+    set(MBEDTLS_LIBS
+        libjwt-y.a
+        libmbedtls.a
+        libmbedx509.a
+        libmbedcrypto.a
+    )
+else()
+    set(MBEDTLS_LIBS "")
+endif()
 
-set(DEBUG_LIBS
-    libbacktrace.a
-)
+if (CONFIG_DEBUG_WITH_BACKTRACE)
+    set(DEBUG_LIBS
+        libbacktrace.a
+    )
+else()
+    set(DEBUG_LIBS "")
+endif()

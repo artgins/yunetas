@@ -203,7 +203,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    "1",          "Max sessions per user"),
-SDATA (DTP_STRING,      "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT public key, for use case: only one iss"),
+SDATA (DTP_STRING,      "jwt_public_key",   SDF_WR|SDF_PERSIST, "",         "JWT public key, for use case: only one iss, MUST BE RS256"),
 SDATA (DTP_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT public keys"),
 SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Initial data for treedb"),
 /*
@@ -1880,98 +1880,6 @@ PRIVATE int create_jwt_validations(hgobj gobj)
     JSON_DECREF(jwt_public_keys)
     return 0;
 }
-
-#ifdef PEPE
-/***************************************************************************
- *  jn_pkey is duplicate json of a entry in jwt_public_keys
- *
- *  jn_pkey: {
- *      iss: str, // Issuer, this claim identifies the entity that issued the JWT
- *      description: str,
- *      algorithm: str, Encryption algorithm
- *      pkey: str, // public key in [raw-base64 | PEM format]
- *  }
- ***************************************************************************/
-PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
-{
-    const char *iss = kw_get_str(gobj, jn_validation, "iss", "", KW_REQUIRED);
-    const char *pkey = kw_get_str(gobj, jn_validation, "pkey", "", KW_REQUIRED);
-    const char *algorithm = kw_get_str(gobj, jn_validation, "algorithm", "", KW_REQUIRED);
-    int ret = 0;
-
-    /*
-     *  Public keys must be in PEM format, convert if not done
-     */
-    if(strstr(pkey, "-BEGIN PUBLIC KEY-")==NULL) {
-        gbuffer_t *gbuf = format_to_pem(gobj, pkey, strlen(pkey));
-        const char *p = gbuffer_cur_rd_pointer(gbuf);
-        json_object_set_new(jn_validation, "pkey", json_string(p));
-        GBUFFER_DECREF(gbuf)
-    }
-
-    /*
-     *  Convert Encryption algorithm string to enum
-     */
-    jwt_alg_t alg = jwt_str_alg(algorithm);
-    if(alg == JWT_ALG_INVAL) {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
-            "msg",              "%s", "JWT Algorithm UNKNOWN",
-            "algorithm",        "%s", algorithm,
-            NULL
-        );
-        alg = JWT_ALG_RS256;
-    }
-    json_object_set_new(jn_validation, "alg", json_integer(alg));
-
-    /*
-     *  Create validator
-     */
-    jwt_valid_t *jwt_valid;
-
-    /* Setup validation */
-    ret = jwt_valid_new(&jwt_valid, alg);
-    if (ret != 0 || jwt_valid == NULL) {
-        gobj_log_error(gobj, 0,
-            "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
-            "msg",              "%s", "jwt_valid_new() FAILED",
-            "algorithm",        "%s", algorithm,
-            NULL
-        );
-    } else {
-        jwt_valid_set_headers(jwt_valid, 1);
-        jwt_valid_set_now(jwt_valid, time(NULL));
-        if(!empty_string(iss) && strcmp(iss, "*")!=0) {
-            jwt_valid_add_grant(jwt_valid, "iss", iss);
-        }
-    }
-
-    json_object_set_new(jn_validation, "jwt_valid", json_integer((json_int_t)jwt_valid));
-
-    return ret;
-}
-
-/***************************************************************************
- *  Destroy validations
- ***************************************************************************/
-PRIVATE int destroy_jwt_validations(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    int idx; json_t *jn_validation;
-    json_array_foreach(priv->jn_validations, idx, jn_validation) {
-        jwt_valid_t *jwt_valid = (jwt_valid_t *)(size_t)kw_get_int(gobj, jn_validation, "jwt_valid", 0, KW_REQUIRED);
-        jwt_valid_free(jwt_valid);
-    }
-
-    JSON_DECREF(priv->jn_validations)
-
-    return 0;
-}
-
-#endif
 
 /***************************************************************************
  *  Function to convert to PEM format

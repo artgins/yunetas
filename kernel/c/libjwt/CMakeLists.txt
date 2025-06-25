@@ -40,7 +40,6 @@ set (SRCS
 
 set (HDRS
     src/jwt.h
-    src/jwt-private.h
 )
 
 
