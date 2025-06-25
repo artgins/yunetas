@@ -14,6 +14,7 @@ add_subdirectory(tr2keys)
 add_subdirectory(tr2migrate)
 add_subdirectory(list_queue_msgs2)
 add_subdirectory(test-musl)
+add_subdirectory(pkey_to_jwks)
 
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #

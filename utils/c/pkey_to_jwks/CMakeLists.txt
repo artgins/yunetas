@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(inotify C)
+project(pkey_to_jwks C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -16,21 +16,28 @@ else()
 endif()
 include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
-
 ##############################################
 #   Source
 ##############################################
-
 SET (YUNO_SRCS
-    inotify.c
-)
-SET (YUNO_HDRS
+    pkey_to_jwks.c
 )
 
 ##############################################
 #   yuno
 ##############################################
-add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS})
+
+if(AS_STATIC)
+    # Enforce full static link flags globally
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        LINK_SEARCH_START_STATIC TRUE
+        LINK_SEARCH_END_STATIC TRUE
+    )
+    # These linker flags ensure no shared libs are pulled in
+    target_link_options(${PROJECT_NAME} PRIVATE -static -no-pie -Wl,-Bstatic)
+endif()
+
 
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
@@ -40,6 +47,18 @@ target_link_libraries(${PROJECT_NAME}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
 )
+
+
+#if(ESP32_MODE)
+#    target_link_libraries(${PROJECT_NAME}
+#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
+## NO resuelto       /yuneta/development/outputs/lib/libyunetas-esp32.a   # To test partially esp32 you can include this
+#    )
+#else()
+#    target_link_libraries(${PROJECT_NAME}
+#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
+#    )
+#endif()
 
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 

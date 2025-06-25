@@ -40,26 +40,10 @@ target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
     ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
 )
-
-if(CONFIG_YTLS_USE_MBEDTLS)
-    target_link_libraries(${PROJECT_NAME}
-        ${MBEDTLS_LIBS}
-    )
-
-    if(CONFIG_YTLS_USE_OPENSSL)
-        target_link_libraries(${PROJECT_NAME}
-            ${OPENSSL_LIBS}
-        )
-    endif()
-
-    if(CONFIG_DEBUG_WITH_BACKTRACE)
-        target_link_libraries(${PROJECT_NAME}
-            ${DEBUG_LIBS}
-        )
-    endif()
-
-endif()
 
 ##############################################
 #   Installation
