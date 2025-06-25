@@ -67,7 +67,7 @@ socket write of encrypted data.
 ***********************************************************************/
 #include <yuneta_config.h>
 
-#ifdef CONFIG_YTLS_USE_OPENSSL
+#ifdef CONFIG_HAVE_OPENSSL
 
 #define OPENSSL_API_COMPAT 30100
 #include <openssl/ssl.h>
@@ -965,4 +965,4 @@ PUBLIC api_tls_t *openssl_api_tls(void)
     return &api_tls;
 }
 
-#endif /* CONFIG_YTLS_USE_OPENSSL */
+#endif /* CONFIG_HAVE_OPENSSL */

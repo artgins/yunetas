@@ -200,14 +200,14 @@ set(YUNETAS_C_PROT_LIBS
 )
 
 set(OPENSSL_LIBS
-    libjwt.a
+    libjwt-y.a
     libssl.a
     libcrypto.a
     pthread dl
 )
 
 set(MBEDTLS_LIBS
-    libjwt.a
+    libjwt-y.a
     libmbedtls.a
     libmbedx509.a
     libmbedcrypto.a

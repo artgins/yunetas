@@ -23,7 +23,7 @@
 #include <time.h>
 #include <arpa/inet.h>
 
-#ifdef CONFIG_YTLS_USE_OPENSSL
+#ifdef CONFIG_HAVE_OPENSSL
 #include <openssl/ssl.h>
 #include <openssl/rand.h>
 #else
@@ -1636,7 +1636,7 @@ PRIVATE int check_passwd(
     json_int_t iterations
 )
 {
-#ifdef CONFIG_YTLS_USE_OPENSSL
+#ifdef CONFIG_HAVE_OPENSSL
     const EVP_MD *digest;
     unsigned char hash_[EVP_MAX_MD_SIZE+1];
     unsigned int hash_len_ = EVP_MAX_MD_SIZE;
@@ -1705,7 +1705,7 @@ PRIVATE json_t *hash_password(
     int iterations
 )
 {
-#ifdef CONFIG_YTLS_USE_OPENSSL
+#ifdef CONFIG_HAVE_OPENSSL
     #define SALT_LEN 12
     unsigned int hash_len;
     unsigned char hash[64]; /* For SHA512 */
