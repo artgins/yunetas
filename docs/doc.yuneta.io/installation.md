@@ -1,25 +1,32 @@
 # **Installation**
 
+## License
+
+This project is licensed under the MIT License, except for the following files:
+
+- kernel/c/libjwt/*
+  Mozilla Public License 2.0 (MPL-2.0)
+
 
 ## System Requirements
 
-- python 3.7+
+- [python](https://www.python.org/) 3.7+
 
 
 **Dependencies** for C and Linux:
-- [Jansson](http://jansson.readthedocs.io/en/latest/)
-- [libjwt](https://github.com/benmcollins/libjwt)
-- [liburing](https://github.com/axboe/liburing)
-- [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) (future)
-- [openssl](https://www.openssl.org/)
-- [pcre2](https://github.com/PCRE2Project/pcre2)
-- [libbacktrace](https://github.com/ianlancetaylor/libbacktrace)
-- [argp-standalone](https://github.com/artgins/argp-standalone.git)
+- [Jansson](http://jansson.readthedocs.io/en/latest/) MIT License
+- [libjwt](https://github.com/benmcollins/libjwt) MPL-2.0 license
+- [liburing](https://github.com/axboe/liburing) MIT License, LGPL-2.1, GPL-2.0  
+- [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) Apache-2.0 or GPL-2.0
+- [openssl](https://www.openssl.org/) Apache-2.0 
+- [pcre2](https://github.com/PCRE2Project/pcre2) BSD licence and others
+- [libbacktrace](https://github.com/ianlancetaylor/libbacktrace) BSD 3-Clause License
+- [argp-standalone](https://github.com/artgins/argp-standalone.git) LGPL-2.1 license
 
 
 **Dependencies** for deploying in Linux: 
-- [nginx](https://nginx.org)
-- [openresty](https://openresty.org/)
+- [nginx](https://nginx.org) BSD-2-Clause license
+- [openresty](https://openresty.org/) BSD 2-Clause, BSD 3-Clause, MIT, OpenSSL, Zlib, SSLeay
 
 
 

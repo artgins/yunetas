@@ -2061,13 +2061,11 @@ PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
     const jwk_item_t *item = jwks_item_get(jwk_set, 0);
     int ret = jwt_checker_setkey(checker, alg, item);
     if (ret < 0) {
-        const char *serror = jwt_checker_error_msg(checker);
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
             "msg",              "%s", "jwt_checker_setkey() FAILED",
             "algorithm",        "%s", algorithm,
-            "serror",           "%s", serror,
             NULL
         );
     } else {
@@ -2075,6 +2073,15 @@ PRIVATE int create_validation(hgobj gobj, json_t *jn_validation)
         ret += jwt_checker_time_leeway(checker, JWT_CLAIM_EXP, 0);
         if(!empty_string(iss) && strcmp(iss, "*")!=0) {
             ret += jwt_checker_claim_set(checker, JWT_CLAIM_ISS, iss);
+        }
+        if(ret < 0) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
+                "msg",              "%s", "jwt_checker_* FAILED",
+                "algorithm",        "%s", algorithm,
+                NULL
+            );
         }
     }
 
