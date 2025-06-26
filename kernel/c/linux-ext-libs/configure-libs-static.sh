@@ -177,36 +177,6 @@ cd ..
 cd ../..
 
 #------------------------------------------
-#   libjwt
-#------------------------------------------
-echo "===================== LIBJWT ======================= $TAG_LIBJWT"
-cd build_static/libjwt
-mkdir -p build
-cd build
-
-cp ../include/jwt_export.h .
-
-git checkout "$TAG_LIBJWT"
-
-cp ../include/jwt_export.h .
-
-cmake \
-    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
-    -DEXCLUDE_DEPRECATED=TRUE \
-    -DWITH_GNUTLS=OFF \
-    -DWITH_MBEDTLS=ON \
-    -DCMAKE_TOOLCHAIN_FILE="${MUSL_TOOLCHAIN}" \
-    ..
-
-cp ../include/jwt_export.h .
-
-make
-make install
-
-cd ..
-cd ../..
-
-#------------------------------------------
 #   Save the version installed
 #------------------------------------------
 echo "Version $VERSION installed"

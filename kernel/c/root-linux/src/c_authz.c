@@ -72,15 +72,18 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
  *              Resources
  ***************************************************************************/
 /*
- *  OAuth Issuer
+ *  JWK Json Web Key
  */
-static const json_desc_t oauth_iss_desc[] = {
+static const json_desc_t jwk_desc[] = {
 // Name             Type        Defaults    Fillspace
-{"kid",             "string",   "",         "60"},  // First item is the pkey
+{"kid",             "string",   "",         "60"},  // First item is the pkey, same as iss
+{"use",             "string",   "sig",      "10"},
+{"kty",             "string",   "RSA",      "10"},
+{"alg",             "string",   "RS256",    "10"},
 {"description",     "string",   "",         "30"},
-{"disabled",        "boolean",  "0",        "8"},
-{"algorithm",       "string",   "RS256",    "10"},
-{"pkey",            "string",   "",         "20"},
+{"n",               "string",   "",         "20"},  // same as pkey
+{"e",               "string",   "AQAB",     "10"},
+{"x5c",             "string",   "",         "10"},
 {0}
 };
 
@@ -112,24 +115,23 @@ SDATA_END()
 
 PRIVATE sdata_desc_t pm_add_jwk[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
+SDATAPM (DTP_STRING,    "kid",          0,              0,          "Key ID – used to match JWT's kid to the correct key, same as 'iss'"),
+SDATAPM (DTP_STRING,    "iss",          0,              0,          "Key ID – used to match JWT's kid to the correct key, same as 'kid'"),
 SDATAPM (DTP_STRING,    "kty",          0,              "RSA",      "Key type (e.g. RSA, EC)"),
 SDATAPM (DTP_STRING,    "use",          0,              "sig",      "Intended key use (sig = signature, enc = encryption)"),
 SDATAPM (DTP_STRING,    "alg",          0,              "RS256",    "Algorithm used with the key (e.g. RS256)"),
-SDATAPM (DTP_STRING,    "kid",          0,              0,          "Key ID – used to match JWT's kid to the correct key, same as iss"),
-SDATAPM (DTP_STRING,    "iss",          0,              0,          "Key ID – used to match JWT's kid to the correct key, same as kid"),
-SDATAPM (DTP_STRING,    "n",            0,              0,          "RSA modulus, base64url-encoded, same as pkey"),
-SDATAPM (DTP_STRING,    "pkey",         0,              0,          "RSA modulus, base64url-encoded, same as n"),
+SDATAPM (DTP_STRING,    "n",            0,              0,          "RSA modulus, base64url-encoded, same as 'pkey'"),
+SDATAPM (DTP_STRING,    "pkey",         0,              0,          "RSA modulus, base64url-encoded, same as 'n'"),
 SDATAPM (DTP_STRING,    "e",            0,              "AQAB",     "RSA exponent, usually 'AQAB' (65537), base64url-encoded"),
 SDATAPM (DTP_STRING,    "x5c",          0,              0,          "(Optional) X.509 certificate chain"),
 
 SDATAPM (DTP_STRING,    "description",  0,              0,          "Description"),
-SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disabled"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_rm_jwk[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (DTP_STRING,    "kid",          0,              0,          "Key ID, same as iss"),
-SDATAPM (DTP_STRING,    "iss",          0,              0,          "Issuer, same as kid"),
+SDATAPM (DTP_STRING,    "kid",          0,              0,          "Key ID, same as 'iss'"),
+SDATAPM (DTP_STRING,    "iss",          0,              0,          "Issuer, same as 'kid'"),
 SDATA_END()
 };
 
@@ -206,9 +208,9 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    "1",          "Max sessions per user"),
-SDATA (DTP_JSON,        "jwt_public_keys",  SDF_WR|SDF_PERSIST, "[]",       "JWT public keys"),
-SDATA (DTP_JSON,        "initial_load",     SDF_RD,             "{}",       "Initial data for treedb"),
+SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    "1",        "Max sessions per user"),
+SDATA (DTP_JSON,        "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys"),
+SDATA (DTP_JSON,        "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 /*
  *  HACK WARNING 2024-Nov-13: use of "tranger_path" to determine if this instance is master or not.
  *  If tranger_path is empty, then
@@ -1000,15 +1002,15 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_list_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    json_t *jwt_public_keys = gobj_read_json_attr(gobj, "jwt_public_keys");
-    json_t *jn_schema = json_desc_to_schema(oauth_iss_desc);
+    json_t *jwks = gobj_read_json_attr(gobj, "jwks");
+    json_t *jn_schema = json_desc_to_schema(jwk_desc);
 
     return msg_iev_build_response(
         gobj,
         0,
         0,
         jn_schema,
-        json_incref(jwt_public_keys),
+        json_incref(jwks),
         kw  // owned
     );
 }
@@ -1020,47 +1022,66 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
+    const char *kid = kw_get_str(
+        gobj,
+        kw,
+        "kid",
+        kw_get_str(gobj, kw, "iss", "", 0),
+        0
+    );
+    const char *n = kw_get_str(
+        gobj,
+        kw,
+        "n",
+        kw_get_str(gobj, kw, "pkey", "", 0),
+        0
+    );
+
+    if(empty_string(kid)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What kid (iss)?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+    if(empty_string(n)) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("What n (pkey)?"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
     const char *description = kw_get_str(gobj, kw, "description", "", 0);
-    BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, KW_WILD_NUMBER);
-    const char *algorithm = kw_get_str(gobj, kw, "algorithm", "RS256", 0);
-    const char *pkey = kw_get_str(gobj, kw, "pkey", "", 0);
+    const char *alg = kw_get_str(gobj, kw, "alg", "RS256", 0);
+    const char *use = kw_get_str(gobj, kw, "use", "sig", 0);
+    const char *kty = kw_get_str(gobj, kw, "kty", "RSA", 0);
+    const char *e = kw_get_str(gobj, kw, "e", "AQAB", 0);
+    const char *x5c = kw_get_str(gobj, kw, "x5c", "", 0);
 
-    if(empty_string(iss)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What iss?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-    if(empty_string(pkey)) {
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("What public key?"),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    json_t *jwt_public_keys = gobj_read_json_attr(gobj, "jwt_public_keys");
+    json_t *jwks = gobj_read_json_attr(gobj, "jwks");
 
     /*
      *  Create new record
      */
-    json_t *jn_record = create_json_record(gobj, oauth_iss_desc);
+    json_t *jn_record = create_json_record(gobj, jwk_desc);
     json_object_update_new(
         jn_record,
-        json_pack("{s:s, s:s, s:b, s:s, s:s}",
-            "iss", iss,
+        json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+            "kid", kid,
+            "use", use,
+            "kty", kty,
+            "alg", alg,
+            "e", e,
             "description", description,
-            "disabled", disabled,
-            "algorithm", algorithm,
-            "pkey", pkey
+            "n", n,
+            "x5c", x5c
         )
     );
 
@@ -1069,19 +1090,19 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      */
     json_t *jn_record_ = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
         gobj,
-        jwt_public_keys,    // kw, NOT owned
-        iss,                // id
-        0,                  // new_record, owned
-        oauth_iss_desc,     // json_desc
-        NULL,               // idx pointer
-        0                   // flag
+        jwks,       // kw, NOT owned
+        kid,        // id
+        0,          // new_record, owned
+        jwk_desc,   // json_desc
+        NULL,       // idx pointer
+        0           // flag
     );
     if(jn_record_) {
         JSON_DECREF(jn_record);
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Issuer '%s' already exists", iss),
+            json_sprintf("Kid (iss) '%s' already exists", kid),
             0,
             0,
             kw  // owned
@@ -1093,23 +1114,23 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      */
     jn_record_ = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
         gobj,
-        jwt_public_keys,    // kw, NOT owned
-        iss,                // id
-        jn_record,          // new_record, owned
-        oauth_iss_desc,     // json_desc
-        NULL,               // idx pointer
-        KW_CREATE           // flag
+        jwks,       // kw, NOT owned
+        kid,        // id
+        jn_record,  // new_record, owned
+        jwk_desc,   // json_desc
+        NULL,       // idx pointer
+        KW_CREATE   // flag
     );
 
     /*
      *  Save new record in persistent attrs
      */
-    gobj_save_persistent_attrs(gobj, json_string("jwt_public_keys"));
+    gobj_save_persistent_attrs(gobj, json_string("jwks"));
 
     /*
      *  Create new validation
      */
-    json_t *jn_validation = create_json_record(gobj, oauth_iss_desc);
+    json_t *jn_validation = create_json_record(gobj, jwk_desc);
     json_object_update_new(jn_validation, json_deep_copy(jn_record_));
     json_array_append_new(priv->jn_validations, jn_validation);
     create_validation(gobj, jn_validation);
@@ -1118,7 +1139,7 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         0,
         0,
-        json_desc_to_schema(oauth_iss_desc),
+        json_desc_to_schema(jwk_desc),
         json_incref(jn_record_),
         kw  // owned
     );
@@ -1131,37 +1152,43 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iss = kw_get_str(gobj, kw, "iss", "", 0);
-    if(empty_string(iss)) {
+    const char *kid = kw_get_str(
+        gobj,
+        kw,
+        "kid",
+        kw_get_str(gobj, kw, "iss", "", 0),
+        0
+    );
+    if(empty_string(kid)) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("What iss?"),
+            json_sprintf("What kid (iss)?"),
             0,
             0,
             kw  // owned
         );
     }
 
-    json_t *jwt_public_keys = gobj_read_json_attr(gobj, "jwt_public_keys");
+    json_t *jwks = gobj_read_json_attr(gobj, "jwks");
 
     /*
      *  Check if the record already exists
      */
     json_t *jn_record_ = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
         gobj,
-        jwt_public_keys,    // kw, NOT owned
-        iss,                // id
-        0,                  // new_record, owned
-        oauth_iss_desc,     // json_desc
-        NULL,               // idx pointer
-        0                   // flag
+        jwks,       // kw, NOT owned
+        kid,        // id
+        0,          // new_record, owned
+        jwk_desc,   // json_desc
+        NULL,       // idx pointer
+        0           // flag
     );
     if(!jn_record_) {
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("Issuer '%s' NOT exists", iss),
+            json_sprintf("kid (iss) '%s' NOT exists", kid),
             0,
             0,
             kw  // owned
@@ -1173,18 +1200,18 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      */
     jn_record_ = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
         gobj,
-        jwt_public_keys,    // kw, NOT owned
-        iss,                // id
-        0,                  // new_record, owned
-        oauth_iss_desc,     // json_desc
-        NULL,               // idx pointer
-        KW_EXTRACT          // flag
+        jwks,       // kw, NOT owned
+        kid,        // id
+        0,          // new_record, owned
+        jwk_desc,   // json_desc
+        NULL,       // idx pointer
+        KW_EXTRACT  // flag
     );
 
     /*
      *  Save new record in persistent attrs
      */
-    gobj_save_persistent_attrs(gobj, json_string("jwt_public_keys"));
+    gobj_save_persistent_attrs(gobj, json_string("jwks"));
 
     /*
      *  Delete validation
@@ -1192,9 +1219,9 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *jn_checker = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
         gobj,
         priv->jn_validations,    // kw, NOT owned
-        iss,                // id
+        kid,                // id
         0,                  // new_record, owned
-        oauth_iss_desc,     // json_desc
+        jwk_desc,     // json_desc
         NULL,               // idx pointer
         KW_EXTRACT          // flag
     );
@@ -1205,8 +1232,8 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     return msg_iev_build_response(
         gobj,
         0,
-        json_sprintf("Issuer '%s' deleted", iss),
-        json_desc_to_schema(oauth_iss_desc),
+        json_sprintf("kid (iss) '%s' deleted", kid),
+        json_desc_to_schema(jwk_desc),
         jn_record_,
         kw  // owned
     );
@@ -1676,11 +1703,11 @@ PRIVATE int create_jwt_validations(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jwt_public_keys = json_deep_copy(gobj_read_json_attr(gobj, "jwt_public_keys"));
+    json_t *jwks = json_deep_copy(gobj_read_json_attr(gobj, "jwks"));
     const char *jwt_public_key = gobj_read_str_attr(gobj, "jwt_public_key");
     if(!empty_string(jwt_public_key)) {
         json_array_insert_new(
-            jwt_public_keys,
+            jwks,
             0,
             json_pack("{s:s, s:s, s:b, s:s, s:s}",
                 "iss", "",
@@ -1694,14 +1721,14 @@ PRIVATE int create_jwt_validations(hgobj gobj)
 
     priv->jn_validations = json_array();
     int idx; json_t *jn_record;
-    json_array_foreach(jwt_public_keys, idx, jn_record) {
-        json_t *jn_validation = create_json_record(gobj, oauth_iss_desc);
+    json_array_foreach(jwks, idx, jn_record) {
+        json_t *jn_validation = create_json_record(gobj, jwk_desc);
         json_object_update_new(jn_validation, json_deep_copy(jn_record));
         json_array_append_new(priv->jn_validations, jn_validation);
         create_validation(gobj, jn_validation);
     }
 
-    JSON_DECREF(jwt_public_keys)
+    JSON_DECREF(jwks)
     return 0;
 }
 
@@ -1733,7 +1760,7 @@ PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
 }
 
 /***************************************************************************
- *  jn_validation is duplicate json of a entry in jwt_public_keys
+ *  jn_validation is duplicate json of a entry in jwks
  *
  *  jn_validation: {
  *      iss: str, // Issuer, this claim identifies the entity that issued the JWT

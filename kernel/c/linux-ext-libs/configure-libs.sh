@@ -158,29 +158,6 @@ cd ..
 cd ../..
 
 #------------------------------------------
-#   libjwt
-#------------------------------------------
-echo "===================== LIBJWT ======================= $TAG_LIBJWT"
-cd build/libjwt
-mkdir -p build
-cd build
-
-git checkout "$TAG_LIBJWT"
-
-cmake \
-    -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
-    -DEXCLUDE_DEPRECATED=TRUE \
-    -DWITH_GNUTLS=OFF \
-    -DWITH_MBEDTLS=OFF \
-    ..
-
-make
-make install
-
-cd ..
-cd ../..
-
-#------------------------------------------
 #   openresty
 #------------------------------------------
 echo "===================== OPENRESTY ======================="
