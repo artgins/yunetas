@@ -1,7 +1,7 @@
 #ifndef BASE64_H
 #define BASE64_H
 
-#include <jwt.h>
+#include "jwt.h"
 #include "jwt-private.h"
 
 #define BASE64_ENCODE_OUT_SIZE(s) ((unsigned int)((((s) + 2) / 3) * 4 + 1))

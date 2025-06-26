@@ -13,8 +13,7 @@
  * @include{doc} mainpage.dox
  */
 
-#ifndef JWT_H
-#define JWT_H
+#pragma once
 
 #include <jansson.h>
 #include <jwt_export.h>
@@ -1283,6 +1282,10 @@ jwk_set_t *jwks_load_fromurl(jwk_set_t *jwk_set, const char *url, int verify);
 JWT_EXPORT
 jwk_set_t *jwks_create(const char *jwk_json_str);
 
+JWT_EXPORT jwk_item_t *jwk_process_one(jwk_set_t *jwk_set, json_t *jwk); // ArtGins
+JWT_EXPORT int jwks_item_add(jwk_set_t *jwk_set, jwk_item_t *item); // ArtGins
+JWT_EXPORT int jwks_item_free2(jwk_set_t *jwk_set, jwk_item_t *item); // ArtGins
+
 /**
  * @brief Wrapper around jwks_load_strn() that explicitly creates a new keyring
  */
@@ -1731,5 +1734,3 @@ int jwt_crypto_ops_supports_jwk(void);
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* JWT_H */

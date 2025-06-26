@@ -137,7 +137,7 @@ static int process_octet(json_t *jwk, jwk_item_t *item)
 	return 0;
 }
 
-static jwk_item_t *jwk_process_one(jwk_set_t *jwk_set, json_t *jwk)
+jwk_item_t *jwk_process_one(jwk_set_t *jwk_set, json_t *jwk)
 {
 	const char *kty;
 	json_t *val;
@@ -303,7 +303,7 @@ void jwks_error_clear(jwk_set_t *jwk_set)
 	memset(jwk_set->error_msg, 0, sizeof(jwk_set->error_msg));
 }
 
-static int jwks_item_add(jwk_set_t *jwk_set, jwk_item_t *item)
+int jwks_item_add(jwk_set_t *jwk_set, jwk_item_t *item)
 {
 	list_add_tail(&item->node, &jwk_set->head);
 
@@ -337,6 +337,18 @@ static void __item_free(jwk_item_t *todel)
 
 	/* Free the container and the item itself. */
 	jwt_freemem(todel);
+}
+
+int jwks_item_free2(jwk_set_t *jwk_set, jwk_item_t *item)
+{
+    if (jwk_set == NULL)
+        return 0;
+    if (item == NULL)
+        return 0;
+
+    __item_free(item);
+
+    return 1;
 }
 
 int jwks_item_free(jwk_set_t *jwk_set, const size_t index)
