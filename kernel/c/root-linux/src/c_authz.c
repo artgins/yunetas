@@ -5,7 +5,7 @@
  *          Authentication and Authorization Manager
  *
  *          Maintain a JWKS built from json config or command line
- *          Built a CHECKER from keys in JWKS
+ *          Built a CHECKER from keys of JWKS
  *          libjwt has been modified to use in yuneta environment:
  *              see in the jwt.h the functions marked with ArtGins
  *
@@ -67,8 +67,6 @@ PRIVATE json_t *get_user_roles(
     json_t *kw  // not owned
 );
 
-PRIVATE int create_jwt_checker(hgobj gobj);
-PRIVATE int destroy_jwt_checker(hgobj gobj);
 PRIVATE int create_validation_key(
     hgobj gobj,
     json_t *jn_jwk // owned
@@ -269,8 +267,9 @@ typedef struct _PRIVATE_DATA {
     json_t *tranger;
     BOOL master;
 
-    jwt_checker_t *jwt_checker;
-    jwk_set_t *jwks;
+    // jwt_checker_t *jwt_checker;
+    json_t *jn_validations; // TODO change to jn_checkers
+    jwk_set_t *jwks; // TODO MERDE
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -330,7 +329,6 @@ PRIVATE void mt_create(hgobj gobj)
         malloc_func,
         free_func
     );
-    create_jwt_checker(gobj);
 
     /*---------------------------*
      *  Create Timeranger
@@ -438,7 +436,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-    destroy_jwt_checker(gobj);
 }
 
 /***************************************************************************
@@ -1144,19 +1141,20 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     /*
      *  Create new validation
      */
-    json_t *jn_jwk = create_json_record(gobj, jwk_desc);
-    json_object_update_new(jn_jwk, json_deep_copy(jn_record));
+    json_t *jn_checker = create_json_record(gobj, jwk_desc);
+    json_object_update_new(jn_checker, json_deep_copy(jn_record));
+    json_array_append_new(priv->jn_validations, jn_checker);
 
-    json_t *jn_comment = NULL;
-    int status = create_validation_key(gobj, jn_jwk);
-    if(status != 0) {
-        jn_comment = json_sprintf("Error %s", jwt_checker_error_msg(priv->jwt_checker));
-    }
+    // json_t *jn_comment = NULL;
+    int status = create_validation_key(gobj, jn_checker);
+    // if(status != 0) {
+    //     jn_comment = json_sprintf("Error %s", jwt_checker_error_msg(priv->jwt_checker));
+    // }
 
     return msg_iev_build_response(
         gobj,
         status,
-        jn_comment,
+        0, // TODO jn_comment,
         json_desc_to_schema(jwk_desc),
         json_incref(jn_record_),
         kw  // owned
@@ -1231,7 +1229,29 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      */
     gobj_save_persistent_attrs(gobj, json_string("jwks"));
 
-    destroy_validation_key(priv->jwks, jn_record);
+    // destroy_validation_key(priv->jwks, jn_record);
+
+    /*
+     *  Delete validation
+     */
+    json_t *jn_checker = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
+        priv->jn_validations,   // kw, NOT owned
+        kid,                    // id
+        0,                      // new_record, owned
+        jwk_desc,               // json_desc
+        NULL,                   // idx pointer
+        KW_EXTRACT              // flag
+    );
+    jwt_checker_t *jwt_checker = (jwt_checker_t *)(size_t)kw_get_int(
+        gobj,
+        jn_checker,
+        "jwt_checker",
+        0,
+        KW_REQUIRED
+    );
+    jwt_checker_free(jwt_checker);
+    JSON_DECREF(jn_checker)
 
     return msg_iev_build_response(
         gobj,
