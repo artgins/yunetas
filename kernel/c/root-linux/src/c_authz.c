@@ -4,8 +4,8 @@
  *
  *          Authentication and Authorization Manager
  *
- *          Maintain a jwks built from json config or command line
- *          Built a checker from keys in jwks
+ *          Maintain a JWKS built from json config or command line
+ *          Built a CHECKER from keys in JWKS
  *          libjwt has been modified to use in yuneta environment:
  *              see in the jwt.h the functions marked with ArtGins
  *
