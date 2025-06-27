@@ -1699,6 +1699,13 @@ PRIVATE json_t *cmd_user_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
 
 
+/***************************************************************************
+ *  jwt checker callback
+ ***************************************************************************/
+PRIVATE int jwt_callback(jwt_t *jwt, jwt_config_t *jwt_config)
+{
+    return 0;
+}
 
 /***************************************************************************
  *  Create jwt checker
@@ -1711,6 +1718,10 @@ PRIVATE int create_jwt_checker(hgobj gobj)
 
     priv->jwt_checker = jwt_checker_new();
     priv->jwks = jwks_create(NULL);
+
+#ifdef CONFIG_BUILD_TYPE_DEBUG
+    jwt_checker_setcb(priv->jwt_checker, jwt_callback, gobj);
+#endif
 
     int idx; json_t *jn_record;
     json_array_foreach(jwks, idx, jn_record) {
