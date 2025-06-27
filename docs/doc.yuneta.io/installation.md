@@ -218,11 +218,11 @@ Goto `linux-ext-libs` directory:
 
 Extract, compile and install:
 
-    # Version non-static
+    # Version non-static (closely static)
     ./extrae.sh
     ./configure-libs.sh
 
-    # Version static
+    # Version static (ONLY if you want to use MUSL compiler)
     ./extrae-static.sh
     ./configure-libs-static.sh
 
