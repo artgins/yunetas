@@ -2,7 +2,12 @@
  *          c_authz.c
  *          Authz GClass.
  *
- *          Authorization Manager
+ *          Authentication and Authorization Manager
+ *
+ *          Maintain a jwks built from json config or command line
+ *          Built a checker from keys in jwks
+ *          libjwt has been modified to use in yuneta environment:
+ *              see in the jwt.h the functions marked with ArtGins
  *
  *          Copyright (c) 2020 Niyamaka.
  *          All Rights Reserved.
@@ -265,7 +270,7 @@ typedef struct _PRIVATE_DATA {
     BOOL master;
 
     jwt_checker_t *jwt_checker;
-    jwk_set_t *jwk_set;
+    jwk_set_t *jwks;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -1226,7 +1231,7 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      */
     gobj_save_persistent_attrs(gobj, json_string("jwks"));
 
-    destroy_validation_key(priv->jwk_set, jn_record);
+    destroy_validation_key(priv->jwks, jn_record);
 
     return msg_iev_build_response(
         gobj,
@@ -1705,7 +1710,7 @@ PRIVATE int create_jwt_checker(hgobj gobj)
     json_t *jwks = gobj_read_json_attr(gobj, "jwks");
 
     priv->jwt_checker = jwt_checker_new();
-    priv->jwk_set = jwks_create(NULL);
+    priv->jwks = jwks_create(NULL);
 
     int idx; json_t *jn_record;
     json_array_foreach(jwks, idx, jn_record) {
@@ -1727,8 +1732,8 @@ PRIVATE int destroy_jwt_checker(hgobj gobj)
     jwt_checker_free(priv->jwt_checker);
     priv->jwt_checker = NULL;
 
-    jwks_free(priv->jwk_set);
-    priv->jwk_set = NULL;
+    jwks_free(priv->jwks);
+    priv->jwks = NULL;
 
     return 0;
 }
@@ -1801,7 +1806,7 @@ PRIVATE int create_validation_key(
         GBUFFER_DECREF(gbuf)
     }
 
-    jwk_item_t *jwk_item = jwk_process_one(priv->jwk_set, jn_jwk);
+    jwk_item_t *jwk_item = jwk_process_one(priv->jwks, jn_jwk);
     if(!jwk_item) {
         const char *serror = jwt_checker_error_msg(priv->jwt_checker);
         gobj_log_error(gobj, 0,
@@ -1816,7 +1821,7 @@ PRIVATE int create_validation_key(
         JSON_DECREF(jn_jwk)
         return -1;
     }
-    jwks_item_add(priv->jwk_set, jwk_item);
+    jwks_item_add(priv->jwks, jwk_item);
 
     if(jwt_checker_setkey(priv->jwt_checker, alg, jwk_item)!=0) {
         const char *serror = jwt_checker_error_msg(priv->jwt_checker);
@@ -1868,7 +1873,7 @@ PRIVATE int destroy_validation_key(
 
     const char *kid = kw_get_str(gobj, jn_jwk, "kid", "", KW_REQUIRED);
 
-    jwk_item_t *jwk_item = jwks_find_bykid(priv->jwk_set, kid);
+    jwk_item_t *jwk_item = jwks_find_bykid(priv->jwks, kid);
     if(!jwk_item) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
@@ -1880,7 +1885,7 @@ PRIVATE int destroy_validation_key(
         return -1;
     }
 
-    jwks_item_free2(priv->jwk_set, jwk_item);
+    jwks_item_free2(priv->jwks, jwk_item);
 
     return 0;
 }
