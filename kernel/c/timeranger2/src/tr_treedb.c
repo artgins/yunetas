@@ -1505,7 +1505,8 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
 //                json_integer(snap_tag)
 //            );
 //        }
-        json_t *jn_extra_ = json_pack("{s:s, s:i, s:s, s:s, s:{}}",
+
+        json_t *jn_extra_ = json_pack("{s:i, s:s, s:s, s:{}}",
             "snap_tag", (int)snap_tag,
             "treedb_name", treedb_name,
             "pkey2_name", pkey2_name,
