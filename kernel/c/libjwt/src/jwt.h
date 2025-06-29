@@ -16,9 +16,10 @@
 #pragma once
 
 #include <jansson.h>
-#include <jwt_export.h>
 #include <stdio.h>
 #include <time.h>
+
+#include "jwt_export.h"
 
 #ifdef __cplusplus
 extern "C" {

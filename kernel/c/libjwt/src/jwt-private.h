@@ -6,8 +6,7 @@
    License, v. 2.0. If a copy of the MPL was not distributed with this
    file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef JWT_PRIVATE_H
-#define JWT_PRIVATE_H
+#pragma once
 
 #include <yuneta_config.h>
 
@@ -243,5 +242,3 @@ JWT_NO_EXPORT
 int jwt_head_setup(jwt_t *jwt);
 
 #define __trace() fprintf(stderr, "%s:%d\n", __func__, __LINE__)
-
-#endif /* JWT_PRIVATE_H */

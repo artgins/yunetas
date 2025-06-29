@@ -40,6 +40,7 @@ set (SRCS
 
 set (HDRS
     src/jwt.h
+    src/jwt_export.h
 )
 
 

@@ -73,7 +73,7 @@ PRIVATE int create_validation_key(
 );
 PRIVATE int destroy_validation_key(
     hgobj gobj,
-    json_t *jn_jwk // owned
+    const char *kid
 );
 
 PRIVATE int create_jwt_validations(hgobj gobj);
@@ -1034,8 +1034,6 @@ PRIVATE json_t *cmd_list_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     const char *kid = kw_get_str(
         gobj,
         kw,
@@ -1082,9 +1080,32 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     json_t *jwks = gobj_read_json_attr(gobj, "jwks");
 
     /*
+     *  Check if the record already exists
+     */
+    json_t *jn_record = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
+        jwks,       // kw, NOT owned
+        kid,        // id
+        0,          // new_record, owned
+        jwk_desc,   // json_desc
+        NULL,       // idx pointer
+        0           // flag
+    );
+    if(jn_record) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Kid (iss) '%s' already exists", kid),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    /*
      *  Create new record
      */
-    json_t *jn_record = create_json_record(gobj, jwk_desc);
+    jn_record = create_json_record(gobj, jwk_desc);
     json_object_update_new(
         jn_record,
         json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
@@ -1100,33 +1121,9 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     );
 
     /*
-     *  Check if the record already exists
-     */
-    json_t *jn_record_ = kwjr_get( // Return is NOT yours, unless use of KW_EXTRACT
-        gobj,
-        jwks,       // kw, NOT owned
-        kid,        // id
-        0,          // new_record, owned
-        jwk_desc,   // json_desc
-        NULL,       // idx pointer
-        0           // flag
-    );
-    if(jn_record_) {
-        JSON_DECREF(jn_record);
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf("Kid (iss) '%s' already exists", kid),
-            0,
-            0,
-            kw  // owned
-        );
-    }
-
-    /*
      *  Add the new record
      */
-    jn_record_ = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
+    jn_record = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
         gobj,
         jwks,       // kw, NOT owned
         kid,        // id
@@ -1142,23 +1139,23 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     gobj_save_persistent_attrs(gobj, json_string("jwks"));
 
     /*
-     *  Create new validation
+     *  Create validation key
      */
     json_t *jn_jwk = create_json_record(gobj, jwk_desc);
-    json_object_update_new(jn_jwk, json_deep_copy(jn_record_));
+    json_object_update_new(jn_jwk, json_deep_copy(jn_record));
 
-    // json_t *jn_comment = NULL; // TODO
+    json_t *jn_comment = NULL;
     int status = create_validation_key(gobj, jn_jwk);
-    // if(status != 0) {
-    //     jn_comment = json_sprintf("Error %s", jwt_checker_error_msg(priv->jwt_checker));
-    // }
+    if(status != 0) {
+        jn_comment = json_sprintf("Cannot create validation key");
+    }
 
     return msg_iev_build_response(
         gobj,
         status,
-        0, // TODO jn_comment,
+        jn_comment,
         json_desc_to_schema(jwk_desc),
-        json_incref(jn_record_),
+        json_incref(jn_record),
         kw  // owned
     );
 }
@@ -1168,8 +1165,6 @@ PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     const char *kid = kw_get_str(
         gobj,
         kw,
@@ -1206,7 +1201,7 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         return msg_iev_build_response(
             gobj,
             -1,
-            json_sprintf("kid (iss) '%s' NOT exists", kid),
+            json_sprintf("kid (iss) '%s' NOT exist", kid),
             0,
             0,
             kw  // owned
@@ -1225,7 +1220,6 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         NULL,       // idx pointer
         KW_EXTRACT  // flag
     );
-    JSON_DECREF(jn_record)
 
     /*
      *  Save new record in persistent attrs
@@ -1233,26 +1227,16 @@ PRIVATE json_t *cmd_remove_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     gobj_save_persistent_attrs(gobj, json_string("jwks"));
 
     /*
-     *  Delete validation
+     *  Destroy validation key
      */
-    json_t *jn_jwt = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
-        gobj,
-        priv->jn_validations,   // kw, NOT owned
-        kid,                    // id
-        0,                      // new_record, owned
-        jwk_desc,               // json_desc
-        NULL,                   // idx pointer
-        KW_EXTRACT              // flag
-    );
-
-    destroy_validation_key(priv->jwks, json_incref(jn_jwt));
+    destroy_validation_key(gobj, kid);
 
     return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("kid (iss) '%s' deleted", kid),
         json_desc_to_schema(jwk_desc),
-        jn_record,
+        jn_record, // owned
         kw  // owned
     );
 }
@@ -1857,7 +1841,7 @@ PRIVATE int create_validation_key(
     if(!jwk_item) {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
             "msg",              "%s", "jwk_process_one() FAILED",
             "kid",              "%s", kid,
             "algorithm",        "%s", algorithm,
@@ -1872,6 +1856,20 @@ PRIVATE int create_validation_key(
      *  Create the jwk_checker
      */
     jwt_checker_t *jwt_checker = jwt_checker_new();
+    if(!jwt_checker) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
+            "msg",              "%s", "jwk_process_one() FAILED",
+            "kid",              "%s", kid,
+            "algorithm",        "%s", algorithm,
+            NULL
+        );
+        jwks_item_free2(priv->jwks, jwk_item);
+        JSON_DECREF(jn_jwk)
+
+        return -1;
+    }
 
 #ifdef CONFIG_BUILD_TYPE_DEBUG
     jwt_checker_setcb(jwt_checker, jwt_callback, gobj);
@@ -1881,13 +1879,14 @@ PRIVATE int create_validation_key(
         const char *serror = jwt_checker_error_msg(jwt_checker);
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
             "msg",              "%s", "jwt_checker_setkey() FAILED",
             "serror",           "%s", serror,
             "kid",              "%s", kid,
             "algorithm",        "%s", algorithm,
             NULL
         );
+        jwks_item_free2(priv->jwks, jwk_item);
         jwt_checker_free(jwt_checker);
         JSON_DECREF(jn_jwk)
         return -1;
@@ -1902,7 +1901,7 @@ PRIVATE int create_validation_key(
         const char *serror = jwt_checker_error_msg(jwt_checker);
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
-            "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
+            "msgset",           "%s", MSGSET_INTERNAL_ERROR,
             "msg",              "%s", "jwt_checker_* FAILED",
             "serror",           "%s", serror,
             "kid",              "%s", kid,
@@ -1925,24 +1924,36 @@ PRIVATE int create_validation_key(
  ***************************************************************************/
 PRIVATE int destroy_validation_key(
     hgobj gobj,
-    json_t *jn_jwk // owned
+    const char *kid
 ) {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *kid = kw_get_str(gobj, jn_jwk, "kid", "", KW_REQUIRED);
+    /*
+     *  Delete validation
+     */
+    json_t *jn_jwt = kwjr_get(  // Return is NOT yours, unless use of KW_EXTRACT
+        gobj,
+        priv->jn_validations,   // kw, NOT owned
+        kid,                    // id
+        0,                      // new_record, owned
+        jwk_desc,               // json_desc
+        NULL,                   // idx pointer
+        KW_EXTRACT              // flag
+    );
 
-    // jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
-    //     gobj,
-    //     jn_jwt,
-    //     "jwt_checker",
-    //     0,
-    //     KW_REQUIRED
-    // );
-    // jwt_checker_free(jwt_checker);
-    // JSON_DECREF(jn_checker)
+    jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
+        gobj,
+        jn_jwt,
+        "jwt_checker",
+        0,
+        KW_REQUIRED
+    );
+    jwt_checker_free(jwt_checker);
 
     jwk_item_t *jwk_item = jwks_find_bykid(priv->jwks, kid);
-    if(!jwk_item) {
+    if(jwk_item) {
+        jwks_item_free2(priv->jwks, jwk_item);
+    } else {
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
@@ -1950,11 +1961,9 @@ PRIVATE int destroy_validation_key(
             "kid",              "%s", kid,
             NULL
         );
-        return -1;
     }
 
-    jwks_item_free2(priv->jwks, jwk_item);
-
+    JSON_DECREF(jn_jwt)
     return 0;
 }
 
