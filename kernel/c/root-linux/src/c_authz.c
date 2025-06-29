@@ -708,7 +708,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *      HERE with user JWT
      *-------------------------------*/
     json_t *jwt_payload = NULL;
-    const char *status;
+    const char *status = NULL;
     if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
         char temp[256];
         snprintf(temp, sizeof(temp), "NO: %s", status);
@@ -1034,7 +1034,7 @@ PRIVATE json_t *cmd_list_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_add_jwk(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *kid = kw_get_str(
         gobj,
@@ -1810,32 +1810,6 @@ PRIVATE int jwt_callback(jwt_t *jwt, jwt_config_t *jwt_config)
 }
 
 /***************************************************************************
- *  Create jwt checker
- ***************************************************************************/
-PRIVATE int create_validation(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *jwks = gobj_read_json_attr(gobj, "jwks");
-
-    priv->jwt_checker = jwt_checker_new();
-    priv->jwks = jwks_create(NULL);
-
-#ifdef CONFIG_BUILD_TYPE_DEBUG
-    jwt_checker_setcb(priv->jwt_checker, jwt_callback, gobj);
-#endif
-
-    int idx; json_t *jn_record;
-    json_array_foreach(jwks, idx, jn_record) {
-        json_t *jn_jwk = create_json_record(gobj, jwk_desc);
-        json_object_update_new(jn_jwk, json_deep_copy(jn_record));
-        create_validation_key(gobj, jn_jwk);
-    }
-
-    return 0;
-}
-
-/***************************************************************************
  *  jn_jwt is duplicate json of a entry in jwks
  ***************************************************************************/
 PRIVATE int create_validation_key(
@@ -1847,8 +1821,6 @@ PRIVATE int create_validation_key(
     const char *kid = kw_get_str(gobj, jn_jwk, "kid", "", KW_REQUIRED);
     const char *n = kw_get_str(gobj, jn_jwk, "n", "", KW_REQUIRED);
     const char *algorithm = kw_get_str(gobj, jn_jwk, "alg", "", KW_REQUIRED);
-
-    json_array_append_new(priv->jn_validations, jn_checker);
 
     /*
      *  Convert Encryption algorithm string to enum
@@ -1878,14 +1850,15 @@ PRIVATE int create_validation_key(
         GBUFFER_DECREF(gbuf)
     }
 
+    /*
+     *  Create the jwk_item
+     */
     jwk_item_t *jwk_item = jwk_process_one(priv->jwks, jn_jwk);
     if(!jwk_item) {
-        const char *serror = jwt_checker_error_msg(priv->jwt_checker);
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
             "msg",              "%s", "jwk_process_one() FAILED",
-            "serror",           "%s", serror,
             "kid",              "%s", kid,
             "algorithm",        "%s", algorithm,
             NULL
@@ -1895,14 +1868,17 @@ PRIVATE int create_validation_key(
     }
     jwks_item_add(priv->jwks, jwk_item);
 
-    //         jwt_checker_t *jwt_checker = jwt_checker_new();
-    // #ifdef CONFIG_BUILD_TYPE_DEBUG
-    //         //jwt_checker_setcb(jwt_checker, jwt_callback, gobj);
-    // #endif
+    /*
+     *  Create the jwk_checker
+     */
+    jwt_checker_t *jwt_checker = jwt_checker_new();
 
+#ifdef CONFIG_BUILD_TYPE_DEBUG
+    jwt_checker_setcb(jwt_checker, jwt_callback, gobj);
+#endif
 
-    if(jwt_checker_setkey(priv->jwt_checker, alg, jwk_item)!=0) {
-        const char *serror = jwt_checker_error_msg(priv->jwt_checker);
+    if(jwt_checker_setkey(jwt_checker, alg, jwk_item)!=0) {
+        const char *serror = jwt_checker_error_msg(jwt_checker);
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
@@ -1912,17 +1888,18 @@ PRIVATE int create_validation_key(
             "algorithm",        "%s", algorithm,
             NULL
         );
+        jwt_checker_free(jwt_checker);
         JSON_DECREF(jn_jwk)
         return -1;
     }
 
-    jwt_checker_time_leeway(priv->jwt_checker, JWT_CLAIM_NBF, 0);
-    jwt_checker_time_leeway(priv->jwt_checker, JWT_CLAIM_EXP, 0);
+    jwt_checker_time_leeway(jwt_checker, JWT_CLAIM_NBF, 0);
+    jwt_checker_time_leeway(jwt_checker, JWT_CLAIM_EXP, 0);
     if(!empty_string(kid) && strcmp(kid, "*")!=0) {
-        jwt_checker_claim_set(priv->jwt_checker, JWT_CLAIM_ISS, kid);
+        jwt_checker_claim_set(jwt_checker, JWT_CLAIM_ISS, kid);
     }
-    if(jwt_checker_error(priv->jwt_checker) != 0) {
-        const char *serror = jwt_checker_error_msg(priv->jwt_checker);
+    if(jwt_checker_error(jwt_checker) != 0) {
+        const char *serror = jwt_checker_error_msg(jwt_checker);
         gobj_log_error(gobj, 0,
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
@@ -1932,11 +1909,14 @@ PRIVATE int create_validation_key(
             "algorithm",        "%s", algorithm,
             NULL
         );
+        jwt_checker_free(jwt_checker);
         JSON_DECREF(jn_jwk)
         return -1;
     }
 
-    JSON_DECREF(jn_jwk)
+    json_object_set_new(jn_jwk, "jwt_checker", json_integer((json_int_t)jwt_checker));
+    json_array_append_new(priv->jn_validations, jn_jwk);
+
     return 0;
 }
 
@@ -1951,15 +1931,15 @@ PRIVATE int destroy_validation_key(
 
     const char *kid = kw_get_str(gobj, jn_jwk, "kid", "", KW_REQUIRED);
 
-    jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
-        gobj,
-        jn_jwt,
-        "jwt_checker",
-        0,
-        KW_REQUIRED
-    );
-    jwt_checker_free(jwt_checker);
-    JSON_DECREF(jn_checker)
+    // jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
+    //     gobj,
+    //     jn_jwt,
+    //     "jwt_checker",
+    //     0,
+    //     KW_REQUIRED
+    // );
+    // jwt_checker_free(jwt_checker);
+    // JSON_DECREF(jn_checker)
 
     jwk_item_t *jwk_item = jwks_find_bykid(priv->jwks, kid);
     if(!jwk_item) {
@@ -2038,12 +2018,12 @@ PRIVATE BOOL verify_token(
 
         jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(gobj, jn_validation, "jwt_checker", 0, KW_REQUIRED);
 
-        if(jwt_checker_verify(priv->jwt_checker, token)==0) {
+        if(jwt_checker_verify(jwt_checker, token)==0) {
             validated = TRUE;
             break;
         } else {
             validated = FALSE;
-            *status = jwt_checker_error_msg(priv->jwt_checker);
+            *status = jwt_checker_error_msg(jwt_checker);
             gobj_log_info(gobj, 0,
                 "function",         "%s", __FUNCTION__,
                 "msgset",           "%s", MSGSET_INFO,
