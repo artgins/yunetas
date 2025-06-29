@@ -1982,11 +1982,11 @@ PRIVATE BOOL verify_token(
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
-        BOOL disabled = kw_get_bool(gobj, jn_validation, "disabled", 0, KW_REQUIRED);
-        if(disabled) {
-            *status = "NO OAuth2 Issuer found";
-            continue;
-        }
+        // BOOL disabled = kw_get_bool(gobj, jn_validation, "disabled", 0, KW_REQUIRED);
+        // if(disabled) {
+        //     *status = "NO OAuth2 Issuer found";
+        //     continue;
+        // }
         // const char *pkey = kw_get_str(gobj, jn_validation, "pkey", "", KW_REQUIRED);
         // int ret = jwt_decode(
         //     &jwt,
