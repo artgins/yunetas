@@ -1815,7 +1815,7 @@ PRIVATE int create_validation_key(
             "function",         "%s", __FUNCTION__,
             "msgset",           "%s", MSGSET_CONFIGURATION_ERROR,
             "msg",              "%s", "JWT Algorithm UNKNOWN",
-            "msg",              "%s", "jwk_process_one() FAILED",
+            "msg",              "%s", "jwt_str_alg() FAILED",
             "kid",              "%s", kid,
             "algorithm",        "%s", algorithm,
             NULL
@@ -1827,12 +1827,13 @@ PRIVATE int create_validation_key(
     /*
      *  Public keys must be in PEM format, convert if not done
      */
-    if(strstr(n, "-BEGIN PUBLIC KEY-")==NULL) {
-        gbuffer_t *gbuf = format_to_pem(gobj, n, strlen(n));
-        const char *p = gbuffer_cur_rd_pointer(gbuf);
-        json_object_set_new(jn_jwk, "n", json_string(p));
-        GBUFFER_DECREF(gbuf)
-    }
+    // if(strstr(n, "-BEGIN PUBLIC KEY-")==NULL) {
+    //     gbuffer_t *gbuf = format_to_pem(gobj, n, strlen(n));
+    //     const char *p = gbuffer_cur_rd_pointer(gbuf);
+    //     printf("%s\n", p);// TODO TEST
+    //     json_object_set_new(jn_jwk, "n", json_string(p));
+    //     GBUFFER_DECREF(gbuf)
+    // }
 
     /*
      *  Create the jwk_item
@@ -1979,6 +1980,8 @@ PRIVATE BOOL verify_token(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL validated = FALSE;
     *jwt_payload = NULL;
+
+    printf("%s\n", token);// TODO TEST
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
