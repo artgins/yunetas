@@ -78,7 +78,6 @@ PRIVATE int destroy_validation_key(
 
 PRIVATE int create_jwt_validations(hgobj gobj);
 PRIVATE int destroy_jwt_validations(hgobj gobj);
-PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len);
 PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, const char **status);
 
 /***************************************************************************
@@ -90,10 +89,10 @@ PRIVATE BOOL verify_token(hgobj gobj, const char *token, json_t **jwt_payload, c
 static const json_desc_t jwk_desc[] = {
 // Name             Type        Defaults    Fillspace
 {"kid",             "string",   "",         "60"},  // First item is the pkey, same as iss
+{"description",     "string",   "",         "20"},
 {"use",             "string",   "sig",      "10"},
 {"kty",             "string",   "RSA",      "10"},
 {"alg",             "string",   "RS256",    "10"},
-{"description",     "string",   "",         "30"},
 {"n",               "string",   "",         "20"},  // same as pkey
 {"e",               "string",   "AQAB",     "10"},
 {"x5c",             "string",   "",         "10"},
@@ -1717,17 +1716,6 @@ PRIVATE int create_jwt_validations(hgobj gobj)
         create_validation_key(gobj, jn_jwk);
     }
 
-
-    // priv->jn_validations = json_array();
-    // int idx; json_t *jn_record;
-    // json_array_foreach(jwt_public_keys, idx, jn_record) {
-    //     json_t *jn_validation = create_json_record(gobj, jwk_desc);
-    //     json_object_update_new(jn_validation, json_deep_copy(jn_record));
-    //     json_array_append_new(priv->jn_validations, jn_validation);
-    //     create_validation(gobj, jn_validation);
-    // }
-
-
     return 0;
 }
 
@@ -1759,33 +1747,6 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
 }
 
 /***************************************************************************
- *  Function to convert to PEM format
- ***************************************************************************/
-PRIVATE gbuffer_t *format_to_pem(hgobj gobj, const char *pkey, size_t pkey_len)
-{
-    const char *header = "-----BEGIN PUBLIC KEY-----\n";
-    const char *tail = "-----END PUBLIC KEY-----\n";
-
-    size_t l = pkey_len + strlen(header) + strlen(tail) + pkey_len/64 + 1;
-    gbuffer_t *gbuf = gbuffer_create(l, l);
-    if(!gbuf) {
-        // Error already logged
-        return NULL;
-    }
-
-    gbuffer_append_string(gbuf, header);
-    const char *p = pkey;
-    size_t lines = pkey_len/64 + ((pkey_len % 64)?1:0);
-    for(size_t i=0; i<lines; i++) {
-        p += gbuffer_append(gbuf, (void *)p, MIN(64, strlen(p)));
-        gbuffer_append_char(gbuf, '\n');
-    }
-    gbuffer_append_string(gbuf, tail);
-
-    return gbuf;
-}
-
-/***************************************************************************
  *  jwt checker callback
  ***************************************************************************/
 PRIVATE int jwt_callback(jwt_t *jwt, jwt_config_t *jwt_config)
@@ -1803,7 +1764,6 @@ PRIVATE int create_validation_key(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     const char *kid = kw_get_str(gobj, jn_jwk, "kid", "", KW_REQUIRED);
-    const char *n = kw_get_str(gobj, jn_jwk, "n", "", KW_REQUIRED);
     const char *algorithm = kw_get_str(gobj, jn_jwk, "alg", "", KW_REQUIRED);
 
     /*
@@ -1823,17 +1783,6 @@ PRIVATE int create_validation_key(
         JSON_DECREF(jn_jwk)
         return -1;
     }
-
-    /*
-     *  Public keys must be in PEM format, convert if not done
-     */
-    // if(strstr(n, "-BEGIN PUBLIC KEY-")==NULL) {
-    //     gbuffer_t *gbuf = format_to_pem(gobj, n, strlen(n));
-    //     const char *p = gbuffer_cur_rd_pointer(gbuf);
-    //     printf("%s\n", p);// TODO TEST
-    //     json_object_set_new(jn_jwk, "n", json_string(p));
-    //     GBUFFER_DECREF(gbuf)
-    // }
 
     /*
      *  Create the jwk_item

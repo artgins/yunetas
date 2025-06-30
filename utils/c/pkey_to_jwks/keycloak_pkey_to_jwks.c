@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
 #include <openssl/bio.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
@@ -8,7 +9,18 @@
 #include <openssl/bn.h>
 #include <openssl/err.h>
 
-/* Base64url encode: no padding, replace '+' → '-', '/' → '_' */
+static void usage(const char *progname)
+{
+    fprintf(stderr,
+        "Usage: %s --iss <issuer> <base64_der_rsa_key>\n"
+        "\n"
+        "Options:\n"
+        "  --iss     Required. Issuer string (used also as 'kid')\n",
+        progname
+    );
+    exit(1);
+}
+
 static char *base64url_encode(const unsigned char *data, size_t len)
 {
     BIO *b64 = BIO_new(BIO_f_base64());
@@ -16,7 +28,7 @@ static char *base64url_encode(const unsigned char *data, size_t len)
     BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
     b64 = BIO_push(b64, bmem);
     BIO_write(b64, data, len);
-    (void)BIO_flush(b64);  // fix warning: cast return to void
+    (void)BIO_flush(b64);
 
     BUF_MEM *bptr;
     BIO_get_mem_ptr(b64, &bptr);
@@ -26,7 +38,6 @@ static char *base64url_encode(const unsigned char *data, size_t len)
     tmp[bptr->length] = 0;
     BIO_free_all(b64);
 
-    // base64url: + → -, / → _, remove =
     for(char *p = tmp; *p; ++p) {
         if(*p == '+') *p = '-';
         else if(*p == '/') *p = '_';
@@ -38,14 +49,30 @@ static char *base64url_encode(const unsigned char *data, size_t len)
 
 int main(int argc, char **argv)
 {
-    if(argc != 2) {
-        fprintf(stderr, "Usage: %s <base64_der_rsa_key>\n", argv[0]);
-        return 1;
+    const char *issuer = NULL;
+
+    static struct option long_options[] = {
+        {"iss", required_argument, 0, 'i'},
+        {0, 0, 0, 0}
+    };
+
+    int opt;
+    while((opt = getopt_long(argc, argv, "i:", long_options, NULL)) != -1) {
+        switch(opt) {
+            case 'i':
+                issuer = optarg;
+                break;
+            default:
+                usage(argv[0]);
+        }
     }
 
-    const char *base64 = argv[1];
+    if(!issuer || optind >= argc) {
+        usage(argv[0]);
+    }
 
-    // Decode base64
+    const char *base64 = argv[optind];
+
     BIO *bio = BIO_new_mem_buf(base64, -1);
     BIO *b64 = BIO_new(BIO_f_base64());
     BIO_set_flags(b64, BIO_FLAGS_BASE64_NO_NL);
@@ -68,7 +95,6 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // Extract n and e via OpenSSL 3.0 API
     BIGNUM *n = NULL;
     BIGNUM *e = NULL;
     if(!EVP_PKEY_get_bn_param(pkey, OSSL_PKEY_PARAM_RSA_N, &n) ||
@@ -89,11 +115,13 @@ int main(int argc, char **argv)
     char *e_b64url = base64url_encode(e_bin, e_len);
 
     printf("{\n");
-    printf("  \"kty\": \"RSA\",\n");
-    printf("  \"alg\": \"RS256\",\n");
-    printf("  \"use\": \"sig\",\n");
-    printf("  \"n\": \"%s\",\n", n_b64url);
-    printf("  \"e\": \"%s\"\n", e_b64url);
+    printf("    \"kid\": \"%s\",\n", issuer);
+    printf("    \"description\": \"\",\n");
+    printf("    \"use\": \"sig\",\n");
+    printf("    \"kty\": \"RSA\",\n");
+    printf("    \"alg\": \"RS256\",\n");
+    printf("    \"n\": \"%s\",\n", n_b64url);
+    printf("    \"e\": \"%s\"\n", e_b64url);
     printf("}\n");
 
     free(n_bin);
