@@ -49,10 +49,11 @@ export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 #------------------------------------------
 echo "===================== JANSSON ======================="
 cd build_static/jansson
-mkdir -p build
-cd build
 
 git checkout "$TAG_JANSSON"
+
+mkdir -p build
+cd build
 
 cmake .. \
     -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
@@ -68,14 +69,30 @@ cd ..
 cd ../..
 
 #------------------------------------------
+#   liburing OK
+#------------------------------------------
+echo "===================== liburing ======================="
+cd build_static/liburing
+
+git checkout "$TAG_LIBURING"
+
+./configure --prefix="${YUNETA_INSTALL_PREFIX}"
+
+make
+make install
+cd ../..
+
+#------------------------------------------
 #   mbedtls OK
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
 cd build_static/mbedtls
-mkdir -p build
-cd build
 
 git checkout "$TAG_MBEDTLS"
+git submodule update --init
+
+mkdir -p build
+cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DCMAKE_TOOLCHAIN_FILE="${MUSL_TOOLCHAIN}" \
@@ -92,6 +109,7 @@ echo "===================== OPENSSL ======================="
 cd build_static/openssl
 
 git checkout "$TAG_OPENSSL"
+git submodule update --init
 
 ./config \
     --prefix="${YUNETA_INSTALL_PREFIX}" \
@@ -144,29 +162,15 @@ make install
 cd ../..
 
 #------------------------------------------
-#   liburing OK
-#------------------------------------------
-echo "===================== liburing ======================="
-cd build_static/liburing
-
-git checkout "$TAG_LIBURING"
-
-./configure \
-    --prefix="${YUNETA_INSTALL_PREFIX}"
-
-make
-make install
-cd ../..
-
-#------------------------------------------
 #   argp-standalone
 #------------------------------------------
 echo "===================== ARGP-STANDALONE ======================="
 cd build_static/argp-standalone
-mkdir -p build
-cd build
 
 git checkout "$TAG_ARGP_STANDALONE"
+
+mkdir -p build
+cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
     -DCMAKE_TOOLCHAIN_FILE="${MUSL_TOOLCHAIN}" \

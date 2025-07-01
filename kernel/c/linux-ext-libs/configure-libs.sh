@@ -43,10 +43,11 @@ export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 #------------------------------------------
 echo "===================== JANSSON ======================="
 cd build/jansson
-mkdir -p build
-cd build
 
 git checkout "$TAG_JANSSON"
+
+mkdir -p build
+cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" -DJANSSON_BUILD_DOCS=OFF ..
 make
@@ -63,6 +64,7 @@ cd build/liburing
 git checkout "$TAG_LIBURING"
 
 ./configure --prefix="${YUNETA_INSTALL_PREFIX}"
+
 make
 make install
 cd ../..
@@ -72,10 +74,12 @@ cd ../..
 #------------------------------------------
 echo "===================== MBEDTLS ======================="
 cd build/mbedtls
-mkdir -p build
-cd build
 
 git checkout "$TAG_MBEDTLS"
+git submodule update --init
+
+mkdir -p build
+cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}" \
   -DENABLE_TESTING=Off -DCMAKE_BUILD_TYPE=Debug ..
@@ -91,6 +95,7 @@ echo "===================== OPENSSL ======================="
 cd build/openssl
 
 git checkout "$TAG_OPENSSL"
+git submodule update --init
 
 ./config \
     --prefix="${YUNETA_INSTALL_PREFIX}" \
@@ -146,10 +151,11 @@ cd ../..
 #------------------------------------------
 echo "===================== ARGP-STANDALONE ======================="
 cd build/argp-standalone
-mkdir -p build
-cd build
 
 git checkout "$TAG_ARGP_STANDALONE"
+
+mkdir -p build
+cd build
 
 cmake -DCMAKE_INSTALL_PREFIX:PATH="${YUNETA_INSTALL_PREFIX}"  ..
 make
@@ -164,6 +170,7 @@ echo "===================== OPENRESTY ======================="
 cd build/openresty
 
 git checkout "v$TAG_OPENRESTY"
+git submodule update --init
 
 make
 cd "openresty-$TAG_OPENRESTY"
