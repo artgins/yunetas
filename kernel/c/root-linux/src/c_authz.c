@@ -562,7 +562,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "NO: Destination service not found",
+            "msg",          "%s", "Destination service not found",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -586,7 +586,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "NO: Ip denied",
+                "msg",          "%s", "Ip denied",
                 "user",         "%s", username,
                 "service",      "%s", dst_service,
                 NULL
@@ -605,7 +605,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "NO: System user not found or not authorized",
+                "msg",          "%s", "System user not found or not authorized",
                 "user",         "%s", username,
                 "service",      "%s", dst_service,
                 NULL
@@ -637,7 +637,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
                 gobj_log_info(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_AUTH,
-                    "msg",          "%s", "NO: Without JWT only localhost is allowed",
+                    "msg",          "%s", "Without JWT only localhost is allowed",
                     "user",         "%s", username,
                     "service",      "%s", dst_service,
                     NULL
@@ -663,7 +663,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "NO: Username has not authz in service",
+                "msg",          "%s", "Username has not authz in service",
                 "user",         "%s", username,
                 "service",      "%s", dst_service,
                 NULL
@@ -712,7 +712,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
 
     if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
         char temp[256];
-        snprintf(temp, sizeof(temp), "NO: %s", status);
+        snprintf(temp, sizeof(temp), "%s", status);
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
@@ -723,9 +723,10 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         );
         JSON_DECREF(jwt_payload);
         KW_DECREF(kw)
-        return json_pack("{s:i, s:s}",
+        return json_pack("{s:i, s:s, s:s}",
             "result", -1,
-            "comment", status
+            "comment", status,
+            "username", username
         );
     }
 
@@ -738,7 +739,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "NO: Email not verified",
+            "msg",          "%s", "Email not verified",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -755,7 +756,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "NO: Username must be an email address",
+            "msg",          "%s", "Username must be an email address",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -795,7 +796,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "NO: User not authorized",
+            "msg",          "%s", "User not authorized",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -815,7 +816,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "NO: User disabled",
+            "msg",          "%s", "User disabled",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -893,7 +894,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj_log_info(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
-            "msg",          "%s", "NO: Username has not authz in service",
+            "msg",          "%s", "Username has not authz in service",
             "user",         "%s", username,
             "service",      "%s", dst_service,
             NULL
@@ -1919,27 +1920,10 @@ PRIVATE BOOL verify_token(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL validated = FALSE;
     *jwt_payload = NULL;
-    *status = "NO OAuth2 Issuer found";
+    *status = "No OAuth2 Issuer found";
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
-        // if(jwt_validate(jwt, jwt_valid)==0) {
-        //     validated = true;
-        //     *status = get_validation_status(jwt_valid_get_status(jwt_valid));
-        // } else {
-        //     *status = get_validation_status(jwt_valid_get_status(jwt_valid));
-        //     gobj_log_info(gobj, 0,
-        //         "function",         "%s", __FUNCTION__,
-        //         "msgset",           "%s", MSGSET_INFO,
-        //         "msg",              "%s", "jwt invalid",
-        //         "status",           "%s", *status,
-        //         NULL
-        //     );
-        //     gobj_trace_json(gobj, *jwt_payload, "jwt invalid");
-        // }
-        // jwt_free(jwt);
-        // break;
-
         jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
             gobj, jn_validation, "jwt_checker", 0, KW_REQUIRED
         );
@@ -1949,6 +1933,7 @@ PRIVATE BOOL verify_token(
             validated = TRUE;
             break;
         }
+        // *status = jwt_checker_error_msg(jwt_checker); Don't use jwt messages
     }
 
     return validated;
