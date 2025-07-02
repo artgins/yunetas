@@ -33,6 +33,7 @@
 #include "c_authz.h"
 
 #include "treedb_schema_authzs.c"
+#include "../../libjwt/src/jwt-private.h"
 
 /***************************************************************************
  *              Constants
@@ -708,6 +709,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
      *-------------------------------*/
     json_t *jwt_payload = NULL;
     const char *status = NULL;
+
     if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
         char temp[256];
         snprintf(temp, sizeof(temp), "NO: %s", status);
@@ -1747,14 +1749,6 @@ PRIVATE int destroy_jwt_validations(hgobj gobj)
 }
 
 /***************************************************************************
- *  jwt checker callback
- ***************************************************************************/
-PRIVATE int jwt_callback(jwt_t *jwt, jwt_config_t *jwt_config)
-{
-    return 0;
-}
-
-/***************************************************************************
  *  jn_jwt is duplicate json of a entry in jwks
  ***************************************************************************/
 PRIVATE int create_validation_key(
@@ -1820,10 +1814,6 @@ PRIVATE int create_validation_key(
 
         return -1;
     }
-
-#ifdef CONFIG_BUILD_TYPE_DEBUG
-    jwt_checker_setcb(jwt_checker, jwt_callback, gobj);
-#endif
 
     if(jwt_checker_setkey(jwt_checker, alg, jwk_item)!=0) {
         const char *serror = jwt_checker_error_msg(jwt_checker);
@@ -1929,37 +1919,10 @@ PRIVATE BOOL verify_token(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL validated = FALSE;
     *jwt_payload = NULL;
-
-    printf("%s\n", token);// TODO TEST
+    *status = "NO OAuth2 Issuer found";
 
     int idx; json_t *jn_validation;
     json_array_foreach(priv->jn_validations, idx, jn_validation) {
-        // BOOL disabled = kw_get_bool(gobj, jn_validation, "disabled", 0, KW_REQUIRED);
-        // if(disabled) {
-        //     *status = "NO OAuth2 Issuer found";
-        //     continue;
-        // }
-        // const char *pkey = kw_get_str(gobj, jn_validation, "pkey", "", KW_REQUIRED);
-        // int ret = jwt_decode(
-        //     &jwt,
-        //     token,
-        //     (const unsigned char *)pkey,
-        //     (int)strlen(pkey)
-        // );
-        // if(ret != 0) {
-        //     *status = "NO OAuth2 Issuer found";
-        //     continue;
-        // }
-        //
-        // char *s = jwt_get_grants_json(jwt, NULL);
-        // if(s) {
-        //     *jwt_payload = legalstring2json(s, true);
-        //     jwt_free_str(s);
-        // }
-        //
-        // jwt_valid_t *jwt_valid = (jwt_valid_t *)(uintptr_t)kw_get_int(gobj, jn_validation, "jwt_valid", 0, KW_REQUIRED);
-        // jwt_valid_set_now(jwt_valid, time(NULL));
-        //
         // if(jwt_validate(jwt, jwt_valid)==0) {
         //     validated = true;
         //     *status = get_validation_status(jwt_valid_get_status(jwt_valid));
@@ -1977,22 +1940,14 @@ PRIVATE BOOL verify_token(
         // jwt_free(jwt);
         // break;
 
-        jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(gobj, jn_validation, "jwt_checker", 0, KW_REQUIRED);
+        jwt_checker_t *jwt_checker = (jwt_checker_t *)(uintptr_t)kw_get_int(
+            gobj, jn_validation, "jwt_checker", 0, KW_REQUIRED
+        );
 
-        if(jwt_checker_verify(jwt_checker, token)==0) {
+        *jwt_payload = jwt_checker_verify2(jwt_checker, token);
+        if(*jwt_payload) {
             validated = TRUE;
             break;
-        } else {
-            validated = FALSE;
-            *status = jwt_checker_error_msg(jwt_checker);
-            gobj_log_info(gobj, 0,
-                "function",         "%s", __FUNCTION__,
-                "msgset",           "%s", MSGSET_INFO,
-                "msg",              "%s", "jwt invalid",
-                "status",           "%s", *status,
-                NULL
-            );
-            // TODO gobj_trace_json(gobj, *jwt_payload, "jwt invalid");
         }
     }
 

@@ -633,6 +633,18 @@ JWT_EXPORT
 int jwt_checker_verify(jwt_checker_t *checker, const char *token);
 
 /**
+ * @brief Verify a token
+ *
+ * @note callback not used.
+ *
+ * @param checker Pointer to a checker object
+ * @param token A string containing a token to be verified
+ * @return payload on success, NULL otherwise with error set in the checker
+ */
+JWT_EXPORT
+json_t *jwt_checker_verify2(jwt_checker_t *checker, const char *token); // ArtGins
+
+/**
  * @}
  * @noop jwt_checker_grp
  */

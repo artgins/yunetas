@@ -312,3 +312,55 @@ int jwt_checker_verify(jwt_checker_t *__cmd, const char *token)
 
     return __cmd->error;
 }
+
+json_t *jwt_checker_verify2(jwt_checker_t *__cmd, const char *token)
+{
+    JWT_CONFIG_DECLARE(config);
+    unsigned int payload_len;
+    jwt_auto_t *jwt = NULL;
+
+    if(__cmd == NULL)
+        return NULL;
+
+    if(token == NULL || !strlen(token)) {
+        jwt_write_error(__cmd, "Must pass a token");
+        return NULL;
+    }
+
+    jwt = jwt_new();
+    if(jwt == NULL) {
+        jwt_write_error(__cmd, "Could not allocate JWT object");
+        return NULL;
+    }
+
+
+    if(jwt_parse(jwt, token, &payload_len)) {
+        jwt_copy_error(__cmd, jwt);
+        jwt_free(jwt);
+        return NULL;
+    };
+
+    config.key = __cmd->c.key;
+    config.alg = __cmd->c.alg;
+    config.ctx = __cmd->c.cb_ctx;
+
+    if(__setkey_check(__cmd, config.alg, config.key)) {
+        jwt_free(jwt);
+        return NULL;
+    }
+
+    jwt->key = config.key;
+    jwt->checker = __cmd;
+
+
+    jwt = jwt_verify_complete(jwt, &config, token, payload_len);
+
+    jwt_copy_error(__cmd, jwt);
+
+    if(__cmd->error) {
+        return NULL;
+    } else {
+        json_t *payload = json_incref(jwt->claims);
+        return payload;
+    }
+}
