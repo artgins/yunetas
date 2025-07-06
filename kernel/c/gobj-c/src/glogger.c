@@ -24,6 +24,7 @@
 #include "helpers.h"
 #include "rotatory.h"
 #include "log_udp_handler.h"
+#include "glogger.h"
 
 extern void jsonp_free(void *ptr);
 

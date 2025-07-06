@@ -13,6 +13,7 @@
 
 #include "kwid.h"
 #include "helpers.h"
+#include "gbuffer.h"
 
 /***************************************************************
  *              Constants

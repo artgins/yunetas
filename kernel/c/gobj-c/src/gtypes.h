@@ -130,6 +130,13 @@ typedef void *hgobj;        /* handler of a gobj */
 
 typedef void (*fnfree)(void *);
 
+typedef enum {
+    PEF_CONTINUE    = 0,
+    PEF_EXIT        = -1,
+    PEF_ABORT       = -2,
+    PEF_SYSLOG      = -3,
+} pe_flag_t;
+
 /***************************************************************
  *  inline functions
  ***************************************************************/
