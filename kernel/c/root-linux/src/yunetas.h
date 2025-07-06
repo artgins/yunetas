@@ -18,6 +18,7 @@ extern "C"{
  */
 #include <yuneta_version.h>
 #include <yuneta_config.h>
+#include <gtypes.h>
 #include <dl_list.h>
 #include <gobj.h>
 #include <gbmem.h>

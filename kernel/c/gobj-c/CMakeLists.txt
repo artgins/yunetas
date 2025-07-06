@@ -42,6 +42,7 @@ set (HDRS
     src/ansi_escape_codes.h
     src/00_http_parser.h
     src/00_security.h
+    src/gtypes.h
     src/dl_list.h
     src/gobj.h
     src/gbmem.h

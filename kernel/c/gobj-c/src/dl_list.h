@@ -11,6 +11,7 @@
 #pragma once
 
 #include <stddef.h>
+#include "gtypes.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -40,6 +41,18 @@ typedef struct dl_list_s {
 /**************************************************************
  *       Prototypes
  **************************************************************/
+PUBLIC int dl_init(dl_list_t *dl, hgobj gobj);
+PUBLIC void *dl_first(dl_list_t *dl);
+PUBLIC void *dl_last(dl_list_t *dl);
+PUBLIC void *dl_next(void *curr);
+PUBLIC void *dl_prev(void *curr);
+PUBLIC int dl_insert(dl_list_t *dl, void *item);
+PUBLIC int dl_add(dl_list_t *dl, void *item);
+PUBLIC void * dl_find(dl_list_t *dl, void *item);
+PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *));
+PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *));
+PUBLIC size_t dl_size(dl_list_t *dl);
+
 
 #ifdef __cplusplus
 }
