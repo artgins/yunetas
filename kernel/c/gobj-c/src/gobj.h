@@ -49,6 +49,8 @@
 #include <yuneta_config.h>      // don't remove, to create dependency
 #include <yuneta_version.h>     // don't remove, to create dependency
 
+#include "dl_list.h"
+
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -542,27 +544,6 @@ typedef json_t * (*list_persistent_attrs_fn)(
     hgobj gobj,
     json_t *keys  // owned
 );
-
-/***************************************************************
- *              DL_LIST Structures
- ***************************************************************/
-#define DL_ITEM_FIELDS              \
-    struct dl_list_s *__dl__;       \
-    struct dl_item_s  *__next__;    \
-    struct dl_item_s  *__prev__;    \
-    size_t __id__;
-
-typedef struct dl_item_s {
-    DL_ITEM_FIELDS
-} dl_item_t;
-
-typedef struct dl_list_s {
-    struct dl_item_s *head;
-    struct dl_item_s *tail;
-    size_t __itemsInContainer__;
-    size_t __last_id__; // auto-incremental, always.
-    hgobj gobj;
-} dl_list_t;
 
 typedef void (*fnfree)(void *);
 
