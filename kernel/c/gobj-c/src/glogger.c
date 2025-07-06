@@ -1,11 +1,11 @@
 /****************************************************************************
- *          glog.c
+ *              glogger.c
  *
- *          Glog for Objects G for Yuneta Simplified
+ *              Logger for Objects G for Yuneta Simplified
  *
- *          Copyright (c) 2023 Niyamaka.
- *          Copyright (c) 2024, ArtGins.
- *          All Rights Reserved.
+ *              Copyright (c) 1996-2015 Niyamaka.
+ *              Copyright (c) 2024, ArtGins.
+ *              All Rights Reserved.
  ****************************************************************************/
 #include <string.h>
 #include <stdio.h>

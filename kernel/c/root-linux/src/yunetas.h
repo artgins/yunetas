@@ -18,7 +18,11 @@ extern "C"{
  */
 #include <yuneta_version.h>
 #include <yuneta_config.h>
+#include <dl_list.h>
 #include <gobj.h>
+#include <gbmem.h>
+#include <gbuffer.h>
+#include <glogger.h>
 
 #include <ansi_escape_codes.h>
 #include <command_parser.h>
