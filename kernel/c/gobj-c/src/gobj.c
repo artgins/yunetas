@@ -21,6 +21,10 @@
 
 #include "ansi_escape_codes.h"
 #include "command_parser.h"
+#include "gtypes.h"
+#include "glogger.h"
+#include "gbmem.h"
+#include "gbuffer.h"
 #include "kwid.h"
 #include "testing.h"
 #include "helpers.h"
@@ -200,10 +204,6 @@ GOBJ_DEFINE_STATE(ST_WAITING_PAYLOAD_DATA);
  *              Prototypes
  ***************************************************************/
 PRIVATE state_t *_find_state(gclass_t *gclass, gobj_state_t state_name);
-PRIVATE void *_mem_malloc(size_t size);
-PRIVATE void _mem_free(void *p);
-PRIVATE void *_mem_realloc(void *p, size_t new_size);
-PRIVATE void *_mem_calloc(size_t n, size_t size);
 PRIVATE int _register_service(gobj_t *gobj);
 PRIVATE int _deregister_service(gobj_t *gobj);
 PRIVATE int write_json_parameters(
@@ -414,18 +414,6 @@ PRIVATE volatile uint32_t __deep_trace__ = 0;
 PRIVATE gobj_t * __yuno__ = 0;
 PRIVATE gobj_t * __default_service__ = 0;
 
-PRIVATE sys_malloc_fn_t sys_malloc_fn = _mem_malloc;
-PRIVATE sys_realloc_fn_t sys_realloc_fn = _mem_realloc;
-PRIVATE sys_calloc_fn_t sys_calloc_fn = _mem_calloc;
-PRIVATE sys_free_fn_t sys_free_fn = _mem_free;
-
-PRIVATE size_t __max_block__ = 16*1024L*1024L;     /* largest memory block, default for no-using apps*/
-PRIVATE size_t __max_system_memory__ = 64*1024L*1024L;   /* maximum core memory, default for no-using apps */
-
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
-#endif
-
 /*---------------------------------------------*
  *      Global authz levels TODO review all authz
  *---------------------------------------------*/
@@ -618,34 +606,6 @@ PUBLIC int gobj_start_up(
 }
 
 /***************************************************************************
- *  Initialize the yuno
- ***************************************************************************/
-PUBLIC int gobj_setup_memory( /* If you don't use the defaults, call this before gobj_start_up */
-    size_t                      mem_max_block,          /* largest memory block, default 16M */
-    size_t                      mem_max_system_memory,  /* maximum system memory, default 64M */
-    BOOL                        use_own_system_memory,  /* Use internal memory manager */
-    // Below parameters are used only in internal memory manager:
-    size_t                      mem_min_block,          /* smaller memory block, default 512 */
-    size_t                      mem_superblock          /* superblock, default 16M */
-) {
-    /*
-     *  TODO: To use in internal memory manager
-     */
-    (void)use_own_system_memory;
-    (void)mem_min_block;
-    (void)mem_superblock;
-
-    if(mem_max_block) {
-        __max_block__ = mem_max_block;
-    }
-    if(mem_max_system_memory) {
-        __max_system_memory__ = mem_max_system_memory;
-    }
-
-    return 0;
-}
-
-/***************************************************************************
  *  shutdown the yuno
  ***************************************************************************/
 PUBLIC void gobj_shutdown(void)
@@ -724,7 +684,7 @@ PUBLIC void gobj_end(void)
     event_type_t *event_type;
     while((event_type = dl_first(&dl_global_event_types))) {
         dl_delete(&dl_global_event_types, event_type, 0);
-        sys_free_fn(event_type);
+        GBMEM_FREE(event_type);
     }
 
     JSON_DECREF(__jn_services__)
@@ -811,7 +771,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     }
 #endif
 
-    gclass_t *gclass = sys_malloc_fn(sizeof(*gclass));
+    gclass_t *gclass = GBMEM_MALLOC(sizeof(*gclass));
     if(gclass == NULL) {
         gobj_log_error(NULL, 0,
             "function",     "%s", __FUNCTION__,
@@ -928,7 +888,7 @@ PUBLIC int gclass_add_state(
     }
 
 
-    state_t *state = sys_malloc_fn(sizeof(*state));
+    state_t *state = GBMEM_MALLOC(sizeof(*state));
     if(state == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1035,7 +995,7 @@ PUBLIC int gclass_add_ev_action(
         return -1;
     }
 
-    event_action_t *event_action = sys_malloc_fn(sizeof(*event_action));
+    event_action_t *event_action = GBMEM_MALLOC(sizeof(*event_action));
     if(event_action == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1141,19 +1101,19 @@ PUBLIC void gclass_unregister(hgclass hgclass)
         event_action_t *event_action;
         while((event_action = dl_first(&state->dl_actions))) {
             dl_delete(&state->dl_actions, event_action, 0);
-            sys_free_fn(event_action);
+            GBMEM_FREE(event_action);
         }
 
-        sys_free_fn(state);
+        GBMEM_FREE(state);
     }
 
     event_type_t *event_type;
     while((event_type = dl_first(&gclass->dl_events))) {
         dl_delete(&gclass->dl_events, event_type, 0);
-        sys_free_fn(event_type);
+        GBMEM_FREE(event_type);
     }
 
-    dl_delete(&dl_gclass, gclass, sys_free_fn);
+    dl_delete(&dl_gclass, gclass, gobj_free_func());
 }
 
 /***************************************************************************
@@ -1258,7 +1218,7 @@ PRIVATE int _add_event_type(
         return -1;
     }
 
-    event_t *event = sys_malloc_fn(sizeof(*event));
+    event_t *event = GBMEM_MALLOC(sizeof(*event));
     if(event == NULL) {
         gobj_log_error(NULL, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1607,7 +1567,7 @@ PUBLIC hgobj gobj_create2(
     /*--------------------------------*
      *      Alloc memory
      *--------------------------------*/
-    gobj_t *gobj = sys_malloc_fn(sizeof(*gobj));
+    gobj_t *gobj = GBMEM_MALLOC(sizeof(*gobj));
     if(gobj == NULL) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -1652,7 +1612,7 @@ PUBLIC hgobj gobj_create2(
     gobj->jn_attrs = sdata_create(gobj, gclass->attrs_table);
     gobj->jn_stats = json_object();
     gobj->jn_user_data = json_object();
-    gobj->priv = gclass->priv_size? sys_malloc_fn(gclass->priv_size):NULL;
+    gobj->priv = gclass->priv_size? GBMEM_MALLOC(gclass->priv_size):NULL;
 
     if(!gobj->gobj_name || !gobj->jn_user_data || !gobj->jn_stats ||
             !gobj->jn_attrs || (gclass->priv_size && !gobj->priv)) {
@@ -2516,10 +2476,10 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     JSON_DECREF(gobj->dl_subscribings)
     JSON_DECREF(gobj->dl_subscriptions)
 
-    EXEC_AND_RESET(sys_free_fn, gobj->gobj_name)
-    EXEC_AND_RESET(sys_free_fn, gobj->full_name)
-    EXEC_AND_RESET(sys_free_fn, gobj->short_name)
-    EXEC_AND_RESET(sys_free_fn, gobj->priv)
+    EXEC_AND_RESET(gobj_free_func(), gobj->gobj_name)
+    EXEC_AND_RESET(gobj_free_func(), gobj->full_name)
+    EXEC_AND_RESET(gobj_free_func(), gobj->short_name)
+    EXEC_AND_RESET(gobj_free_func(), gobj->priv)
 
     if(gobj->obflag & obflag_created) {
         gobj->gclass->instances--;
@@ -6355,22 +6315,6 @@ PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj_, const char *gclass_name)
     }
 
     return FALSE;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC size_t get_max_system_memory(void)
-{
-    return __max_system_memory__;
-}
-PUBLIC size_t get_cur_system_memory(void)
-{
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    return __cur_system_memory__;
-#else
-    return 0;
-#endif
 }
 
 /***************************************************************************
@@ -11609,379 +11553,4 @@ PUBLIC BOOL is_level_not_tracing(hgobj gobj_, uint32_t level)
         gobj->gclass->no_trace_level & level;
 
     return no_trace?TRUE:FALSE;
-}
-
-
-
-
-                        /*---------------------------------*
-                         *      SECTION: memory
-                         *---------------------------------*/
-
-
-
-
-/***************************************************************************
- *     Set memory functions
- ***************************************************************************/
-PUBLIC int gobj_set_allocators(
-    sys_malloc_fn_t malloc_func,
-    sys_realloc_fn_t realloc_func,
-    sys_calloc_fn_t calloc_func,
-    sys_free_fn_t free_func
-) {
-    sys_malloc_fn = malloc_func;
-    sys_realloc_fn = realloc_func;
-    sys_calloc_fn = calloc_func;
-    sys_free_fn = free_func;
-
-    return 0;
-}
-
-/***************************************************************************
- *     Get memory functions
- ***************************************************************************/
-PUBLIC int gobj_get_allocators(
-    sys_malloc_fn_t *malloc_func,
-    sys_realloc_fn_t *realloc_func,
-    sys_calloc_fn_t *calloc_func,
-    sys_free_fn_t *free_func
-) {
-    if(malloc_func) {
-        *malloc_func = sys_malloc_fn;
-    }
-    if(realloc_func) {
-        *realloc_func = sys_realloc_fn;
-    }
-    if(calloc_func) {
-        *calloc_func = sys_calloc_fn;
-    }
-    if(free_func) {
-        *free_func = sys_free_fn;
-    }
-
-    return 0;
-}
-
-/***********************************************************************
- *      Get memory functions
- ***********************************************************************/
-PUBLIC sys_malloc_fn_t gobj_malloc_func(void) { return sys_malloc_fn; }
-PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
-PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
-PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
-
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    PRIVATE size_t mem_ref = 0;
-    PRIVATE dl_list_t dl_busy_mem = {0};
-
-    typedef struct {
-        DL_ITEM_FIELDS
-        size_t size;
-        size_t ref;
-    } track_mem_t;
-
-    unsigned long *memory_check_list = 0;
-#define TRACK_MEM sizeof(track_mem_t)
-#else
-    // typedef struct {
-    //     size_t size;
-    // } track_mem_t;
-#endif
-
-
-
-/***********************************************************************
- *      Set mem ref list to check
- ***********************************************************************/
-PUBLIC void set_memory_check_list(unsigned long *memory_check_list_)
-{
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    memory_check_list = memory_check_list_;
-#endif
-}
-
-/***********************************************************************
- *      Print track memory
- ***********************************************************************/
-PUBLIC void print_track_mem(void)
-{
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    if(!__cur_system_memory__) {
-        return;
-    }
-
-    gobj_log_error(0, 0,
-        "function",         "%s", __FUNCTION__,
-        "msgset",           "%s", MSGSET_STATISTICS,
-        "msg",              "%s", "print_track_mem(): system memory not free",
-        "program",          "%s", argv? argv[0]: "",
-        NULL
-    );
-    track_mem_t *track_mem = dl_first(&dl_busy_mem);
-    while(track_mem) {
-        gobj_log_debug(0,0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TRACK_MEM,
-            "msg",          "%s", "mem-not-free",
-            "ref",          "%lu", (unsigned long)track_mem->ref,
-            "size",         "%lu", (unsigned long)track_mem->size,
-            NULL
-        );
-
-        track_mem = dl_next(track_mem);
-    }
-#endif
-}
-
-/***********************************************************************
- *
- ***********************************************************************/
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-PRIVATE void check_failed_list(track_mem_t *track_mem)
-{
-    for(int xx=0; memory_check_list && memory_check_list[xx]!=0; xx++) {
-        if(track_mem->ref  == memory_check_list[xx]) {
-            gobj_log_debug(0, LOG_OPT_TRACE_STACK,
-                "msgset",       "%s", MSGSET_STATISTICS,
-                "msg",          "%s", "mem-not-free",
-                "ref",          "%ul", (unsigned long)track_mem->ref,
-                NULL
-            );
-        }
-        if(xx > 5) {
-            break;  // bit a bit please
-        }
-    }
-}
-#endif
-
-/***********************************************************************
- *      Alloc memory
- ***********************************************************************/
-PRIVATE void *_mem_malloc(size_t size)
-{
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    size_t extra = TRACK_MEM;
-    size += extra;
-#endif
-    if(size > __max_block__) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "SIZE GREATER THAN MAX_BLOCK",
-            "size",         "%ld", (long)size,
-            "max_block",    "%d", (int)__max_block__,
-            NULL
-        );
-        return NULL;
-    }
-
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    __cur_system_memory__ += size;
-
-    if(__cur_system_memory__ > __max_system_memory__) {
-        gobj_log_critical(0, LOG_OPT_ABORT,
-            "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
-            "msg",                  "%s", "REACHED MAX_SYSTEM_MEMORY",
-            NULL
-        );
-    }
-#endif
-
-    char *pm = calloc(1, size);
-    if(!pm) {
-#ifdef ESP_PLATFORM
-        #include <esp_system.h>
-        printf(On_Red BWhite "ERROR NO MEMORY calloc() failed, size %d, HEAP free %d" Color_Off "\n", (int)size, (int)esp_get_free_heap_size());
-#endif
-        gobj_log_critical(0, LOG_OPT_ABORT,
-            "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
-            "msg",                  "%s", "NO MEMORY calloc() failed",
-            "size",                 "%ld", (long)size,
-            NULL
-        );
-    }
-
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    track_mem_t *pm_ = (track_mem_t*)pm;
-    pm_->size = size;
-    pm_->ref = ++mem_ref;
-    dl_add(&dl_busy_mem, pm_);
-
-    check_failed_list(pm_);
-    pm += extra;
-#endif
-
-    return pm;
-}
-
-/***********************************************************************
- *      Free memory
- ***********************************************************************/
-PRIVATE void _mem_free(void *p)
-{
-    if(!p) {
-        return; // El comportamiento como free() es que no salga error;
-    }
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    size_t extra = TRACK_MEM;
-
-    char *pm = p;
-    pm -= extra;
-
-    track_mem_t *pm_ = (track_mem_t*)pm;
-    size_t size = pm_->size;
-
-    dl_delete(&dl_busy_mem, pm_, 0);
-    __cur_system_memory__ -= size;
-    free(pm);
-#else
-    free(p);
-#endif
-
-}
-
-/***************************************************************************
- *     ReAlloca memoria del core
- ***************************************************************************/
-PRIVATE void *_mem_realloc(void *p, size_t new_size)
-{
-    /*---------------------------------*
-     *  realloc admit p null
-     *---------------------------------*/
-    if(!p) {
-        return _mem_malloc(new_size);
-    }
-
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    size_t extra = TRACK_MEM;
-    new_size += extra;
-
-    char *pm = p;
-    pm -= extra;
-
-    track_mem_t *pm_ = (track_mem_t*)pm;
-    size_t size = pm_->size;
-
-    dl_delete(&dl_busy_mem, pm_, 0);
-    __cur_system_memory__ -= size;
-#endif
-
-    if(new_size > __max_block__) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "SIZE GREATER THAN MAX_BLOCK",
-            "size",         "%ld", (long)new_size,
-            "max_block",    "%d", (int)__max_block__,
-            NULL
-        );
-        return NULL;
-    }
-
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    __cur_system_memory__ += new_size;
-    if(__cur_system_memory__ > __max_system_memory__) {
-        gobj_log_critical(0, LOG_OPT_ABORT,
-            "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
-            "msg",                  "%s", "REACHED MAX_SYSTEM_MEMORY",
-            NULL
-        );
-    }
-
-    char *pm__ = realloc(pm, new_size);
-#else
-    char *pm__ = realloc(p, new_size);
-#endif
-    if(!pm__) {
-        gobj_log_critical(0, LOG_OPT_ABORT,
-            "function",             "%s", __FUNCTION__,
-            "msgset",               "%s", MSGSET_MEMORY_ERROR,
-            "msg",                  "%s", "NO MEMORY realloc() failed",
-            "new_size",             "%ld", (long)new_size,
-            NULL
-        );
-    }
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    pm = pm__;
-
-    pm_ = (track_mem_t*)pm;
-    pm_->size = new_size;
-
-    pm_->ref = ++mem_ref;
-    dl_add(&dl_busy_mem, pm_);
-    pm += extra;
-    return pm;
-#else
-    return pm__;
-#endif
-
-}
-
-/***************************************************************************
- *     duplicate a substring
- ***************************************************************************/
-PRIVATE void *_mem_calloc(size_t n, size_t size)
-{
-    size_t total = n * size;
-    return _mem_malloc(total);
-}
-
-/***************************************************************************
- *     duplicate a substring
- ***************************************************************************/
-PUBLIC char *gobj_strndup(const char *str, size_t size)
-{
-    char *s;
-
-    /*-----------------------------------------*
-     *     Check null string
-     *-----------------------------------------*/
-    if(!str) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "str is NULL",
-            NULL
-        );
-        return NULL;
-    }
-
-    /*-----------------------------------------*
-     *     Alloca memoria
-     *-----------------------------------------*/
-    s = (char *)sys_malloc_fn(size+1);
-    if(!s) {
-        return NULL;
-    }
-
-    /*-----------------------------------------*
-     *     Copy the substring
-     *-----------------------------------------*/
-    memmove(s, str, size);
-
-    return s;
-}
-
-/***************************************************************************
- *     Duplica un string
- ***************************************************************************/
-PUBLIC char *gobj_strdup(const char *string)
-{
-    if(!string) {
-        return NULL;
-    }
-    return gobj_strndup(string, strlen(string));
-}
-
-/*************************************************************************
- *  Return the maximum memory that you can get
- *************************************************************************/
-PUBLIC size_t gobj_get_maximum_block(void)
-{
-    return __max_block__;
 }

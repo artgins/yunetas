@@ -9,6 +9,7 @@
 #include <locale.h>
 
 #include "ansi_escape_codes.h"
+#include "gbmem.h"
 #include "helpers.h"
 #include "kwid.h"
 #include "testing.h"

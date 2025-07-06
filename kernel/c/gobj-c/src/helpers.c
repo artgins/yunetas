@@ -52,6 +52,7 @@
 #endif
 
 #include "00_http_parser.h"
+#include "gbmem.h"
 #include "kwid.h"
 #include "ansi_escape_codes.h"
 #include "helpers.h"
