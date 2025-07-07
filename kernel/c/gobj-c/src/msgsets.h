@@ -3,6 +3,7 @@
  *
  *              Message sets for glogger
  *
+ *              Copyright (c) 1996-2015 Niyamaka.
  *              Copyright (c) 2025, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
