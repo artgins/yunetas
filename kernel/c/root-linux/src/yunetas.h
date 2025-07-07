@@ -24,6 +24,7 @@ extern "C"{
 #include <gbmem.h>
 #include <gbuffer.h>
 #include <glogger.h>
+#include <msgsets.h>
 
 #include <ansi_escape_codes.h>
 #include <command_parser.h>

@@ -10,7 +10,6 @@
  ****************************************************************************/
 #pragma once
 
-#include <stddef.h>
 #include "gtypes.h"
 
 #ifdef __cplusplus

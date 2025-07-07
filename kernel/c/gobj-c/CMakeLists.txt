@@ -48,6 +48,7 @@ set (HDRS
     src/gbmem.h
     src/gbuffer.h
     src/glogger.h
+    src/msgsets.h
     src/log_udp_handler.h
     src/helpers.h
     src/kwid.h

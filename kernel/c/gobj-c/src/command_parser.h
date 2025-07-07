@@ -9,7 +9,7 @@
  ****************************************************************************/
 #pragma once
 
-#include "gobj.h"
+#include "gtypes.h"
 
 #ifdef __cplusplus
 extern "C"{
