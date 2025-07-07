@@ -2484,7 +2484,7 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     if(gobj->obflag & obflag_created) {
         gobj->gclass->instances--;
     }
-    sys_free_fn(gobj);
+    GBMEM_FREE(gobj);
 }
 
 /***************************************************************************
