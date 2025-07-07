@@ -9,8 +9,7 @@
 #pragma once
 
 #include <sys/stat.h>
-#include "ansi_escape_codes.h"
-#include "gobj.h"
+#include "gtypes.h"
 
 #ifdef __cplusplus
 extern "C"{

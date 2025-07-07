@@ -38,22 +38,12 @@
  *
  *
  ****************************************************************************/
-
 #pragma once
 
 #include <string.h>
-#include <time.h>
-#include <inttypes.h>
 #include <jansson.h>
-#include <yuneta_config.h>      // don't remove, to create dependency
-#include <yuneta_version.h>     // don't remove, to create dependency
 
-#include "gtypes.h"
-#include "dl_list.h"
-#include "msgsets.h"
-#include "glogger.h"
-#include "gbmem.h"
-#include "gbuffer.h"
+#include "helpers.h"
 
 #ifdef __cplusplus
 extern "C"{

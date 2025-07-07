@@ -7,9 +7,8 @@
  *          Copyright (c) 2024, ArtGins
  *          All Rights Reserved.
 ***********************************************************************/
-#include "gbmem.h"
-#include "helpers.h"
 #include "kwid.h"
+#include "gobj.h"
 #include "command_parser.h"
 
 /***************************************************************

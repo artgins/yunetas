@@ -15,6 +15,7 @@
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <locale.h>
 #include <sys/file.h>
 #include <time.h>
 #include <dirent.h>

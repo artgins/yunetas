@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "gtypes.h"
+#include "dl_list.h"
 #include "gbmem.h"
 #include "glogger.h"
 
@@ -171,13 +172,22 @@ PUBLIC void print_track_mem(void)
         return;
     }
 
+    char cmdline[4096] = {0};
+    FILE *f = fopen("/proc/self/cmdline", "r");
+    if(f) {
+        size_t n = fread(cmdline, 1, sizeof(cmdline) - 1, f);
+        fclose(f);
+        cmdline[n] = 0;
+    }
+
     gobj_log_error(0, 0,
         "function",         "%s", __FUNCTION__,
         "msgset",           "%s", MSGSET_STATISTICS,
         "msg",              "%s", "print_track_mem(): system memory not free",
-        "program",          "%s", argv? argv[0]: "",
+        "program",          "%s", cmdline,
         NULL
     );
+
     track_mem_t *track_mem = dl_first(&dl_busy_mem);
     while(track_mem) {
         gobj_log_debug(0,0,

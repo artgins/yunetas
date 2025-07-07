@@ -7,13 +7,12 @@
  *              Copyright (c) 2024, ArtGins.
  *              All Rights Reserved.
  ****************************************************************************/
+#pragma once
+
 /*
  *  Dependencies
  */
-#include "gobj.h"
 #include "helpers.h"
-
-#pragma once
 
 #ifdef __cplusplus
 extern "C"{

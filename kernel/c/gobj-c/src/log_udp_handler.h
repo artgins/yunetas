@@ -10,7 +10,7 @@
 #pragma once
 
 #include <stdio.h>
-#include "helpers.h"
+#include "gtypes.h"
 
 #ifdef __cplusplus
 extern "C"{

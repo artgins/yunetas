@@ -9,6 +9,7 @@
  ****************************************************************************/
 #include <liburing.h>
 #include <unistd.h>
+#include <errno.h>
 #include <sys/timerfd.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
@@ -18,6 +19,8 @@
 #include <testing.h>
 #include <helpers.h>
 #include "yev_loop.h"
+
+#include <string.h>
 
 /***************************************************************
  *              Constants

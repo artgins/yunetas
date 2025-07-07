@@ -10,10 +10,13 @@
 #pragma once
 
 #include <regex.h>
+#include <inttypes.h>
 #include <time.h>
 
 #include "00_http_parser.h" /* don't remove */
 #include "00_security.h"    /* don't remove */
+#include "ansi_escape_codes.h"
+#include "dl_list.h"
 #include "msgsets.h"
 #include "glogger.h"
 #include "gbuffer.h"

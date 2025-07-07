@@ -6,7 +6,7 @@
  *          Copyright (c) 2019, Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <locale.h>
+#include <inttypes.h>
 
 #include "ansi_escape_codes.h"
 #include "gbmem.h"
