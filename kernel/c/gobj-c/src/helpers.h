@@ -9,31 +9,86 @@
  ****************************************************************************/
 #pragma once
 
-#include <sys/stat.h>
+#include <regex.h>
+#include <time.h>
+
 #include "00_http_parser.h" /* don't remove */
 #include "00_security.h"    /* don't remove */
-#include "gobj.h"
+#include "msgsets.h"
+#include "glogger.h"
+#include "gbuffer.h"
+#include "gbmem.h"
 
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
-/*****************************************************************
- *     Macros
- *****************************************************************/
-/*
- * ARRAY_SIZE - get the number of elements in a visible array
- *  <at> x: the array whose size you want.
- *
- * This does not work on pointers, or arrays declared as [], or
- * function parameters.  With correct compiler support, such usage
- * will cause a build error (see the build_assert_or_zero macro).
- */
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(a) (sizeof(a)/sizeof((a)[0]))
-#endif
+/***********************************************************************
+ *  Macros of switch for strings
+ *  copied from https://gist.github.com/HoX/abfe15c40f2d9daebc35
 
+Example:
+
+int main(int argc, char **argv) {
+     SWITCHS(argv[1]) {
+        CASES("foo")
+        CASES("bar")
+            printf("foo or bar (case sensitive)\n");
+            break;
+
+        ICASES("pi")
+            printf("pi or Pi or pI or PI (case insensitive)\n");
+            break;
+
+        CASES_RE("^D.*",0)
+            printf("Something that start with D (case sensitive)\n");
+            break;
+
+        CASES_RE("^E.*",REG_ICASE)
+            printf("Something that start with E (case insensitive)\n");
+            break;
+
+        CASES("1")
+            printf("1\n");
+
+        CASES("2")
+            printf("2\n");
+            break;
+
+        DEFAULTS
+            printf("No match\n");
+            break;
+    } SWITCHS_END
+
+    return 0;
+}
+ ***********************************************************************/
+
+/** Begin a switch for the string x */
+#define SWITCHS(x) \
+    { regmatch_t pmatch[1]; (void)pmatch; const char *__sw = (x); BOOL __done = FALSE; BOOL __cont = FALSE; \
+        regex_t __regex; regcomp(&__regex, ".*", 0); do {
+
+/** Check if the string matches the cases argument (case sensitive) */
+#define CASES(x)    } if ( __cont || !strcmp ( __sw, x ) ) \
+    { __done = TRUE; __cont = TRUE;
+
+/** Check if the string matches the icases argument (case insensitive) */
+#define ICASES(x)    } if ( __cont || !strcasecmp ( __sw, x ) ) { \
+    __done = TRUE; __cont = TRUE;
+
+/** Check if the string matches the specified regular expression using regcomp(3) */
+#define CASES_RE(x,flags) } regfree ( &__regex ); if ( __cont || ( \
+  0 == regcomp ( &__regex, x, flags ) && \
+  0 == regexec ( &__regex, __sw, ARRAY_SIZE(pmatch), pmatch, 0 ) ) ) { \
+    __done = TRUE; __cont = TRUE;
+
+/** Default behaviour */
+#define DEFAULTS } if ( !__done || __cont ) {
+
+/** Close the switchs */
+#define SWITCHS_END } while ( 0 ); regfree(&__regex); }
 
 /*****************************************************************
  *     Prototypes
@@ -1068,3 +1123,22 @@ PUBLIC BOOL istream_is_completed(
 );
 
 PUBLIC unsigned long free_ram_in_kb(void);
+
+/***************************************************************
+ *  inline functions
+ ***************************************************************/
+static inline BOOL empty_string(const char *str)
+{
+    return (str && *str)?0:1;
+}
+
+static inline BOOL empty_json(const json_t *jn)
+{
+    if((json_is_array(jn) && json_array_size(jn)==0) ||
+        (json_is_object(jn) && json_object_size(jn)==0) ||
+        json_is_null(jn)) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}

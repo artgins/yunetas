@@ -14,6 +14,7 @@
 #include <time.h>
 #include <gobj.h>
 #include <yev_loop.h>
+#include <gbuffer.h>
 #include "c_yuno.h"
 #include "c_timer0.h"
 

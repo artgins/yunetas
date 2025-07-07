@@ -11,8 +11,7 @@
 
 #include <netdb.h>  // need it by struct addrinfo
 
-#include <testing.h>
-#include <gobj.h>
+#include <gbuffer.h>
 
 #ifdef __cplusplus
 extern "C"{

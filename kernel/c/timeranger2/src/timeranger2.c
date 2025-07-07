@@ -18,8 +18,8 @@
 #include <sys/resource.h>
 #include <fnmatch.h>
 #include <dirent.h>
+#include <sys/stat.h>
 
-#include <ansi_escape_codes.h>
 #include <helpers.h>
 #include <kwid.h>
 #include "fs_watcher.h"

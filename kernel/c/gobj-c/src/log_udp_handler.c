@@ -28,7 +28,7 @@
 #include <esp_event.h>
 #include <esp_log.h>
 #endif
-#include "helpers.h"
+#include "gtypes.h"
 #include "log_udp_handler.h"
 
 /***************************************************************************

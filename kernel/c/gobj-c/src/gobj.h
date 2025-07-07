@@ -43,7 +43,6 @@
 
 #include <string.h>
 #include <time.h>
-#include <regex.h>
 #include <inttypes.h>
 #include <jansson.h>
 #include <yuneta_config.h>      // don't remove, to create dependency
@@ -51,6 +50,7 @@
 
 #include "gtypes.h"
 #include "dl_list.h"
+#include "msgsets.h"
 #include "glogger.h"
 #include "gbmem.h"
 #include "gbuffer.h"
@@ -1392,7 +1392,6 @@ PUBLIC size_t get_cur_system_memory(void);
 PUBLIC const sdata_desc_t *gobj_command_desc(hgobj gobj, const char *name, BOOL verbose);
 
 PUBLIC const char **get_sdata_flag_table(void); // Table of sdata (attr) flag names
-PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag);
 
 PUBLIC json_t *get_attrs_schema(hgobj gobj);   // List with description (schema) of gobj's attributes.
 

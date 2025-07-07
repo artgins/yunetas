@@ -75,6 +75,7 @@ socket write of encrypted data.
 #include <openssl/err.h>
 
 #include <kwid.h>
+#include <helpers.h>
 #include "../ytls.h"
 #include "openssl.h"
 

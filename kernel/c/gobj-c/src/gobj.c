@@ -6396,32 +6396,6 @@ PUBLIC const char **get_sdata_flag_table(void)
 }
 
 /***************************************************************************
- *  Get a gbuffer with type strings
- ***************************************************************************/
-PUBLIC gbuffer_t *get_sdata_flag_desc(sdata_flag_t flag)
-{
-    gbuffer_t *gbuf = gbuffer_create(1024, 1024);
-    if(!gbuf) {
-        return 0;
-    }
-    BOOL add_sep = FALSE;
-
-    char **name = (char **)sdata_flag_names;
-    while(*name) {
-        if(flag & 0x01) {
-            if(add_sep) {
-                gbuffer_append(gbuf, "|", 1);
-            }
-            gbuffer_append(gbuf, *name, strlen(*name));
-            add_sep = TRUE;
-        }
-        flag = flag >> 1;
-        name++;
-    }
-    return gbuf;
-}
-
-/***************************************************************************
  *
  *  Return list of objects with gobj's attribute description,
  *  restricted to attributes having SDF_RD|SDF_WR|SDF_STATS|SDF_PERSIST|SDF_VOLATIL|SDF_RSTATS|SDF_PSTATS flag.
@@ -6525,7 +6499,7 @@ PRIVATE json_t *itdesc2json(const sdata_desc_t *it)
     );
 
     json_object_set_new(jn_it, "description", json_string(it->description));
-    gbuffer_t *gbuf = get_sdata_flag_desc(it->flag);
+    gbuffer_t *gbuf = bits2gbuffer(sdata_flag_names, it->flag);
     if(gbuf) {
         size_t l = gbuffer_leftbytes(gbuf);
         if(l) {
@@ -6565,7 +6539,7 @@ PRIVATE json_t *cmddesc2json(const sdata_desc_t *it)
     }
 
     json_object_set_new(jn_it, "description", json_string(it->description));
-    gbuffer_t *gbuf = get_sdata_flag_desc(it->flag);
+    gbuffer_t *gbuf = bits2gbuffer(sdata_flag_names, it->flag);
     if(gbuf) {
         size_t l = gbuffer_leftbytes(gbuf);
         if(l) {
@@ -6846,7 +6820,7 @@ PRIVATE json_t *authdesc2json(const sdata_desc_t *it)
 
     json_object_set_new(jn_it, "description", json_string(it->description));
 
-    gbuffer_t *gbuf = get_sdata_flag_desc(it->flag);
+    gbuffer_t *gbuf = bits2gbuffer(sdata_flag_names, it->flag);
     if(gbuf) {
         size_t l = gbuffer_leftbytes(gbuf);
         if(l) {

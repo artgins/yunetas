@@ -19,6 +19,7 @@
 #include <time.h>
 #include <dirent.h>
 #include <fcntl.h>
+#include <regex.h>
 #include <sys/stat.h>
 
 #include <yuneta_config.h>  /* don't remove */
