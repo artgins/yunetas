@@ -63,18 +63,13 @@ PUBLIC int gbmem_get_allocators(
     sys_free_fn_t *free_func
 );
 
-// PUBLIC sys_malloc_fn_t gobj_malloc_func(void);
-// PUBLIC sys_realloc_fn_t gobj_realloc_func(void);
-// PUBLIC sys_calloc_fn_t gobj_calloc_func(void);
-// PUBLIC sys_free_fn_t gobj_free_func(void);
-
 PUBLIC void *gbmem_malloc(size_t size);
 PUBLIC void  gbmem_free(void *ptr);
 PUBLIC void *gbmem_realloc(void *ptr, size_t size);
 PUBLIC void *gbmem_calloc(size_t n, size_t size);
-
 PUBLIC char *gbmem_strndup(const char *str, size_t size);
 PUBLIC char *gbmem_strdup(const char *str);
+
 PUBLIC size_t gbmem_get_maximum_block(void);
 
 PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
