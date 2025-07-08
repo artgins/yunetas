@@ -425,7 +425,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*---------------------------------------------------*
      *      WARNING now all json is gbmem allocated
      *---------------------------------------------------*/
-    gobj_setup_memory(
+    gbmem_setup(
         MEM_MAX_BLOCK,          // max_block, largest memory block
         MEM_MAX_SYSTEM_MEMORY,  // max_system_memory, maximum system memory
         USE_OWN_SYSTEM_MEMORY,

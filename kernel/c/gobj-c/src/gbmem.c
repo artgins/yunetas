@@ -4,7 +4,7 @@
  *              Block Memory Core
  *
  *
- * TODO find out some good memory mananger
+ * TODO find out some good memory manager
  *
  *  Originally from yuneta V6:
  *  Code inspired in zmalloc.c (MAWK)
@@ -57,7 +57,7 @@ PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
 /***************************************************************************
  *  Initialize the yuno
  ***************************************************************************/
-PUBLIC int gobj_setup_memory( /* If you don't use the defaults, call this before gobj_start_up */
+PUBLIC int gbmem_setup( /* If you don't use the defaults, call this before gobj_start_up */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
     size_t                      mem_max_system_memory,  /* maximum system memory, default 64M */
     BOOL                        use_own_system_memory,  /* Use internal memory manager */

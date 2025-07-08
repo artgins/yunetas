@@ -1019,7 +1019,7 @@ int main(int argc, char *argv[])
     init_backtrace_with_backtrace(argv[0]);
     set_show_backtrace_fn(show_backtrace_with_backtrace);
 
-    gobj_setup_memory(
+    gbmem_setup(
         256*1024L,          // max_block, largest memory block
         1024*1024*1024L,    // max_system_memory, maximum system memory
         FALSE,

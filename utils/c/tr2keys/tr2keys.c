@@ -700,7 +700,7 @@ int main(int argc, char *argv[])
     uint64_t MEM_MAX_BLOCK = (MEM_MAX_SYSTEM_MEMORY / sizeof(md2_record_ex_t)) * sizeof(md2_record_ex_t);
     MEM_MAX_BLOCK = MIN(1*1024*1024*1024LL, MEM_MAX_BLOCK);  // 1*G max
 
-    gobj_setup_memory(
+    gbmem_setup(
         MEM_MAX_BLOCK,  // max_block, largest memory block
         MEM_MAX_SYSTEM_MEMORY, // max_system_memory, maximum system memory
         FALSE,
