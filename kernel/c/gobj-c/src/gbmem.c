@@ -34,7 +34,7 @@
 #include "glogger.h"
 
 /***************************************************************
- *              Prototypes
+ *              Data
  ***************************************************************/
 PRIVATE void *_mem_malloc(size_t size);
 PRIVATE void _mem_free(void *p);
@@ -53,6 +53,23 @@ PRIVATE size_t __max_system_memory__ = 64*1024L*1024L;   /* maximum core memory,
 PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
 #endif
 
+#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
+    PRIVATE size_t mem_ref = 0;
+    PRIVATE dl_list_t dl_busy_mem = {0};
+
+    typedef struct {
+        DL_ITEM_FIELDS
+        size_t size;
+        size_t ref;
+    } track_mem_t;
+
+    unsigned long *memory_check_list = 0;
+#define TRACK_MEM sizeof(track_mem_t)
+#else
+    // typedef struct {
+    //     size_t size;
+    // } track_mem_t;
+#endif
 
 /***************************************************************************
  *  Initialize memory manager
@@ -133,32 +150,111 @@ PUBLIC int gbmem_get_allocators(
 }
 
 /***********************************************************************
- *      Get memory functions
+ *      Memory functions
  ***********************************************************************/
-PUBLIC sys_malloc_fn_t gobj_malloc_func(void) { return sys_malloc_fn; }
-PUBLIC sys_realloc_fn_t gobj_realloc_func(void) { return sys_realloc_fn; }
-PUBLIC sys_calloc_fn_t gobj_calloc_func(void) { return sys_calloc_fn; }
-PUBLIC sys_free_fn_t gobj_free_func(void) { return sys_free_fn; }
+PUBLIC void *gbmem_malloc(size_t size)
+{
+    return sys_malloc_fn(size);
+}
 
+/***********************************************************************
+ *      Memory functions
+ ***********************************************************************/
+PUBLIC void gbmem_free(void *ptr)
+{
+    sys_free_fn(ptr);
+}
+
+/***********************************************************************
+ *      Memory functions
+ ***********************************************************************/
+PUBLIC void *gbmem_realloc(void *ptr, size_t size)
+{
+    return sys_realloc_fn(ptr, size);
+}
+
+/***********************************************************************
+ *      Memory functions
+ ***********************************************************************/
+PUBLIC void *gbmem_calloc(size_t n, size_t size)
+{
+    return sys_calloc_fn(n, size);
+}
+
+/***************************************************************************
+ *     duplicate a substring
+ ***************************************************************************/
+PUBLIC char *gbmem_strndup(const char *str, size_t size)
+{
+    char *s;
+
+    /*-----------------------------------------*
+     *     Check null string
+     *-----------------------------------------*/
+    if(!str) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "str is NULL",
+            NULL
+        );
+        return NULL;
+    }
+
+    /*-----------------------------------------*
+     *     Alloca memoria
+     *-----------------------------------------*/
+    s = (char *)sys_malloc_fn(size+1);
+    if(!s) {
+        return NULL;
+    }
+
+    /*-----------------------------------------*
+     *     Copy the substring
+     *-----------------------------------------*/
+    memmove(s, str, size);
+
+    return s;
+}
+
+/***************************************************************************
+ *     Duplica un string
+ ***************************************************************************/
+PUBLIC char *gbmem_strdup(const char *string)
+{
+    if(!string) {
+        return NULL;
+    }
+    return gbmem_strndup(string, strlen(string));
+}
+
+/*************************************************************************
+ *  Return the maximum memory that you can get
+ *************************************************************************/
+PUBLIC size_t gbmem_get_maximum_block(void)
+{
+    return __max_block__;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC size_t get_max_system_memory(void)
+{
+    return __max_system_memory__;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC size_t get_cur_system_memory(void)
+{
 #if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    PRIVATE size_t mem_ref = 0;
-    PRIVATE dl_list_t dl_busy_mem = {0};
-
-    typedef struct {
-        DL_ITEM_FIELDS
-        size_t size;
-        size_t ref;
-    } track_mem_t;
-
-    unsigned long *memory_check_list = 0;
-#define TRACK_MEM sizeof(track_mem_t)
+    return __cur_system_memory__;
 #else
-    // typedef struct {
-    //     size_t size;
-    // } track_mem_t;
+    return 0;
 #endif
-
-
+}
 
 /***********************************************************************
  *      Set mem ref list to check
@@ -407,75 +503,4 @@ PRIVATE void *_mem_calloc(size_t n, size_t size)
 {
     size_t total = n * size;
     return _mem_malloc(total);
-}
-
-/***************************************************************************
- *     duplicate a substring
- ***************************************************************************/
-PUBLIC char *gbmem_strndup(const char *str, size_t size)
-{
-    char *s;
-
-    /*-----------------------------------------*
-     *     Check null string
-     *-----------------------------------------*/
-    if(!str) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "str is NULL",
-            NULL
-        );
-        return NULL;
-    }
-
-    /*-----------------------------------------*
-     *     Alloca memoria
-     *-----------------------------------------*/
-    s = (char *)sys_malloc_fn(size+1);
-    if(!s) {
-        return NULL;
-    }
-
-    /*-----------------------------------------*
-     *     Copy the substring
-     *-----------------------------------------*/
-    memmove(s, str, size);
-
-    return s;
-}
-
-/***************************************************************************
- *     Duplica un string
- ***************************************************************************/
-PUBLIC char *gbmem_strdup(const char *string)
-{
-    if(!string) {
-        return NULL;
-    }
-    return gbmem_strndup(string, strlen(string));
-}
-
-/*************************************************************************
- *  Return the maximum memory that you can get
- *************************************************************************/
-PUBLIC size_t gbmem_get_maximum_block(void)
-{
-    return __max_block__;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC size_t get_max_system_memory(void)
-{
-    return __max_system_memory__;
-}
-PUBLIC size_t get_cur_system_memory(void)
-{
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-    return __cur_system_memory__;
-#else
-    return 0;
-#endif
 }

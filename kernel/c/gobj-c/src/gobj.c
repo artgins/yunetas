@@ -1105,7 +1105,7 @@ PUBLIC void gclass_unregister(hgclass hgclass)
         GBMEM_FREE(event_type);
     }
 
-    dl_delete(&dl_gclass, gclass, gobj_free_func());
+    dl_delete(&dl_gclass, gclass, gbmem_free);
 }
 
 /***************************************************************************
@@ -2468,10 +2468,10 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     JSON_DECREF(gobj->dl_subscribings)
     JSON_DECREF(gobj->dl_subscriptions)
 
-    EXEC_AND_RESET(gobj_free_func(), gobj->gobj_name)
-    EXEC_AND_RESET(gobj_free_func(), gobj->full_name)
-    EXEC_AND_RESET(gobj_free_func(), gobj->short_name)
-    EXEC_AND_RESET(gobj_free_func(), gobj->priv)
+    EXEC_AND_RESET(gbmem_free, gobj->gobj_name)
+    EXEC_AND_RESET(gbmem_free, gobj->full_name)
+    EXEC_AND_RESET(gbmem_free, gobj->short_name)
+    EXEC_AND_RESET(gbmem_free, gobj->priv)
 
     if(gobj->obflag & obflag_created) {
         gobj->gclass->instances--;

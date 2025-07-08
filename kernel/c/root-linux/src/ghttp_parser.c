@@ -229,7 +229,7 @@ PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
 //                parser->body_size + length + 1
 //            );
 //        } else {
-//            parser->body = gobj_malloc_func()(length + 1);
+//            parser->body = gbmem_malloc(length + 1);
 //        }
 //
 //        if(!parser->body) {
@@ -351,12 +351,12 @@ PRIVATE int on_url(http_parser* http_parser, const char* at, size_t length)
     size_t pos = 0;
     if(parser->url) {
         pos = strlen(parser->url);
-        parser->url = gobj_realloc_func()(
+        parser->url = gbmem_realloc(
             parser->url,
             pos + length + 1
         );
     } else {
-        parser->url = gobj_malloc_func()(length+1);
+        parser->url = gbmem_malloc(length+1);
     }
 
     if(!parser->url) {
@@ -400,12 +400,12 @@ PRIVATE int on_header_field(http_parser* http_parser, const char* at, size_t len
     size_t pos=0;
     if(parser->cur_key) {
         pos = strlen(parser->cur_key);
-        parser->cur_key = gobj_realloc_func()(
+        parser->cur_key = gbmem_realloc(
             parser->cur_key,
             pos + length + 1
         );
     } else {
-        parser->cur_key = gobj_malloc_func()(length+1);
+        parser->cur_key = gbmem_malloc(length+1);
     }
     if(!parser->cur_key) {
         gobj_log_error(gobj, 0,
@@ -466,12 +466,12 @@ PRIVATE int on_header_value(http_parser* http_parser, const char* at, size_t len
         );
         const char *partial_value = json_string_value(jn_partial_value);
         pos = strlen(partial_value);
-        value = gobj_malloc_func()(pos + length + 1);
+        value = gbmem_malloc(pos + length + 1);
         if(value) {
             memcpy(value, partial_value, pos);
         }
     } else {
-        value = gobj_malloc_func()(length + 1);
+        value = gbmem_malloc(length + 1);
     }
     if(!value) {
         gobj_log_error(gobj, 0,

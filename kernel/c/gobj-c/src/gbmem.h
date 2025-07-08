@@ -23,18 +23,18 @@ typedef void * (*sys_realloc_fn_t)(void * ptr, size_t sz);
 typedef void * (*sys_calloc_fn_t)(size_t n, size_t size);
 typedef void (*sys_free_fn_t)(void * ptr);
 
-#define GBMEM_MALLOC(size) (gobj_malloc_func())(size)
+#define GBMEM_MALLOC(size) gbmem_malloc(size)
 
 #define GBMEM_FREE(ptr)             \
     if((ptr)) {                     \
-        (gobj_free_func())((void *)(ptr));  \
+        gbmem_free((void *)(ptr));  \
         (ptr) = 0;                  \
     }
 
 #define GBMEM_STRDUP gbmem_strdup
 #define GBMEM_STRNDUP gbmem_strndup
 
-#define GBMEM_REALLOC(ptr, size) (gobj_realloc_func())((ptr), (size))
+#define GBMEM_REALLOC(ptr, size) gbmem_realloc((ptr), (size))
 
 /**************************************************************
  *       Prototypes
@@ -63,16 +63,22 @@ PUBLIC int gbmem_get_allocators(
     sys_free_fn_t *free_func
 );
 
-PUBLIC sys_malloc_fn_t gobj_malloc_func(void);
-PUBLIC sys_realloc_fn_t gobj_realloc_func(void);
-PUBLIC sys_calloc_fn_t gobj_calloc_func(void);
-PUBLIC sys_free_fn_t gobj_free_func(void);
+// PUBLIC sys_malloc_fn_t gobj_malloc_func(void);
+// PUBLIC sys_realloc_fn_t gobj_realloc_func(void);
+// PUBLIC sys_calloc_fn_t gobj_calloc_func(void);
+// PUBLIC sys_free_fn_t gobj_free_func(void);
+
+PUBLIC void *gbmem_malloc(size_t size);
+PUBLIC void  gbmem_free(void *ptr);
+PUBLIC void *gbmem_realloc(void *ptr, size_t size);
+PUBLIC void *gbmem_calloc(size_t n, size_t size);
+
 PUBLIC char *gbmem_strndup(const char *str, size_t size);
 PUBLIC char *gbmem_strdup(const char *str);
 PUBLIC size_t gbmem_get_maximum_block(void);
 
-PUBLIC void print_track_mem(void);
 PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
+PUBLIC void print_track_mem(void);
 
 
 #ifdef __cplusplus
