@@ -72,8 +72,6 @@ typedef const char *gobj_lmethod_t;     /**< unique pointer that exposes local m
 typedef void *hgclass;      /* handler of a gclass */
 typedef void *hgobj;        /* handler of a gobj */
 
-typedef void (*fnfree)(void *);
-
 typedef enum {
     PEF_CONTINUE    = 0,
     PEF_EXIT        = -1,

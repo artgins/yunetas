@@ -19,6 +19,8 @@ extern "C"{
 /***************************************************************
  *              Structures
  ***************************************************************/
+typedef void (*fnfree)(void *);
+
 #define DL_ITEM_FIELDS              \
     struct dl_list_s *__dl__;       \
     struct dl_item_s  *__next__;    \
