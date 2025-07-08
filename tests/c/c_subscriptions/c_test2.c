@@ -4,7 +4,6 @@
  *          Copyright (c) 2025, by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-#include <iconv.h>
 #include <backtrace.h>
 
 #include "c_test2.h"

@@ -13,7 +13,6 @@
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-#include <iconv.h>
 #include <backtrace.h>
 
 #include "c_test1.h"
