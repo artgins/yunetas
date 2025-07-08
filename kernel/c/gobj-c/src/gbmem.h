@@ -48,13 +48,15 @@ PUBLIC int gbmem_setup( /* If you don't use the defaults, call this before gobj_
     size_t mem_superblock          /* superblock, default 16M */
 );
 
-PUBLIC int gobj_set_allocators(
+PUBLIC void gbmem_shutdown(void);
+
+PUBLIC int gbmem_set_allocators(
     sys_malloc_fn_t malloc_func,
     sys_realloc_fn_t realloc_func,
     sys_calloc_fn_t calloc_func,
     sys_free_fn_t free_func
 );
-PUBLIC int gobj_get_allocators(
+PUBLIC int gbmem_get_allocators(
     sys_malloc_fn_t *malloc_func,
     sys_realloc_fn_t *realloc_func,
     sys_calloc_fn_t *calloc_func,

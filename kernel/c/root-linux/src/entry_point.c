@@ -410,7 +410,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     sys_calloc_fn_t calloc_func;
     sys_free_fn_t free_func;
 
-    gobj_get_allocators(
+    gbmem_get_allocators(
         &malloc_func,
         &realloc_func,
         &calloc_func,

@@ -55,7 +55,7 @@ PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
 
 
 /***************************************************************************
- *  Initialize the yuno
+ *  Initialize memory manager
  ***************************************************************************/
 PUBLIC int gbmem_setup( /* If you don't use the defaults, call this before gobj_start_up */
     size_t                      mem_max_block,          /* largest memory block, default 16M */
@@ -83,9 +83,17 @@ PUBLIC int gbmem_setup( /* If you don't use the defaults, call this before gobj_
 }
 
 /***************************************************************************
+ *     Close memory manager
+ ***************************************************************************/
+PUBLIC void gbmem_shutdown(void)
+{
+
+}
+
+/***************************************************************************
  *     Set memory functions
  ***************************************************************************/
-PUBLIC int gobj_set_allocators(
+PUBLIC int gbmem_set_allocators(
     sys_malloc_fn_t malloc_func,
     sys_realloc_fn_t realloc_func,
     sys_calloc_fn_t calloc_func,
@@ -102,7 +110,7 @@ PUBLIC int gobj_set_allocators(
 /***************************************************************************
  *     Get memory functions
  ***************************************************************************/
-PUBLIC int gobj_get_allocators(
+PUBLIC int gbmem_get_allocators(
     sys_malloc_fn_t *malloc_func,
     sys_realloc_fn_t *realloc_func,
     sys_calloc_fn_t *calloc_func,
