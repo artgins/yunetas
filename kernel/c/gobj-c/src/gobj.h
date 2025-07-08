@@ -44,6 +44,7 @@
 #include <jansson.h>
 
 #include "helpers.h"
+#include "kwid.h"
 
 #ifdef __cplusplus
 extern "C"{
