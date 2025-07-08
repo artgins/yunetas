@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <inttypes.h>
 #include <libgen.h>
 #include <dirent.h>
 #include <sys/statvfs.h>

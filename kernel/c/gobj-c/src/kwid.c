@@ -12,8 +12,6 @@
 #include <string.h>
 #include <limits.h>
 
-#include "gbmem.h"
-#include "helpers.h"
 #include "kwid.h"
 
 

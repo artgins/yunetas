@@ -11,11 +11,7 @@
 #include <errno.h>
 #include <limits.h>
 
-#include "gbmem.h"
-#include "kwid.h"
-#include "helpers.h"
 #include "gobj.h"
-#include "gbuffer.h"
 
 /***************************************************************
  *              Constants

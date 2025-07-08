@@ -53,10 +53,7 @@
     #define syslog(priority, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_ERROR, "yuneta", format, ##__VA_ARGS__)
 #endif
 
-#include "00_http_parser.h"
-#include "gbmem.h"
 #include "kwid.h"
-#include "ansi_escape_codes.h"
 #include "helpers.h"
 
 /***************************************************

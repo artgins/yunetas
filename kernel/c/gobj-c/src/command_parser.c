@@ -7,7 +7,6 @@
  *          Copyright (c) 2024, ArtGins
  *          All Rights Reserved.
 ***********************************************************************/
-#include "kwid.h"
 #include "gobj.h"
 #include "command_parser.h"
 
