@@ -10,7 +10,9 @@
  *          Copyright (c) 2024-2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <string.h>
 #include <time.h>
+
 #include <gobj.h>
 #include <testing.h>
 #include "c_timer.h"

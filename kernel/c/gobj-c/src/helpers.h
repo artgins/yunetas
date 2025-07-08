@@ -16,6 +16,7 @@
 #include "00_http_parser.h" /* don't remove */
 #include "00_security.h"    /* don't remove */
 #include "ansi_escape_codes.h"
+#include "gtypes.h"
 #include "dl_list.h"
 #include "gbmem.h"
 #include "gbuffer.h"

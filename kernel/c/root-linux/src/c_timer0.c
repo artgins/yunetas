@@ -11,7 +11,9 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
+#include <string.h>
 #include <time.h>
+
 #include <gobj.h>
 #include <yev_loop.h>
 #include <gbuffer.h>

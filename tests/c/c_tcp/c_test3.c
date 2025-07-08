@@ -14,6 +14,7 @@
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
+#include <string.h>
 #include <iconv.h>
 
 #include "common/c_pepon.h"

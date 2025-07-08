@@ -7,6 +7,8 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
+#include <string.h>
+
 #include <kwid.h>
 #include "ytls.h"
 #include "tls/openssl.h"

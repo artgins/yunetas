@@ -7,6 +7,7 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
+#include <string.h>
 #include "gobj.h"
 #include "stats_parser.h"
 
