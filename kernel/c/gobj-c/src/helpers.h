@@ -17,10 +17,9 @@
 #include "00_security.h"    /* don't remove */
 #include "ansi_escape_codes.h"
 #include "dl_list.h"
-#include "msgsets.h"
-#include "glogger.h"
-#include "gbuffer.h"
 #include "gbmem.h"
+#include "gbuffer.h"
+#include "glogger.h"
 
 
 #ifdef __cplusplus
