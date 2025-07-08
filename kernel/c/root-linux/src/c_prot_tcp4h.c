@@ -105,7 +105,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     SET_PRIV(max_pkt_size,      (uint32_t)gobj_read_integer_attr)
     if(priv->max_pkt_size == 0) {
-        priv->max_pkt_size = (uint32_t)gobj_get_maximum_block();
+        priv->max_pkt_size = (uint32_t)gbmem_get_maximum_block();
     }
 }
 
@@ -118,7 +118,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(max_pkt_size,    gobj_read_integer_attr)
         if(priv->max_pkt_size == 0) {
-            priv->max_pkt_size = (uint32_t)gobj_get_maximum_block();
+            priv->max_pkt_size = (uint32_t)gbmem_get_maximum_block();
         }
     END_EQ_SET_PRIV()
 }

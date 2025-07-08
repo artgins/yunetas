@@ -777,7 +777,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
     }
 
     dl_add(&dl_gclass, gclass);
-    gclass->gclass_name = gclass_name;  // DANGER gobj_strdup(gclass_name); 14/11/2024
+    gclass->gclass_name = gclass_name;  // DANGER gbmem_strdup(gclass_name); 14/11/2024
     gclass->gmt = gmt;
     gclass->lmt = lmt;
     gclass->attrs_table = attrs_table;
@@ -1600,7 +1600,7 @@ PUBLIC hgobj gobj_create2(
         );
     }
 
-    gobj->gobj_name = gobj_strdup(gobj_name);
+    gobj->gobj_name = gbmem_strdup(gobj_name);
     gobj->jn_attrs = sdata_create(gobj, gclass->attrs_table);
     gobj->jn_stats = json_object();
     gobj->jn_user_data = json_object();
@@ -6072,7 +6072,7 @@ PUBLIC const char * gobj_full_name(hgobj gobj_)
                 }
                 parent = parent->parent;
             }
-            gobj->full_name = gobj_strdup(bf);
+            gobj->full_name = gbmem_strdup(bf);
             free(bf);
         }
 
@@ -6098,7 +6098,7 @@ PUBLIC const char * gobj_short_name(hgobj gobj_)
             gobj_gclass_name(gobj),
             gobj_name(gobj)
         );
-        gobj->short_name = gobj_strdup(temp);
+        gobj->short_name = gbmem_strdup(temp);
     }
     return gobj->short_name;
 }

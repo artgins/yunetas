@@ -412,7 +412,7 @@ PRIVATE void *_mem_calloc(size_t n, size_t size)
 /***************************************************************************
  *     duplicate a substring
  ***************************************************************************/
-PUBLIC char *gobj_strndup(const char *str, size_t size)
+PUBLIC char *gbmem_strndup(const char *str, size_t size)
 {
     char *s;
 
@@ -448,18 +448,18 @@ PUBLIC char *gobj_strndup(const char *str, size_t size)
 /***************************************************************************
  *     Duplica un string
  ***************************************************************************/
-PUBLIC char *gobj_strdup(const char *string)
+PUBLIC char *gbmem_strdup(const char *string)
 {
     if(!string) {
         return NULL;
     }
-    return gobj_strndup(string, strlen(string));
+    return gbmem_strndup(string, strlen(string));
 }
 
 /*************************************************************************
  *  Return the maximum memory that you can get
  *************************************************************************/
-PUBLIC size_t gobj_get_maximum_block(void)
+PUBLIC size_t gbmem_get_maximum_block(void)
 {
     return __max_block__;
 }

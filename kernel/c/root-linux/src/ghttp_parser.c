@@ -245,7 +245,7 @@ PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
 //        memcpy(parser->body + parser->body_size, at, length);
 
         if(!parser->gbuf_body) {
-            parser->gbuf_body = gbuffer_create(RX_GBUFFER_SIZE, gobj_get_maximum_block());
+            parser->gbuf_body = gbuffer_create(RX_GBUFFER_SIZE, gbmem_get_maximum_block());
             if(!parser->gbuf_body) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,

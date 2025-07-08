@@ -7901,7 +7901,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 priv->istream_payload = istream_create(
                     gobj,
                     4*1024,
-                    gobj_get_maximum_block()
+                    gbmem_get_maximum_block()
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,

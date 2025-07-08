@@ -797,7 +797,7 @@ PRIVATE gbuffer_t * unmask_data(hgobj gobj, gbuffer_t *gbuf, uint8_t *h_mask)
 {
     gbuffer_t *unmasked;
 
-    unmasked = gbuffer_create(4*1024, gobj_get_maximum_block());
+    unmasked = gbuffer_create(4*1024, gbmem_get_maximum_block());
 
     char *p;
     size_t ln = gbuffer_leftbytes(gbuf);
@@ -1123,7 +1123,7 @@ PRIVATE int frame_completed(hgobj gobj)
             memcpy(&priv->message_head, frame_head, sizeof(FRAME_HEAD));
             priv->gbuf_message = gbuffer_create(
                 4*1024,
-                gobj_get_maximum_block()
+                gbmem_get_maximum_block()
             );
             if(!priv->gbuf_message) {
                 gobj_log_error(gobj, 0,
@@ -1861,7 +1861,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
                 priv->istream_payload = istream_create(
                     gobj,
                     4*1024,
-                    gobj_get_maximum_block()
+                    gbmem_get_maximum_block()
                 );
                 if(!priv->istream_payload) {
                     gobj_log_error(gobj, 0,

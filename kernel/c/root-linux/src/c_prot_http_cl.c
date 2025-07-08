@@ -320,7 +320,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     const char *method = kw_get_str(gobj, kw, "method", "GET", 0);
-    char *resource = gobj_strdup(kw_get_str(gobj, kw, "resource", "/", 0));
+    char *resource = gbmem_strdup(kw_get_str(gobj, kw, "resource", "/", 0));
     const char *query = kw_get_str(gobj, kw, "query", "", 0);
     json_t *jn_headers_ = kw_get_dict(gobj, kw, "headers", 0, 0);
     json_t *jn_data_ = kw_get_dict(gobj, kw, "data", 0, 0);
@@ -355,7 +355,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     BOOL set_form_urlencoded = strcmp(content_type, "application/x-www-form-urlencoded")==0?1:0;
     if(set_form_urlencoded) {
         if(!empty_string(query)) {
-            content = gobj_strdup(query);
+            content = gbmem_strdup(query);
             content_length = strlen(content);
         } else {
             // for k in form_data:
@@ -389,7 +389,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
                 more++;
             }
             char *p = gbuffer_cur_rd_pointer(gbuf);
-            content = gobj_strdup(p);
+            content = gbmem_strdup(p);
             content_length = strlen(content);
             GBUFFER_DECREF(gbuf)
         }

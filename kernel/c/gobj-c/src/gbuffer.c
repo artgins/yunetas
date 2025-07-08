@@ -741,7 +741,7 @@ PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label)
         gbuf->label = 0;
     }
     if(label) {
-        gbuf->label = gobj_strdup(label);
+        gbuf->label = gbmem_strdup(label);
     }
     return 0;
 }
@@ -1255,7 +1255,7 @@ PUBLIC gbuffer_t *json2gbuf(
     size_t flags)
 {
     if(!gbuf) {
-        gbuf = gbuffer_create(4*1024, gobj_get_maximum_block());
+        gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     }
     json_dump_callback(jn, dump2gbuf, gbuf, flags);
     JSON_DECREF(jn)
