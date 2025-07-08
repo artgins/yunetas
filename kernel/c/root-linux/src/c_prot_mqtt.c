@@ -38,6 +38,7 @@
 #include "msg_ievent.h"
 #include "c_timer.h"
 #include "c_tcp.h"
+#include "istream.h"
 #include "c_prot_mqtt.h"
 
 /***************************************************************************

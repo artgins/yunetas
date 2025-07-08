@@ -18,6 +18,7 @@
 #include "c_timer.h"
 #include "c_tcp.h"
 #include "ghttp_parser.h"
+#include "istream.h"
 #include "c_websocket.h"
 
 /***************************************************************************

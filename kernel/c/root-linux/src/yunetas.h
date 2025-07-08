@@ -59,6 +59,8 @@ extern "C"{
 #include <c_websocket.h>
 #include <c_qiogate.h>
 #include <c_mqiogate.h>
+#include <istream.h>
+#include <ghttp_parser.h>
 #include <dbsimple.h>
 #include <yev_loop.h>
 #include <entry_point.h>
