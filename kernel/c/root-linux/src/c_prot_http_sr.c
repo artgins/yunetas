@@ -13,6 +13,7 @@
 #include <kwid.h>
 #include "msg_ievent.h"
 #include "c_timer.h"
+#include "ghttp_parser.h"
 #include "c_prot_http_sr.h"
 
 /***************************************************************************

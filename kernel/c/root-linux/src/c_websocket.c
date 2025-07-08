@@ -17,6 +17,7 @@
 #include "sha1.h"
 #include "c_timer.h"
 #include "c_tcp.h"
+#include "ghttp_parser.h"
 #include "c_websocket.h"
 
 /***************************************************************************

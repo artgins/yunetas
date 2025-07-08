@@ -20,6 +20,8 @@
 #ifdef __linux__
     #include "c_tcp.h"
 #endif
+
+#include "ghttp_parser.h"
 #include "c_prot_http_cl.h"
 
 /***************************************************************
