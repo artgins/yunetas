@@ -103,20 +103,10 @@ typedef enum  {
 /***************************************************************
  *              Structures
  ***************************************************************/
-typedef void *yev_event_h;
 typedef void *yev_loop_h;
 
-typedef int (*yev_callback_t)(
-    yev_event_h event
-);
-
-typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
-    const char *schema,
-    struct addrinfo *hints,
-    int *secure // fill true if needs TLS
-);
-
 typedef struct yev_event_s yev_event_t;
+typedef yev_event_t *yev_event_h;
 
 typedef struct {
     struct sockaddr addr;
@@ -124,6 +114,10 @@ typedef struct {
     int ai_family;              // default: AF_UNSPEC,  Allow IPv4 or IPv6
     int ai_flags;               // default: AI_V4MAPPED | AI_ADDRCONFIG
 } sock_info_t;
+
+typedef int (*yev_callback_t)(
+    yev_event_h event
+);
 
 struct yev_event_s {
     yev_loop_h yev_loop;
@@ -142,6 +136,12 @@ struct yev_event_s {
     int dup_idx;            // Duplicate events with the same fd
     unsigned poll_mask;     // To use in POLL
 };
+
+typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
+    const char *schema,
+    struct addrinfo *hints,
+    int *secure // fill true if needs TLS
+);
 
 /***************************************************************
  *              Data
@@ -164,18 +164,32 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop, int timeout_in_seconds);
 PUBLIC int yev_loop_run_once(yev_loop_h yev_loop);
 PUBLIC int yev_loop_stop(yev_loop_h yev_loop);
 PUBLIC void yev_loop_reset_running(yev_loop_h yev_loop);
-PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event);
-PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event);
-PUBLIC BOOL yev_event_is_running(yev_event_h yev_event);
-PUBLIC BOOL yev_event_is_idle(yev_event_h yev_event);
+
+static inline BOOL yev_event_is_stopping(yev_event_h yev_event)
+{
+    return (yev_event->state==YEV_ST_CANCELING)?TRUE:FALSE;
+}
+
+static inline BOOL yev_event_is_stopped(yev_event_h yev_event)
+{
+    return (yev_event->state==YEV_ST_STOPPED)?TRUE:FALSE;
+}
+
+static inline BOOL yev_event_is_running(yev_event_h yev_event)
+{
+    return (yev_event->state==YEV_ST_RUNNING)?TRUE:FALSE;
+}
+
+static inline BOOL yev_event_is_idle(yev_event_h yev_event)
+{
+    return (yev_event->state==YEV_ST_IDLE)?TRUE:FALSE;
+}
+
 PUBLIC int yev_protocol_set_protocol_fill_hints_fn( // Set your own table of protocols
     yev_protocol_fill_hints_fn_t yev_protocol_fill_hints_fn
 );
 
-
-/*
- *  To start a timer event, don't use this yev_start_event(), use yev_start_timer_event().
- */
+PUBLIC const char *yev_get_state_name(yev_event_h yev_event);
 
 PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
                             // you can set the same gbuffer without warning.
@@ -186,33 +200,94 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
                     // if NULL reset the current gbuf
 );
 
-PUBLIC gbuffer_t *yev_get_gbuf(yev_event_h yev_event);
-PUBLIC int yev_get_fd(yev_event_h yev_event);
-PUBLIC void yev_set_fd( // only for yev_create_read_event(), yev_create_write_event(), yev_create_poll_event
+static inline gbuffer_t *yev_get_gbuf(yev_event_h yev_event)
+{
+    return yev_event->gbuf;
+}
+
+static inline PUBLIC int yev_get_fd(yev_event_h yev_event)
+{
+    return yev_event->fd;
+}
+
+static inline void yev_set_fd( // only for yev_create_read_event(), yev_create_write_event(), yev_create_poll_event
     yev_event_h yev_event,
     int fd
-);
-PUBLIC void yev_set_flag(
+) {
+    yev_event->fd = fd;
+}
+
+static inline void yev_set_flag(
     yev_event_h yev_event,
     yev_flag_t flag,
     BOOL set
-);
-PUBLIC yev_type_t yev_get_type(yev_event_h yev_event);
-PUBLIC yev_callback_t yev_get_callback(yev_event_h yev_event);
-PUBLIC yev_loop_h yev_get_loop(yev_event_h yev_event);
-PUBLIC yev_flag_t yev_get_flag(yev_event_h yev_event);
-PUBLIC yev_state_t yev_get_state(yev_event_h yev_event);
-PUBLIC int yev_get_result(yev_event_h yev_event);
-PUBLIC int yev_get_dup_idx(yev_event_h yev_event);
-PUBLIC hgobj yev_get_gobj(yev_event_h yev_event);
+){
+    if(set) {
+        yev_event->flag |= flag;
+    } else {
+        yev_event->flag &= ~flag;
+    }
+}
+
+static inline yev_type_t yev_get_type(yev_event_h yev_event)
+{
+    return yev_event->type;
+}
+
+static inline yev_callback_t yev_get_callback(yev_event_h yev_event)
+{
+    return yev_event->callback;
+}
+
+static inline yev_loop_h yev_get_loop(yev_event_h yev_event)
+{
+    return yev_event->yev_loop;
+}
+
+static inline yev_flag_t yev_get_flag(yev_event_h yev_event)
+{
+    return yev_event->flag;
+}
+
+static inline yev_state_t yev_get_state(yev_event_h yev_event)
+{
+    return yev_event->state;
+}
+
+static inline int yev_get_result(yev_event_h yev_event)
+{
+    return yev_event->result;
+}
+
+static inline int yev_get_dup_idx(yev_event_h yev_event)
+{
+    return yev_event->dup_idx;
+}
+
+static inline hgobj yev_get_gobj(yev_event_h yev_event)
+{
+    return yev_event->gobj;
+}
+
 PUBLIC hgobj yev_get_yuno(yev_loop_h yev_loop);
-PUBLIC int yev_set_user_data(
+
+static inline int yev_set_user_data(
     yev_event_h yev_event,
     void *user_data
-);
-PUBLIC void * yev_get_user_data(yev_event_h yev_event);
-PUBLIC const char *yev_get_state_name(yev_event_h yev_event);
+)
+{
+    yev_event->user_data = user_data;
+    return 0;
+}
 
+static inline void * yev_get_user_data(yev_event_h yev_event)
+{
+    return yev_event->user_data;
+}
+
+/*
+ *  To start a timer event, don't use this yev_start_event(), use yev_start_timer_event().
+ */
 PUBLIC int yev_start_event(
     yev_event_h yev_event
 );

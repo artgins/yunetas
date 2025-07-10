@@ -967,10 +967,8 @@ PRIVATE yev_state_t yev_set_state(yev_event_t *yev_event, yev_state_t new_state)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC const char * yev_get_state_name(yev_event_h yev_event_)
+PUBLIC const char * yev_get_state_name(yev_event_h yev_event)
 {
-    yev_event_t *yev_event = (yev_event_t *)yev_event_;
-
     if (yev_event->state == YEV_ST_IDLE) {
         return "ST_IDLE";
 
@@ -992,12 +990,10 @@ PUBLIC const char * yev_get_state_name(yev_event_h yev_event_)
  *
  ***************************************************************************/
 PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_write_event()
-    yev_event_h yev_event_,
+    yev_event_h yev_event,
     gbuffer_t *gbuf // WARNING if there is previous gbuffer it will be free
                     // if NULL reset the current gbuf
 ) {
-    yev_event_t *yev_event = (yev_event_t *)yev_event_;
-
     if(gbuf && gbuf == yev_event->gbuf) {
         return 0;
     }
@@ -1021,135 +1017,9 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC gbuffer_t *yev_get_gbuf(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->gbuf;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int yev_get_fd(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->fd;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void yev_set_fd( // only for yev_create_read_event(), yev_create_write_event(), yev_create_poll_event
-    yev_event_h yev_event,
-    int fd
-) {
-    ((yev_event_t *)yev_event)->fd = fd;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void yev_set_flag(
-    yev_event_h yev_event,
-    yev_flag_t flag,
-    BOOL set
-){
-    if(set) {
-        ((yev_event_t *)yev_event)->flag |= flag;
-    } else {
-        ((yev_event_t *)yev_event)->flag &= ~flag;
-    }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC yev_type_t yev_get_type(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->type;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC yev_callback_t yev_get_callback(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->callback;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC yev_loop_h yev_get_loop(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->yev_loop;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC yev_flag_t yev_get_flag(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->flag;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC yev_state_t yev_get_state(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->state;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int yev_get_result(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->result;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int yev_get_dup_idx(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->dup_idx;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC hgobj yev_get_gobj(yev_event_h yev_event)
-{
-    return ((yev_event_t *)yev_event)->gobj;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC hgobj yev_get_yuno(yev_loop_h yev_loop)
 {
     return ((yev_loop_t *)yev_loop)->yuno;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int yev_set_user_data(
-    yev_event_h yev_event,
-    void *user_data
-)
-{
-    ((yev_event_t *)yev_event)->user_data = user_data;
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC void * yev_get_user_data(yev_event_h yev_event_)
-{
-    yev_event_t *yev_event = (yev_event_t *)yev_event_;
-    return yev_event->user_data;
 }
 
 /***************************************************************************
@@ -1787,38 +1657,6 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
         }
     }
     return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC BOOL yev_event_is_stopped(yev_event_h yev_event)
-{
-    return (((yev_event_t *)yev_event)->state==YEV_ST_STOPPED)?TRUE:FALSE;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC BOOL yev_event_is_stopping(yev_event_h yev_event)
-{
-    return (((yev_event_t *)yev_event)->state==YEV_ST_CANCELING)?TRUE:FALSE;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC BOOL yev_event_is_running(yev_event_h yev_event)
-{
-    return (((yev_event_t *)yev_event)->state==YEV_ST_RUNNING)?TRUE:FALSE;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC BOOL yev_event_is_idle(yev_event_h yev_event)
-{
-    return (((yev_event_t *)yev_event)->state==YEV_ST_IDLE)?TRUE:FALSE;
 }
 
 /***************************************************************************
