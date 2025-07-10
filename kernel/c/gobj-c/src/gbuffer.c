@@ -345,10 +345,11 @@ PUBLIC void * gbuffer_get(gbuffer_t *gbuf, size_t len)
 PUBLIC char gbuffer_getchar(gbuffer_t *gbuf)
 {
     char *p = gbuffer_get(gbuf, 1);
-    if(p)
+    if(p) {
         return *p;
-    else
+    } else {
         return 0;
+    }
 }
 
 /***************************************************************************
