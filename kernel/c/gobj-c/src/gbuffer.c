@@ -18,8 +18,6 @@
  *              Constants
  ***************************************************************/
 
-#define __trace_gobj_gbuffers__(gobj)       (gobj_trace_level(gobj) & TRACE_GBUFFERS)
-
 /***************************************************************************
  *  Crea un gbuf de tamaño de datos 'data_size'
  *  Retorna NULL if error
@@ -69,7 +67,7 @@ PUBLIC gbuffer_t *gbuffer_create(
     /*----------------------------*
      *   Retorna pointer a gbuf
      *----------------------------*/
-    if(__trace_gobj_gbuffers__(0)) {
+    if(gobj_global_trace_level() & TRACE_GBUFFERS) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_GBUFFERS,
@@ -119,7 +117,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
     }
     gbuf->data = new_buf;
     gbuf->data_size = more;
-    if(__trace_gobj_gbuffers__(0)) {
+    if(gobj_global_trace_level() & TRACE_GBUFFERS) {
         gobj_log_debug(0,0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_GBUFFERS,
@@ -137,7 +135,7 @@ PRIVATE BOOL gbuffer_realloc(gbuffer_t *gbuf, size_t need_size)
  ***************************************************************************/
 PUBLIC void gbuffer_remove(gbuffer_t *gbuf)
 {
-    if(__trace_gobj_gbuffers__(0)) {
+    if(gobj_global_trace_level() & TRACE_GBUFFERS) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_GBUFFERS,
