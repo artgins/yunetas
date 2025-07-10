@@ -28,48 +28,10 @@ PUBLIC int dl_init(dl_list_t *dl, hgobj gobj)
 }
 
 /***************************************************************
- *      Seek first item
- ***************************************************************/
-PUBLIC void *dl_first(dl_list_t *dl)
-{
-    return dl->head;
-}
-
-/***************************************************************
- *      Seek last item
- ***************************************************************/
-PUBLIC void *dl_last(dl_list_t *dl)
-{
-    return dl->tail;
-}
-
-/***************************************************************
- *      next Item
- ***************************************************************/
-PUBLIC void *dl_next(void *curr)
-{
-    if(curr) {
-        return ((dl_item_t *) curr)->__next__;
-    }
-    return (void *)0;
-}
-
-/***************************************************************
- *      previous Item
- ***************************************************************/
-PUBLIC void *dl_prev(void *curr)
-{
-    if(curr) {
-        return ((dl_item_t *) curr)->__prev__;
-    }
-    return (void *)0;
-}
-
-/***************************************************************
  *  Check if a new item has links: MUST have NO links
  *  Return TRUE if it has links
  ***************************************************************/
-static BOOL check_links(register dl_item_t *item)
+PRIVATE BOOL check_links(register dl_item_t *item)
 {
     if(item->__prev__ || item->__next__ || item->__dl__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -87,7 +49,7 @@ static BOOL check_links(register dl_item_t *item)
  *  Check if a item has no links: MUST have links
  *  Return TRUE if it has not links
  ***************************************************************/
-static BOOL check_no_links(register dl_item_t *item)
+PRIVATE BOOL check_no_links(register dl_item_t *item)
 {
     if(!item->__dl__) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -218,7 +180,7 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
     /*------------------------------------------------*
      *                 Delete
      *------------------------------------------------*/
-    if(((dl_item_t *)curr)->__prev__==0) {
+    if(curr->__prev__==0) {
         /*------------------------------------*
          *  FIRST ITEM. (curr==dl->head)
          *------------------------------------*/
@@ -232,11 +194,11 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
         /*------------------------------------*
          *    MIDDLE or LAST ITEM
          *------------------------------------*/
-        ((dl_item_t *)curr)->__prev__->__next__ = ((dl_item_t *)curr)->__next__;
-        if(((dl_item_t *)curr)->__next__) /* last? */
-            ((dl_item_t *)curr)->__next__->__prev__ = ((dl_item_t *)curr)->__prev__; /* no */
+        curr->__prev__->__next__ = curr->__next__;
+        if(curr->__next__) /* last? */
+            curr->__next__->__prev__ = curr->__prev__; /* no */
         else
-            dl->tail= ((dl_item_t *)curr)->__prev__; /* yes */
+            dl->tail= curr->__prev__; /* yes */
     }
 
     /*-----------------------------*
@@ -247,9 +209,9 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
     /*-----------------------------*
      *  Reset pointers
      *-----------------------------*/
-    ((dl_item_t *)curr)->__prev__ = 0;
-    ((dl_item_t *)curr)->__next__ = 0;
-    ((dl_item_t *)curr)->__dl__ = 0;
+    curr->__prev__ = 0;
+    curr->__next__ = 0;
+    curr->__dl__ = 0;
 
     /*-----------------------------*
      *  Free item
@@ -279,15 +241,4 @@ PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *))
             NULL
         );
     }
-}
-
-/***************************************************************
- *   Return number of items in list
- ***************************************************************/
-PUBLIC size_t dl_size(dl_list_t *dl)
-{
-    if(!dl) {
-        return 0;
-    }
-    return dl->__itemsInContainer__;
 }

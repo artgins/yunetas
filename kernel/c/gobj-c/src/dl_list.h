@@ -43,17 +43,46 @@ typedef struct dl_list_s {
  *       Prototypes
  **************************************************************/
 PUBLIC int dl_init(dl_list_t *dl, hgobj gobj);
-PUBLIC void *dl_first(dl_list_t *dl);
-PUBLIC void *dl_last(dl_list_t *dl);
-PUBLIC void *dl_next(void *curr);
-PUBLIC void *dl_prev(void *curr);
+
+static inline void *dl_first(dl_list_t *dl) /* Seek first item */
+{
+    return dl->head;
+}
+
+static inline void *dl_last(dl_list_t *dl) /* Seek last item */
+{
+    return dl->tail;
+}
+
+static inline void *dl_next(void *curr) /* next Item */
+{
+    if(curr) {
+        return ((dl_item_t *) curr)->__next__;
+    }
+    return (void *)0;
+}
+
+static inline void *dl_prev(void *curr) /* previous Item */
+{
+    if(curr) {
+        return ((dl_item_t *) curr)->__prev__;
+    }
+    return (void *)0;
+}
+
 PUBLIC int dl_insert(dl_list_t *dl, void *item);
 PUBLIC int dl_add(dl_list_t *dl, void *item);
 PUBLIC void * dl_find(dl_list_t *dl, void *item);
 PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *));
 PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *));
-PUBLIC size_t dl_size(dl_list_t *dl);
 
+static inline size_t dl_size(dl_list_t *dl) /* Return number of items in list */
+{
+    if(!dl) {
+        return 0;
+    }
+    return dl->__itemsInContainer__;
+}
 
 #ifdef __cplusplus
 }
