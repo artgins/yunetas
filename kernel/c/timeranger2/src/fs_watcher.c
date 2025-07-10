@@ -354,9 +354,9 @@ PRIVATE int yev_callback(
                     fs_destroy_watcher_event(fs_event);
 
                 } else {
-                    // TODO too many yev_get_gbuf(yev_event)
-                    size_t len = gbuffer_leftbytes(yev_get_gbuf(yev_event));
-                    char *buffer = gbuffer_cur_rd_pointer(yev_get_gbuf(yev_event));
+                    gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+                    size_t len = gbuffer_leftbytes(gbuf);
+                    char *buffer = gbuffer_cur_rd_pointer(gbuf);
                     char *ptr = buffer;
                     while (ptr < buffer + len) {
                         struct inotify_event *event = (struct inotify_event *) ptr;
@@ -371,8 +371,9 @@ PRIVATE int yev_callback(
                      *  Clear buffer
                      *  Re-arm read
                      */
-                    if(yev_get_gbuf(yev_event)) {
-                        gbuffer_clear(yev_get_gbuf(yev_event));
+                    gbuf = yev_get_gbuf(yev_event);
+                    if(gbuf) {
+                        gbuffer_clear(gbuf);
                         yev_start_event(yev_event);
                     }
                 }
