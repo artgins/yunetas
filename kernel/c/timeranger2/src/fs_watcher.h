@@ -13,7 +13,6 @@
  ****************************************************************************/
 #pragma once
 
-#include <gobj.h>
 #include <yev_loop.h>
 
 #ifdef __cplusplus

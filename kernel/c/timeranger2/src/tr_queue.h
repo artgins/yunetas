@@ -10,7 +10,6 @@
 
 #pragma once
 
-#include <time.h>
 #include "timeranger2.h"
 
 #ifdef __cplusplus
