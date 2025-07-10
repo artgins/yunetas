@@ -110,12 +110,38 @@ typedef int (*yev_callback_t)(
     yev_event_h event
 );
 
-
 typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
     const char *schema,
     struct addrinfo *hints,
     int *secure // fill true if needs TLS
 );
+
+typedef struct yev_event_s yev_event_t;
+
+typedef struct {
+    struct sockaddr addr;
+    socklen_t addrlen;
+    int ai_family;              // default: AF_UNSPEC,  Allow IPv4 or IPv6
+    int ai_flags;               // default: AI_V4MAPPED | AI_ADDRCONFIG
+} sock_info_t;
+
+struct yev_event_s {
+    yev_loop_h yev_loop;
+    uint8_t type;           // yev_type_t
+    uint8_t flag;           // yev_flag_t
+    uint8_t state;          // yev_state_t
+    int fd;
+    uint64_t timer_bf;
+    gbuffer_t *gbuf;
+    hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
+    yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
+    void *user_data;
+    int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
+
+    sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
+    int dup_idx;            // Duplicate events with the same fd
+    unsigned poll_mask;     // To use in POLL
+};
 
 /***************************************************************
  *              Data

@@ -30,33 +30,7 @@ int multishot_available = 0; // Available since kernel 5.19 NOT TESTED!! DONT'US
 /***************************************************************
  *              Structures
  ***************************************************************/
-typedef struct yev_event_s yev_event_t;
 typedef struct yev_loop_s yev_loop_t;
-
-typedef struct {
-    struct sockaddr addr;
-    socklen_t addrlen;
-    int ai_family;              // default: AF_UNSPEC,  Allow IPv4 or IPv6
-    int ai_flags;               // default: AI_V4MAPPED | AI_ADDRCONFIG
-} sock_info_t;
-
-struct yev_event_s {
-    yev_loop_t *yev_loop;
-    uint8_t type;           // yev_type_t
-    uint8_t flag;           // yev_flag_t
-    uint8_t state;          // yev_state_t
-    int fd;
-    uint64_t timer_bf;
-    gbuffer_t *gbuf;
-    hgobj gobj;             // If yev_loop→yuno is null, it can be used as a generic user data pointer
-    yev_callback_t callback; // if return -1 the loop in yev_loop_run will break;
-    void *user_data;
-    int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
-
-    sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
-    int dup_idx;            // Duplicate events with the same fd
-    unsigned poll_mask;     // To use in POLL
-};
 
 struct yev_loop_s {
     struct io_uring ring;
@@ -1199,8 +1173,8 @@ PUBLIC int yev_start_event(
         return -1;
     }
 
-    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
     yev_loop_t *yev_loop = yev_event->yev_loop;
+    hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
 
     /*------------------------*
      *      Trace
@@ -1533,12 +1507,14 @@ PUBLIC int yev_start_timer_event(
         );
         return -1;
     }
-    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
+    yev_loop_t *yev_loop = yev_event->yev_loop;
+
+    hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
 
     if(yev_event->fd < 0) {
         yev_event->fd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK|TFD_CLOEXEC);
         if(yev_event->fd < 0) {
-            gobj_log_critical(yev_event->yev_loop->yuno?gobj:0, 0,
+            gobj_log_critical(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "timerfd_create() FAILED, cannot run yunetas",
@@ -1638,10 +1614,10 @@ PUBLIC int yev_start_timer_event(
      *-------------------------------*/
     struct io_uring_sqe *sqe;
     timerfd_settime(yev_event->fd, 0, &delta, NULL);
-    sqe = io_uring_get_sqe(&yev_event->yev_loop->ring);
+    sqe = io_uring_get_sqe(&yev_loop->ring);
     io_uring_sqe_set_data(sqe, (char *)yev_event);
     io_uring_prep_read(sqe, yev_event->fd, &yev_event->timer_bf, sizeof(yev_event->timer_bf), 0);
-    io_uring_submit(&yev_event->yev_loop->ring);
+    io_uring_submit(&yev_loop->ring);
     yev_set_state(yev_event, YEV_ST_RUNNING);
 
     if(cur_state != yev_get_state(yev_event)) {
@@ -1690,7 +1666,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
 
     yev_loop_t *yev_loop = yev_event->yev_loop;
     struct io_uring_sqe *sqe;
-    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
+    hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
     uint32_t trace_level = gobj_global_trace_level();
 
     /*------------------------*
@@ -1761,7 +1737,7 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
             sqe = io_uring_get_sqe(&yev_loop->ring);
             io_uring_sqe_set_data(sqe, yev_event);
             io_uring_prep_cancel(sqe, yev_event, 0);
-            io_uring_submit(&yev_event->yev_loop->ring);
+            io_uring_submit(&yev_loop->ring);
             yev_set_state(yev_event, YEV_ST_CANCELING);
             break;
 
@@ -1864,7 +1840,8 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
         );
         return;
     }
-    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
+    yev_loop_t *yev_loop = yev_event->yev_loop;
+    hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
 
     /*------------------------*
      *      Trace
@@ -1891,7 +1868,6 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
      *  Check if loop exiting
      *      Check state
      *---------------------------*/
-    yev_loop_t *yev_loop = yev_event->yev_loop;
     yev_state_t yev_state = yev_get_state(yev_event);
     if(yev_state == YEV_ST_RUNNING) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
@@ -2106,7 +2082,8 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
         ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
     }
 
-    hgobj gobj = (yev_event->yev_loop->yuno)?yev_event->gobj:0;
+    yev_loop_t *yev_loop = yev_event->yev_loop;
+    hgobj gobj = yev_loop->yuno?yev_event->gobj:0;
     uint32_t trace_level = gobj_global_trace_level();
 
     char schema[16];
@@ -2327,7 +2304,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
 
     set_nonblocking(fd);
     if (is_tcp_socket(fd)) {
-        set_tcp_socket_options(fd, yev_event->yev_loop->keep_alive);
+        set_tcp_socket_options(fd, yev_loop->keep_alive);
     }
 
     yev_event->fd = fd;
