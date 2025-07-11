@@ -1043,6 +1043,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
                     "msgset",           "%s", MSGSET_YEV_LOOP,
                     "msg",              "%s", "MASTER:  MONITOR INOTIFY (MI) /disks/",
                     "msg2",             "%s", "👓🔷 MASTER:  MONITOR INOTIFY (MI) /disks/",
+                    "directory",        "%s", directory,
                     NULL
                 );
             }
