@@ -440,7 +440,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
      *                          but in a tree, in the final first subdirectories deleting
      *                          this event is not arriving.
      *
-     *      HACK don't use IN_MODIFY in intense writing, cause IN_Q_OVERFLOW and event lost.
+     *      HACK don't use IN_MODIFY in intense writing, cause IN_Q_OVERFLOW and lost events.
      */
 
     if(event->mask & (IN_DELETE_SELF)) {
