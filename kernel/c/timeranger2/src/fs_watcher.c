@@ -17,6 +17,7 @@
 #include <sys/inotify.h>
 #include <errno.h>
 
+#include <testing.h>
 #include <helpers.h>
 #include <kwid.h>
 #include "fs_watcher.h"
@@ -309,8 +310,12 @@ PRIVATE int yev_callback(
 
     uint32_t trace_level = gobj_global_trace_level();
 
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "fs_watcher yev_callback() entry");
+#endif
+
     if(trace_level & (TRACE_URING|TRACE_FS)) {
-        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
+        //json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -320,14 +325,19 @@ PRIVATE int yev_callback(
             "state",        "%s", yev_get_state_name(yev_event),
             "result",       "%d", yev_get_result(yev_event),
             "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
-            "flag",         "%j", jn_flags,
+            // "flag",         "%j", jn_flags,
             "fd",           "%d", yev_get_fd(yev_event),
             "gbuffer",      "%p", yev_get_gbuf(yev_event),
             "p",            "%p", yev_event,
             NULL
         );
-        json_decref(jn_flags);
+        // json_decref(jn_flags);
     }
+
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "fs_watcher yev_callback() entry2");
+#endif
+
     switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
             {
@@ -390,6 +400,10 @@ PRIVATE int yev_callback(
             break;
     }
 
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "fs_watcher yev_callback() exit");
+#endif
+
     return 0;
 }
 
@@ -445,6 +459,9 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
     if(event->mask & (IN_DELETE_SELF)) {
         // The directory is removed or moved
+        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_DELETE_SELF entry");
+        #endif
         path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
         if(path != NULL) {
             char path_[PATH_MAX];
@@ -457,34 +474,50 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->callback(fs_event);
             remove_watch(fs_event, path, event->wd);
         }
+        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_DELETE_SELF exit");
+        #endif
         return;
     }
 
     if(event->mask & (IN_IGNORED)) {
         // The Watch was removed
-        if((path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, FALSE)) != NULL) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "wd yet found",
-                "path" ,        "%s", path,
-                "wd",           "%d", event->wd,
-                "event",        "%s", event->len? event->name:"",
-                "p",            "%p", event,
-                NULL
-            );
-        }
+
+        // Don't trace, avoid wasting time
+        // if((path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, FALSE)) != NULL) {
+        //     gobj_log_error(gobj, 0,
+        //         "function",     "%s", __FUNCTION__,
+        //         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        //         "msg",          "%s", "wd yet found",
+        //         "path" ,        "%s", path,
+        //         "wd",           "%d", event->wd,
+        //         "event",        "%s", event->len? event->name:"",
+        //         "p",            "%p", event,
+        //         NULL
+        //     );
+        // }
         return;
     }
 
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "fs_watcher get_path entry");
+    #endif
+
     path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+    char *filename = event->len? event->name:"";
+
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "fs_watcher get_path exit");
+    #endif
 
     if(event->mask & (IN_ISDIR)) {
         /*
          *  Directory
          */
         if (event->mask & (IN_CREATE)) {
-            char *filename = event->len? event->name:"";
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_CREATE entry");
+            #endif
             if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
                 snprintf(full_path, sizeof(full_path), "%s/%s", path, filename);
                 add_watch(fs_event, full_path);
@@ -493,40 +526,69 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
             fs_event->callback(fs_event);
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_CREATE exit");
+            #endif
         }
+
         if (event->mask & (IN_DELETE)) {
-            char *filename = event->len? event->name:"";
-            path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_DELETE entry");
+            #endif
+            // path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
             if(path != NULL) {
                 fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
                 fs_event->directory = (volatile char *)path;
                 fs_event->filename = filename;
                 fs_event->callback(fs_event);
             }
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_DELETE exit");
+            #endif
         }
+
     } else {
         /*
          *  File
          */
-        path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
-        char *filename = event->len? event->name:"";
+        // path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
         if (event->mask & (IN_CREATE)) {
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_CREATE entry");
+            #endif
             fs_event->fs_type = FS_FILE_CREATED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
             fs_event->callback(fs_event);
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_CREATE exit");
+            #endif
         }
+
         if (event->mask & (IN_DELETE)) {
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_DELETE entry");
+            #endif
             fs_event->fs_type = FS_FILE_DELETED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
             fs_event->callback(fs_event);
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_DELETE exit");
+            #endif
         }
+
         if (event->mask & (IN_MODIFY)) {
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_MODIFY entry");
+            #endif
             fs_event->fs_type = FS_FILE_MODIFIED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
             fs_event->callback(fs_event);
+            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_MODIFY exit");
+            #endif
         }
     }
 }

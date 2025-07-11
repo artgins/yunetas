@@ -13,9 +13,9 @@ VERSION="1.3-s"
 
 source ./repos2clone-static.sh
 
-export CC=/usr/bin/musl-gcc
-export CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
-export LDFLAGS="-static -no-pie"
+CC=/usr/bin/musl-gcc
+CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
+LDFLAGS="-static -no-pie"
 
 [ -f "./VERSION_INSTALLED_STATIC.txt" ] && rm "./VERSION_INSTALLED_STATIC.txt"
 
@@ -42,7 +42,7 @@ mkdir -p "$YUNETA_INSTALL_PREFIX"
 
 MUSL_TOOLCHAIN="$YUNETAS_BASE_DIR/tools/cmake/musl-toolchain.cmake"
 
-export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
+PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 
 #------------------------------------------
 #   Jansson OK
