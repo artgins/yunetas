@@ -5071,7 +5071,7 @@ PRIVATE json_int_t update_new_record_from_mem(
 /***************************************************************************
  *  Update totals of a key
  *  // TODO review:
- *      optimize the calls of this fn, is necessaray the loop json_array_foreach?
+ *      optimize the calls of this fn, is necessary the loop json_array_foreach?
  *
  *  Return -1 if error and if successful return total rows ( > 0)
  ***************************************************************************/
