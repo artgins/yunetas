@@ -315,7 +315,7 @@ PRIVATE int yev_callback(
 #endif
 
     if(trace_level & (TRACE_URING|TRACE_FS)) {
-        //json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -325,18 +325,14 @@ PRIVATE int yev_callback(
             "state",        "%s", yev_get_state_name(yev_event),
             "result",       "%d", yev_get_result(yev_event),
             "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
-            // "flag",         "%j", jn_flags,
+            "flag",         "%j", jn_flags,
             "fd",           "%d", yev_get_fd(yev_event),
             "gbuffer",      "%p", yev_get_gbuf(yev_event),
             "p",            "%p", yev_event,
             NULL
         );
-        // json_decref(jn_flags);
+        json_decref(jn_flags);
     }
-
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "fs_watcher yev_callback() entry2");
-#endif
 
     switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
