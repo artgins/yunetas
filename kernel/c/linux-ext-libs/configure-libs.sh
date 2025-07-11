@@ -10,8 +10,8 @@
 VERSION="1.3"
 
 source ./repos2clone.sh
-CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
-CC=cc
+#CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
+export CC=cc
 
 [ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
 
@@ -36,7 +36,7 @@ PARENT_DIR=$(dirname "$YUNETAS_BASE_DIR")
 YUNETA_INSTALL_PREFIX="${PARENT_DIR}/outputs_ext"
 mkdir -p "$YUNETA_INSTALL_PREFIX"
 
-PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
+export PKG_CONFIG_PATH="$YUNETA_INSTALL_PREFIX/lib/pkgconfig"
 
 #------------------------------------------
 #   Jansson
@@ -202,3 +202,6 @@ cd ../..
 echo "Version $VERSION installed"
 echo "$VERSION" > VERSION_INSTALLED.txt
 echo "" >> VERSION_INSTALLED.txt
+
+unset CC
+unset PKG_CONFIG_PATH
