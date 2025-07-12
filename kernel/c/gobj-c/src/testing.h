@@ -77,12 +77,12 @@ typedef struct {
 extern PUBLIC time_measure_t yev_time_measure; // to measure yev times
 
 #define MT_START_TIME(time_measure) \
-    clock_gettime(CLOCK_MONOTONIC, &time_measure.start); \
+    clock_gettime(CLOCK_MONOTONIC_RAW, &time_measure.start); \
     time_measure.end = time_measure.middle = time_measure.start; \
     time_measure.count = 0;
 
 #define MT_START_TIME2(time_measure, cnt) \
-    clock_gettime(CLOCK_MONOTONIC, &time_measure.start); \
+    clock_gettime(CLOCK_MONOTONIC_RAW, &time_measure.start); \
     time_measure.end = time_measure.middle = time_measure.start; \
     time_measure.count = cnt;
 
@@ -94,7 +94,7 @@ extern PUBLIC time_measure_t yev_time_measure; // to measure yev times
 
 #define MT_PRINT_TIME(time_measure, prefix) \
     time_measure.middle = time_measure.end; \
-    clock_gettime(CLOCK_MONOTONIC, &time_measure.end); \
+    clock_gettime(CLOCK_MONOTONIC_RAW, &time_measure.end); \
     mt_print_time(&time_measure, prefix);
 
 /***************************************************************************
