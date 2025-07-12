@@ -655,8 +655,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         int measuring_times = get_measure_times();
         if(measuring_times) {
             measuring_cur_type = measuring_times;
-            MT_START_TIME(yev_time_measure)
-            MT_SET_COUNT(yev_time_measure, 1)
+            MT_START_TIME2(yev_time_measure, 1)
         }
 #endif
         if (err < 0) {

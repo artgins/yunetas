@@ -81,6 +81,11 @@ extern PUBLIC time_measure_t yev_time_measure; // to measure yev times
     time_measure.end = time_measure.middle = time_measure.start; \
     time_measure.count = 0;
 
+#define MT_START_TIME2(time_measure, cnt) \
+    clock_gettime(CLOCK_MONOTONIC, &time_measure.start); \
+    time_measure.end = time_measure.middle = time_measure.start; \
+    time_measure.count = cnt;
+
 #define MT_INCREMENT_COUNT(time_measure, cnt) \
     time_measure.count += (cnt);
 
