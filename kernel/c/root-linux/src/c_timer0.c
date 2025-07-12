@@ -153,7 +153,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     uint32_t level = priv->periodic? TRACE_TIMER_PERIODIC:TRACE_TIMER;
-    BOOL tracea = is_level_tracing(0, level);
+    BOOL tracea = gobj_is_level_tracing(0, level);
 
     if(tracea) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
@@ -338,7 +338,7 @@ PUBLIC void set_timeout0(hgobj gobj, json_int_t msec)
     }
 
     uint32_t level = TRACE_TIMER;
-    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+    BOOL tracea = gobj_is_level_tracing(gobj, level) && !gobj_is_level_not_tracing(gobj, level);
 
     gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", FALSE);
@@ -382,7 +382,7 @@ PUBLIC void set_timeout_periodic0(hgobj gobj, json_int_t msec)
     }
 
     uint32_t level = TRACE_TIMER_PERIODIC;
-    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+    BOOL tracea = gobj_is_level_tracing(gobj, level) && !gobj_is_level_not_tracing(gobj, level);
 
     gobj_write_integer_attr(gobj, "msec", msec);
     gobj_write_bool_attr(gobj, "periodic", TRUE);
@@ -426,7 +426,7 @@ PUBLIC void clear_timeout0(hgobj gobj)
     }
 
     uint32_t level = priv->periodic? TRACE_TIMER_PERIODIC:TRACE_TIMER;
-    BOOL tracea = is_level_tracing(gobj, level) && !is_level_not_tracing(gobj, level);
+    BOOL tracea = gobj_is_level_tracing(gobj, level) && !gobj_is_level_not_tracing(gobj, level);
 
     if(tracea) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(priv->yev_event));

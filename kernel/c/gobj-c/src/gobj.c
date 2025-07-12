@@ -4798,7 +4798,7 @@ PUBLIC int gobj_pause_autoplay_services(void)
         }
 
         if(gobj_is_playing(gobj)) {
-            if(is_level_tracing(0, TRACE_START_STOP)) {
+            if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
                 gobj_log_debug(0,0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_STARTUP,
@@ -4827,7 +4827,7 @@ PUBLIC int gobj_stop_autostart_services(void)
         }
 
         if(gobj_is_running(gobj)) {
-            if(is_level_tracing(0, TRACE_START_STOP)) {
+            if(gobj_is_level_tracing(0, TRACE_START_STOP)) {
                 gobj_log_debug(0,0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_STARTUP,
@@ -11487,7 +11487,7 @@ PUBLIC int gobj_set_gobj_no_trace(hgobj gobj_, const char *level, BOOL set)
 /***************************************************************************
  *  Must trace?
  ***************************************************************************/
-PUBLIC BOOL is_level_tracing(hgobj gobj_, uint32_t level)
+PUBLIC BOOL gobj_is_level_tracing(hgobj gobj_, uint32_t level)
 {
     if(__deep_trace__) {
         return TRUE;
@@ -11506,7 +11506,7 @@ PUBLIC BOOL is_level_tracing(hgobj gobj_, uint32_t level)
 /***************************************************************************
  *  Must no trace?
  ***************************************************************************/
-PUBLIC BOOL is_level_not_tracing(hgobj gobj_, uint32_t level)
+PUBLIC BOOL gobj_is_level_not_tracing(hgobj gobj_, uint32_t level)
 {
     if(__deep_trace__ > 1) {
         return FALSE;

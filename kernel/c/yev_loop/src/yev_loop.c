@@ -625,7 +625,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
-    if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
+    if(gobj_is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -750,7 +750,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 #endif
     }
 
-    if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
+    if(gobj_is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -785,7 +785,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
     }
     __inside_loop__ = TRUE;
 
-    if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
+    if(gobj_is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -833,7 +833,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
 #endif
     }
 
-    if(is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
+    if(gobj_is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -1987,7 +1987,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
     int fd = -1;
     for (rp = results; rp; rp = rp->ai_next) {
         print_addrinfo(gobj, saddr, sizeof(saddr), rp, atoi(dst_port));
-        if(is_level_tracing(0, TRACE_URING)) {
+        if(gobj_is_level_tracing(0, TRACE_URING)) {
             gobj_log_debug(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_YEV_LOOP,

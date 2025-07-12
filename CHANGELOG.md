@@ -82,6 +82,8 @@ Change API
     time_in_miliseconds_monotonic -> time_in_milliseconds_monotonic
     time_in_miliseconds -> time_in_milliseconds
     trq_load_all
+    is_level_tracing -> gobj_is_level_tracing
+    is_level_not_tracing-> gobj_is_level_not_tracing
 
 New API
 
