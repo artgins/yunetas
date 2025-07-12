@@ -4180,7 +4180,7 @@ PRIVATE int scan_disks_key_for_new_file(
     char *path
 )
 {
-    walk_dir_tree(
+    walk_dir_tree( // TODO don't be must sorted?
         0,
         path,
         0,

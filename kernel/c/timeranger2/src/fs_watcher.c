@@ -531,7 +531,6 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
             MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_DELETE entry");
             #endif
-            // path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
             if(path != NULL) {
                 fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
                 fs_event->directory = (volatile char *)path;
@@ -547,7 +546,6 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         /*
          *  File
          */
-        // path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
         if (event->mask & (IN_CREATE)) {
             #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
             MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_CREATE entry");
