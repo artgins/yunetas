@@ -70,7 +70,7 @@ PUBLIC int test_list(json_t *found, json_t *expected, const char *msg, ...) JANS
 
  ***************************************************************************/
 typedef struct {
-    struct timespec start, end;
+    struct timespec start, middle, end;
     uint64_t count;
 } time_measure_t;
 
@@ -78,7 +78,7 @@ extern PUBLIC time_measure_t yev_time_measure; // to measure yev times
 
 #define MT_START_TIME(time_measure) \
     clock_gettime(CLOCK_MONOTONIC, &time_measure.start); \
-    time_measure.end = time_measure.start; \
+    time_measure.end = time_measure.middle = time_measure.start; \
     time_measure.count = 0;
 
 #define MT_INCREMENT_COUNT(time_measure, cnt) \
@@ -88,6 +88,7 @@ extern PUBLIC time_measure_t yev_time_measure; // to measure yev times
     time_measure.count = (cnt);
 
 #define MT_PRINT_TIME(time_measure, prefix) \
+    time_measure.middle = time_measure.end; \
     clock_gettime(CLOCK_MONOTONIC, &time_measure.end); \
     mt_print_time(&time_measure, prefix);
 
@@ -107,6 +108,19 @@ static inline uint64_t mt_get_time_ns(time_measure_t *time_measure)
 /***************************************************************************
  *
  ***************************************************************************/
+static inline uint64_t mt_get_time_middle_ns(time_measure_t *time_measure)
+{
+    const uint64_t NSEC_PER_SEC = 1000000000ULL;
+
+    uint64_t middle_ns = (uint64_t)time_measure->middle.tv_sec * NSEC_PER_SEC + time_measure->middle.tv_nsec;
+    uint64_t end_ns   = (uint64_t)time_measure->end.tv_sec   * NSEC_PER_SEC + time_measure->end.tv_nsec;
+
+    return end_ns - middle_ns;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 static inline double mt_get_time(time_measure_t *time_measure)
 {
     return (double)mt_get_time_ns(time_measure) * 1e-9;
@@ -118,6 +132,7 @@ static inline double mt_get_time(time_measure_t *time_measure)
 static inline void mt_print_time(time_measure_t *time_measure, const char *label)
 {
     uint64_t elapsed_ns = mt_get_time_ns(time_measure);
+    uint64_t elapsed_middle_ns = mt_get_time_middle_ns(time_measure);
     uint64_t count = time_measure->count ? time_measure->count : 1;
 
     uint64_t ops_per_sec = 0;
@@ -130,7 +145,7 @@ static inline void mt_print_time(time_measure_t *time_measure, const char *label
     printf("%s#TIME (count: %" PRIu64 "): elapsed %10" PRIu64 " ns, ops/sec %10" PRIu64 "%s : %s\n",
         On_Black RGreen,
         time_measure->count,
-        elapsed_ns,
+        elapsed_middle_ns,
         ops_per_sec,
         Color_Off,
         label_str
