@@ -4048,6 +4048,12 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
 
 /***************************************************************************
  *  CLIENT: The MASTER signalize a new record appended
+ *
+ *  Path schema:
+ *      /yuneta/store/{SERVICE}/{OWNER}/{REALM_ID}/{TIMERANGER}/{TOPIC}/disks/{CLIENT}/{KEY}
+ *  Example:
+ *      .../disks/C_ENERGY_HISTORY^energy_history/DVES_000000
+ *
  ***************************************************************************/
 PRIVATE int client_fs_callback(fs_event_t *fs_event)
 {
@@ -4062,10 +4068,12 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
     );
 
     switch(fs_event->fs_type) {
-        case FS_SUBDIR_CREATED_TYPE:
-            // (5) MONITOR notify of update directory /disks/rt_id/ on new records
-            // Key directory created, ignore
+        case FS_SUBDIR_CREATED_TYPE: /*  */
+            /*
+             *  - Key directory created, ignore
+             */
 
+            //(5) MONITOR notify of update directory /disks/rt_id/ on new records
             /*
                 inotify(7) — Linux manual page
 
@@ -4095,7 +4103,9 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             break;
 
         case FS_SUBDIR_DELETED_TYPE:
-            // Key directory deleted, ignore, it's me
+            /*
+             *  - Key directory deleted, ignore, it's me TODO review
+             */
             // TODO this indicate that a key has been removed, do something
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -4106,9 +4116,11 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             break;
 
         case FS_FILE_CREATED_TYPE:
+            /*
+             *  - Record to key added, read
+             *  - Delete the hard link of md2 file when read
+             */
             // (5) MONITOR notify of update directory /disks/rt_id/ on new records
-            // Record to key added, read
-            // Delete the hard link of md2 file when read
             {
                 if(gobj_trace_level(gobj) & TRACE_FS) {
                     gobj_log_debug(gobj, 0,
@@ -4126,7 +4138,9 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             break;
 
         case FS_FILE_DELETED_TYPE:
-            // Key file deleted, ignore, it's me
+            /*
+             *  - Key file deleted, ignore, it's me
+             */
             if(gobj_trace_level(gobj) & TRACE_FS) {
                 gobj_log_debug(gobj, 0,
                     "function",         "%s", __FUNCTION__,
