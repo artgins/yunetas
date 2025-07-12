@@ -9,7 +9,9 @@
 #pragma once
 
 #include <sys/stat.h>
+#include <inttypes.h>
 #include "gtypes.h"
+#include "ansi_escape_codes.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -89,9 +91,55 @@ extern PUBLIC time_measure_t yev_time_measure; // to measure yev times
     clock_gettime(CLOCK_MONOTONIC, &time_measure.end); \
     mt_print_time(&time_measure, prefix);
 
-PUBLIC void mt_print_time(time_measure_t *time_measure, const char *prefix);
+// PUBLIC void mt_print_time(time_measure_t *time_measure, const char *prefix);
 
-PUBLIC double mt_get_time(time_measure_t *time_measure);
+// PUBLIC double mt_get_time(time_measure_t *time_measure);
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+static inline uint64_t mt_get_time_ns(time_measure_t *time_measure)
+{
+    const uint64_t NSEC_PER_SEC = 1000000000ULL;
+
+    uint64_t start_ns = (uint64_t)time_measure->start.tv_sec * NSEC_PER_SEC + time_measure->start.tv_nsec;
+    uint64_t end_ns   = (uint64_t)time_measure->end.tv_sec   * NSEC_PER_SEC + time_measure->end.tv_nsec;
+
+    return end_ns - start_ns;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+static inline double mt_get_time(time_measure_t *time_measure)
+{
+    return (double)mt_get_time_ns(time_measure) * 1e-9;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+static inline void mt_print_time(time_measure_t *time_measure, const char *label)
+{
+    uint64_t elapsed_ns = mt_get_time_ns(time_measure);
+    uint64_t count = time_measure->count ? time_measure->count : 1;
+
+    uint64_t ops_per_sec = 0;
+    if(elapsed_ns > 0) {
+        ops_per_sec = (count * 1000000000ULL) / elapsed_ns;
+    }
+
+    const char *label_str = label ? label : "";
+
+    printf("%s#TIME (count: %10" PRIu64 "): elapsed %12" PRIu64 " ns, ops/sec %12" PRIu64 "%s : %s\n",
+        On_Black RGreen,
+        time_measure->count,
+        elapsed_ns,
+        ops_per_sec,
+        Color_Off,
+        label_str
+    );
+}
 
 PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
 PUBLIC int get_measure_times(void);

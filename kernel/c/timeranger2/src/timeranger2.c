@@ -20,7 +20,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#include <helpers.h>
+#include <testing.h>
 #include <kwid.h>
 #include "fs_watcher.h"
 #include "timeranger2.h"
@@ -4230,6 +4230,10 @@ PRIVATE int update_key_by_hard_link(
     char *path
 )
 {
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_key_by_hard_link entry");
+    #endif
+
     if(gobj_global_trace_level() & TRACE_FS) {
         gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
@@ -4250,6 +4254,10 @@ PRIVATE int update_key_by_hard_link(
             NULL
         );
     }
+
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_key_by_hard_link after unlink");
+    #endif
 
     char *md2 = pop_last_segment(path);
     char *key = pop_last_segment(path);
@@ -4272,7 +4280,12 @@ PRIVATE int update_key_by_hard_link(
         return -1;
     }
 
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_key_by_hard_link after pop");
+    #endif
+
     json_t *topic = tranger2_topic(tranger,topic_name);
+
     update_new_records_from_disk(
         gobj,
         tranger,
@@ -4280,6 +4293,10 @@ PRIVATE int update_key_by_hard_link(
         key,
         md2
     );
+
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_key_by_hard_link exit");
+    #endif
 
     return 0;
 }
@@ -4324,6 +4341,10 @@ PRIVATE json_int_t update_new_records_from_disk(
     char *filename
 )
 {
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk entry");
+    #endif
+
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
     json_t *new_cache_cell = load_cache_cell_from_disk(
         gobj,
@@ -4331,6 +4352,10 @@ PRIVATE json_int_t update_new_records_from_disk(
         key,
         filename  // warning .md2 removed
     );
+
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after load_cache_cell_from_disk");
+    #endif
 
     char *file_id = filename; // Now it has not .md2
 
@@ -4342,8 +4367,16 @@ PRIVATE json_int_t update_new_records_from_disk(
         file_id
     );
 
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after get_last_cache_cell");
+    #endif
+
     // Publish new data to iterator
     publish_new_rt_disk_records(gobj, tranger, topic, key, cur_cache_cell, new_cache_cell);
+
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after publish_new_rt_disk_records");
+    #endif
 
     /*
      *  UPDATE CACHE from disk
@@ -4356,7 +4389,17 @@ PRIVATE json_int_t update_new_records_from_disk(
         json_object_update_new(cur_cache_cell, new_cache_cell);
     }
 
-    return update_totals_of_key_cache(gobj, topic, key);
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after cur_cache_cell");
+    #endif
+
+    json_int_t totals = update_totals_of_key_cache(gobj, topic, key);
+
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after update_totals_of_key_cache");
+    #endif
+
+    return totals;
 }
 
 /***************************************************************************

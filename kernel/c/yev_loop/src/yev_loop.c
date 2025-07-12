@@ -625,7 +625,8 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
     /*------------------------------------------*
      *      Infinite loop
      *------------------------------------------*/
-    if(gobj_is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
+    uint32_t level = gobj_global_trace_level();
+    if(level & (TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
@@ -750,7 +751,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 #endif
     }
 
-    if(gobj_is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
+    if(level & (TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
         gobj_log_debug(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_YEV_LOOP,
