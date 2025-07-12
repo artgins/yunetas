@@ -91,10 +91,6 @@ extern PUBLIC time_measure_t yev_time_measure; // to measure yev times
     clock_gettime(CLOCK_MONOTONIC, &time_measure.end); \
     mt_print_time(&time_measure, prefix);
 
-// PUBLIC void mt_print_time(time_measure_t *time_measure, const char *prefix);
-
-// PUBLIC double mt_get_time(time_measure_t *time_measure);
-
 /***************************************************************************
  *
  ***************************************************************************/
@@ -131,7 +127,7 @@ static inline void mt_print_time(time_measure_t *time_measure, const char *label
 
     const char *label_str = label ? label : "";
 
-    printf("%s#TIME (count: %10" PRIu64 "): elapsed %12" PRIu64 " ns, ops/sec %12" PRIu64 "%s : %s\n",
+    printf("%s#TIME (count: %" PRIu64 "): elapsed %10" PRIu64 " ns, ops/sec %10" PRIu64 "%s : %s\n",
         On_Black RGreen,
         time_measure->count,
         elapsed_ns,
