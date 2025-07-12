@@ -4194,7 +4194,11 @@ PRIVATE int scan_disks_key_for_new_file(
     char *path
 )
 {
-    walk_dir_tree( // TODO don't be must sorted?
+    /*
+     *  TODO don't be must sorted? here are the .md2 files not read, example:
+     *      tracks-2025-07-12.md2
+     */
+    walk_dir_tree(
         0,
         path,
         0,
