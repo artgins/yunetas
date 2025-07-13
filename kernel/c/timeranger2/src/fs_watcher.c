@@ -40,7 +40,7 @@ PRIVATE int yev_callback(
 PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *event);
 PRIVATE int add_watch(fs_event_t *fs_event, const char *path);
 PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd);
-PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL verbose);
+PRIVATE const char *get_path(fs_event_t *fs_event, int wd);
 PRIVATE void add_watch_recursive(fs_event_t *fs_event, const char *path);
 PRIVATE uint32_t fs_type_2_inotify_mask(fs_event_t *fs_event);
 
@@ -458,7 +458,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_DELETE_SELF entry");
         #endif
-        path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+        path=get_path(fs_event, event->wd);
         if(path != NULL) {
             char path_[PATH_MAX];
             snprintf(path_, sizeof(path_), "%s", path);
@@ -480,17 +480,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         // The Watch was removed
 
         // Don't trace, avoid wasting time
-        // if((path=get_path(gobj, fs_event->jn_tracked_paths, event->wd, FALSE)) != NULL) {
-        //     gobj_log_error(gobj, 0,
-        //         "function",     "%s", __FUNCTION__,
-        //         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-        //         "msg",          "%s", "wd yet found",
-        //         "path" ,        "%s", path,
-        //         "wd",           "%d", event->wd,
-        //         "event",        "%s", event->len? event->name:"",
-        //         "p",            "%p", event,
-        //         NULL
-        //     );
+        // if((path=get_path(fs_event, event->wd)) != NULL) {
         // }
         return;
     }
@@ -499,7 +489,7 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
     MT_PRINT_TIME(yev_time_measure, "fs_watcher get_path entry");
     #endif
 
-    path = get_path(gobj, fs_event->jn_tracked_paths, event->wd, TRUE);
+    path = get_path(fs_event, event->wd);
     char *filename = event->len? event->name:"";
 
     #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
@@ -687,26 +677,23 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE const char *get_path(hgobj gobj, json_t *jn_tracked_paths, int wd, BOOL verbose)
+PRIVATE const char *get_path(fs_event_t *fs_event, int wd)
 {
     const char *path; json_t *jn_wd;
-    json_object_foreach(jn_tracked_paths, path, jn_wd) {
+    json_object_foreach(fs_event->jn_tracked_paths, path, jn_wd) {
         int wd_ = (int)json_integer_value(jn_wd);
         if(wd_ == wd) {
             return path;
         }
-
     }
-    if(verbose) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "wd not found",
-            "wd" ,          "%d", wd,
-            NULL
-        );
-        gobj_trace_json(gobj, jn_tracked_paths, "wd not found");
-    }
+    gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
+        "function",     "%s", __FUNCTION__,
+        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+        "msg",          "%s", "wd not found",
+        "wd" ,          "%d", wd,
+        NULL
+    );
+    gobj_trace_json(fs_event->gobj, fs_event->jn_tracked_paths, "wd not found");
     return NULL;
 }
 
