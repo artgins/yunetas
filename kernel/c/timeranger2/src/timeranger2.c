@@ -3696,13 +3696,13 @@ PRIVATE fs_event_t *monitor_disks_directory_by_master(
         master_fs_callback,
         gobj,
         tranger,    // user_data
-        0           // user_data2
+        (void *)1           // user_data2
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "fs_create_watcher_event() FAILED",
+            "msg",          "%s", "fs_create_watcher_event FAILED",
             NULL
         );
         return NULL;
@@ -4036,6 +4036,8 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         );
     }
 
+    BOOL master = json_boolean_value(json_object_get(tranger, "master")); // TODO remove
+
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,
         full_path,
@@ -4043,13 +4045,13 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         client_fs_callback,
         gobj,
         tranger,  // user_data
-        0 // TODO key, only must watch the key?
+        master?(void *)1:(void *)0 // TODO remove // TODO key, only must watch the key?
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "fs_create_watcher_event() FAILED",
+            "msg",          "%s", "fs_create_watcher_event FAILED",
             NULL
         );
         return NULL;

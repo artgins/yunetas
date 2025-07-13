@@ -414,6 +414,8 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
     uint32_t trace_level = gobj_global_trace_level();
 
+BOOL master = fs_event->user_data2; // TODO remove
+
     if(trace_level & TRACE_FS) {
         gobj_log_debug(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -467,6 +469,13 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
             fs_event->directory = path_;
             fs_event->filename = filename;
+
+printf("💾💾💾 IN_DELETE_SELF: %s\n", master?"MASTER":"CLIENT");
+printf("fs_event->directory  : %s\n", (char *)fs_event->directory);
+printf("fs_event->filename   : %s\n", (char *)fs_event->filename);
+printf("fs_event->path       : %s\n", fs_event->path);
+printf("event->name          : %s\n", event->name);
+
             fs_event->callback(fs_event);
             remove_watch(fs_event, path, event->wd);
         }
@@ -480,8 +489,21 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         // The Watch was removed
 
         // Don't trace, avoid wasting time
-        // if((path=get_path(fs_event, event->wd)) != NULL) {
-        // }
+        if((path=get_path(fs_event, event->wd)) != NULL) { // TODO remove
+            char path_[PATH_MAX];
+            snprintf(path_, sizeof(path_), "%s", path);
+            char *filename = pop_last_segment(path_);
+
+            fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
+            fs_event->directory = path_;
+            fs_event->filename = filename;
+
+printf("💾💾💾 IN_IGNORE: %s\n", master?"MASTER":"CLIENT");
+printf("fs_event->directory: %s\n", (char *)fs_event->directory);
+printf("fs_event->filename : %s\n", (char *)fs_event->filename);
+printf("fs_event->path     : %s\n", fs_event->path);
+printf("event->name        : %s\n", event->name);
+        }
         return;
     }
 
@@ -511,6 +533,13 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->fs_type = FS_SUBDIR_CREATED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
+
+printf("💾💾💾 IN_CREATE DIR: %s\n", master?"MASTER":"CLIENT");
+printf("fs_event->directory : %s\n", (char *)fs_event->directory);
+printf("fs_event->filename  : %s\n", (char *)fs_event->filename);
+printf("fs_event->path      : %s\n", fs_event->path);
+printf("event->name         : %s\n", event->name);
+
             fs_event->callback(fs_event);
             #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
             MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_CREATE exit");
@@ -525,6 +554,13 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
                 fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
                 fs_event->directory = (volatile char *)path;
                 fs_event->filename = filename;
+
+printf("💾💾💾 IN_DELETE DIR: %s\n", master?"MASTER":"CLIENT");
+printf("fs_event->directory: %s\n", (char *)fs_event->directory);
+printf("fs_event->filename : %s\n", (char *)fs_event->filename);
+printf("fs_event->path     : %s\n", fs_event->path);
+printf("event->name        : %s\n", event->name);
+
                 fs_event->callback(fs_event);
             }
             #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
@@ -543,6 +579,13 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->fs_type = FS_FILE_CREATED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
+
+printf("💾💾💾 IN_CREATE FILE: %s\n", master?"MASTER":"CLIENT");
+printf("fs_event->directory: %s\n", (char *)fs_event->directory);
+printf("fs_event->filename : %s\n", (char *)fs_event->filename);
+printf("fs_event->path     : %s\n", fs_event->path);
+printf("event->name        : %s\n", event->name);
+
             fs_event->callback(fs_event);
             #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
             MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_CREATE exit");
@@ -556,6 +599,13 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->fs_type = FS_FILE_DELETED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
+
+printf("💾💾💾 IN_DELETE FILE: %s\n", master?"MASTER":"CLIENT");
+printf("fs_event->directory: %s\n", (char *)fs_event->directory);
+printf("fs_event->filename : %s\n", (char *)fs_event->filename);
+printf("fs_event->path     : %s\n", fs_event->path);
+printf("event->name        : %s\n", event->name);
+
             fs_event->callback(fs_event);
             #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
             MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_DELETE exit");
@@ -569,6 +619,13 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->fs_type = FS_FILE_MODIFIED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
+
+printf("💾💾💾 IN_MODIFY FILE: %s\n", master?"MASTER":"CLIENT");
+printf("fs_event->directory: %s\n", (char *)fs_event->directory);
+printf("fs_event->filename : %s\n", (char *)fs_event->filename);
+printf("fs_event->path     : %s\n", fs_event->path);
+printf("event->name        : %s\n", event->name);
+
             fs_event->callback(fs_event);
             #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
             MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_MODIFY exit");
