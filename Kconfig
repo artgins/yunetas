@@ -85,7 +85,7 @@ config DEBUG_PRINT_YEV_LOOP_TIMES
         Enable print of elapsed times of several points in yev_loop
 
 config DEBUG_TRACK_MEMORY
-    bool "Enable track memory (WARNING: don't use with musl)"
+    bool "Enable track memory"
     default n
     help
         Enable track memory to find leaks

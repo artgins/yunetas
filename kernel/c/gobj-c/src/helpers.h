@@ -11,6 +11,7 @@
 
 #include <regex.h>
 #include <inttypes.h>
+#include <sys/types.h>
 #include <time.h>
 
 #include "00_http_parser.h" /* don't remove */
