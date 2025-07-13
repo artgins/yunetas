@@ -511,6 +511,27 @@ PUBLIC int test_json_file(const char *file)
     int result = 0;
     json_t *jn_found = load_json_from_file(0, file, "", 0);
 
+    if(!json_equal(jn_found, expected)) {
+        result = -1;
+        if(verbose) {
+            gobj_trace_json(0, expected, "Record expected");
+            gobj_trace_json(0, jn_found, "Record found");
+            printf("  <-- %sERROR%s in test: \"%s\"\n", On_Red BWhite, Color_Off, test_name);
+        } else {
+            printf("%sX%s", On_Red BWhite, Color_Off);
+        }
+    } else {
+        if(!check_log_result(result)) {
+            result = -1;
+        }
+    }
+
+    JSON_DECREF(jn_found)
+    JSON_DECREF(expected_log_messages)
+    JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(expected)
+    return result;
+
     gbuffer_t *gbuf_path = NULL; //gbuffer_create(32*1024, 32*1024); // vale para pintar el path del json por donde va cuando hay error
     if(!match_record(jn_found, expected, TRUE, gbuf_path)) {
         result = -1;
@@ -545,6 +566,27 @@ PUBLIC int test_json(
 )
 {
     int result = 0;
+
+    if(jn_found && expected && !json_equal(jn_found, expected)) {
+        result = -1;
+        if(verbose) {
+            gobj_trace_json(0, expected, "Record expected");
+            gobj_trace_json(0, jn_found, "Record found");
+            printf("  <-- %sERROR%s in test: \"%s\"\n", On_Red BWhite, Color_Off, test_name);
+        } else {
+            printf("%sX%s", On_Red BWhite, Color_Off);
+        }
+    } else {
+        if(!check_log_result(result)) {
+            result = -1;
+        }
+    }
+
+    JSON_DECREF(jn_found)
+    JSON_DECREF(expected_log_messages)
+    JSON_DECREF(unexpected_log_messages)
+    JSON_DECREF(expected)
+    return result;
 
     /*
      *  If jn_found && expected are NULL we want to check only the logs
@@ -621,6 +663,12 @@ PUBLIC int test_list(json_t *list_found, json_t *list_expected, const char *msg,
     va_start(ap, msg);
     vsnprintf(message, sizeof(message), msg, ap);
     va_end(ap);
+
+    if(json_equal(list_found, list_expected)==1) {
+        return 0;
+    } else {
+        return -1;
+    }
 
     if(json_array_size(list_found) != json_array_size(list_expected)) {
         printf("  <-- %sERROR%s in test: \"%s\", sizes don't match (found %d, expected %d)\n", On_Red BWhite, Color_Off,
