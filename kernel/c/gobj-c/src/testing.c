@@ -696,5 +696,6 @@ PUBLIC int get_measure_times(void)
          "msg",          "%s", "CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES not set",
          NULL
     );
+    return 0;
 #endif
 }

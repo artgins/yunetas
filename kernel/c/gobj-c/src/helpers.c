@@ -4869,13 +4869,13 @@ PUBLIC BOOL test_msectimer(uint64_t value)
 }
 
 /****************************************************************************
- *  Return CLOCK_MONOTONIC_RAW time in milliseconds
+ *  Return CLOCK_MONOTONIC time in milliseconds
  ****************************************************************************/
 PUBLIC uint64_t time_in_milliseconds_monotonic(void)
 {
     struct timespec spec;
 
-    clock_gettime(CLOCK_MONOTONIC_RAW, &spec);
+    clock_gettime(CLOCK_MONOTONIC, &spec);
 
     return ((uint64_t)spec.tv_sec) * 1000 + ((uint64_t)spec.tv_nsec) / 1000000;
 }
