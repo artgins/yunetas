@@ -4045,7 +4045,7 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         client_fs_callback,
         gobj,
         tranger,  // user_data
-        master?(void *)1:(void *)0 // TODO remove // TODO key, only must watch the key?
+        NULL // TODO key, only must watch the key?
     );
     if(!fs_event) {
         gobj_log_error(gobj, 0,
