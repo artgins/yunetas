@@ -552,7 +552,10 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
  ***************************************************************************/
 PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 {
-    int measuring_times = get_measure_times();
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    char print_temp[120];
+#endif
+int measuring_times = get_measure_times();
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
 
     if(__inside_loop__) {
@@ -592,6 +595,12 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             err = io_uring_wait_cqe(&yev_loop->ring, &cqe);
         }
 
+        /*
+         *  To measure the time of executing of the event
+         */
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        MT_START_TIME2(yev_time_measure, 1)
+#endif
         if (err < 0) {
             if(err == -EINTR) {
                 // Ctrl+C cause this
@@ -601,25 +610,19 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
                 continue;
             }
             if(err == -ETIME) {
-                /*
-                 *  To measure the time of executing of the event
-                 */
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-                MT_START_TIME2(yev_time_measure, 1)
-#endif
                 // Timeout
+#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+                if(measuring_times & YEV_TIMER_TYPE) {
+                    MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe TIMEOUT");
+                }
+#endif
                 if(callback_cqe(yev_loop, NULL)<0) {
                     yev_loop->running = false;
                 }
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
                 if(measuring_times & YEV_TIMER_TYPE) {
-                    char temp[120];
-                    snprintf(temp, sizeof(temp), "Type TIMEOUT, res %d, flags %d",
-                        cqe->res,
-                        cqe->flags
-                    );
-                    MT_PRINT_TIME(yev_time_measure, temp);
+                    MT_PRINT_TIME(yev_time_measure, "AFTER callback_cqe TIMEOUT");
                 }
 #endif
                 /* Mark this request as processed */
@@ -646,13 +649,11 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         int yev_event_type = yev_event? yev_event->type:0;
         measuring_cur_type = measuring_times & yev_event_type;
         if(measuring_cur_type) {
-            MT_START_TIME2(yev_time_measure, 1)
-            char temp[80];
-            snprintf(temp, sizeof(temp), "BEFORE callback_cqe(%s), res %d",
+            snprintf(print_temp, sizeof(print_temp), "BEFORE callback_cqe(%s), res %d",
                 yev_event_type_name(yev_event),
                 cqe->res
             );
-            MT_PRINT_TIME(yev_time_measure, temp);
+            MT_PRINT_TIME(yev_time_measure, print_temp);
         }
 #endif
         if(callback_cqe(yev_loop, cqe)<0) {
@@ -661,12 +662,11 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_cur_type) {
-            char temp[120];
-            snprintf(temp, sizeof(temp), "AFTER callback_cqe(%s): res %d\n",
+            snprintf(print_temp, sizeof(print_temp), "AFTER callback_cqe(%s): res %d\n",
                 yev_event?yev_event_type_name(yev_event):"",
                 cqe->res
             );
-            MT_PRINT_TIME(yev_time_measure, temp);
+            MT_PRINT_TIME(yev_time_measure, print_temp);
         }
 #endif
         /*
@@ -751,7 +751,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         io_uring_cqe_seen(&yev_loop->ring, cqe);
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_cur_type) {
-            MT_PRINT_TIME(yev_time_measure, "run1 after io_uring_cqe_seen()\n");
+            MT_PRINT_TIME(yev_time_measure, "run1 AFTER io_uring_cqe_seen()\n");
         }
 #endif
     }
@@ -2641,30 +2641,6 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
     }
 
     return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC const char *yev_event_type_name(yev_event_h yev_event_)
-{
-    yev_event_t *yev_event = (yev_event_t *)yev_event_;
-
-    switch((yev_type_t)yev_event->type) {
-        case YEV_READ_TYPE:
-            return "YEV_READ_TYPE";
-        case YEV_WRITE_TYPE:
-            return "YEV_WRITE_TYPE";
-        case YEV_CONNECT_TYPE:
-            return "YEV_CONNECT_TYPE";
-        case YEV_ACCEPT_TYPE:
-            return "YEV_ACCEPT_TYPE";
-        case YEV_TIMER_TYPE:
-            return "YEV_TIMER_TYPE";
-        case YEV_POLL_TYPE:
-            return "YEV_POLL_TYPE";
-    }
-    return "YEV_?_TYPE";
 }
 
 /***************************************************************************

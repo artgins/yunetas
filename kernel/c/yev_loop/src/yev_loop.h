@@ -389,7 +389,28 @@ PUBLIC yev_event_h yev_create_write_event(
     gbuffer_t *gbuf
 );
 
-PUBLIC const char *yev_event_type_name(yev_event_h yev_event);
+/***************************************************************************
+ *
+ ***************************************************************************/
+static inline const char *yev_event_type_name(yev_event_h yev_event)
+{
+    switch(yev_event->type) {
+        case YEV_READ_TYPE:
+            return "YEV_READ_TYPE";
+        case YEV_WRITE_TYPE:
+            return "YEV_WRITE_TYPE";
+        case YEV_CONNECT_TYPE:
+            return "YEV_CONNECT_TYPE";
+        case YEV_ACCEPT_TYPE:
+            return "YEV_ACCEPT_TYPE";
+        case YEV_TIMER_TYPE:
+            return "YEV_TIMER_TYPE";
+        case YEV_POLL_TYPE:
+            return "YEV_POLL_TYPE";
+        default:
+            return "YEV_?_TYPE";
+    }
+}
 
 /*
  *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
