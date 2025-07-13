@@ -4036,8 +4036,6 @@ PRIVATE fs_event_t *monitor_rt_disk_by_client(
         );
     }
 
-    BOOL master = json_boolean_value(json_object_get(tranger, "master")); // TODO remove
-
     fs_event_t *fs_event = fs_create_watcher_event(
         yev_loop,
         full_path,
