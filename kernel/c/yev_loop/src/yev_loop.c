@@ -553,7 +553,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
 PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
 {
 #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    char print_temp[120];
+    char print_temp[120]={0};
 #endif
 int measuring_times = get_measure_times();
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
