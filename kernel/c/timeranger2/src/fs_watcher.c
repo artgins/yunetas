@@ -597,19 +597,6 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
 {
     hgobj gobj = fs_event->gobj;
 
-    json_t *watch = json_object_get(fs_event->jn_tracked_paths, path);
-    if(watch) {
-        gobj_log_error(fs_event->gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Watch directory EXISTS",
-            "path" ,        "%s", path,
-            "p",            "%p", fs_event,
-            NULL
-        );
-        return -1;
-    }
-
     int wd = inotify_add_watch(fs_event->fd, path, fs_type_2_inotify_mask(fs_event));
     if (wd == -1) {
         gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
@@ -623,7 +610,9 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
         return -1;
     }
 
-    json_object_set_new(fs_event->jn_tracked_paths, path, json_integer(wd));
+    char s_wd[64];
+    snprintf(s_wd, sizeof(s_wd), "%d", wd);
+    json_object_set_new(fs_event->jn_tracked_paths, s_wd, json_string(path));
 
     uint32_t trace_level = gobj_global_trace_level();
     if(trace_level & TRACE_FS) {
@@ -639,7 +628,6 @@ PRIVATE int add_watch(fs_event_t *fs_event, const char *path)
             "p",                "%p", fs_event,
             NULL
         );
-        gobj_trace_json(gobj, fs_event->jn_tracked_paths, "💾🔷 add watch tracked_paths");
     }
 
     return wd;
@@ -652,7 +640,17 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
 {
     hgobj gobj = fs_event->gobj;
 
-    json_object_del(fs_event->jn_tracked_paths, path);
+    char s_wd[64];
+    snprintf(s_wd, sizeof(s_wd), "%d", wd);
+    if(json_object_del(fs_event->jn_tracked_paths, s_wd)<0) {
+        gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "wd not found",
+            "wd" ,          "%d", wd,
+            NULL
+        );
+    }
 
     uint32_t trace_level = gobj_global_trace_level();
     if(trace_level & TRACE_FS) {
@@ -668,7 +666,6 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
             "p",                "%p", fs_event,
             NULL
         );
-        gobj_trace_json(gobj, fs_event->jn_tracked_paths, "💾🔶 remove watch tracked_paths");
     }
 
     if(inotify_rm_watch(fs_event->fd, wd)<0) {
@@ -692,13 +689,13 @@ PRIVATE int remove_watch(fs_event_t *fs_event, const char *path, int wd)
  ***************************************************************************/
 PRIVATE const char *get_path(fs_event_t *fs_event, int wd)
 {
-    const char *path; json_t *jn_wd;
-    json_object_foreach(fs_event->jn_tracked_paths, path, jn_wd) {
-        int wd_ = (int)json_integer_value(jn_wd);
-        if(wd_ == wd) {
-            return path;
-        }
+    char s_wd[64];
+    snprintf(s_wd, sizeof(s_wd), "%d", wd);
+    const char *path = json_string_value(json_object_get(fs_event->jn_tracked_paths, s_wd));
+    if(!empty_string(path)) {
+        return path;
     }
+
     gobj_log_error(fs_event->gobj, LOG_OPT_TRACE_STACK,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -706,7 +703,6 @@ PRIVATE const char *get_path(fs_event_t *fs_event, int wd)
         "wd" ,          "%d", wd,
         NULL
     );
-    gobj_trace_json(fs_event->gobj, fs_event->jn_tracked_paths, "wd not found");
     return NULL;
 }
 
