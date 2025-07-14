@@ -4183,41 +4183,32 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
 /***************************************************************************
  *  CLIENT:
  ***************************************************************************/
-PRIVATE BOOL find_rt_disk_keys_cb(
-    hgobj gobj,
-    void *user_data,
-    wd_found_type type,     // type found
-    char *full_path,        // directory+filename found
-    const char *directory,  // directory of found filename
-    char *filename,         // dname[255]
-    int level,              // level of tree where file found
-    wd_option opt           // option parameter
-)
-{
-    json_t *tranger = user_data;
-
-    update_key_by_hard_link(gobj, tranger, full_path); // full_path modified */
-
-    return TRUE; // to continue
-}
 PRIVATE int scan_disks_key_for_new_file(
     hgobj gobj,
     json_t *tranger,
     char *path
 )
 {
-    /*
-     *  TODO don't be must sorted? here are the .md2 files not read, example:
-     *      tracks-2025-07-12.md2
-     */
-    walk_dir_tree(
-        0,
+    dir_array_t da;
+
+    find_files_with_suffix_array(
+        gobj,
         path,
-        0,
-        WD_MATCH_REGULAR_FILE,
-        find_rt_disk_keys_cb,
-        tranger
+        ".md2",
+        &da
     );
+
+    dir_array_sort(&da);
+
+    for(int i=0; i<da.count; i++) {
+        char *filename = da.items[i];
+        char full_path[PATH_MAX];
+        build_path(full_path, sizeof(full_path), path, filename, NULL);
+        update_key_by_hard_link(gobj, tranger, full_path); // full_path modified */
+    }
+
+    dir_array_free(&da);
+
     return 0;
 }
 
@@ -4793,7 +4784,6 @@ PRIVATE json_t *load_key_cache_from_disk(
     return key_cache;
 }
 
-
 /***************************************************************************
  *  Update a cache cell with a new record metadata
  *  HACK tranger is only append. No update, no insert.
@@ -5152,6 +5142,7 @@ PRIVATE json_int_t update_totals_of_key_cache(
     uint64_t global_from_tm = (uint64_t)(-1);
     uint64_t global_to_tm = 0;
 
+int x;
     int idx; json_t *cache_file;
     json_array_foreach(cache_files, idx, cache_file) {
         json_int_t fr_t = json_integer_value(json_object_get(cache_file, "fr_t"));
