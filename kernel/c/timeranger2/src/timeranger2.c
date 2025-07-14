@@ -300,7 +300,7 @@ PRIVATE int publish_new_rt_disk_records(
 PRIVATE int update_key_by_hard_link(
     hgobj gobj,
     json_t *tranger,
-    char *path
+    char *path // WARNING path modified
 );
 
 PRIVATE int scan_disks_key_for_new_file(
@@ -4218,7 +4218,7 @@ PRIVATE int scan_disks_key_for_new_file(
 PRIVATE int update_key_by_hard_link(
     hgobj gobj,
     json_t *tranger,
-    char *path
+    char *path // WARNING path modified
 )
 {
     if(gobj_global_trace_level() & TRACE_FS) {
@@ -4316,10 +4316,6 @@ PRIVATE json_int_t update_new_records_from_disk(
     char *filename
 )
 {
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk entry");
-    #endif
-
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
     json_t *new_cache_cell = load_cache_cell_from_disk( // A bit slow, open/read/close file
         gobj,
@@ -4327,10 +4323,6 @@ PRIVATE json_int_t update_new_records_from_disk(
         key,
         filename  // warning .md2 removed
     );
-
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after load_cache_cell_from_disk");
-    #endif
 
     char *file_id = filename; // Now it has not .md2
 
@@ -4342,16 +4334,8 @@ PRIVATE json_int_t update_new_records_from_disk(
         file_id
     );
 
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after get_last_cache_cell");
-    #endif
-
     // Publish new data to iterator
     publish_new_rt_disk_records(gobj, tranger, topic, key, cur_cache_cell, new_cache_cell);
-
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after publish_new_rt_disk_records");
-    #endif
 
     /*
      *  UPDATE CACHE from disk
@@ -4364,15 +4348,7 @@ PRIVATE json_int_t update_new_records_from_disk(
         json_object_update_new(cur_cache_cell, new_cache_cell);
     }
 
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after cur_cache_cell");
-    #endif
-
     json_int_t totals = update_totals_of_key_cache(gobj, topic, key);
-
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_new_records_from_disk after update_totals_of_key_cache");
-    #endif
 
     return totals;
 }
