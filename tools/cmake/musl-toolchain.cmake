@@ -12,11 +12,11 @@ set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_C_COMPILER /usr/bin/musl-gcc)
 
-set(CMAKE_C_FLAGS_RELEASE "-O3 -flto \
+set(CMAKE_C_FLAGS_RELEASE "-O3 \
     -fno-plt -fomit-frame-pointer -ffast-math -fstrict-aliasing \
     -fno-stack-protector -DNDEBUG")
 
-set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-static -no-pie -flto -Wl,--strip-all")
+set(CMAKE_EXE_LINKER_FLAGS_RELEASE "-static -no-pie -Wl,--strip-all")
 
 set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "-static")
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")

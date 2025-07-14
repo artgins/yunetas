@@ -144,7 +144,6 @@ set(COMMON_C_FLAGS
     -fno-pie
     -fno-stack-protector
     -fno-plt
-    -flto
     -fomit-frame-pointer
     -ffast-math
     -fstrict-aliasing
