@@ -4330,7 +4330,7 @@ PRIVATE json_int_t update_new_records_from_disk(
     #endif
 
     const char *topic_directory = json_string_value(json_object_get(topic, "directory"));
-    json_t *new_cache_cell = load_cache_cell_from_disk(
+    json_t *new_cache_cell = load_cache_cell_from_disk( // A bit slow, open/read/close file
         gobj,
         topic_directory,
         key,
@@ -5151,7 +5151,6 @@ PRIVATE json_int_t update_totals_of_key_cache(
     uint64_t global_to_t = 0;
     uint64_t global_from_tm = (uint64_t)(-1);
     uint64_t global_to_tm = 0;
-
 
     int idx; json_t *cache_file;
     json_array_foreach(cache_files, idx, cache_file) {

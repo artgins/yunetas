@@ -310,10 +310,6 @@ PRIVATE int yev_callback(
 
     uint32_t trace_level = gobj_global_trace_level();
 
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "fs_watcher yev_callback() entry");
-#endif
-
     if(trace_level & (TRACE_URING|TRACE_FS)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
@@ -396,10 +392,6 @@ PRIVATE int yev_callback(
             break;
     }
 
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "fs_watcher yev_callback() exit");
-#endif
-
     return 0;
 }
 
@@ -455,9 +447,6 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
     if(event->mask & (IN_DELETE_SELF)) {
         // The directory is removed or moved
-        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_DELETE_SELF entry");
-        #endif
         path=get_path(fs_event, event->wd);
         if(path != NULL) {
             char path_[PATH_MAX];
@@ -471,9 +460,6 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->callback(fs_event);
             remove_watch(fs_event, path, event->wd);
         }
-        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-        MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_DELETE_SELF exit");
-        #endif
         return;
     }
 
@@ -493,25 +479,14 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
         return;
     }
 
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "fs_watcher get_path entry");
-    #endif
-
     path = get_path(fs_event, event->wd);
     char *filename = event->len? event->name:"";
-
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "fs_watcher get_path exit");
-    #endif
 
     if(event->mask & (IN_ISDIR)) {
         /*
          *  Directory
          */
         if (event->mask & (IN_CREATE)) {
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_CREATE entry");
-            #endif
             if(fs_event->fs_flag & FS_FLAG_RECURSIVE_PATHS) {
                 snprintf(full_path, sizeof(full_path), "%s/%s", path, filename);
                 add_watch(fs_event, full_path);
@@ -521,15 +496,9 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
             fs_event->filename = filename;
 
             fs_event->callback(fs_event);
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_CREATE exit");
-            #endif
         }
 
         if (event->mask & (IN_DELETE)) {
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_DELETE entry");
-            #endif
             if(path != NULL) {
                 fs_event->fs_type = FS_SUBDIR_DELETED_TYPE;
                 fs_event->directory = (volatile char *)path;
@@ -537,9 +506,6 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
                 fs_event->callback(fs_event);
             }
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher IN_ISDIR IN_DELETE exit");
-            #endif
         }
 
     } else {
@@ -547,45 +513,27 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
          *  File
          */
         if (event->mask & (IN_CREATE)) {
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_CREATE entry");
-            #endif
             fs_event->fs_type = FS_FILE_CREATED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
 
             fs_event->callback(fs_event);
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_CREATE exit");
-            #endif
         }
 
         if (event->mask & (IN_DELETE)) {
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_DELETE entry");
-            #endif
             fs_event->fs_type = FS_FILE_DELETED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
 
             fs_event->callback(fs_event);
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_DELETE exit");
-            #endif
         }
 
         if (event->mask & (IN_MODIFY)) {
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_MODIFY entry");
-            #endif
             fs_event->fs_type = FS_FILE_MODIFIED_TYPE;
             fs_event->directory = (volatile char *)path;
             fs_event->filename = filename;
 
             fs_event->callback(fs_event);
-            #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-            MT_PRINT_TIME(yev_time_measure, "fs_watcher FILE IN_MODIFY exit");
-            #endif
         }
     }
 }
