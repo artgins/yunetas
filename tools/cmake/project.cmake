@@ -142,7 +142,12 @@ set(COMMON_C_FLAGS
     -Wno-unused-parameter
     -fPIC
     -fno-pie
-    #    -fno-stack-protector
+    -fno-stack-protector
+    -fno-plt
+    -flto
+    -fomit-frame-pointer
+    -ffast-math
+    -fstrict-aliasing
 )
 
 #----------------------------------------#
@@ -157,7 +162,10 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     message(STATUS "Configuring for RELWITHDEBINFO (production environment, speed-focused)")
     add_definitions(-DNDEBUG)
-    set(EXTRA_C_FLAGS -O2 -g)
+    set(EXTRA_C_FLAGS
+        -O3
+        -g
+    )
 else()
     message(STATUS "Configuring for ${CMAKE_BUILD_TYPE}")
     set(EXTRA_C_FLAGS "")

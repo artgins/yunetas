@@ -14,7 +14,7 @@ VERSION="1.3-s"
 source ./repos2clone-static.sh
 
 export CC=/usr/bin/musl-gcc
-#CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC"
+#CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC" # let each library to be
 export LDFLAGS="-static -no-pie"
 
 [ -f "./VERSION_INSTALLED_STATIC.txt" ] && rm "./VERSION_INSTALLED_STATIC.txt"
