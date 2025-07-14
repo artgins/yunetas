@@ -140,13 +140,6 @@ set(COMMON_C_FLAGS
     -Wno-type-limits
     -Wno-sign-compare
     -Wno-unused-parameter
-    -fPIC
-    -fno-pie
-    -fno-stack-protector
-    -fno-plt
-    -fomit-frame-pointer
-    -ffast-math
-    -fstrict-aliasing
 )
 
 #----------------------------------------#
