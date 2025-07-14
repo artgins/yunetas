@@ -198,6 +198,13 @@ PRIVATE json_int_t update_totals_of_key_cache(
     json_t *topic,
     const char *key
 );
+PRIVATE json_int_t update_totals_of_key_cache2(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    json_t *cache_cell,
+    int rows_added
+);
 
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
 
@@ -4335,7 +4342,9 @@ PRIVATE json_int_t update_new_records_from_disk(
     );
 
     // Publish new data to iterator
-    publish_new_rt_disk_records(gobj, tranger, topic, key, cur_cache_cell, new_cache_cell);
+    json_int_t rows_added = publish_new_rt_disk_records(
+        gobj, tranger, topic, key, cur_cache_cell, new_cache_cell
+    );
 
     /*
      *  UPDATE CACHE from disk
@@ -4348,7 +4357,7 @@ PRIVATE json_int_t update_new_records_from_disk(
         json_object_update_new(cur_cache_cell, new_cache_cell);
     }
 
-    json_int_t totals = update_totals_of_key_cache(gobj, topic, key);
+    json_int_t totals = update_totals_of_key_cache2(gobj, topic, key, cur_cache_cell, rows_added);
 
     return totals;
 }
@@ -4356,7 +4365,7 @@ PRIVATE json_int_t update_new_records_from_disk(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int publish_new_rt_disk_records(
+PRIVATE int publish_new_rt_disk_records( // return # of new records
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -4462,7 +4471,7 @@ PRIVATE int publish_new_rt_disk_records(
         JSON_DECREF(record)
     }
 
-    return 0;
+    return to_rowid - from_rowid + 1;
 }
 
 /***************************************************************************
@@ -5074,13 +5083,11 @@ PRIVATE json_int_t update_new_record_from_mem(
         update_cache_cell(cur_cache_cell, file_id, md_record, 1, 1);
     }
 
-    return update_totals_of_key_cache(gobj, topic, key);
+    return update_totals_of_key_cache2(gobj, topic, key, cur_cache_cell, 1);
 }
 
 /***************************************************************************
- *  Update totals of a key
- *  // TODO review:
- *      optimize the calls of this fn, is necessary the loop json_array_foreach?
+ *  Update totals of a key, ONLY to initial load
  *
  *  Return -1 if error and if successful return total rows ( > 0)
  ***************************************************************************/
@@ -5118,7 +5125,6 @@ PRIVATE json_int_t update_totals_of_key_cache(
     uint64_t global_from_tm = (uint64_t)(-1);
     uint64_t global_to_tm = 0;
 
-int x;
     int idx; json_t *cache_file;
     json_array_foreach(cache_files, idx, cache_file) {
         json_int_t fr_t = json_integer_value(json_object_get(cache_file, "fr_t"));
@@ -5165,6 +5171,108 @@ int x;
         ),
         "total"
     );
+
+    json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
+    json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
+    json_object_set_new(total_range, "fr_tm", json_integer((json_int_t)global_from_tm));
+    json_object_set_new(total_range, "to_tm", json_integer((json_int_t)global_to_tm));
+    json_object_set_new(total_range, "rows", json_integer((json_int_t)total_rows));
+
+    return total_rows;
+}
+
+/***************************************************************************
+ *  Update totals of a key
+ *
+ *  Return -1 if error and if successful return total rows ( > 0)
+ ***************************************************************************/
+PRIVATE json_int_t update_totals_of_key_cache2(
+    hgobj gobj,
+    json_t *topic,
+    const char *key,
+    json_t *cache_file,
+    int rows_added
+) {
+    json_t *total_range = json_object_get(
+        json_object_get(
+            json_object_get(
+                topic,
+                "cache"
+            ),
+            key
+        ),
+        "total"
+    );
+
+    uint64_t global_from_t = json_integer_value(json_object_get(total_range, "fr_t"));
+    uint64_t global_to_t = json_integer_value(json_object_get(total_range, "to_t"));
+    uint64_t global_from_tm = json_integer_value(json_object_get(total_range, "fr_tm"));
+    uint64_t global_to_tm = json_integer_value(json_object_get(total_range, "to_tm"));
+    json_int_t total_rows = json_integer_value(json_object_get(total_range, "rows"));
+
+    json_int_t fr_t = json_integer_value(json_object_get(cache_file, "fr_t"));
+    json_int_t to_t = json_integer_value(json_object_get(cache_file, "to_t"));
+    json_int_t fr_tm = json_integer_value(json_object_get(cache_file, "fr_tm"));
+    json_int_t to_tm = json_integer_value(json_object_get(cache_file, "to_tm"));
+
+    if(fr_t < global_from_t) {
+        //global_from_t = fr_t;
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Impossible case: fr_t < global_from_t",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+    }
+    if(fr_t > global_to_t) {
+        global_to_t = fr_t;
+    }
+    if(fr_tm < global_from_tm) {
+        // global_from_tm = fr_tm;
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Impossible case: fr_tm < global_from_tm",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+    }
+    if(fr_tm > global_to_tm) {
+        global_to_tm = fr_tm;
+    }
+    if(to_t < global_from_t) {
+        // global_from_t = to_t;
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Impossible case: to_t < global_from_t",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+    }
+    if(to_t > global_to_t) {
+        global_to_t = to_t;
+    }
+    if(to_tm < global_from_tm) {
+        // global_from_tm = to_tm;
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Impossible case: to_tm < global_from_tm",
+            "topic_name",   "%s", tranger2_topic_name(topic),
+            "key",          "%s", key,
+            NULL
+        );
+    }
+    if(to_tm > global_to_tm) {
+        global_to_tm = to_tm;
+    }
+
+    total_rows += rows_added;
 
     json_object_set_new(total_range, "fr_t", json_integer((json_int_t)global_from_t));
     json_object_set_new(total_range, "to_t", json_integer((json_int_t)global_to_t));
