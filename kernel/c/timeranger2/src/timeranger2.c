@@ -4230,10 +4230,6 @@ PRIVATE int update_key_by_hard_link(
     char *path
 )
 {
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_key_by_hard_link entry");
-    #endif
-
     if(gobj_global_trace_level() & TRACE_FS) {
         gobj_log_debug(gobj, 0,
             "function",         "%s", __FUNCTION__,
@@ -4243,7 +4239,7 @@ PRIVATE int update_key_by_hard_link(
             NULL
         );
     }
-    if(unlink(path)<0) {
+    if(unlink(path)<0) { // WARNING it's a bit slow!
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -4254,10 +4250,6 @@ PRIVATE int update_key_by_hard_link(
             NULL
         );
     }
-
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_key_by_hard_link after unlink");
-    #endif
 
     char *md2 = pop_last_segment(path);
     char *key = pop_last_segment(path);
@@ -4280,11 +4272,7 @@ PRIVATE int update_key_by_hard_link(
         return -1;
     }
 
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_key_by_hard_link after pop");
-    #endif
-
-    json_t *topic = tranger2_topic(tranger,topic_name);
+    json_t *topic = tranger2_topic(tranger, topic_name);
 
     update_new_records_from_disk(
         gobj,
@@ -4293,10 +4281,6 @@ PRIVATE int update_key_by_hard_link(
         key,
         md2
     );
-
-    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
-    MT_PRINT_TIME(yev_time_measure, "update_key_by_hard_link exit");
-    #endif
 
     return 0;
 }

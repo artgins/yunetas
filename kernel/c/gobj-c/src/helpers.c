@@ -793,14 +793,30 @@ PUBLIC char *get_last_segment(char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC char *pop_last_segment(char *path) // WARNING path modified
+// PUBLIC char *pop_last_segment(char *path) // WARNING path modified
+// {
+//     char *p = strrchr(path, '/');
+//     if(!p) {
+//         return path;
+//     }
+//     *p = 0;
+//     return p+1;
+// }
+
+PUBLIC char *pop_last_segment(char *path) // WARNING path modified, optimized version
 {
-    char *p = strrchr(path, '/');
-    if(!p) {
+    if(!path || !*path) {
         return path;
     }
-    *p = 0;
-    return p+1;
+
+    char *end = path + strlen(path);
+    while(--end >= path) {
+        if(*end == '/') {
+            *end = 0;
+            return end + 1;
+        }
+    }
+    return path;
 }
 
 /***************************************************************************
