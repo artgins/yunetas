@@ -295,7 +295,7 @@ PRIVATE json_int_t update_new_records_from_disk(
     const char *key,
     char *filename
 );
-PRIVATE int publish_new_rt_disk_records(
+PRIVATE json_int_t publish_new_rt_disk_records(
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -4342,8 +4342,14 @@ PRIVATE json_int_t update_new_records_from_disk(
     );
 
     // Publish new data to iterator
+    // TODO here publishing records without totals updated!!
     json_int_t rows_added = publish_new_rt_disk_records(
-        gobj, tranger, topic, key, cur_cache_cell, new_cache_cell
+        gobj,
+        tranger,
+        topic,
+        key,
+        cur_cache_cell,
+        new_cache_cell
     );
 
     /*
@@ -4365,7 +4371,7 @@ PRIVATE json_int_t update_new_records_from_disk(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int publish_new_rt_disk_records( // return # of new records
+PRIVATE json_int_t publish_new_rt_disk_records( // return # of new records
     hgobj gobj,
     json_t *tranger,
     json_t *topic,
@@ -4378,15 +4384,16 @@ PRIVATE int publish_new_rt_disk_records( // return # of new records
     json_t *disks = json_object_get(topic, "disks");
 
     json_int_t from_rowid = json_integer_value(json_object_get(old_cache_cell, "rows"));
-    if(from_rowid == 0 && !old_cache_cell) {
+    if(from_rowid == 0) {
         from_rowid = 1;
+    } else {
+        from_rowid++;
     }
     json_int_t to_rowid = json_integer_value(json_object_get(new_cache_cell, "rows"));
-    to_rowid++;
 
     const char *file_id = json_string_value(json_object_get(new_cache_cell, "id"));
 
-    for(json_int_t rowid=from_rowid; rowid<to_rowid; rowid++) {
+    for(json_int_t rowid=from_rowid; rowid<=to_rowid; rowid++) {
         md2_record_ex_t md_record_ex;
         read_md(
             gobj,
@@ -5223,12 +5230,15 @@ PRIVATE json_int_t update_totals_of_key_cache2(
             "msg",          "%s", "Impossible case: fr_t < global_from_t",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
+            "fr_tm",        "%d", (int)fr_t,
+            "global_from_tm","%d", (int)global_from_t,
             NULL
         );
     }
     if(fr_t > global_to_t) {
         global_to_t = fr_t;
     }
+
     if(fr_tm < global_from_tm) {
         // global_from_tm = fr_tm;
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -5237,12 +5247,15 @@ PRIVATE json_int_t update_totals_of_key_cache2(
             "msg",          "%s", "Impossible case: fr_tm < global_from_tm",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
+            "fr_tm",        "%d", (int)fr_tm,
+            "global_from_tm","%d", (int)global_from_tm,
             NULL
         );
     }
     if(fr_tm > global_to_tm) {
         global_to_tm = fr_tm;
     }
+
     if(to_t < global_from_t) {
         // global_from_t = to_t;
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -5251,12 +5264,15 @@ PRIVATE json_int_t update_totals_of_key_cache2(
             "msg",          "%s", "Impossible case: to_t < global_from_t",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
+            "to_t",        "%d", (int)to_t,
+            "global_from_t","%d", (int)global_from_t,
             NULL
         );
     }
     if(to_t > global_to_t) {
         global_to_t = to_t;
     }
+
     if(to_tm < global_from_tm) {
         // global_from_tm = to_tm;
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -5265,11 +5281,26 @@ PRIVATE json_int_t update_totals_of_key_cache2(
             "msg",          "%s", "Impossible case: to_tm < global_from_tm",
             "topic_name",   "%s", tranger2_topic_name(topic),
             "key",          "%s", key,
+            "to_tm",        "%d", (int)to_tm,
+            "global_from_tm","%d", (int)global_from_tm,
             NULL
         );
     }
     if(to_tm > global_to_tm) {
         global_to_tm = to_tm;
+    }
+
+    if(global_from_t == 0) {
+        /*
+         *  0 empty when the topic is empty
+         */
+        global_from_t = fr_t;
+    }
+    if(global_from_tm == 0) {
+        /*
+         *  0 when the topic is empty
+         */
+        global_from_tm = fr_tm;
     }
 
     total_rows += rows_added;
