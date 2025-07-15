@@ -37,15 +37,16 @@
  *
  *                              'user_flag' data
  *
- *          /{topic}            Topic directory
- *          /{topic}/keys/{key}          A directory for each key
- *          /{topic}/keys/{key}/fmt.json   Files containing the topic's records: {format-file}.json
- *          /{topic}/keys/{key}/fmt.md2    Files containing the topic's metadata: {format-file}.json
+ *          /{topic}                        Topic directory
+ *          /{topic}/keys/{key}             A directory for each key
+ *          /{topic}/keys/{key}/fmt.json    Files containing the topic's records: {format-file}.json
+ *          /{topic}/keys/{key}/fmt.md2     Files containing the topic's metadata: {format-file}.json
  *
  *          {format-file}.json  Data files
  *                              It should never be modified externally.
  *                              The data is immutable, once it is written, it can never be modified.
  *                              To change the data, add a new record with the desired changes.
+ *                              (There is an option to delete a record overwriting to 0 the message)
  *
  *          metadata (32 bytes):
  *              __t__
@@ -74,6 +75,17 @@
  *
  *
  *  The non-master is the agent creating the /disks/{rt_id} that the master is monitoring
+ *
+ *  - (1) MONITOR (MI) /disks/
+ *      Master will monitor the (topic) directory where clients will mark their rt disks.
+ *  - (2) MONITOR (C) (MI)r /disks/{rt_id}/
+ *      Client will create the {rt_id} directory (usually the yuno_role^yuno_name)
+ *  - (3) MONITOR Master knows that a Client has opened a rt disk for the topic,
+ *      Master to open a mem rt to update /disks/rt_id/
+ *  - (4) MONITOR Master update directory /disks/rt_id/ on new records
+ *      It will Create a hard link of md2 file
+ *  - (5) MONITOR Client notified of update directory /disks/rt_id/ on new records
+ *      It will delete hard link and then will read the original .md2 file
  *
  *  HACK tranger is only append. No update, no insert.
  *  A record can be deleted (it's unrecoverable).

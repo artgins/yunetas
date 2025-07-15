@@ -203,7 +203,7 @@ PRIVATE json_int_t update_totals_of_key_cache2(
     json_t *topic,
     const char *key,
     json_t *cache_cell,
-    int rows_added
+    json_int_t rows_added
 );
 
 PRIVATE json_int_t get_topic_key_rows(hgobj gobj, json_t *topic, const char *key);
@@ -1042,7 +1042,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
         BOOL master = json_boolean_value(json_object_get(tranger, "master"));
         if(master) {
             // (1) MONITOR (MI) /disks/
-            // Master to monitor the (topic) directory where clients will mark their rt disks.
+            // Master will monitor the (topic) directory where clients will mark their rt disks.
 
             if(gobj_global_trace_level() & TRACE_FS) {
                 gobj_log_debug(gobj, 0,
@@ -5191,7 +5191,7 @@ PRIVATE json_int_t update_totals_of_key_cache2(
     json_t *topic,
     const char *key,
     json_t *cache_file,
-    int rows_added
+    json_int_t rows_added
 ) {
     json_t *total_range = json_object_get(
         json_object_get(
