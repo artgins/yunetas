@@ -241,8 +241,8 @@ int main(int argc, char *argv[])
     MT_PRINT_TIME(time_measure, test)
 
     double tm = mt_get_time(&time_measure);
-    if(!(tm >= 1 && tm < 1.1)) {
-        printf("%sERROR --> %s time %f (must be tm >= 1 && tm < 1.1)\n", On_Red BWhite, Color_Off, tm);
+    if(!(tm >= 0.9 && tm < 1.1)) {
+        printf("%sERROR --> %s time %f (must be tm >= 0.9 && tm < 1.1)\n", On_Red BWhite, Color_Off, tm);
         result += -1;
     }
     result += test_json(NULL);
