@@ -10,7 +10,7 @@
 VERSION="1.3"
 
 source ./repos2clone.sh
-#CFLAGS="-Wno-error=char-subscripts -O2 -g -DNDEBUG -fPIC" # let each library to be
+export CFLAGS="-Wno-error=char-subscripts -O3 -DNDEBUG" # let each library to be
 export CC=cc
 
 [ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
@@ -204,4 +204,5 @@ echo "$VERSION" > VERSION_INSTALLED.txt
 echo "" >> VERSION_INSTALLED.txt
 
 unset CC
+unset CFLAGS
 unset PKG_CONFIG_PATH
