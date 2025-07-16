@@ -128,8 +128,8 @@ set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
 #   Default to Debug if not specified
 #----------------------------------------#
 if(NOT CMAKE_BUILD_TYPE)
-    message(FATAL_ERROR "No build type defined")
-#    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
+#    message(FATAL_ERROR "No build type defined")
+    set(CMAKE_BUILD_TYPE "Release")
 endif()
 
 #----------------------------------------#
@@ -144,6 +144,14 @@ set(COMMON_C_FLAGS
 )
 
 add_compile_options(${COMMON_C_FLAGS})
+
+#----------------------------------------#
+#   Compiler link flags
+#----------------------------------------#
+set(COMPILER_LINK_FLAGS
+#    -no-pie # it seems that with this is getting slower
+)
+add_link_options(${COMPILER_LINK_FLAGS})
 
 #----------------------------------------#
 #   Libraries
@@ -180,7 +188,8 @@ if (CONFIG_HAVE_OPENSSL)
         libjwt-y.a
         libssl.a
         libcrypto.a
-        pthread dl
+        pthread.a
+        dl.a
     )
 else()
     set(OPENSSL_LIBS "")
