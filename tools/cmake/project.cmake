@@ -128,7 +128,8 @@ set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
 #   Default to Debug if not specified
 #----------------------------------------#
 if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
+    message(FATAL_ERROR "No build type defined")
+#    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
 #----------------------------------------#
