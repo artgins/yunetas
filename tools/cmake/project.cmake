@@ -142,36 +142,7 @@ set(COMMON_C_FLAGS
     -Wno-unused-parameter
 )
 
-#----------------------------------------#
-#   Per build type
-#----------------------------------------#
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    message(STATUS "Configuring for DEBUG (test environment)")
-    add_definitions(-DDEBUG)
-    set(EXTRA_C_FLAGS
-        -g3
-    )
-elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    message(STATUS "Configuring for RELWITHDEBINFO (production environment, speed-focused)")
-    add_definitions(-DNDEBUG)
-    set(EXTRA_C_FLAGS
-        -O3
-        -g
-    )
-else()
-    message(STATUS "Configuring for ${CMAKE_BUILD_TYPE}")
-    set(EXTRA_C_FLAGS "")
-endif()
-
-add_compile_options(${COMMON_C_FLAGS} ${EXTRA_C_FLAGS})
-
-#----------------------------------------#
-#   Compiler link flags
-#----------------------------------------#
-set(COMPILER_LINK_FLAGS
-    -no-pie
-)
-add_link_options(${COMPILER_LINK_FLAGS})
+add_compile_options(${COMMON_C_FLAGS})
 
 #----------------------------------------#
 #   Libraries
