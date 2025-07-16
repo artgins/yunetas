@@ -69,6 +69,7 @@ function(add_yuno_executable name)
     message(STATUS "Add executable: ${name}")
     add_executable(${name} ${ARGN})
     if(AS_STATIC)
+        # To use with musl compiler
         message(STATUS "is AS_STATIC: ${name}")
         set_target_properties(${name} PROPERTIES
             LINK_SEARCH_START_STATIC TRUE
@@ -98,6 +99,7 @@ add_compile_definitions(
 )
 
 if(AS_STATIC)
+    # To use with musl compiler
     list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
     set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
 

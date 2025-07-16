@@ -28,14 +28,6 @@ SET(SRCS
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${SRCS})
 
-if(AS_STATIC)
-    # Enforce full static link flags globally
-    set_target_properties(${PROJECT_NAME} PROPERTIES
-        LINK_SEARCH_START_STATIC TRUE
-        LINK_SEARCH_END_STATIC TRUE
-    )
-endif()
-
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
     ${YUNETAS_EXTERNAL_LIBS}
