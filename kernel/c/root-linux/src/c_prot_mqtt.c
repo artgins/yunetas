@@ -1704,9 +1704,8 @@ PRIVATE json_t *hash_password(
     const char *password,
     const char *algorithm,
     int iterations
-)
-{
-#ifdef CONFIG_HAVE_OPENSSL
+) {
+#if defined(CONFIG_HAVE_OPENSSL)
     #define SALT_LEN 12
     unsigned int hash_len;
     unsigned char hash[64]; /* For SHA512 */
@@ -1771,8 +1770,10 @@ PRIVATE json_t *hash_password(
     GBUFFER_DECREF(gbuf_salt);
 
     return credentials;
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    // TODO
 #else
-    // #error "TODO IMPLEMENT MBEDTLS"
+    #error "TODO IMPLEMENT MBEDTLS"
 #endif
 }
 
