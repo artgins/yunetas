@@ -23,16 +23,18 @@
 #include <time.h>
 #include <arpa/inet.h>
 
-#ifdef CONFIG_HAVE_OPENSSL
-#include <openssl/ssl.h>
-#include <openssl/rand.h>
-#else
-    // #error "TODO IMPLEMENT MBEDTLS"
-#include <openssl/ssl.h>
-#include <openssl/rand.h>
-#endif
-
 #include <kwid.h>
+
+#if defined(CONFIG_HAVE_OPENSSL)
+    #include <openssl/ssl.h>
+    #include <openssl/rand.h>
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    #include <mbedtls/md.h>
+    #include <mbedtls/ctr_drbg.h>
+    #include <mbedtls/pkcs5.h>
+#else
+    #error "No crypto library defined"
+#endif
 
 #include "command_parser.h"
 #include "msg_ievent.h"
@@ -1637,7 +1639,7 @@ PRIVATE int check_passwd(
     json_int_t iterations
 )
 {
-#ifdef CONFIG_HAVE_OPENSSL
+#if defined(CONFIG_HAVE_OPENSSL)
     const EVP_MD *digest;
     unsigned char hash_[EVP_MAX_MD_SIZE+1];
     unsigned int hash_len_ = EVP_MAX_MD_SIZE;
@@ -1674,10 +1676,86 @@ PRIVATE int check_passwd(
     if(hash_len_ == strlen(hash) && memcmp(hash, hash_, hash_len_)==0) {
         return 0;
     }
-#else
-    // #error "TODO IMPLEMENT MBEDTLS"
-#endif
+#elif defined(CONFIG_HAVE_MBEDTLS)
+    unsigned char derived_hash[64]; // SHA512 max size
+    size_t hash_len;
+    const mbedtls_md_info_t *md_info = NULL;
 
+    if(empty_string(algorithm)) {
+        algorithm = "sha512";
+    }
+
+    md_info = mbedtls_md_info_from_string(algorithm);
+    if(!md_info) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Unable to get mbedtls digest",
+            "digest",   "%s", algorithm,
+            NULL
+        );
+        return -1;
+    }
+
+    hash_len = mbedtls_md_get_size(md_info);
+
+    /* Decode salt from base64 */
+    gbuffer_t *gbuf_salt = gbuffer_base64_to_string(salt, strlen(salt));
+    if(!gbuf_salt) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Invalid base64 salt",
+            NULL
+        );
+        return -1;
+    }
+
+    if(mbedtls_pkcs5_pbkdf2_hmac(
+            md_info,
+            (const unsigned char *)password, strlen(password),
+            (const unsigned char *)gbuffer_cur_rd_pointer(gbuf_salt), gbuffer_leftbytes(gbuf_salt),
+            iterations,
+            hash_len,
+            derived_hash
+        ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "mbedtls_pbkdf2_hmac() FAILED",
+            NULL
+        );
+        GBUFFER_DECREF(gbuf_salt);
+        return -1;
+    }
+
+    /* Decode input hash from base64 */
+    gbuffer_t *gbuf_hash = gbuffer_base64_to_string(hash, strlen(hash));
+    if(!gbuf_hash) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Invalid base64 hash",
+            NULL
+        );
+        GBUFFER_DECREF(gbuf_salt);
+        return -1;
+    }
+
+    const unsigned char *stored_hash = (const unsigned char *)gbuffer_cur_rd_pointer(gbuf_hash);
+    size_t stored_hash_len = gbuffer_leftbytes(gbuf_hash);
+
+    int result = -1;
+    if(stored_hash_len == hash_len && memcmp(derived_hash, stored_hash, hash_len) == 0) {
+        result = 0; // Match
+    }
+
+    GBUFFER_DECREF(gbuf_salt);
+    GBUFFER_DECREF(gbuf_hash);
+    return result;
+#else
+    #error "No crypto library defined"
+#endif
     return -1;
 }
 
@@ -1771,9 +1849,115 @@ PRIVATE json_t *hash_password(
 
     return credentials;
 #elif defined(CONFIG_HAVE_MBEDTLS)
-    // TODO
+    #define SALT_LEN 12
+    unsigned char hash[64];  // Support up to SHA512
+    unsigned char salt[SALT_LEN];
+    const mbedtls_md_info_t *md_info = NULL;
+
+    if(empty_string(algorithm)) {
+        algorithm = "sha512";
+    }
+    if(iterations < 1) {
+        iterations = PW_DEFAULT_ITERATIONS;
+    }
+
+    /* Resolve hash algorithm */
+    md_info = mbedtls_md_info_from_string(algorithm);
+    if(!md_info) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Unable to get mbedtls digest",
+            "digest",   "%s", algorithm,
+            NULL
+        );
+        return 0;
+    }
+    size_t hash_len = mbedtls_md_get_size(md_info);
+
+    /* Initialize RNG */
+    mbedtls_entropy_context entropy;
+    mbedtls_ctr_drbg_context ctr_drbg;
+    const char *pers = "hash_password";
+
+    mbedtls_entropy_init(&entropy);
+    mbedtls_ctr_drbg_init(&ctr_drbg);
+
+    if(mbedtls_ctr_drbg_seed(
+            &ctr_drbg,
+            mbedtls_entropy_func,
+            &entropy,
+            (const unsigned char *)pers,
+            strlen(pers)
+        ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "mbedtls_ctr_drbg_seed() FAILED",
+            NULL
+        );
+        goto error;
+    }
+
+    if(mbedtls_ctr_drbg_random(&ctr_drbg, salt, SALT_LEN) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "mbedtls_ctr_drbg_random() FAILED",
+            NULL
+        );
+        goto error;
+    }
+
+    if(mbedtls_pkcs5_pbkdf2_hmac(
+            md_info,
+            (const unsigned char *)password, strlen(password),
+            salt, SALT_LEN,
+            iterations,
+            hash_len,
+            hash
+        ) != 0) {
+        gobj_log_error(gobj, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "mbedtls_pkcs5_pbkdf2_hmac() FAILED",
+            NULL
+        );
+        goto error;
+    }
+
+    gbuffer_t *gbuf_hash = gbuffer_string_to_base64((const char *)hash, hash_len);
+    gbuffer_t *gbuf_salt = gbuffer_string_to_base64((const char *)salt, SALT_LEN);
+    char *hash_b64 = gbuffer_cur_rd_pointer(gbuf_hash);
+    char *salt_b64 = gbuffer_cur_rd_pointer(gbuf_salt);
+
+    json_t *credential_list = json_array();
+    json_t *credentials = json_pack("{s:o}", "credentials", credential_list);
+    json_t *credential = json_pack("{s:s, s:I, s:{s:s, s:s}, s:{s:I, s:s, s:{}}}",
+        "type", "password",
+        "createdDate", (json_int_t)time_in_milliseconds(),
+        "secretData",
+            "value", hash_b64,
+            "salt", salt_b64,
+        "credentialData",
+            "hashIterations", iterations,
+            "algorithm", algorithm,
+            "additionalParameters"
+    );
+    json_array_append_new(credential_list, credential);
+
+    GBUFFER_DECREF(gbuf_hash);
+    GBUFFER_DECREF(gbuf_salt);
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+    return credentials;
+
+error:
+    mbedtls_ctr_drbg_free(&ctr_drbg);
+    mbedtls_entropy_free(&entropy);
+    return 0;
 #else
-    #error "TODO IMPLEMENT MBEDTLS"
+    #error "No crypto library defined"
 #endif
 }
 
