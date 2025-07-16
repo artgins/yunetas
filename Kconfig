@@ -36,15 +36,28 @@ choice
     default BUILD_TYPE_RELEASE
 
 config BUILD_TYPE_RELEASE
-    bool "Production"
+    bool "Release"
     help
-        Enable compiler optimizations for production builds.
+        Use CMake Build Type 'Release'.
+        Optimized build, no debug info.
 
 config BUILD_TYPE_DEBUG
     bool "Debug"
     help
-        Enable debug symbols and runtime checks for development
-        and debugging purposes. Optimizations are reduced.
+        Use CMake Build Type 'Debug'.
+        Full debug info, no optimization.
+
+config BUILD_TYPE_RELWITHDEBINFO
+    bool "RelWithDebInfo"
+    help
+        Use CMake Build Type 'RelWithDebInfo'.
+        Optimized with debug info.
+
+config BUILD_TYPE_MINSIZEREL
+    bool "MinSizeRel"
+    help
+        Use CMake Build Type 'MinSizeRel'.
+        Optimized for small binary size.
 
 endchoice
 
