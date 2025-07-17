@@ -34,9 +34,9 @@
  *          Copyright (c) 2013-2014 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <gobj.h>
-
 #pragma once
+
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{

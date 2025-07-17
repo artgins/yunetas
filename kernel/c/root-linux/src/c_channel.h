@@ -5,9 +5,9 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <gobj.h>
-
 #pragma once
+
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{

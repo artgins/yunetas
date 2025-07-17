@@ -10,6 +10,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <limits.h>
+
 #include "c_ybatch.h"
 
 /***************************************************************************
@@ -40,11 +42,11 @@ PRIVATE int display_webix_result(
 
 PRIVATE sdata_desc_t commands_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (ASN_OCTET_STR,   "command",          0,                          0,              "command"),
-SDATA (ASN_OCTET_STR,   "date",             0,                          0,              "date of command"),
-SDATA (ASN_JSON,        "kw",               0,                          0,              "kw"),
-SDATA (ASN_BOOLEAN,     "ignore_fail",      0,                          0,              "continue batch although fail"),
-SDATA (ASN_JSON,        "response_filter",  0,                          0,              "Keys to validate the response"),
+SDATA (DTP_STRING,      "command",          0,                          0,              "command"),
+SDATA (DTP_STRING,      "date",             0,                          0,              "date of command"),
+SDATA (DTP_JSON,        "kw",               0,                          0,              "kw"),
+SDATA (DTP_BOOLEAN,     "ignore_fail",      0,                          0,              "continue batch although fail"),
+SDATA (DTP_JSON,        "response_filter",  0,                          0,              "Keys to validate the response"),
 
 SDATA_END()
 };
@@ -54,26 +56,26 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */
-SDATA (ASN_INTEGER,     "verbose",          0,          0,              "Verbose mode."),
-SDATA (ASN_OCTET_STR,   "path",             0,          0,              "Batch filename to execute."),
-SDATA (ASN_INTEGER,     "repeat",           0,          1,              "Repeat the execution of the batch. -1 infinite"),
-SDATA (ASN_INTEGER,     "pause",            0,          0,              "Pause between executions"),
+SDATA (DTP_INTEGER,     "verbose",          0,          0,              "Verbose mode."),
+SDATA (DTP_STRING,      "path",             0,          0,              "Batch filename to execute."),
+SDATA (DTP_INTEGER,     "repeat",           0,          1,              "Repeat the execution of the batch. -1 infinite"),
+SDATA (DTP_INTEGER,     "pause",            0,          0,              "Pause between executions"),
 
-SDATA (ASN_OCTET_STR,   "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "auth_url",         0,          "",             "OpenID Endpoint(interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
-SDATA (ASN_OCTET_STR,   "user_id",          0,          "",             "OAuth2 User Id (interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "user_passw",       0,          "",             "OAuth2 User password (interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "jwt",              0,          "",             "Jwt"),
-SDATA (ASN_OCTET_STR,   "url",              0,                          "ws://127.0.0.1:1991",  "Agent's url to connect. Can be a ip/hostname or a full url"),
-SDATA (ASN_OCTET_STR,   "yuno_name",        0,          "",            "Yuno name"),
-SDATA (ASN_OCTET_STR,   "yuno_role",        0,          "yuneta_agent", "Yuno role"),
-SDATA (ASN_OCTET_STR,   "yuno_service",     0,          "agent",        "Yuno service"),
-SDATA (ASN_OCTET_STR,   "display_mode",     0,          "form",         "Display mode: table or form"),
+SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
+SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint(interactive jwt)"),
+SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
+SDATA (DTP_STRING,      "user_id",          0,          "",             "OAuth2 User Id (interactive jwt)"),
+SDATA (DTP_STRING,      "user_passw",       0,          "",             "OAuth2 User password (interactive jwt)"),
+SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
+SDATA (DTP_STRING,      "url",              0,                          "ws://127.0.0.1:1991",  "Agent's url to connect. Can be a ip/hostname or a full url"),
+SDATA (DTP_STRING,      "yuno_name",        0,          "",            "Yuno name"),
+SDATA (DTP_STRING,      "yuno_role",        0,          "yuneta_agent", "Yuno role"),
+SDATA (DTP_STRING,      "yuno_service",     0,          "agent",        "Yuno service"),
+SDATA (DTP_STRING,      "display_mode",     0,          "form",         "Display mode: table or form"),
 
-SDATA (ASN_INTEGER,     "timeout",          0,          15*60*1000,     "Timeout service responses"),
-SDATA (ASN_POINTER,     "user_data",        0,          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,          0,              "more user data"),
+SDATA (DTP_INTEGER,     "timeout",          0,          "900000",       "Timeout service responses"),
+SDATA (DTP_POINTER,     "user_data",        0,          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,          0,              "more user data"),
 SDATA_END()
 };
 
@@ -107,6 +109,8 @@ typedef struct _PRIVATE_DATA {
 
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -124,17 +128,17 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
     rc_init_iter(&priv->batch_iter);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,               gobj_read_int32_attr)
-    SET_PRIV(pause,                 gobj_read_int32_attr)
-    SET_PRIV(verbose,               gobj_read_int32_attr)
-    SET_PRIV(repeat,                gobj_read_int32_attr)
+    SET_PRIV(timeout,               gobj_read_integer_attr)
+    SET_PRIV(pause,                 gobj_read_integer_attr)
+    SET_PRIV(verbose,               gobj_read_integer_attr)
+    SET_PRIV(repeat,                gobj_read_integer_attr)
     SET_PRIV(path,                  gobj_read_str_attr)
 }
 
@@ -145,7 +149,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,             gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -155,7 +159,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    rc_free_iter(&priv->batch_iter, FALSE, sdata_destroy);
+    gobj_free_iter(&priv->batch_iter, FALSE, sdata_destroy);
 }
 
 /***************************************************************************
@@ -228,7 +232,12 @@ PRIVATE int do_authenticate_task(hgobj gobj)
         "azp", gobj_read_str_attr(gobj, "azp")
     );
 
-    hgobj gobj_task = gobj_create_unique("task-authenticate", GCLASS_TASK_AUTHENTICATE, kw, gobj);
+    hgobj gobj_task = gobj_create_service(
+        "task-authenticate",
+        C_TASK_AUTHENTICATE,
+        kw,
+        gobj
+    );
     gobj_subscribe_event(gobj_task, "EV_ON_TOKEN", 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
@@ -241,31 +250,31 @@ PRIVATE int do_authenticate_task(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE GBUFFER *jsontable2str(json_t *jn_schema, json_t *jn_data)
+PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
 {
-    GBUFFER *gbuf = gbuf_create(4*1024, gbmem_get_maximum_block(), 0, 0);
-
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
+    hgobj gobj = NULL;
     size_t col;
     json_t *jn_col;
     /*
      *  Paint Headers
      */
     json_array_foreach(jn_schema, col, jn_col) {
-        const char *header = kw_get_str(jn_col, "header", "", 0);
-        int fillspace = kw_get_int(jn_col, "fillspace", 10, 0);
+        const char *header = kw_get_str(gobj, jn_col, "header", "", 0);
+        int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, 0);
         if(fillspace > 0) {
-            gbuf_printf(gbuf, "%-*.*s ", fillspace, fillspace, header);
+            gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, header);
         }
     }
-    gbuf_printf(gbuf, "\n");
+    gbuffer_printf(gbuf, "\n");
 
     /*
      *  Paint ===
      */
     json_array_foreach(jn_schema, col, jn_col) {
-        int fillspace = kw_get_int(jn_col, "fillspace", 10, 0);
+        int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, 0);
         if(fillspace > 0) {
-            gbuf_printf(gbuf,
+            gbuffer_printf(gbuf,
                 "%*.*s ",
                 fillspace,
                 fillspace,
@@ -273,7 +282,7 @@ PRIVATE GBUFFER *jsontable2str(json_t *jn_schema, json_t *jn_data)
             );
         }
     }
-    gbuf_printf(gbuf, "\n");
+    gbuffer_printf(gbuf, "\n");
 
     /*
      *  Paint data
@@ -282,23 +291,23 @@ PRIVATE GBUFFER *jsontable2str(json_t *jn_schema, json_t *jn_data)
     json_t *jn_row;
     json_array_foreach(jn_data, row, jn_row) {
         json_array_foreach(jn_schema, col, jn_col) {
-            const char *id = kw_get_str(jn_col, "id", 0, 0);
-            int fillspace = kw_get_int(jn_col, "fillspace", 10, 0);
+            const char *id = kw_get_str(gobj, jn_col, "id", 0, 0);
+            int fillspace = (int)kw_get_int(gobj, jn_col, "fillspace", 10, 0);
             if(fillspace > 0) {
-                json_t *jn_cell = kw_get_dict_value(jn_row, id, 0, 0);
+                json_t *jn_cell = kw_get_dict_value(gobj, jn_row, id, 0, 0);
                 char *text = json2uglystr(jn_cell);
                 if(json_is_number(jn_cell) || json_is_boolean(jn_cell)) {
-                    //gbuf_printf(gbuf, "%*s ", fillspace, text);
-                    gbuf_printf(gbuf, "%-*.*s ", fillspace, fillspace, text);
+                    //gbuffer_printf(gbuf, "%*s ", fillspace, text);
+                    gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, text);
                 } else {
-                    gbuf_printf(gbuf, "%-*.*s ", fillspace, fillspace, text);
+                    gbuffer_printf(gbuf, "%-*.*s ", fillspace, fillspace, text);
                 }
                 GBMEM_FREE(text);
             }
         }
-        gbuf_printf(gbuf, "\n");
+        gbuffer_printf(gbuf, "\n");
     }
-    gbuf_printf(gbuf, "\nTotal: %d\n", (int)row);
+    gbuffer_printf(gbuf, "\nTotal: %d\n", (int)row);
 
     return gbuf;
 }
@@ -312,12 +321,14 @@ PRIVATE int display_webix_result(
     json_t *webix)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    int result = kw_get_int(webix, "result", -1, 0);
-    json_t *jn_schema = kw_get_dict_value(webix, "schema", 0, 0);
-    json_t *jn_data = kw_get_dict_value(webix, "data", 0, 0);
+    int result = (int)kw_get_int(gobj, webix, "result", -1, 0);
+    json_t *jn_schema = kw_get_dict_value(gobj, webix, "schema", 0, 0);
+    json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
 
     const char *display_mode = gobj_read_str_attr(gobj, "display_mode");
-    json_t *jn_display_mode = kw_get_subdict_value(webix, "__md_iev__", "display_mode", 0, 0);
+    json_t *jn_display_mode = kw_get_subdict_value(
+        gobj, webix, "__md_iev__", "display_mode", 0, 0
+    );
     if(jn_display_mode) {
         display_mode = json_string_value(jn_display_mode);
     }
@@ -341,12 +352,12 @@ PRIVATE int display_webix_result(
             *  display as table
             */
             if(jn_schema && json_array_size(jn_schema)) {
-                GBUFFER *gbuf = jsontable2str(jn_schema, jn_data);
+                gbuffer_t *gbuf = jsontable2str(jn_schema, jn_data);
                 if(gbuf) {
                     if(priv->verbose >=2)  {
-                        printf("%s\n", (char *)gbuf_cur_rd_pointer(gbuf));
+                        printf("%s\n", (char *)gbuffer_cur_rd_pointer(gbuf));
                     }
-                    gbuf_decref(gbuf);
+                    gbuffer_decref(gbuf);
                 }
             } else {
                 char *text = json2str(jn_data);
@@ -394,16 +405,15 @@ PRIVATE int extrae_json(hgobj gobj)
     int c;
     int st = WAIT_BEGIN_DICT;
     int brace_indent = 0;
-    GBUFFER *gbuf = gbuf_create(4*1024, gbmem_get_maximum_block(), 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     while((c=fgetc(file))!=EOF) {
         switch(st) {
         case WAIT_BEGIN_DICT:
             if(c != '{') {
                 continue;
             }
-            gbuf_reset_wr(gbuf);
-            gbuf_reset_rd(gbuf);
-            gbuf_append(gbuf, &c, 1);
+            gbuffer_clear(gbuf);
+            gbuffer_append(gbuf, &c, 1);
             brace_indent = 1;
             st = WAIT_END_DICT;
             break;
@@ -413,12 +423,12 @@ PRIVATE int extrae_json(hgobj gobj)
             } else if(c == '}') {
                 brace_indent--;
             }
-            gbuf_append(gbuf, &c, 1);
+            gbuffer_append(gbuf, &c, 1);
             if(brace_indent == 0) {
                 //log_debug_gbuf("TEST", gbuf);
-                json_t *jn_dict = legalstring2json(gbuf_cur_rd_pointer(gbuf), TRUE);
+                json_t *jn_dict = legalstring2json(gbuffer_cur_rd_pointer(gbuf), TRUE);
                 if(jn_dict) {
-                    if(kw_get_str(jn_dict, "command", 0, 0)) {
+                    if(kw_get_str(gobj, jn_dict, "command", 0, 0)) {
                         hsdata hs_cmd = sdata_create(commands_desc, 0, 0, 0, 0, 0);
                         json2sdata(hs_cmd, jn_dict, -1, 0, 0); // TODO inform attr not found
                         const char *command = sdata_read_str(hs_cmd, "command");
@@ -428,12 +438,11 @@ PRIVATE int extrae_json(hgobj gobj)
                         }
                         rc_add_instance(&priv->batch_iter, hs_cmd, 0);
                     } else {
-                        printf("Line ignored: '%s'\n", (char *)gbuf_cur_rd_pointer(gbuf));
+                        printf("Line ignored: '%s'\n", (char *)gbuffer_cur_rd_pointer(gbuf));
                     }
                     json_decref(jn_dict);
                 } else {
-                    log_error(0,
-                        "gobj",         "%s", gobj_full_name(gobj),
+                    gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SERVICE_ERROR,
                         "msg",          "%s", "Error json",
@@ -447,7 +456,7 @@ PRIVATE int extrae_json(hgobj gobj)
         }
     }
     fclose(file);
-    gbuf_decref(gbuf);
+    gbuffer_decref(gbuf);
 
     //log_debug_sd_iter("TEST", 0, &priv->batch_iter);
 
@@ -583,8 +592,7 @@ PRIVATE int cmd_connect(hgobj gobj)
      */
     char schema[20]={0}, host[120]={0}, port[40]={0};
     if(parse_http_url(url, schema, sizeof(schema), host, sizeof(host), port, sizeof(port), FALSE)<0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "parse_http_url() FAILED",
@@ -619,7 +627,7 @@ PRIVATE int cmd_connect(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE GBUFFER *source2base64_for_yuneta(const char *source, char *comment, int commentlen)
+PRIVATE gbuffer_t *source2base64_for_yuneta(const char *source, char *comment, int commentlen)
 {
     /*------------------------------------------------*
      *          Check source
@@ -646,7 +654,7 @@ PRIVATE GBUFFER *source2base64_for_yuneta(const char *source, char *comment, int
         snprintf(comment, commentlen, "source '%s' is not a regular file", path);
         return 0;
     }
-    GBUFFER *gbuf_b64 = gbuf_file2base64(path);
+    gbuffer_t *gbuf_b64 = gbuf_file2base64(path);
     if(!gbuf_b64) {
         snprintf(comment, commentlen, "conversion '%s' to base64 failed", path);
     }
@@ -671,7 +679,7 @@ PRIVATE const char *get_yunetas_base(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE GBUFFER *source2base64_for_yunetas(const char *source, char *comment, int commentlen)
+PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char *comment, int commentlen)
 {
     /*------------------------------------------------*
      *          Check source
@@ -688,7 +696,7 @@ PRIVATE GBUFFER *source2base64_for_yunetas(const char *source, char *comment, in
         snprintf(path, sizeof(path), "%s", source);
     } else {
         const char *yunetas_base = get_yunetas_base();
-        build_path2(path, sizeof(path), yunetas_base, source);
+        build_path(path, sizeof(path), yunetas_base, source, NULL);
     }
 
     if(access(path, 0)!=0) {
@@ -699,7 +707,7 @@ PRIVATE GBUFFER *source2base64_for_yunetas(const char *source, char *comment, in
         snprintf(comment, commentlen, "source '%s' is not a regular file", path);
         return 0;
     }
-    GBUFFER *gbuf_b64 = gbuf_file2base64(path);
+    gbuffer_t *gbuf_b64 = gbuf_file2base64(path);
     if(!gbuf_b64) {
         snprintf(comment, commentlen, "conversion '%s' to base64 failed", path);
     }
@@ -709,9 +717,9 @@ PRIVATE GBUFFER *source2base64_for_yunetas(const char *source, char *comment, in
 /***************************************************************************
  *  $$ interfere with bash, use ^^ as alternative
  ***************************************************************************/
-PRIVATE GBUFFER * replace_cli_vars(hgobj gobj, const char *command, char *comment, int commentlen)
+PRIVATE gbuffer_t * replace_cli_vars(hgobj gobj, const char *command, char *comment, int commentlen)
 {
-    GBUFFER *gbuf = gbuf_create(4*1024, gbmem_get_maximum_block(), 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     char *command_ = gbmem_strdup(command);
     char *p = command_;
 
@@ -723,19 +731,19 @@ PRIVATE GBUFFER * replace_cli_vars(hgobj gobj, const char *command, char *commen
     char *n, *f;
     while((n=strstr(p, prefix))) {
         *n = 0;
-        gbuf_append(gbuf, p, strlen(p));
+        gbuffer_append(gbuf, p, strlen(p));
 
         n += 2;
         if(*n == '(') {
             f = strchr(n, ')');
         } else {
-            gbuf_decref(gbuf);
+            gbuffer_decref(gbuf);
             gbmem_free(command_);
             snprintf(comment, commentlen, "%s", "Bad format of $$: use $$(...) or ^^(...)");
             return 0;
         }
         if(!f) {
-            gbuf_decref(gbuf);
+            gbuffer_decref(gbuf);
             gbmem_free(command_);
             snprintf(comment, commentlen, "%s", "Bad format of $$: use $$(...) or ^^(...)");
             return 0;
@@ -746,25 +754,25 @@ PRIVATE GBUFFER * replace_cli_vars(hgobj gobj, const char *command, char *commen
         f++;
 
         // YunetaS precedence over Yuneta
-        GBUFFER *gbuf_b64 = source2base64_for_yunetas(n, comment, commentlen);
+        gbuffer_t *gbuf_b64 = source2base64_for_yunetas(n, comment, commentlen);
         if(!gbuf_b64) {
             gbuf_b64 = source2base64_for_yuneta(n, comment, commentlen);
             if(!gbuf_b64) {
-                gbuf_decref(gbuf);
+                gbuffer_decref(gbuf);
                 gbmem_free(command_);
                 return 0;
             }
         }
 
-        gbuf_append(gbuf, "'", 1);
-        gbuf_append_gbuf(gbuf, gbuf_b64);
-        gbuf_append(gbuf, "'", 1);
-        gbuf_decref(gbuf_b64);
+        gbuffer_append(gbuf, "'", 1);
+        gbuffer_append_gbuf(gbuf, gbuf_b64);
+        gbuffer_append(gbuf, "'", 1);
+        gbuffer_decref(gbuf_b64);
 
         p = f;
     }
     if(!empty_string(p)) {
-        gbuf_append(gbuf, p, strlen(p));
+        gbuffer_append(gbuf, p, strlen(p));
     }
 
     gbmem_free(command_);
@@ -788,14 +796,14 @@ PRIVATE int execute_command(hgobj gobj)
         printf("\n--> '%s'\n", command);
     }
 
-    GBUFFER *gbuf_parsed_command = replace_cli_vars(gobj, command, comment, sizeof(comment));
+    gbuffer_t *gbuf_parsed_command = replace_cli_vars(gobj, command, comment, sizeof(comment));
     if(!gbuf_parsed_command) {
         printf("Error %s.\n", empty_string(comment)?"replace_cli_vars() FAILED":comment),
         gobj_set_exit_code(-1);
         gobj_shutdown();
         return 0;
     }
-    char *xcmd = gbuf_cur_rd_pointer(gbuf_parsed_command);
+    char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
 
     json_t *kw_clone = 0;
     json_t *kw = sdata_read_json(priv->hs, "kw");
@@ -803,10 +811,10 @@ PRIVATE int execute_command(hgobj gobj)
         kw_clone = msg_iev_pure_clone(kw);
     }
     gobj_command(priv->remote_service, xcmd, kw_clone, gobj);
-    gbuf_decref(gbuf_parsed_command);
+    gbuffer_decref(gbuf_parsed_command);
 
     set_timeout(priv->timer, priv->timeout);
-    gobj_change_state(gobj, "ST_WAIT_RESPONSE");
+    gobj_change_state(gobj, ST_WAIT_RESPONSE);
     return 0;
 }
 
@@ -865,17 +873,17 @@ PRIVATE int tira_dela_cola(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    int result = kw_get_int(kw, "result", -1, KW_REQUIRED);
+    int result = (int)kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
     if(result < 0) {
         if(1) {
-            const char *comment = kw_get_str(kw, "comment", "", 0);
+            const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
             printf("\n%s", comment);
             printf("\nAbort.\n");
         }
         gobj_set_exit_code(-1);
         gobj_shutdown();
     } else {
-        const char *jwt = kw_get_str(kw, "jwt", "", KW_REQUIRED);
+        const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
         cmd_connect(gobj);
     }
@@ -890,7 +898,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *agent_name = kw_get_str(kw, "remote_yuno_name", 0, 0); // remote agent name
+    const char *agent_name = kw_get_str(gobj, kw, "remote_yuno_name", 0, 0); // remote agent name
 
     printf("Connected to '%s'.\n", agent_name);
 
@@ -975,8 +983,8 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
         }
     }
 
-    int result = kw_get_int(kw, "result", -1, 0);
-    const char *comment = kw_get_str(kw, "comment", "", 0);
+    int result = kw_get_int(gobj, kw, "result", -1, 0);
+    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     BOOL ignore_fail = sdata_read_bool(priv->hs, "ignore_fail");
     if(!ignore_fail && result < 0) {
         /*
@@ -1015,8 +1023,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    log_error(0,
-        "gobj",         "%s", gobj_full_name(gobj),
+    gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
         "msg",          "%s", "Timeout",
@@ -1032,161 +1039,121 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {"EV_ON_TOKEN",                 0,  0,  0},
-    {"EV_ON_OPEN",                  0, 0, 0},
-    {"EV_ON_CLOSE",                 0, 0, 0},
-    {"EV_MT_STATS_ANSWER",          EVF_PUBLIC_EVENT, 0, 0},
-    {"EV_MT_COMMAND_ANSWER",        EVF_PUBLIC_EVENT, 0, 0},
-    // bottom input
-    {"EV_STOPPED",                  0, 0, 0},
-    {"EV_TIMEOUT",                  0, 0, 0},
-    // internal
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_DISCONNECTED",
-    "ST_CONNECTED",
-    "ST_WAIT_RESPONSE",
-    NULL
-};
-
-PRIVATE EV_ACTION ST_DISCONNECTED[] = {
-    {"EV_ON_TOKEN",                 ac_on_token,                0},
-    {"EV_ON_OPEN",                  ac_on_open,                 "ST_CONNECTED"},
-    {"EV_ON_CLOSE",                 ac_on_close,                0},
-    {"EV_STOPPED",                  0,                          0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_CONNECTED[] = {
-    {"EV_ON_CLOSE",                 ac_on_close,                "ST_DISCONNECTED"},
-    {"EV_STOPPED",                  0,                          0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_WAIT_RESPONSE[] = {
-    {"EV_ON_CLOSE",                 ac_on_close,                "ST_DISCONNECTED"},
-    {"EV_MT_STATS_ANSWER",          ac_mt_command_answer,       0},
-    {"EV_MT_COMMAND_ANSWER",        ac_mt_command_answer,       0},
-    {"EV_TIMEOUT",                  ac_timeout,                 0},
-    {"EV_STOPPED",                  0,                          0},
-    {0,0,0}
-};
-
-
-PRIVATE EV_ACTION *states[] = {
-    ST_DISCONNECTED,
-    ST_CONNECTED,
-    ST_WAIT_RESPONSE,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
-
-/***************************************************************************
- *              GClass
- ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
 
 /*---------------------------------------------*
- *              GClass
+ *          Global methods table
  *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_YBATCH_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0,  // command_table,
-    0,  // gcflag
+PRIVATE const GMETHODS gmt = {
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_writing     = mt_writing,
 };
 
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_YBATCH);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+
 /***************************************************************************
- *              Public access
+ *          Create the GClass
  ***************************************************************************/
-PUBLIC GCLASS *gclass_ybatch(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*------------------------*
+     *      States
+     *------------------------*/
+    ev_action_t st_disconnected[] = {
+        {EV_ON_TOKEN,           ac_on_token,                0},
+        {EV_ON_OPEN,            ac_on_open,                 ST_CONNECTED},
+        {EV_ON_CLOSE,           ac_on_close,                0},
+        {EV_STOPPED,            0,                          0},
+        {0,0,0}
+    };
+
+    ev_action_t st_connected[] = {
+        {EV_ON_CLOSE,           ac_on_close,                ST_DISCONNECTED},
+        {EV_STOPPED,            0,                          0},
+        {0,0,0}
+    };
+
+    ev_action_t st_wait_response[] = {
+        {EV_ON_CLOSE,           ac_on_close,                ST_DISCONNECTED},
+        {EV_MT_STATS_ANSWER,    ac_mt_command_answer,       0},
+        {EV_MT_COMMAND_ANSWER,  ac_mt_command_answer,       0},
+        {EV_TIMEOUT,            ac_timeout,                 0},
+        {EV_STOPPED,            0,                          0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_DISCONNECTED,       st_disconnected},
+        {ST_CONNECTED,          st_connected},
+        {ST_WAIT_RESPONSE,      st_wait_response},
+        {0, 0}
+    };
+
+    /*------------------------*
+     *      Events
+     *------------------------*/
+    event_type_t event_types[] = {
+        {EV_MT_STATS_ANSWER,    EVF_PUBLIC_EVENT},
+        {EV_MT_COMMAND_ANSWER,  EVF_PUBLIC_EVENT},
+        {EV_ON_TOKEN,           0},
+        {EV_ON_OPEN,            0},
+        {EV_ON_CLOSE,           0},
+        {EV_STOPPED,            0},
+        {EV_TIMEOUT,            0},
+        {NULL, 0}
+    };
+
+    /*----------------------------------------*
+     *          Register GClass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // Local methods table (LMT)
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // Authorization table
+        0,  // Command table
+        s_user_trace_level,
+        0   // GClass flags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *          Public access
+ ***************************************************************************/
+PUBLIC int register_c_ybatch(void)
+{
+    return create_gclass(C_YBATCH);
 }
