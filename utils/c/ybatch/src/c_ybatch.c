@@ -459,7 +459,7 @@ PRIVATE int extrae_json(hgobj gobj)
  ***************************************************************************/
 PRIVATE char agent_config[]= "\
 {                                               \n\
-    'name': '(^^__url__^^)',                    \n\
+    'name': 'agent_client',                    \n\
     'gclass': 'IEvent_cli',                     \n\
     'as_service': true,                          \n\
     'kw': {                                     \n\
@@ -469,19 +469,19 @@ PRIVATE char agent_config[]= "\
     },                                          \n\
     'zchilds': [                                 \n\
         {                                               \n\
-            'name': '(^^__url__^^)',                    \n\
+            'name': 'agent_client',                    \n\
             'gclass': 'IOGate',                         \n\
             'kw': {                                     \n\
             },                                          \n\
             'zchilds': [                                 \n\
                 {                                               \n\
-                    'name': '(^^__url__^^)',                    \n\
+                    'name': 'agent_client',                    \n\
                     'gclass': 'Channel',                        \n\
                     'kw': {                                     \n\
                     },                                          \n\
                     'zchilds': [                                 \n\
                         {                                               \n\
-                            'name': '(^^__url__^^)',                    \n\
+                            'name': 'agent_client',                    \n\
                             'gclass': 'GWebSocket',                     \n\
                             'kw': {                                     \n\
                                 'kw_connex': {                              \n\
@@ -514,13 +514,12 @@ PRIVATE int cmd_connect(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t *jn_config_variables = json_pack("{s:{s:s, s:s, s:s, s:s, s:s}}",
-        "__json_config_variables__",
-            "__jwt__", jwt,
-            "__url__", url,
-            "__yuno_name__", yuno_name,
-            "__yuno_role__", yuno_role,
-            "__yuno_service__", yuno_service
+    json_t *jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+        "__jwt__", jwt,
+        "__url__", url,
+        "__yuno_name__", yuno_name,
+        "__yuno_role__", yuno_role,
+        "__yuno_service__", yuno_service
     );
 
     /*
