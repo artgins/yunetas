@@ -111,7 +111,7 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
-        'timeout': 200,                                             \n\
+        'periodic_timeout': 200,                                    \n\
         'trace_levels': {                                           \n\
             'Tcp0': ['connections']                                 \n\
         }                                                           \n\
@@ -121,7 +121,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'ybatch',                                       \n\
-            'gclass': 'YBatch',                                     \n\
+            'gclass': 'C_YBATCH',                                   \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -298,8 +298,7 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     if(arguments.verbose > 0) {
-        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents", TRUE);
-        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "kw", TRUE);
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
     }
     if(arguments.verbose > 1) {
         gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
@@ -377,18 +376,18 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
             "global",
-            "YBatch.verbose", arguments.verbose,
-            "YBatch.path", path,
-            "YBatch.auth_system", arguments.auth_system,
-            "YBatch.auth_url", arguments.auth_url,
-            "YBatch.user_id", arguments.user_id,
-            "YBatch.user_passw", arguments.user_passw,
-            "YBatch.jwt", arguments.jwt,
-            "YBatch.url", arguments.url,
-            "YBatch.azp", arguments.azp,
-            "YBatch.yuno_role", arguments.yuno_role,
-            "YBatch.yuno_name", arguments.yuno_name,
-            "YBatch.yuno_service", arguments.yuno_service
+            "C_YBATCH.verbose", arguments.verbose,
+            "C_YBATCH.path", path,
+            "C_YBATCH.auth_system", arguments.auth_system,
+            "C_YBATCH.auth_url", arguments.auth_url,
+            "C_YBATCH.user_id", arguments.user_id,
+            "C_YBATCH.user_passw", arguments.user_passw,
+            "C_YBATCH.jwt", arguments.jwt,
+            "C_YBATCH.url", arguments.url,
+            "C_YBATCH.azp", arguments.azp,
+            "C_YBATCH.yuno_role", arguments.yuno_role,
+            "C_YBATCH.yuno_name", arguments.yuno_name,
+            "C_YBATCH.yuno_service", arguments.yuno_service
         );
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
         if(!param1_) {

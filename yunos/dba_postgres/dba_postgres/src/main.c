@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
      *  To trace memory you also need
      *  link with ghelpersd library
      *------------------------------------------------*/
-#ifdef DEBUG
+#ifdef CONFIG_BUILD_TYPE_RELEASE
     static uint32_t mem_list[] = {0};
     gbmem_trace_alloc_free(0, mem_list);
 #endif

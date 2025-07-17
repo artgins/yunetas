@@ -407,10 +407,10 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *  To trace memory
      *------------------------------------------------*/
-#ifdef DEBUG
-    BOOL debug_memory = 0;
-    static uint32_t mem_list[] = {14740, 0};
-    gbmem_trace_alloc_free(debug_memory, mem_list);
+#ifndef CONFIG_BUILD_TYPE_RELEASE
+//    BOOL debug_memory = 0;
+//    static uint32_t mem_list[] = {14740, 0};
+//    gbmem_trace_alloc_free(debug_memory, mem_list);
 #endif
 
     int log_handler_options = -1;
@@ -460,7 +460,7 @@ int main(int argc, char *argv[])
 
     gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);
 
-#ifdef DEBUG
+#ifndef CONFIG_BUILD_TYPE_RELEASE
     if(debug_memory) {
         log_handler_options &= ~LOG_HND_OPT_BEATIFUL_JSON;
     }

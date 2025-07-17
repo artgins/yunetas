@@ -689,7 +689,7 @@ int main(int argc, char *argv[])
         free_func
     );
 
-#ifdef DEBUG
+#ifndef CONFIG_BUILD_TYPE_RELEASE
     init_backtrace_with_backtrace(argv[0]);
     set_show_backtrace_fn(show_backtrace_with_backtrace);
 #endif

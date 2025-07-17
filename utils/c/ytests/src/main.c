@@ -402,7 +402,7 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *  To trace memory
      *------------------------------------------------*/
-#ifdef DEBUG
+#ifndef CONFIG_BUILD_TYPE_RELEASE
     static uint32_t mem_list[] = {0};
     gbmem_trace_alloc_free(0, mem_list);
 #endif
