@@ -19,7 +19,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-
 SET (YUNO_SRCS
     src/main.c
     src/c_emailsender.c
@@ -33,41 +32,43 @@ SET (YUNO_HDRS
 ##############################################
 #   yuno
 ##############################################
-ADD_EXECUTABLE(emailsender ${YUNO_SRCS} ${YUNO_HDRS})
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
-TARGET_LINK_LIBRARIES(emailsender
-    /yuneta/development/output/lib/libyuneta-core.a
-    /yuneta/development/output/lib/libginsfsm.a
-    /yuneta/development/output/lib/libghelpers.a
-    /yuneta/development/output/lib/libuv.a
-    /yuneta/development/output/lib/libjansson.a
-    /yuneta/development/output/lib/libunwind.a
-    /yuneta/development/output/lib/libpcre2-8.a
-    /yuneta/development/output/lib/libcurl.a
-    /yuneta/development/output/lib/libssl.a
-    /yuneta/development/output/lib/libcrypto.a
-
-    pthread dl  # used by libuv
-    lzma        # used by libunwind
-
-    dl z
-    uuid
-    m
-    util
+target_link_libraries(${PROJECT_NAME}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
 )
-
-# if(LIBIDN_FOUND)
-#     target_link_libraries(${PROJECT_NAME} ${LIBIDN_LIBRARIES})
-# endif()
 
 ##############################################
 #   Installation
 ##############################################
 install(
-    TARGETS emailsender
+    TARGETS ${PROJECT_NAME}
     PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    DESTINATION ${BIN_DEST_DIR}
+    #    DESTINATION ${BIN_DEST_DIR}
+    DESTINATION "/yuneta/bin"
 )
+
+# compile in Release mode :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release ..
+#
+# compile in Release mode optimized but adding debug symbols, useful for profiling :
+#
+#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+#
+# compile with NO optimization and adding debug symbols :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Debug ..
+#
+# compile to build static binary :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
+#

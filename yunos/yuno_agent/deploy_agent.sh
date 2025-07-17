@@ -34,7 +34,7 @@
 #
 #   Configuration of /yuneta directory:
 #
-#       chown yuneta:gyuneta /yuneta
+#       chown yuneta:yuneta /yuneta
 #       chmod 775 /yuneta
 #       chmod g+s /yuneta
 #
@@ -120,6 +120,9 @@
 #
 #
 
+#  Exit immediately if a command exits with a non-zero status.
+set -e
+
 BINARY_AGENT=/yuneta/development/output/agent/yuneta_agent
 CONFIG_AGENT=/yuneta/development/output/agent/yuneta_agent.json
 cp -v $BINARY_AGENT /yuneta/agent/
@@ -135,15 +138,11 @@ cp -v -n -a $CERTS_SCRIPTS /yuneta/agent/certs
 BINARY_CLI=/yuneta/development/output/agent/yuneta
 BINARY_BATCH=/yuneta/development/output/agent/ybatch
 BINARY_YSHUTDOWN=/yuneta/development/output/agent/yshutdown
-BINARY_YLIST=/yuneta/development/output/agent/ylist
-BINARY_YTESTCONFIG=/yuneta/development/output/agent/ytestconfig
 BINARY_YSTATS=/yuneta/development/output/agent/ystats
-BINARY_YTESTS=/yuneta/development/output/agent/ytests
 BINARY_YCOMMAND=/yuneta/development/output/agent/ycommand
 
 mkdir -p /yuneta/bin/
 
 cp -v $BINARY_CLI $BINARY_BATCH \
-    $BINARY_YSHUTDOWN $BINARY_YLIST $BINARY_YSTATS $BINARY_YCOMMAND \
-    $BINARY_YTESTCONFIG $BINARY_YTESTS \
+    $BINARY_YSHUTDOWN $BINARY_YSTATS $BINARY_YCOMMAND \
     /yuneta/bin/

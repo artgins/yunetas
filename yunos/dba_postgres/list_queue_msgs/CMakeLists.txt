@@ -19,7 +19,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-
 SET (YUNO_SRCS
     list_queue_msgs.c
 )
@@ -27,32 +26,43 @@ SET (YUNO_SRCS
 ##############################################
 #   yuno
 ##############################################
-ADD_EXECUTABLE(list_queue_msgs ${YUNO_SRCS} ${YUNO_HDRS})
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
-TARGET_LINK_LIBRARIES(list_queue_msgs
-    /yuneta/development/output/lib/libyuneta-core.a
-    /yuneta/development/output/lib/libginsfsm.a
-    /yuneta/development/output/lib/libghelpers.a
-    /yuneta/development/output/lib/libuv.a
-    /yuneta/development/output/lib/libjansson.a
-    /yuneta/development/output/lib/libunwind.a
-    /yuneta/development/output/lib/libpcre2-8.a
-
-    pthread dl  # used by libuv
-    lzma        # used by libunwind
-    uuid
-    m
-    util
+target_link_libraries(${PROJECT_NAME}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
 )
 
 ##############################################
 #   Installation
 ##############################################
 install(
-    TARGETS list_queue_msgs
+    TARGETS ${PROJECT_NAME}
     PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    DESTINATION ${BIN_DEST_DIR}
+    #    DESTINATION ${BIN_DEST_DIR}
+    DESTINATION "/yuneta/bin"
 )
+
+# compile in Release mode :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release ..
+#
+# compile in Release mode optimized but adding debug symbols, useful for profiling :
+#
+#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+#
+# compile with NO optimization and adding debug symbols :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Debug ..
+#
+# compile to build static binary :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
+#

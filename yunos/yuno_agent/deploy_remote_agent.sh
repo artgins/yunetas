@@ -1,5 +1,8 @@
 #!/bin/sh
 
+#  Exit immediately if a command exits with a non-zero status.
+set -e
+
 ssh yuneta@$1 "/yuneta/bin/yshutdown"
 scp -p \
     /yuneta/bin/ybatch \
@@ -9,7 +12,8 @@ scp -p \
     /yuneta/bin/ytestconfig \
     /yuneta/bin/yuneta \
     /yuneta/bin/yshutdown \
-    /yuneta/bin/tranger_list \
+    /yuneta/bin/tr2list \
+    /yuneta/bin/tr2keys \
     /yuneta/bin/trq_list \
     /yuneta/bin/msg2db_list \
     /yuneta/bin/time2date \

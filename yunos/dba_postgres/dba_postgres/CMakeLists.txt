@@ -19,7 +19,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-
 SET (YUNO_SRCS
     src/main.c
     src/c_dba_postgres.c
@@ -31,42 +30,29 @@ SET (YUNO_HDRS
 ##############################################
 #   yuno
 ##############################################
-ADD_EXECUTABLE(dba_postgres ${YUNO_SRCS} ${YUNO_HDRS})
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
-TARGET_LINK_LIBRARIES(dba_postgres
-    /yuneta/development/output/lib/libyuneta-postgres.a
-    /yuneta/development/output/lib/libyuneta-tls.a
-    /yuneta/development/output/lib/libyuneta-core.a
-    /yuneta/development/output/lib/libginsfsm.a
-    /yuneta/development/output/lib/libytls.a
-    /yuneta/development/output/lib/libghelpers.a
-    /yuneta/development/output/lib/libuv.a
-    /yuneta/development/output/lib/libjwt.a
-    /yuneta/development/output/lib/libjansson.a
-    /yuneta/development/output/lib/libunwind.a
-    /yuneta/development/output/lib/libpcre2-8.a
-    /yuneta/development/output/lib/libssl.a
-    /yuneta/development/output/lib/libcrypto.a
-
+target_link_libraries(${PROJECT_NAME}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
     pq          # postgres, WARNING this library use openssl of distribution
-
-    pthread dl  # used by libuv
-    lzma        # used by libunwind
-    uuid
-    z rt m
-    util
 )
 
 ##############################################
 #   Installation
 ##############################################
 install(
-    TARGETS dba_postgres
+    TARGETS ${PROJECT_NAME}
     PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    DESTINATION ${BIN_DEST_DIR}
+    #    DESTINATION ${BIN_DEST_DIR}
+    DESTINATION "/yuneta/bin"
 )
 
 # compile in Release mode :
@@ -84,5 +70,4 @@ install(
 # compile to build static binary :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
-#
 #
