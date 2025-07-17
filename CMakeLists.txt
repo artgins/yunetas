@@ -51,15 +51,22 @@ if (ENABLE_STRESS)
     add_subdirectory(stress/c)
 endif ()
 
+# compile in Release mode :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release ..
+#
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #
-#   mkdir build && cd build
-#   cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 #
-# or compile with NO optimization and adding debug symbols :
+# compile with NO optimization and adding debug symbols :
 #
-#   mkdir build && cd build
-#   cmake -DCMAKE_BUILD_TYPE=Debug ..
+#     cmake -DCMAKE_BUILD_TYPE=Debug ..
+#
+# compile to build static binary :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
+#
 #
 
 

@@ -57,13 +57,20 @@ add_test(NAME ${PROJECT_NAME} COMMAND ${PROJECT_NAME})
 #    DESTINATION ${YUNOS_DEST_DIR}
 #)
 
+# compile in Release mode :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release ..
+#
 # compile in Release mode optimized but adding debug symbols, useful for profiling :
 #
 #     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 #
-# or compile with NO optimization and adding debug symbols :
+# compile with NO optimization and adding debug symbols :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Debug ..
 #
-# Compilando para ARM poner cmake -DNOT_INCLUDE_LIBUNWIND
+# compile to build static binary :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
+#
 #
