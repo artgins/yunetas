@@ -16,7 +16,6 @@ else()
 endif()
 include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
-
 ##############################################
 #   Source
 ##############################################
