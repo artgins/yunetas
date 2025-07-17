@@ -8,6 +8,7 @@
  *              All Rights Reserved.
  ***********************************************************************/
 #include <ctype.h>
+#include <sys/stat.h>
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
@@ -882,6 +883,45 @@ PUBLIC gbuffer_t *gbuffer_string_to_base64(const char *src, size_t len)
 
     }
     gbuffer_set_wr(gbuf_output, encoded);
+    return gbuf_output;
+}
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PUBLIC gbuffer_t *gbuffer_file2base64(const char *path)
+{
+    FILE *infile = fopen(path, "rb");
+    if(!infile) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Cannot open file",
+            "path",         "%s", path,
+            NULL
+        );
+        return 0;
+    }
+    struct stat buf;
+    fstat(fileno(infile), &buf);
+    size_t len = buf.st_size;
+    char *bf = gbmem_malloc(len);
+    if(!bf) {
+        fclose(infile);
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "No memory",
+            "len",          "%d", (int)len,
+            NULL
+        );
+        return 0;
+    }
+    fread(bf, len, 1, infile);
+    fclose(infile);
+
+    gbuffer_t *gbuf_output = gbuffer_string_to_base64(bf, len);
+    gbmem_free(bf);
     return gbuf_output;
 }
 

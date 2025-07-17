@@ -56,7 +56,6 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */
 SDATA (DTP_INTEGER,     "verbose",          0,          0,              "Verbose mode."),
 SDATA (DTP_STRING,      "path",             0,          0,              "Batch filename to execute."),
-SDATA (DTP_INTEGER,     "repeat",           0,          1,              "Repeat the execution of the batch. -1 infinite"),
 SDATA (DTP_INTEGER,     "pause",            0,          0,              "Pause between executions"),
 
 SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
@@ -95,12 +94,12 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     int32_t timeout;
     int32_t pause;
-    int32_t repeat;
     int verbose;
     const char *path;
     hgobj timer;
     hgobj remote_service;
     json_t *batch_iter;
+    json_t *hs;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -132,7 +131,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout,               gobj_read_integer_attr)
     SET_PRIV(pause,                 gobj_read_integer_attr)
     SET_PRIV(verbose,               gobj_read_integer_attr)
-    SET_PRIV(repeat,                gobj_read_integer_attr)
     SET_PRIV(path,                  gobj_read_str_attr)
 }
 
@@ -569,7 +567,7 @@ PRIVATE int cmd_connect(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:{s:s, s:s, s:s, s:s, s:s}}",
+    json_t *jn_config_variables = json_pack("{s:{s:s, s:s, s:s, s:s, s:s}}",
         "__json_config_variables__",
             "__jwt__", jwt,
             "__url__", url,
@@ -577,8 +575,6 @@ PRIVATE int cmd_connect(hgobj gobj)
             "__yuno_role__", yuno_role,
             "__yuno_service__", yuno_service
     );
-    char *sjson_config_variables = json2str(jn_config_variables);
-    JSON_DECREF(jn_config_variables);
 
     /*
      *  Get schema to select tls or not
@@ -612,11 +608,8 @@ PRIVATE int cmd_connect(hgobj gobj)
     hgobj gobj_remote_agent = gobj_create_tree(
         gobj,
         agent_config,
-        sjson_config_variables,
-        "EV_ON_SETUP",
-        "EV_ON_SETUP_COMPLETE"
+        jn_config_variables // owned
     );
-    gbmem_free(sjson_config_variables);
 
     gobj_start_tree(gobj_remote_agent);
 
@@ -657,7 +650,7 @@ PRIVATE gbuffer_t *source2base64_for_yuneta(const char *source, char *comment, i
         snprintf(comment, commentlen, "source '%s' is not a regular file", path);
         return 0;
     }
-    gbuffer_t *gbuf_b64 = gbuf_file2base64(path);
+    gbuffer_t *gbuf_b64 = gbuffer_file2base64(path);
     if(!gbuf_b64) {
         snprintf(comment, commentlen, "conversion '%s' to base64 failed", path);
     }
@@ -710,7 +703,7 @@ PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char *comment, 
         snprintf(comment, commentlen, "source '%s' is not a regular file", path);
         return 0;
     }
-    gbuffer_t *gbuf_b64 = gbuf_file2base64(path);
+    gbuffer_t *gbuf_b64 = gbuffer_file2base64(path);
     if(!gbuf_b64) {
         snprintf(comment, commentlen, "conversion '%s' to base64 failed", path);
     }
@@ -785,11 +778,11 @@ PRIVATE gbuffer_t * replace_cli_vars(hgobj gobj, const char *command, char *comm
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int execute_command(hgobj gobj)
+PRIVATE int execute_command(hgobj gobj, json_t *kw_command)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *command = sdata_read_str(priv->hs, "command");
+    const char *command = kw_get_str(gobj, kw_command, "command", 0, 0);
     if(!command) {
         printf("\nError: no command\n");
         return 0;
@@ -809,9 +802,9 @@ PRIVATE int execute_command(hgobj gobj)
     char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
 
     json_t *kw_clone = 0;
-    json_t *kw = sdata_read_json(priv->hs, "kw");
+    json_t *kw = kw_get_dict(gobj, kw_command, "kw", 0, 0);
     if(kw) {
-        kw_clone = msg_iev_pure_clone(kw);
+        kw_clone = json_deep_copy(msg_iev_clean_metadata(kw));
     }
     gobj_command(priv->remote_service, xcmd, kw_clone, gobj);
     gbuffer_decref(gbuf_parsed_command);
@@ -831,12 +824,13 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     /*
      *  A por el próximo command
      */
-    priv->i_hs = rc_next_instance(priv->i_hs, (rc_resource_t **)&priv->hs);
-    if(priv->i_hs) {
+    JSON_DECREF(priv->hs)
+    priv->hs = kw_get_list_value(gobj, priv->batch_iter, 0, KW_EXTRACT);
+    if(priv->hs) {
         /*
          *  Hay mas comandos
          */
-        return execute_command(gobj);
+        return execute_command(gobj, priv->hs);
     }
 
     /*
@@ -844,20 +838,11 @@ PRIVATE int tira_dela_cola(hgobj gobj)
      *  Se ha terminado el ciclo
      *  Mira si se repite
      */
-    if(priv->repeat > 0) {
-        priv->repeat--;
+    if(priv->verbose) {
+        printf("\n==> All done!\n\n");
     }
-
-    if(priv->repeat == -1 || priv->repeat > 0) {
-        priv->i_hs = rc_first_instance(&priv->batch_iter, (rc_resource_t **)&priv->hs);
-        execute_command(gobj);
-    } else {
-        if(priv->verbose) {
-            printf("\n==> All done!\n\n");
-        }
-        gobj_set_exit_code(0);
-        gobj_shutdown();
-    }
+    gobj_set_exit_code(0);
+    gobj_shutdown();
 
     return 0;
 }
@@ -907,17 +892,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     priv->remote_service = src;
 
-    /*
-     *  Empieza la tralla
-     */
-    priv->i_hs = rc_first_instance(&priv->batch_iter, (rc_resource_t **)&priv->hs);
-    if(priv->i_hs) {
-        execute_command(gobj);
-    } else {
-        printf("No commands to execute.\n"),
-        gobj_set_exit_code(-1);
-        gobj_shutdown();
-    }
+    tira_dela_cola(gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -963,11 +938,11 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *command = sdata_read_str(priv->hs, "command");
-    json_t *jn_response_filter = sdata_read_json(priv->hs, "response_filter");
+    const char *command = kw_get_str(gobj, priv->hs, "command", "", KW_REQUIRED);
+    json_t *jn_response_filter = kw_get_dict(gobj, priv->hs, "response_filter", 0, 0);
 
     if(jn_response_filter) {
-        json_t *jn_data = WEBIX_DATA(kw);
+        json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
         json_t *jn_tocmp = jn_data;
         if(json_is_array(jn_data)) {
             jn_tocmp = json_array_get(jn_data, 0);
@@ -988,7 +963,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
 
     int result = kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
-    BOOL ignore_fail = sdata_read_bool(priv->hs, "ignore_fail");
+    BOOL ignore_fail = kw_get_bool(gobj, priv->hs, "ignore_fail", 0, 0);
     if(!ignore_fail && result < 0) {
         /*
          *  Comando con error y sin ignorar error, aborta

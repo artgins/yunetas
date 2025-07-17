@@ -267,6 +267,7 @@ PUBLIC gbuffer_t *gbuffer_deserialize(
  *  Old gbuf_string2base64
  */
 PUBLIC gbuffer_t *gbuffer_string_to_base64(const char* src, size_t len); // base64 without newlines
+PUBLIC gbuffer_t *gbuffer_file2base64(const char *path);
 
 /*
  *  Decode from base64

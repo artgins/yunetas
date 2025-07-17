@@ -469,13 +469,14 @@ PUBLIC json_t *msg_iev_build_response_without_reverse_dst( // OLD msg_iev_build_
  *      __md_yuno__
  *  TODO shouldn't everything "__" be deleted?
  ***************************************************************************/
-PUBLIC void msg_iev_clean_metadata( // OLD ~ msg_iev_pure_clone()
+PUBLIC json_t *msg_iev_clean_metadata( // return the same kw, OLD ~ msg_iev_pure_clone()
     json_t *kw // not owned
 ) {
-    json_object_del((kw), "__md_iev__");
-    json_object_del((kw), "__temp__");
-    json_object_del((kw), "__md_tranger__");
-    json_object_del((kw), "__md_yuno__");
+    json_object_del(kw, "__md_iev__");
+    json_object_del(kw, "__temp__");
+    json_object_del(kw, "__md_tranger__");
+    json_object_del(kw, "__md_yuno__");
+    return kw;
 }
 
 /***************************************************************************

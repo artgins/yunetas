@@ -9,9 +9,7 @@
  ****************************************************************************/
 #include <argp.h>
 #include <unistd.h>
-#include <yuneta_tls.h>
 #include "c_ybatch.h"
-#include "yuno_ybatch.h"
 
 /***************************************************************************
  *              Structures
@@ -26,7 +24,6 @@ struct arguments
     char *args[MAX_ARGS+1];     /* positional args */
 
     int print_role;
-    int repeat;                 /* repeat time, in seconds (0 remove subscription) */
     char *url;
     char *azp;
     char *yuno_role;
@@ -161,7 +158,6 @@ static struct argp_option options[] = {
 {"yuno_service",    'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 30},
 
 {0,                 0,      0,          0,      "Local keys", 40},
-{"repeat",          't',    "TIMES",    0,      "Repeat execution 'repeat' times. Set -1 to infinite loop. Default: 1", 40},
 {"print",           'p',    0,          0,      "Print configuration.", 40},
 {"config-file",     'f',    "FILE",     0,      "load settings from json config file or [files]", 40},
 {"print-role",      'r',    0,          0,      "print the basic yuno's information"},
@@ -206,12 +202,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
         break;
     case 'j':
         arguments->jwt = arg;
-        break;
-
-    case 't':
-        if(arg) {
-            arguments->repeat = atoi(arg);
-        }
         break;
 
     case 'u':
@@ -309,7 +299,6 @@ int main(int argc, char *argv[])
      *  Default values
      */
     memset(&arguments, 0, sizeof(arguments));
-    arguments.repeat = 1;
     arguments.url = "ws://127.0.0.1:1991";
     arguments.azp="";
     arguments.yuno_role = "yuneta_agent";
@@ -363,7 +352,6 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
             "global",
-            "YBatch.repeat", arguments.repeat,
             "YBatch.verbose", arguments.verbose,
             "YBatch.path", path,
             "YBatch.auth_system", arguments.auth_system,
