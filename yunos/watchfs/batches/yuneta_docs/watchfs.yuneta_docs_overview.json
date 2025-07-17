@@ -1,0 +1,13 @@
+{
+    "global":{
+        "Fs.info": false,
+        "Watchfs.kw": {
+            "info": false,
+            "command":"make html > watchfs.log;",
+            "path":"/yuneta/development/yuneta/^yuneta/docs/docs/overview",
+            "recursive":true,
+            "patterns":".*\\.py;.*\\.mako;.*\\.js;.*\\.css;.*\\.css_t;.*\\.scss;.*\\.rst;.*\\.json;.*\\.conf;.*\\.html;",
+            "ignore_renamed_event":true
+        }
+    }
+}

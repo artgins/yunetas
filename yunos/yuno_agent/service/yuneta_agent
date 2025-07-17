@@ -1,0 +1,51 @@
+#!/bin/bash
+#
+#   Linux kernel module init script
+#   To be started on boot up on Debian systems:
+#       - ``update-rc.d yuneta_agent defaults``
+#
+#   Better tools to see rc?.d:
+#       - ``sysv-rc-conf``
+#       - ``chkconfig`` (on RedHat's systems)
+#
+#
+# chkconfig: 35 30 70
+# description: Yuneta service
+#
+### BEGIN INIT INFO
+# Provides:       yuneta_agent
+# Required-Start: $local_fs $remote_fs $network $time $syslog $named
+# Required-Stop:  $local_fs $remote_fs $network $time $syslog $named
+# Default-Start:  2 3 4 5
+# Default-Stop:   0 1 6
+# Short-Description: Yuneta Agent service
+### END INIT INFO
+
+PATH=/sbin:/usr/sbin:/bin:/usr/bin
+DESC="Yuneta Agent service"
+DAEMON=/yuneta/agent/yuneta_agent
+SCRIPTNAME=/etc/init.d/yuneta_agent
+
+# Exit if the package is not installed
+[ -x "$DAEMON" ] || echo "'$DAEMON' daemon NOT FOUND"
+[ -x "$DAEMON" ] || exit 1
+
+case "$1" in
+  start)
+    echo -n "Starting yuneta agent service: "
+    su - yuneta -c "$DAEMON --start --config-file=/yuneta/agent/yuneta_agent.json"
+    /yuneta/bin/nginx/sbin/nginx
+    su - yuneta -c "/yuneta/agent/yuneta_agent22 --start --config-file=/yuneta/agent/yuneta_agent22.json"
+    echo
+    ;;
+  stop)
+    echo -n "Stopping yuneta agent service: "
+    /yuneta/bin/yshutdown
+    echo
+    ;;
+  *)
+    echo $"Usage: $0 {start|stop}"
+    exit 1
+esac
+
+exit 0

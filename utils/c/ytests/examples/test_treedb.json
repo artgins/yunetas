@@ -1,0 +1,43 @@
+{
+    "command": "command-yuno id=1911 service=treedb_authzs command=create-node topic_name=users record='{\"id\":\"carlos4@mulesol.es\"}'",
+    "_kw": {},
+    "ignore_fail": true,
+    "filter": ["result", "comment", "data"],
+    "without_metadata": true,
+    "without_private": false,
+    "response":
+        {
+            "result": 0,
+            "comment": "Node created!",
+            "data": {
+                "id": "carlos4@mulesol.es",
+                "roles": [],
+                "disabled": false,
+                "properties": {},
+                "_geometry": {}
+            }
+        }
+}
+
+
+{
+    "command": "command-yuno id=1911 service=treedb_authzs command=delete-node topic_name=users record='{\"id\":\"carlos4@mulesol.es\"}'",
+    "_kw": {},
+    "ignore_fail": true,
+    "filter": ["result", "comment", "data"],
+    "without_metadata": true,
+    "without_private": false,
+    "response":
+        {
+            "result": 0,
+            "comment": "Node deleted",
+            "data": {
+                "id": "carlos4@mulesol.es",
+                "roles": [],
+                "disabled": false,
+                "properties": {},
+                "_geometry": {}
+            }
+        }
+}
+

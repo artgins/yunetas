@@ -1,0 +1,20 @@
+{"command": "install-binary watchfs id=4 content64=$$(watchfs)"}
+
+{"command": "create-config watchfs.yuneta_docs_web id=40 version=1 description='yuneta_docs_web' content64=$$(./watchfs.yuneta_docs_web.json)"}
+
+{"command": "create-config watchfs.yuneta_docs_overview id=41 version=1 description='yuneta_docs_overview' content64=$$(./watchfs.yuneta_docs_overview.json)"}
+
+{"command": "create-config watchfs.yuneta_docs_installation id=42 version=1 description='yuneta_docs_installation' content64=$$(./watchfs.yuneta_docs_installation.json)"}
+
+{"command": "create-config watchfs.yuneta_docs_downloads id=43 version=1 description='yuneta_docs_downloads' content64=$$(./watchfs.yuneta_docs_downloads.json)"}
+
+{"command": "create-config watchfs.yuneta_docs_tutorials id=44 version=1 description='yuneta_docs_tutorials' content64=$$(./watchfs.yuneta_docs_tutorials.json)"}
+
+{"command": "create-config watchfs.yuneta_docs_api id=45 version=1 description='yuneta_docs_api' content64=$$(./watchfs.yuneta_docs_api.json)"}
+
+{"command": "create-yuno realm_name=utils yuno_role=watchfs yuno_name=yuneta_docs_web id=40"}
+{"command": "create-yuno realm_name=utils yuno_role=watchfs yuno_name=yuneta_docs_overview id=41"}
+{"command": "create-yuno realm_name=utils yuno_role=watchfs yuno_name=yuneta_docs_installation id=42"}
+{"command": "create-yuno realm_name=utils yuno_role=watchfs yuno_name=yuneta_docs_downloads id=43"}
+{"command": "create-yuno realm_name=utils yuno_role=watchfs yuno_name=yuneta_docs_tutorials id=44"}
+{"command": "create-yuno realm_name=utils yuno_role=watchfs yuno_name=yuneta_docs_api id=45"}

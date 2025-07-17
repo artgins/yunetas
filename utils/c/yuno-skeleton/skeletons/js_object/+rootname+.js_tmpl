@@ -1,0 +1,55 @@
+/***********************************************************************
+ *          {{rootname}}.js
+ *
+ *          {{description}}
+ *
+ *          Copyright (c) {{__year__}}, {{author}}.
+ *          All Rights Reserved.
+ ***********************************************************************/
+(function(window, undefined) {
+    'use strict';
+
+    let {{Rootname}} = function(config) {
+        if (!(this instanceof {{Rootname}})) {
+            return new {{Rootname}}(config);
+        }
+
+        /********************************************
+         *      Your code
+         ********************************************/
+        var self = this;
+
+
+        /***************************
+         *      Private Methods
+         ***************************/
+        function localSample(param) {
+        }
+
+        /***************************
+         *      Public Methods
+         ***************************/
+        self.publicSample = function(param) {
+        }
+    }
+
+    /********************************************
+     *      Expose via the global object
+     ********************************************/
+    if(typeof module === "object" && module && typeof module.exports === "object") {
+        module.exports = {{Rootname}};
+    } else {
+        window.{{Rootname}} = {{Rootname}};
+
+        if(typeof define === "function" && define.amd) {
+            define(
+                "{{rootname}}",
+                [],
+                function() {
+                    return {{Rootname}};
+                }
+            );
+        }
+    }
+
+})(window);

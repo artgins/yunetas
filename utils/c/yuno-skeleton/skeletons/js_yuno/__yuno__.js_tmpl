@@ -1,0 +1,86 @@
+/***********************************************************************
+ *          __yuno__.js
+ *
+ *          Root gobj __yuno__
+ *
+ *          Copyright (c) {{__year__}}, {{author}}.
+ *          All Rights Reserved.
+ ***********************************************************************/
+(function(exports) {
+    'use strict';
+
+    /************************************************
+     *          Data
+     ************************************************/
+    const yuno_name = "{{yunorole}}";
+    const yuno_role = "{{Yunorole}}";
+    const yuno_version = "1.0.0";
+
+    /*
+     *  TEST Trace Simple Machine
+     *  Set 1 or 2 to see activity machine.
+     *  1: without kw details
+     *  2: with kw details.
+     */
+    let tracing = 0;
+    let trace_timer = 0;
+
+    /*
+     *  Trace inter-events or gobjs creation
+     */
+    let trace_inter_event = false;
+    let trace_creation = false;
+
+
+    /************************************************
+     *          Startup code
+     ************************************************/
+    /*
+     *  Create the __yuno__ gobj, the grandfather.
+     */
+    let kw = {
+        tracing: tracing,
+        trace_timer: trace_timer,
+        trace_inter_event: trace_inter_event,
+        trace_creation: trace_creation,
+        trace_ievent_callback: null
+    };
+    trace_msg("CREATING __yuno__");
+    let __yuno__ = new Yuno(
+        yuno_name,
+        yuno_role,
+        yuno_version,
+        kw
+    );
+
+    window.onload = function() {
+        /*
+         *  Delete message waiting
+         */
+        //document.getElementById("loading-message").remove();
+
+        /*
+         *  Create __default_service__
+         */
+        trace_msg("CREATING __default_service__: {{rootname}}");
+        __yuno__.__default_service__ = __yuno__.gobj_create(
+           '{{rootname}}',
+           {{Rootname}},
+           {
+           },
+           __yuno__
+        );
+        __yuno__.gobj_start_tree();
+    };
+
+    window.onbeforeunload = function() {
+        let r =__yuno__.gobj_read_attr("changesLost")
+        return r?r:null;
+    }
+
+    /************************************************
+     *          Expose to the global object
+     ************************************************/
+    exports.__yuno__ = __yuno__;
+
+})(this);

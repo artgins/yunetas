@@ -1,0 +1,1 @@
+{"command": "-update-binary id=4 content64=$$(watchfs)"}

@@ -1,22 +1,13 @@
 ##############################################
 #   CMake
 ##############################################
-cmake_minimum_required(VERSION 3.5)
-project(c-utils C)
+cmake_minimum_required(VERSION 3.11)
 
 ##############################################
 #   Source
 ##############################################
-add_subdirectory(fs_watcher)
-add_subdirectory(inotify)
-add_subdirectory(tr2list)
-add_subdirectory(tr2keys)
-add_subdirectory(tr2migrate)
-add_subdirectory(list_queue_msgs2)
-add_subdirectory(test-musl)
-add_subdirectory(pkey_to_jwks)
-
-add_subdirectory(ybatch)
+add_subdirectory(dba_postgres)
+add_subdirectory(list_queue_msgs)
 
 # compile in Release mode :
 #

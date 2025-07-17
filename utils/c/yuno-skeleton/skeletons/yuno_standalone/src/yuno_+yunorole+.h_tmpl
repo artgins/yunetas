@@ -1,0 +1,29 @@
+/****************************************************************************
+ *          YUNO_{{YUNOROLE}}.H
+ *          {{Yunorole}} yuno.
+ *
+ *          Copyright (c) {{__year__}}, {{author}}.
+ *          All Rights Reserved.
+ ****************************************************************************/
+#pragma once
+
+#include <yuneta.h>
+
+#ifdef __cplusplus
+extern "C"{
+#endif
+
+/***************************************************************
+ *              Constants
+ ***************************************************************/
+#define GCLASS_YUNO_{{YUNOROLE}}_NAME "Y{{Yunorole}}"
+#define ROLE_{{YUNOROLE}} "{{yunorole}}"
+
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC void register_yuno_{{yunorole}}(void);
+
+#ifdef __cplusplus
+}
+#endif

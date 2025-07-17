@@ -1,0 +1,303 @@
+[
+    {
+        "name": "yuno_standalone",
+        "summary": "Create a standalone yuno project",
+        "type": "Yuno",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "1.0.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the yuno",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "yuno_citizen",
+        "summary": "Create a realm's citizen yuno project",
+        "type": "Yuno",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "1.0.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the yuno",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "yuno_citizen_with_ssl",
+        "summary": "Create a realm's citizen yuno project with ssl",
+        "type": "Yuno",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "1.0.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the yuno",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "gclass_service",
+        "summary": "Create a service gclass with timer (output events must be subscribed)",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the gclass",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "gclass_child",
+        "summary": "Create a typical child gclass (all output events for parent)",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the gclass",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "gclass_tube",
+        "summary": "Create a tube gclass to use as iogate/channel child. Implements some protocol.)",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the gclass",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "gclass_timer",
+        "summary": "Create a child gclass with timer (all output events for parent)",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the gclass",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "js_yuno",
+        "summary": "Create a js Yuneta yuno",
+        "type": "Yuno",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "1.0.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the yuno",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "js_gclass",
+        "summary": "Create a js Yuneta gclass",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the gclass",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "js_gclass_bulma",
+        "summary": "Create a js Yuneta gclass to work with Bulma and yui_routing",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the gclass",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "js_object",
+        "summary": "Create a javascript object",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the object",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "c_project",
+        "summary": "Create a pure C proyect",
+        "type": "Utility",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "1.0.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the yuno",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "c_h_file",
+        "summary": "Create a generic .c file with his .h",
+        "type": "GClass",
+        "vars": [
+            {
+                "var": "description",
+                "message": "One-line description of the gclass",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "skeletons.d",
+        "summary": "Extra configurations",
+        "type": "skeleton-dir"
+    }
+]

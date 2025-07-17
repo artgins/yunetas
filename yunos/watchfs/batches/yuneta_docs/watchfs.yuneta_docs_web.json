@@ -1,0 +1,13 @@
+{
+    "global":{
+        "Fs.info": false,
+        "Watchfs.kw": {
+            "info": false,
+            "command":"rm -rf tags/0.00.aa/static/.sass-cache/ tags/0.00.aa/static/.webassets-cache/ tags/0.00.aa/.cache/; make > watchfs.log;",
+            "path":"/yuneta/development/yuneta/^yuneta/docs/web",
+            "recursive":true,
+            "patterns":".*\\.py;.*\\.mako;.*\\.js;.*\\.css;.*\\.scss;.*\\.rst;.*\\.json;",
+            "ignore_renamed_event":true
+        }
+    }
+}

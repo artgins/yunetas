@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(tr2list C)
+project(ybatch C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -16,17 +16,22 @@ else()
 endif()
 include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
+
 ##############################################
 #   Source
 ##############################################
 SET (YUNO_SRCS
-    tr2list.c
+    src/main.c
+    src/c_ybatch.c
+)
+SET (YUNO_HDRS
+    src/c_ybatch.h
 )
 
 ##############################################
 #   yuno
 ##############################################
-add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS})
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
     ${YUNETAS_KERNEL_LIBS}
@@ -35,26 +40,6 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
-)
-
-#if(ESP32_MODE)
-#    target_link_libraries(${PROJECT_NAME}
-#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-## NO resuelto       /yuneta/development/outputs/lib/libyunetas-esp32.a   # To test partially esp32 you can include this
-#    )
-#else()
-#    target_link_libraries(${PROJECT_NAME}
-#        /yuneta/development/outputs/lib/libyunetas-core-linux.a
-#    )
-#endif()
-
-target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
-
-# Add a custom command to generate assembler .lst file
-add_custom_command(
-    TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND objdump -SlF ${PROJECT_NAME} > ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.lst
-    COMMENT "Generating assembler"
 )
 
 ##############################################
@@ -69,7 +54,6 @@ install(
     #    DESTINATION ${BIN_DEST_DIR}
     DESTINATION "/yuneta/bin"
 )
-
 
 # compile in Release mode :
 #

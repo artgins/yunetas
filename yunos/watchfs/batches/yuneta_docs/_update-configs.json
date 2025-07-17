@@ -1,0 +1,12 @@
+{"command": "-update-config id=40 content64=$$(./watchfs.yuneta_docs_web.json)"}
+
+{"command": "-update-config id=41 content64=$$(./watchfs.yuneta_docs_overview.json)"}
+
+{"command": "-update-config id=42 content64=$$(./watchfs.yuneta_docs_installation.json)"}
+
+{"command": "-update-config id=43 content64=$$(./watchfs.yuneta_docs_downloads.json)"}
+
+{"command": "-update-config id=44 content64=$$(./watchfs.yuneta_docs_tutorials.json)"}
+
+{"command": "-update-config id=45 content64=$$(./watchfs.yuneta_docs_api.json)"}
+

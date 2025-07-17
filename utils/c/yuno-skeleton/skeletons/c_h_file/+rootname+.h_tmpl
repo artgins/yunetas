@@ -1,0 +1,29 @@
+/****************************************************************************
+ *          {{ROOTNAME}}.H
+ *
+ *          {{description}}
+ *
+ *          Copyright (c) {{__year__}}, {{author}}.
+ *          All Rights Reserved.
+ ****************************************************************************/
+
+#pragma once
+
+#include <ghelpers.h>
+
+#ifdef __cplusplus
+extern "C"{
+#endif
+
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+
+/**rst**
+   Describe your function
+**rst**/
+PUBLIC int sample(void);
+
+#ifdef __cplusplus
+}
+#endif
