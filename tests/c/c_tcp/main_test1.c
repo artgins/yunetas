@@ -287,7 +287,6 @@ int main(int argc, char *argv[])
     );
     gobj_log_add_handler("test_capture", "testing", LOG_OPT_UP_INFO, 0);
 
-
     /*------------------------------------------------*
      *      To check memory loss
      *------------------------------------------------*/

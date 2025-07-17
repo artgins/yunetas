@@ -8,7 +8,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
-#include <unistd.h>
 #include "c_ybatch.h"
 
 /***************************************************************************
@@ -55,13 +54,21 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 #define APP_NAME        "ybatch"
 #define APP_DOC         "Yuneta Batch"
 
-#define APP_VERSION     __yuneta_version__
+#define APP_VERSION     "7.0.0"
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<niyamaka at yuneta.io>"
+
+#define USE_OWN_SYSTEM_MEMORY   FALSE
+#define MEM_MIN_BLOCK           512
+#define MEM_MAX_BLOCK           (1*1024*1024*1024L)     // 1*G
+#define MEM_SUPERBLOCK          (1*1024*1024*1024L)     // 1*G
+#define MEM_MAX_SYSTEM_MEMORY   (16*1024*1024*1024L)    // 16*G
 
 /***************************************************************************
  *                      Default config
  ***************************************************************************/
+struct arguments arguments;
+
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
@@ -160,7 +167,7 @@ static struct argp_option options[] = {
 {0,                 0,      0,          0,      "Local keys", 40},
 {"print",           'p',    0,          0,      "Print configuration.", 40},
 {"config-file",     'f',    "FILE",     0,      "load settings from json config file or [files]", 40},
-{"print-role",      'r',    0,          0,      "print the basic yuno's information"},
+{"print-role",      'r',    0,          0,      "print the basic yuno's information", 0},
 {"verbose",         'l',    "LEVEL",    0,      "Verbose level.", 40},
 {"version",         'v',    0,          0,      "Print version.", 40},
 {"yuneta-version",  'V',    0,          0,      "Print yuneta version", 40},
@@ -172,7 +179,10 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,
+    0,
+    0
 };
 
 /***************************************************************************
@@ -271,22 +281,38 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *                      Register
  ***************************************************************************/
-static void register_yuno_and_more(void)
+static int register_yuno_and_more(void)
 {
-    /*------------------------*
-     *  Register yuneta-tls
-     *------------------------*/
-    yuneta_register_c_tls();
-
-    /*-------------------*
-     *  Register yuno
-     *-------------------*/
-    register_yuno_ybatch();
-
     /*--------------------*
-     *  Register service
+     *  Register gclass
      *--------------------*/
-    gobj_register_gclass(GCLASS_YBATCH);
+    register_c_ybatch();
+
+    /*------------------------------------------------*
+     *          Traces
+     *------------------------------------------------*/
+    // Avoid timer trace, too much information
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_YUNO), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
+    gobj_set_global_no_trace("timer_periodic", TRUE);
+
+    if(arguments.verbose > 0) {
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents", TRUE);
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "kw", TRUE);
+    }
+    if(arguments.verbose > 1) {
+        gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+    }
+    if(arguments.verbose > 2) {
+        gobj_set_gobj_trace(0, "machine", TRUE, 0);
+        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
+        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
+    }
+
+    return 0;
 }
 
 /***************************************************************************
@@ -294,7 +320,6 @@ static void register_yuno_and_more(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
-    struct arguments arguments;
     /*
      *  Default values
      */
@@ -336,7 +361,7 @@ int main(int argc, char *argv[])
         exit(0);
     }
     if(arguments.print_yuneta_version) {
-        printf("%s\n", __yuneta_long_version__);
+        printf("%s\n", YUNETA_VERSION);
         exit(0);
     }
 
@@ -344,7 +369,7 @@ int main(int argc, char *argv[])
      *  Put configuration
      */
     if(arguments.use_config_file) {
-        int l = strlen("--config-file=") + strlen(arguments.config_json_file) + 4;
+        int l = (int)strlen("--config-file=") + strlen(arguments.config_json_file) + 4;
         char *param2 = malloc(l);
         snprintf(param2, l, "--config-file=%s", arguments.config_json_file);
         argvs[idx++] = param2;
@@ -370,7 +395,7 @@ int main(int argc, char *argv[])
             printf("Some parameter is wrong\n");
             exit(-1);
         }
-        int len = strlen(param1_) + 3;
+        int len = (int)strlen(param1_) + 3;
         char *param1 = malloc(len);
         if(param1) {
             memset(param1, 0, len);
@@ -388,28 +413,10 @@ int main(int argc, char *argv[])
     }
 
     /*------------------------------------------------*
-     *  To trace memory
+     *      To check memory loss
      *------------------------------------------------*/
-#ifdef DEBUG
-    static uint32_t mem_list[] = {0};
-    gbmem_trace_alloc_free(0, mem_list);
-#endif
-
-    if(arguments.verbose > 0) {
-        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents", TRUE);
-        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "kw", TRUE);
-    }
-    if(arguments.verbose > 1) {
-        gobj_set_gclass_trace(GCLASS_TCP0, "traffic", TRUE);
-    }
-    if(arguments.verbose > 2) {
-        gobj_set_gobj_trace(0, "machine", TRUE, 0);
-        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
-        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
-    }
-    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
+    set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
      *          Start yuneta
@@ -417,22 +424,23 @@ int main(int argc, char *argv[])
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
     yuneta_setup(
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
+        NULL,       // persistent_attrs, default internal dbsimple
+        NULL,       // command_parser, default internal command_parser
+        NULL,       // stats_parser, default internal stats_parser
+        NULL,       // authz_checker, default Monoclass C_AUTHZ
+        NULL,       // authenticate_parser, default Monoclass C_AUTHZ
+        MEM_MAX_BLOCK,
+        MEM_MAX_SYSTEM_MEMORY,
+        FALSE, //USE_OWN_SYSTEM_MEMORY,
+        MEM_MIN_BLOCK,
+        MEM_SUPERBLOCK
     );
     return yuneta_entry_point(
         idx, argvs,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
         variable_config,
-        register_yuno_and_more
+        register_yuno_and_more,
+        NULL
     );
 }
