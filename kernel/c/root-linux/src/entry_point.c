@@ -623,7 +623,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
         );
     }
     if(empty_string(yuno_name)) {
-        yuno_name = APP_NAME;
+        yuno_name = "__root__";
     }
 
     snprintf(__node_owner__, sizeof(__node_owner__), "%s", node_owner);
