@@ -114,6 +114,7 @@ New API
     dir_array_free
     gobj_global_trace_level(void)
     trq_load_all_by_time
+    PUBLIC json_t *sdata_create(hgobj gobj, const sdata_desc_t* schema)
 
 Delete API
 

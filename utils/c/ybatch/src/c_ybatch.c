@@ -38,8 +38,6 @@ PRIVATE int display_webix_result(
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-
-
 PRIVATE sdata_desc_t commands_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
 SDATA (DTP_STRING,      "command",          0,                          0,              "command"),
@@ -102,11 +100,7 @@ typedef struct _PRIVATE_DATA {
     const char *path;
     hgobj timer;
     hgobj remote_service;
-    dl_list_t batch_iter;
-
-    hsdata hs;
-    rc_instance_t *i_hs;
-
+    json_t *batch_iter;
 } PRIVATE_DATA;
 
 PRIVATE hgclass __gclass__ = 0;
@@ -129,7 +123,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->timer = gobj_create("", C_TIMER, 0, gobj);
-    rc_init_iter(&priv->batch_iter);
+    priv->batch_iter = json_array();
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -159,7 +153,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gobj_free_iter(&priv->batch_iter, FALSE, sdata_destroy);
+    json_decref(priv->batch_iter);
 }
 
 /***************************************************************************
@@ -429,14 +423,13 @@ PRIVATE int extrae_json(hgobj gobj)
                 json_t *jn_dict = legalstring2json(gbuffer_cur_rd_pointer(gbuf), TRUE);
                 if(jn_dict) {
                     if(kw_get_str(gobj, jn_dict, "command", 0, 0)) {
-                        hsdata hs_cmd = sdata_create(commands_desc, 0, 0, 0, 0, 0);
-                        json2sdata(hs_cmd, jn_dict, -1, 0, 0); // TODO inform attr not found
-                        const char *command = sdata_read_str(hs_cmd, "command");
+                        json_t *hs_cmd = sdata_create(gobj, commands_desc);
+                        const char *command = kw_get_str(gobj, hs_cmd, "command", "", KW_REQUIRED);
                         if(command && (*command == '-')) {
-                            sdata_write_str(hs_cmd, "command", command+1);
-                            sdata_write_bool(hs_cmd, "ignore_fail", TRUE);
+                            json_object_set_new(hs_cmd, "command", json_string(command+1));
+                            json_object_set_new(hs_cmd, "ignore_fail", json_true());
                         }
-                        rc_add_instance(&priv->batch_iter, hs_cmd, 0);
+                        json_array_append_new(priv->batch_iter, hs_cmd);
                     } else {
                         printf("Line ignored: '%s'\n", (char *)gbuffer_cur_rd_pointer(gbuf));
                     }
@@ -591,7 +584,17 @@ PRIVATE int cmd_connect(hgobj gobj)
      *  Get schema to select tls or not
      */
     char schema[20]={0}, host[120]={0}, port[40]={0};
-    if(parse_http_url(url, schema, sizeof(schema), host, sizeof(host), port, sizeof(port), FALSE)<0) {
+    if(parse_url(
+        gobj,
+        url,
+        schema,
+        sizeof(schema),
+        host, sizeof(host),
+        port, sizeof(port),
+        0, 0,
+        0, 0,
+        FALSE
+    )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,

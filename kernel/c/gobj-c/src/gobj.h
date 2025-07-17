@@ -1103,6 +1103,7 @@ PUBLIC json_t *gobj_list_persistent_attrs( // str, list or dict
 /*
  *  Attribute functions WITHOUT bottom inheritance
  */
+PUBLIC json_t *sdata_create(hgobj gobj, const sdata_desc_t* schema);
 
 // Return the data description of the attribute `attr`
 // If `attr` is null returns full attr's table

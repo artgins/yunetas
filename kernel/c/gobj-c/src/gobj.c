@@ -230,7 +230,6 @@ PRIVATE int rc_walk_by_level(
     void *user_data2
 );
 
-PRIVATE json_t *sdata_create(gobj_t *gobj, const sdata_desc_t* schema);
 PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it);
 PUBLIC void trace_vjson(
     hgobj gobj,
@@ -3022,7 +3021,7 @@ PRIVATE int sdata_write_default_values(
 /***************************************************************************
  *  Build default values
  ***************************************************************************/
-PRIVATE json_t *sdata_create(gobj_t *gobj, const sdata_desc_t* schema)
+PUBLIC json_t *sdata_create(hgobj gobj, const sdata_desc_t* schema)
 {
     json_t *sdata = json_object();
     const sdata_desc_t *it = schema;
