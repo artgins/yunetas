@@ -3,35 +3,22 @@
 ##############################################
 cmake_minimum_required(VERSION 3.11)
 project(ymake-skeleton C)
-include(CheckIncludeFiles)
-include(CheckSymbolExists)
 
-set(CMAKE_INSTALL_PREFIX /yuneta/development/bin)
-
-set(BIN_DEST_DIR /yuneta/development/bin)
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -std=c99")
-
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions(-DDEBUG)
-  option(SHOWNOTES "Show preprocessor notes" OFF)
-
-  if(CMAKE_COMPILER_IS_GNUCC)
-    # GCC specific debug options
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g3 -ggdb3 -gdwarf-2")
-    set(AVOID_VERSION -avoid-version)
-  endif(CMAKE_COMPILER_IS_GNUCC)
-endif(CMAKE_BUILD_TYPE MATCHES Debug)
-
-add_definitions(-D_GNU_SOURCE)
-add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
-
-include_directories(/yuneta/development/output/include)
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
+if(DEFINED ENV{YUNETAS_BASE})
+    set(YUNETAS_BASE $ENV{YUNETAS_BASE})
+else()
+    set(YUNETAS_BASE "/yuneta/development/yunetas")
+endif()
+include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
 ##############################################
 #   Source
 ##############################################
-
 SET (YUNO_SRCS
     ymake_skeleton.c
     make_skeleton.c
@@ -42,36 +29,45 @@ SET (YUNO_HDRS
 )
 
 ##############################################
-#   External libraries
+#   yuno
 ##############################################
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
-##############################################
-#   Executable
-##############################################
-
-ADD_EXECUTABLE(ymake-skeleton ${YUNO_SRCS} ${YUNO_HDRS})
-TARGET_LINK_LIBRARIES(ymake-skeleton
-        /yuneta/development/output/lib/libghelpers.a
-        /yuneta/development/output/lib/libuv.a
-        /yuneta/development/output/lib/libjansson.a
-        /yuneta/development/output/lib/libunwind.a
-        /yuneta/development/output/lib/libpcre2-8.a
-
-        pthread dl  # used by libuv
-        lzma        # used by libunwind
-        m
-        util
-        pcre
+target_link_libraries(${PROJECT_NAME}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
 )
 
 ##############################################
 #   Installation
 ##############################################
 install(
-    TARGETS ymake-skeleton
+    TARGETS ${PROJECT_NAME}
     PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    DESTINATION ${BIN_DEST_DIR}
+    #    DESTINATION ${BIN_DEST_DIR}
+    DESTINATION "/yuneta/bin"
 )
+
+# compile in Release mode :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release ..
+#
+# compile in Release mode optimized but adding debug symbols, useful for profiling :
+#
+#     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+#
+# compile with NO optimization and adding debug symbols :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Debug ..
+#
+# compile to build static binary :
+#
+#     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
+#

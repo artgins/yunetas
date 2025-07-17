@@ -3,32 +3,18 @@
 ##############################################
 cmake_minimum_required(VERSION 3.11)
 project(list_queue_msgs C)
-include(CheckIncludeFiles)
-include(CheckSymbolExists)
 
-set(CMAKE_INSTALL_PREFIX /yuneta/development/output)
-
-set(INC_DEST_DIR ${CMAKE_INSTALL_PREFIX}/include)
-set(LIB_DEST_DIR ${CMAKE_INSTALL_PREFIX}/lib)
-set(BIN_DEST_DIR /yuneta/bin)
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -std=c99")
-
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions(-DDEBUG)
-  option(SHOWNOTES "Show preprocessor notes" OFF)
-
-  if(CMAKE_COMPILER_IS_GNUCC)
-    # GCC specific debug options
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g3 -ggdb3 -gdwarf-2")
-    set(AVOID_VERSION -avoid-version)
-  endif(CMAKE_COMPILER_IS_GNUCC)
-endif(CMAKE_BUILD_TYPE MATCHES Debug)
-
-add_definitions(-D_GNU_SOURCE)
-add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
-
-include_directories(/yuneta/development/output/include)
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
+if(DEFINED ENV{YUNETAS_BASE})
+    set(YUNETAS_BASE $ENV{YUNETAS_BASE})
+else()
+    set(YUNETAS_BASE "/yuneta/development/yunetas")
+endif()
+include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
 ##############################################
 #   Source

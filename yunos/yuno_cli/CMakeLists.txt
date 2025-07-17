@@ -3,33 +3,18 @@
 ##############################################
 cmake_minimum_required(VERSION 3.11)
 project(yuneta_cli C)
-include(CheckIncludeFiles)
-include(CheckSymbolExists)
 
-set(CMAKE_INSTALL_PREFIX /yuneta/development/output)
-
-set(BIN_DEST_DIR ${CMAKE_INSTALL_PREFIX}/agent)
-
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -std=c99")
-
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-  add_definitions(-DDEBUG)
-
-  # TEST para probar en kdevelop
-#   add_definitions(-DTEST_KDEVELOP)
-  # TEST para probar en kdevelop
-
-  option(SHOWNOTES "Show preprocessor notes" OFF)
-
-  if(CMAKE_COMPILER_IS_GNUCC)
-    # GCC specific debug options
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -g3 -ggdb3 -gdwarf-2")
-    set(AVOID_VERSION -avoid-version)
-  endif(CMAKE_COMPILER_IS_GNUCC)
-endif(CMAKE_BUILD_TYPE MATCHES Debug)
-
-add_definitions(-D_GNU_SOURCE)
-add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
+if(DEFINED ENV{YUNETAS_BASE})
+    set(YUNETAS_BASE $ENV{YUNETAS_BASE})
+else()
+    set(YUNETAS_BASE "/yuneta/development/yunetas")
+endif()
+include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
 # check_include_files(ncurses.h HAVE_NCURSES_H)
 # if(HAVE_NCURSES_H)
@@ -38,15 +23,12 @@ add_definitions(-D_LARGEFILE_SOURCE -D_FILE_OFFSET_BITS=64)
 #     message("***  WARNING: GNU C ncurses library not found.")
 # endif(HAVE_NCURSES_H)
 
-include_directories(/yuneta/development/output/include)
-
 ##############################################
 #   Source
 ##############################################
 
 SET (YUNO_SRCS
     src/main.c
-    src/yuno_yuneta_cli.c
     src/c_cli.c
     src/c_wn_stdscr.c
     src/c_wn_layout.c
@@ -58,7 +40,6 @@ SET (YUNO_SRCS
     src/c_wn_static.c
 )
 SET (YUNO_HDRS
-    src/yuno_yuneta_cli.h
     src/c_cli.h
     src/c_wn_stdscr.h
     src/c_wn_layout.h
