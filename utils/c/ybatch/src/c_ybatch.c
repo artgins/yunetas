@@ -457,7 +457,7 @@ PRIVATE int extrae_json(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE char agent_insecure_config[]= "\
+PRIVATE char agent_config[]= "\
 {                                               \n\
     'name': '(^^__url__^^)',                    \n\
     'gclass': 'IEvent_cli',                     \n\
@@ -483,69 +483,16 @@ PRIVATE char agent_insecure_config[]= "\
                         {                                               \n\
                             'name': '(^^__url__^^)',                    \n\
                             'gclass': 'GWebSocket',                     \n\
-                            'zchilds': [                                \n\
-                                {                                       \n\
-                                    'name': '(^^__url__^^)',            \n\
-                                    'gclass': 'Connex',                 \n\
-                                    'kw': {                             \n\
-                                        'urls':[                        \n\
-                                            '(^^__url__^^)'             \n\
-                                        ]                               \n\
-                                    }                                   \n\
-                                }                                       \n\
-                            ]                                           \n\
-                        }                                               \n\
-                    ]                                           \n\
-                }                                               \n\
-            ]                                           \n\
-        }                                               \n\
-    ]                                           \n\
-}                                               \n\
-";
-
-PRIVATE char agent_secure_config[]= "\
-{                                               \n\
-    'name': '(^^__url__^^)',                    \n\
-    'gclass': 'IEvent_cli',                     \n\
-    'as_service': true,                          \n\
-    'kw': {                                     \n\
-        'jwt': '(^^__jwt__^^)',                         \n\
-        'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
-        'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
-        'remote_yuno_service': '(^^__yuno_service__^^)' \n\
-    },                                          \n\
-    'zchilds': [                                 \n\
-        {                                               \n\
-            'name': '(^^__url__^^)',                    \n\
-            'gclass': 'IOGate',                         \n\
-            'kw': {                                     \n\
-            },                                          \n\
-            'zchilds': [                                 \n\
-                {                                               \n\
-                    'name': '(^^__url__^^)',                    \n\
-                    'gclass': 'Channel',                        \n\
-                    'kw': {                                     \n\
-                    },                                          \n\
-                    'zchilds': [                                 \n\
-                        {                                               \n\
-                            'name': '(^^__url__^^)',                    \n\
-                            'gclass': 'GWebSocket',                     \n\
-                            'zchilds': [                                \n\
-                                {                                       \n\
-                                    'name': '(^^__url__^^)',            \n\
-                                    'gclass': 'Connexs',                \n\
-                                    'kw': {                             \n\
-                                        'crypto': {                     \n\
-                                            'library': 'openssl',       \n\
-                                            'trace': false              \n\
-                                        },                              \n\
-                                        'urls':[                        \n\
-                                            '(^^__url__^^)'             \n\
-                                        ]                               \n\
-                                    }                                   \n\
-                                }                                       \n\
-                            ]                                           \n\
-                        }                                               \n\
+                            'kw': {                                     \n\
+                                'kw_connex': {                              \n\
+                                    'timeout_inactivity': -1,               \n\
+                                    'timeout_between_connections': 2000,    \n\
+                                    'urls':[                        \n\
+                                        '(^^__url__^^)'             \n\
+                                    ]                               \n\
+                                }                                   \n\
+                            }                                   \n\
+                        }                                       \n\
                     ]                                           \n\
                 }                                               \n\
             ]                                           \n\
@@ -598,11 +545,6 @@ PRIVATE int cmd_connect(hgobj gobj)
             "url",          "%s", url,
             NULL
         );
-    }
-
-    char *agent_config = agent_insecure_config;
-    if(strcmp(schema, "wss")==0) {
-        agent_config = agent_secure_config;
     }
 
     hgobj gobj_remote_agent = gobj_create_tree(
