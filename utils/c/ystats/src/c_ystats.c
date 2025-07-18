@@ -5,6 +5,7 @@
  *          Yuneta Statistics
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -31,19 +32,18 @@ PRIVATE int poll_stats_data(hgobj gobj);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */
 SDATA (DTP_BOOLEAN,     "print_with_metadata",0,        0,              "Print response with metadata."),
-SDATA (DTP_BOOLEAN,     "verbose",          0,          1,              "Verbose mode."),
+SDATA (DTP_BOOLEAN,     "verbose",          0,          "1",            "Verbose mode."),
 SDATA (DTP_STRING,      "stats",            0,          "",             "Requested statistics."),
 SDATA (DTP_STRING,      "gobj_name",        0,          "",             "Gobj's attribute or command."),
 SDATA (DTP_STRING,      "attribute",        0,          "",             "Requested attribute."),
 SDATA (DTP_STRING,      "command",          0,          "",             "Requested command."),
-SDATA (DTP_INTEGER,     "refresh_time",     0,          1,              "Refresh time, in seconds. Set 0 to remove subscription."),
+SDATA (DTP_INTEGER,     "refresh_time",     0,          "1",            "Refresh time, in seconds. Set 0 to remove subscription."),
 SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
 SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint (interactive jwt)"),
 SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
@@ -72,7 +72,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 {0, 0},
 };
 
-
 /*---------------------------------------------*
  *              Private data
  *---------------------------------------------*/
@@ -83,6 +82,8 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     hgobj gobj_connector;
 } PRIVATE_DATA;
+
+PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -101,7 +102,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -192,7 +193,12 @@ PRIVATE int do_authenticate_task(hgobj gobj)
         "azp", gobj_read_str_attr(gobj, "azp")
     );
 
-    hgobj gobj_task = gobj_create_unique("task-authenticate", GCLASS_TASK_AUTHENTICATE, kw, gobj);
+    hgobj gobj_task = gobj_create_service(
+        "task-authenticate",
+        C_TASK_AUTHENTICATE,
+        kw,
+        gobj
+    );
     gobj_subscribe_event(gobj_task, "EV_ON_TOKEN", 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
@@ -205,9 +211,9 @@ PRIVATE int do_authenticate_task(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE char agent_insecure_config[]= "\
+PRIVATE char agent_config[]= "\
 {                                               \n\
-    'name': '(^^__url__^^)',                    \n\
+    'name': 'agent_client',                    \n\
     'gclass': 'IEvent_cli',                     \n\
     'as_service': true,                          \n\
     'kw': {                                     \n\
@@ -217,83 +223,30 @@ PRIVATE char agent_insecure_config[]= "\
     },                                          \n\
     'zchilds': [                                 \n\
         {                                               \n\
-            'name': '(^^__url__^^)',                    \n\
+            'name': 'agent_client',                    \n\
             'gclass': 'IOGate',                         \n\
             'kw': {                                     \n\
             },                                          \n\
             'zchilds': [                                 \n\
                 {                                               \n\
-                    'name': '(^^__url__^^)',                    \n\
+                    'name': 'agent_client',                    \n\
                     'gclass': 'Channel',                        \n\
                     'kw': {                                     \n\
                     },                                          \n\
                     'zchilds': [                                 \n\
                         {                                               \n\
-                            'name': '(^^__url__^^)',                    \n\
+                            'name': 'agent_client',                    \n\
                             'gclass': 'GWebSocket',                     \n\
-                            'zchilds': [                                \n\
-                                {                                       \n\
-                                    'name': '(^^__url__^^)',            \n\
-                                    'gclass': 'Connex',                 \n\
-                                    'kw': {                             \n\
-                                        'urls':[                        \n\
-                                            '(^^__url__^^)'             \n\
-                                        ]                               \n\
-                                    }                                   \n\
-                                }                                       \n\
-                            ]                                           \n\
-                        }                                               \n\
-                    ]                                           \n\
-                }                                               \n\
-            ]                                           \n\
-        }                                               \n\
-    ]                                           \n\
-}                                               \n\
-";
-
-PRIVATE char agent_secure_config[]= "\
-{                                               \n\
-    'name': '(^^__url__^^)',                    \n\
-    'gclass': 'IEvent_cli',                     \n\
-    'as_service': true,                          \n\
-    'kw': {                                     \n\
-        'jwt': '(^^__jwt__^^)',                         \n\
-        'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
-        'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
-        'remote_yuno_service': '(^^__yuno_service__^^)' \n\
-    },                                          \n\
-    'zchilds': [                                 \n\
-        {                                               \n\
-            'name': '(^^__url__^^)',                    \n\
-            'gclass': 'IOGate',                         \n\
-            'kw': {                                     \n\
-            },                                          \n\
-            'zchilds': [                                 \n\
-                {                                               \n\
-                    'name': '(^^__url__^^)',                    \n\
-                    'gclass': 'Channel',                        \n\
-                    'kw': {                                     \n\
-                    },                                          \n\
-                    'zchilds': [                                 \n\
-                        {                                               \n\
-                            'name': '(^^__url__^^)',                    \n\
-                            'gclass': 'GWebSocket',                     \n\
-                            'zchilds': [                                \n\
-                                {                                       \n\
-                                    'name': '(^^__url__^^)',            \n\
-                                    'gclass': 'Connexs',                \n\
-                                    'kw': {                             \n\
-                                        'crypto': {                     \n\
-                                            'library': 'openssl',       \n\
-                                            'trace': false              \n\
-                                        },                              \n\
-                                        'urls':[                        \n\
-                                            '(^^__url__^^)'             \n\
-                                        ]                               \n\
-                                    }                                   \n\
-                                }                                       \n\
-                            ]                                           \n\
-                        }                                               \n\
+                            'kw': {                                     \n\
+                                'kw_connex': {                              \n\
+                                    'timeout_inactivity': -1,               \n\
+                                    'timeout_between_connections': 2000,    \n\
+                                    'urls':[                        \n\
+                                        '(^^__url__^^)'             \n\
+                                    ]                               \n\
+                                }                                   \n\
+                            }                                   \n\
+                        }                                       \n\
                     ]                                           \n\
                 }                                               \n\
             ]                                           \n\
@@ -311,22 +264,29 @@ PRIVATE int cmd_connect(hgobj gobj)
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:{s:s, s:s, s:s, s:s, s:s}}",
-        "__json_config_variables__",
-            "__jwt__", jwt,
-            "__url__", url,
-            "__yuno_name__", "",
-            "__yuno_role__", "yuneta_agent",
-            "__yuno_service__", "__default_service__"
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+        "__jwt__", jwt,
+        "__url__", url,
+        "__yuno_name__", "",
+        "__yuno_role__", "yuneta_agent",
+        "__yuno_service__", "__default_service__"
     );
-    char *sjson_config_variables = json2str(jn_config_variables);
-    JSON_DECREF(jn_config_variables);
 
     /*
      *  Get schema to select tls or not
      */
     char schema[20]={0}, host[120]={0}, port[40]={0};
-    if(parse_http_url(url, schema, sizeof(schema), host, sizeof(host), port, sizeof(port), FALSE)<0) {
+    if(parse_url(
+        gobj,
+        url,
+        schema,
+        sizeof(schema),
+        host, sizeof(host),
+        port, sizeof(port),
+        0, 0,
+        0, 0,
+        FALSE
+    )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -336,19 +296,11 @@ PRIVATE int cmd_connect(hgobj gobj)
         );
     }
 
-    char *agent_config = agent_insecure_config;
-    if(strcmp(schema, "wss")==0) {
-        agent_config = agent_secure_config;
-    }
-
     hgobj gobj_remote_agent = gobj_create_tree(
         gobj,
         agent_config,
-        sjson_config_variables,
-        "EV_ON_SETUP",
-        "EV_ON_SETUP_COMPLETE"
+        jn_config_variables // owned
     );
-    gbmem_free(sjson_config_variables);
 
     gobj_start_tree(gobj_remote_agent);
 
@@ -364,7 +316,7 @@ PRIVATE int poll_attr_data(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024);
     const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
     const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
@@ -397,7 +349,7 @@ PRIVATE int poll_command_data(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024);
     const char *command = gobj_read_str_attr(gobj, "command");
 
     gbuffer_printf(gbuf, "%s", command);
@@ -413,7 +365,7 @@ PRIVATE int poll_stats_data(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024);
     const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
     const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
@@ -462,7 +414,7 @@ PRIVATE int poll_stats_data(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    int result = kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
+    int result = (int)kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
     if(result < 0) {
         if(1) {
             const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
@@ -567,16 +519,17 @@ PRIVATE int ac_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int result = WEBIX_RESULT(kw);
+    int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
+    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     if(result != 0){
-        printf("Error %d: %s\n", result, WEBIX_COMMENT(kw));
+        printf("Error %d: %s\n", result, comment);
         gobj_set_exit_code(-1);
         gobj_shutdown();
     } else {
         BOOL to_free = FALSE;
-        json_t *jn_data = WEBIX_DATA(kw); //kw_get_dict_value(gobj, kw, "data", 0, 0);
+        json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
         if(!gobj_read_bool_attr(gobj, "print_with_metadata")) {
-            jn_data = kw_filter_metadata(jn_data);
+            jn_data = kw_filter_metadata(gobj, jn_data);
             to_free = TRUE;
         }
 
@@ -585,7 +538,7 @@ PRIVATE int ac_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
             time(&t);
             printf("\033c");
             printf("Time %llu\n", (unsigned long long)t);
-            print_json(jn_data);
+            print_json2("", jn_data);
         }
         if(to_free) {
             JSON_DECREF(jn_data);
@@ -619,155 +572,116 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {"EV_MT_COMMAND_ANSWER",EVF_PUBLIC_EVENT,  0,  0},
-    {"EV_MT_STATS_ANSWER",  EVF_PUBLIC_EVENT,  0,  0},
-    {"EV_ON_TOKEN",         0,  0,  0},
-    {EV_ON_OPEN,          0,  0,  0},
-    {EV_ON_CLOSE,         0,  0,  0},
-    {"EV_ON_STATS",         EVF_PUBLIC_EVENT,  0,  0},
-    // bottom input
-    {EV_TIMEOUT,          0,  0,  0},
-    {EV_STOPPED,          0,  0,  0},
-    // internal
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    ST_DISCONNECTED,
-    ST_CONNECTED,
-    NULL
-};
-
-PRIVATE EV_ACTION ST_DISCONNECTED[] = {
-    {"EV_ON_TOKEN",                 ac_on_token,                0},
-    {EV_ON_OPEN,                  ac_on_open,                 ST_CONNECTED},
-    {EV_ON_CLOSE,                 ac_on_close,                0},
-    {EV_STOPPED,                  0,                          0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_CONNECTED[] = {
-    {"EV_MT_COMMAND_ANSWER",        ac_stats,                   0},
-    {"EV_MT_STATS_ANSWER",          ac_stats,                   0},
-    {"EV_ON_STATS",                 ac_stats,                   0},
-    {EV_ON_CLOSE,                 ac_on_close,                ST_DISCONNECTED},
-    {EV_TIMEOUT,                  ac_timeout,                 0},
-    {EV_STOPPED,                  0,                          0},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_DISCONNECTED,
-    ST_CONNECTED,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
-
-/***************************************************************************
- *              GClass
- ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
 
 /*---------------------------------------------*
- *              GClass
+ *          Global methods table
  *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_YSTATS_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0,  // cmds
-    0,  // gcflag
+PRIVATE const GMETHODS gmt = {
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_writing     = mt_writing,
 };
 
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_YSTATS);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+
 /***************************************************************************
- *              Public access
+ *          Create the GClass
  ***************************************************************************/
-PUBLIC GCLASS *gclass_ystats(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*------------------------*
+     *      States
+     *------------------------*/
+    ev_action_t st_disconnected[] = {
+        {EV_ON_TOKEN,           ac_on_token,                0},
+        {EV_ON_OPEN,            ac_on_open,                 ST_CONNECTED},
+        {EV_ON_CLOSE,           ac_on_close,                0},
+        {EV_STOPPED,            0,                          0},
+        {0,0,0}
+    };
+
+    ev_action_t st_connected[] = {
+        {EV_MT_COMMAND_ANSWER,  ac_stats,                   0},
+        {EV_MT_STATS_ANSWER,    ac_stats,                   0},
+        // {EV_ON_STATS,           ac_stats,                   0},
+        {EV_ON_CLOSE,           ac_on_close,                ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout,                 0},
+        {EV_STOPPED,            0,                          0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_DISCONNECTED,       st_disconnected},
+        {ST_CONNECTED,          st_connected},
+        {0, 0}
+    };
+
+    /*------------------------*
+     *      Events
+     *------------------------*/
+    event_type_t event_types[] = {
+        {EV_MT_COMMAND_ANSWER,  EVF_PUBLIC_EVENT},
+        {EV_MT_STATS_ANSWER,    EVF_PUBLIC_EVENT},
+        // {EV_ON_STATS,           EVF_PUBLIC_EVENT},
+        {EV_ON_TOKEN,           0},
+        {EV_ON_OPEN,            0},
+        {EV_ON_CLOSE,           0},
+        {EV_TIMEOUT,            0},
+        {EV_STOPPED,            0},
+        {NULL, 0}
+    };
+
+    /*----------------------------------------*
+     *          Register GClass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // Local methods table (LMT)
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // Authorization table
+        0,  // Command table
+        s_user_trace_level,
+        0   // GClass flags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *          Public access
+ ***************************************************************************/
+PUBLIC int register_c_ystats(void)
+{
+    return create_gclass(C_YSTATS);
 }

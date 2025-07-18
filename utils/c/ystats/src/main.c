@@ -62,7 +62,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 #define APP_NAME        "ystats"
 #define APP_DOC         "Yuneta Statistics"
 
-#define APP_VERSION     __yuneta_version__
+#define APP_VERSION     "7.0.0"
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
 
@@ -118,7 +118,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'ystats',                                       \n\
-            'gclass': 'YStats',                                     \n\
+            'gclass': 'C_YSTATS',                                   \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -134,6 +134,8 @@ PRIVATE char variable_config[]= "\
 /***************************************************************************
  *      Data
  ***************************************************************************/
+struct arguments arguments;
+
 // Set by yuneta_entry_point()
 // const char *argp_program_version = APP_NAME " " APP_VERSION;
 // const char *argp_program_bug_address = APP_SUPPORT;
@@ -187,7 +189,10 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,
+    0,
+    0
 };
 
 /***************************************************************************
@@ -308,22 +313,38 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *                      Register
  ***************************************************************************/
-static void register_yuno_and_more(void)
+static int register_yuno_and_more(void)
 {
-    /*------------------------*
-     *  Register yuneta-tls
-     *------------------------*/
-    yuneta_register_c_tls();
-
-    /*-------------------*
-     *  Register yuno
-     *-------------------*/
-    register_yuno_ystats();
-
     /*--------------------*
-     *  Register service
+     *  Register gclass
      *--------------------*/
-    gobj_register_gclass(GCLASS_YSTATS);
+    register_c_ystats();
+
+    /*------------------------------------------------*
+     *          Traces
+     *------------------------------------------------*/
+    // Avoid timer trace, too much information
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_YUNO), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
+    gobj_set_global_no_trace("timer_periodic", TRUE);
+
+    if(arguments.verbose > 0) {
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
+    }
+    if(arguments.verbose > 1) {
+        gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+    }
+    if(arguments.verbose > 2) {
+        gobj_set_gobj_trace(0, "machine", TRUE, 0);
+        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
+        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
+    }
+
+    return 0;
 }
 
 /***************************************************************************
@@ -331,7 +352,6 @@ static void register_yuno_and_more(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
-    struct arguments arguments;
     /*
      *  Default values
      */
@@ -374,7 +394,7 @@ int main(int argc, char *argv[])
         exit(0);
     }
     if(arguments.print_yuneta_version) {
-        printf("%s\n", __yuneta_long_version__);
+        printf("%s\n", YUNETA_VERSION);
         exit(0);
     }
 
@@ -390,28 +410,28 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:i, s:b, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
-            "YStats.refresh_time", arguments.refresh_time,
-            "YStats.verbose", arguments.verbose,
-            "YStats.stats", arguments.stats,
-            "YStats.gobj_name", arguments.gobj_name,
-            "YStats.attribute", arguments.attribute,
-            "YStats.command", arguments.command,
-            "YStats.azp", arguments.azp,
-            "YStats.auth_system", arguments.auth_system,
-            "YStats.auth_url", arguments.auth_url,
-            "YStats.user_id", arguments.user_id,
-            "YStats.user_passw", arguments.user_passw,
-            "YStats.jwt", arguments.jwt,
-            "YStats.url", arguments.url,
-            "YStats.yuno_service", arguments.yuno_service,
-            "YStats.print_with_metadata", arguments.print_with_metadata
+            "C_YSTATS.refresh_time", arguments.refresh_time,
+            "C_YSTATS.verbose", arguments.verbose,
+            "C_YSTATS.stats", arguments.stats,
+            "C_YSTATS.gobj_name", arguments.gobj_name,
+            "C_YSTATS.attribute", arguments.attribute,
+            "C_YSTATS.command", arguments.command,
+            "C_YSTATS.azp", arguments.azp,
+            "C_YSTATS.auth_system", arguments.auth_system,
+            "C_YSTATS.auth_url", arguments.auth_url,
+            "C_YSTATS.user_id", arguments.user_id,
+            "C_YSTATS.user_passw", arguments.user_passw,
+            "C_YSTATS.jwt", arguments.jwt,
+            "C_YSTATS.url", arguments.url,
+            "C_YSTATS.yuno_service", arguments.yuno_service,
+            "C_YSTATS.print_with_metadata", arguments.print_with_metadata
         );
-        json_t *jn_ystats = kw_get_dict_value(kw_utility, "global", 0, 0);
+        json_t *jn_ystats = kw_get_dict_value(0, kw_utility, "global", 0, 0);
         if(arguments.yuno_role) {
-            json_object_set_new(jn_ystats, "YStats.yuno_role", json_string(arguments.yuno_role));
+            json_object_set_new(jn_ystats, "C_YSTATS.yuno_role", json_string(arguments.yuno_role));
         }
         if(arguments.yuno_name) {
-            json_object_set_new(jn_ystats, "YStats.yuno_name", json_string(arguments.yuno_name));
+            json_object_set_new(jn_ystats, "C_YSTATS.yuno_name", json_string(arguments.yuno_name));
         }
 
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
@@ -437,33 +457,15 @@ int main(int argc, char *argv[])
     }
 
     /*------------------------------------------------*
-     *  To trace memory
+     *      To check memory loss
      *------------------------------------------------*/
-#ifndef CONFIG_BUILD_TYPE_RELEASE
-TODO    static uint32_t mem_list[] = {0};
-    gbmem_trace_alloc_free(0, mem_list);
-#endif
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
+    set_memory_check_list(memory_check_list);
 
     int log_handler_options = -1;
     if(arguments.verbose == 0) {
         log_handler_options = 7;
     }
-    if(arguments.verbose > 0) {
-        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents2", TRUE);
-        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "kw", TRUE);
-    }
-    if(arguments.verbose > 1) {
-        gobj_set_gclass_trace(GCLASS_TCP0, "traffic", TRUE);
-    }
-    if(arguments.verbose > 2) {
-        gobj_set_gobj_trace(0, "machine", TRUE, 0);
-        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
-        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
-    }
-    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);
-
     static char my_variable_config[16*1024];
     snprintf(my_variable_config, sizeof(my_variable_config), variable_config, log_handler_options);
 
@@ -471,24 +473,25 @@ TODO    static uint32_t mem_list[] = {0};
      *          Start yuneta
      *------------------------------------------------*/
     helper_quote2doublequote(fixed_config);
-    helper_quote2doublequote(my_variable_config);
+    helper_quote2doublequote(variable_config);
     yuneta_setup(
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
+        NULL,       // persistent_attrs, default internal dbsimple
+        NULL,       // command_parser, default internal command_parser
+        NULL,       // stats_parser, default internal stats_parser
+        NULL,       // authz_checker, default Monoclass C_AUTHZ
+        NULL,       // authenticate_parser, default Monoclass C_AUTHZ
+        MEM_MAX_BLOCK,
+        MEM_MAX_SYSTEM_MEMORY,
+        FALSE, //USE_OWN_SYSTEM_MEMORY,
+        MEM_MIN_BLOCK,
+        MEM_SUPERBLOCK
     );
     return yuneta_entry_point(
         idx, argvs,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
         my_variable_config,
-        register_yuno_and_more
+        register_yuno_and_more,
+        NULL
     );
 }

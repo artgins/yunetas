@@ -35,7 +35,6 @@ PRIVATE int display_webix_result(
     json_t *webix
 );
 
-
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
@@ -122,7 +121,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
     priv->batch_iter = json_array();
 
     /*
@@ -905,7 +904,7 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
         }
     }
 
-    int result = kw_get_int(gobj, kw, "result", -1, 0);
+    int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
     BOOL ignore_fail = kw_get_bool(gobj, priv->hs, "ignore_fail", 0, 0);
     if(!ignore_fail && result < 0) {

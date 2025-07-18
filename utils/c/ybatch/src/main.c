@@ -68,8 +68,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 /***************************************************************************
  *                      Default config
  ***************************************************************************/
-struct arguments arguments;
-
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
@@ -134,6 +132,11 @@ PRIVATE char variable_config[]= "\
     ]                                                               \n\
 }                                                                   \n\
 ";
+
+/***************************************************************************
+ *      Data
+ ***************************************************************************/
+struct arguments arguments;
 
 // Set by yuneta_entry_point()
 // const char *argp_program_version = APP_NAME " " APP_VERSION;
