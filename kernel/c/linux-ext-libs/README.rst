@@ -29,3 +29,11 @@ Build with the next scripts::
     * extrae.sh
     * configure-libs.sh
     * install-libs.sh
+
+# TODO WARNING Functions needed to avoid shared glibc:
+#   getgrgid()
+#   getgrnam()
+#   getgrouplist()
+#   getaddrinfo()
+#   getpwuid()
+#   gethostbyname() // from libcrypto: in function `BIO_gethostbyname
