@@ -652,8 +652,8 @@ static const char Pad64 = '=';
 PRIVATE size_t b64_encode(const char* src, size_t srclength, char* target, size_t targsize)
 {
     size_t datalength = 0;
-    char input[3];
-    char output[4];
+    uint8_t input[3];
+    uint8_t output[4];
     size_t i;
 
     while (2 < srclength) {
