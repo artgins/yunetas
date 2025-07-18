@@ -9,9 +9,10 @@
 #include <stdio.h>
 #include <argp.h>
 #include <errno.h>
+#include <signal.h>
 #include <unistd.h>
 #include <string.h>
-#include <yuneta.h>
+#include <yunetas.h>
 
 /***************************************************************************
  *              Constants
@@ -62,9 +63,9 @@ static char args_doc[] = "";
  */
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
-{"verbose",         'l',    0,          0,      "Verbose mode."},
-{"no-kill-agent",   'n',    0,          0,      "Don't kill Yuneta agent."},
-{"no-kill-system",  's',    0,          0,      "Don't kill system's yunos (logcenter)."},
+{"verbose",         'l',    0,          0,      "Verbose mode.", 0},
+{"no-kill-agent",   'n',    0,          0,      "Don't kill Yuneta agent.", 0},
+{"no-kill-system",  's',    0,          0,      "Don't kill system's yunos (logcenter).", 0},
 {0}
 };
 
@@ -73,7 +74,8 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,0,0
 };
 
 int no_kill_system;
@@ -156,13 +158,14 @@ int kill_yuno(const char *directory, const char *pidfile, int verbose)
  *
  ***************************************************************************/
 BOOL find_yuno_pid_cb(
+    hgobj gojb,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt               // index of file inside of directory, relative to 0
 )
 {
     int verbose = (int)(size_t)user_data;
@@ -180,6 +183,7 @@ BOOL find_yuno_pid_cb(
 int shutdown_yuneta(int no_kill_agent, int verbose)
 {
     walk_dir_tree(
+        0,
         "/yuneta/realms",
         "yuno.pid",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
