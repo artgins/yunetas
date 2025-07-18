@@ -41,7 +41,7 @@ Install the C dependencies:
       python3-dev python3-pip python3-setuptools \
       python3-tk python3-wheel python3-venv \
       libjansson-dev libpcre2-dev perl dos2unix liburing-dev \
-      libpcre3-dev zlib1g-dev libssl-dev \
+      libpcre3-dev zlib1g-dev libssl-dev g++ \
       kconfig-frontends telnet pipx 
 
     pipx install kconfiglib
