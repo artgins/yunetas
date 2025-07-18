@@ -18,7 +18,7 @@
 #define NAME            "yuno-skeleton"
 #define APP_VERSION     __yuneta_version__
 #define APP_DATETIME    __DATE__ " " __TIME__
-#define APP_SUPPORT     "<niyamaka at yuneta.io>"
+#define APP_SUPPORT     "<support at artgins.com>"
 #define DEFAULT_SKELETON_PATH "/yuneta/development/bin/skeletons"
 #define DEFAULT_JSON_CONFIG "__skeletons__.json"
 

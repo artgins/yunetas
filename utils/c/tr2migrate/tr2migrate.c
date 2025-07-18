@@ -40,7 +40,7 @@
 #define DOC         "Migrate a timeranger to timeranger2"
 
 #define VERSION     "1.0" // __ghelpers_version__
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************

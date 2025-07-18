@@ -5,6 +5,7 @@
  *          Yuneta Batch
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>

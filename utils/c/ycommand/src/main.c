@@ -61,7 +61,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 
 #define APP_VERSION     __yuneta_version__
 #define APP_DATETIME    __DATE__ " " __TIME__
-#define APP_SUPPORT     "<niyamaka at yuneta.io>"
+#define APP_SUPPORT     "<support at artgins.com>"
 
 /***************************************************************************
  *                      Default config

@@ -31,7 +31,7 @@
 #define APP_DOC         "Simple Gateway"
 
 #define APP_VERSION     __yuneta_version__
-#define APP_SUPPORT     "<niyamaka at yuneta.io>"
+#define APP_SUPPORT     "<support at artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************

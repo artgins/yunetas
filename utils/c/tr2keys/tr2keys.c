@@ -31,7 +31,7 @@
 #define DOC         "List keys of a topic"
 
 #define VERSION     "1.0" // __ghelpers_version__
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************

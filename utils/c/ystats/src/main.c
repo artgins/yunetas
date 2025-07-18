@@ -5,13 +5,12 @@
  *          Yuneta Statistics
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
 #include <unistd.h>
-#include <yuneta_tls.h>
 #include "c_ystats.h"
-#include "yuno_ystats.h"
 
 /***************************************************************************
  *              Structures
@@ -65,7 +64,13 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 
 #define APP_VERSION     __yuneta_version__
 #define APP_DATETIME    __DATE__ " " __TIME__
-#define APP_SUPPORT     "<niyamaka at yuneta.io>"
+#define APP_SUPPORT     "<support at artgins.com>"
+
+#define USE_OWN_SYSTEM_MEMORY   FALSE
+#define MEM_MIN_BLOCK           512
+#define MEM_MAX_BLOCK           (1*1024*1024*1024L)     // 1*G
+#define MEM_SUPERBLOCK          (1*1024*1024*1024L)     // 1*G
+#define MEM_MAX_SYSTEM_MEMORY   (16*1024*1024*1024L)    // 16*G
 
 /***************************************************************************
  *                      Default config

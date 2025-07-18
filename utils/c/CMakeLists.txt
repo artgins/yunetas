@@ -17,6 +17,7 @@ add_subdirectory(test-musl)
 add_subdirectory(pkey_to_jwks)
 
 add_subdirectory(ybatch)
+add_subdirectory(ystats)
 
 # compile in Release mode :
 #

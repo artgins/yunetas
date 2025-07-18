@@ -1,40 +1,41 @@
 /****************************************************************************
  *          C_YSTATS.H
- *          YStats GClass.
+ *          Ystats GClass.
  *
- *          Yuneta Statistics
+ *          Yuneta Stats
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta_tls.h>
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
-/**rst**
-.. _ystats-gclass:
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_YSTATS);
 
-**"YStats"** :ref:`GClass`
-================================
+/*------------------------*
+ *      States
+ *------------------------*/
 
-Yuneta Statistics
+/*------------------------*
+ *      Events
+ *------------------------*/
 
-``GCLASS_YSTATS_NAME``
-   Macro of the gclass string name, i.e **"YStats"**.
-
-``GCLASS_YSTATS``
-   Macro of the :func:`gclass_ystats()` function.
-
-**rst**/
-PUBLIC GCLASS *gclass_ystats(void);
-
-#define GCLASS_YSTATS_NAME "YStats"
-#define GCLASS_YSTATS gclass_ystats()
-
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC int register_c_ystats(void);
 
 #ifdef __cplusplus
 }

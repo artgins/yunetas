@@ -19,7 +19,7 @@
 #define DOC         "Escape File to C String"
 
 #define VERSION     "1.0.0"
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************

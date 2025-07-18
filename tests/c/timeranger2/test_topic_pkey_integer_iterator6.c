@@ -56,7 +56,7 @@
 
 #define APP     "test_topic_pkey_integer_iterator6"
 #define DOC     "test_topic_pkey_integer_iterator6"
-#define SUPPORT "<niyamaka at yuneta.io>"
+#define SUPPORT "<support at artgins.com>"
 #define VERSION "1.0"
 
 #define DATABASE    "tr_topic_pkey_integer"

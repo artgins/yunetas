@@ -5,6 +5,7 @@
  *          Yuneta Batch
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
@@ -56,7 +57,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 
 #define APP_VERSION     "7.0.0"
 #define APP_DATETIME    __DATE__ " " __TIME__
-#define APP_SUPPORT     "<niyamaka at yuneta.io>"
+#define APP_SUPPORT     "<support at artgins.com>"
 
 #define USE_OWN_SYSTEM_MEMORY   FALSE
 #define MEM_MIN_BLOCK           512

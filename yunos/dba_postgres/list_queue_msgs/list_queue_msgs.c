@@ -22,7 +22,7 @@
 #define DOC         "List messages in message's queue."
 
 #define VERSION     "1.9.0"
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 #define MEM_MIN_BLOCK           512

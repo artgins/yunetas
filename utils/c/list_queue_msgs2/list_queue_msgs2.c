@@ -30,7 +30,7 @@
 #define DOC         "List messages in message's queue, for tranger2."
 
 #define VERSION     "1.9.0"
-#define SUPPORT     "<niyamaka at yuneta.io>"
+#define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************

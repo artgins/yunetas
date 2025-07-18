@@ -22,7 +22,7 @@
 #define APP_DOC         "DBA Dba_postgres"
 
 #define APP_VERSION     __yuneta_version__
-#define APP_SUPPORT     "<niyamaka@yuneta.io>"
+#define APP_SUPPORT     "<support at artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 
 /***************************************************************************

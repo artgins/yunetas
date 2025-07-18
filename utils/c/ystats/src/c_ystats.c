@@ -37,27 +37,27 @@ PRIVATE int poll_stats_data(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */
-SDATA (ASN_BOOLEAN,     "print_with_metadata",0,        0,              "Print response with metadata."),
-SDATA (ASN_BOOLEAN,     "verbose",          0,          1,              "Verbose mode."),
-SDATA (ASN_OCTET_STR,   "stats",            0,          "",             "Requested statistics."),
-SDATA (ASN_OCTET_STR,   "gobj_name",        0,          "",             "Gobj's attribute or command."),
-SDATA (ASN_OCTET_STR,   "attribute",        0,          "",             "Requested attribute."),
-SDATA (ASN_OCTET_STR,   "command",          0,          "",             "Requested command."),
-SDATA (ASN_INTEGER,     "refresh_time",     0,          1,              "Refresh time, in seconds. Set 0 to remove subscription."),
-SDATA (ASN_OCTET_STR,   "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "auth_url",         0,          "",             "OpenID Endpoint (interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
-SDATA (ASN_OCTET_STR,   "user_id",          0,          "",             "OAuth2 User Id (interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "user_passw",       0,          "",             "OAuth2 User password (interactive jwt)"),
-SDATA (ASN_OCTET_STR,   "jwt",              0,          "",             "Jwt"),
-SDATA (ASN_OCTET_STR,   "url",              0,          "ws://127.0.0.1:1991",  "Url to get Statistics. Can be a ip/hostname or a full url"),
-SDATA (ASN_OCTET_STR,   "yuno_name",        0,          "",             "Yuno name"),
-SDATA (ASN_OCTET_STR,   "yuno_role",        0,          "",             "Yuno role (No direct connection, all through agent)"),
-SDATA (ASN_OCTET_STR,   "yuno_service",     0,          "__default_service__", "Yuno service"),
+SDATA (DTP_BOOLEAN,     "print_with_metadata",0,        0,              "Print response with metadata."),
+SDATA (DTP_BOOLEAN,     "verbose",          0,          1,              "Verbose mode."),
+SDATA (DTP_STRING,      "stats",            0,          "",             "Requested statistics."),
+SDATA (DTP_STRING,      "gobj_name",        0,          "",             "Gobj's attribute or command."),
+SDATA (DTP_STRING,      "attribute",        0,          "",             "Requested attribute."),
+SDATA (DTP_STRING,      "command",          0,          "",             "Requested command."),
+SDATA (DTP_INTEGER,     "refresh_time",     0,          1,              "Refresh time, in seconds. Set 0 to remove subscription."),
+SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
+SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint (interactive jwt)"),
+SDATA (DTP_STRING,      "azp",              0,          "",             "azp (OAuth2 Authorized Party)"),
+SDATA (DTP_STRING,      "user_id",          0,          "",             "OAuth2 User Id (interactive jwt)"),
+SDATA (DTP_STRING,      "user_passw",       0,          "",             "OAuth2 User password (interactive jwt)"),
+SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
+SDATA (DTP_STRING,      "url",              0,          "ws://127.0.0.1:1991",  "Url to get Statistics. Can be a ip/hostname or a full url"),
+SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),
+SDATA (DTP_STRING,      "yuno_role",        0,          "",             "Yuno role (No direct connection, all through agent)"),
+SDATA (DTP_STRING,      "yuno_service",     0,          "__default_service__", "Yuno service"),
 
-SDATA (ASN_POINTER,     "gobj_connector",   0,          0,              "connection gobj"),
-SDATA (ASN_POINTER,     "user_data",        0,          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,          0,              "more user data"),
+SDATA (DTP_POINTER,     "gobj_connector",   0,          0,              "connection gobj"),
+SDATA (DTP_POINTER,     "user_data",        0,          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,          0,              "more user data"),
 SDATA_END()
 };
 
@@ -101,14 +101,14 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(gobj_connector,        gobj_read_pointer_attr)
-    SET_PRIV(refresh_time,          gobj_read_int32_attr)
+    SET_PRIV(refresh_time,          gobj_read_integer_attr)
     SET_PRIV(verbose,               gobj_read_bool_attr)
 }
 
@@ -119,7 +119,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(refresh_time,         gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(refresh_time,         gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(gobj_connector,     gobj_read_pointer_attr)
     ELIF_EQ_SET_PRIV(verbose,           gobj_read_bool_attr)
     END_EQ_SET_PRIV()
@@ -327,8 +327,7 @@ PRIVATE int cmd_connect(hgobj gobj)
      */
     char schema[20]={0}, host[120]={0}, port[40]={0};
     if(parse_http_url(url, schema, sizeof(schema), host, sizeof(host), port, sizeof(port), FALSE)<0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "parse_http_url() FAILED",
@@ -365,29 +364,29 @@ PRIVATE int poll_attr_data(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    GBUFFER *gbuf = gbuf_create(8*1024, 8*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024, 0, 0);
     const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
     const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
     const char *gobj_name_ = gobj_read_str_attr(gobj, "gobj_name");
     const char *attribute = gobj_read_str_attr(gobj, "attribute");
 
-    gbuf_printf(gbuf, "command-yuno command=read-number");
+    gbuffer_printf(gbuf, "command-yuno command=read-number");
     if(yuno_service) {
-        gbuf_printf(gbuf, " service=%s", yuno_service);
+        gbuffer_printf(gbuf, " service=%s", yuno_service);
     }
     if(yuno_role) {
-        gbuf_printf(gbuf, " yuno_role=%s", yuno_role);
+        gbuffer_printf(gbuf, " yuno_role=%s", yuno_role);
     }
     if(yuno_name) {
-        gbuf_printf(gbuf, " yuno_name=%s", yuno_name);
+        gbuffer_printf(gbuf, " yuno_name=%s", yuno_name);
     }
 
-    gbuf_printf(gbuf, " gobj_name='%s'", gobj_name_?gobj_name_:"");
-    gbuf_printf(gbuf, " attribute=%s", attribute?attribute:"");
+    gbuffer_printf(gbuf, " gobj_name='%s'", gobj_name_?gobj_name_:"");
+    gbuffer_printf(gbuf, " attribute=%s", attribute?attribute:"");
 
-    gobj_command(priv->gobj_connector, gbuf_cur_rd_pointer(gbuf), 0, gobj);
-    GBUF_DECREF(gbuf);
+    gobj_command(priv->gobj_connector, gbuffer_cur_rd_pointer(gbuf), 0, gobj);
+    GBUFFER_DECREF(gbuf);
     return 0;
 }
 
@@ -398,12 +397,12 @@ PRIVATE int poll_command_data(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    GBUFFER *gbuf = gbuf_create(8*1024, 8*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024, 0, 0);
     const char *command = gobj_read_str_attr(gobj, "command");
 
-    gbuf_printf(gbuf, "%s", command);
-    gobj_command(priv->gobj_connector, gbuf_cur_rd_pointer(gbuf), 0, gobj);
-    GBUF_DECREF(gbuf);
+    gbuffer_printf(gbuf, "%s", command);
+    gobj_command(priv->gobj_connector, gbuffer_cur_rd_pointer(gbuf), 0, gobj);
+    GBUFFER_DECREF(gbuf);
     return 0;
 }
 
@@ -414,7 +413,7 @@ PRIVATE int poll_stats_data(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    GBUFFER *gbuf = gbuf_create(8*1024, 8*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024, 0, 0);
     const char *yuno_name = gobj_read_str_attr(gobj, "yuno_name");
     const char *yuno_role = gobj_read_str_attr(gobj, "yuno_role");
     const char *yuno_service = gobj_read_str_attr(gobj, "yuno_service");
@@ -424,27 +423,27 @@ PRIVATE int poll_stats_data(hgobj gobj)
             strcmp(yuno_service, "__agent__")==0 ||
             strcmp(yuno_service, "__agent_yuno__")==0 ||
             strcmp(yuno_service, "__yuneta_agent__")==0)) {
-        gbuf_printf(gbuf, "stats-agent");
+        gbuffer_printf(gbuf, "stats-agent");
         if(strcmp(yuno_service, "__agent_yuno__")==0) {
-            gbuf_printf(gbuf, " service=%s", "__yuno__");
+            gbuffer_printf(gbuf, " service=%s", "__yuno__");
         }
     } else {
-        gbuf_printf(gbuf, "stats-yuno");
+        gbuffer_printf(gbuf, "stats-yuno");
         if(yuno_service) {
-            gbuf_printf(gbuf, " service=%s", yuno_service);
+            gbuffer_printf(gbuf, " service=%s", yuno_service);
         }
     }
 
     if(!empty_string(yuno_role)) {
-        gbuf_printf(gbuf, " yuno_role=%s", yuno_role);
+        gbuffer_printf(gbuf, " yuno_role=%s", yuno_role);
     }
     if(!empty_string(yuno_name)) {
-        gbuf_printf(gbuf, " yuno_name=%s", yuno_name);
+        gbuffer_printf(gbuf, " yuno_name=%s", yuno_name);
     }
-    gbuf_printf(gbuf, " stats=%s", stats?stats:"");
+    gbuffer_printf(gbuf, " stats=%s", stats?stats:"");
 
-    gobj_command(priv->gobj_connector, gbuf_cur_rd_pointer(gbuf), 0, gobj);
-    GBUF_DECREF(gbuf);
+    gobj_command(priv->gobj_connector, gbuffer_cur_rd_pointer(gbuf), 0, gobj);
+    GBUFFER_DECREF(gbuf);
     return 0;
 }
 
@@ -463,17 +462,17 @@ PRIVATE int poll_stats_data(hgobj gobj)
  ***************************************************************************/
 PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    int result = kw_get_int(kw, "result", -1, KW_REQUIRED);
+    int result = kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
     if(result < 0) {
         if(1) {
-            const char *comment = kw_get_str(kw, "comment", "", 0);
+            const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
             printf("\n%s", comment);
             printf("\nAbort.\n");
         }
         gobj_set_exit_code(-1);
         gobj_shutdown();
     } else {
-        const char *jwt = kw_get_str(kw, "jwt", "", KW_REQUIRED);
+        const char *jwt = kw_get_str(gobj, kw, "jwt", "", KW_REQUIRED);
         gobj_write_str_attr(gobj, "jwt", jwt);
         cmd_connect(gobj);
     }
@@ -488,7 +487,7 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *agent_name = kw_get_str(kw, "remote_yuno_name", 0, 0); // remote agent name
+    const char *agent_name = kw_get_str(gobj, kw, "remote_yuno_name", 0, 0); // remote agent name
 
     if(priv->verbose) {
         printf("Connected to '%s', url: '%s'.\n", agent_name, gobj_read_str_attr(gobj, "url"));
@@ -575,7 +574,7 @@ PRIVATE int ac_stats(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_shutdown();
     } else {
         BOOL to_free = FALSE;
-        json_t *jn_data = WEBIX_DATA(kw); //kw_get_dict_value(kw, "data", 0, 0);
+        json_t *jn_data = WEBIX_DATA(kw); //kw_get_dict_value(gobj, kw, "data", 0, 0);
         if(!gobj_read_bool_attr(gobj, "print_with_metadata")) {
             jn_data = kw_filter_metadata(jn_data);
             to_free = TRUE;
@@ -625,12 +624,12 @@ PRIVATE const EVENT input_events[] = {
     {"EV_MT_COMMAND_ANSWER",EVF_PUBLIC_EVENT,  0,  0},
     {"EV_MT_STATS_ANSWER",  EVF_PUBLIC_EVENT,  0,  0},
     {"EV_ON_TOKEN",         0,  0,  0},
-    {"EV_ON_OPEN",          0,  0,  0},
-    {"EV_ON_CLOSE",         0,  0,  0},
+    {EV_ON_OPEN,          0,  0,  0},
+    {EV_ON_CLOSE,         0,  0,  0},
     {"EV_ON_STATS",         EVF_PUBLIC_EVENT,  0,  0},
     // bottom input
-    {"EV_TIMEOUT",          0,  0,  0},
-    {"EV_STOPPED",          0,  0,  0},
+    {EV_TIMEOUT,          0,  0,  0},
+    {EV_STOPPED,          0,  0,  0},
     // internal
     {NULL, 0, 0, 0}
 };
@@ -638,25 +637,25 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_DISCONNECTED",
-    "ST_CONNECTED",
+    ST_DISCONNECTED,
+    ST_CONNECTED,
     NULL
 };
 
 PRIVATE EV_ACTION ST_DISCONNECTED[] = {
     {"EV_ON_TOKEN",                 ac_on_token,                0},
-    {"EV_ON_OPEN",                  ac_on_open,                 "ST_CONNECTED"},
-    {"EV_ON_CLOSE",                 ac_on_close,                0},
-    {"EV_STOPPED",                  0,                          0},
+    {EV_ON_OPEN,                  ac_on_open,                 ST_CONNECTED},
+    {EV_ON_CLOSE,                 ac_on_close,                0},
+    {EV_STOPPED,                  0,                          0},
     {0,0,0}
 };
 PRIVATE EV_ACTION ST_CONNECTED[] = {
     {"EV_MT_COMMAND_ANSWER",        ac_stats,                   0},
     {"EV_MT_STATS_ANSWER",          ac_stats,                   0},
     {"EV_ON_STATS",                 ac_stats,                   0},
-    {"EV_ON_CLOSE",                 ac_on_close,                "ST_DISCONNECTED"},
-    {"EV_TIMEOUT",                  ac_timeout,                 0},
-    {"EV_STOPPED",                  0,                          0},
+    {EV_ON_CLOSE,                 ac_on_close,                ST_DISCONNECTED},
+    {EV_TIMEOUT,                  ac_timeout,                 0},
+    {EV_STOPPED,                  0,                          0},
     {0,0,0}
 };
 
