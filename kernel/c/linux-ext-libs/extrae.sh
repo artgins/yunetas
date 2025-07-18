@@ -12,6 +12,11 @@ if ! command -v ninja >/dev/null 2>&1; then
     exit 1
 fi
 
+#----------------------------------------#
+#       Disable the Merde for backends
+#----------------------------------------#
+sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+sudo apt remove powerdevil
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e
