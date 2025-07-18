@@ -197,6 +197,47 @@ cd ../..
 
 
 #------------------------------------------
+#   libncurses
+#------------------------------------------
+echo "===================== NCURSES ======================="
+cd build/ncurses
+
+git checkout "$TAG_NCURSES"
+
+# HACK in recents gcc ncurses will fail.
+
+./configure \
+    --prefix="${YUNETA_INSTALL_PREFIX}" \
+    --datarootdir=/yuneta/bin/ncurses \
+    --without-cxx --without-cxx-binding \
+    --without-manpages \
+    --enable-sp-funcs
+make
+make install
+cd ../..
+
+
+#------------------------------------------
+#   nginx
+#------------------------------------------
+echo "===================== NGINX ======================="
+cd build/nginx
+
+git checkout "$TAG_NGINX"
+
+./auto/configure \
+    --prefix=/yuneta/bin/nginx \
+    --with-http_ssl_module \
+    --with-stream \
+    --with-stream_ssl_module \
+    --with-openssl=../openssl \
+    --with-openssl-opt=no-tests
+make
+make install
+cd ../..
+
+
+#------------------------------------------
 #   Save the version installed
 #------------------------------------------
 echo "Version $VERSION installed"
