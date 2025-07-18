@@ -5,13 +5,13 @@
  *          Yuneta Tests
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
 #include <unistd.h>
-#include <yuneta_tls.h>
+#include <yunetas.h>
 #include "c_ytests.h"
-#include "yuno_ytests.h"
 
 /***************************************************************************
  *              Structures
@@ -61,6 +61,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 #define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
+
+#define USE_OWN_SYSTEM_MEMORY   FALSE
+#define MEM_MIN_BLOCK           512
+#define MEM_MAX_BLOCK           (1*1024*1024*1024L)     // 1*G
+#define MEM_SUPERBLOCK          (1*1024*1024*1024L)     // 1*G
+#define MEM_MAX_SYSTEM_MEMORY   (16*1024*1024*1024L)    // 16*G
 
 /***************************************************************************
  *                      Default config
@@ -130,6 +136,11 @@ PRIVATE char variable_config[]= "\
 }                                                                   \n\
 ";
 
+/***************************************************************************
+ *      Data
+ ***************************************************************************/
+struct arguments arguments;
+
 // Set by yuneta_entry_point()
 // const char *argp_program_version = APP_NAME " " APP_VERSION;
 // const char *argp_program_bug_address = APP_SUPPORT;
@@ -164,7 +175,7 @@ static struct argp_option options[] = {
 {"repeat",          't',    "TIMES",    0,      "Repeat execution 'repeat' times. Set -1 to infinite loop. Default: 1", 1},
 {"print",           'p',    0,          0,      "Print configuration.", 40},
 {"config-file",     'f',    "FILE",     0,      "load settings from json config file or [files]", 40},
-{"print-role",      'r',    0,          0,      "print the basic yuno's information"},
+{"print-role",      'r',    0,          0,      "print the basic yuno's information", 40},
 {"verbose",         'l',    "LEVEL",    0,      "Verbose level.", 40},
 {"version",         'v',    0,          0,      "Print version.", 40},
 {"yuneta-version",  'V',    0,          0,      "Print yuneta version", 40},
@@ -176,7 +187,10 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,
+    0,
+    0
 };
 
 /***************************************************************************
@@ -281,22 +295,38 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *                      Register
  ***************************************************************************/
-static void register_yuno_and_more(void)
+static int register_yuno_and_more(void)
 {
-    /*------------------------*
-     *  Register yuneta-tls
-     *------------------------*/
-    yuneta_register_c_tls();
-
-    /*-------------------*
-     *  Register yuno
-     *-------------------*/
-    register_yuno_ytests();
-
     /*--------------------*
-     *  Register service
+     *  Register gclass
      *--------------------*/
-    gobj_register_gclass(GCLASS_YTESTS);
+    register_c_ytests();
+
+    /*------------------------------------------------*
+     *          Traces
+     *------------------------------------------------*/
+    // Avoid timer trace, too much information
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_YUNO), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
+    gobj_set_global_no_trace("timer_periodic", TRUE);
+
+    if(arguments.verbose > 0) {
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
+    }
+    if(arguments.verbose > 1) {
+        gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
+    }
+    if(arguments.verbose > 2) {
+        gobj_set_gobj_trace(0, "machine", TRUE, 0);
+        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
+        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
+    }
+
+    return 0;
 }
 
 /***************************************************************************
@@ -347,7 +377,7 @@ int main(int argc, char *argv[])
         exit(0);
     }
     if(arguments.print_yuneta_version) {
-        printf("%s\n", __yuneta_long_version__);
+        printf("%s\n", YUNETA_VERSION);
         exit(0);
     }
 
@@ -363,19 +393,19 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
             "global",
-            "YTests.repeat", arguments.repeat,
-            "YTests.verbose", arguments.verbose,
-            "YTests.path", path,
-            "YTests.auth_system", arguments.auth_system,
-            "YTests.auth_url", arguments.auth_url,
-            "YTests.user_id", arguments.user_id,
-            "YTests.user_passw", arguments.user_passw,
-            "YTests.jwt", arguments.jwt,
-            "YTests.url", arguments.url,
-            "YTests.azp", arguments.azp,
-            "YTests.yuno_role", arguments.yuno_role,
-            "YTests.yuno_name", arguments.yuno_name,
-            "YTests.yuno_service", arguments.yuno_service
+            "C_Ytests.repeat", arguments.repeat,
+            "C_Ytests.verbose", arguments.verbose,
+            "C_Ytests.path", path,
+            "C_Ytests.auth_system", arguments.auth_system,
+            "C_Ytests.auth_url", arguments.auth_url,
+            "C_Ytests.user_id", arguments.user_id,
+            "C_Ytests.user_passw", arguments.user_passw,
+            "C_Ytests.jwt", arguments.jwt,
+            "C_Ytests.url", arguments.url,
+            "C_Ytests.azp", arguments.azp,
+            "C_Ytests.yuno_role", arguments.yuno_role,
+            "C_Ytests.yuno_name", arguments.yuno_name,
+            "C_Ytests.yuno_service", arguments.yuno_service
         );
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
         if(!param1_) {
@@ -400,28 +430,10 @@ int main(int argc, char *argv[])
     }
 
     /*------------------------------------------------*
-     *  To trace memory
+     *      To check memory loss
      *------------------------------------------------*/
-#ifndef CONFIG_BUILD_TYPE_RELEASE
-    static uint32_t mem_list[] = {0};
-    gbmem_trace_alloc_free(0, mem_list);
-#endif
-
-    if(arguments.verbose > 0) {
-        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents", TRUE);
-        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "kw", TRUE);
-    }
-    if(arguments.verbose > 1) {
-        gobj_set_gclass_trace(GCLASS_TCP0, "traffic", TRUE);
-    }
-    if(arguments.verbose > 2) {
-        gobj_set_gobj_trace(0, "machine", TRUE, 0);
-        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
-        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
-    }
-    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
+    set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
      *          Start yuneta
@@ -429,22 +441,23 @@ int main(int argc, char *argv[])
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
     yuneta_setup(
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0
+        NULL,       // persistent_attrs, default internal dbsimple
+        NULL,       // command_parser, default internal command_parser
+        NULL,       // stats_parser, default internal stats_parser
+        NULL,       // authz_checker, default Monoclass C_AUTHZ
+        NULL,       // authenticate_parser, default Monoclass C_AUTHZ
+        MEM_MAX_BLOCK,
+        MEM_MAX_SYSTEM_MEMORY,
+        FALSE, //USE_OWN_SYSTEM_MEMORY,
+        MEM_MIN_BLOCK,
+        MEM_SUPERBLOCK
     );
     return yuneta_entry_point(
         idx, argvs,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
         variable_config,
-        register_yuno_and_more
+        register_yuno_and_more,
+        NULL
     );
 }

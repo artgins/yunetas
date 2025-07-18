@@ -1,51 +1,41 @@
 /****************************************************************************
  *          C_YTESTS.H
- *          YTests GClass.
+ *          Ytests GClass.
  *
  *          Yuneta Tests
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta_tls.h>
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
-/*********************************************************************
- *      Interface
- *********************************************************************/
-/*
- *  Available subscriptions for ytests's users
- */
-#define I_YTESTS_SUBSCRIPTIONS    \
-    {"EV_ON_SAMPLE1",               0,  0,  0}, \
-    {"EV_ON_SAMPLE2",               0,  0,  0},
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_YTESTS);
 
+/*------------------------*
+ *      States
+ *------------------------*/
 
-/**rst**
-.. _ytests-gclass:
+/*------------------------*
+ *      Events
+ *------------------------*/
 
-**"YTests"** :ref:`GClass`
-================================
-
-Yuneta Tests
-
-``GCLASS_YTESTS_NAME``
-   Macro of the gclass string name, i.e **"YTests"**.
-
-``GCLASS_YTESTS``
-   Macro of the :func:`gclass_ytests()` function.
-
-**rst**/
-PUBLIC GCLASS *gclass_ytests(void);
-
-#define GCLASS_YTESTS_NAME "YTests"
-#define GCLASS_YTESTS gclass_ytests()
-
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC int register_c_ytests(void);
 
 #ifdef __cplusplus
 }
