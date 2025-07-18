@@ -282,7 +282,6 @@ PUBLIC size_t gbuffer_append(gbuffer_t *gbuf, void *bf, size_t len)
 {
     char *p;
 
-#if defined(CONFIG_BUILD_TYPE_DEBUG)
     if(!gbuf) {
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -310,7 +309,6 @@ PUBLIC size_t gbuffer_append(gbuffer_t *gbuf, void *bf, size_t len)
         );
         return 0;
     }
-#endif
 
     if(gbuffer_freebytes(gbuf) < len) {
         gbuffer_realloc(gbuf, len);
