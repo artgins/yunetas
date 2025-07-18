@@ -36,18 +36,7 @@ add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 target_link_libraries(${PROJECT_NAME}
     libjansson.a
     pcre.a
-    #    ${YUNETAS_KERNEL_LIBS}
-    #    ${YUNETAS_EXTERNAL_LIBS}
-    #    ${YUNETAS_PCRE_LIBS}
-    #    ${OPENSSL_LIBS}
-    #    ${MBEDTLS_LIBS}
-    #    ${DEBUG_LIBS}
 )
-
-#TARGET_LINK_LIBRARIES(yclone-gclass
-#    /yuneta/development/output/lib/libjansson.a
-#    rt pthread dl pcre
-#)
 
 ##############################################
 #   Installation
