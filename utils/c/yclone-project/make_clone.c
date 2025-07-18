@@ -16,7 +16,7 @@
 #include <argp.h>
 #include <regex.h>
 #include <jansson.h>
-#include <12_walkdir.h>
+#include <helpers.h>
 #include "make_clone.h"
 #include "clone_tree_dir.h"
 

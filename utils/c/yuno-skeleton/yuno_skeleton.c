@@ -16,7 +16,7 @@
  *      Constants
  ***************************************************************************/
 #define NAME            "yuno-skeleton"
-#define APP_VERSION     __yuneta_version__
+#define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
 #define DEFAULT_SKELETON_PATH "/yuneta/development/bin/skeletons"

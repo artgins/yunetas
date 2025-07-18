@@ -443,7 +443,7 @@ PRIVATE json_t *cmd_send_summary(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     gbuf_printf(gbuf_summary, "From %s (%s, %s)\nat %s, \n\n",
         _get_hostname(),
         node_uuid(),
-        __yuneta_version__,
+        YUNETA_VERSION,
         fecha
     );
     json2gbuf(gbuf_summary, jn_summary, JSON_INDENT(4));
@@ -853,7 +853,7 @@ PRIVATE int send_report_email(hgobj gobj, BOOL reset)
     gbuf_printf(gbuf_summary, "From %s (%s, %s)\nat %s, Logcenter Summary:\n\n",
         _get_hostname(),
         node_uuid(),
-        __yuneta_version__,
+        YUNETA_VERSION,
         fecha
     );
     json2gbuf(gbuf_summary, jn_summary, JSON_INDENT(4));

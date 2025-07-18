@@ -143,6 +143,7 @@ set(COMMON_C_FLAGS
     -Wno-type-limits
     -Wno-sign-compare
     -Wno-unused-parameter
+    -funsigned-char
 )
 
 add_compile_options(${COMMON_C_FLAGS})

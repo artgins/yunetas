@@ -11,8 +11,8 @@
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
-#include <ghelpers.h>
-#include <yuneta.h>
+#include <signal.h>
+#include <yunetas.h>
 
 /***************************************************************************
  *              Constants
@@ -20,7 +20,7 @@
 #define NAME        "ylist"
 #define DOC         "List yunos"
 
-#define APP_VERSION     __yuneta_version__
+#define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
 
@@ -60,7 +60,7 @@ static char args_doc[] = "";
  *  See https://www.gnu.org/software/libc/manual/html_node/Argp-Option-Vectors.html
  */
 static struct argp_option options[] = {
-{"pids",        'p',    0,      0,   "Display only pids"},
+{"pids",        'p',    0,      0,   "Display only pids", 0},
 {0}
 };
 
@@ -69,7 +69,8 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,0,0
 };
 
 /***************************************************************************
@@ -143,13 +144,14 @@ int list_yuno(const char *directory, const char *pidfile, struct arguments *argu
  *
  ***************************************************************************/
 BOOL list_yuno_pid_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
     char *fullpath,         // directory+filename found
     const char *directory,  // directory of found filename
     char *name,             // dname[255]
     int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
+    wd_option opt           // option parameter
 )
 {
     struct arguments *arguments = user_data;
@@ -160,6 +162,7 @@ BOOL list_yuno_pid_cb(
 int ylist(struct arguments *arguments)
 {
     walk_dir_tree(
+        0,
         "/yuneta/realms",
         "yuno.pid",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,

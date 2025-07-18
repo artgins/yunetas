@@ -58,7 +58,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 #define APP_NAME        "ytests"
 #define APP_DOC         "Yuneta Tests"
 
-#define APP_VERSION     __yuneta_version__
+#define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
 

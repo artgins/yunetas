@@ -21,7 +21,7 @@
 #include <pcre.h>
 #include <errno.h>
 #include <jansson.h>
-#include <00_replace_string.h>
+#include "00_replace_string.h"
 #include "render_file.h"
 
 /***************************************************************************
@@ -82,4 +82,3 @@ int render_file(char *dst_path, char *src_path, json_t *jn_values)
     fclose(fout);
     return 0;
 }
-

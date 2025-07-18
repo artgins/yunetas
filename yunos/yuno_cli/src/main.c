@@ -16,7 +16,7 @@
 #define APP_NAME        "yuneta"
 #define APP_DOC         "Yuneta Command Line Interface"
 
-#define APP_VERSION     __yuneta_version__
+#define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
 

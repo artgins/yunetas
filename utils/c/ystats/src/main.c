@@ -62,7 +62,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 #define APP_NAME        "ystats"
 #define APP_DOC         "Yuneta Statistics"
 
-#define APP_VERSION     "7.0.0"
+#define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
 

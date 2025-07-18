@@ -9,14 +9,14 @@
 #include <string.h>
 #include <stdlib.h>
 #include <argp.h>
-#include <yuneta_version.h>
+#include <yunetas.h>
 #include "rename_gclass.h"
 
 /***************************************************************************
  *      Constants
  ***************************************************************************/
 #define NAME            "yclone-gclass"
-#define APP_VERSION     __yuneta_version__
+#define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
 
@@ -60,7 +60,8 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,0,0
 };
 
 /***************************************************************************

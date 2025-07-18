@@ -21,7 +21,7 @@
 #define APP_NAME        ROLE_DBA_POSTGRES
 #define APP_DOC         "DBA Dba_postgres"
 
-#define APP_VERSION     __yuneta_version__
+#define APP_VERSION     YUNETA_VERSION
 #define APP_SUPPORT     "<support at artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 

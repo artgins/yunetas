@@ -20,11 +20,12 @@
 #include <stddef.h>
 #include <pcre.h>
 #include <errno.h>
-#include <12_walkdir.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <jansson.h>
-#include <00_replace_string.h>
+
+#include <helpers.h>
+#include "00_replace_string.h"
 #include "clone_tree_dir.h"
 
 #define Color_Off "\033[0m"       // Text Reset
