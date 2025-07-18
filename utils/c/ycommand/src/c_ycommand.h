@@ -5,37 +5,47 @@
  *          Yuneta Command utility
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta_tls.h>
-#include "c_editline.h"
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
-/**rst**
-.. _ycommand-gclass:
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_YCOMMAND);
 
-**"YCommand"** :ref:`GClass`
-================================
+/*------------------------*
+ *      States
+ *------------------------*/
 
-Yuneta Statistics
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DECLARE_EVENT(EV_EDIT_CONFIG);
+GOBJ_DECLARE_EVENT(EV_VIEW_CONFIG);
+GOBJ_DECLARE_EVENT(EV_EDIT_YUNO_CONFIG);
+GOBJ_DECLARE_EVENT(EV_VIEW_YUNO_CONFIG);
+GOBJ_DECLARE_EVENT(EV_READ_JSON);
+GOBJ_DECLARE_EVENT(EV_READ_FILE);
+GOBJ_DECLARE_EVENT(EV_READ_BINARY_FILE);
+GOBJ_DECLARE_EVENT(EV_TTY_OPEN);
+GOBJ_DECLARE_EVENT(EV_TTY_CLOSE);
+GOBJ_DECLARE_EVENT(EV_TTY_DATA);
 
-``GCLASS_YCOMMAND_NAME``
-   Macro of the gclass string name, i.e **"YCommand"**.
-
-``GCLASS_YCOMMAND``
-   Macro of the :func:`gclass_ycommand()` function.
-
-**rst**/
-PUBLIC GCLASS *gclass_ycommand(void);
-
-#define GCLASS_YCOMMAND_NAME "YCommand"
-#define GCLASS_YCOMMAND gclass_ycommand()
-
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC int register_c_ycommand(void);
 
 #ifdef __cplusplus
 }

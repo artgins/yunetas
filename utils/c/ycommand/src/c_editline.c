@@ -115,6 +115,7 @@
  *
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
 #include <stdio.h>
@@ -148,19 +149,19 @@ typedef struct linenoiseCompletions {
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (ASN_OCTET_STR,   "prompt",               0,  "ycommand> ", "Prompt"),
-SDATA (ASN_OCTET_STR,   "history_file",         0,  0, "History file"),
-SDATA (ASN_INTEGER,     "history_max_len",      0,  100000, "history max len (max lines)"),
-SDATA (ASN_INTEGER,     "buffer_size",          0,  4*1024, "edition buffer size"),
-SDATA (ASN_INTEGER,     "x",                    0,  0, "x window coord"),
-SDATA (ASN_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (ASN_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
-SDATA (ASN_INTEGER,     "cy",                   0,  1, "physical height window size"),
-SDATA (ASN_OCTET_STR,   "bg_color",             0,  "cyan", "Background color"),
-SDATA (ASN_OCTET_STR,   "fg_color",             0,  "white", "Foreground color"),
-SDATA (ASN_POINTER,     "user_data",            0,  0, "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,  0, "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_STRING,      "prompt",               0,  "ycommand> ", "Prompt"),
+SDATA (DTP_STRING,      "history_file",         0,  0, "History file"),
+SDATA (DTP_INTEGER,     "history_max_len",      0,  "100000", "history max len (max lines)"),
+SDATA (DTP_INTEGER,     "buffer_size",          0,  "4096", "edition buffer size"),
+SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
+SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
+SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
+SDATA (DTP_STRING,      "bg_color",             0,  "cyan", "Background color"),
+SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
+SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
@@ -207,6 +208,8 @@ PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename);
 PRIVATE int linenoiseHistoryAdd(PRIVATE_DATA *l, const char *line);
 PRIVATE void refreshLine(PRIVATE_DATA *l);
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -244,12 +247,12 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(prompt,                    gobj_read_str_attr)
         priv->plen = strlen(priv->prompt);
     SET_PRIV(history_file,              gobj_read_str_attr)
-    SET_PRIV(cx,                        gobj_read_int32_attr)
+    SET_PRIV(cx,                        gobj_read_integer_attr)
         priv->cols = priv->cx;
-    SET_PRIV(cy,                        gobj_read_int32_attr)
-    SET_PRIV(history_max_len,           gobj_read_int32_attr)
+    SET_PRIV(cy,                        gobj_read_integer_attr)
+    SET_PRIV(history_max_len,           gobj_read_integer_attr)
 
-    int buffer_size = gobj_read_int32_attr(gobj, "buffer_size");
+    int buffer_size = (int)gobj_read_integer_attr(gobj, "buffer_size");
     priv->buf = gbmem_malloc(buffer_size);
     priv->buflen = buffer_size - 1;
 
@@ -279,12 +282,11 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(prompt,                gobj_read_str_attr)
         priv->plen = strlen(priv->prompt);
         refreshLine(priv);
-    ELIF_EQ_SET_PRIV(cx,                    gobj_read_int32_attr)
+    ELIF_EQ_SET_PRIV(cx,                    gobj_read_integer_attr)
         priv->cols = priv->cx;
         //TODO igual hay que refrescar
-    ELIF_EQ_SET_PRIV(cy,                    gobj_read_int32_attr)
-    ELIF_EQ_SET_PRIV(cy,                    gobj_read_int32_attr)
-    ELIF_EQ_SET_PRIV(history_max_len,       gobj_read_int32_attr)
+    ELIF_EQ_SET_PRIV(cy,                    gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(history_max_len,       gobj_read_integer_attr)
         linenoiseHistorySetMaxLen(priv, priv->history_max_len);
     END_EQ_SET_PRIV()
 }
@@ -389,7 +391,7 @@ static int completeLine(PRIVATE_DATA *ls)
             }
 
             nread = read(STDIN_FILENO, &c, 1);
-            log_debug_printf(0, "kb x%X %c", c, c);
+            // log_debug_printf(0, "kb x%X %c", c, c);
             if (nread <= 0) {
                 freeCompletions(&lc);
                 return -1;
@@ -816,7 +818,7 @@ PRIVATE int ac_keychar(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
-    int c = kw_get_int(kw, "char", 0, KW_REQUIRED);
+    int c = kw_get_int(gobj, kw, "char", 0, KW_REQUIRED);
 
     linenoiseEditInsert(l, c);
 
@@ -1068,7 +1070,7 @@ PRIVATE int ac_gettext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *data = kw_get_str(kw, "text", "", KW_REQUIRED);
+    const char *data = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
 
     PRIVATE_DATA *l = priv;
     l->oldpos = l->pos = 0;
@@ -1101,10 +1103,10 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int cx = kw_get_int(kw, "cx", 0, KW_REQUIRED);
-    int cy = kw_get_int(kw, "cy", 0, KW_REQUIRED);
-    gobj_write_int32_attr(gobj, "cx", cx);
-    gobj_write_int32_attr(gobj, "cy", cy);
+    int cx = kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
+    int cy = kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
+    gobj_write_integer_attr(gobj, "cx", cx);
+    gobj_write_integer_attr(gobj, "cy", cy);
 
     refreshLine(priv);
 
@@ -1146,172 +1148,163 @@ PRIVATE int ac_clear_history(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    {"EV_KEYCHAR",                  0,              0,  0},
-    {"EV_EDITLINE_MOVE_START",      0,              0,  0},
-    {"EV_EDITLINE_MOVE_LEFT",       0,              0,  0},
-    {"EV_EDITLINE_DEL_CHAR",        0,              0,  0},
-    {"EV_EDITLINE_MOVE_END",        0,              0,  0},
-    {"EV_EDITLINE_MOVE_RIGHT",      0,              0,  0},
-    {"EV_EDITLINE_BACKSPACE",       0,              0,  0},
-    {"EV_EDITLINE_COMPLETE_LINE",   0,              0,  0},
-    {"EV_EDITLINE_DEL_EOL",         0,              0,  0},
-    {"EV_EDITLINE_ENTER",           0,              0,  0},
-    {"EV_EDITLINE_PREV_HIST",       0,              0,  0},
-    {"EV_EDITLINE_NEXT_HIST",       0,              0,  0},
-    {"EV_EDITLINE_SWAP_CHAR",       0,              0,  0},
-    {"EV_EDITLINE_DEL_LINE",        0,              0,  0},
-    {"EV_EDITLINE_DEL_PREV_WORD",   0,              0,  0},
-    {"EV_GETTEXT",                  EVF_KW_WRITING,  0,  0},
-    {"EV_SETTEXT",                  0,              0,  0},
-    {"EV_SIZE",                     0,              0,  0},
-    {"EV_REFRESH_LINE",             0,              0,  0},
-    {"EV_CLEAR_HISTORY",            0,              0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_COMMAND",                  0,              0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_IDLE",
-    NULL
-};
-
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_KEYCHAR",          ac_keychar,         0},
-
-    {"EV_EDITLINE_MOVE_START",      ac_move_start,      0},
-    {"EV_EDITLINE_MOVE_LEFT",       ac_move_left,       0},
-    {"EV_EDITLINE_DEL_CHAR",        ac_del_char,        0},
-    {"EV_EDITLINE_MOVE_END",        ac_move_end,        0},
-    {"EV_EDITLINE_MOVE_RIGHT",      ac_move_right,      0},
-    {"EV_EDITLINE_BACKSPACE",       ac_backspace,       0},
-    {"EV_EDITLINE_COMPLETE_LINE",   ac_complete_line,   0},
-    {"EV_EDITLINE_DEL_EOL",         ac_del_eol,         0},
-    {"EV_EDITLINE_ENTER",           ac_enter,           0},
-    {"EV_EDITLINE_PREV_HIST",       ac_prev_hist,       0},
-    {"EV_EDITLINE_NEXT_HIST",       ac_next_hist,       0},
-    {"EV_EDITLINE_SWAP_CHAR",       ac_swap_char,       0},
-    {"EV_EDITLINE_DEL_LINE",        ac_del_line,        0},
-    {"EV_EDITLINE_DEL_PREV_WORD",   ac_del_prev_word,   0},
-
-    {"EV_GETTEXT",          ac_gettext,         0},
-    {"EV_SETTEXT",          ac_settext,         0},
-    {"EV_SIZE",             ac_size,            0},
-    {"EV_REFRESH_LINE",     ac_refresh_line,    0},
-    {"EV_CLEAR_HISTORY",    ac_clear_history,   0},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
-
-/***************************************************************************
- *              GClass
- ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
 
 /*---------------------------------------------*
- *              GClass
+ *          Global methods table
  *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_EDITLINE_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0, // cmds
-    0, // gcflag
+PRIVATE const GMETHODS gmt = {
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_writing     = mt_writing,
 };
 
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_EDITLINE);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_COMMAND);
+GOBJ_DEFINE_EVENT(EV_KEYCHAR);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_MOVE_START);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_MOVE_LEFT);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_DEL_CHAR);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_MOVE_END);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_MOVE_RIGHT);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_BACKSPACE);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_COMPLETE_LINE);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_DEL_EOL);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_ENTER);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_PREV_HIST);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_NEXT_HIST);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_SWAP_CHAR);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_DEL_LINE);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_DEL_PREV_WORD);
+GOBJ_DEFINE_EVENT(EV_GETTEXT);
+GOBJ_DEFINE_EVENT(EV_SETTEXT);
+GOBJ_DEFINE_EVENT(EV_SIZE);
+GOBJ_DEFINE_EVENT(EV_REFRESH_LINE);
+GOBJ_DEFINE_EVENT(EV_CLEAR_HISTORY);
+
+GOBJ_DEFINE_EVENT(EV_CLRSCR);
+GOBJ_DEFINE_EVENT(EV_SCROLL_PAGE_UP);
+GOBJ_DEFINE_EVENT(EV_SCROLL_PAGE_DOWN);
+GOBJ_DEFINE_EVENT(EV_SCROLL_LINE_UP);
+GOBJ_DEFINE_EVENT(EV_SCROLL_LINE_DOWN);
+GOBJ_DEFINE_EVENT(EV_SCROLL_TOP);
+GOBJ_DEFINE_EVENT(EV_SCROLL_BOTTOM);
+
 /***************************************************************************
- *              Public access
+ *          Create the GClass
  ***************************************************************************/
-PUBLIC GCLASS *gclass_editline(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*------------------------*
+     *      States
+     *------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_KEYCHAR,                ac_keychar,             0},
+        {EV_EDITLINE_MOVE_START,    ac_move_start,          0},
+        {EV_EDITLINE_MOVE_LEFT,     ac_move_left,           0},
+        {EV_EDITLINE_DEL_CHAR,      ac_del_char,            0},
+        {EV_EDITLINE_MOVE_END,      ac_move_end,            0},
+        {EV_EDITLINE_MOVE_RIGHT,    ac_move_right,          0},
+        {EV_EDITLINE_BACKSPACE,     ac_backspace,           0},
+        {EV_EDITLINE_COMPLETE_LINE, ac_complete_line,       0},
+        {EV_EDITLINE_DEL_EOL,       ac_del_eol,             0},
+        {EV_EDITLINE_ENTER,         ac_enter,               0},
+        {EV_EDITLINE_PREV_HIST,     ac_prev_hist,           0},
+        {EV_EDITLINE_NEXT_HIST,     ac_next_hist,           0},
+        {EV_EDITLINE_SWAP_CHAR,     ac_swap_char,           0},
+        {EV_EDITLINE_DEL_LINE,      ac_del_line,            0},
+        {EV_EDITLINE_DEL_PREV_WORD, ac_del_prev_word,       0},
+        {EV_GETTEXT,                ac_gettext,             0},
+        {EV_SETTEXT,                ac_settext,             0},
+        {EV_SIZE,                   ac_size,                0},
+        {EV_REFRESH_LINE,           ac_refresh_line,        0},
+        {EV_CLEAR_HISTORY,          ac_clear_history,       0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,      st_idle},
+        {0, 0}
+    };
+
+    /*------------------------*
+     *      Events
+     *------------------------*/
+    event_type_t event_types[] = {
+        {EV_COMMAND,               0},
+        {EV_KEYCHAR,               0},
+        {EV_EDITLINE_MOVE_START,   0},
+        {EV_EDITLINE_MOVE_LEFT,    0},
+        {EV_EDITLINE_DEL_CHAR,     0},
+        {EV_EDITLINE_MOVE_END,     0},
+        {EV_EDITLINE_MOVE_RIGHT,   0},
+        {EV_EDITLINE_BACKSPACE,    0},
+        {EV_EDITLINE_COMPLETE_LINE,0},
+        {EV_EDITLINE_DEL_EOL,      0},
+        {EV_EDITLINE_ENTER,        0},
+        {EV_EDITLINE_PREV_HIST,    0},
+        {EV_EDITLINE_NEXT_HIST,    0},
+        {EV_EDITLINE_SWAP_CHAR,    0},
+        {EV_EDITLINE_DEL_LINE,     0},
+        {EV_EDITLINE_DEL_PREV_WORD,0},
+        {EV_GETTEXT,               0},
+        {EV_SETTEXT,               0},
+        {EV_SIZE,                  0},
+        {EV_REFRESH_LINE,          0},
+        {EV_CLEAR_HISTORY,         0},
+        {NULL, 0}
+    };
+
+    /*----------------------------------------*
+     *          Register GClass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // Local methods table (LMT)
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // Authorization table
+        0,  // Command table
+        s_user_trace_level,
+        0   // GClass flags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *          Public access
+ ***************************************************************************/
+PUBLIC int register_c_editline(void)
+{
+    return create_gclass(C_EDITLINE);
 }
