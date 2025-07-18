@@ -1600,7 +1600,7 @@ PUBLIC hgobj gobj_create2(
     }
 
     gobj->gobj_name = gbmem_strdup(gobj_name);
-    gobj->jn_attrs = sdata_create(gobj, gclass->attrs_table);
+    gobj->jn_attrs = gobj_sdata_create(gobj, gclass->attrs_table);
     gobj->jn_stats = json_object();
     gobj->jn_user_data = json_object();
     gobj->priv = gclass->priv_size? GBMEM_MALLOC(gclass->priv_size):NULL;
@@ -3021,7 +3021,7 @@ PRIVATE int sdata_write_default_values(
 /***************************************************************************
  *  Build default values
  ***************************************************************************/
-PUBLIC json_t *sdata_create(hgobj gobj, const sdata_desc_t* schema)
+PUBLIC json_t *gobj_sdata_create(hgobj gobj, const sdata_desc_t* schema)
 {
     json_t *sdata = json_object();
     const sdata_desc_t *it = schema;
@@ -7804,7 +7804,7 @@ PRIVATE json_t * _create_subscription(
     json_t *kw, // not owned
     gobj_t * subscriber)
 {
-    json_t *subs = sdata_create(publisher, subscription_desc);
+    json_t *subs = gobj_sdata_create(publisher, subscription_desc);
     json_object_set_new(subs, "event", json_integer((json_int_t)(size_t)event));
     json_object_set_new(subs, "subscriber", json_integer((json_int_t)(size_t)subscriber));
     json_object_set_new(subs, "publisher", json_integer((json_int_t)(size_t)publisher));
