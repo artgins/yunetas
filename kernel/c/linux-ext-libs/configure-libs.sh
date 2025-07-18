@@ -231,7 +231,9 @@ git checkout "$TAG_NGINX"
     --with-stream \
     --with-stream_ssl_module \
     --with-openssl=../openssl \
-    --with-openssl-opt=no-tests
+    --with-openssl-opt=no-tests \
+    --with-pcre=../pcre2 \
+    --with-pcre-jit
 make
 make install
 cd ../..
