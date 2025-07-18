@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <argp.h>
-#include <yuneta.h>
+#include <yunetas.h>
 #include "make_skeleton.h"
 
 /***************************************************************************

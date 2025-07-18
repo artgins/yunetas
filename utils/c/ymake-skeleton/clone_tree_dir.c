@@ -20,11 +20,11 @@
 #include <stddef.h>
 #include <pcre.h>
 #include <errno.h>
-#include <12_walkdir.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <jansson.h>
-#include <00_replace_string.h>
+#include <yunetas.h>
+#include "00_replace_string.h"
 #include "clone_tree_dir.h"
 
 #define Color_Off "\033[0m"       // Text Reset
@@ -244,17 +244,17 @@ int clone_tree_dir(
     char src_path[PATH_MAX];
     char rendered_str[NAME_MAX];
     do {
-        build_path2(src_path, sizeof(src_path), src, entry->d_name);
+        build_path(src_path, sizeof(src_path), src, entry->d_name, NULL);
 
         if (is_link(src_path)) {
             render_string(rendered_str, sizeof(rendered_str), entry->d_name, jn_values, FALSE);
-            build_path2(dst_path, sizeof(dst_path), dst, rendered_str);
+            build_path(dst_path, sizeof(dst_path), dst, rendered_str, NULL);
 
             copy_link(src_path, dst_path);
 
         } else if (is_directory(src_path)) {
             render_string(rendered_str, sizeof(rendered_str), entry->d_name, jn_values, FALSE);
-            build_path2(dst_path, sizeof(dst_path), dst, rendered_str);
+            build_path(dst_path, sizeof(dst_path), dst, rendered_str, NULL);
 
             if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
                 continue;
@@ -263,7 +263,7 @@ int clone_tree_dir(
 
         } else if (is_regular_file(src_path)) {
             render_string(rendered_str, sizeof(rendered_str), entry->d_name, jn_values, TRUE);
-            build_path2(dst_path, sizeof(dst_path), dst, rendered_str);
+            build_path(dst_path, sizeof(dst_path), dst, rendered_str, NULL);
 
             render_file(dst_path, src_path, jn_values);
         }

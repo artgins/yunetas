@@ -13,7 +13,7 @@
 #include <string.h>
 #include <argp.h>
 #include <jansson.h>
-#include <ginsfsm.h>
+#include <yunetas.h>
 #include "make_skeleton.h"
 #include "clone_tree_dir.h"
 
@@ -139,7 +139,7 @@ int make_skeleton(char *source_path, char *destination_path_, char *yunorole, ch
     char *destination_dir = dirname(destination_path);
 
     json_t *toreplace = values2replace(yunorole, rootname);
-    print_json(toreplace);
+    print_json2("", toreplace);
 
     if(access(destination_dir,0)!=0) {
         printf("Creating directory: %s\n", destination_dir);
