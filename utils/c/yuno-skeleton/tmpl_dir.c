@@ -28,7 +28,7 @@
 #endif
 #include <dirent.h>
 #include <jansson.h>
-#include <00_replace_string.h>
+#include "00_replace_string.h"
 #include "tmpl_dir.h"
 
 #define Color_Off "\033[0m"       // Text Reset

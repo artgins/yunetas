@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <argp.h>
-#include <yuneta.h>
+#include <yunetas.h>
 #include "make_skeleton.h"
 
 /***************************************************************************

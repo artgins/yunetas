@@ -10,8 +10,7 @@
 #include <argp.h>
 #include <errno.h>
 #include <stdlib.h>
-#include <ghelpers.h>
-#include <yuneta.h>
+#include <yunetas.h>
 
 /***************************************************************************
  *              Constants
@@ -60,7 +59,7 @@ static char args_doc[] = "FILE";
  */
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
-{"verbose",         'l',    0,          0,      "Verbose mode."},
+{"verbose",         'l',    0,          0,      "Verbose mode.", 0},
 {0}
 };
 
@@ -69,7 +68,8 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,0,0
 };
 
 /***************************************************************************
@@ -114,7 +114,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
  ***************************************************************************/
 int your_utility(int verbose, const char *filename)
 {
-    char *final_sconfig = json_config(
+    json_t *final_sconfig = json_config(
         verbose,    // WARNING if true will exit(0)
         1,          // WARNING if true will exit(0)
         0,
@@ -124,7 +124,7 @@ int your_utility(int verbose, const char *filename)
         0
     );
     if(final_sconfig) {
-        free(final_sconfig);
+        json_decref(final_sconfig);
     } else {
         printf("ERROR json_config()\n");
         exit(-1);

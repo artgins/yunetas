@@ -14,7 +14,7 @@
 #include <argp.h>
 #include <regex.h>
 #include <jansson.h>
-#include <12_walkdir.h>
+#include <helpers.h>
 #include "make_skeleton.h"
 #include "tmpl_dir.h"
 
@@ -126,7 +126,7 @@ PRIVATE int _walk_tree(
 
         if(type) {
             if (regexec(reg, dname, 0, 0, 0)==0) {
-                if(!(cb)(user_data, type, path, root_dir, dname, level, index)) {
+                if(!(cb)(0, user_data, type, path, root_dir, dname, level, index)) {
                     // returning FALSE: don't want continue traverse
                     break;
                 }
@@ -336,13 +336,14 @@ json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
 }
 
 PRIVATE BOOL find_skeletons_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,
     char *fullpath,
     const char *directory,
     char *name,             // dname[255]
     int level,
-    int index)
+    wd_option opt)
 {
     struct find_sk_s *find_sk = user_data;
 
@@ -438,13 +439,14 @@ json_t *find_skeleton(
  *  List skeletons in *base* directory
  ***************************************************************************/
 PRIVATE BOOL list_skeletons_cb(
+    hgobj gobj,
     void *user_data,
     wd_found_type type,
     char *fullpath,
     const char *directory,
     char *name,             // dname[255]
     int level,
-    int index)
+    wd_option opt)
 {
     const char *file = user_data;
 

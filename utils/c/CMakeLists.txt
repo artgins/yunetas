@@ -22,12 +22,12 @@ add_subdirectory(yclone-project)
 #add_subdirectory(ycommand)
 add_subdirectory(ylist)
 #add_subdirectory(ymake-skeleton)
-#add_subdirectory(yscapec)
+add_subdirectory(yscapec)
 #add_subdirectory(yshutdown)
 add_subdirectory(ystats)
-#add_subdirectory(ytestconfig)
+add_subdirectory(ytestconfig)
 #add_subdirectory(ytests)
-#add_subdirectory(yuno-skeleton)
+add_subdirectory(yuno-skeleton)
 
 # compile in Release mode :
 #
