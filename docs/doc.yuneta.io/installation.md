@@ -15,13 +15,14 @@ This project is licensed under the MIT License, except for the following files:
 
 **Dependencies** for C and Linux:
 - [Jansson](http://jansson.readthedocs.io/en/latest/) MIT License
-- [libjwt](https://github.com/benmcollins/libjwt) MPL-2.0 license
+- [libjwt](https://github.com/benmcollins/libjwt) MPL-2.0 License
 - [liburing](https://github.com/axboe/liburing) MIT License, LGPL-2.1, GPL-2.0  
 - [mbedtls](https://www.trustedfirmware.org/projects/mbed-tls/) Apache-2.0 or GPL-2.0
-- [openssl](https://www.openssl.org/) Apache-2.0 
-- [pcre2](https://github.com/PCRE2Project/pcre2) BSD licence and others
+- [openssl](https://www.openssl.org/) Apache-2.0 License
+- [pcre2](https://github.com/PCRE2Project/pcre2) BSD License and others
 - [libbacktrace](https://github.com/ianlancetaylor/libbacktrace) BSD 3-Clause License
-- [argp-standalone](https://github.com/artgins/argp-standalone.git) LGPL-2.1 license
+- [argp-standalone](https://github.com/artgins/argp-standalone.git) LGPL-2.1 License
+- [ncurses](https://github.com/mirror/ncurses.git) MIT License
 
 
 **Dependencies** for deploying in Linux: 
