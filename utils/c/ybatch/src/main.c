@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
      *  Put configuration
      */
     if(arguments.use_config_file) {
-        int l = (int)strlen("--config-file=") + strlen(arguments.config_json_file) + 4;
+        int l = (int)(strlen("--config-file=") + strlen(arguments.config_json_file) + 4);
         char *param2 = malloc(l);
         snprintf(param2, l, "--config-file=%s", arguments.config_json_file);
         argvs[idx++] = param2;

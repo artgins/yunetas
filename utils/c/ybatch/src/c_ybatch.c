@@ -420,7 +420,6 @@ PRIVATE int extrae_json(hgobj gobj)
             if(brace_indent == 0) {
                 //log_debug_gbuf("TEST", gbuf);
                 json_t *jn_dict = legalstring2json(gbuffer_cur_rd_pointer(gbuf), TRUE);
-print_json2("command", jn_dict); // TODO TEST
                 if(jn_dict) {
                     if(kw_get_str(gobj, jn_dict, "command", 0, 0)) {
                         json_t *hs_cmd = sdata_create(gobj, commands_desc);
@@ -726,8 +725,6 @@ PRIVATE int execute_command(hgobj gobj, json_t *kw_command)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-print_json2("kw_command", kw_command); // TODO TEST
-
     const char *command = kw_get_str(gobj, kw_command, "command", 0, 0);
     if(!command) {
         printf("\nError: no command\n");
@@ -767,7 +764,6 @@ PRIVATE int tira_dela_cola(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-print_json2("batch_iter", priv->batch_iter); // TODO TEST
     /*
      *  A por el próximo command
      */
