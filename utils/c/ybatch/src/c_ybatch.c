@@ -422,7 +422,7 @@ PRIVATE int extrae_json(hgobj gobj)
                 json_t *jn_dict = legalstring2json(gbuffer_cur_rd_pointer(gbuf), TRUE);
                 if(jn_dict) {
                     if(kw_get_str(gobj, jn_dict, "command", 0, 0)) {
-                        json_t *hs_cmd = sdata_create(gobj, commands_desc);
+                        json_t *hs_cmd = gobj_sdata_create(gobj, commands_desc);
                         json_object_update_existing(hs_cmd, jn_dict);
                         const char *command = kw_get_str(gobj, hs_cmd, "command", "", KW_REQUIRED);
                         if(command && (*command == '-')) {
