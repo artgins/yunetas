@@ -338,21 +338,21 @@ PRIVATE int create_output_side(hgobj gobj)
 
     priv->gobj_output_side = gobj_create_service(
         "__output_side__",
-        GCLASS_IOGATE,
+        C_IOGATE,
         0,
         gobj_yuno()
     );
 
     hgobj gobj_channel = gobj_create(
         "output",
-        GCLASS_CHANNEL,
+        C_CHANNEL,
         0,
         priv->gobj_output_side
     );
 
     hgobj gobj_prot_raw = gobj_create(
         "output",
-        GCLASS_PROT_RAW,
+        C_PROT_RAW,
         0,
         gobj_channel
     );
@@ -365,7 +365,7 @@ PRIVATE int create_output_side(hgobj gobj)
 
     hgobj gobj_connex = gobj_create_unique(
         "output",
-        GCLASS_CONNEX,
+        C_CONNEX,
         kw,
         gobj_prot_raw
     );
