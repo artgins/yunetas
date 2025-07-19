@@ -877,11 +877,7 @@ PUBLIC int gobj_start_up(       /* Initialize the gobj's system */
     authentication_parser_fn    global_authentication_parser  /* authentication parser function */
 );
 
-/*
- *  HACK using C_YUNO:
- *      you MUST use gobj_set_yuno_must_die() to stop the yuno, don't use gobj_shutdown()
- */
-PUBLIC void gobj_shutdown(void); /* Shutdown the yuno, pausing and stopping the default service, the service's gobj and finally the __root__. (In yunos use gobj_set_yuno_must_die() to break the infinite loop) */
+PUBLIC void gobj_shutdown(void); /* Shutdown the yuno, pausing and stopping the default service, the service's gobj and finally the __root__ */
 PUBLIC BOOL gobj_is_shutdowning(void);  /* Check if yuno is shutdowning */
 PUBLIC void gobj_set_exit_code(int exit_code); // set return code to exit when running as daemon
 PUBLIC int gobj_get_exit_code(void);

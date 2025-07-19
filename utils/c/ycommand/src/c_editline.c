@@ -467,13 +467,15 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
      *  Aquí debe estar ajustando la ventana visible de la línea,
      *  moviendo el cursor si se ha quedado fuera de la zona visible.
      */
-    while((plen+pos) >= l->cols) {
-        buf++;
-        len--;
-        pos--;
-    }
-    while (plen+len > l->cols) {
-        len--;
+    if(l->cols > 0) {
+        while((plen+pos) >= l->cols) {
+            buf++;
+            len--;
+            pos--;
+        }
+        while (plen+len > l->cols) {
+            len--;
+        }
     }
 
     printf(Erase_Whole_Line);           // Erase line
@@ -1254,7 +1256,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_COMMAND,               0},
+        {EV_COMMAND,               EVF_OUTPUT_EVENT},
         {EV_KEYCHAR,               0},
         {EV_EDITLINE_MOVE_START,   0},
         {EV_EDITLINE_MOVE_LEFT,    0},

@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <string.h>
+#include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <limits.h>
@@ -87,6 +88,8 @@
 // PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 // PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf);
 // PRIVATE void on_close_cb(uv_handle_t* handle);
+PRIVATE void tty_reset_mode(void);
+PRIVATE int tty_init(hgobj gobj);
 PRIVATE void do_close(hgobj gobj);
 PRIVATE int cmd_connect(hgobj gobj);
 PRIVATE int do_command(hgobj gobj, const char *command);
@@ -97,6 +100,8 @@ PRIVATE int do_authenticate_task(hgobj gobj);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+PRIVATE int orig_termios_fd = -1;
+PRIVATE struct termios orig_termios;
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 PRIVATE volatile struct winsize winsz;
 #define MAX_KEYS 40
@@ -155,8 +160,8 @@ typedef struct _PRIVATE_DATA {
     int32_t interactive;
     uint32_t wait;
     // TODO uv_tty_t uv_tty;
-    char uv_handler_active;
-    char uv_read_active;
+    int tty_fd;
+    struct termios orig_termios;
     hgobj gobj_connector;
     hgobj timer;
     hgobj gobj_editline;
@@ -182,43 +187,44 @@ PRIVATE hgclass __gclass__ = 0;
 /*****************************************************************
  *
  *****************************************************************/
-PUBLIC void program_end(void)
-{
-    // TODO WARNING no restaura cuando se muere
-    // uv_tty_reset_mode();
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void sig_handler(int sig)
-{
-    if (SIGWINCH == sig) {
-        ioctl(0, TIOCGWINSZ, &winsz);
-    }
-}
-
-/*****************************************************************
- *
- *****************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    ioctl(0, TIOCGWINSZ, &winsz);
-    // Capture SIGWINCH
-    signal(SIGWINCH, sig_handler);
-
-    if (!atexit_registered) {
-        atexit(program_end);
+    if(!atexit_registered) {
+        atexit(tty_reset_mode);
         atexit_registered = 1;
     }
 
     /*
-     *  History filename, for editline
+     *  Input screen size
+     */
+    if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ioctl() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    if(winsz.ws_row <= 0) {
+        winsz.ws_row = 1;
+    }
+    if(winsz.ws_col <= 0) {
+        winsz.ws_col = 80;
+    }
+
+    /*
+     *  History filename
      */
     char history_file[PATH_MAX];
     get_history_file(history_file, sizeof(history_file));
+
+    /*
+     *  Editline
+     */
     json_t *kw_editline = json_pack(
         "{s:s, s:i, s:i}",
         "history_file", history_file,
@@ -257,27 +263,11 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->uv_handler_active) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
-            NULL
-        );
-    }
-    if(priv->uv_read_active) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "UV req_read ACTIVE",
-            NULL
-        );
-    }
-
     /*
      *  Free data
      */
     // TODO growbf_reset(&priv->bfinput);
+    tty_reset_mode();
 }
 
 /***************************************************************************
@@ -289,24 +279,20 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_start(priv->timer);
 
-    if(priv->uv_handler_active) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+    priv->tty_fd = tty_init(gobj);
+    if(priv->tty_fd < 0) {
+        gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "UV handler ALREADY ACTIVE!",
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "cannot open a tty window",
             NULL
         );
-        do_close(gobj);
+        gobj_set_exit_code(-1);
+        gobj_shutdown();
         return -1;
     }
 
-    // uv_tty_init(yuno_uv_event_loop(), &priv->uv_tty, STDIN_FILENO, 0);
-    // priv->uv_tty.data = gobj;
-    priv->uv_handler_active = 1;
-
-    // uv_tty_set_mode(&priv->uv_tty, UV_TTY_MODE_RAW);
-
-    priv->uv_read_active = 1;
+    // priv->uv_read_active = 1;
     // uv_read_start((uv_stream_t*)&priv->uv_tty, on_alloc_cb, on_read_cb);
 
     gobj_start(priv->gobj_editline);
@@ -353,6 +339,22 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE void tty_reset_mode(void)
+{
+    /* This function is async signal-safe, meaning that it's safe to call from
+     * inside a signal handler _unless_ execution was inside uv_tty_set_mode()'s
+     * critical section when the signal was raised.
+     */
+    if(orig_termios_fd != -1) {
+        tcsetattr(orig_termios_fd, TCSANOW, &orig_termios);
+        tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
+        orig_termios_fd = -1;
+    }
+}
 
 /***************************************************************************
  *
@@ -511,7 +513,7 @@ PRIVATE int process_key(hgobj gobj, uint8_t kb)
         json_t *kw_char = json_pack("{s:i}",
             "char", kb
         );
-        gobj_send_event(priv->gobj_editline, "EV_KEYCHAR", kw_char, gobj);
+        gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
     }
 
     return 0;
@@ -655,19 +657,235 @@ PRIVATE int process_key(hgobj gobj, uint8_t kb)
 // }
 
 /***************************************************************************
-- *  Only NOW you can destroy this gobj,
-- *  when uv has released the handler.
-- ***************************************************************************/
-// PRIVATE void on_close_cb(uv_handle_t* handle)
-// {
-//     hgobj gobj = handle->data;
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     if(gobj_trace_level(gobj) & TRACE_UV) {
-//         gobj_trace_msg(gobj, "<<< on_close_cb tcp0 p=%p", &priv->uv_tty);
-//     }
-//     priv->uv_handler_active = 0;
-// }
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+static inline int tty_is_slave(const int fd) {
+    int result;
+    int dummy;
+
+    result = ioctl(fd, TIOCGPTN, &dummy) != 0;
+    return result;
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+PRIVATE int open_cloexec(const char* path, int flags) {
+    int fd = open(path, flags | O_CLOEXEC);
+    if (fd == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "open() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    return fd;
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+PRIVATE int dup2_cloexec(int oldfd, int newfd)
+{
+    int r;
+
+    r = dup3(oldfd, newfd, O_CLOEXEC);
+    if (r == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "dup3() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    return r;
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+PRIVATE int nonblock(int fd, int set) {
+    int r;
+
+    do
+        r = ioctl(fd, FIONBIO, &set);
+    while (r == -1 && errno == EINTR);
+
+    if(r) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ioctl() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    return r;
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+PRIVATE int tty_init(hgobj gobj)
+{
+#define UV_HANDLE_BLOCKING_WRITES 0x00100000
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int fd = STDIN_FILENO;
+    int flags;
+    int newfd;
+    int r;
+    int saved_flags;
+    int mode;
+    char path[256];
+
+    flags = 0;
+    newfd = -1;
+
+    /* Save the fd flags in case we need to restore them due to an error. */
+    do
+        saved_flags = fcntl(fd, F_GETFL);
+    while (saved_flags == -1 && errno == EINTR);
+
+    if (saved_flags == -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "fcntl() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    mode = saved_flags & O_ACCMODE;
+
+    /* Reopen the file descriptor when it refers to a tty. This lets us put the
+     * tty in non-blocking mode without affecting other processes that share it
+     * with us.
+     *
+     * Example: `node | cat` - if we put our fd 0 in non-blocking mode, it also
+     * affects fd 1 of `cat` because both file descriptors refer to the same
+     * struct file in the kernel. When we reopen our fd 0, it points to a
+     * different struct file, hence changing its properties doesn't affect
+     * other processes.
+     */
+
+    if(isatty(fd)) {
+        /* Reopening a pty in master mode won't work either because the reopened
+         * pty will be in slave mode (*BSD) or reopening will allocate a new
+         * master/slave pair (Linux). Therefore check if the fd points to a
+         * slave device.
+         */
+        if (tty_is_slave(fd) && ttyname_r(fd, path, sizeof(path)) == 0) {
+            r = open_cloexec(path, mode | O_NOCTTY);
+        } else {
+            r = -1;
+        }
+
+        if (r < 0) {
+            /* fallback to using blocking writes */
+            if (mode != O_RDONLY) {
+                flags |= UV_HANDLE_BLOCKING_WRITES;
+            }
+            goto skip;
+        }
+
+        newfd = r;
+
+        r = dup2_cloexec(newfd, fd);
+        if (r < 0 && errno != EINVAL) {
+            /* EINVAL means newfd == fd which could conceivably happen if another
+             * thread called close(fd) between our calls to isatty() and open().
+             * That's a rather unlikely event but let's handle it anyway.
+             */
+            close(newfd);
+            return r;
+        }
+
+        fd = newfd;
+    }
+
+skip:
+    // if (!(flags & UV_HANDLE_BLOCKING_WRITES)) {
+        if(nonblock(fd, 1)<0) {
+            close(fd);
+            fd = -1;
+        }
+    // }
+
+    if (mode != O_WRONLY) {
+        // flags |= UV_HANDLE_READABLE;
+    }
+    if (mode != O_RDONLY) {
+        // flags |= UV_HANDLE_WRITABLE;
+    }
+
+    // uv__stream_open((uv_stream_t*) tty, fd, flags);
+    // tty->mode = UV_TTY_MODE_NORMAL;
+
+    do
+        r = tcgetattr(fd, &priv->orig_termios);
+    while (r == -1 && errno == EINTR);
+
+    if (r == -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "tcgetattr() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    /* This is used for tty_reset_mode() */
+    if (orig_termios_fd == -1) {
+        orig_termios = priv->orig_termios;
+        orig_termios_fd = fd;
+    }
+
+    struct termios tmp;
+    tmp = priv->orig_termios;
+    tmp.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    tmp.c_oflag |= (ONLCR);
+    tmp.c_cflag |= (CS8);
+    tmp.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    tmp.c_cc[VMIN] = 1;
+    tmp.c_cc[VTIME] = 0;
+
+    do
+        r = tcsetattr(fd, TCSADRAIN, &tmp);
+    while (r == -1 && errno == EINTR);
+
+    if (r == -1) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "tcsetattr() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    return fd;
+}
 
 /***************************************************************************
  *
@@ -676,15 +894,20 @@ PRIVATE void do_close(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!priv->uv_handler_active) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "UV handler NOT ACTIVE!",
-            NULL
-        );
-        return;
+    if(priv->tty_fd != -1) {
+        close(priv->tty_fd);
+        priv->tty_fd = -1;
     }
+
+    // if(!priv->uv_handler_active) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",     "%s", __FUNCTION__,
+    //         "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+    //         "msg",          "%s", "UV handler NOT ACTIVE!",
+    //         NULL
+    //     );
+    //     return;
+    // }
     // if(priv->uv_read_active) {
     //     uv_read_stop((uv_stream_t *)&priv->uv_tty);
     //     priv->uv_read_active = 0;
@@ -709,8 +932,8 @@ PRIVATE int do_command(hgobj gobj, const char *command)
     // Pasalo por el evento para que haga replace_cli_vars_for_yuneta()
     json_t *kw_line = json_object();
     json_object_set_new(kw_line, "text", json_string(command));
-    gobj_send_event(priv->gobj_editline, "EV_SETTEXT", kw_line, gobj);
-    gobj_send_event(gobj, "EV_COMMAND", 0, priv->gobj_editline);
+    gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
+    gobj_send_event(gobj, EV_COMMAND, 0, priv->gobj_editline);
 
     return 0;
 }
@@ -1027,7 +1250,7 @@ PRIVATE int clear_input_line(hgobj gobj)
     if(!priv->on_mirror_tty) {
         json_t *kw_line = json_object();
         json_object_set_new(kw_line, "text", json_string(""));
-        gobj_send_event(priv->gobj_editline, "EV_SETTEXT", kw_line, gobj);
+        gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
     }
 
     return 0;
@@ -1094,89 +1317,6 @@ PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *na
     JSON_DECREF(jn_content);
     return 0;
 }
-
-/***************************************************************************
- *
- ***************************************************************************/
-// PRIVATE int pty_sync_spawn(
-//     hgobj gobj,
-//     const char *command
-// )
-// {
-//     int master, pid;
-//
-//     struct winsize size = {24, 80, 0, 0 };
-//     ioctl(STDOUT_FILENO, TIOCGWINSZ, &size);
-//
-//     pid = forkpty(&master, NULL, NULL, &size);
-//     if (pid < 0) {
-//         // Can't fork
-//         gobj_log_error(gobj, 0,
-//             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//             "msg",          "%s", "forkpty() FAILED",
-//             "errno",        "%d", errno,
-//             "strerror",     "%s", strerror(errno),
-//             NULL
-//         );
-//         return -1;
-//
-//     } else if (pid == 0) {
-//         // Child
-//         int ret = execlp("/bin/sh","/bin/sh", "-c", command, (char *)NULL);
-//         if (ret < 0) {
-//             gobj_log_error(gobj, 0,
-//                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-//                 "msg",          "%s", "execlp() FAILED",
-//                 "command",      "%s", command,
-//                 "errno",        "%d", errno,
-//                 "strerror",     "%s", strerror(errno),
-//                 NULL
-//             );
-//             _exit(-errno);
-//         }
-//     } else {
-//         // Parent
-//         while(1) {
-//             fd_set read_fd;
-//             fd_set write_fd;
-//             fd_set except_fd;
-//
-//             FD_ZERO(&read_fd);
-//             FD_ZERO(&write_fd);
-//             FD_ZERO(&except_fd);
-//
-//             FD_SET(master, &read_fd);
-//             FD_SET(STDIN_FILENO, &read_fd);
-//
-//             select(master+1, &read_fd, &write_fd, &except_fd, NULL);
-//
-//             char input;
-//             char output;
-//
-//             if (FD_ISSET(master, &read_fd)) {
-//                 if (read(master, &output, 1) != -1) {   // read from program
-//                     write(STDOUT_FILENO, &output, 1);   // write to tty
-//                 } else {
-//                     break;
-//                 }
-//             }
-//
-//             if (FD_ISSET(STDIN_FILENO, &read_fd)) {
-//                 read(STDIN_FILENO, &input, 1);  // read from tty
-//                 write(master, &input, 1);       // write to program
-//             }
-//
-//             int status;
-//             if (waitpid(pid, &status, WNOHANG) && WIFEXITED(status)) {
-//                 exit(EXIT_SUCCESS);
-//             }
-//         }
-//     }
-//
-//     return 0;
-// }
 
 /***************************************************************************
  *
@@ -1321,8 +1461,9 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             printf("What command?\n");
             gobj_set_exit_code(-1);
             gobj_shutdown();
+        } else {
+            do_command(gobj, command);
         }
-        do_command(gobj, command);
     }
 
     KW_DECREF(kw);
@@ -1360,7 +1501,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *kw_input_command = json_object();
-    gobj_send_event(src, "EV_GETTEXT", kw_input_command, gobj); // EV_GETTEXT is EVF_KW_WRITING
+    gobj_send_event(src, EV_GETTEXT, kw_input_command, gobj); // EV_GETTEXT is EVF_KW_WRITING
     const char *command = kw_get_str(gobj, kw_input_command, "text", 0, 0);
 
     if(empty_string(command)) {
@@ -1563,7 +1704,7 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     json_t *kw_line = json_object();
     json_object_set_new(kw_line, "text", json_string(upgrade_command));
-    gobj_send_event(priv->gobj_editline, "EV_SETTEXT", kw_line, gobj);
+    gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -2025,32 +2166,32 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_MT_COMMAND_ANSWER,    EVF_PUBLIC_EVENT},
-        {EV_MT_STATS_ANSWER,      EVF_PUBLIC_EVENT},
-        {EV_EDIT_CONFIG,          EVF_PUBLIC_EVENT},
-        {EV_VIEW_CONFIG,          EVF_PUBLIC_EVENT},
-        {EV_EDIT_YUNO_CONFIG,     EVF_PUBLIC_EVENT},
-        {EV_VIEW_YUNO_CONFIG,     EVF_PUBLIC_EVENT},
-        {EV_READ_JSON,            EVF_PUBLIC_EVENT},
-        {EV_READ_FILE,            EVF_PUBLIC_EVENT},
-        {EV_READ_BINARY_FILE,     EVF_PUBLIC_EVENT},
-        {EV_TTY_OPEN,             EVF_PUBLIC_EVENT},
-        {EV_TTY_CLOSE,            EVF_PUBLIC_EVENT},
-        {EV_TTY_DATA,             EVF_PUBLIC_EVENT},
-        {EV_COMMAND,              0},
-        {EV_CLRSCR,               0},
-        {EV_SCROLL_PAGE_UP,       0},
-        {EV_SCROLL_PAGE_DOWN,     0},
-        {EV_SCROLL_LINE_UP,       0},
-        {EV_SCROLL_LINE_DOWN,     0},
-        {EV_SCROLL_TOP,           0},
-        {EV_SCROLL_BOTTOM,        0},
-        {EV_ON_TOKEN,             0},
-        {EV_ON_OPEN,              0},
-        {EV_ON_CLOSE,             0},
-        {EV_ON_ID_NAK,            0},
-        {EV_TIMEOUT,              0},
-        {EV_STOPPED,              0},
+        {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
+        {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
+        {EV_EDIT_CONFIG,            EVF_PUBLIC_EVENT},
+        {EV_VIEW_CONFIG,            EVF_PUBLIC_EVENT},
+        {EV_EDIT_YUNO_CONFIG,       EVF_PUBLIC_EVENT},
+        {EV_VIEW_YUNO_CONFIG,       EVF_PUBLIC_EVENT},
+        {EV_READ_JSON,              EVF_PUBLIC_EVENT},
+        {EV_READ_FILE,              EVF_PUBLIC_EVENT},
+        {EV_READ_BINARY_FILE,       EVF_PUBLIC_EVENT},
+        {EV_TTY_OPEN,               EVF_PUBLIC_EVENT},
+        {EV_TTY_CLOSE,              EVF_PUBLIC_EVENT},
+        {EV_TTY_DATA,               EVF_PUBLIC_EVENT},
+        {EV_COMMAND,                0},
+        {EV_CLRSCR,                 0},
+        {EV_SCROLL_PAGE_UP,         0},
+        {EV_SCROLL_PAGE_DOWN,       0},
+        {EV_SCROLL_LINE_UP,         0},
+        {EV_SCROLL_LINE_DOWN,       0},
+        {EV_SCROLL_TOP,             0},
+        {EV_SCROLL_BOTTOM,          0},
+        {EV_ON_TOKEN,               0},
+        {EV_ON_OPEN,                0},
+        {EV_ON_CLOSE,               0},
+        {EV_ON_ID_NAK,              0},
+        {EV_TIMEOUT,                0},
+        {EV_STOPPED,                0},
         {NULL, 0}
     };
 

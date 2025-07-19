@@ -57,7 +57,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "c_ycommand."
+#define APP_NAME        "ycommand"
 #define APP_DOC         "Yuneta Command"
 
 #define APP_VERSION     YUNETA_VERSION
@@ -121,7 +121,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'ycommand',                                     \n\
-            'gclass': 'YCommand',                                   \n\
+            'gclass': 'C_YCOMMAND',                                 \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
@@ -447,7 +447,7 @@ int main(int argc, char *argv[])
      *          Start yuneta
      *------------------------------------------------*/
     helper_quote2doublequote(fixed_config);
-    helper_quote2doublequote(variable_config);
+    helper_quote2doublequote(my_variable_config);
     yuneta_setup(
         NULL,       // persistent_attrs, default internal dbsimple
         NULL,       // command_parser, default internal command_parser
