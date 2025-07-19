@@ -955,6 +955,8 @@ typedef struct _PRIVATE_DATA {
     hrotatory_t audit_file;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -1149,7 +1151,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*-----------------------------*
      *      Open Agent Treedb
      *-----------------------------*/
-    const char *treedb_name = kw_get_str(gobj, 
+    const char *treedb_name = kw_get_str(gobj,
         jn_treedb_schema_yuneta_agent,
         "id",
         "treedb_yuneta_agent",
@@ -1361,7 +1363,7 @@ PRIVATE json_t *cmd_dir_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     build_path2(directory, sizeof(directory), "/yuneta", subdirectory);
 
     int size;
-    char **tree = get_ordered_filename_array(gobj, 
+    char **tree = get_ordered_filename_array(gobj,
         directory,
         match,
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
@@ -1398,7 +1400,7 @@ PRIVATE json_t *cmd_dir_realms(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     build_path2(directory, sizeof(directory), "/yuneta/realms", subdirectory);
 
     int size;
-    char **tree = get_ordered_filename_array(gobj, 
+    char **tree = get_ordered_filename_array(gobj,
         directory,
         match,
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
@@ -1435,7 +1437,7 @@ PRIVATE json_t *cmd_dir_repos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     build_path2(directory, sizeof(directory), "/yuneta/repos", subdirectory);
 
     int size;
-    char **tree = get_ordered_filename_array(gobj, 
+    char **tree = get_ordered_filename_array(gobj,
         directory,
         match,
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
@@ -1473,7 +1475,7 @@ PRIVATE json_t *cmd_dir_store(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     build_path2(directory, sizeof(directory), "/yuneta/store", subdirectory);
 
     int size;
-    char **tree = get_ordered_filename_array(gobj, 
+    char **tree = get_ordered_filename_array(gobj,
         directory,
         match,
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
@@ -1536,7 +1538,7 @@ PRIVATE json_t *cmd_dir_logs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     build_yuno_log_path(gobj, node, yuno_log_path, sizeof(yuno_log_path), FALSE);
 
     int size;
-    char **tree = get_ordered_filename_array(gobj, 
+    char **tree = get_ordered_filename_array(gobj,
         yuno_log_path,
         ".*",
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
@@ -1604,7 +1606,7 @@ PRIVATE json_t *cmd_dir_local_data(hgobj gobj, const char *cmd, json_t *kw, hgob
     build_path2(yuno_data_path, sizeof(yuno_data_path), work_dir, private_domain);
 
     int size;
-    char **tree = get_ordered_filename_array(gobj, 
+    char **tree = get_ordered_filename_array(gobj,
         yuno_data_path,
         ".*",
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
@@ -10444,190 +10446,145 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-
-    /*
-     *  Deploy - Repository
-     */
-    {"EV_EDIT_CONFIG",          EVF_PUBLIC_EVENT,  0,  "Edit configuration"},
-    {"EV_VIEW_CONFIG",          EVF_PUBLIC_EVENT,  0,  "View configuration"},
-    {"EV_EDIT_YUNO_CONFIG",     EVF_PUBLIC_EVENT,  0,  "Edit yuno configuration"},
-    {"EV_VIEW_YUNO_CONFIG",     EVF_PUBLIC_EVENT,  0,  "View yuno configuration"},
-    {"EV_READ_JSON",            EVF_PUBLIC_EVENT,  0,  "Read json filename"},
-    {"EV_READ_FILE",            EVF_PUBLIC_EVENT,  0,  "Read text filename"},
-    {"EV_READ_BINARY_FILE",     EVF_PUBLIC_EVENT,  0,  "Read binary filename"},
-    {"EV_READ_RUNNING_KEYS",    EVF_PUBLIC_EVENT,  0,  "Read running-keys"},
-    {"EV_READ_RUNNING_BIN",     EVF_PUBLIC_EVENT,  0,  "Read running-bin path"},
-
-    {"EV_PLAY_YUNO_ACK",        EVF_PUBLIC_EVENT,  0,  0},
-    {"EV_PAUSE_YUNO_ACK",       EVF_PUBLIC_EVENT,  0,  0},
-    {"EV_MT_STATS_ANSWER",      EVF_PUBLIC_EVENT,  0,  0},
-    {"EV_MT_COMMAND_ANSWER",    EVF_PUBLIC_EVENT,  0,  0},
-    {EV_ON_COMMAND,           EVF_PUBLIC_EVENT,  0,  0},
-
-    // bottom input
-    {EV_ON_OPEN,          0,  0,  0},
-    {EV_ON_CLOSE,         0,  0,  0},
-    {"EV_TTY_DATA",         0,  0,  0},
-    {"EV_TTY_OPEN",         0,  0,  0},
-    {"EV_TTY_CLOSE",        0,  0,  0},
-    {"EV_WRITE_TTY",        0,  0,  0},
-    {EV_TIMEOUT,          0,  0,  0},
-    {"EV_FINAL_COUNT",      0,  0,  0},
-    {EV_STOPPED,          0,  0,  0},
-    // internal
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_PLAY_YUNO_ACK",        EVF_NO_WARN_SUBS,  0,  0},
-    {"EV_PAUSE_YUNO_ACK",       EVF_NO_WARN_SUBS,  0,  0},
-    {"EV_MT_STATS_ANSWER",      0,  0,  0},
-    {"EV_MT_COMMAND_ANSWER",    0,  0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    ST_IDLE,
-    NULL
-};
-
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_EDIT_CONFIG",          ac_edit_config,         0},
-    {"EV_VIEW_CONFIG",          ac_view_config,         0},
-    {"EV_EDIT_YUNO_CONFIG",     ac_edit_yuno_config,    0},
-    {"EV_VIEW_YUNO_CONFIG",     ac_view_yuno_config,    0},
-    {"EV_READ_JSON",            ac_read_json,           0},
-    {"EV_READ_FILE",            ac_read_file,           0},
-    {"EV_READ_BINARY_FILE",     ac_read_binary_file,    0},
-    {"EV_READ_RUNNING_KEYS",    ac_read_running_keys,   0},
-    {"EV_READ_RUNNING_BIN",     ac_read_running_bin,    0},
-
-    {"EV_PLAY_YUNO_ACK",        ac_play_yuno_ack,       0},
-    {"EV_PAUSE_YUNO_ACK",       ac_pause_yuno_ack,      0},
-    {"EV_MT_STATS_ANSWER",      ac_stats_yuno_answer,   0},
-    {"EV_MT_COMMAND_ANSWER",    ac_command_yuno_answer, 0},
-    {EV_ON_COMMAND,           ac_command_yuno_answer, 0},
-
-    {EV_ON_OPEN,              ac_on_open,             0},
-    {EV_ON_CLOSE,             ac_on_close,            0},
-    {"EV_FINAL_COUNT",          ac_final_count,         0},
-    {"EV_TTY_DATA",             ac_tty_data,            0},
-    {"EV_TTY_OPEN",             ac_tty_open,            0},
-    {"EV_TTY_CLOSE",            ac_tty_close,           0},
-    {"EV_WRITE_TTY",            ac_write_tty,           0},
-    {EV_TIMEOUT,              ac_timeout,             0},
-    {EV_STOPPED,              0,                      0},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
-
-/***************************************************************************
- *              GClass
- ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
 
 /*---------------------------------------------*
- *              GClass
+ *          Global methods table
  *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_AGENT_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        mt_trace_on,
-        mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    authz_table,  // acl
-    s_user_trace_level,
-    command_table,  // command_table
-    0,  // gcflag
+PRIVATE const GMETHODS gmt = {
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_writing     = mt_writing,
+    .mt_trace_on    = mt_trace_on,
+    .mt_trace_off   = mt_trace_off,
 };
 
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_AGENT);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+
 /***************************************************************************
- *              Public access
+ *          Create the GClass
  ***************************************************************************/
-PUBLIC GCLASS *gclass_agent(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "GClass ALREADY created",
+            "gclass",   "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*------------------------*
+     *      States
+     *------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_EDIT_CONFIG,         ac_edit_config,         0},
+        {EV_VIEW_CONFIG,         ac_view_config,         0},
+        {EV_EDIT_YUNO_CONFIG,    ac_edit_yuno_config,    0},
+        {EV_VIEW_YUNO_CONFIG,    ac_view_yuno_config,    0},
+        {EV_READ_JSON,           ac_read_json,           0},
+        {EV_READ_FILE,           ac_read_file,           0},
+        {EV_READ_BINARY_FILE,    ac_read_binary_file,    0},
+        {EV_READ_RUNNING_KEYS,   ac_read_running_keys,   0},
+        {EV_READ_RUNNING_BIN,    ac_read_running_bin,    0},
+
+        {EV_PLAY_YUNO_ACK,       ac_play_yuno_ack,       0},
+        {EV_PAUSE_YUNO_ACK,      ac_pause_yuno_ack,      0},
+        {EV_MT_STATS_ANSWER,     ac_stats_yuno_answer,   0},
+        {EV_MT_COMMAND_ANSWER,   ac_command_yuno_answer, 0},
+        {EV_ON_COMMAND,          ac_command_yuno_answer, 0},
+
+        {EV_ON_OPEN,             ac_on_open,             0},
+        {EV_ON_CLOSE,            ac_on_close,            0},
+        {EV_FINAL_COUNT,         ac_final_count,         0},
+        {EV_TTY_DATA,            ac_tty_data,            0},
+        {EV_TTY_OPEN,            ac_tty_open,            0},
+        {EV_TTY_CLOSE,           ac_tty_close,           0},
+        {EV_WRITE_TTY,           ac_write_tty,           0},
+        {EV_TIMEOUT,             ac_timeout,             0},
+        {EV_STOPPED,             0,                      0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE, st_idle},
+        {0, 0}
+    };
+
+    /*------------------------*
+     *      Events
+     *------------------------*/
+    event_type_t event_types[] = {
+        {EV_PLAY_YUNO_ACK,       EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_PAUSE_YUNO_ACK,      EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_MT_STATS_ANSWER,     EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {EV_MT_COMMAND_ANSWER,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+
+        {EV_EDIT_CONFIG,         EVF_PUBLIC_EVENT},
+        {EV_VIEW_CONFIG,         EVF_PUBLIC_EVENT},
+        {EV_EDIT_YUNO_CONFIG,    EVF_PUBLIC_EVENT},
+        {EV_VIEW_YUNO_CONFIG,    EVF_PUBLIC_EVENT},
+        {EV_READ_JSON,           EVF_PUBLIC_EVENT},
+        {EV_READ_FILE,           EVF_PUBLIC_EVENT},
+        {EV_READ_BINARY_FILE,    EVF_PUBLIC_EVENT},
+        {EV_READ_RUNNING_KEYS,   EVF_PUBLIC_EVENT},
+        {EV_READ_RUNNING_BIN,    EVF_PUBLIC_EVENT},
+        {EV_ON_COMMAND,          EVF_PUBLIC_EVENT},
+
+        {EV_ON_OPEN,             0},
+        {EV_ON_CLOSE,            0},
+        {EV_TTY_DATA,            0},
+        {EV_TTY_OPEN,            0},
+        {EV_TTY_CLOSE,           0},
+        {EV_WRITE_TTY,           0},
+        {EV_TIMEOUT,             0},
+        {EV_FINAL_COUNT,         0},
+        {EV_STOPPED,             0},
+        {NULL, 0}
+    };
+
+    /*----------------------------------------*
+     *          Register GClass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,                  // Local method table
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        authz_table,
+        command_table,
+        s_user_trace_level,
+        0                   // GClass flags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *          Public access
+ ***************************************************************************/
+PUBLIC int register_c_agent(void)
+{
+    return create_gclass(C_AGENT);
 }

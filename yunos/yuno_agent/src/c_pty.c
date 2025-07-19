@@ -106,6 +106,8 @@ typedef struct _PRIVATE_DATA {
     char bfinput[BFINPUT_SIZE];
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -598,7 +600,7 @@ PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
     }
 
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-        gobj_trace_dump(gobj, 
+        gobj_trace_dump(gobj,
             0,
             buf->base,
             nread,
@@ -728,7 +730,7 @@ PRIVATE int write_data_to_pty(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
     if((trace & TRACE_TRAFFIC)) {
-        gobj_trace_dump(gobj, 
+        gobj_trace_dump(gobj,
             0,
             bf,
             ln,

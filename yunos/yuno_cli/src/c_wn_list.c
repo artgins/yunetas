@@ -86,6 +86,8 @@ typedef struct _PRIVATE_DATA {
     int32_t base;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -686,169 +688,138 @@ PRIVATE int ac_top(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    {EV_ON_MESSAGE,       0,  0,  0},
-    {"EV_SETTEXT",          0,  0,  0},
-    {"EV_KILLFOCUS",        0,  0,  0},
-    {"EV_SETFOCUS",         0,  0,  0},
-    {"EV_PAINT",            0,  0,  0},
-    {"EV_MOVE",             0,  0,  0},
-    {"EV_SIZE",             0,  0,  0},
-    {"EV_SET_TOP_WINDOW",   0,  0,  0},
-    {"EV_SCROLL_LINE_UP",   0,  0,  0},
-    {"EV_SCROLL_LINE_DOWN", 0,  0,  0},
-    {"EV_SCROLL_PAGE_UP",   0,  0,  0},
-    {"EV_SCROLL_PAGE_DOWN", 0,  0,  0},
-    {"EV_SCROLL_TOP",       0,  0,  0},
-    {"EV_SCROLL_BOTTOM",    0,  0,  0},
-    {"EV_CLRSCR",           0,  0,  0},
-    {EV_ON_OPEN,          0,  0,  0},
-    {EV_ON_CLOSE,         0,  0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    ST_IDLE,
-    "ST_DISABLED",
-    NULL
+
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_play        = mt_play,
+    .mt_pause       = mt_pause,
+    .mt_writing     = mt_writing
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {EV_ON_MESSAGE,       ac_on_message,          0},
-    {"EV_SETTEXT",          ac_settext,             0},
-    {"EV_SETFOCUS",         ac_setfocus,            0},
-    {"EV_KILLFOCUS",        0,                      0},
-    {"EV_MOVE",             ac_move,                0},
-    {"EV_SIZE",             ac_size,                0},
-    {"EV_PAINT",            ac_paint,               0},
-    {"EV_SET_TOP_WINDOW",   ac_top,                 0},
-    {"EV_SCROLL_LINE_UP",   ac_scroll_line_up,      0},
-    {"EV_SCROLL_LINE_DOWN", ac_scroll_line_down,    0},
-    {"EV_SCROLL_PAGE_UP",   ac_scroll_page_up,      0},
-    {"EV_SCROLL_PAGE_DOWN", ac_scroll_page_down,    0},
-    {"EV_SCROLL_TOP",       ac_scroll_top,          0},
-    {"EV_SCROLL_BOTTOM",    ac_scroll_bottom,       0},
-    {"EV_CLRSCR",           ac_clrscr,              0},
-    {EV_ON_OPEN,          0,                      0},
-    {EV_ON_CLOSE,         0,                      0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_WN_LIST);
 
-PRIVATE EV_ACTION ST_DISABLED[] = {
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    ST_DISABLED,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_ON_MESSAGE);
+GOBJ_DEFINE_EVENT(EV_SETTEXT);
+GOBJ_DEFINE_EVENT(EV_KILLFOCUS);
+GOBJ_DEFINE_EVENT(EV_SETFOCUS);
+GOBJ_DEFINE_EVENT(EV_PAINT);
+GOBJ_DEFINE_EVENT(EV_MOVE);
+GOBJ_DEFINE_EVENT(EV_SIZE);
+GOBJ_DEFINE_EVENT(EV_SET_TOP_WINDOW);
+GOBJ_DEFINE_EVENT(EV_SCROLL_LINE_UP);
+GOBJ_DEFINE_EVENT(EV_SCROLL_LINE_DOWN);
+GOBJ_DEFINE_EVENT(EV_SCROLL_PAGE_UP);
+GOBJ_DEFINE_EVENT(EV_SCROLL_PAGE_DOWN);
+GOBJ_DEFINE_EVENT(EV_SCROLL_TOP);
+GOBJ_DEFINE_EVENT(EV_SCROLL_BOTTOM);
+GOBJ_DEFINE_EVENT(EV_CLRSCR);
+GOBJ_DEFINE_EVENT(EV_ON_OPEN);
+GOBJ_DEFINE_EVENT(EV_ON_CLOSE);
 
 /***************************************************************************
- *              GClass
+ *          Create the GClass
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_WN_LIST_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        mt_play,
-        mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0, // cmds
-    0, // gcflag
-};
+    ev_action_t st_idle[] = {
+        {EV_ON_MESSAGE,         ac_on_message,          0},
+        {EV_SETTEXT,            ac_settext,             0},
+        {EV_SETFOCUS,           ac_setfocus,            0},
+        {EV_KILLFOCUS,          0,                      0},
+        {EV_MOVE,               ac_move,                0},
+        {EV_SIZE,               ac_size,                0},
+        {EV_PAINT,              ac_paint,               0},
+        {EV_SET_TOP_WINDOW,     ac_top,                 0},
+        {EV_SCROLL_LINE_UP,     ac_scroll_line_up,      0},
+        {EV_SCROLL_LINE_DOWN,   ac_scroll_line_down,    0},
+        {EV_SCROLL_PAGE_UP,     ac_scroll_page_up,      0},
+        {EV_SCROLL_PAGE_DOWN,   ac_scroll_page_down,    0},
+        {EV_SCROLL_TOP,         ac_scroll_top,          0},
+        {EV_SCROLL_BOTTOM,      ac_scroll_bottom,       0},
+        {EV_CLRSCR,             ac_clrscr,              0},
+        {EV_ON_OPEN,            0,                      0},
+        {EV_ON_CLOSE,           0,                      0},
+        {0,0,0}
+    };
+
+    ev_action_t st_disabled[] = {
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,           st_idle},
+        {ST_DISABLED,       st_disabled},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_ON_MESSAGE,         0},
+        {EV_SETTEXT,            0},
+        {EV_KILLFOCUS,          0},
+        {EV_SETFOCUS,           0},
+        {EV_PAINT,              0},
+        {EV_MOVE,               0},
+        {EV_SIZE,               0},
+        {EV_SET_TOP_WINDOW,     0},
+        {EV_SCROLL_LINE_UP,     0},
+        {EV_SCROLL_LINE_DOWN,   0},
+        {EV_SCROLL_PAGE_UP,     0},
+        {EV_SCROLL_PAGE_DOWN,   0},
+        {EV_SCROLL_TOP,         0},
+        {EV_SCROLL_BOTTOM,      0},
+        {EV_CLRSCR,             0},
+        {EV_ON_OPEN,            0},
+        {EV_ON_CLOSE,           0},
+        {NULL, 0}
+    };
+
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // local methods
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // acl
+        0,  // cmds
+        s_user_trace_level,
+        0   // gcflags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_wn_list(void)
+PUBLIC int register_c_wn_list(void)
 {
-    return &_gclass;
+    return create_gclass(C_WN_LIST);
 }

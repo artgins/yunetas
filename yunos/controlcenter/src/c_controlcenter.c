@@ -184,6 +184,8 @@ typedef struct _PRIVATE_DATA {
     uint64_t rxMsgsec;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -363,7 +365,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
 
-    const char *treedb_name = kw_get_str(gobj, 
+    const char *treedb_name = kw_get_str(gobj,
         jn_treedb_schema_controlcenter,
         "id",
         "treedb_controlcenter",
@@ -2239,173 +2241,132 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {"EV_MT_COMMAND_ANSWER",    EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_TTY_DATA",             EVF_PUBLIC_EVENT,   0, 0},
-    {"EV_MT_STATS_ANSWER",      EVF_PUBLIC_EVENT,   0,  0},
-    {"EV_WRITE_TTY",            0,  0,  0},
-    {EV_ON_OPEN,              0,  0,  0},
-    {EV_ON_CLOSE,             0,  0,  0},
-    {"EV_TTY_OPEN",             EVF_PUBLIC_EVENT,   0, 0},
-    {"EV_TTY_CLOSE",            EVF_PUBLIC_EVENT,   0, 0},
 
-    {"EV_AUTHZ_USER_LOGIN",     0,  0,  0},
-    {"EV_AUTHZ_USER_LOGOUT",    0,  0,  0},
-    {"EV_AUTHZ_USER_NEW",       0,  0,  0},
-
-    {"EV_TREEDB_NODE_CREATED",  0,  0,  0},
-    {"EV_TREEDB_NODE_UPDATED",  0,  0,  0},
-    {"EV_TREEDB_NODE_DELETED",  0,  0,  0},
-
-    // bottom input
-    {EV_TIMEOUT,              0,  0,  0},
-    {EV_STOPPED,              0,  0,  0},
-    // internal
-    {NULL, 0, 0, ""}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_LIST_TRACKS",      EVF_PUBLIC_EVENT,  0,  0},
-    {"EV_LIST_GROUPS",      EVF_PUBLIC_EVENT,  0,  0},
-    {"EV_REALTIME_TRACK",   EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS,  0,  0},
-    {NULL, 0, 0, ""}
-};
-PRIVATE const char *state_names[] = {
-    ST_IDLE,
-    NULL
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create                  = mt_create,
+    .mt_destroy                 = mt_destroy,
+    .mt_start                   = mt_start,
+    .mt_stop                    = mt_stop,
+    .mt_play                    = mt_play,
+    .mt_pause                   = mt_pause,
+    .mt_writing                 = mt_writing,
+    .mt_subscription_added      = mt_subscription_added
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_MT_STATS_ANSWER",          ac_stats_yuno_answer,       0},
-    {"EV_MT_COMMAND_ANSWER",        ac_command_yuno_answer,     0},
-    {"EV_TTY_DATA",                 ac_tty_mirror_data,         0},
-    {"EV_WRITE_TTY",                ac_write_tty,               0},
-
-    {"EV_TREEDB_NODE_CREATED",      ac_treedb_node_create,      0},
-    {"EV_TREEDB_NODE_UPDATED",      ac_treedb_node_updated,     0},
-    {"EV_TREEDB_NODE_DELETED",      ac_treedb_node_deleted,     0},
-
-    {"EV_AUTHZ_USER_LOGIN",         ac_user_login,              0},
-    {"EV_AUTHZ_USER_LOGOUT",        ac_user_logout,             0},
-    {"EV_AUTHZ_USER_NEW",           ac_user_new,                0},
-
-    {EV_ON_OPEN,                  ac_on_open,                 0},
-    {EV_ON_CLOSE,                 ac_on_close,                0},
-    {"EV_TTY_OPEN",                 ac_tty_mirror_open,         0},
-    {"EV_TTY_CLOSE",                ac_tty_mirror_close,        0},
-    {EV_TIMEOUT,                  ac_timeout,                 0},
-    {EV_STOPPED,                  0,                          0},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_CONTROLCENTER);
 
 /***************************************************************************
- *              GClass
+ *          Create the GClass
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "GClass ALREADY created",
+            "gclass",   "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_CONTROLCENTER_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        mt_play,
-        mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_agents,
-        0, //mt_future44,
-        0, //mt_unlink_agents,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_agents,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    authz_table,  // acl
-    s_user_trace_level,
-    command_table,  // command_table
-    0,  // gcflag
-};
+    /*------------------------*
+     *      States
+     *------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_MT_STATS_ANSWER,        ac_stats_yuno_answer,    0},
+        {EV_MT_COMMAND_ANSWER,      ac_command_yuno_answer,  0},
+        {EV_TTY_DATA,               ac_tty_mirror_data,      0},
+        {EV_WRITE_TTY,              ac_write_tty,            0},
+
+        {EV_TREEDB_NODE_CREATED,    ac_treedb_node_create,   0},
+        {EV_TREEDB_NODE_UPDATED,    ac_treedb_node_updated,  0},
+        {EV_TREEDB_NODE_DELETED,    ac_treedb_node_deleted,  0},
+
+        {EV_AUTHZ_USER_LOGIN,       ac_user_login,           0},
+        {EV_AUTHZ_USER_LOGOUT,      ac_user_logout,          0},
+        {EV_AUTHZ_USER_NEW,         ac_user_new,             0},
+
+        {EV_ON_OPEN,                ac_on_open,              0},
+        {EV_ON_CLOSE,               ac_on_close,             0},
+        {EV_TTY_OPEN,               ac_tty_mirror_open,      0},
+        {EV_TTY_CLOSE,              ac_tty_mirror_close,     0},
+
+        {EV_TIMEOUT,                ac_timeout,              0},
+        {EV_STOPPED,                0,                       0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE, st_idle},
+        {0, 0}
+    };
+
+    /*------------------------*
+     *      Events
+     *------------------------*/
+    event_type_t event_types[] = {
+        {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
+        {EV_TTY_DATA,               EVF_PUBLIC_EVENT},
+        {EV_MT_STATS_ANSWER,        EVF_PUBLIC_EVENT},
+        {EV_WRITE_TTY,              0},
+
+        {EV_TTY_OPEN,               EVF_PUBLIC_EVENT},
+        {EV_TTY_CLOSE,              EVF_PUBLIC_EVENT},
+        {EV_AUTHZ_USER_LOGIN,       0},
+        {EV_AUTHZ_USER_LOGOUT,      0},
+        {EV_AUTHZ_USER_NEW,         0},
+
+        {EV_TREEDB_NODE_CREATED,    0},
+        {EV_TREEDB_NODE_UPDATED,    0},
+        {EV_TREEDB_NODE_DELETED,    0},
+
+        {EV_ON_OPEN,                0},
+        {EV_ON_CLOSE,               0},
+        {EV_TIMEOUT,                0},
+        {EV_STOPPED,                0},
+
+        {EV_LIST_TRACKS,            EVF_PUBLIC_EVENT},
+        {EV_LIST_GROUPS,            EVF_PUBLIC_EVENT},
+        {EV_REALTIME_TRACK,         EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
+
+        {NULL, 0}
+    };
+
+    /*----------------------------------------*
+     *          Register GClass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0, // local methods
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        authz_table,
+        command_table,
+        s_user_trace_level,
+        0 // gcflags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_controlcenter(void)
+PUBLIC int register_c_controlcenter(void)
 {
-    return &_gclass;
+    return create_gclass(C_CONTROLCENTER);
 }

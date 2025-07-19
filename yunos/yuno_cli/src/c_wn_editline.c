@@ -201,6 +201,8 @@ typedef struct _PRIVATE_DATA {
     int history_index;  /* The history index we are currently editing. */
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 PRIVATE void freeHistory(PRIVATE_DATA *l);
 PRIVATE int linenoiseHistorySetMaxLen(PRIVATE_DATA *l, int len);
 PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename);
@@ -1269,183 +1271,158 @@ PRIVATE int ac_clear_history(hgobj gobj, const char *event, json_t *kw, hgobj sr
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    {"EV_KEYCHAR",                  0,              0,  0},
-    {"EV_EDITLINE_MOVE_START",      0,              0,  0},
-    {"EV_EDITLINE_MOVE_LEFT",       0,              0,  0},
-    {"EV_EDITLINE_DEL_CHAR",        0,              0,  0},
-    {"EV_EDITLINE_MOVE_END",        0,              0,  0},
-    {"EV_EDITLINE_MOVE_RIGHT",      0,              0,  0},
-    {"EV_EDITLINE_BACKSPACE",       0,              0,  0},
-    {"EV_EDITLINE_COMPLETE_LINE",   0,              0,  0},
-    {"EV_EDITLINE_DEL_EOL",         0,              0,  0},
-    {"EV_EDITLINE_ENTER",           0,              0,  0},
-    {"EV_EDITLINE_PREV_HIST",       0,              0,  0},
-    {"EV_EDITLINE_NEXT_HIST",       0,              0,  0},
-    {"EV_EDITLINE_SWAP_CHAR",       0,              0,  0},
-    {"EV_EDITLINE_DEL_LINE",        0,              0,  0},
-    {"EV_EDITLINE_DEL_PREV_WORD",   0,              0,  0},
-    {"EV_GETTEXT",                  EVF_KW_WRITING,  0,  0},
-    {"EV_SETTEXT",                  0,              0,  0},
-    {"EV_KILLFOCUS",                0,              0,  0},
-    {"EV_SETFOCUS",                 0,              0,  0},
-    {"EV_PAINT",                    0,              0,  0},
-    {"EV_MOVE",                     0,              0,  0},
-    {"EV_SIZE",                     0,              0,  0},
-    {"EV_CLEAR_HISTORY",            0,              0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_COMMAND",                  0,              0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    ST_IDLE,
-    "ST_DISABLED",
-    NULL
-};
-
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_KEYCHAR",                  ac_keychar,         0},
-    {"EV_EDITLINE_MOVE_START",      ac_move_start,      0},
-    {"EV_EDITLINE_MOVE_LEFT",       ac_move_left,       0},
-    {"EV_EDITLINE_DEL_CHAR",        ac_del_char,        0},
-    {"EV_EDITLINE_MOVE_END",        ac_move_end,        0},
-    {"EV_EDITLINE_MOVE_RIGHT",      ac_move_right,      0},
-    {"EV_EDITLINE_BACKSPACE",       ac_backspace,       0},
-    {"EV_EDITLINE_COMPLETE_LINE",   ac_complete_line,   0},
-    {"EV_EDITLINE_DEL_EOL",         ac_del_eol,         0},
-    {"EV_EDITLINE_ENTER",           ac_enter,           0},
-    {"EV_EDITLINE_PREV_HIST",       ac_prev_hist,       0},
-    {"EV_EDITLINE_NEXT_HIST",       ac_next_hist,       0},
-    {"EV_EDITLINE_SWAP_CHAR",       ac_swap_char,       0},
-    {"EV_EDITLINE_DEL_LINE",        ac_del_line,        0},
-    {"EV_EDITLINE_DEL_PREV_WORD",   ac_del_prev_word,   0},
-
-    {"EV_GETTEXT",                  ac_gettext,         0},
-    {"EV_SETTEXT",                  ac_settext,         0},
-    {"EV_SETFOCUS",                 ac_setfocus,        0},
-    {"EV_KILLFOCUS",                0,                  0},
-    {"EV_MOVE",                     ac_move,            0},
-    {"EV_SIZE",                     ac_size,            0},
-    {"EV_PAINT",                    ac_paint,           0},
-    {"EV_CLEAR_HISTORY",            ac_clear_history,   0},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION ST_DISABLED[] = {
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    ST_DISABLED,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
-
-/***************************************************************************
- *              GClass
- ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
 
 /*---------------------------------------------*
- *              GClass
+ *          Global methods table
  *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_WN_EDITLINE_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        mt_play,
-        mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0, // cmds
-    0, // gcflag
+PRIVATE const GMETHODS gmt = {
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_play        = mt_play,
+    .mt_pause       = mt_pause,
+    .mt_writing     = mt_writing
 };
 
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_WN_EDITLINE);
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_KEYCHAR);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_MOVE_START);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_MOVE_LEFT);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_DEL_CHAR);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_MOVE_END);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_MOVE_RIGHT);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_BACKSPACE);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_COMPLETE_LINE);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_DEL_EOL);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_ENTER);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_PREV_HIST);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_NEXT_HIST);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_SWAP_CHAR);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_DEL_LINE);
+GOBJ_DEFINE_EVENT(EV_EDITLINE_DEL_PREV_WORD);
+GOBJ_DEFINE_EVENT(EV_GETTEXT);
+GOBJ_DEFINE_EVENT(EV_SETTEXT);
+GOBJ_DEFINE_EVENT(EV_KILLFOCUS);
+GOBJ_DEFINE_EVENT(EV_SETFOCUS);
+GOBJ_DEFINE_EVENT(EV_PAINT);
+GOBJ_DEFINE_EVENT(EV_MOVE);
+GOBJ_DEFINE_EVENT(EV_SIZE);
+GOBJ_DEFINE_EVENT(EV_CLEAR_HISTORY);
+GOBJ_DEFINE_EVENT(EV_COMMAND);
+
 /***************************************************************************
- *              Public access
+ *          Create the GClass
  ***************************************************************************/
-PUBLIC GCLASS *gclass_wn_editline(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    ev_action_t st_idle[] = {
+        {EV_KEYCHAR,                 ac_keychar,         0},
+        {EV_EDITLINE_MOVE_START,     ac_move_start,      0},
+        {EV_EDITLINE_MOVE_LEFT,      ac_move_left,       0},
+        {EV_EDITLINE_DEL_CHAR,       ac_del_char,        0},
+        {EV_EDITLINE_MOVE_END,       ac_move_end,        0},
+        {EV_EDITLINE_MOVE_RIGHT,     ac_move_right,      0},
+        {EV_EDITLINE_BACKSPACE,      ac_backspace,       0},
+        {EV_EDITLINE_COMPLETE_LINE,  ac_complete_line,   0},
+        {EV_EDITLINE_DEL_EOL,        ac_del_eol,         0},
+        {EV_EDITLINE_ENTER,          ac_enter,           0},
+        {EV_EDITLINE_PREV_HIST,      ac_prev_hist,       0},
+        {EV_EDITLINE_NEXT_HIST,      ac_next_hist,       0},
+        {EV_EDITLINE_SWAP_CHAR,      ac_swap_char,       0},
+        {EV_EDITLINE_DEL_LINE,       ac_del_line,        0},
+        {EV_EDITLINE_DEL_PREV_WORD,  ac_del_prev_word,   0},
+        {EV_GETTEXT,                 ac_gettext,         0},
+        {EV_SETTEXT,                 ac_settext,         0},
+        {EV_SETFOCUS,                ac_setfocus,        0},
+        {EV_KILLFOCUS,               0,                  0},
+        {EV_MOVE,                    ac_move,            0},
+        {EV_SIZE,                    ac_size,            0},
+        {EV_PAINT,                   ac_paint,           0},
+        {EV_CLEAR_HISTORY,           ac_clear_history,   0},
+        {0,0,0}
+    };
+
+    ev_action_t st_disabled[] = {
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,        st_idle},
+        {ST_DISABLED,    st_disabled},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_COMMAND,                 EVF_OUTPUT_EVENT},
+        {EV_KEYCHAR,                 0},
+        {EV_EDITLINE_MOVE_START,     0},
+        {EV_EDITLINE_MOVE_LEFT,      0},
+        {EV_EDITLINE_DEL_CHAR,       0},
+        {EV_EDITLINE_MOVE_END,       0},
+        {EV_EDITLINE_MOVE_RIGHT,     0},
+        {EV_EDITLINE_BACKSPACE,      0},
+        {EV_EDITLINE_COMPLETE_LINE,  0},
+        {EV_EDITLINE_DEL_EOL,        0},
+        {EV_EDITLINE_ENTER,          0},
+        {EV_EDITLINE_PREV_HIST,      0},
+        {EV_EDITLINE_NEXT_HIST,      0},
+        {EV_EDITLINE_SWAP_CHAR,      0},
+        {EV_EDITLINE_DEL_LINE,       0},
+        {EV_EDITLINE_DEL_PREV_WORD,  0},
+        {EV_GETTEXT,                 EVF_KW_WRITING},
+        {EV_SETTEXT,                 0},
+        {EV_KILLFOCUS,               0},
+        {EV_SETFOCUS,                0},
+        {EV_PAINT,                   0},
+        {EV_MOVE,                    0},
+        {EV_SIZE,                    0},
+        {EV_CLEAR_HISTORY,           0},
+        {NULL, 0}
+    };
+
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // local methods
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // acl
+        0,  // cmds
+        s_user_trace_level,
+        0   // gcflags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *          Public access
+ ***************************************************************************/
+PUBLIC int register_c_wn_editline(void)
+{
+    return create_gclass(C_WN_EDITLINE);
 }

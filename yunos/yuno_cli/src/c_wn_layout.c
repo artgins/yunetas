@@ -136,6 +136,8 @@ typedef struct _PRIVATE_DATA {
     PANEL *panel;   // panel handler
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -553,145 +555,101 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
     return 0;
 }
 
-
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    {"EV_PAINT",        0,  0,  0},
-    {"EV_MOVE",         0,  0,  0},
-    {"EV_SIZE",         0,  0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    ST_IDLE,
-    "ST_DISABLED",
-    NULL
+
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create          = mt_create,
+    .mt_destroy         = mt_destroy,
+    .mt_start           = mt_start,
+    .mt_stop            = mt_stop,
+    .mt_play            = mt_play,
+    .mt_pause           = mt_pause,
+    .mt_writing         = mt_writing,
+    .mt_child_added     = mt_child_added,
+    .mt_child_removed   = mt_child_removed
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_MOVE",             ac_move,            0},
-    {"EV_SIZE",             ac_size,            0},
-    {"EV_PAINT",            ac_paint,           0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_WN_LAYOUT);
 
-PRIVATE EV_ACTION ST_DISABLED[] = {
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    ST_DISABLED,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_PAINT);
+GOBJ_DEFINE_EVENT(EV_MOVE);
+GOBJ_DEFINE_EVENT(EV_SIZE);
 
 /***************************************************************************
- *              GClass
+ *          Create the GClass
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_WN_LAYOUT_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        mt_play,
-        mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        mt_child_added,
-        mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0, // cmds
-    0, // gcflag
-};
+    ev_action_t st_idle[] = {
+        {EV_MOVE,      ac_move,    0},
+        {EV_SIZE,      ac_size,    0},
+        {EV_PAINT,     ac_paint,   0},
+        {0,0,0}
+    };
+
+    ev_action_t st_disabled[] = {
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,       st_idle},
+        {ST_DISABLED,   st_disabled},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_PAINT,      0},
+        {EV_MOVE,       0},
+        {EV_SIZE,       0},
+        {NULL, 0}
+    };
+
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // local methods
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // acl
+        0,  // cmds
+        s_user_trace_level,
+        0   // gcflags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_wn_layout(void)
+PUBLIC int register_c_wn_layout(void)
 {
-    return &_gclass;
+    return create_gclass(C_WN_LAYOUT);
 }

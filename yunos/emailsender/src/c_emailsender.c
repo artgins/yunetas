@@ -148,6 +148,8 @@ typedef struct _PRIVATE_DATA {
     int inform_no_more_email;
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -725,162 +727,113 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {EV_SEND_MESSAGE,     EVF_PUBLIC_EVENT,   0,  "Send email event"},
-    {EV_SEND_EMAIL,       EVF_PUBLIC_EVENT,   0,  "Send email event"},
-    {"EV_SEND_CURL",        0,                  0,  "Send email to curl"},
-    // bottom input
-    {"EV_CURL_RESPONSE",    0,  0,  0},
-    {EV_ON_OPEN,          0,  0,  0},
-    {EV_ON_CLOSE,         0,  0,  0},
-    {EV_STOPPED,          0,  0,  0},
-    {EV_TIMEOUT,          0,  0,  0},
-    // internal
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {EV_ON_OPEN,          EVF_NO_WARN_SUBS,  0,  0},
-    {EV_ON_CLOSE,         EVF_NO_WARN_SUBS,  0,  0},
-    {EV_ON_MESSAGE,       EVF_NO_WARN_SUBS,  0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    ST_IDLE,
-    "ST_WAIT_SEND_ACK",
-    NULL
+
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_writing     = mt_writing
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_SEND_CURL",            ac_send_curl,           0},
-    {EV_SEND_MESSAGE,         ac_enqueue_message,     0},
-    {EV_SEND_EMAIL,           ac_enqueue_message,     0},
-    {EV_TIMEOUT,              ac_dequeue,             0},
-    {EV_ON_OPEN,              ac_on_open,             0},
-    {EV_ON_CLOSE,             ac_on_close,            0},
-    {EV_STOPPED,              ac_stopped,             0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_WAIT_SEND_ACK[] = {
-    {"EV_CURL_RESPONSE",        ac_curl_response,       0},
-    {EV_SEND_MESSAGE,         ac_enqueue_message,     0},
-    {EV_SEND_EMAIL,           ac_enqueue_message,     0},
-    {EV_ON_OPEN,              ac_on_open,             0},
-    {EV_ON_CLOSE,             ac_on_close,            0},
-    {EV_TIMEOUT,              ac_timeout_response,    0},
-    {EV_STOPPED,              ac_stopped,             0},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    ST_WAIT_SEND_ACK,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_EMAILSENDER);
 
 /***************************************************************************
- *              GClass
+ *          Create the GClass
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "GClass ALREADY created",
+            "gclass",   "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_EMAILSENDER_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    command_table,  // command_table
-    gcflag_required_start_to_play, // gcflag
-};
+    /*------------------------*
+     *      States
+     *------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_SEND_CURL,      ac_send_curl,           0},
+        {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
+        {EV_SEND_EMAIL,     ac_enqueue_message,     0},
+        {EV_TIMEOUT,        ac_dequeue,             0},
+        {EV_ON_OPEN,        ac_on_open,             0},
+        {EV_ON_CLOSE,       ac_on_close,            0},
+        {EV_STOPPED,        ac_stopped,             0},
+        {0,0,0}
+    };
+
+    ev_action_t st_wait_send_ack[] = {
+        {EV_CURL_RESPONSE,  ac_curl_response,       0},
+        {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
+        {EV_SEND_EMAIL,     ac_enqueue_message,     0},
+        {EV_ON_OPEN,        ac_on_open,             0},
+        {EV_ON_CLOSE,       ac_on_close,            0},
+        {EV_TIMEOUT,        ac_timeout_response,    0},
+        {EV_STOPPED,        ac_stopped,             0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,           st_idle},
+        {ST_WAIT_SEND_ACK,  st_wait_send_ack},
+        {0, 0}
+    };
+
+    /*------------------------*
+     *      Events
+     *------------------------*/
+    event_type_t event_types[] = {
+        {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
+        {EV_SEND_EMAIL,         EVF_PUBLIC_EVENT},
+        {EV_SEND_CURL,          0},
+        {EV_CURL_RESPONSE,      0},
+        {EV_ON_OPEN,            EVF_NO_WARN_SUBS},
+        {EV_ON_CLOSE,           EVF_NO_WARN_SUBS},
+        {EV_ON_MESSAGE,         EVF_NO_WARN_SUBS},
+        {EV_STOPPED,            0},
+        {EV_TIMEOUT,            0},
+        {NULL, 0}
+    };
+
+    /*----------------------------------------*
+     *          Register GClass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        lmt,
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,                          // acl
+        command_table,
+        s_user_trace_level,
+        gcflag_required_start_to_play
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_emailsender(void)
+PUBLIC int register_c_emailsender(void)
 {
-    return &_gclass;
+    return create_gclass(C_EMAILSENDER);
 }

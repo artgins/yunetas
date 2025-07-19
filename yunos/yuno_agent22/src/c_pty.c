@@ -106,6 +106,8 @@ typedef struct _PRIVATE_DATA {
     char bfinput[BFINPUT_SIZE];
 } PRIVATE_DATA;
 
+PRIVATE hgclass __gclass__ = 0;
+
 
 
 
@@ -820,138 +822,98 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {"EV_WRITE_TTY",    0,  0,  ""},
-    // bottom input
-    // internal
-    {NULL, 0, 0, ""}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_TTY_DATA",     0,  0,  ""},
-    {"EV_TTY_OPEN",     0,  0,  ""},
-    {"EV_TTY_CLOSE",    0,  0,  ""},
-    {NULL, 0, 0, ""}
-};
-PRIVATE const char *state_names[] = {
-    "ST_IDLE",          /* H2UV handler for UV */
-    NULL
+
+/*---------------------------------------------*
+ *          Global methods table
+ *---------------------------------------------*/
+PRIVATE const GMETHODS gmt = {
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_writing     = mt_writing,
 };
 
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_WRITE_TTY",    ac_write_tty,   0},
-    {0,0,0}
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(C_PTY);
 
-PRIVATE EV_ACTION *states[] = {
-    ST_IDLE,
-    NULL
-};
+/*------------------------*
+ *      States
+ *------------------------*/
 
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************************
- *              GClass
+ *          Create the GClass
  ***************************************************************************/
-/*---------------------------------------------*
- *              Local methods table
- *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
+PRIVATE int create_gclass(gclass_name_t gclass_name)
+{
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "GClass ALREADY created",
+            "gclass",   "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_PTY_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0,  // cmds
-    0,  // gcflag
-};
+    /*------------------------*
+     *      States
+     *------------------------*/
+    ev_action_t st_idle[] = {
+        {EV_WRITE_TTY,     ac_write_tty,   0},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_IDLE,          st_idle},
+        {0, 0}
+    };
+
+    /*------------------------*
+     *      Events
+     *------------------------*/
+    event_type_t event_types[] = {
+        {EV_TTY_DATA,      EVF_OUTPUT_EVENT},
+        {EV_TTY_OPEN,      EVF_OUTPUT_EVENT},
+        {EV_TTY_CLOSE,     EVF_OUTPUT_EVENT},
+        {EV_WRITE_TTY,     0},
+        {NULL, 0}
+    };
+
+    /*----------------------------------------*
+     *          Register GClass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // LMT
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // Authorization table
+        0,  // Command table
+        s_user_trace_level,
+        0   // GClass flags
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *              Public access
  ***************************************************************************/
-PUBLIC GCLASS *gclass_pty(void)
+PUBLIC int register_c_pty(void)
 {
-    return &_gclass;
+    return create_gclass(C_PTY);
 }
