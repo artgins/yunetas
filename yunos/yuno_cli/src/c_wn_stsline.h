@@ -3,70 +3,37 @@
  *          Wn_stsline GClass.
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta.h>
-#include "c_wn_stdscr.h"
-
-/**rst**
-
-.. _wn_stsline-gclass:
-
-**"Wn_stsline"** :ref:`GClass`
-===========================
-
-Description
-===========
-
-Status Line
-
-Events
-======
-
-Input Events
-------------
-
-Order
-^^^^^
-
-Request
-^^^^^^^
-
-Output Events
--------------
-
-Response
-^^^^^^^^
-
-Unsolicited
-^^^^^^^^^^^
-
-Macros
-======
-
-``GCLASS_WN_STSLINE_NAME``
-   Macro of the gclass string name, i.e **"Wn_stsline"**.
-
-``GCLASS_WN_STSLINE``
-   Macro of the :func:`gclass_wn_stsline()` function.
-
-
-**rst**/
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
-/**rst**
-   Return a pointer to the :ref:`GCLASS` struct defining the :ref:`wn_stsline-gclass`.
-**rst**/
-PUBLIC GCLASS *gclass_wn_stsline(void);
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_WN_STSLINE);
 
-#define GCLASS_WN_STSLINE_NAME "Wn_stsline"
-#define GCLASS_WN_STSLINE gclass_wn_stsline()
+/*------------------------*
+ *      States
+ *------------------------*/
 
+/*------------------------*
+ *      Events
+ *------------------------*/
+
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC int register_c_wn_stsline(void);
 
 #ifdef __cplusplus
 }

@@ -54,13 +54,13 @@ PRIVATE char __new_stdsrc_size__ = FALSE;
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (ASN_INTEGER,     "timeout",              0,  500, "Timeout, to detect size change in stdscr"),
-SDATA (ASN_INTEGER,     "cx",                   0,  0, "cx window size"),
-SDATA (ASN_INTEGER,     "cy",                   0,  0, "cy window size"),
+SDATA (DTP_INTEGER,     "timeout",              0,  500, "Timeout, to detect size change in stdscr"),
+SDATA (DTP_INTEGER,     "cx",                   0,  0, "cx window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  0, "cy window size"),
 
-SDATA (ASN_POINTER,     "user_data",            0,  0, "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,  0, "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
@@ -118,7 +118,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,      gobj_read_int32_attr)
+    SET_PRIV(timeout,      gobj_read_integer_attr)
 
     /*
      *  Start up ncurses
@@ -130,7 +130,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  stdscr timer to detect window size change
      */
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
 
 #ifndef TEST_KDEVELOP
     priv->wn = initscr();               /* Start curses mode            */
@@ -152,12 +152,12 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,         gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
         if(gobj_is_running(gobj)) {
             set_timeout_periodic(priv->timer, priv->timeout);
         }
-    ELIF_EQ_SET_PRIV(cx,            gobj_read_int32_attr)
-    ELIF_EQ_SET_PRIV(cy,            gobj_read_int32_attr)
+    ELIF_EQ_SET_PRIV(cx,            gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(cy,            gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -173,8 +173,8 @@ PRIVATE int mt_start(hgobj gobj)
 
     int cx, cy;
     get_stdscr_size(&cx, &cy);
-    gobj_write_int32_attr(gobj, "cx", cx);
-    gobj_write_int32_attr(gobj, "cy", cy);
+    gobj_write_integer_attr(gobj, "cx", cx);
+    gobj_write_integer_attr(gobj, "cy", cy);
 
     //log_debug_printf(0, "initial size cx %d cy %d %s\n", cx, cy, gobj_name(gobj));
 
@@ -332,8 +332,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         __new_stdsrc_size__ = FALSE;
         int cx, cy;
         get_stdscr_size(&cx, &cy);
-        gobj_write_int32_attr(gobj, "cx", cx);
-        gobj_write_int32_attr(gobj, "cy", cy);
+        gobj_write_integer_attr(gobj, "cx", cx);
+        gobj_write_integer_attr(gobj, "cy", cy);
 
         json_t *jn_kw = json_object();
         json_object_set_new(jn_kw, "cx", json_integer(cx));
@@ -362,8 +362,8 @@ PRIVATE const EVENT input_events[] = {
 //     {"EV_KILLFOCUS",    0,  0,  0},
 //     {"EV_SETFOCUS",     0,  0,  0},
 //     {"EV_MOVE",         0,  0,  0},
-    {"EV_TIMEOUT",      0,  0,  0},
-    {"EV_STOPPED",      0,  0,  0},
+    {EV_TIMEOUT,      0,  0,  0},
+    {EV_STOPPED,      0,  0,  0},
     {NULL, 0, 0, 0}
 };
 PRIVATE const EVENT output_events[] = {
@@ -371,13 +371,13 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_TIMEOUT",          ac_timeout,         0},
-    {"EV_STOPPED",          0,                  0},
+    {EV_TIMEOUT,          ac_timeout,         0},
+    {EV_STOPPED,          0,                  0},
     {0,0,0}
 };
 
@@ -523,7 +523,7 @@ PUBLIC int SetFocus(hgobj gobj)
         if(__gobj_with_focus__) {
             gobj_send_event(__gobj_with_focus__, "EV_KILLFOCUS", 0, 0);
             if(gobj_trace_level(gobj) & (TRACE_MACHINE|TRACE_EV_KW)) {
-                trace_msg("👁 👁 ⏪ %s", gobj_short_name(__gobj_with_focus__));
+                gobj_trace_msg(gobj, "👁 👁 ⏪ %s", gobj_short_name(__gobj_with_focus__));
             }
         }
     }
@@ -534,11 +534,11 @@ PUBLIC int SetFocus(hgobj gobj)
         __gobj_with_focus__ = __gobj_default_focus__;
         gobj_send_event(__gobj_default_focus__, "EV_SETFOCUS", 0, 0);
         if(gobj_trace_level(gobj) & (TRACE_MACHINE|TRACE_EV_KW)) {
-            trace_msg("👁 👁 ⏩ %s", gobj_short_name(__gobj_with_focus__));
+            gobj_trace_msg(gobj, "👁 👁 ⏩ %s", gobj_short_name(__gobj_with_focus__));
         }
     } else {
         if(gobj_trace_level(gobj) & (TRACE_MACHINE|TRACE_EV_KW)) {
-            trace_msg("👁 👁 ⏩ %s", gobj_short_name(__gobj_with_focus__));
+            gobj_trace_msg(gobj, "👁 👁 ⏩ %s", gobj_short_name(__gobj_with_focus__));
         }
     }
 

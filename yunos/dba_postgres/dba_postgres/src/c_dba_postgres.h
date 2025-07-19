@@ -5,26 +5,37 @@
  *          DBA Dba_postgres
  *
  *          Copyright (c) 2021 by Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta.h>
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
 /***************************************************************
- *              Constants
+ *              FSM
  ***************************************************************/
-#define GCLASS_DBA_POSTGRES_NAME "Dba_postgres"
-#define GCLASS_DBA_POSTGRES gclass_dba_postgres()
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_DBA_POSTGRES);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC GCLASS *gclass_dba_postgres(void);
+PUBLIC int register_c_dba_postgres(void);
 
 #ifdef __cplusplus
 }

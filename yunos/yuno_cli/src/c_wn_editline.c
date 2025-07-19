@@ -146,19 +146,19 @@ typedef struct linenoiseCompletions {
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (ASN_OCTET_STR,   "prompt",               0,  "> ", "Prompt"),
-SDATA (ASN_OCTET_STR,   "history_file",         0,  0, "History file"),
-SDATA (ASN_INTEGER,     "history_max_len",      0,  200000, "history max len (max lines)"),
-SDATA (ASN_INTEGER,     "buffer_size",          0,  4*1024, "edition buffer size"),
-SDATA (ASN_INTEGER,     "x",                    0,  0, "x window coord"),
-SDATA (ASN_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (ASN_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
-SDATA (ASN_INTEGER,     "cy",                   0,  1, "physical height window size"),
-SDATA (ASN_OCTET_STR,   "bg_color",             0,  "cyan", "Background color"),
-SDATA (ASN_OCTET_STR,   "fg_color",             0,  "white", "Foreground color"),
-SDATA (ASN_POINTER,     "user_data",            0,  0, "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,  0, "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_STRING,      "prompt",               0,  "> ", "Prompt"),
+SDATA (DTP_STRING,      "history_file",         0,  0, "History file"),
+SDATA (DTP_INTEGER,     "history_max_len",      0,  200000, "history max len (max lines)"),
+SDATA (DTP_INTEGER,     "buffer_size",          0,  4*1024, "edition buffer size"),
+SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
+SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
+SDATA (DTP_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  1, "physical height window size"),
+SDATA (DTP_STRING,      "bg_color",             0,  "cyan", "Background color"),
+SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
+SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
@@ -240,15 +240,15 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(prompt,                    gobj_read_str_attr)
         priv->plen = strlen(priv->prompt);
     SET_PRIV(history_file,              gobj_read_str_attr)
-    SET_PRIV(cx,                        gobj_read_int32_attr)
+    SET_PRIV(cx,                        gobj_read_integer_attr)
         priv->cols = priv->cx;
-    SET_PRIV(cy,                        gobj_read_int32_attr)
-    SET_PRIV(history_max_len,           gobj_read_int32_attr)
+    SET_PRIV(cy,                        gobj_read_integer_attr)
+    SET_PRIV(history_max_len,           gobj_read_integer_attr)
 
-    int x = gobj_read_int32_attr(gobj, "x");
-    int y = gobj_read_int32_attr(gobj, "y");
+    int x = gobj_read_integer_attr(gobj, "x");
+    int y = gobj_read_integer_attr(gobj, "y");
 
-    int buffer_size = gobj_read_int32_attr(gobj, "buffer_size");
+    int buffer_size = gobj_read_integer_attr(gobj, "buffer_size");
     priv->buf = gbmem_malloc(buffer_size);
     priv->buflen = buffer_size - 1;
 
@@ -287,12 +287,12 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(prompt,                gobj_read_str_attr)
         priv->plen = strlen(priv->prompt);
         gobj_send_event(gobj, "EV_PAINT", 0, gobj);
-    ELIF_EQ_SET_PRIV(cx,                    gobj_read_int32_attr)
+    ELIF_EQ_SET_PRIV(cx,                    gobj_read_integer_attr)
         priv->cols = priv->cx;
         //TODO igual hay que refrescar
-    ELIF_EQ_SET_PRIV(cy,                    gobj_read_int32_attr)
-    ELIF_EQ_SET_PRIV(cy,                    gobj_read_int32_attr)
-    ELIF_EQ_SET_PRIV(history_max_len,       gobj_read_int32_attr)
+    ELIF_EQ_SET_PRIV(cy,                    gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(cy,                    gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(history_max_len,       gobj_read_integer_attr)
         linenoiseHistorySetMaxLen(priv, priv->history_max_len);
     END_EQ_SET_PRIV()
 }
@@ -339,7 +339,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
-    gobj_change_state(gobj, "ST_IDLE");
+    gobj_change_state(gobj, ST_IDLE);
     // TODO re PAINT in enabled colors
     return 0;
 }
@@ -863,9 +863,9 @@ PRIVATE int ac_keychar(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, KW_REQUIRED);
-    char *p = gbuf_cur_rd_pointer(gbuf);
-    int len = gbuf_leftbytes(gbuf);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+    char *p = gbuffer_cur_rd_pointer(gbuf);
+    int len = gbuffer_leftbytes(gbuf);
 
     for(int i=0; i<len; i++) {
         int c = p[i];
@@ -1151,7 +1151,7 @@ PRIVATE int ac_gettext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *data = kw_get_str(kw, "text", "", KW_REQUIRED);
+    const char *data = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
 
     PRIVATE_DATA *l = priv;
     l->oldpos = l->pos = 0;
@@ -1200,10 +1200,10 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int x = kw_get_int(kw, "x", 0, KW_REQUIRED);
-    int y = kw_get_int(kw, "y", 0, KW_REQUIRED);
-    gobj_write_int32_attr(gobj, "x", x);
-    gobj_write_int32_attr(gobj, "y", y);
+    int x = kw_get_int(gobj, kw, "x", 0, KW_REQUIRED);
+    int y = kw_get_int(gobj, kw, "y", 0, KW_REQUIRED);
+    gobj_write_integer_attr(gobj, "x", x);
+    gobj_write_integer_attr(gobj, "y", y);
 
     if(priv->panel) {
         //log_debug_printf(0, "move panel x %d y %d %s", x, y, gobj_name(gobj));
@@ -1227,10 +1227,10 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int cx = kw_get_int(kw, "cx", 0, KW_REQUIRED);
-    int cy = kw_get_int(kw, "cy", 0, KW_REQUIRED);
-    gobj_write_int32_attr(gobj, "cx", cx);
-    gobj_write_int32_attr(gobj, "cy", cy);
+    int cx = kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
+    int cy = kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
+    gobj_write_integer_attr(gobj, "cx", cx);
+    gobj_write_integer_attr(gobj, "cy", cy);
 
     if(priv->panel) {
         //log_debug_printf(0, "size panel cx %d cy %d %s", cx, cy, gobj_name(gobj));
@@ -1300,7 +1300,7 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     "ST_DISABLED",
     NULL
 };

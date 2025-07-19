@@ -5,26 +5,37 @@
  *          Control Center of Yuneta Systems
  *
  *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta.h>
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
 /***************************************************************
- *              Constants
+ *              FSM
  ***************************************************************/
-#define GCLASS_CONTROLCENTER_NAME "Controlcenter"
-#define GCLASS_CONTROLCENTER gclass_controlcenter()
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_CONTROLCENTER);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC GCLASS *gclass_controlcenter(void);
+PUBLIC int register_c_controlcenter(void);
 
 #ifdef __cplusplus
 }

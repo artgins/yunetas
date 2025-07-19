@@ -40,50 +40,50 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_authzs[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "authz",        0,              0,          "permission to search"),
-SDATAPM (ASN_OCTET_STR, "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
+SDATAPM (DTP_STRING,    "authz",        0,              0,          "permission to search"),
+SDATAPM (DTP_STRING,    "service",      0,              0,          "Service where to search the permission. If empty print all service's permissions"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_list_agents[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_UNSIGNED,  "expand",        0,              0,          "Expand details"),
+SDATAPM (DTP_INTEGER,   "expand",        0,              0,          "Expand details"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_command_agent[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
-SDATAPM (ASN_OCTET_STR, "agent_service",0,              0,          "agent service"),
-SDATAPM (ASN_OCTET_STR, "cmd2agent",    0,              0,          "command to agent"),
+SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
+SDATAPM (DTP_STRING,    "agent_service",0,              0,          "agent service"),
+SDATAPM (DTP_STRING,    "cmd2agent",    0,              0,          "command to agent"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_stats_agent[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
-SDATAPM (ASN_OCTET_STR, "agent_service",0,              0,          "agent service"),
-SDATAPM (ASN_OCTET_STR, "stats2agent",  0,              0,          "stats to agent"),
+SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
+SDATAPM (DTP_STRING,    "agent_service",0,              0,          "agent service"),
+SDATAPM (DTP_STRING,    "stats2agent",  0,              0,          "stats to agent"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_drop_agent[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-    SDATAPM (ASN_OCTET_STR, "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
+    SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id (UUID or HOSTNAME)"),
     SDATA_END()
 };
 PRIVATE sdata_desc_t pm_write_tty[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "agent_id",     0,              0,          "agent id"),
-SDATAPM (ASN_OCTET_STR, "content64",    0,              0,          "Content64 data to write to tty"),
+SDATAPM (DTP_STRING,    "agent_id",     0,              0,          "agent id"),
+SDATAPM (DTP_STRING,    "content64",    0,              0,          "Content64 data to write to tty"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_logout_user[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "username",     0,              0,          "Username"),
-SDATAPM (ASN_BOOLEAN,   "disabled",     0,              0,          "Disable user"),
+SDATAPM (DTP_STRING,    "username",     0,              0,          "Username"),
+SDATAPM (DTP_BOOLEAN,   "disabled",     0,              0,          "Disable user"),
 SDATA_END()
 };
 
@@ -92,18 +92,18 @@ PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM2 (ASN_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
-SDATACM (ASN_SCHEMA,    "logout-user",      0,                  pm_logout_user, cmd_logout_user,"Logout user"),
-SDATACM (ASN_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM2 (DTP_SCHEMA,   "authzs",           0,                  0,              pm_authzs,      cmd_authzs,     "Authorization's help"),
+SDATACM (DTP_SCHEMA,    "logout-user",      0,                  pm_logout_user, cmd_logout_user,"Logout user"),
+SDATACM (DTP_SCHEMA,    "list-agents",      0,                  pm_list_agents, cmd_list_agents, "List connected agents"),
 
-SDATACM2 (ASN_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              pm_command_agent,cmd_command_agent,"Command to agent (agent id = UUID or HOSTNAME)"),
+SDATACM2 (DTP_SCHEMA,   "command-agent",    SDF_WILD_CMD,       0,              pm_command_agent,cmd_command_agent,"Command to agent (agent id = UUID or HOSTNAME)"),
 
-SDATACM2 (ASN_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,              pm_stats_agent, cmd_stats_agent, "Get statistics of agent"),
+SDATACM2 (DTP_SCHEMA,   "stats-agent",      SDF_WILD_CMD,       0,              pm_stats_agent, cmd_stats_agent, "Get statistics of agent"),
 
-SDATACM2 (ASN_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              pm_drop_agent,cmd_drop_agent,"Drop connection to agent (agent id = UUID or HOSTNAME)"),
+SDATACM2 (DTP_SCHEMA,   "drop-agent",       SDF_WILD_CMD,       0,              pm_drop_agent,cmd_drop_agent,"Drop connection to agent (agent id = UUID or HOSTNAME)"),
 
-SDATACM2 (ASN_SCHEMA,   "write-tty",        0,                  a_write_tty,    pm_write_tty,   0,              "Write data to tty (internal use)"),
+SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,    pm_write_tty,   0,              "Write data to tty (internal use)"),
 
 SDATA_END()
 };
@@ -113,24 +113,24 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (ASN_OCTET_STR,   "__username__",     SDF_RD,             "",              "Username"),
-SDATA (ASN_COUNTER64,   "txMsgs",           SDF_RD|SDF_PSTATS,  0,          "Messages transmitted"),
-SDATA (ASN_COUNTER64,   "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
+SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",              "Username"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_PSTATS,  0,          "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
 
-SDATA (ASN_COUNTER64,   "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (ASN_COUNTER64,   "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (ASN_COUNTER64,   "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Tx Messages by second"),
-SDATA (ASN_COUNTER64,   "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Tx Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Rx Messages by second"),
 
-SDATA (ASN_BOOLEAN,     "enabled_new_devices",SDF_PERSIST,      1,          "Auto enable new devices"),
-SDATA (ASN_BOOLEAN,     "enabled_new_users",SDF_PERSIST,        1,          "Auto enable new users"),
+SDATA (DTP_BOOLEAN,     "enabled_new_devices",SDF_PERSIST,      1,          "Auto enable new devices"),
+SDATA (DTP_BOOLEAN,     "enabled_new_users",SDF_PERSIST,        1,          "Auto enable new users"),
 
 // TODO a 0 cuando funcionen bien los out schemas
-SDATA (ASN_BOOLEAN,     "use_internal_schema",SDF_WR,           1,          "Use internal (hardcoded) schema"),
+SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_WR,           1,          "Use internal (hardcoded) schema"),
 
-SDATA (ASN_INTEGER,     "timeout",          SDF_RD,             1*1000,     "Timeout"),
-SDATA (ASN_POINTER,     "user_data",        0,                  0,          "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,          "more user data"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             1*1000,     "Timeout"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA_END()
 };
 
@@ -151,15 +151,15 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
-SDATAAUTHZ (ASN_SCHEMA, "list-agents",      0,      0,      0,      "Permission to list remote agents"),
-SDATAAUTHZ (ASN_SCHEMA, "command-agent",    0,      0,      0,      "Permission to send command to remote agent"),
-SDATAAUTHZ (ASN_SCHEMA, "drop-agent",       0,      0,      0,      "Permission to drop connection to remote agent"),
-SDATAAUTHZ (ASN_SCHEMA, "logout-user",      0,      0,      0,      "Permission to logout users"),
-SDATAAUTHZ (ASN_SCHEMA, "write-tty",        0,      0,      0,      "Internal use. Feed remote consola from local keyboard"),
+SDATAAUTHZ (DTP_SCHEMA, "list-agents",      0,      0,      0,      "Permission to list remote agents"),
+SDATAAUTHZ (DTP_SCHEMA, "command-agent",    0,      0,      0,      "Permission to send command to remote agent"),
+SDATAAUTHZ (DTP_SCHEMA, "drop-agent",       0,      0,      0,      "Permission to drop connection to remote agent"),
+SDATAAUTHZ (DTP_SCHEMA, "logout-user",      0,      0,      0,      "Permission to logout users"),
+SDATAAUTHZ (DTP_SCHEMA, "write-tty",        0,      0,      0,      "Internal use. Feed remote consola from local keyboard"),
 
-SDATAAUTHZ (ASN_SCHEMA, "list-groups",      0,      0,      0,      "Permission to list groups"),
-SDATAAUTHZ (ASN_SCHEMA, "list-tracks",      0,      0,      0,      "Permission to list tracks"),
-SDATAAUTHZ (ASN_SCHEMA, "realtime-track",   0,      0,      0,      "Permission to realtime-tracks"),
+SDATAAUTHZ (DTP_SCHEMA, "list-groups",      0,      0,      0,      "Permission to list groups"),
+SDATAAUTHZ (DTP_SCHEMA, "list-tracks",      0,      0,      0,      "Permission to list tracks"),
+SDATAAUTHZ (DTP_SCHEMA, "realtime-track",   0,      0,      0,      "Permission to realtime-tracks"),
 
 SDATA_END()
 };
@@ -178,8 +178,8 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_treedb_controlcenter;
     hgobj gobj_authz;
 
-    uint64_t *ptxMsgs;
-    uint64_t *prxMsgs;
+    uint64_t txMsgs;
+    uint64_t rxMsgs;
     uint64_t txMsgsec;
     uint64_t rxMsgsec;
 } PRIVATE_DATA;
@@ -201,9 +201,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create(gobj_name(gobj), GCLASS_TIMER, 0, gobj);
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
+    priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*----------------------------------------*
      *  Check AUTHZS
@@ -228,7 +226,7 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
     if(!is_yuneta) {
-        trace_msg("User or group 'yuneta' is needed to run %s", gobj_yuno_role());
+        gobj_trace_msg(gobj, "User or group 'yuneta' is needed to run %s", gobj_yuno_role());
         printf("User or group 'yuneta' is needed to run %s\n", gobj_yuno_role());
         exit(0);
     }
@@ -270,7 +268,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,               gobj_read_int32_attr)
+    SET_PRIV(timeout,               gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -280,7 +278,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,             gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -354,8 +352,7 @@ PRIVATE int mt_play(hgobj gobj)
         /*
          *  Exit if schema fails
          */
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP_ERROR,
             "msg",          "%s", "Parse schema fails",
@@ -366,7 +363,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
 
-    const char *treedb_name = kw_get_str(
+    const char *treedb_name = kw_get_str(gobj, 
         jn_treedb_schema_controlcenter,
         "id",
         "treedb_controlcenter",
@@ -385,11 +382,10 @@ PRIVATE int mt_play(hgobj gobj)
         kw_treedb,
         gobj
     );
-    int result = kw_get_int(jn_resp, "result", -1, KW_REQUIRED);
+    int result = kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
     if(result < 0) {
-        const char *comment = kw_get_str(jn_resp, "comment", "", KW_REQUIRED);
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP_ERROR,
             "msg",          "%s", comment,
@@ -466,7 +462,7 @@ PRIVATE int mt_subscription_added(
 //    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *__config__ = sdata_read_json(subs, "__config__");
-    BOOL first_shot = kw_get_bool(__config__, "__first_shot__", TRUE, 0);
+    BOOL first_shot = kw_get_bool(gobj, __config__, "__first_shot__", TRUE, 0);
     if(!first_shot) {
         return 0;
     }
@@ -502,7 +498,7 @@ PRIVATE int mt_subscription_added(
         return gobj_send_event(
             subscriber,
             event,
-            msg_iev_build_webix2_without_answer_filter(gobj,
+            msg_iev_build_response2_without_answer_filter(gobj,
                 result,
                 jn_comment,
                 0, //RESOURCE_WEBIX_SCHEMA(priv->resource, resource),
@@ -534,7 +530,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -559,11 +555,11 @@ PRIVATE json_t *cmd_logout_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *username = kw_get_str(kw, "username", "", 0);
-    BOOL disabled = kw_get_bool(kw, "disabled", 0, KW_WILD_NUMBER);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    BOOL disabled = kw_get_bool(gobj, kw, "disabled", 0, KW_WILD_NUMBER);
 
     if(empty_string(username)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What realm owner?"),
@@ -583,7 +579,7 @@ PRIVATE json_t *cmd_logout_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj
     );
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         result<0?
@@ -601,14 +597,14 @@ PRIVATE json_t *cmd_logout_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    int expand = kw_get_int(kw, "expand", 0, KW_WILD_NUMBER);
+    int expand = kw_get_int(gobj, kw, "expand", 0, KW_WILD_NUMBER);
 
     /*----------------------------------------*
      *  Check AUTHZS
      *----------------------------------------*/
     const char *permission = "list-agents";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("No permission to '%s'", permission),
@@ -625,7 +621,7 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     json_t *jn_filter = json_pack("{s:s, s:s}",
         "__gclass_name__", GCLASS_IEVENT_SRV_NAME,
-        "__state__", "ST_SESSION"
+        "__state__", ST_SESSION
     );
     dl_list_t *dl_childs = gobj_match_childs_tree(priv->gobj_input_side, 0, jn_filter);
 
@@ -639,10 +635,10 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         } else {
             json_array_append_new(jn_data,
                 json_sprintf("UUID:%s (%s,%s),  HOSTNAME:'%s'",
-                    kw_get_str(jn_attrs, "id", "", 0),
-                    kw_get_str(jn_attrs, "yuno_role", "", 0),
-                    kw_get_str(jn_attrs, "yuno_version", "", 0),
-                    kw_get_str(jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0)
+                    kw_get_str(gobj, jn_attrs, "id", "", 0),
+                    kw_get_str(gobj, jn_attrs, "yuno_role", "", 0),
+                    kw_get_str(gobj, jn_attrs, "yuno_version", "", 0),
+                    kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0)
                 )
             );
             json_decref(jn_attrs);
@@ -650,9 +646,9 @@ PRIVATE json_t *cmd_list_agents(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
     }
 
-    rc_free_iter(dl_childs, TRUE, 0);
+    gobj_free_iter(dl_childs, TRUE, 0);
 
-    return msg_iev_build_webix(gobj,
+    return msg_iev_build_response(gobj,
         0,
         0,
         0,
@@ -675,7 +671,7 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
      *----------------------------------------*/
     const char *permission = "command-agent";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("No permission to '%s'", permission),
@@ -705,15 +701,15 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
         json_object_del(kw, keys2delete[i]);
     }
 
-    const char *agent_id = kw_get_str(kw, "agent_id", "", 0);
-    const char *cmd2agent = kw_get_str(kw, "cmd2agent", "", 0);
-    const char *agent_service = kw_get_str(kw, "agent_service", "", 0);
+    const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
+    const char *cmd2agent = kw_get_str(gobj, kw, "cmd2agent", "", 0);
+    const char *agent_service = kw_get_str(gobj, kw, "agent_service", "", 0);
     if(!empty_string(agent_service)) {
         json_object_set_new(kw, "service", json_string(agent_service));
     }
 
     if(empty_string(cmd2agent)) {
-        return msg_iev_build_webix(gobj,
+        return msg_iev_build_response(gobj,
             -1,
             json_string("What cmd2agent?"),
             0,
@@ -724,7 +720,7 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
 
     json_t *jn_filter = json_pack("{s:s, s:s}",
         "__gclass_name__", GCLASS_IEVENT_SRV_NAME,
-        "__state__", "ST_SESSION"
+        "__state__", ST_SESSION
     );
     dl_list_t *dl_childs = gobj_match_childs_tree(priv->gobj_input_side, 0, jn_filter);
 
@@ -734,8 +730,8 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
     while(i_hs) {
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         if(!empty_string(agent_id)) {
-            const char *id_ = kw_get_str(jn_attrs, "id", "", 0);
-            const char *host_ = kw_get_str(jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+            const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
+            const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
             if(strcmp(id_, agent_id)!=0 && strcmp(host_, agent_id)!=0) {
                 i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
                 continue;
@@ -754,10 +750,10 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
         i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
     }
 
-    rc_free_iter(dl_childs, TRUE, 0);
+    gobj_free_iter(dl_childs, TRUE, 0);
 
 
-    return msg_iev_build_webix(gobj, // Asynchronous response too
+    return msg_iev_build_response(gobj, // Asynchronous response too
         some?0:-1,
         json_sprintf("Command sent to %d nodes", some),
         0,
@@ -780,7 +776,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
      *----------------------------------------*/
     const char *permission = "command-agent";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("No permission to '%s'", permission),
@@ -810,16 +806,16 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
         json_object_del(kw, keys2delete[i]);
     }
 
-    const char *agent_id = kw_get_str(kw, "agent_id", "", 0);
-    const char *stats2agent = kw_get_str(kw, "stats2agent", "", 0);
-    const char *agent_service = kw_get_str(kw, "agent_service", "", 0);
+    const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
+    const char *stats2agent = kw_get_str(gobj, kw, "stats2agent", "", 0);
+    const char *agent_service = kw_get_str(gobj, kw, "agent_service", "", 0);
     if(!empty_string(agent_service)) {
         json_object_set_new(kw, "service", json_string(agent_service));
     }
 
     json_t *jn_filter = json_pack("{s:s, s:s}",
         "__gclass_name__", GCLASS_IEVENT_SRV_NAME,
-        "__state__", "ST_SESSION"
+        "__state__", ST_SESSION
     );
     dl_list_t *dl_childs = gobj_match_childs_tree(priv->gobj_input_side, 0, jn_filter);
 
@@ -829,8 +825,8 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
     while(i_hs) {
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         if(!empty_string(agent_id)) {
-            const char *id_ = kw_get_str(jn_attrs, "id", "", 0);
-            const char *host_ = kw_get_str(jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+            const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
+            const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
             if(strcmp(id_, agent_id)!=0 && strcmp(host_, agent_id)!=0) {
                 i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
                 continue;
@@ -849,10 +845,10 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
         i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
     }
 
-    rc_free_iter(dl_childs, TRUE, 0);
+    gobj_free_iter(dl_childs, TRUE, 0);
 
 
-    return msg_iev_build_webix(gobj, // Asynchronous response too
+    return msg_iev_build_response(gobj, // Asynchronous response too
         some?0:-1,
         json_sprintf("Stats sent to %d nodes", some),
         0,
@@ -875,7 +871,7 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
      *----------------------------------------*/
     const char *permission = "drop-agent";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("No permission to '%s'", permission),
@@ -886,11 +882,11 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
     }
 
 
-    const char *agent_id = kw_get_str(kw, "agent_id", "", 0);
+    const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
 
     json_t *jn_filter = json_pack("{s:s, s:s}",
         "__gclass_name__", GCLASS_IEVENT_SRV_NAME,
-        "__state__", "ST_SESSION"
+        "__state__", ST_SESSION
     );
     dl_list_t *dl_childs = gobj_match_childs_tree(priv->gobj_input_side, 0, jn_filter);
 
@@ -900,8 +896,8 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
     while(i_hs) {
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         if(!empty_string(agent_id)) {
-            const char *id_ = kw_get_str(jn_attrs, "id", "", 0);
-            const char *host_ = kw_get_str(jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
+            const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
+            const char *host_ = kw_get_str(gobj, jn_attrs, "__md_iev__`ievent_gate_stack`0`host", "", 0);
             if(strcmp(id_, agent_id)!=0 && strcmp(host_, agent_id)!=0) {
                 i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
                 continue;
@@ -910,7 +906,7 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
 
         gobj_send_event( // debe retornar siempre 0.
             child,
-            "EV_DROP",
+            EV_DROP,
             json_object(),
             src
         );
@@ -919,10 +915,10 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
         i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
     }
 
-    rc_free_iter(dl_childs, TRUE, 0);
+    gobj_free_iter(dl_childs, TRUE, 0);
 
 
-    return msg_iev_build_webix(gobj, // Asynchronous response too
+    return msg_iev_build_response(gobj, // Asynchronous response too
         some?0:-1,
         json_sprintf("Drop sent to %d nodes", some),
         0,
@@ -952,16 +948,15 @@ PRIVATE int process_msg(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *id = kw_get_str(kw, "id", "", KW_REQUIRED);
+    const char *id = kw_get_str(gobj, kw, "id", "", KW_REQUIRED);
     if(empty_string(id)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Message without id",
             NULL
         );
-        log_debug_json(0, kw, "Message without id");
+        gobj_trace_json(gobj, kw, "Message without id");
         return 0; // que devuelva ack para que borre el msg
     }
 
@@ -989,7 +984,7 @@ PRIVATE int process_msg(
             "name", id,
             "enabled", enabled_new_devices,
             "properties",
-            "yuno", kw_get_str(kw, "yuno", "", 0),
+            "yuno", kw_get_str(gobj, kw, "yuno", "", 0),
             "time", (json_int_t)t
         );
 
@@ -1003,8 +998,7 @@ PRIVATE int process_msg(
     }
 
     if(!device) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Device ???",
@@ -1016,7 +1010,7 @@ PRIVATE int process_msg(
     /*
      *  Actualiza nombre si ha cambiado en el dispositivo
      */
-    const char *old_name = kw_get_str(device, "name", "", 0);
+    const char *old_name = kw_get_str(gobj, device, "name", "", 0);
     if(empty_string(old_name)) {
         old_name = id;
     }
@@ -1041,8 +1035,7 @@ PRIVATE int process_msg(
 //
 //    msg = filtra_msg(gobj, msg);
 //    if(!msg) {
-//        log_info(0,
-//            "gobj",         "%s", gobj_full_name(gobj),
+//        gobj_log_info(gobj, 0,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_INFO,
 //            "msg",          "%s", "Message invalid",
@@ -1055,7 +1048,7 @@ PRIVATE int process_msg(
 //    /*------------------------------------*
 //     *      Save track message to trmsg
 //     *------------------------------------*/
-//    md_record_t md_record;
+//    md2_record_ex_t md_record;
 //    trmsg_add_instance(
 //        priv->tranger_tracks,
 //        "raw_tracks",
@@ -1079,7 +1072,7 @@ PRIVATE int process_msg(
 //    );
 //    int ret = gobj_send_event(
 //        priv->gobj_dba_postgres,
-//        "EV_SEND_MESSAGE",
+//        EV_SEND_MESSAGE,
 //        json_incref(msg),
 //        gobj
 //    );
@@ -1092,7 +1085,7 @@ PRIVATE int process_msg(
 //    /*--------------------------------*
 //     *      Publish the trace
 //     *--------------------------------*/
-//    json_t * kw2publish = msg_iev_build_webix2(
+//    json_t * kw2publish = msg_iev_build_response2(
 //        gobj,
 //        0,
 //        0,
@@ -1119,7 +1112,7 @@ PRIVATE int add_devices_callback(
     hgobj gobj = user_data;
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *data = kw_get_list(node, "data", 0, 0);
+    json_t *data = kw_get_list(gobj, node, "data", 0, 0);
     if(!data) {
         // Must be a device added to "data"
         return 0;
@@ -1130,11 +1123,11 @@ PRIVATE int add_devices_callback(
         node,
         "value",
         json_string(
-            kw_get_str(node, "id", "", KW_REQUIRED)
+            kw_get_str(gobj, node, "id", "", KW_REQUIRED)
         )
     );
 
-    json_t *devices = kw_get_list(node, "devices", 0, KW_REQUIRED|KW_EXTRACT);
+    json_t *devices = kw_get_list(gobj, node, "devices", 0, KW_REQUIRED|KW_EXTRACT);
     if(json_array_size(devices)==0) {
         json_object_set_new( // Open pure groups by default
             node,
@@ -1145,7 +1138,7 @@ PRIVATE int add_devices_callback(
 
     int idx; json_t *jn_device;
     json_array_foreach(devices, idx, jn_device) {
-        const char *id = kw_get_str(jn_device, "id", "", KW_REQUIRED);
+        const char *id = kw_get_str(gobj, jn_device, "id", "", KW_REQUIRED);
         json_t *device = gobj_get_node(
             priv->gobj_treedb_controlcenter,
             "devices",
@@ -1162,7 +1155,7 @@ PRIVATE int add_devices_callback(
             device,
             "value",
             json_string(
-                kw_get_str(device, "name", "", KW_REQUIRED)
+                kw_get_str(gobj, device, "name", "", KW_REQUIRED)
             )
         );
 
@@ -1186,7 +1179,7 @@ PRIVATE json_t *build_webix_tree_by_device_groups(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *user_groups = kw_get_list(user, "user_groups", 0, KW_REQUIRED);
+    json_t *user_groups = kw_get_list(gobj, user, "user_groups", 0, KW_REQUIRED);
     if(!user_groups) {
         *result = -1;
         return json_sprintf("No user groups");
@@ -1196,8 +1189,8 @@ PRIVATE json_t *build_webix_tree_by_device_groups(
 
     int idx; json_t *jn_user_group;
     json_array_foreach(user_groups, idx, jn_user_group) {
-        const char *id = kw_get_str(jn_user_group, "id", "", KW_REQUIRED);
-        const char *topic_name = kw_get_str(jn_user_group, "topic_name", "", KW_REQUIRED);
+        const char *id = kw_get_str(gobj, jn_user_group, "id", "", KW_REQUIRED);
+        const char *topic_name = kw_get_str(gobj, jn_user_group, "topic_name", "", KW_REQUIRED);
         if(strcmp(topic_name, "device_groups")!=0) {
             continue;
         }
@@ -1259,8 +1252,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(src != priv->gobj_top_side && src != priv->gobj_input_side) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "on_open NOT from GOBJ_TOP_SIDE",
@@ -1280,7 +1272,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     const char *dst_service = json_string_value(
         gobj_read_user_data(channel_gobj, "tty_mirror_dst_service")
     );
@@ -1298,7 +1290,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
         if(gobj_requester) {
             gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
-            gobj_send_event(gobj_requester, "EV_DROP", 0, gobj);
+            gobj_send_event(gobj_requester, EV_DROP, 0, gobj);
         }
     }
 
@@ -1312,7 +1304,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_AREA_ID);
-    const char *dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
         gobj_find_service("__top_side__", TRUE),
@@ -1325,13 +1317,12 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
         // Debe venir del agent
         jn_ievent_id = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, 0);
         JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
         gobj_requester = gobj_find_service(dst_service, TRUE);
     }
 
     if(!gobj_requester) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "service not found",
@@ -1361,7 +1352,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
 PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_AREA_ID);
-    const char *dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
         gobj_find_service("__top_side__", TRUE),
@@ -1374,13 +1365,12 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
         // Debe venir del agent
         jn_ievent_id = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, 0);
         JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
         gobj_requester = gobj_find_service(dst_service, TRUE);
     }
 
     if(!gobj_requester) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "service not found",
@@ -1410,7 +1400,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
 PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_AREA_ID);
-    const char *dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
         gobj_find_service("__top_side__", TRUE),
@@ -1423,13 +1413,12 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
         // Debe venir del agent
         jn_ievent_id = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, 0);
         JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
         gobj_requester = gobj_find_service(dst_service, TRUE);
     }
 
     if(!gobj_requester) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "service not found",
@@ -1441,7 +1430,7 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
         return 0;
     }
 
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(dst_service));
 
     JSON_DECREF(jn_ievent_id);
@@ -1463,7 +1452,7 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
 PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_AREA_ID);
-    const char *dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
         gobj_find_service("__top_side__", TRUE),
@@ -1476,13 +1465,12 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
         // Debe venir del agent
         jn_ievent_id = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, 0);
         JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
         gobj_requester = gobj_find_service(dst_service, TRUE);
     }
 
     if(!gobj_requester) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "service not found",
@@ -1494,7 +1482,7 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
         return 0;
     }
 
-    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+    hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     gobj_write_user_data(channel_gobj, "tty_mirror_dst_service", json_string(""));
 
     JSON_DECREF(jn_ievent_id);
@@ -1516,7 +1504,7 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
 PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_AREA_ID);
-    const char *dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+    const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
         gobj_find_service("__top_side__", TRUE),
@@ -1529,13 +1517,12 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
         // Debe venir del agent
         jn_ievent_id = msg_iev_get_stack(kw, IEVENT_MESSAGE_AREA_ID, 0);
         JSON_INCREF(jn_ievent_id);
-        dst_service = kw_get_str(jn_ievent_id, "dst_service", "", 0);
+        dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
         gobj_requester = gobj_find_service(dst_service, TRUE);
     }
 
     if(!gobj_requester) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "service not found",
@@ -1574,7 +1561,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_send_event(
             src,
             event,
-                msg_iev_build_webix(
+                msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("No permission to '%s'", permission),
@@ -1591,11 +1578,11 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*----------------------------------------*
      *  Job
      *----------------------------------------*/
-    const char *agent_id = kw_get_str(kw, "agent_id", "", 0);
+    const char *agent_id = kw_get_str(gobj, kw, "agent_id", "", 0);
 
     json_t *jn_filter = json_pack("{s:s, s:s}",
         "__gclass_name__", GCLASS_IEVENT_SRV_NAME,
-        "__state__", "ST_SESSION"
+        "__state__", ST_SESSION
     );
     dl_list_t *dl_childs = gobj_match_childs_tree(priv->gobj_input_side, 0, jn_filter);
 
@@ -1605,7 +1592,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
     while(i_hs) {
         json_t *jn_attrs = gobj_read_json_attr(child, "identity_card");
         if(!empty_string(agent_id)) {
-            const char *id_ = kw_get_str(jn_attrs, "id", "", 0);
+            const char *id_ = kw_get_str(gobj, jn_attrs, "id", "", 0);
             if(strcmp(id_, agent_id)!=0) {
                 i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
                 continue;
@@ -1625,10 +1612,10 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
         i_hs = rc_next_instance(i_hs, (rc_resource_t **)&child);
     }
 
-    rc_free_iter(dl_childs, TRUE, 0);
+    gobj_free_iter(dl_childs, TRUE, 0);
 
     if(!some) {
-        gobj_send_event(src, "EV_DROP", 0, gobj);
+        gobj_send_event(src, EV_DROP, 0, gobj);
     }
 
     KW_DECREF(kw);
@@ -1642,7 +1629,7 @@ PRIVATE int ac_list_groups(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
     priv->rxMsgsec++;
 
     int result = 0;
@@ -1663,14 +1650,14 @@ PRIVATE int ac_list_groups(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *  Check parameters
          */
-        const char *topic_name = kw_get_str(kw, "topic_name", "", KW_REQUIRED);
+        const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
         if(empty_string(topic_name)) {
             jn_comment = json_sprintf("What topic_name?");
             result = -1;
             break;
         }
 
-        const char *username = kw_get_str(kw, "__temp__`__username__", "", KW_REQUIRED);
+        const char *username = kw_get_str(gobj, kw, "__temp__`__username__", "", KW_REQUIRED);
         json_t *user = gobj_get_node(
             priv->gobj_treedb_controlcenter,
             "users",
@@ -1715,7 +1702,7 @@ PRIVATE int ac_list_groups(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     json_t *iev = iev_create2(
         event,
-        msg_iev_build_webix2(gobj,
+        msg_iev_build_response2(gobj,
             result,
             jn_comment,
             0,
@@ -1731,7 +1718,7 @@ PRIVATE int ac_list_groups(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     return gobj_send_event(
         src,
-        "EV_SEND_IEV",
+        EV_SEND_IEV,
         iev,
         gobj
     );
@@ -1744,7 +1731,7 @@ PRIVATE int ac_list_tracks(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
     priv->rxMsgsec++;
 
     int result = 0;
@@ -1784,7 +1771,7 @@ PRIVATE int ac_list_tracks(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     json_t *iev = iev_create2(
         event,
-        msg_iev_build_webix2(gobj,
+        msg_iev_build_response2(gobj,
             result,
             jn_comment,
             0,
@@ -1800,7 +1787,7 @@ PRIVATE int ac_list_tracks(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     return gobj_send_event(
         src,
-        "EV_SEND_IEV",
+        EV_SEND_IEV,
         iev,
         gobj
     );
@@ -1813,9 +1800,9 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", KW_REQUIRED);
-    const char *topic_name = kw_get_str(kw, "topic_name", "", KW_REQUIRED);
-    json_t *node_ = kw_get_dict(kw, "node", 0, KW_REQUIRED);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
 
     if(strcmp(treedb_name, "treedb_purezadb")==0 &&
         strcmp(topic_name, "users")==0) {
@@ -1825,7 +1812,7 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
          *  Han creado el user en la tabla users de treedb_purezadb
          *  Puede que exista o no en la users de authzs
          *--------------------------------*/
-        const char *username = kw_get_str(node_, "id", "", KW_REQUIRED);
+        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
         json_t *webix = gobj_command(
             priv->gobj_authz,
             "user-roles",
@@ -1834,7 +1821,7 @@ PRIVATE int ac_treedb_node_create(hgobj gobj, const char *event, json_t *kw, hgo
             ),
             gobj
         );
-        if(json_array_size(kw_get_dict_value(webix, "data", 0, KW_REQUIRED))==0) {
+        if(json_array_size(kw_get_dict_value(gobj, webix, "data", 0, KW_REQUIRED))==0) {
             gobj_send_event(
                 priv->gobj_authz,
                 "EV_ADD_USER",
@@ -1859,9 +1846,9 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", KW_REQUIRED);
-    const char *topic_name = kw_get_str(kw, "topic_name", "", KW_REQUIRED);
-    json_t *node_ = kw_get_dict(kw, "node", 0, KW_REQUIRED);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
 
     if(strcmp(treedb_name, "treedb_purezadb")==0 &&
         strcmp(topic_name, "users")==0) {
@@ -1871,8 +1858,8 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
          *  Han creado el user en la tabla users de treedb_purezadb
          *  Puede que exista o no en la users de authzs
          *--------------------------------*/
-        BOOL enabled = kw_get_bool(node_, "enabled", 0, KW_REQUIRED);
-        const char *username = kw_get_str(node_, "id", "", KW_REQUIRED);
+        BOOL enabled = kw_get_bool(gobj, node_, "enabled", 0, KW_REQUIRED);
+        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
         json_t *webix = gobj_command(
             priv->gobj_authz,
             "user-roles",
@@ -1882,7 +1869,7 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
             gobj
         );
 
-        if(json_array_size(kw_get_list(webix, "data", 0, KW_REQUIRED))==0) {
+        if(json_array_size(kw_get_list(gobj, webix, "data", 0, KW_REQUIRED))==0) {
             gobj_send_event(
                 priv->gobj_authz,
                 "EV_ADD_USER",
@@ -1918,9 +1905,9 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *treedb_name = kw_get_str(kw, "treedb_name", "", KW_REQUIRED);
-    const char *topic_name = kw_get_str(kw, "topic_name", "", KW_REQUIRED);
-    json_t *node_ = kw_get_dict(kw, "node", 0, KW_REQUIRED);
+    const char *treedb_name = kw_get_str(gobj, kw, "treedb_name", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
+    json_t *node_ = kw_get_dict(gobj, kw, "node", 0, KW_REQUIRED);
 
     if(strcmp(treedb_name, "treedb_purezadb")==0 &&
         strcmp(topic_name, "users")==0) {
@@ -1930,7 +1917,7 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
          *  Han creado el user en la tabla users de treedb_purezadb
          *  Puede que exista o no en la users de authzs
          *--------------------------------*/
-        const char *username = kw_get_str(node_, "id", "", KW_REQUIRED);
+        const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
         gobj_send_event(
             priv->gobj_authz,
             "EV_REJECT_USER",
@@ -2128,11 +2115,11 @@ PRIVATE int ac_user_login(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *username = kw_get_str(kw, "username", "", KW_REQUIRED);
-//     const char *dst_service = kw_get_str(kw, "dst_service", "", KW_REQUIRED);
-//     json_t *user_ = kw_get_dict(kw, "user", 0, KW_REQUIRED);
-//     json_t *session_ = kw_get_dict(kw, "session", 0, KW_REQUIRED);
-//     json_t *services_roles_ = kw_get_dict(kw, "services_roles", 0, KW_REQUIRED);
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+//     const char *dst_service = kw_get_str(gobj, kw, "dst_service", "", KW_REQUIRED);
+//     json_t *user_ = kw_get_dict(gobj, kw, "user", 0, KW_REQUIRED);
+//     json_t *session_ = kw_get_dict(gobj, kw, "session", 0, KW_REQUIRED);
+//     json_t *services_roles_ = kw_get_dict(gobj, kw, "services_roles", 0, KW_REQUIRED);
 
     /*--------------------------------*
      *  Get user
@@ -2178,9 +2165,9 @@ PRIVATE int ac_user_logout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
 //     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 //
-//     const char *username = kw_get_str(kw, "username", "", KW_REQUIRED);
-//     json_t *user_ = kw_get_dict(kw, "user", 0, KW_REQUIRED);
-//     json_t *session_ = kw_get_dict(kw, "session", 0, KW_REQUIRED);
+//     const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+//     json_t *user_ = kw_get_dict(gobj, kw, "user", 0, KW_REQUIRED);
+//     json_t *session_ = kw_get_dict(gobj, kw, "session", 0, KW_REQUIRED);
 
     //print_json(kw);
 
@@ -2195,8 +2182,8 @@ PRIVATE int ac_user_new(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *username = kw_get_str(kw, "username", "", KW_REQUIRED);
-    const char *dst_service = kw_get_str(kw, "dst_service", "", KW_REQUIRED);
+    const char *username = kw_get_str(gobj, kw, "username", "", KW_REQUIRED);
+    const char *dst_service = kw_get_str(gobj, kw, "dst_service", "", KW_REQUIRED);
 
     if(strcmp(dst_service, gobj_name(gobj))==0) {
         time_t t;
@@ -2230,17 +2217,17 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint64_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
-    uint64_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
+    uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+    uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
     if(priv->txMsgsec > maxtxMsgsec) {
-        gobj_write_uint64_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
+        gobj_write_integer_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
     }
     if(priv->rxMsgsec > maxrxMsgsec) {
-        gobj_write_uint64_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
+        gobj_write_integer_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
     }
 
-    gobj_write_uint64_attr(gobj, "txMsgsec", priv->txMsgsec);
-    gobj_write_uint64_attr(gobj, "rxMsgsec", priv->rxMsgsec);
+    gobj_write_integer_attr(gobj, "txMsgsec", priv->txMsgsec);
+    gobj_write_integer_attr(gobj, "rxMsgsec", priv->rxMsgsec);
 
     priv->rxMsgsec = 0;
     priv->txMsgsec = 0;
@@ -2258,8 +2245,8 @@ PRIVATE const EVENT input_events[] = {
     {"EV_TTY_DATA",             EVF_PUBLIC_EVENT,   0, 0},
     {"EV_MT_STATS_ANSWER",      EVF_PUBLIC_EVENT,   0,  0},
     {"EV_WRITE_TTY",            0,  0,  0},
-    {"EV_ON_OPEN",              0,  0,  0},
-    {"EV_ON_CLOSE",             0,  0,  0},
+    {EV_ON_OPEN,              0,  0,  0},
+    {EV_ON_CLOSE,             0,  0,  0},
     {"EV_TTY_OPEN",             EVF_PUBLIC_EVENT,   0, 0},
     {"EV_TTY_CLOSE",            EVF_PUBLIC_EVENT,   0, 0},
 
@@ -2272,8 +2259,8 @@ PRIVATE const EVENT input_events[] = {
     {"EV_TREEDB_NODE_DELETED",  0,  0,  0},
 
     // bottom input
-    {"EV_TIMEOUT",              0,  0,  0},
-    {"EV_STOPPED",              0,  0,  0},
+    {EV_TIMEOUT,              0,  0,  0},
+    {EV_STOPPED,              0,  0,  0},
     // internal
     {NULL, 0, 0, ""}
 };
@@ -2284,7 +2271,7 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, ""}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
@@ -2302,12 +2289,12 @@ PRIVATE EV_ACTION ST_IDLE[] = {
     {"EV_AUTHZ_USER_LOGOUT",        ac_user_logout,             0},
     {"EV_AUTHZ_USER_NEW",           ac_user_new,                0},
 
-    {"EV_ON_OPEN",                  ac_on_open,                 0},
-    {"EV_ON_CLOSE",                 ac_on_close,                0},
+    {EV_ON_OPEN,                  ac_on_open,                 0},
+    {EV_ON_CLOSE,                 ac_on_close,                0},
     {"EV_TTY_OPEN",                 ac_tty_mirror_open,         0},
     {"EV_TTY_CLOSE",                ac_tty_mirror_close,        0},
-    {"EV_TIMEOUT",                  ac_timeout,                 0},
-    {"EV_STOPPED",                  0,                          0},
+    {EV_TIMEOUT,                  ac_timeout,                 0},
+    {EV_STOPPED,                  0,                          0},
     {0,0,0}
 };
 

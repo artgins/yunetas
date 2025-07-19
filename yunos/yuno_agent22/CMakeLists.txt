@@ -26,7 +26,6 @@ SET (YUNO_SRCS
 )
 SET (YUNO_HDRS
     src/c_agent22.h
-    src/c_pty.h
 )
 
 ##############################################

@@ -36,8 +36,8 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
@@ -45,7 +45,7 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATA_END()
 };
 
@@ -55,16 +55,16 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag--------default---------description---------- */
-SDATA (ASN_OCTET_STR,   "path",                 0,          0,              "Path to watch"),
-SDATA (ASN_BOOLEAN,     "recursive",            0,          0,              "Watch all directory tree"),
-SDATA (ASN_OCTET_STR,   "patterns",             0,          0,              "File patterns to watch"),
-SDATA (ASN_OCTET_STR,   "command",              0,          0,              "Command to execute when a fs event occurs"),
-SDATA (ASN_BOOLEAN,     "use_parameter",        0,          0,              "Pass to command the filename as parameter"),
-SDATA (ASN_BOOLEAN,     "ignore_changed_event", 0,          0,              "Ignore EV_CHANGED"),
-SDATA (ASN_BOOLEAN,     "ignore_renamed_event", 0,          0,              "Ignore EV_RENAMED"),
-SDATA (ASN_BOOLEAN,     "info",                 0,          0,              "Inform of found subdirectories"),
-SDATA (ASN_POINTER,     "user_data",            0,          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,          0,              "more user data"),
+SDATA (DTP_STRING,      "path",                 0,          0,              "Path to watch"),
+SDATA (DTP_BOOLEAN,     "recursive",            0,          0,              "Watch all directory tree"),
+SDATA (DTP_STRING,      "patterns",             0,          0,              "File patterns to watch"),
+SDATA (DTP_STRING,      "command",              0,          0,              "Command to execute when a fs event occurs"),
+SDATA (DTP_BOOLEAN,     "use_parameter",        0,          0,              "Pass to command the filename as parameter"),
+SDATA (DTP_BOOLEAN,     "ignore_changed_event", 0,          0,              "Ignore EV_CHANGED"),
+SDATA (DTP_BOOLEAN,     "ignore_renamed_event", 0,          0,              "Ignore EV_RENAMED"),
+SDATA (DTP_BOOLEAN,     "info",                 0,          0,              "Inform of found subdirectories"),
+SDATA (DTP_POINTER,     "user_data",            0,          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,          0,              "more user data"),
 SDATA_END()
 };
 
@@ -123,7 +123,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(ignore_renamed_event,          gobj_read_bool_attr)
     SET_PRIV(info,                          gobj_read_bool_attr)
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
 }
 
 /***************************************************************************
@@ -135,8 +135,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     const char *path = gobj_read_str_attr(gobj, "path");
     if(!path || access(path, 0)!=0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "path NOT EXIST",
@@ -146,8 +145,7 @@ PRIVATE int mt_start(hgobj gobj)
         fprintf(stderr, "\nPath '%s' NO FOUND\n", path);
         exit(-1);
     }
-    log_info(0,
-        "gobj",         "%s", gobj_short_name(gobj),
+    gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_MONITORING,
         "msg",          "%s", "watching path",
         "path",         "%s", path,
@@ -166,8 +164,7 @@ PRIVATE int mt_start(hgobj gobj)
         // WARNING changed 0 by REG_EXTENDED|REG_NOSUB: future side effect?
         int r = regcomp(&priv->regex[i], priv->patterns_list[i], REG_EXTENDED|REG_NOSUB);
         if(r!=0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "regcomp() FAILED",
@@ -176,8 +173,7 @@ PRIVATE int mt_start(hgobj gobj)
             );
             exit(-1);
         }
-        log_info(0,
-            "gobj",         "%s", gobj_short_name(gobj),
+        gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_MONITORING,
             "msg",          "%s", "watching pattern",
             "re",           "%s", priv->patterns_list[i],
@@ -251,7 +247,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -306,9 +302,9 @@ PRIVATE int exec_command(hgobj gobj, const char *path, const char *filename)
 PRIVATE int ac_renamed(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     // TODO would be a launcher for each modified filename
-    //const char *path = kw_get_str(kw, "path", "");
-    const char *filename = kw_get_str(kw, "filename", "", 0);
-    const char *path = kw_get_str(kw, "path", "", 0);
+    //const char *path = kw_get_str(gobj, kw, "path", "");
+    const char *filename = kw_get_str(gobj, kw, "filename", "", 0);
+    const char *path = kw_get_str(gobj, kw, "path", "", 0);
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(strstr(path, "/_build/")) { // 2024-Mar-07 FIX to avoid sphinx re-make all time
@@ -334,8 +330,7 @@ PRIVATE int ac_renamed(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(matched) {
         if(priv->info) {
-            log_info(0,
-                "gobj",         "%s", gobj_short_name(gobj),
+            gobj_log_info(gobj, 0,
                 "msgset",       "%s", MSGSET_MONITORING,
                 "msg",          "%s", "matched",
                 "filename",     "%s", filename,
@@ -360,9 +355,9 @@ PRIVATE int ac_renamed(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE int ac_changed(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     // TODO would be a launcher for each modified filename
-    //const char *path = kw_get_str(kw, "path", "", FALSE);
-    const char *filename = kw_get_str(kw, "filename", "", 0);
-    const char *path = kw_get_str(kw, "path", "", 0);
+    //const char *path = kw_get_str(gobj, kw, "path", "", FALSE);
+    const char *filename = kw_get_str(gobj, kw, "filename", "", 0);
+    const char *path = kw_get_str(gobj, kw, "path", "", 0);
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(strstr(path, "/_build/")) { // 2024-Mar-07 FIX to avoid sphinx re-make all time
@@ -394,8 +389,7 @@ PRIVATE int ac_changed(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(matched) {
         if(priv->info) {
-            log_info(0,
-                "gobj",         "%s", gobj_short_name(gobj),
+            gobj_log_info(gobj, 0,
                 "msgset",       "%s", MSGSET_MONITORING,
                 "msg",          "%s", "matched",
                 "filename",     "%s", filename,
@@ -436,8 +430,8 @@ PRIVATE const EVENT input_events[] = {
     // bottom input
     {"EV_RENAMED",      0,  0,  0},
     {"EV_CHANGED",      0,  0,  0},
-    {"EV_TIMEOUT",      0,  0,  0},
-    {"EV_STOPPED",      0,  0,  0},
+    {EV_TIMEOUT,      0,  0,  0},
+    {EV_STOPPED,      0,  0,  0},
     // internal
     {NULL, 0, 0, 0}
 };
@@ -445,15 +439,15 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
     {"EV_RENAMED",      ac_renamed,     0},
     {"EV_CHANGED",      ac_changed,     0},
-    {"EV_TIMEOUT",      ac_timeout,     0},
-    {"EV_STOPPED",      0,              0},
+    {EV_TIMEOUT,      ac_timeout,     0},
+    {EV_STOPPED,      0,              0},
     {0,0,0}
 };
 

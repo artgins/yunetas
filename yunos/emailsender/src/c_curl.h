@@ -6,25 +6,37 @@
  *          Based on https://gist.github.com/clemensg/5248927
  *
  *          Copyright (c) 2014 by Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta.h>
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_CURL);
 
-/*********************************************************************
- *      GClass
- *********************************************************************/
-PUBLIC GCLASS *gclass_curl(void);
+/*------------------------*
+ *      States
+ *------------------------*/
 
-#define GCLASS_CURL_NAME  "Curl"
-#define GCLASS_CURL gclass_curl()
+/*------------------------*
+ *      Events
+ *------------------------*/
 
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC int register_c_curl(void);
 
 #ifdef __cplusplus
 }

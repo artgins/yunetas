@@ -40,7 +40,7 @@ typedef struct {
  ***************************************************************************/
 PRIVATE int cb_newfile(void *user_data, const char *old_filename, const char *new_filename);
 PRIVATE json_t *make_summary(hgobj gobj, BOOL show_internal_errors);
-PRIVATE int send_summary(hgobj gobj, GBUFFER *gbuf);
+PRIVATE int send_summary(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int do_log_stats(hgobj gobj, int priority, json_t* kw);
 PRIVATE int reset_counters(hgobj gobj);
 PRIVATE int trunk_data_log_file(hgobj gobj);
@@ -67,26 +67,26 @@ PRIVATE json_t *cmd_restart_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgob
 
 PRIVATE sdata_desc_t pm_search[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "text",         0,              0,          "Text to search."),
-SDATAPM (ASN_OCTET_STR, "maxcount",     0,              0,          "Max count of items to search. Default: -1."),
+SDATAPM (DTP_STRING,    "text",         0,              0,          "Text to search."),
+SDATAPM (DTP_STRING,    "maxcount",     0,              0,          "Max count of items to search. Default: -1."),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_tail[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "lines",        0,              0,          "Lines to output. Default: 100."),
+SDATAPM (DTP_STRING,    "lines",        0,              0,          "Lines to output. Default: 100."),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_restart_yuneta[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_BOOLEAN,   "enable",       0,              0,          "Set 1 to enable restart yuneta on queue alarm"),
-SDATAPM (ASN_UNSIGNED,  "timeout_restart_yuneta",       0,          0, "Timeout between restarts in seconds"),
-SDATAPM (ASN_UNSIGNED,  "queue_restart_limit",          0,          0, "Restart yuneta only if queue size is greater than 'queue_restart_limit'"),
+SDATAPM (DTP_BOOLEAN,   "enable",       0,              0,          "Set 1 to enable restart yuneta on queue alarm"),
+SDATAPM (DTP_INTEGER,   "timeout_restart_yuneta",       0,          0, "Timeout between restarts in seconds"),
+SDATAPM (DTP_INTEGER,   "queue_restart_limit",          0,          0, "Restart yuneta only if queue size is greater than 'queue_restart_limit'"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
@@ -94,16 +94,16 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "display-summary",  0,                  0,              cmd_display_summary, "Display the summary report."),
-SDATACM (ASN_SCHEMA,    "send-summary",     0,                  0,              cmd_send_summary, "Send by email the summary report."),
-SDATACM (ASN_SCHEMA,    "enable-send-summary", 0,               0,          cmd_enable_send_summary, "Enable send by email the summary report."),
-SDATACM (ASN_SCHEMA,    "disable-send-summary", 0,              0,          cmd_disable_send_summary, "Disable send by email the summary report."),
-SDATACM (ASN_SCHEMA,    "send-summary",     0,                  0,              cmd_send_summary, "Send by email the summary report."),
-SDATACM (ASN_SCHEMA,    "reset-counters",   0,                  0,              cmd_reset_counters, "Reset counters."),
-SDATACM (ASN_SCHEMA,    "search",           0,                  pm_search,      cmd_search,     "Search in log messages."),
-SDATACM (ASN_SCHEMA,    "tail",             0,                  pm_tail,        cmd_tail,       "output the last part of log messages."),
-SDATACM (ASN_SCHEMA,    "restart-yuneta-on-queue-alarm",        0,              pm_restart_yuneta, cmd_restart_yuneta,       "Enable or disable restart-yuneta on queue alarm"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "display-summary",  0,                  0,              cmd_display_summary, "Display the summary report."),
+SDATACM (DTP_SCHEMA,    "send-summary",     0,                  0,              cmd_send_summary, "Send by email the summary report."),
+SDATACM (DTP_SCHEMA,    "enable-send-summary", 0,               0,          cmd_enable_send_summary, "Enable send by email the summary report."),
+SDATACM (DTP_SCHEMA,    "disable-send-summary", 0,              0,          cmd_disable_send_summary, "Disable send by email the summary report."),
+SDATACM (DTP_SCHEMA,    "send-summary",     0,                  0,              cmd_send_summary, "Send by email the summary report."),
+SDATACM (DTP_SCHEMA,    "reset-counters",   0,                  0,              cmd_reset_counters, "Reset counters."),
+SDATACM (DTP_SCHEMA,    "search",           0,                  pm_search,      cmd_search,     "Search in log messages."),
+SDATACM (DTP_SCHEMA,    "tail",             0,                  pm_tail,        cmd_tail,       "output the last part of log messages."),
+SDATACM (DTP_SCHEMA,    "restart-yuneta-on-queue-alarm",        0,              pm_restart_yuneta, cmd_restart_yuneta,       "Enable or disable restart-yuneta on queue alarm"),
 SDATA_END()
 };
 
@@ -113,23 +113,23 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag------------------------default---------description---------- */
-SDATA (ASN_OCTET_STR,   "url",                  SDF_RD|SDF_REQUIRED, "udp://127.0.0.1:1992", "url of udp server"),
-SDATA (ASN_OCTET_STR,   "from",                 SDF_WR|SDF_PERSIST|SDF_REQUIRED, "", "from email field"),
-SDATA (ASN_OCTET_STR,   "to",                   SDF_WR|SDF_PERSIST|SDF_REQUIRED, "", "to email field"),
-SDATA (ASN_OCTET_STR,   "subject",              SDF_WR|SDF_PERSIST|SDF_REQUIRED, "Log Center Summary", "subject email field"),
-SDATA (ASN_OCTET_STR,   "log_filename",         SDF_WR, "W.log", "Log filename. Available mask: DD/MM/CCYY-W-ZZZ"),
-SDATA (ASN_UNSIGNED64,  "max_rotatoryfile_size",SDF_WR|SDF_PERSIST|SDF_REQUIRED, MAX_ROTATORYFILE_SIZE, "Maximum log files size (in Megas)"),
-SDATA (ASN_UNSIGNED64,  "rotatory_bf_size",     SDF_WR|SDF_PERSIST|SDF_REQUIRED, ROTATORY_BUFFER_SIZE, "Buffer size of rotatory (in Megas)"),
-SDATA (ASN_INTEGER,     "min_free_disk",        SDF_WR|SDF_PERSIST|SDF_REQUIRED, MIN_FREE_DISK, "Minimun free percent disk"),
-SDATA (ASN_INTEGER,     "min_free_mem",         SDF_WR|SDF_PERSIST|SDF_REQUIRED, MIN_FREE_MEM, "Minimun free percent memory"),
+SDATA (DTP_STRING,      "url",                  SDF_RD|SDF_REQUIRED, "udp://127.0.0.1:1992", "url of udp server"),
+SDATA (DTP_STRING,      "from",                 SDF_WR|SDF_PERSIST|SDF_REQUIRED, "", "from email field"),
+SDATA (DTP_STRING,      "to",                   SDF_WR|SDF_PERSIST|SDF_REQUIRED, "", "to email field"),
+SDATA (DTP_STRING,      "subject",              SDF_WR|SDF_PERSIST|SDF_REQUIRED, "Log Center Summary", "subject email field"),
+SDATA (DTP_STRING,      "log_filename",         SDF_WR, "W.log", "Log filename. Available mask: DD/MM/CCYY-W-ZZZ"),
+SDATA (DTP_INTEGER,     "max_rotatoryfile_size",SDF_WR|SDF_PERSIST|SDF_REQUIRED, MAX_ROTATORYFILE_SIZE, "Maximum log files size (in Megas)"),
+SDATA (DTP_INTEGER,     "rotatory_bf_size",     SDF_WR|SDF_PERSIST|SDF_REQUIRED, ROTATORY_BUFFER_SIZE, "Buffer size of rotatory (in Megas)"),
+SDATA (DTP_INTEGER,     "min_free_disk",        SDF_WR|SDF_PERSIST|SDF_REQUIRED, MIN_FREE_DISK, "Minimun free percent disk"),
+SDATA (DTP_INTEGER,     "min_free_mem",         SDF_WR|SDF_PERSIST|SDF_REQUIRED, MIN_FREE_MEM, "Minimun free percent memory"),
 
-SDATA (ASN_BOOLEAN,     "restart_on_alarm",     SDF_PERSIST|SDF_WR,             FALSE, "If true the logcenter will execute 'restart_yuneta_command' after receive a queue alarm. Next restart will not execute until 'timeout_restart_yuneta' has pass"),
-SDATA (ASN_OCTET_STR,   "restart_yuneta_command", SDF_WR|SDF_PERSIST,           "/yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json", "Restart yuneta command"),
-SDATA (ASN_UNSIGNED,    "timeout_restart_yuneta",SDF_PERSIST|SDF_WR,        1*60*60, "Timeout between restarts in seconds"),
-SDATA (ASN_UNSIGNED,    "queue_restart_limit",  SDF_PERSIST|SDF_WR,        0, "Restart yuneta when queue size is greater"),
+SDATA (DTP_BOOLEAN,     "restart_on_alarm",     SDF_PERSIST|SDF_WR,             FALSE, "If true the logcenter will execute 'restart_yuneta_command' after receive a queue alarm. Next restart will not execute until 'timeout_restart_yuneta' has pass"),
+SDATA (DTP_STRING,      "restart_yuneta_command", SDF_WR|SDF_PERSIST,           "/yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json", "Restart yuneta command"),
+SDATA (DTP_INTEGER,     "timeout_restart_yuneta",SDF_PERSIST|SDF_WR,        1*60*60, "Timeout between restarts in seconds"),
+SDATA (DTP_INTEGER,     "queue_restart_limit",  SDF_PERSIST|SDF_WR,        0, "Restart yuneta when queue size is greater"),
 
-SDATA (ASN_BOOLEAN,     "send_summary_disabled",SDF_PERSIST|SDF_WR,         FALSE, "If true then disable send summary"),
-SDATA (ASN_INTEGER,     "timeout",              SDF_RD,  1*1000, "Timeout"),
+SDATA (DTP_BOOLEAN,     "send_summary_disabled",SDF_PERSIST|SDF_WR,         FALSE, "If true then disable send summary"),
+SDATA (DTP_INTEGER,     "timeout",              SDF_RD,  1*1000, "Timeout"),
 SDATA_END()
 };
 
@@ -190,7 +190,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
     json_t *kw_gss_udps = json_pack("{s:s}",
         "url", gobj_read_str_attr(gobj, "url")
     );
@@ -200,7 +200,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,                   gobj_read_int32_attr)
+    SET_PRIV(timeout,                   gobj_read_integer_attr)
     SET_PRIV(restart_on_alarm,          gobj_read_bool_attr)
     SET_PRIV(log_filename,              gobj_read_str_attr)
     SET_PRIV(timeout_restart_yuneta,    gobj_read_uint32_attr)
@@ -223,7 +223,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,                     gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,                     gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_restart_yuneta,    gobj_read_uint32_attr)
         if(priv->timeout_restart_yuneta == 0) {
             priv->t_restart = 0;
@@ -289,16 +289,15 @@ PRIVATE int mt_play(hgobj gobj)
         );
         priv->global_rotatory = rotatory_open(
             destination,
-            gobj_read_uint64_attr(gobj, "rotatory_bf_size") * 1024L*1024L,
-            gobj_read_uint64_attr(gobj, "max_rotatoryfile_size"),
-            gobj_read_int32_attr(gobj, "min_free_disk"),
+            gobj_read_integer_attr(gobj, "rotatory_bf_size") * 1024L*1024L,
+            gobj_read_integer_attr(gobj, "max_rotatoryfile_size"),
+            gobj_read_integer_attr(gobj, "min_free_disk"),
             yuneta_xpermission(),   // permission for directories and executable files. 0 = default 02775
             yuneta_rpermission(),   // permission for regular files. 0 = default 0664
             FALSE
         );
         if(priv->global_rotatory) {
-            log_info(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_info(gobj, 0,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Open global rotatory",
                 "path",         "%s", destination,
@@ -377,7 +376,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     append_yuno_metadata(gobj, jn_stats, stats);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -404,7 +403,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -420,7 +419,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_display_summary(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     json_t *jn_summary = make_summary(gobj, TRUE);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -439,18 +438,18 @@ PRIVATE json_t *cmd_send_summary(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     current_timestamp(fecha, sizeof(fecha));
 
     json_t *jn_summary = make_summary(gobj, FALSE);
-    GBUFFER *gbuf_summary = gbuf_create(32*1024, MIN(1*1024*1024L, gbmem_get_maximum_block()), 0, codec_utf_8);
-    gbuf_printf(gbuf_summary, "From %s (%s, %s)\nat %s, \n\n",
+    gbuffer_t *gbuf_summary = gbuffer_create(32*1024, MIN(1*1024*1024L, gbmem_get_maximum_block()), 0, codec_utf_8);
+    gbuffer_printf(gbuf_summary, "From %s (%s, %s)\nat %s, \n\n",
         _get_hostname(),
         node_uuid(),
         YUNETA_VERSION,
         fecha
     );
     json2gbuf(gbuf_summary, jn_summary, JSON_INDENT(4));
-    gbuf_printf(gbuf_summary, "\r\n");
+    gbuffer_printf(gbuf_summary, "\r\n");
     send_summary(gobj, gbuf_summary);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Summary report sent by email to %s", gobj_read_str_attr(gobj, "to")),
@@ -468,7 +467,7 @@ PRIVATE json_t *cmd_enable_send_summary(hgobj gobj, const char *cmd, json_t *kw,
     gobj_write_bool_attr(gobj, "send_summary_disabled", FALSE);
     gobj_save_persistent_attrs(gobj, json_string("send_summary_disabled"));
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Send summary enabled"),
@@ -486,7 +485,7 @@ PRIVATE json_t *cmd_disable_send_summary(hgobj gobj, const char *cmd, json_t *kw
     gobj_write_bool_attr(gobj, "send_summary_disabled", TRUE);
     gobj_save_persistent_attrs(gobj, json_string("send_summary_disabled"));
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Send summary disabled"),
@@ -511,14 +510,14 @@ PRIVATE json_t *cmd_reset_counters(hgobj gobj, const char *cmd, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE json_t *cmd_search(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *maxcount_ = kw_get_str(kw, "maxcount", "", 0);
+    const char *maxcount_ = kw_get_str(gobj, kw, "maxcount", "", 0);
     uint32_t maxcount = atoi(maxcount_);
     if(maxcount <= 0) {
         maxcount = -1;
     }
-    const char *text = kw_get_str(kw, "text", 0, 0);
+    const char *text = kw_get_str(gobj, kw, "text", 0, 0);
     if(empty_string(text)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What text?"),
@@ -528,7 +527,7 @@ PRIVATE json_t *cmd_search(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
     json_t *jn_log_msg = search_log_message(gobj, text, maxcount);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -543,13 +542,13 @@ PRIVATE json_t *cmd_search(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_tail(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *lines_ = kw_get_str(kw, "lines", "", 0);
+    const char *lines_ = kw_get_str(gobj, kw, "lines", "", 0);
     uint32_t lines = atoi(lines_);
     if(lines <= 0) {
         lines = 100;
     }
     json_t *jn_log_msg = tail_log_message(gobj, lines);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -566,12 +565,12 @@ PRIVATE json_t *cmd_restart_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int enable = kw_get_int(kw, "enable", -1, KW_WILD_NUMBER);
-    int timeout_restart_yuneta = kw_get_int(kw, "timeout_restart_yuneta", -1, KW_WILD_NUMBER);
-    int queue_restart_limit = kw_get_int(kw, "queue_restart_limit", -1, KW_WILD_NUMBER);
+    int enable = kw_get_int(gobj, kw, "enable", -1, KW_WILD_NUMBER);
+    int timeout_restart_yuneta = kw_get_int(gobj, kw, "timeout_restart_yuneta", -1, KW_WILD_NUMBER);
+    int queue_restart_limit = kw_get_int(gobj, kw, "queue_restart_limit", -1, KW_WILD_NUMBER);
 
     if(enable == -1) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What enable?.\nNow enable restart_yuneta_on_queue_alarm: %s, timeout_restart_yuneta: %d seconds, queue_restart_limit: %d",
@@ -587,7 +586,7 @@ PRIVATE json_t *cmd_restart_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgob
 
     if(timeout_restart_yuneta != -1) {
         if(timeout_restart_yuneta < 1*60*60) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("timeout_restart_yuneta must be >= 3600 (1 hour).\nNow enable restart_yuneta_on_queue_alarm: %s, timeout_restart_yuneta: %d seconds, queue_restart_limit: %d",
@@ -604,7 +603,7 @@ PRIVATE json_t *cmd_restart_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgob
 
     if(queue_restart_limit != -1) {
         if(queue_restart_limit < 10000) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("queue_restart_limit must be >= 10000 (1 hour).\nNow enable restart_yuneta_on_queue_alarm: %s, timeout_restart_yuneta: %d seconds, queue_restart_limit: %d",
@@ -632,7 +631,7 @@ PRIVATE json_t *cmd_restart_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgob
         gobj_save_persistent_attrs(gobj, json_string("queue_restart_limit"));
     }
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Enable restart_yuneta_on_queue_alarm: %s, timeout_restart_yuneta: %d seconds, queue_restart_limit: %d",
@@ -702,12 +701,11 @@ PRIVATE int send_email(
     const char *from,
     const char *to,
     const char *subject,
-    GBUFFER *gbuf)
+    gbuffer_t *gbuf)
 {
     hgobj gobj_emailsender = gobj_find_service("emailsender", FALSE);
     if(!gobj_emailsender) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SERVICE_ERROR,
             "msg",          "%s", "Service 'emailsender' not found",
@@ -730,7 +728,7 @@ PRIVATE int send_email(
      *  Si no lo hiciese tendría que recoger el retorno de iev_send()
      *  y si es negativo responder al host con ack negativo.
      */
-    return gobj_send_event(gobj_emailsender, "EV_SEND_EMAIL", kw_email, gobj);
+    return gobj_send_event(gobj_emailsender, EV_SEND_EMAIL, kw_email, gobj);
 }
 
 /*****************************************************************
@@ -748,7 +746,7 @@ PRIVATE const char *_get_hostname(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_summary(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int send_summary(hgobj gobj, gbuffer_t *gbuf)
 {
     char subject[120];
     snprintf(subject, sizeof(subject), "%s: Log Center Summary", _get_hostname());
@@ -849,15 +847,15 @@ PRIVATE int send_report_email(hgobj gobj, BOOL reset)
     current_timestamp(fecha, sizeof(fecha));
 
     json_t *jn_summary = make_summary(gobj, FALSE);
-    GBUFFER *gbuf_summary = gbuf_create(32*1024, MIN(1*1024*1024L, gbmem_get_maximum_block()), 0, codec_utf_8);
-    gbuf_printf(gbuf_summary, "From %s (%s, %s)\nat %s, Logcenter Summary:\n\n",
+    gbuffer_t *gbuf_summary = gbuffer_create(32*1024, MIN(1*1024*1024L, gbmem_get_maximum_block()), 0, codec_utf_8);
+    gbuffer_printf(gbuf_summary, "From %s (%s, %s)\nat %s, Logcenter Summary:\n\n",
         _get_hostname(),
         node_uuid(),
         YUNETA_VERSION,
         fecha
     );
     json2gbuf(gbuf_summary, jn_summary, JSON_INDENT(4));
-    gbuf_printf(gbuf_summary, "\n\n");
+    gbuffer_printf(gbuf_summary, "\n\n");
 
     /*
      *  Reset counters
@@ -889,9 +887,9 @@ PRIVATE int cb_newfile(void *user_data, const char *old_filename, const char *ne
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int write2logs(hgobj gobj, int priority, GBUFFER *gbuf)
+PRIVATE int write2logs(hgobj gobj, int priority, gbuffer_t *gbuf)
 {
-    char *bf = gbuf_cur_rd_pointer(gbuf);
+    char *bf = gbuffer_cur_rd_pointer(gbuf);
     _log_bf(priority, 0, bf, strlen(bf));
     return 0;
 }
@@ -923,13 +921,13 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
         default:
             return -1;
     }
-    const char *msgset = kw_get_str(kw, "msgset",0, 0);
-    const char *msg = kw_get_str(kw, "msg", 0, 0);
+    const char *msgset = kw_get_str(gobj, kw, "msgset",0, 0);
+    const char *msg = kw_get_str(gobj, kw, "msg", 0, 0);
     if(!msgset || !msg) {
         return -1;
     }
 
-    json_t *jn_set = kw_get_dict(jn_dict, msgset, json_object(), KW_CREATE);
+    json_t *jn_set = kw_get_dict(gobj, jn_dict, msgset, json_object(), KW_CREATE);
 
 /*
  *  TODO en vez estar harcoded que esté en config.
@@ -946,52 +944,52 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
     if(strncmp(msg, "path NOT FOUND", strlen("path NOT FOUND"))==0 ||
         strncmp(msg, "path MUST BE", strlen("path MUST BE"))==0
     ) {
-        const char *path = kw_get_str(kw, "path", 0, 0);
+        const char *path = kw_get_str(gobj, kw, "path", 0, 0);
         if(!empty_string(path)) {
-            json_t *jn_level1 = kw_get_dict(jn_set, msg, json_object(), KW_CREATE);
-            json_int_t counter = kw_get_int(jn_level1, path, 0, KW_CREATE);
+            json_t *jn_level1 = kw_get_dict(gobj, jn_set, msg, json_object(), KW_CREATE);
+            json_int_t counter = kw_get_int(gobj, jn_level1, path, 0, KW_CREATE);
             counter++;
             json_object_set_new(jn_level1, path, json_integer(counter));
         } else {
-            json_int_t counter = kw_get_int(jn_set, msg, 0, KW_CREATE);
+            json_int_t counter = kw_get_int(gobj, jn_set, msg, 0, KW_CREATE);
             counter++;
             json_object_set_new(jn_set, msg, json_integer(counter));
         }
 
     } else if(strcmp(msg, "GClass Attribute NOT FOUND")==0) {
-        const char *attr = kw_get_str(kw, "attr", 0, 0);
+        const char *attr = kw_get_str(gobj, kw, "attr", 0, 0);
         if(!empty_string(attr)) {
-            json_t *jn_level1 = kw_get_dict(jn_set, msg, json_object(), KW_CREATE);
-            json_int_t counter = kw_get_int(jn_level1, attr, 0, KW_CREATE);
+            json_t *jn_level1 = kw_get_dict(gobj, jn_set, msg, json_object(), KW_CREATE);
+            json_int_t counter = kw_get_int(gobj, jn_level1, attr, 0, KW_CREATE);
             counter++;
             json_object_set_new(jn_level1, attr, json_integer(counter));
         } else {
-            json_int_t counter = kw_get_int(jn_set, msg, 0, KW_CREATE);
+            json_int_t counter = kw_get_int(gobj, jn_set, msg, 0, KW_CREATE);
             counter++;
             json_object_set_new(jn_set, msg, json_integer(counter));
         }
 
     } else if(strcmp(msg, "Publish event WITHOUT subscribers")==0) {
-        const char *event = kw_get_str(kw, "event", 0, 0);
+        const char *event = kw_get_str(gobj, kw, "event", 0, 0);
         if(!empty_string(event)) {
-            json_t *jn_level1 = kw_get_dict(jn_set, msg, json_object(), KW_CREATE);
-            json_int_t counter = kw_get_int(jn_level1, event, 0, KW_CREATE);
+            json_t *jn_level1 = kw_get_dict(gobj, jn_set, msg, json_object(), KW_CREATE);
+            json_int_t counter = kw_get_int(gobj, jn_level1, event, 0, KW_CREATE);
             counter++;
             json_object_set_new(jn_level1, event, json_integer(counter));
         } else {
-            json_int_t counter = kw_get_int(jn_set, msg, 0, KW_CREATE);
+            json_int_t counter = kw_get_int(gobj, jn_set, msg, 0, KW_CREATE);
             counter++;
             json_object_set_new(jn_set, msg, json_integer(counter));
         }
 
     } else {
-        json_int_t counter = kw_get_int(jn_set, msg, 0, KW_CREATE);
+        json_int_t counter = kw_get_int(gobj, jn_set, msg, 0, KW_CREATE);
         counter++;
         json_object_set_new(jn_set, msg, json_integer(counter));
     }
 
     if(strcmp(msgset, MSGSET_QUEUE_ALARM)==0) {
-        json_int_t queue_size = kw_get_int(kw, "queue_size", 10000, 0);
+        json_int_t queue_size = kw_get_int(gobj, kw, "queue_size", 10000, 0);
         if(priv->restart_on_alarm && priv->queue_restart_limit > 0 && queue_size >= priv->queue_restart_limit) {
             const char *restart_yuneta_command = gobj_read_str_attr(gobj, "restart_yuneta_command");
             if(priv->timeout_restart_yuneta) {
@@ -999,8 +997,7 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
                     priv->t_restart = start_sectimer(priv->timeout_restart_yuneta);
                     int ret = system(restart_yuneta_command);
                     if(ret < 0) {
-                        log_error(0,
-                            "gobj",         "%s", gobj_full_name(gobj),
+                        gobj_log_error(gobj, 0,
                             "function",     "%s", __FUNCTION__,
                             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                             "msg",          "%s", "system() FAILED",
@@ -1012,8 +1009,7 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
                         priv->t_restart = start_sectimer(priv->timeout_restart_yuneta);
                         int ret = system(restart_yuneta_command);
                         if(ret < 0) {
-                            log_error(0,
-                                "gobj",         "%s", gobj_full_name(gobj),
+                            gobj_log_error(gobj, 0,
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                                 "msg",          "%s", "system() FAILED",
@@ -1063,7 +1059,7 @@ PRIVATE json_t *extrae_json(hgobj gobj, FILE *file, uint32_t maxcount, json_t *j
     int c;
     int st = WAIT_BEGIN_DICT;
     int brace_indent = 0;
-    GBUFFER *gbuf = gbuf_create(4*1024, gbmem_get_maximum_block(), 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block(), 0, 0);
     BOOL fin = FALSE;
     while(!fin && (c=fgetc(file))!=EOF) {
         switch(st) {
@@ -1073,7 +1069,7 @@ PRIVATE json_t *extrae_json(hgobj gobj, FILE *file, uint32_t maxcount, json_t *j
             }
             gbuf_reset_wr(gbuf);
             gbuf_reset_rd(gbuf);
-            if(gbuf_append(gbuf, &c, 1)<=0) {
+            if(gbuffer_append(gbuf, &c, 1)<=0) {
                 abort();
             }
             brace_indent = 1;
@@ -1085,11 +1081,11 @@ PRIVATE json_t *extrae_json(hgobj gobj, FILE *file, uint32_t maxcount, json_t *j
             } else if(c == '}') {
                 brace_indent--;
             }
-            if(gbuf_append(gbuf, &c, 1)<=0) {
+            if(gbuffer_append(gbuf, &c, 1)<=0) {
                 abort();
             }
             if(brace_indent == 0) {
-                json_t *jn_dict = legalstring2json(gbuf_cur_rd_pointer(gbuf), FALSE);
+                json_t *jn_dict = legalstring2json(gbuffer_cur_rd_pointer(gbuf), FALSE);
                 if(jn_dict) {
                     if(!text) {
                         // Tail
@@ -1116,7 +1112,7 @@ PRIVATE json_t *extrae_json(hgobj gobj, FILE *file, uint32_t maxcount, json_t *j
             break;
         }
     }
-    gbuf_decref(gbuf);
+    gbuffer_decref(gbuf);
 
     return jn_list;
 }
@@ -1248,21 +1244,20 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     static uint32_t last_sequence = 0;
 
-//     log_debug_gbuf(LOG_DUMP_INPUT, "monitor-input", gbuf);
+//     gobj_trace_dump_gbuf(gobj, "monitor-input", gbuf);
 
     /*---------------------------------------*
      *  Get priority, sequence and crc
      *---------------------------------------*/
     char ssequence[20]={0}, scrc[20]={0};
 
-    unsigned char *bf = gbuf_cur_rd_pointer(gbuf);
-    int len = (int)gbuf_leftbytes(gbuf);
+    unsigned char *bf = gbuffer_cur_rd_pointer(gbuf);
+    int len = (int)gbuffer_leftbytes(gbuf);
     if(len < 17) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "gbuffer too small",
@@ -1287,8 +1282,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
     char *pcrc = (char *)bf + len - 8;
     if(strcmp(pcrc, scrc)!=0) {
-//        log_error(0,
-//            "gobj",         "%s", gobj_full_name(gobj),
+//        gobj_log_error(gobj, 0,
 //            "function",     "%s", __FUNCTION__,
 //            "msgset",       "%s", MSGSET_JSON_ERROR,
 //            "msg",          "%s", "BAD crc",
@@ -1305,15 +1299,14 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     gbuf_set_wr(gbuf, len-8);
 
-    char *spriority = gbuf_get(gbuf, 1);
-    char *p = gbuf_get(gbuf, 8);
+    char *spriority = gbuffer_get(gbuf, 1);
+    char *p = gbuffer_get(gbuf, 8);
     if(p) {
         memmove(ssequence, p, 8);
         uint32_t sequence = strtol(ssequence, NULL, 16);
         if(sequence != last_sequence +1) {
             // Cuando vengan de diferentes fuentes vendrán lógicamente con diferente secuencia
-    //         log_warning(1,
-    //             "gobj",         "%s", gobj_full_name(gobj),
+    //         gobj_log_warning(gobj, 1,
     //             "function",     "%s", __FUNCTION__,
     //             "msgset",       "%s", MSGSET_JSON_ERROR,
     //             "msg",          "%s", "BAD sequence",
@@ -1341,9 +1334,9 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*---------------------------------------*
      *  Convert gbuf msg in json summary
      *---------------------------------------*/
-    bf = gbuf_cur_rd_pointer(gbuf);
+    bf = gbuffer_cur_rd_pointer(gbuf);
     if(*bf == '{') {
-        gbuf_incref(gbuf);
+        gbuffer_incref(gbuf);
         json_t *jn_value = gbuf2json(gbuf, 2); // gbuf stolen
         if(jn_value) {
             do_log_stats(gobj, priority, jn_value);
@@ -1368,7 +1361,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *work_dir = yuneta_work_dir();
     if(test_sectimer(priv->warn_free_disk)) {
         if(!empty_string(work_dir)) {
-            size_t min_free_disk = gobj_read_int32_attr(gobj, "min_free_disk");
+            size_t min_free_disk = gobj_read_integer_attr(gobj, "min_free_disk");
             struct statvfs64 fiData;
             if(statvfs64(work_dir, &fiData) == 0) {
                 int disk_free_percent = (fiData.f_bavail * 100)/fiData.f_blocks;
@@ -1385,7 +1378,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     if(test_sectimer(priv->warn_free_mem)) {
-        size_t min_free_mem = gobj_read_int32_attr(gobj, "min_free_mem");
+        size_t min_free_mem = gobj_read_integer_attr(gobj, "min_free_mem");
         uint64_t total_memory = uv_get_total_memory()/1024;
         unsigned long free_memory = free_ram_in_kb();
         int mem_free_percent = (free_memory * 100)/total_memory;
@@ -1421,11 +1414,11 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE const EVENT input_events[] = {
     // top input
     // bottom input
-    {"EV_ON_MESSAGE",   0,  0,  0},
-    {"EV_ON_OPEN",      0,  0,  0},
-    {"EV_ON_CLOSE",     0,  0,  0},
-    {"EV_TIMEOUT",      0,  0,  0},
-    {"EV_STOPPED",      0,  0,  0},
+    {EV_ON_MESSAGE,   0,  0,  0},
+    {EV_ON_OPEN,      0,  0,  0},
+    {EV_ON_CLOSE,     0,  0,  0},
+    {EV_TIMEOUT,      0,  0,  0},
+    {EV_STOPPED,      0,  0,  0},
     // internal
     {NULL, 0, 0, 0}
 };
@@ -1433,16 +1426,16 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_ON_MESSAGE",       ac_on_message,          0},
-    {"EV_ON_OPEN",          ac_on_open,             0},
-    {"EV_ON_CLOSE",         ac_on_close,            0},
-    {"EV_TIMEOUT",          ac_timeout,             0},
-    {"EV_STOPPED",          ac_stopped,             0},
+    {EV_ON_MESSAGE,       ac_on_message,          0},
+    {EV_ON_OPEN,          ac_on_open,             0},
+    {EV_ON_CLOSE,         ac_on_close,            0},
+    {EV_TIMEOUT,          ac_timeout,             0},
+    {EV_STOPPED,          ac_stopped,             0},
     {0,0,0}
 };
 

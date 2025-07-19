@@ -34,20 +34,20 @@ PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_send_email[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "to",           0,              0,          "To field."),
-SDATAPM (ASN_OCTET_STR, "reply-to",     0,              0,          "Reply-To field."),
-SDATAPM (ASN_OCTET_STR, "subject",      0,              0,          "Subject field."),
-SDATAPM (ASN_OCTET_STR, "attachment",   0,              0,          "Attachment file."),
-SDATAPM (ASN_OCTET_STR, "inline_file_id",0,             0,          "Inline file ID (must be attachment too)."),
-SDATAPM (ASN_BOOLEAN,   "is_html",      0,              0,          "Is html"),
-SDATAPM (ASN_OCTET_STR, "body",         0,              0,          "Email body."),
+SDATAPM (DTP_STRING,    "to",           0,              0,          "To field."),
+SDATAPM (DTP_STRING,    "reply-to",     0,              0,          "Reply-To field."),
+SDATAPM (DTP_STRING,    "subject",      0,              0,          "Subject field."),
+SDATAPM (DTP_STRING,    "attachment",   0,              0,          "Attachment file."),
+SDATAPM (DTP_STRING,    "inline_file_id",0,             0,          "Inline file ID (must be attachment too)."),
+SDATAPM (DTP_BOOLEAN,   "is_html",      0,              0,          "Is html"),
+SDATAPM (DTP_STRING,    "body",         0,              0,          "Email body."),
 SDATA_END()
 };
 
@@ -55,17 +55,17 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM (ASN_SCHEMA,    "send-email",       0,                  pm_send_email,  cmd_send_email, "Send email."),
-SDATACM (ASN_SCHEMA,    "disable-alarm-emails",0,               0,              cmd_disable_alarm_emails, "Disable send alarm emails."),
-SDATACM (ASN_SCHEMA,    "enable-alarm-emails",0,                0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "send-email",       0,                  pm_send_email,  cmd_send_email, "Send email."),
+SDATACM (DTP_SCHEMA,    "disable-alarm-emails",0,               0,              cmd_disable_alarm_emails, "Disable send alarm emails."),
+SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,                0,              cmd_enable_alarm_emails, "Enable send alarm emails."),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t queueTb_it[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description----------*/
-SDATA (ASN_JSON,        "kw_email",         0,                          0,              "kw email"),
-SDATA (ASN_INTEGER,     "retries",          0,                          0,              "Retries send email"),
+SDATA (DTP_JSON,        "kw_email",         0,                          0,              "kw email"),
+SDATA (DTP_INTEGER,     "retries",          0,                          0,              "Retries send email"),
 SDATA_END()
 };
 
@@ -74,31 +74,31 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag------------------------default---------description---------- */
-SDATA (ASN_INTEGER,     "timeout_response",     0,                          60*1000L,       "Timer curl response"),
-SDATA (ASN_OCTET_STR,   "on_open_event_name",   0,                          "EV_ON_OPEN",   "Must be empty if you don't want receive this event"),
-SDATA (ASN_OCTET_STR,   "on_close_event_name",  0,                          "EV_ON_CLOSE",  "Must be empty if you don't want receive this event"),
-SDATA (ASN_OCTET_STR,   "on_message_event_name",0,                          "EV_ON_MESSAGE","Must be empty if you don't want receive this event"),
-SDATA (ASN_BOOLEAN,     "as_yuno",              SDF_RD,                     FALSE,          "True when acting as yuno"),
+SDATA (DTP_INTEGER,     "timeout_response",     0,                          60*1000L,       "Timer curl response"),
+SDATA (DTP_STRING,      "on_open_event_name",   0,                          EV_ON_OPEN,   "Must be empty if you don't want receive this event"),
+SDATA (DTP_STRING,      "on_close_event_name",  0,                          EV_ON_CLOSE,  "Must be empty if you don't want receive this event"),
+SDATA (DTP_STRING,      "on_message_event_name",0,                          EV_ON_MESSAGE,"Must be empty if you don't want receive this event"),
+SDATA (DTP_BOOLEAN,     "as_yuno",              SDF_RD,                     FALSE,          "True when acting as yuno"),
 
-SDATA (ASN_OCTET_STR,   "username",             SDF_RD,                     0,              "email username"),
-SDATA (ASN_OCTET_STR,   "password",             SDF_RD,                     0,              "email password"),
-SDATA (ASN_OCTET_STR,   "url",                  SDF_RD|SDF_REQUIRED,        0,              "smtp URL"),
-SDATA (ASN_OCTET_STR,   "from",                 SDF_RD|SDF_REQUIRED,        0,              "default from"),
-SDATA (ASN_OCTET_STR,   "from_beatiful",        SDF_RD,                     "",             "from with name"),
-SDATA (ASN_UNSIGNED,    "max_tx_queue",         SDF_PERSIST|SDF_WR,         200,            "Maximum messages in tx queue."),
-SDATA (ASN_UNSIGNED,    "timeout_dequeue",      SDF_PERSIST|SDF_WR,         10,             "Timeout to dequeue msgs."),
-SDATA (ASN_UNSIGNED,    "max_retries",          SDF_PERSIST|SDF_WR,         4,              "Maximum retries to send email"),
-SDATA (ASN_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,         FALSE,          "True when testing, send only to test_email"),
-SDATA (ASN_BOOLEAN,     "add_test",             SDF_PERSIST|SDF_WR,         FALSE,          "True when testing, add test_email to send"),
-SDATA (ASN_OCTET_STR,   "test_email",           SDF_PERSIST|SDF_WR,         "",             "test email"),
+SDATA (DTP_STRING,      "username",             SDF_RD,                     0,              "email username"),
+SDATA (DTP_STRING,      "password",             SDF_RD,                     0,              "email password"),
+SDATA (DTP_STRING,      "url",                  SDF_RD|SDF_REQUIRED,        0,              "smtp URL"),
+SDATA (DTP_STRING,      "from",                 SDF_RD|SDF_REQUIRED,        0,              "default from"),
+SDATA (DTP_STRING,      "from_beatiful",        SDF_RD,                     "",             "from with name"),
+SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_PERSIST|SDF_WR,         200,            "Maximum messages in tx queue."),
+SDATA (DTP_INTEGER,     "timeout_dequeue",      SDF_PERSIST|SDF_WR,         10,             "Timeout to dequeue msgs."),
+SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,         4,              "Maximum retries to send email"),
+SDATA (DTP_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,         FALSE,          "True when testing, send only to test_email"),
+SDATA (DTP_BOOLEAN,     "add_test",             SDF_PERSIST|SDF_WR,         FALSE,          "True when testing, add test_email to send"),
+SDATA (DTP_STRING,      "test_email",           SDF_PERSIST|SDF_WR,         "",             "test email"),
 
-SDATA (ASN_COUNTER64,   "send",                 SDF_RD|SDF_STATS,           0,              "Emails send"),
-SDATA (ASN_COUNTER64,   "sent",                 SDF_RD|SDF_STATS,           0,              "Emails sent"),
-SDATA (ASN_BOOLEAN,     "disable_alarm_emails", SDF_PERSIST|SDF_WR,         FALSE,          "True to don't send alarm emails"),
+SDATA (DTP_INTEGER,     "send",                 SDF_RD|SDF_STATS,           0,              "Emails send"),
+SDATA (DTP_INTEGER,     "sent",                 SDF_RD|SDF_STATS,           0,              "Emails sent"),
+SDATA (DTP_BOOLEAN,     "disable_alarm_emails", SDF_PERSIST|SDF_WR,         FALSE,          "True to don't send alarm emails"),
 
-SDATA (ASN_POINTER,     "user_data",            0,                          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,                          0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0,                          0,              "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_POINTER,     "user_data",            0,                          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,                          0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,                          0,              "subscriber of output-events. If it's null then subscriber is the parent."),
 
 /*-DB----type-----------name----------------flag------------------------schema----------free_fn---------header-----------*/
 SDATADB (ASN_ITER,      "queueTb",          SDF_RD,                     queueTb_it,     sdata_destroy,  "Queue table"),
@@ -166,7 +166,7 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->tb_queue = gobj_read_iter_attr(gobj, "queueTb");
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
     priv->curl = gobj_create("emailsender", GCLASS_CURL, 0, gobj);
     gobj_set_bottom_gobj(gobj, priv->curl);
     //priv->persist = gobj_find_service("persist", FALSE);
@@ -186,7 +186,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout_response,      gobj_read_int32_attr)
+    SET_PRIV(timeout_response,      gobj_read_integer_attr)
     SET_PRIV(on_open_event_name,    gobj_read_str_attr)
     SET_PRIV(on_close_event_name,   gobj_read_str_attr)
     SET_PRIV(on_message_event_name, gobj_read_str_attr)
@@ -222,8 +222,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     size_t size = rc_iter_size(priv->tb_queue);
     if(size) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Emails lost by destroying gobj",
@@ -231,7 +230,7 @@ PRIVATE void mt_destroy(hgobj gobj)
             NULL
         );
     }
-    rc_free_iter(priv->tb_queue, FALSE, sdata_destroy); // remove all rows
+    gobj_free_iter(priv->tb_queue, FALSE, sdata_destroy); // remove all rows
 }
 
 /***************************************************************************
@@ -283,7 +282,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -298,16 +297,16 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *to = kw_get_str(kw, "to", 0, 0);
-    const char *reply_to = kw_get_str(kw, "reply-to", 0, 0);
-    const char *subject = kw_get_str(kw, "subject", "", 0);
-    const char *attachment = kw_get_str(kw, "attachment", 0, 0);
-    BOOL is_html = kw_get_bool(kw, "is_html", 0, 0);
-    const char *inline_file_id = kw_get_str(kw, "inline_file_id", 0, 0);
-    const char *body = kw_get_str(kw, "body", "", 0);
+    const char *to = kw_get_str(gobj, kw, "to", 0, 0);
+    const char *reply_to = kw_get_str(gobj, kw, "reply-to", 0, 0);
+    const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
+    const char *attachment = kw_get_str(gobj, kw, "attachment", 0, 0);
+    BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
+    const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
+    const char *body = kw_get_str(gobj, kw, "body", "", 0);
 
     if(empty_string(to)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -200,
             json_sprintf(
@@ -320,9 +319,9 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     }
     int len = strlen(body);
-    GBUFFER *gbuf = gbuf_create(len, len, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(len, len, 0, 0);
     if(len > 0) {
-        gbuf_append(gbuf, (void *)body, len);
+        gbuffer_append(gbuf, (void *)body, len);
     }
 
     json_t *kw_send = json_pack("{s:s, s:s, s:s, s:I, s:b, s:b, s:s}",
@@ -341,13 +340,13 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         }
 
     }
-    gobj_send_event(gobj, "EV_SEND_EMAIL", kw_send, gobj);
+    gobj_send_event(gobj, EV_SEND_EMAIL, kw_send, gobj);
 
 
     /*
      *  Inform
      */
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf(
@@ -371,7 +370,7 @@ PRIVATE json_t *cmd_disable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw
     /*
      *  Inform
      */
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Alarm emails disabled"),
@@ -392,7 +391,7 @@ PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw,
     /*
      *  Inform
      */
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("Alarm emails enabled"),
@@ -429,26 +428,25 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     clear_timeout(priv->timer);
 
-    const char *from = kw_get_str(kw, "from", 0, 0);
+    const char *from = kw_get_str(gobj, kw, "from", 0, 0);
     if(empty_string(from)) {
         from = priv->from;
     }
-    const char *from_beatiful = kw_get_str(kw, "from_beatiful", "", 0);
+    const char *from_beatiful = kw_get_str(gobj, kw, "from_beatiful", "", 0);
     if(empty_string(from_beatiful)) {
         from_beatiful = gobj_read_str_attr(gobj, "from_beatiful");
     }
-    const char *to = kw_get_str(kw, "to", 0, 0);
-    const char *cc = kw_get_str(kw, "cc", "", 0);
-    const char *reply_to = kw_get_str(kw, "reply_to", "", 0);
-    const char *subject = kw_get_str(kw, "subject", "", 0);
-    BOOL is_html = kw_get_bool(kw, "is_html", 0, 0);
-    const char *attachment = kw_get_str(kw, "attachment", "", 0);
-    const char *inline_file_id = kw_get_str(kw, "inline_file_id", 0, 0);
+    const char *to = kw_get_str(gobj, kw, "to", 0, 0);
+    const char *cc = kw_get_str(gobj, kw, "cc", "", 0);
+    const char *reply_to = kw_get_str(gobj, kw, "reply_to", "", 0);
+    const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
+    BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
+    const char *attachment = kw_get_str(gobj, kw, "attachment", "", 0);
+    const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
 
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     if(!gbuf) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gbuf NULL",
@@ -460,8 +458,7 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
     if(empty_string(to)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "<to> field is NULL",
@@ -496,8 +493,7 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "gbuffer", (json_int_t)(size_t)gbuf
     );
     if(!kw_curl) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "json_pack() FAILED",
@@ -515,8 +511,7 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 json_object_set_new(kw_curl, "inline_file_id", json_string(inline_file_id));
             }
         } else {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "attachment file not found, ignoring it",
@@ -529,8 +524,8 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
     (*priv->psend)++;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        log_debug_json(0, kw_curl, "SEND EMAIL to %s", priv->url);
-        log_debug_bf(0, gbuf_cur_rd_pointer(gbuf), gbuf_leftbytes(gbuf), "SEND EMAIL to %s", priv->url);
+        gobj_trace_json(gobj, kw_curl, "SEND EMAIL to %s", priv->url);
+        log_debug_bf(0, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf), "SEND EMAIL to %s", priv->url);
     }
 
     gobj_change_state(gobj, "ST_WAIT_SEND_ACK");
@@ -549,10 +544,9 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_read_bool_attr(gobj, "disable_alarm_emails")) {
-        const char *subject = kw_get_str(kw, "subject", "", 0);
+        const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
         if(strstr(subject, "ALERTA Encolamiento")) { // WARNING repeated in c_qiogate.c
-            log_warning(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
                 "msg",          "%s", "Ignore 'ALERTA Encolamiento' email",
@@ -567,15 +561,14 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
     if(size >= priv->max_tx_queue) {
         hsdata sd_email;
         rc_first_instance(priv->tb_queue, (rc_resource_t **)&sd_email);
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Tiro EMAIL por cola llena",
             NULL
         );
         json_t *jn_msg = sdata2json(sd_email, -1, 0);
-        log_debug_json(0, jn_msg, "Tiro EMAIL por cola llena");
+        gobj_trace_json(gobj, jn_msg, "Tiro EMAIL por cola llena");
         json_decref(jn_msg);
 
         rc_delete_resource(sd_email, sdata_destroy);
@@ -589,7 +582,7 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
     sdata_write_json(sd_email, "kw_email", kw); // kw incref
     rc_add_instance(priv->tb_queue, sd_email, 0);
 
-    if(gobj_in_this_state(gobj, "ST_IDLE")) {
+    if(gobj_in_this_state(gobj, ST_IDLE)) {
         set_timeout(priv->timer, priv->timeout_dequeue);
     }
 
@@ -606,17 +599,17 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
 
     clear_timeout(priv->timer);
 
-    int result = kw_get_int(kw, "result", 0, FALSE);
+    int result = kw_get_int(gobj, kw, "result", 0, FALSE);
     if(result) {
         // Error already logged
     } else {
         rc_delete_resource(priv->sd_cur_email, sdata_destroy);
         priv->sd_cur_email = 0;
-        trace_msg("EMAIL SENT to %s", priv->url);
+        gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
         (*priv->psent)++;
     }
 
-    gobj_change_state(gobj, "ST_IDLE");
+    gobj_change_state(gobj, ST_IDLE);
 
     set_timeout(priv->timer, priv->timeout_dequeue); // tira de la cola, QUICK
 
@@ -637,18 +630,17 @@ PRIVATE int ac_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
         retries++;
         sdata_write_int32(priv->sd_cur_email, "retries", retries);
         if(retries >= priv->max_retries) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBCURL_ERROR,
                 "msg",          "%s", "Tiro email por maximo reintentos",
                 NULL
             );
             json_t *jn_msg = sdata2json(priv->sd_cur_email, -1, 0);
-            log_debug_json(0, jn_msg, "Tiro email por maximo reintentos");
-            GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(jn_msg, "kw_email`gbuffer", 0, 0);
+            gobj_trace_json(gobj, jn_msg, "Tiro email por maximo reintentos");
+            gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, jn_msg, "kw_email`gbuffer", 0, 0);
             gbuf_reset_rd(gbuf);
-            log_debug_gbuf(0, gbuf, "Tiro email por maximo reintentos");
+            gobj_trace_dump_gbuf(gobj, gbuf, "Tiro email por maximo reintentos");
             json_decref(jn_msg);
 
             rc_delete_resource(priv->sd_cur_email, sdata_destroy);
@@ -687,8 +679,7 @@ PRIVATE int ac_timeout_response(hgobj gobj, const char *event, json_t *kw, hgobj
      *  Retry in poll time.
      */
     //  TODO V2 GBMEM_FREE(priv->mail_ref);
-    log_error(0,
-        "gobj",         "%s", gobj_full_name(gobj),
+    gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_LIBCURL_ERROR,
         "msg",          "%s", "Timeout curl",
@@ -696,7 +687,7 @@ PRIVATE int ac_timeout_response(hgobj gobj, const char *event, json_t *kw, hgobj
         "state",        "%s", gobj_current_state(gobj),
         NULL
     );
-    gobj_change_state(gobj, "ST_IDLE");
+    gobj_change_state(gobj, ST_IDLE);
 
     set_timeout(priv->timer, 10); // tira de la cola, QUICK
 
@@ -736,48 +727,48 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE const EVENT input_events[] = {
     // top input
-    {"EV_SEND_MESSAGE",     EVF_PUBLIC_EVENT,   0,  "Send email event"},
-    {"EV_SEND_EMAIL",       EVF_PUBLIC_EVENT,   0,  "Send email event"},
+    {EV_SEND_MESSAGE,     EVF_PUBLIC_EVENT,   0,  "Send email event"},
+    {EV_SEND_EMAIL,       EVF_PUBLIC_EVENT,   0,  "Send email event"},
     {"EV_SEND_CURL",        0,                  0,  "Send email to curl"},
     // bottom input
     {"EV_CURL_RESPONSE",    0,  0,  0},
-    {"EV_ON_OPEN",          0,  0,  0},
-    {"EV_ON_CLOSE",         0,  0,  0},
-    {"EV_STOPPED",          0,  0,  0},
-    {"EV_TIMEOUT",          0,  0,  0},
+    {EV_ON_OPEN,          0,  0,  0},
+    {EV_ON_CLOSE,         0,  0,  0},
+    {EV_STOPPED,          0,  0,  0},
+    {EV_TIMEOUT,          0,  0,  0},
     // internal
     {NULL, 0, 0, 0}
 };
 PRIVATE const EVENT output_events[] = {
-    {"EV_ON_OPEN",          EVF_NO_WARN_SUBS,  0,  0},
-    {"EV_ON_CLOSE",         EVF_NO_WARN_SUBS,  0,  0},
-    {"EV_ON_MESSAGE",       EVF_NO_WARN_SUBS,  0,  0},
+    {EV_ON_OPEN,          EVF_NO_WARN_SUBS,  0,  0},
+    {EV_ON_CLOSE,         EVF_NO_WARN_SUBS,  0,  0},
+    {EV_ON_MESSAGE,       EVF_NO_WARN_SUBS,  0,  0},
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     "ST_WAIT_SEND_ACK",
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
     {"EV_SEND_CURL",            ac_send_curl,           0},
-    {"EV_SEND_MESSAGE",         ac_enqueue_message,     0},
-    {"EV_SEND_EMAIL",           ac_enqueue_message,     0},
-    {"EV_TIMEOUT",              ac_dequeue,             0},
-    {"EV_ON_OPEN",              ac_on_open,             0},
-    {"EV_ON_CLOSE",             ac_on_close,            0},
-    {"EV_STOPPED",              ac_stopped,             0},
+    {EV_SEND_MESSAGE,         ac_enqueue_message,     0},
+    {EV_SEND_EMAIL,           ac_enqueue_message,     0},
+    {EV_TIMEOUT,              ac_dequeue,             0},
+    {EV_ON_OPEN,              ac_on_open,             0},
+    {EV_ON_CLOSE,             ac_on_close,            0},
+    {EV_STOPPED,              ac_stopped,             0},
     {0,0,0}
 };
 PRIVATE EV_ACTION ST_WAIT_SEND_ACK[] = {
     {"EV_CURL_RESPONSE",        ac_curl_response,       0},
-    {"EV_SEND_MESSAGE",         ac_enqueue_message,     0},
-    {"EV_SEND_EMAIL",           ac_enqueue_message,     0},
-    {"EV_ON_OPEN",              ac_on_open,             0},
-    {"EV_ON_CLOSE",             ac_on_close,            0},
-    {"EV_TIMEOUT",              ac_timeout_response,    0},
-    {"EV_STOPPED",              ac_stopped,             0},
+    {EV_SEND_MESSAGE,         ac_enqueue_message,     0},
+    {EV_SEND_EMAIL,           ac_enqueue_message,     0},
+    {EV_ON_OPEN,              ac_on_open,             0},
+    {EV_ON_CLOSE,             ac_on_close,            0},
+    {EV_TIMEOUT,              ac_timeout_response,    0},
+    {EV_STOPPED,              ac_stopped,             0},
     {0,0,0}
 };
 

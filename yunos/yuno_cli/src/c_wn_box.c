@@ -33,17 +33,17 @@
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (ASN_INTEGER,     "w",                    0,  0, "logical witdh window size"),
-SDATA (ASN_INTEGER,     "h",                    0,  0, "logical height window size"),
-SDATA (ASN_INTEGER,     "x",                    0,  0, "x window coord"),
-SDATA (ASN_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (ASN_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
-SDATA (ASN_INTEGER,     "cy",                   0,  1, "physical height window size"),
-SDATA (ASN_OCTET_STR,   "bg_color",             0,  "blue", "Background color"),
-SDATA (ASN_OCTET_STR,   "fg_color",             0,  "white", "Foreground color"),
-SDATA (ASN_POINTER,     "user_data",            0,  0, "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,  0, "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_INTEGER,     "w",                    0,  0, "logical witdh window size"),
+SDATA (DTP_INTEGER,     "h",                    0,  0, "logical height window size"),
+SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
+SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
+SDATA (DTP_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  1, "physical height window size"),
+SDATA (DTP_STRING,      "bg_color",             0,  "blue", "Background color"),
+SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
+SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
@@ -101,15 +101,14 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(fg_color,                  gobj_read_str_attr)
     SET_PRIV(bg_color,                  gobj_read_str_attr)
 
-    int x = gobj_read_int32_attr(gobj, "x");
-    int y = gobj_read_int32_attr(gobj, "y");
-    int cx = gobj_read_int32_attr(gobj, "cx");
-    int cy = gobj_read_int32_attr(gobj, "cy");
+    int x = gobj_read_integer_attr(gobj, "x");
+    int y = gobj_read_integer_attr(gobj, "y");
+    int cx = gobj_read_integer_attr(gobj, "cx");
+    int cy = gobj_read_integer_attr(gobj, "cy");
 
     priv->wn = newwin(cy, cx, y, x);
     if(!priv->wn) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "newwin() FAILED",
@@ -118,8 +117,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
     priv->panel = new_panel(priv->wn);
     if(!priv->panel) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "new_panel() FAILED",
@@ -185,7 +183,7 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
-    gobj_change_state(gobj, "ST_IDLE");
+    gobj_change_state(gobj, ST_IDLE);
     // TODO re PAINT in enabled colors
     return 0;
 }
@@ -205,8 +203,8 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_child_added(hgobj gobj, hgobj child)
 {
-    int x = gobj_read_int32_attr(gobj, "x");
-    int y = gobj_read_int32_attr(gobj, "y");
+    int x = gobj_read_integer_attr(gobj, "x");
+    int y = gobj_read_integer_attr(gobj, "y");
 
     json_t *kw_move  = json_pack("{s:i, s:i}",
         "x", x,
@@ -214,8 +212,8 @@ PRIVATE int mt_child_added(hgobj gobj, hgobj child)
     );
     gobj_send_event(child, "EV_MOVE", kw_move, gobj);
 
-    int cx = gobj_read_int32_attr(gobj, "cx");
-    int cy = gobj_read_int32_attr(gobj, "cy");
+    int cx = gobj_read_integer_attr(gobj, "cx");
+    int cy = gobj_read_integer_attr(gobj, "cy");
 
     json_t *kw_size  = json_pack("{s:i, s:i}",
         "cx", cx,
@@ -301,10 +299,10 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int x = kw_get_int(kw, "x", 0, KW_REQUIRED);
-    int y = kw_get_int(kw, "y", 0, KW_REQUIRED);
-    gobj_write_int32_attr(gobj, "x", x);
-    gobj_write_int32_attr(gobj, "y", y);
+    int x = kw_get_int(gobj, kw, "x", 0, KW_REQUIRED);
+    int y = kw_get_int(gobj, kw, "y", 0, KW_REQUIRED);
+    gobj_write_integer_attr(gobj, "x", x);
+    gobj_write_integer_attr(gobj, "y", y);
 
     if(priv->panel) {
         //log_debug_printf(0, "move panel x %d y %d %s", x, y, gobj_name(gobj));
@@ -334,10 +332,10 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int cx = kw_get_int(kw, "cx", 0, KW_REQUIRED);
-    int cy = kw_get_int(kw, "cy", 0, KW_REQUIRED);
-    gobj_write_int32_attr(gobj, "cx", cx);
-    gobj_write_int32_attr(gobj, "cy", cy);
+    int cx = kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
+    int cy = kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
+    gobj_write_integer_attr(gobj, "cx", cx);
+    gobj_write_integer_attr(gobj, "cy", cy);
 
     if(priv->panel) {
         //log_debug_printf(0, "size panel cx %d cy %d %s", cx, cy, gobj_name(gobj));
@@ -375,7 +373,7 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     "ST_DISABLED",
     NULL
 };

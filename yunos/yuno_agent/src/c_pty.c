@@ -36,7 +36,7 @@ PRIVATE BOOL fd_set_cloexec(const int fd);
 PRIVATE BOOL fd_duplicate(int fd, uv_pipe_t *pipe);
 PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf);
-PRIVATE int write_data_to_pty(hgobj gobj, GBUFFER *gbuf);
+PRIVATE int write_data_to_pty(hgobj gobj, gbuffer_t *gbuf);
 
 
 /***************************************************************************
@@ -48,15 +48,15 @@ PRIVATE int write_data_to_pty(hgobj gobj, GBUFFER *gbuf);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag--------default-description---------- */
-SDATA (ASN_OCTET_STR,   "process",              SDF_RD,     "bash", "Process to execute in pseudo terminal"),
-SDATA (ASN_BOOLEAN,     "no_output",            0,          0,      "Mirror, only input"),
-SDATA (ASN_UNSIGNED,    "rows",                 SDF_RD,     24,     "Rows"),
-SDATA (ASN_UNSIGNED,    "cols",                 SDF_RD,     80,     "Columns"),
-SDATA (ASN_OCTET_STR,   "cwd",                  SDF_RD,     "",     "Current work directory"),
-SDATA (ASN_UNSIGNED,    "max_tx_queue",         SDF_WR,     32,     "Maximum messages in tx queue. Default is 0: no limit."),
-SDATA (ASN_POINTER,     "user_data",            0,          0,      "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,          0,      "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_STRING,      "process",              SDF_RD,     "bash", "Process to execute in pseudo terminal"),
+SDATA (DTP_BOOLEAN,     "no_output",            0,          0,      "Mirror, only input"),
+SDATA (DTP_INTEGER,     "rows",                 SDF_RD,     24,     "Rows"),
+SDATA (DTP_INTEGER,     "cols",                 SDF_RD,     80,     "Columns"),
+SDATA (DTP_STRING,      "cwd",                  SDF_RD,     "",     "Current work directory"),
+SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_WR,     32,     "Maximum messages in tx queue. Default is 0: no limit."),
+SDATA (DTP_POINTER,     "user_data",            0,          0,      "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,          0,      "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
@@ -154,7 +154,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     size_t size = dl_size(&priv->dl_tx);
     if(size) {
-        dl_flush(&priv->dl_tx, (fnfree)gbuf_decref);
+        dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
     }
 
     GBMEM_FREE(priv->argv[0]);
@@ -180,8 +180,7 @@ PRIVATE int mt_start(hgobj gobj)
     int master, pid;
 
     if(priv->pty != -1) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "pty terminal ALREADY open",
@@ -203,8 +202,7 @@ PRIVATE int mt_start(hgobj gobj)
     };
     pid = forkpty(&master, priv->slave_name, NULL, &size);
     if (pid < 0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "forkpty() FAILED",
@@ -228,8 +226,7 @@ PRIVATE int mt_start(hgobj gobj)
         if(!tty_empty) {
             int ret = execvp(priv->argv[0], priv->argv);
             if(ret < 0) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                     "msg",          "%s", "forkpty() FAILED",
@@ -246,8 +243,7 @@ PRIVATE int mt_start(hgobj gobj)
             sact.sa_handler = catcher;
 
             if(sigaction(SIGUSR1, &sact, NULL) < 0) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                     "msg",          "%s", "sigaction() FAILED",
@@ -261,8 +257,7 @@ PRIVATE int mt_start(hgobj gobj)
             sigfillset(&sigset);
             sigdelset(&sigset, SIGUSR1);
             if(sigsuspend(&sigset) < 0) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                     "msg",          "%s", "sigsuspend() FAILED",
@@ -271,15 +266,14 @@ PRIVATE int mt_start(hgobj gobj)
                     NULL
                 );
             }
-            trace_msg("🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋 exit pty");
+            gobj_trace_msg(gobj, "🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋🙋 exit pty");
             exit(0); // Child will die after receive signal
         }
     }
 
     int flags = fcntl(master, F_GETFL);
     if (flags == -1) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "fcntl(F_GETFL) FAILED",
@@ -294,8 +288,7 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     if(fcntl(master, F_SETFD, flags | O_NONBLOCK) == -1) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "fcntl(F_SETFD) FAILED",
@@ -309,8 +302,7 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
     if(!fd_set_cloexec(master)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "fd_set_cloexec() FAILED",
@@ -329,12 +321,11 @@ PRIVATE int mt_start(hgobj gobj)
         priv->uv_in.data = gobj;
 
         if(gobj_trace_level(gobj) & TRACE_UV) {
-            trace_msg(">>> uv_pipe_init pty in p=%p", &priv->uv_in);
+            gobj_trace_msg(gobj, ">>> uv_pipe_init pty in p=%p", &priv->uv_in);
         }
 
         if(!fd_duplicate(master, &priv->uv_in)) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "fd_duplicate() FAILED",
@@ -355,12 +346,11 @@ PRIVATE int mt_start(hgobj gobj)
         priv->uv_out.data = gobj;
 
         if(gobj_trace_level(gobj) & TRACE_UV) {
-            trace_msg(">>> uv_pipe_init pty out p=%p", &priv->uv_out);
+            gobj_trace_msg(gobj, ">>> uv_pipe_init pty out p=%p", &priv->uv_out);
         }
 
         if(!fd_duplicate(master, &priv->uv_out)) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "fd_duplicate() FAILED",
@@ -381,7 +371,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     if(priv->uv_handler_out_active) {
         if(gobj_trace_level(gobj) & TRACE_UV) {
-            trace_msg(">>> uv_read_start pty out p=%p", &priv->uv_out);
+            gobj_trace_msg(gobj, ">>> uv_read_start pty out p=%p", &priv->uv_out);
         }
         priv->uv_read_active = 1;
         uv_read_start((uv_stream_t*)&priv->uv_out, on_alloc_cb, on_read_cb);
@@ -416,7 +406,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
     if(priv->uv_handler_in_active) {
         if(gobj_trace_level(gobj) & TRACE_UV) {
-            trace_msg(">>> uv_close(cb %d) pty in p=%p",
+            gobj_trace_msg(gobj, ">>> uv_close(cb %d) pty in p=%p",
                 !gobj_is_imminent_destroy(gobj),
                 &priv->uv_in
             );
@@ -427,7 +417,7 @@ PRIVATE int mt_stop(hgobj gobj)
     }
     if(priv->uv_handler_out_active) {
         if(gobj_trace_level(gobj) & TRACE_UV) {
-            trace_msg(">>> uv_close(cb %d) pty out p=%p",
+            gobj_trace_msg(gobj, ">>> uv_close(cb %d) pty out p=%p",
                 !gobj_is_imminent_destroy(gobj),
                 &priv->uv_out
             );
@@ -488,19 +478,18 @@ PRIVATE void on_close_cb(uv_handle_t* handle)
 
     if((uv_handle_t *)handle == (uv_handle_t *)&priv->uv_in) {
         if(gobj_trace_level(gobj) & TRACE_UV) {
-            trace_msg("<<< on_close_cb pty in p=%p", &priv->uv_in);
+            gobj_trace_msg(gobj, "<<< on_close_cb pty in p=%p", &priv->uv_in);
         }
         priv->uv_handler_in_active = 0;
 
     } else if((uv_handle_t *)handle == (uv_handle_t *)&priv->uv_out) {
         if(gobj_trace_level(gobj) & TRACE_UV) {
-            trace_msg("<<< on_close_cb pty out p=%p", &priv->uv_out);
+            gobj_trace_msg(gobj, "<<< on_close_cb pty out p=%p", &priv->uv_out);
         }
         priv->uv_handler_out_active = 0;
 
     } else {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "handler UNKNOWN",
@@ -522,7 +511,7 @@ PRIVATE void on_close_cb(uv_handle_t* handle)
         if(gobj_is_volatil(gobj)) {
             gobj_destroy(gobj);
         } else {
-            gobj_publish_event(gobj, "EV_STOPPED", 0);
+            gobj_publish_event(gobj, EV_STOPPED, 0);
         }
     }
 }
@@ -582,15 +571,14 @@ PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        trace_msg("<<< on_read_cb %d pty out p=%p",
+        gobj_trace_msg(gobj, "<<< on_read_cb %d pty out p=%p",
             (int)nread,
             &priv->uv_out
         );
     }
 
     if(nread < 0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "read FAILED",
@@ -610,7 +598,7 @@ PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
     }
 
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-        log_debug_dump(
+        gobj_trace_dump(gobj, 
             0,
             buf->base,
             nread,
@@ -619,10 +607,9 @@ PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
         );
     }
 
-    GBUFFER *gbuf = gbuf_string2base64(buf->base, nread);
+    gbuffer_t *gbuf = gbuf_string2base64(buf->base, nread);
     if(!gbuf) {
-        log_error(LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
             "msg",          "%s", "gbuf_string2base64() FAILED",
@@ -635,10 +622,10 @@ PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
         "name", gobj_name(gobj),
         "process", priv->argv[0],
         "slave_name", priv->slave_name,
-        "content64", gbuf_cur_rd_pointer(gbuf)
+        "content64", gbuffer_cur_rd_pointer(gbuf)
     );
     gobj_publish_event(gobj, "EV_TTY_DATA", kw);
-    gbuf_decref(gbuf);
+    gbuffer_decref(gbuf);
 }
 
 /***************************************************************************
@@ -652,14 +639,13 @@ PRIVATE void on_write_cb(uv_write_t* req, int status)
     priv->uv_req_write_active = 0;
 
     if(gobj_trace_level(gobj) & TRACE_UV) {
-        trace_msg(">>> on_write_cb pty in p=%p",
+        gobj_trace_msg(gobj, ">>> on_write_cb pty in p=%p",
             &priv->uv_in
         );
     }
 
     if(status != 0) {
-        log_error(LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "on_write_cb FAILED",
@@ -672,24 +658,23 @@ PRIVATE void on_write_cb(uv_write_t* req, int status)
         return;
     }
 
-    GBUFFER *gbuf = dl_first(&priv->dl_tx);
+    gbuffer_t *gbuf = dl_first(&priv->dl_tx);
     if(gbuf) {
         dl_delete(&priv->dl_tx, gbuf, 0);
         write_data_to_pty(gobj, gbuf);
-        GBUF_DECREF(gbuf);
+        GBUFFER_DECREF(gbuf);
     }
 }
 
 /***************************************************************************
  *  Write data to pseudo terminal
  ***************************************************************************/
-PRIVATE int write_data_to_pty(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int write_data_to_pty(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->uv_req_write_active) {
-        log_error(LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "uv_req_write ALREADY ACTIVE",
@@ -702,9 +687,9 @@ PRIVATE int write_data_to_pty(hgobj gobj, GBUFFER *gbuf)
     priv->uv_req_write_active = 1;
     priv->uv_req_write.data = gobj;
 
-    size_t ln = gbuf_chunk(gbuf); // TODO y si ln es 0??????????
+    size_t ln = gbuffer_chunk(gbuf); // TODO y si ln es 0??????????
 
-    char *bf = gbuf_get(gbuf, ln);
+    char *bf = gbuffer_get(gbuf, ln);
     const char *bracket_paste_mode = "\e[200~";
     int xl = strlen(bracket_paste_mode);
     if(ln >= xl) {
@@ -718,7 +703,7 @@ PRIVATE int write_data_to_pty(hgobj gobj, GBUFFER *gbuf)
     };
     uint32_t trace = gobj_trace_level(gobj);
     if((trace & TRACE_UV)) {
-        trace_msg(">>> uv_write pty in p=%p, send %d\n", (uv_stream_t *)&priv->uv_in, (int)ln);
+        gobj_trace_msg(gobj, ">>> uv_write pty in p=%p, send %d\n", (uv_stream_t *)&priv->uv_in, (int)ln);
     }
     int ret = uv_write(
         &priv->uv_req_write,
@@ -728,8 +713,7 @@ PRIVATE int write_data_to_pty(hgobj gobj, GBUFFER *gbuf)
         on_write_cb
     );
     if(ret < 0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "uv_write FAILED",
@@ -744,7 +728,7 @@ PRIVATE int write_data_to_pty(hgobj gobj, GBUFFER *gbuf)
         return -1;
     }
     if((trace & TRACE_TRAFFIC)) {
-        log_debug_dump(
+        gobj_trace_dump(gobj, 
             0,
             bf,
             ln,
@@ -759,7 +743,7 @@ PRIVATE int write_data_to_pty(hgobj gobj, GBUFFER *gbuf)
 /***************************************************************************
  *  Enqueue data
  ***************************************************************************/
-PRIVATE int enqueue_write(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -768,8 +752,7 @@ PRIVATE int enqueue_write(hgobj gobj, GBUFFER *gbuf)
 
     if(priv->max_tx_queue && size >= priv->max_tx_queue) {
         if((counter % priv->max_tx_queue)==0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "Tiro mensaje tx",
@@ -778,9 +761,9 @@ PRIVATE int enqueue_write(hgobj gobj, GBUFFER *gbuf)
             );
         }
         counter++;
-        GBUFFER *gbuf_first = dl_first(&priv->dl_tx);
+        gbuffer_t *gbuf_first = dl_first(&priv->dl_tx);
         dl_delete(&priv->dl_tx, gbuf_first, 0);
-        gbuf_decref(gbuf_first);
+        gbuffer_decref(gbuf_first);
     }
 
     dl_add(&priv->dl_tx, gbuf);
@@ -804,10 +787,10 @@ PRIVATE int enqueue_write(hgobj gobj, GBUFFER *gbuf)
 PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, TRUE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, TRUE);
 
     if(priv->uv_req_write_active) {
-        gbuf_incref(gbuf); // Quédate una copia
+        gbuffer_incref(gbuf); // Quédate una copia
         enqueue_write(gobj, gbuf);
     } else {
         write_data_to_pty(gobj, gbuf);
@@ -834,7 +817,7 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, ""}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",          /* H2UV handler for UV */
+    ST_IDLE,          /* H2UV handler for UV */
     NULL
 };
 

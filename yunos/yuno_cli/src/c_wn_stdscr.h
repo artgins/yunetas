@@ -31,60 +31,37 @@
  *          and inform of them to all his childs
  *
  *          Copyright (c) 2015-2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta.h>
-
-/**rst**
-
-.. _wn_stdscr-gclass:
-
-**"Gwin"** :ref:`GClass`
-===========================
-
-Description
-===========
-
-Windows with ncurses
-
-Events
-======
-
-Input Events
-------------
-
-Order
-^^^^^
-
-Request
-^^^^^^^
-
-Output Events
--------------
-
-Response
-^^^^^^^^
-
-Unsolicited
-^^^^^^^^^^^
-
-Macros
-======
-
-``GCLASS_WN_STDSCR_NAME``
-   Macro of the gclass string name, i.e **"Gwin"**.
-
-``GCLASS_WN_STDSCR``
-   Macro of the :func:`gclass_wn_stdscr()` function.
-
-
-**rst**/
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
+
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_WN_STDSCR);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC int register_c_wn_stdscr(void);
 
 /***************************************************************************
  *              Structures
@@ -109,15 +86,6 @@ extern "C"{
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-
-/**rst**
-   Return a pointer to the :ref:`GCLASS` struct defining the :ref:`wn_stdscr-gclass`.
-**rst**/
-PUBLIC GCLASS *gclass_wn_stdscr(void);
-
-#define GCLASS_WN_STDSCR_NAME "Wn_stdscr"
-#define GCLASS_WN_STDSCR gclass_wn_stdscr()
-
 PUBLIC int get_stdscr_size(int *w, int *h);
 
 

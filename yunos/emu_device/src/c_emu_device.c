@@ -36,18 +36,18 @@ PRIVATE json_t *cmd_read_parameters(hgobj gobj, const char *cmd, json_t *kw, hgo
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_write_window[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_COUNTER64, "window",       0,              0,          "Number of messages to send in each interval."),
+SDATAPM (DTP_INTEGER,   "window",       0,              0,          "Number of messages to send in each interval."),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_write_interval[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_COUNTER64, "interval",      0,              0,         "Interval in miliseconds to send 'window' frames."),
+SDATAPM (DTP_INTEGER,   "interval",      0,              0,         "Interval in miliseconds to send 'window' frames."),
 SDATA_END()
 };
 
@@ -55,10 +55,10 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-----------items---------------json_fn-------------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,         pm_help,            cmd_help,           "Command's help"),
-SDATACM (ASN_SCHEMA,    "read-parameters",  0,              0,                  cmd_read_parameters,"View parameters."),
-SDATACM (ASN_SCHEMA,    "write-window",     0,              pm_write_window,    cmd_write_window,   "Write window parameter, number of frames to send in each interval."),
-SDATACM (ASN_SCHEMA,    "write-interval",   0,              pm_write_interval,  cmd_write_interval, "Write interval parameter, in miliseconds."),
+SDATACM (DTP_SCHEMA,    "help",             a_help,         pm_help,            cmd_help,           "Command's help"),
+SDATACM (DTP_SCHEMA,    "read-parameters",  0,              0,                  cmd_read_parameters,"View parameters."),
+SDATACM (DTP_SCHEMA,    "write-window",     0,              pm_write_window,    cmd_write_window,   "Write window parameter, number of frames to send in each interval."),
+SDATACM (DTP_SCHEMA,    "write-interval",   0,              pm_write_interval,  cmd_write_interval, "Write interval parameter, in miliseconds."),
 SDATA_END()
 };
 
@@ -68,31 +68,31 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (ASN_UNSIGNED,    "window",           SDF_WR|SDF_PERSIST,         1,              "Number of messages to send in each interval event"),
-SDATA (ASN_UNSIGNED,    "interval",         SDF_WR|SDF_PERSIST,         1000,           "Interval in miliseconds to send 'window' frames"),
-SDATA (ASN_COUNTER64,   "txMsgs",           SDF_RD,                     0,              "Messages transmitted by this socket"),
-SDATA (ASN_COUNTER64,   "rxMsgs",           SDF_RD,                     0,              "Messages received by this socket"),
+SDATA (DTP_INTEGER,     "window",           SDF_WR|SDF_PERSIST,         1,              "Number of messages to send in each interval event"),
+SDATA (DTP_INTEGER,     "interval",         SDF_WR|SDF_PERSIST,         1000,           "Interval in miliseconds to send 'window' frames"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,                     0,              "Messages transmitted by this socket"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD,                     0,              "Messages received by this socket"),
 
-SDATA (ASN_OCTET_STR,   "url",                  SDF_WR|SDF_PERSIST,         0,   "Url of __output_side__ yuno."                 ),
-SDATA (ASN_OCTET_STR,   "path",                 SDF_WR|SDF_PERSIST,         0,   "Path of database."                 ),
-SDATA (ASN_OCTET_STR,   "database",             SDF_WR|SDF_PERSIST,         0,   "Database Name."                    ),
-SDATA (ASN_OCTET_STR,   "topic",                SDF_WR|SDF_PERSIST,         0,   "Database Topic."                   ),
-SDATA (ASN_OCTET_STR,   "leading",              SDF_WR|SDF_PERSIST,         0,   "Leading data."                   ),
-SDATA (ASN_OCTET_STR,   "from_t",               SDF_WR|SDF_PERSIST,         0,   "From time."                        ),
-SDATA (ASN_OCTET_STR,   "to_t",                 SDF_WR|SDF_PERSIST,         0,   "To time."                          ),
-SDATA (ASN_OCTET_STR,   "from_rowid",           SDF_WR|SDF_PERSIST,         0,   "From rowid."                       ),
-SDATA (ASN_OCTET_STR,   "to_rowid",             SDF_WR|SDF_PERSIST,         0,   "To rowid."                         ),
-SDATA (ASN_OCTET_STR,   "user_flag_mask_set",   SDF_WR|SDF_PERSIST,         0,   "Mask of User Flag set."            ),
-SDATA (ASN_OCTET_STR,   "user_flag_mask_notset",SDF_WR|SDF_PERSIST,         0,   "Mask of User Flag not set."        ),
-SDATA (ASN_OCTET_STR,   "system_flag_mask_set", SDF_WR|SDF_PERSIST,         0,   "Mask of System Flag set."          ),
-SDATA (ASN_OCTET_STR,   "system_flag_mask_notset",SDF_WR|SDF_PERSIST,       0,   "Mask of System Flag not set."      ),
-SDATA (ASN_OCTET_STR,   "use_very_first",       SDF_WR|SDF_PERSIST,         0,   "Search from the very first record."),
-SDATA (ASN_OCTET_STR,   "key",                  SDF_WR|SDF_PERSIST,         0,   "Key."                              ),
-SDATA (ASN_OCTET_STR,   "notkey",               SDF_WR|SDF_PERSIST,         0,   "Not key."                          ),
+SDATA (DTP_STRING,      "url",                  SDF_WR|SDF_PERSIST,         0,   "Url of __output_side__ yuno."                 ),
+SDATA (DTP_STRING,      "path",                 SDF_WR|SDF_PERSIST,         0,   "Path of database."                 ),
+SDATA (DTP_STRING,      "database",             SDF_WR|SDF_PERSIST,         0,   "Database Name."                    ),
+SDATA (DTP_STRING,      "topic",                SDF_WR|SDF_PERSIST,         0,   "Database Topic."                   ),
+SDATA (DTP_STRING,      "leading",              SDF_WR|SDF_PERSIST,         0,   "Leading data."                   ),
+SDATA (DTP_STRING,      "from_t",               SDF_WR|SDF_PERSIST,         0,   "From time."                        ),
+SDATA (DTP_STRING,      "to_t",                 SDF_WR|SDF_PERSIST,         0,   "To time."                          ),
+SDATA (DTP_STRING,      "from_rowid",           SDF_WR|SDF_PERSIST,         0,   "From rowid."                       ),
+SDATA (DTP_STRING,      "to_rowid",             SDF_WR|SDF_PERSIST,         0,   "To rowid."                         ),
+SDATA (DTP_STRING,      "user_flag_mask_set",   SDF_WR|SDF_PERSIST,         0,   "Mask of User Flag set."            ),
+SDATA (DTP_STRING,      "user_flag_mask_notset",SDF_WR|SDF_PERSIST,         0,   "Mask of User Flag not set."        ),
+SDATA (DTP_STRING,      "system_flag_mask_set", SDF_WR|SDF_PERSIST,         0,   "Mask of System Flag set."          ),
+SDATA (DTP_STRING,      "system_flag_mask_notset",SDF_WR|SDF_PERSIST,       0,   "Mask of System Flag not set."      ),
+SDATA (DTP_STRING,      "use_very_first",       SDF_WR|SDF_PERSIST,         0,   "Search from the very first record."),
+SDATA (DTP_STRING,      "key",                  SDF_WR|SDF_PERSIST,         0,   "Key."                              ),
+SDATA (DTP_STRING,      "notkey",               SDF_WR|SDF_PERSIST,         0,   "Not key."                          ),
 
-SDATA (ASN_INTEGER,     "timeout",          SDF_RD,                     2*1000,         "Timeout"),
-SDATA (ASN_POINTER,     "user_data",        0,                          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                          0,              "more user data"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,                     2*1000,         "Timeout"),
+SDATA (DTP_POINTER,     "user_data",        0,                          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                          0,              "more user data"),
 SDATA_END()
 };
 
@@ -115,14 +115,14 @@ typedef struct _PRIVATE_DATA {
     uint32_t interval;
     uint32_t window;
     hgobj timer_interval;
-    uint64_t *ptxMsgs;
-    uint64_t *prxMsgs;
+    uint64_t txMsgs;
+    uint64_t rxMsgs;
     hgobj gobj_output_side;
 
     json_t *tranger;
     json_t *htopic;
     json_t *match_cond;
-    md_record_t md_record;
+    md2_record_ex_t md_record;
     uint64_t last_id;
 
 } PRIVATE_DATA;
@@ -144,10 +144,8 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
 
-    priv->timer_interval = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer_interval = gobj_create("", C_TIMER, 0, gobj);
     gobj_write_str_attr(priv->timer_interval, "timeout_event_name", "EV_TICK2SEND");
 
     /*
@@ -219,8 +217,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     if(empty_string(url)) {
         if(agent_client) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "What yuno __input_side__ url?",
@@ -251,8 +248,7 @@ PRIVATE int mt_play(hgobj gobj)
 
     if(empty_string(path)) {
         if(agent_client) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "What TimeRanger path?",
@@ -266,8 +262,7 @@ PRIVATE int mt_play(hgobj gobj)
     }
     if(empty_string(database)) {
         if(agent_client) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "What Database?",
@@ -282,8 +277,7 @@ PRIVATE int mt_play(hgobj gobj)
     }
     if(empty_string(topic)) {
         if(agent_client) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "What Topic?",
@@ -408,8 +402,7 @@ PRIVATE int mt_play(hgobj gobj)
     );
     priv->tranger = tranger_startup(jn_tranger);
     if(agent_client) {
-        log_error(LOG_OPT_EXIT_ZERO,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "tranger_startup() FAILED",
@@ -433,8 +426,7 @@ PRIVATE int mt_play(hgobj gobj)
         FALSE
     );
     if(agent_client) {
-        log_error(LOG_OPT_EXIT_ZERO,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "tranger_open_topic() FAILED",
@@ -493,7 +485,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -509,11 +501,11 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_write_interval(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *interval_ = kw_get_str(kw, "interval", "1000", 0);
+    const char *interval_ = kw_get_str(gobj, kw, "interval", "1000", 0);
     gobj_write_uint32_attr(gobj, "interval", atoi(interval_));
     gobj_save_persistent_attrs(gobj, 0);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("interval: %d", priv->interval),
@@ -529,11 +521,11 @@ PRIVATE json_t *cmd_write_interval(hgobj gobj, const char *cmd, json_t *kw, hgob
 PRIVATE json_t *cmd_write_window(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    const char *window_ = kw_get_str(kw, "window", "1", 0);
+    const char *window_ = kw_get_str(gobj, kw, "window", "1", 0);
     gobj_write_uint32_attr(gobj, "window", atoi(window_));
     gobj_save_persistent_attrs(gobj, 0);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("window: %d", priv->window),
@@ -550,7 +542,7 @@ PRIVATE json_t *cmd_read_parameters(hgobj gobj, const char *cmd, json_t *kw, hgo
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         json_sprintf("window: %d\ninterval: %d\nlast_id: %"PRIu64"",
@@ -652,7 +644,7 @@ PRIVATE int list_topics(const char *path, const char *database)
  *
  ***************************************************************************/
 PRIVATE char bin[64*1024];
-GBUFFER *get_next_frame(hgobj gobj, BOOL *empty_frame)
+gbuffer_t *get_next_frame(hgobj gobj, BOOL *empty_frame)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL end = FALSE;
@@ -686,7 +678,7 @@ GBUFFER *get_next_frame(hgobj gobj, BOOL *empty_frame)
                 &priv->md_record
             );
             if(jn_record) {
-                const char *frame = kw_get_str(jn_record, "frame64", "", KW_REQUIRED);
+                const char *frame = kw_get_str(gobj, jn_record, "frame64", "", KW_REQUIRED);
                 size_t len = strlen(frame);
                 if(len == 0) {
                     if(first_time) {
@@ -706,8 +698,8 @@ GBUFFER *get_next_frame(hgobj gobj, BOOL *empty_frame)
                 }
                 len = b64_decode(frame, (uint8_t *)bin, sizeof(bin));
                 frame = bin;
-                GBUFFER *gbuf = gbuf_create(len, len, 0, 0);
-                gbuf_append(gbuf, (void *)frame, len);
+                gbuffer_t *gbuf = gbuffer_create(len, len, 0, 0);
+                gbuffer_append(gbuf, (void *)frame, len);
 
                 json_decref(jn_record);
                 return gbuf;
@@ -738,7 +730,7 @@ PRIVATE int send_gps_msgs(hgobj gobj, hgobj channel_gobj)
         /*
          *  Envia el mensaje al destino
          */
-        GBUFFER *gbuf = 0;
+        gbuffer_t *gbuf = 0;
 
         BOOL empty_frame;
         gbuf = get_next_frame(gobj, &empty_frame);
@@ -747,7 +739,7 @@ PRIVATE int send_gps_msgs(hgobj gobj, hgobj channel_gobj)
                 if(gobj_trace_level(gobj) & TRACE_INFO) {
                     info_msg0("Droping connection");
                 }
-                gobj_send_event(channel_gobj, "EV_DROP", 0, gobj);
+                gobj_send_event(channel_gobj, EV_DROP, 0, gobj);
                 return 0;
             }
             return -1;
@@ -762,10 +754,9 @@ PRIVATE int send_gps_msgs(hgobj gobj, hgobj channel_gobj)
         json_t *kw_tx = json_pack("{s:I}",
             "gbuffer", (json_int_t)(size_t)gbuf
         );
-        gobj_send_event(channel_gobj, "EV_SEND_MESSAGE", kw_tx, gobj);
+        gobj_send_event(channel_gobj, EV_SEND_MESSAGE, kw_tx, gobj);
 
-        (*priv->ptxMsgs)++;
-        gobj_incr_qs(QS_TXMSGS, 1);
+        priv->txMsgs++;
     }
 
     return 0;
@@ -802,7 +793,7 @@ PRIVATE int emulate_gps_msgs(hgobj gobj)
         // WARNING realmente estamos considerando una única conexión (channel)
         clear_timeout(priv->timer_interval);
     }
-    rc_free_iter(iter, TRUE, 0);
+    gobj_free_iter(iter, TRUE, 0);
     return ret;
 }
 
@@ -840,16 +831,15 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             size_t len = strlen(frame);
             len = b64_decode(frame, (uint8_t *)bin, sizeof(bin));
             frame = bin;
-            GBUFFER *gbuf = gbuf_create(len, len, 0, 0);
-            gbuf_append(gbuf, (void *)frame, len);
+            gbuffer_t *gbuf = gbuffer_create(len, len, 0, 0);
+            gbuffer_append(gbuf, (void *)frame, len);
 
             json_t *kw_tx = json_pack("{s:I}",
                 "gbuffer", (json_int_t)(size_t)gbuf
             );
-            gobj_send_event(src, "EV_SEND_MESSAGE", kw_tx, gobj);
+            gobj_send_event(src, EV_SEND_MESSAGE, kw_tx, gobj);
 
-            (*priv->ptxMsgs)++;
-            gobj_incr_qs(QS_TXMSGS, 1);
+            priv->txMsgs++;
         }
 
         if(emulate_gps_msgs(gobj)>0) {
@@ -904,12 +894,12 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE const EVENT input_events[] = {
     // top input
-    {"EV_ON_MESSAGE",       0,  0,  0},
+    {EV_ON_MESSAGE,       0,  0,  0},
     {"EV_TICK2SEND",        0,  0,  0},
-    {"EV_ON_OPEN",          0,  0,  0},
-    {"EV_ON_CLOSE",         0,  0,  0},
+    {EV_ON_OPEN,          0,  0,  0},
+    {EV_ON_CLOSE,         0,  0,  0},
     // bottom input
-    {"EV_STOPPED",          0,  0,  0},
+    {EV_STOPPED,          0,  0,  0},
     // internal
     {NULL, 0, 0, 0}
 };
@@ -917,16 +907,16 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, 0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_ON_MESSAGE",           0,                      0},
+    {EV_ON_MESSAGE,           0,                      0},
     {"EV_TICK2SEND",            ac_interval,            0},
-    {"EV_ON_OPEN",              ac_on_open,             0},
-    {"EV_ON_CLOSE",             ac_on_close,            0},
-    {"EV_STOPPED",              ac_stopped,             0},
+    {EV_ON_OPEN,              ac_on_open,             0},
+    {EV_ON_CLOSE,             ac_on_close,            0},
+    {EV_STOPPED,              ac_stopped,             0},
     {0,0,0}
 };
 

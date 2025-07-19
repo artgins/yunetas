@@ -5,30 +5,38 @@
  *          Emulator of device gates
  *
  *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#ifndef _C_EMU_DEVICE_H
-#define _C_EMU_DEVICE_H 1
+#pragma once
 
-#include <yuneta.h>
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
 /***************************************************************
- *              Constants
+ *              FSM
  ***************************************************************/
-#define GCLASS_EMU_DEVICE_NAME "Emu_device"
-#define GCLASS_EMU_DEVICE gclass_emu_device()
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_EMU_DEVICE);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC GCLASS *gclass_emu_device(void);
+PUBLIC int register_c_emu_device(void);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

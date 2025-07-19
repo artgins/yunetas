@@ -47,8 +47,8 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
@@ -56,7 +56,7 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias-------items-------json_fn---------description--*/
-SDATACM (ASN_SCHEMA,    "help",             a_help,     pm_help,    cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,     pm_help,    cmd_help,       "Command's help"),
 SDATA_END()
 };
 
@@ -66,23 +66,23 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name------------flag--------------------default-----description--*/
-SDATA (ASN_OCTET_STR,   "__username__", SDF_RD,                 "",         "Username"),
-SDATA (ASN_OCTET_STR,   "filename_mask",SDF_RD|SDF_REQUIRED,    "%Y-%m",    "System organization of tables (file name format, see strftime())"),
-SDATA (ASN_BOOLEAN,     "master",       SDF_RD,                 TRUE,       "the master is the only that can write"),
-SDATA (ASN_INTEGER,     "xpermission",  SDF_RD,                 02770,      "Use in creation, default 02770"),
-SDATA (ASN_INTEGER,     "rpermission",  SDF_RD,                 0660,       "Use in creation, default 0660"),
-SDATA (ASN_INTEGER,     "exit_on_error",0,                      LOG_OPT_EXIT_ZERO,"exit on error"),
-SDATA (ASN_COUNTER64,   "txMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages transmitted"),
-SDATA (ASN_COUNTER64,   "rxMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages receiveds"),
+SDATA (DTP_STRING,      "__username__", SDF_RD,                 "",         "Username"),
+SDATA (DTP_STRING,      "filename_mask",SDF_RD|SDF_REQUIRED,    "%Y-%m",    "System organization of tables (file name format, see strftime())"),
+SDATA (DTP_BOOLEAN,     "master",       SDF_RD,                 TRUE,       "the master is the only that can write"),
+SDATA (DTP_INTEGER,     "xpermission",  SDF_RD,                 02770,      "Use in creation, default 02770"),
+SDATA (DTP_INTEGER,     "rpermission",  SDF_RD,                 0660,       "Use in creation, default 0660"),
+SDATA (DTP_INTEGER,     "exit_on_error",0,                      LOG_OPT_EXIT_ZERO,"exit on error"),
+SDATA (DTP_INTEGER,     "txMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages receiveds"),
 
-SDATA (ASN_COUNTER64,   "txMsgsec",     SDF_RD|SDF_RSTATS,      0,          "Messages by second"),
-SDATA (ASN_COUNTER64,   "rxMsgsec",     SDF_RD|SDF_RSTATS,      0,          "Messages by second"),
-SDATA (ASN_COUNTER64,   "maxtxMsgsec",  SDF_WR|SDF_RSTATS,      0,          "Max Tx Messages by second"),
-SDATA (ASN_COUNTER64,   "maxrxMsgsec",  SDF_WR|SDF_RSTATS,      0,          "Max Rx Messages by second"),
+SDATA (DTP_INTEGER,     "txMsgsec",     SDF_RD|SDF_RSTATS,      0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",     SDF_RD|SDF_RSTATS,      0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",  SDF_WR|SDF_RSTATS,      0,          "Max Tx Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",  SDF_WR|SDF_RSTATS,      0,          "Max Rx Messages by second"),
 
-SDATA (ASN_INTEGER,     "timeout",      SDF_RD,                 1*1000,     "Timeout"),
-SDATA (ASN_POINTER,     "user_data",    0,                      0,          "user data"),
-SDATA (ASN_POINTER,     "user_data2",   0,                      0,          "more user data"),
+SDATA (DTP_INTEGER,     "timeout",      SDF_RD,                 1*1000,     "Timeout"),
+SDATA (DTP_POINTER,     "user_data",    0,                      0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",   0,                      0,          "more user data"),
 SDATA_END()
 };
 
@@ -110,8 +110,8 @@ typedef struct _PRIVATE_DATA {
 
     int32_t exit_on_error;
 
-    uint64_t *ptxMsgs;
-    uint64_t *prxMsgs;
+    uint64_t txMsgs;
+    uint64_t rxMsgs;
     uint64_t txMsgsec;
     uint64_t rxMsgsec;
 } PRIVATE_DATA;
@@ -137,12 +137,10 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,               gobj_read_int32_attr)
-    SET_PRIV(exit_on_error,             gobj_read_int32_attr)
+    SET_PRIV(timeout,               gobj_read_integer_attr)
+    SET_PRIV(exit_on_error,             gobj_read_integer_attr)
 
-    priv->timer = gobj_create(gobj_name(gobj), GCLASS_TIMER, 0, gobj);
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
+    priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*----------------------------------------*
      *  Check AUTHZS
@@ -167,7 +165,7 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
     if(!is_yuneta) {
-        trace_msg("User or group 'yuneta' is needed to run %s", gobj_yuno_role());
+        gobj_trace_msg(gobj, "User or group 'yuneta' is needed to run %s", gobj_yuno_role());
         printf("User or group 'yuneta' is needed to run %s\n", gobj_yuno_role());
         exit(0);
     }
@@ -180,7 +178,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,         gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -282,7 +280,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -315,7 +313,7 @@ PRIVATE json_t *action_create_table_if_not_exists(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *input_data = gobj_read_json_attr(src, "input_data");
-    json_t *schema_ = kw_get_dict(input_data, "_dba_postgres`schema", 0, KW_REQUIRED);
+    json_t *schema_ = kw_get_dict(gobj, input_data, "_dba_postgres`schema", 0, KW_REQUIRED);
 
     char id[NAME_MAX];
     snprintf(id, sizeof(id), "%s", gobj_name(src));
@@ -345,19 +343,18 @@ PRIVATE json_t *result_create_table_if_not_exists(
     hgobj src // Source is the GCLASS_TASK
 )
 {
-    int result = kw_get_int(kw, "result", -1, KW_REQUIRED);
+    int result = kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
     if(result == 0) {
         KW_DECREF(kw);
         CONTINUE_TASK();
     } else {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_DATABASE_ERROR,
             "msg",          "%s", "Cannot create table",
             NULL
         );
-        log_debug_json(0, kw, "Cannot create table");
+        gobj_trace_json(gobj, kw, "Cannot create table");
         KW_DECREF(kw);
         STOP_TASK();
     }
@@ -376,7 +373,7 @@ PRIVATE json_t *action_add_row(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *input_data = gobj_read_json_attr(src, "input_data");
-    json_t *schema_ = kw_get_dict(input_data, "_dba_postgres`schema", 0, KW_REQUIRED);
+    json_t *schema_ = kw_get_dict(gobj, input_data, "_dba_postgres`schema", 0, KW_REQUIRED);
 
     char id[NAME_MAX];
     snprintf(id, sizeof(id), "%s", gobj_name(src));
@@ -407,11 +404,11 @@ PRIVATE json_t *result_add_row(
     hgobj src // Source is the GCLASS_TASK
 )
 {
-    int result = kw_get_int(kw, "result", -1, KW_REQUIRED);
+    int result = kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
     if(result == 0 || 1) { // Send ack always
         // TODO quito el send ack always? y compruebo tipo de error?
         json_t *input_data = gobj_read_json_attr(src, "input_data");
-        json_t *__temp__ = kw_get_dict_value(input_data, "__temp__", 0, KW_REQUIRED|KW_EXTRACT);
+        json_t *__temp__ = kw_get_dict_value(gobj, input_data, "__temp__", 0, KW_REQUIRED|KW_EXTRACT);
 
         json_t *kw_ack = trq_answer(
             input_data,  // not owned
@@ -426,21 +423,20 @@ PRIVATE json_t *result_add_row(
 
         if(result < 0) {
             char temp[512];
-            const char *comment = kw_get_str(kw, "comment", "", 0);
+            const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
             snprintf(temp, sizeof(temp), "Postgres: cannot add row -> %s", comment);
             char *p = strchr(temp, '\n');
             if(p) {
                 *p = 0;
             }
             left_justify(temp);
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_DATABASE_ERROR,
                 "msg",          "%s", temp,
                 NULL
             );
-            log_debug_json(0, kw, "%s", temp);
+            gobj_trace_json(gobj, kw, "%s", temp);
         }
     }
 
@@ -510,23 +506,23 @@ PRIVATE int send_ack(
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         log_debug_json(LOG_DUMP_OUTPUT, kw_ack,
             "🔄🔄🔄🔄Dba_postgres 👈👈 %"JSON_INTEGER_FORMAT" %s ==> %s",
-            kw_get_int(kw_ack, __MD_TRQ__"`__msg_key__", 0, KW_REQUIRED),
+            kw_get_int(gobj, kw_ack, __MD_TRQ__"`__msg_key__", 0, KW_REQUIRED),
             gobj_short_name(gobj),
             gobj_short_name(priv->gobj_input_side)
         );
     }
 
-    GBUFFER *gbuf = json2gbuf(0, kw_ack, JSON_COMPACT);
+    gbuffer_t *gbuf = json2gbuf(0, kw_ack, JSON_COMPACT);
     json_t *kw_send = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
 
     json_object_set_new(kw_send, "__temp__", __temp__);  // Set the channel
 
-    (*priv->ptxMsgs)++;
+    priv->txMsgs++;
     priv->txMsgsec++;
 
-    return gobj_send_event(priv->gobj_input_side, "EV_SEND_MESSAGE", kw_send, gobj);
+    return gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
 }
 
 /***************************************************************************
@@ -537,32 +533,32 @@ PRIVATE json_t *record2createtable(
     json_t *schema // not owned
 )
 {
-    const char *topic_name = kw_get_str(schema, "id", "", KW_REQUIRED);
-    const char *pkey = kw_get_str(schema, "pkey", "", KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, schema, "id", "", KW_REQUIRED);
+    const char *pkey = kw_get_str(gobj, schema, "pkey", "", KW_REQUIRED);
     // TODO add secondary keys
-    //const char *pkey2s = kw_get_str(schema, "pkey2s", "", KW_REQUIRED);
-    BOOL use_header = kw_get_bool(schema, "use_header", 0, KW_REQUIRED);
+    //const char *pkey2s = kw_get_str(gobj, schema, "pkey2s", "", KW_REQUIRED);
+    BOOL use_header = kw_get_bool(gobj, schema, "use_header", 0, KW_REQUIRED);
 
-    GBUFFER *gbuf = gbuf_create(8*1024, 8*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024, 0, 0);
 
-    gbuf_printf(gbuf,
+    gbuffer_printf(gbuf,
         "CREATE TABLE IF NOT EXISTS %s (",
         topic_name
     );
-    json_t *cols = kw_get_dict(schema, "cols", 0, KW_REQUIRED);
+    json_t *cols = kw_get_dict(gobj, schema, "cols", 0, KW_REQUIRED);
 
     int idx = 0;
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         if(idx > 0) {
-            gbuf_printf(gbuf, "," );
+            gbuffer_printf(gbuf, "," );
         }
-        const char *header = kw_get_str(col, "header", "", KW_REQUIRED);
-        const char *type = kw_get_str(col, "type", "", KW_REQUIRED);
+        const char *header = kw_get_str(gobj, col, "header", "", KW_REQUIRED);
+        const char *type = kw_get_str(gobj, col, "type", "", KW_REQUIRED);
         SWITCHS(type) {
             CASES("str")
             CASES("string")
-                gbuf_printf(gbuf, "%s %s",
+                gbuffer_printf(gbuf, "%s %s",
                     use_header?header:col_name,
                     "text"
                 );
@@ -570,21 +566,21 @@ PRIVATE json_t *record2createtable(
 
             CASES("int")
             CASES("integer")
-                gbuf_printf(gbuf, "%s %s",
+                gbuffer_printf(gbuf, "%s %s",
                     use_header?header:col_name,
                     "bigint"
                 );
                 break;
 
             CASES("time")
-                gbuf_printf(gbuf, "%s %s",
+                gbuffer_printf(gbuf, "%s %s",
                     use_header?header:col_name,
                     "timestamp"
                 );
                 break;
 
             CASES("real")
-                gbuf_printf(gbuf, "%s %s",
+                gbuffer_printf(gbuf, "%s %s",
                     use_header?header:col_name,
                     "double precision"
                 );
@@ -592,15 +588,14 @@ PRIVATE json_t *record2createtable(
 
             CASES("bool")
             CASES("boolean")
-                gbuf_printf(gbuf, "%s %s",
+                gbuffer_printf(gbuf, "%s %s",
                     use_header?header:col_name,
                     "boolean"
                 );
                 break;
 
             DEFAULTS
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_DATABASE_ERROR,
                     "msg",          "%s", "Type header UNKNOWN",
@@ -611,7 +606,7 @@ PRIVATE json_t *record2createtable(
         } SWITCHS_END;
 
         if(strcmp(col_name, pkey)==0) {
-            gbuf_printf(gbuf, " PRIMARY KEY");
+            gbuffer_printf(gbuf, " PRIMARY KEY");
         }
         idx++;
     }
@@ -619,19 +614,19 @@ PRIVATE json_t *record2createtable(
     if(1) {
         // Añade automaticamente campo creacion
         if(idx > 0) {
-            gbuf_printf(gbuf, "," );
+            gbuffer_printf(gbuf, "," );
         }
-        gbuf_printf(gbuf, "__created_at__ TIMESTAMPTZ NOT NULL DEFAULT NOW()");
+        gbuffer_printf(gbuf, "__created_at__ TIMESTAMPTZ NOT NULL DEFAULT NOW()");
     }
 
-    gbuf_printf(gbuf,
+    gbuffer_printf(gbuf,
         ");"
     );
 
-    char *p = gbuf_cur_rd_pointer(gbuf);
+    char *p = gbuffer_cur_rd_pointer(gbuf);
     json_t *jn_query = json_string(p);
 
-    gbuf_decref(gbuf);
+    gbuffer_decref(gbuf);
 
     return jn_query;
 }
@@ -645,61 +640,61 @@ PRIVATE json_t *record2insertsql(
     json_t *record // not owned
 )
 {
-    const char *topic_name = kw_get_str(schema, "id", "", KW_REQUIRED);
-    BOOL use_header = kw_get_bool(schema, "use_header", 0, KW_REQUIRED);
+    const char *topic_name = kw_get_str(gobj, schema, "id", "", KW_REQUIRED);
+    BOOL use_header = kw_get_bool(gobj, schema, "use_header", 0, KW_REQUIRED);
 
-    GBUFFER *gbuf = gbuf_create(32*1024, 32*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(32*1024, 32*1024, 0, 0);
 
-    gbuf_printf(gbuf, "INSERT INTO %s (", topic_name);
+    gbuffer_printf(gbuf, "INSERT INTO %s (", topic_name);
 
-    json_t *cols = kw_get_dict(schema, "cols", 0, KW_REQUIRED);
+    json_t *cols = kw_get_dict(gobj, schema, "cols", 0, KW_REQUIRED);
 
     int idx = 0;
     const char *col_name; json_t *col;
     json_object_foreach(cols, col_name, col) {
         if(idx > 0) {
-            gbuf_printf(gbuf, "," );
+            gbuffer_printf(gbuf, "," );
         }
         if(use_header) {
-            const char *header = kw_get_str(col, "header", "", KW_REQUIRED);
-            gbuf_printf(gbuf, "%s", header);
+            const char *header = kw_get_str(gobj, col, "header", "", KW_REQUIRED);
+            gbuffer_printf(gbuf, "%s", header);
         } else {
-            gbuf_printf(gbuf, "%s", col_name);
+            gbuffer_printf(gbuf, "%s", col_name);
         }
 
         idx++;
     }
 
-    gbuf_printf(gbuf, ") VALUES (");
+    gbuffer_printf(gbuf, ") VALUES (");
 
     idx = 0;
     json_object_foreach(cols, col_name, col) {
         if(idx > 0) {
-            gbuf_printf(gbuf, "," );
+            gbuffer_printf(gbuf, "," );
         }
 
-        const char *type = kw_get_str(col, "type", "", KW_REQUIRED);
+        const char *type = kw_get_str(gobj, col, "type", "", KW_REQUIRED);
         SWITCHS(type) {
             CASES("str")
             CASES("string")
-                json_t *value = kw_get_dict_value(record, col_name, 0, KW_REQUIRED);
+                json_t *value = kw_get_dict_value(gobj, record, col_name, 0, KW_REQUIRED);
                 if(value) {
                     char *s = json2uglystr(value);
                     change_char(s, '"', '\'');
                     // TODO IMPORTANTE char *ss = PQescapeLiteral(priv->conn, s, strlen(s));
-                    gbuf_append_string(gbuf, s);
+                    gbuffer_append_string(gbuf, s);
                     gbmem_free(s);
                 }
                 break;
 
             CASES("int")
             CASES("integer")
-                json_int_t value = kw_get_int(record, col_name, 0, KW_REQUIRED|KW_WILD_NUMBER);
-                gbuf_printf(gbuf, "%"JSON_INTEGER_FORMAT, value);
+                json_int_t value = kw_get_int(gobj, record, col_name, 0, KW_REQUIRED|KW_WILD_NUMBER);
+                gbuffer_printf(gbuf, "%"JSON_INTEGER_FORMAT, value);
                 break;
 
             CASES("time")
-                json_t *value = kw_get_dict_value(record, col_name, 0, KW_REQUIRED);
+                json_t *value = kw_get_dict_value(gobj, record, col_name, 0, KW_REQUIRED);
                 if(value) {
                     char *s = json2uglystr(value);
                     char temp[256];
@@ -709,25 +704,24 @@ PRIVATE json_t *record2insertsql(
                     gbmem_free(s);
 
                     s = gbmem_strdup(temp);
-                    gbuf_append_string(gbuf, s);
+                    gbuffer_append_string(gbuf, s);
                     gbmem_free(s);
                 }
                 break;
 
             CASES("real")
-                double value = kw_get_real(record, col_name, 0, KW_REQUIRED|KW_WILD_NUMBER);
-                gbuf_printf(gbuf, "%f", value);
+                double value = kw_get_real(gobj, record, col_name, 0, KW_REQUIRED|KW_WILD_NUMBER);
+                gbuffer_printf(gbuf, "%f", value);
                 break;
 
             CASES("bool")
             CASES("boolean")
-                BOOL value = kw_get_bool(record, col_name, 0, KW_REQUIRED|KW_WILD_NUMBER);
-                gbuf_printf(gbuf, "%s", value?"TRUE":"FALSE");
+                BOOL value = kw_get_bool(gobj, record, col_name, 0, KW_REQUIRED|KW_WILD_NUMBER);
+                gbuffer_printf(gbuf, "%s", value?"TRUE":"FALSE");
                 break;
 
             DEFAULTS
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_DATABASE_ERROR,
                     "msg",          "%s", "Type header UNKNOWN",
@@ -740,11 +734,11 @@ PRIVATE json_t *record2insertsql(
         idx++;
     }
 
-    gbuf_printf(gbuf, ");");
-    char *p = gbuf_cur_rd_pointer(gbuf);
+    gbuffer_printf(gbuf, ");");
+    char *p = gbuffer_cur_rd_pointer(gbuf);
     json_t *jn_query = json_string(p);
 
-    gbuf_decref(gbuf);
+    gbuffer_decref(gbuf);
 
     return jn_query;
 }
@@ -763,11 +757,10 @@ PRIVATE int process_msg(
     /*-----------------------------*
      *      Build task name
      *-----------------------------*/
-    const char *id = kw_get_str(kw, "id", "", KW_REQUIRED);
-    json_int_t __msg_key__ = kw_get_int(kw, "__md_trq__`__msg_key__", 0, KW_REQUIRED);
+    const char *id = kw_get_str(gobj, kw, "id", "", KW_REQUIRED);
+    json_int_t __msg_key__ = kw_get_int(gobj, kw, "__md_trq__`__msg_key__", 0, KW_REQUIRED);
     if(!__msg_key__) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Not __msg_key__, free queue's msg",
@@ -784,8 +777,7 @@ PRIVATE int process_msg(
      *      Check if exists task
      *-----------------------------*/
     if(gobj_find_unique_gobj(task_name, FALSE)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "task already active",
@@ -844,8 +836,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(src == priv->gobj_input_side) {
 
     } else {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "What fuck from?",
@@ -869,8 +860,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(src == priv->gobj_input_side) {
 
     } else {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "What fuck from?",
@@ -891,28 +881,28 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
 
-    (*priv->prxMsgs)++;
+    priv->rxMsgs++;
     priv->rxMsgsec++;
 
     if(src == priv->gobj_input_side ) {
-        GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
-        gbuf_incref(gbuf);
+        gbuffer_incref(gbuf);
         json_t *jn_msg = gbuf2json(gbuf, 2);
 
         if(jn_msg) {
-            hgobj channel_gobj = (hgobj)(size_t)kw_get_int(kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+            hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
             if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-                log_debug_json(LOG_DUMP_INPUT, jn_msg,
+                gobj_trace_json(gobj, jn_msg,
                         "🔄🔄🔄🔄Dba_postgres 👉👉 %"JSON_INTEGER_FORMAT" %s <== %s <== %s",
-                    kw_get_int(jn_msg, __MD_TRQ__"`__msg_key__", 0, KW_REQUIRED),
+                    kw_get_int(gobj, jn_msg, __MD_TRQ__"`__msg_key__", 0, KW_REQUIRED),
                     gobj_short_name(gobj),
                     gobj_short_name(src),
                     gobj_short_name(channel_gobj)
                 );
             }
 
-            json_t *__temp__ = kw_get_dict_value(kw, "__temp__", 0, KW_REQUIRED|KW_EXTRACT);
+            json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED|KW_EXTRACT);
             json_object_set_new(jn_msg, "__temp__", __temp__);
             process_msg(gobj, jn_msg, src);
             JSON_DECREF(jn_msg);
@@ -921,8 +911,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             ret = -1;
         }
     } else {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "What fuck from?",
@@ -948,15 +937,14 @@ PRIVATE int ac_end_task(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int result = kw_get_int(kw, "result", -1, KW_REQUIRED);
-    int last_job = kw_get_int(kw, "last_job", 0, KW_REQUIRED);
-    const char *comment = kw_get_str(kw, "comment", "", 0);
+    int result = kw_get_int(gobj, kw, "result", -1, KW_REQUIRED);
+    int last_job = kw_get_int(gobj, kw, "last_job", 0, KW_REQUIRED);
+    const char *comment = kw_get_str(gobj, kw, "comment", "", 0);
 
     switch(result) {
         case -1:
             // Error from some task action
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
                 "msg",          "%s", "Task End with error",
@@ -965,12 +953,11 @@ PRIVATE int ac_end_task(
                 "src",          "%s", gobj_full_name(src),
                 NULL
             );
-            log_debug_json(0, kw, "Task End with error");
+            gobj_trace_json(gobj, kw, "Task End with error");
             break;
         case -2:
             // Error from task manager: timeout, incomplete task
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
                 "msg",          "%s", "Task End by timeout",
@@ -979,7 +966,7 @@ PRIVATE int ac_end_task(
                 "src",          "%s", gobj_full_name(src),
                 NULL
             );
-            log_debug_json(0, kw, "Task End by timeout");
+            gobj_trace_json(gobj, kw, "Task End by timeout");
 
             json_t *kw_clear = json_object();
             json_object_set_new(kw_clear, "id", json_string(gobj_name(src)));
@@ -1002,17 +989,17 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint64_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
-    uint64_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
+    uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+    uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
     if(priv->txMsgsec > maxtxMsgsec) {
-        gobj_write_uint64_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
+        gobj_write_integer_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
     }
     if(priv->rxMsgsec > maxrxMsgsec) {
-        gobj_write_uint64_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
+        gobj_write_integer_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
     }
 
-    gobj_write_uint64_attr(gobj, "txMsgsec", priv->txMsgsec);
-    gobj_write_uint64_attr(gobj, "rxMsgsec", priv->rxMsgsec);
+    gobj_write_integer_attr(gobj, "txMsgsec", priv->txMsgsec);
+    gobj_write_integer_attr(gobj, "rxMsgsec", priv->rxMsgsec);
 
     priv->rxMsgsec = 0;
     priv->txMsgsec = 0;
@@ -1026,15 +1013,15 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE const EVENT input_events[] = {
     // top input
-    {"EV_ON_MESSAGE",       0,  0,  0},
+    {EV_ON_MESSAGE,       0,  0,  0},
     {"EV_END_TASK",         0,  0,  0},
 //     {"EV_LIST_TRACKS",      EVF_PUBLIC_EVENT,  0,  0},
 
-    {"EV_ON_OPEN",          0,  0,  0},
-    {"EV_ON_CLOSE",         0,  0,  0},
+    {EV_ON_OPEN,          0,  0,  0},
+    {EV_ON_CLOSE,         0,  0,  0},
     // bottom input
-    {"EV_TIMEOUT",          0,  0,  0},
-    {"EV_STOPPED",          0,  0,  0},
+    {EV_TIMEOUT,          0,  0,  0},
+    {EV_STOPPED,          0,  0,  0},
     // internal
     {NULL, 0, 0, ""}
 };
@@ -1042,17 +1029,17 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, ""}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_ON_MESSAGE",       ac_on_message,      0},
-    {"EV_ON_OPEN",          ac_on_open,         0},
-    {"EV_ON_CLOSE",         ac_on_close,        0},
+    {EV_ON_MESSAGE,       ac_on_message,      0},
+    {EV_ON_OPEN,          ac_on_open,         0},
+    {EV_ON_CLOSE,         ac_on_close,        0},
     {"EV_END_TASK",         ac_end_task,        0},
-    {"EV_TIMEOUT",          ac_timeout,         0},
-    {"EV_STOPPED",          0,                  0},
+    {EV_TIMEOUT,          ac_timeout,         0},
+    {EV_STOPPED,          0,                  0},
     {0,0,0}
 };
 

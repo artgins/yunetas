@@ -65,19 +65,19 @@ PRIVATE int on_handle_socket(
  ***************************************************************************/
 PRIVATE sdata_desc_t easyTb_it[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description----------*/
-SDATA (ASN_POINTER,     "easyCurl",         0,                          0,              "easy curl object"),
-SDATA (ASN_POINTER,     "gobj",             0,                          0,              "curl gobj"),
-SDATA (ASN_OCTET_STR,   "url",              0,                          0,              "request url"),
-SDATA (ASN_POINTER,     "dst_gobj",         0,                          0,              "destination gobj"),
-SDATA (ASN_OCTET_STR,   "dst_event",        0,                          "EV_RESPONSE",  "destination event"),
-SDATA (ASN_POINTER,     "dst_gbuffer",      0,                          0,              "destination gbuffer"),
-SDATA (ASN_POINTER,     "src_gbuffer",      0,                          0,              "source gbuffer"),
-SDATA (ASN_INTEGER,     "mail_id",          0,                          0,              "mail id currently processing"),
-SDATA (ASN_OCTET_STR,   "mail_ref",         0,                          0,              "mail reference currently processing"),
-SDATA (ASN_BOOLEAN,     "cleanup",          0,                          0,              "True when curl_easy_cleanup is done"),
-SDATA (ASN_OCTET_STR,   "where",            0,                          0,              "write response to 'where' file"),
-SDATA (ASN_POINTER,     "fd",               0,                          0,              "FILE descriptor if using 'where'"),
-SDATA (ASN_POINTER,     "user_reference",   0,                          0,              "User reference"),
+SDATA (DTP_POINTER,     "easyCurl",         0,                          0,              "easy curl object"),
+SDATA (DTP_POINTER,     "gobj",             0,                          0,              "curl gobj"),
+SDATA (DTP_STRING,      "url",              0,                          0,              "request url"),
+SDATA (DTP_POINTER,     "dst_gobj",         0,                          0,              "destination gobj"),
+SDATA (DTP_STRING,      "dst_event",        0,                          "EV_RESPONSE",  "destination event"),
+SDATA (DTP_POINTER,     "dst_gbuffer",      0,                          0,              "destination gbuffer"),
+SDATA (DTP_POINTER,     "src_gbuffer",      0,                          0,              "source gbuffer"),
+SDATA (DTP_INTEGER,     "mail_id",          0,                          0,              "mail id currently processing"),
+SDATA (DTP_STRING,      "mail_ref",         0,                          0,              "mail reference currently processing"),
+SDATA (DTP_BOOLEAN,     "cleanup",          0,                          0,              "True when curl_easy_cleanup is done"),
+SDATA (DTP_STRING,      "where",            0,                          0,              "write response to 'where' file"),
+SDATA (DTP_POINTER,     "fd",               0,                          0,              "FILE descriptor if using 'where'"),
+SDATA (DTP_POINTER,     "user_reference",   0,                          0,              "User reference"),
 
 SDATA_END()
 };
@@ -90,14 +90,14 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATADB (ASN_ITER,      "easyTb",           0,                          easyTb_it,      sdata_destroy,   "Curl Easy table"),
 
 /*-ATTR-type------------name----------------flag------------------------default---------description----------*/
-SDATA (ASN_OCTET_STR,   "lHost",            SDF_RD,                     0,              "local ip"),
-SDATA (ASN_OCTET_STR,   "lPort",            SDF_RD,                     0,              "local port"),
-SDATA (ASN_OCTET_STR,   "peername",         SDF_RD,                     0,              "Peername"),
-SDATA (ASN_OCTET_STR,   "sockname",         SDF_RD,                     0,              "Sockname"),
+SDATA (DTP_STRING,      "lHost",            SDF_RD,                     0,              "local ip"),
+SDATA (DTP_STRING,      "lPort",            SDF_RD,                     0,              "local port"),
+SDATA (DTP_STRING,      "peername",         SDF_RD,                     0,              "Peername"),
+SDATA (DTP_STRING,      "sockname",         SDF_RD,                     0,              "Sockname"),
 
-SDATA (ASN_POINTER,     "user_data",        0,                          0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                          0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                          0,              "subscriber of output-events. Default if null is parent."),
+SDATA (DTP_POINTER,     "user_data",        0,                          0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                          0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                          0,              "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
 
@@ -149,7 +149,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     dl_init(&priv->dl_uv_polls);
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
     priv->easyTb = gobj_read_iter_attr(gobj, "easyTb");
 
     /*
@@ -204,7 +204,7 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
 
-    //rc_free_iter(priv->easyTb, FALSE, sdata_destroy);
+    //gobj_free_iter(priv->easyTb, FALSE, sdata_destroy);
 
     rc_resource_t *sd_easy; rc_instance_t *resource_i;
     while((resource_i=rc_first_instance(priv->easyTb, &sd_easy))) {
@@ -257,7 +257,7 @@ static void encodeblock( unsigned char *in, unsigned char *out, int len )
 **
 ** base64 encode a stream adding padding and line breaks as per spec.
 */
-PRIVATE int encode(hgobj gobj, FILE *infile, GBUFFER *gbuf, int linesize )
+PRIVATE int encode(hgobj gobj, FILE *infile, gbuffer_t *gbuf, int linesize )
 {
     //PRIVATE_DATA *priv = gobj_priv_data(gobj);
     unsigned char in[3];
@@ -282,12 +282,11 @@ PRIVATE int encode(hgobj gobj, FILE *infile, GBUFFER *gbuf, int linesize )
         if( len > 0 ) {
             encodeblock( in, out, len );
             for( i = 0; i < 4; i++ ) {
-                if(gbuf_append(gbuf, &out[i], 1) != 1) {
-                    log_error(0,
-                        "gobj",         "%s", gobj_full_name(gobj),
+                if(gbuffer_append(gbuf, &out[i], 1) != 1) {
+                    gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                        "msg",          "%s", "gbuf_append() FAILED",
+                        "msg",          "%s", "gbuffer_append() FAILED",
                         NULL
                     );
                     retcode = -1;
@@ -298,7 +297,7 @@ PRIVATE int encode(hgobj gobj, FILE *infile, GBUFFER *gbuf, int linesize )
         }
         if( blocksout >= (linesize/4) || feof( infile ) != 0 ) {
             if( blocksout > 0 ) {
-                gbuf_append(gbuf, "\n", 1);
+                gbuffer_append(gbuf, "\n", 1);
             }
             blocksout = 0;
         }
@@ -409,8 +408,7 @@ PRIVATE int _curl_global_init(hgobj gobj)
             gbmem_calloc        //curl_calloc_callback
         );
         if(ret) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBCURL_ERROR,
                 "msg",          "%s", "curl__curl_global_init() FAILED",
@@ -440,15 +438,15 @@ PRIVATE int _curl_global_cleanup(hgobj gobj)
  ***************************************************************************/
 PRIVATE int clean_sd_easy(hgobj gobj, hsdata sd_easy)
 {
-    GBUFFER *gbuf = sdata_read_pointer(sd_easy, "src_gbuffer");
+    gbuffer_t *gbuf = sdata_read_pointer(sd_easy, "src_gbuffer");
     if(gbuf) {
         sdata_write_pointer(sd_easy, "src_gbuffer", 0);
-        gbuf_decref(gbuf);
+        gbuffer_decref(gbuf);
     }
     gbuf = sdata_read_pointer(sd_easy, "dst_gbuffer");
     if(gbuf) {
         sdata_write_pointer(sd_easy, "dst_gbuffer", 0);
-        gbuf_decref(gbuf);
+        gbuffer_decref(gbuf);
     }
     return 0;
 }
@@ -491,8 +489,7 @@ PRIVATE int send_response(hgobj gobj, hsdata sd_easy, int result)
     );
     sdata_write_pointer(sd_easy, "dst_gbuffer", 0);
     if(result) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBCURL_ERROR,
             "result",       "%d", result,
@@ -513,8 +510,7 @@ PRIVATE void curl_perform(uv_poll_t *uv_poll, int status, int events)
 {
     dl_uv_poll_t *poll_item = uv_poll->data;
     if(!poll_item) {
-        log_error(0,
-            "gobj",         "%s", __FILE__,
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "poll_item NULL",
@@ -532,8 +528,7 @@ PRIVATE void curl_perform(uv_poll_t *uv_poll, int status, int events)
     if (events & UV_WRITABLE) flags |= CURL_CSELECT_OUT;
     if(status) {
         flags |= CURL_CSELECT_ERR;
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "uv_poll FAILED",
@@ -560,8 +555,7 @@ PRIVATE void curl_perform(uv_poll_t *uv_poll, int status, int events)
             sd_easy = 0;
             int ret = curl_easy_getinfo(handle, CURLINFO_PRIVATE, &sd_easy);
             if(ret) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_LIBCURL_ERROR,
                     "msg",          "%s", "curl_easy_getinfo() FAILED",
@@ -595,8 +589,7 @@ PRIVATE void curl_perform(uv_poll_t *uv_poll, int status, int events)
             break;
 
         default:
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_LIBCURL_ERROR,
                 "msg",          "%s", "curl_multi_info_read BAD RETURN",
@@ -621,8 +614,7 @@ PRIVATE int on_handle_socket(
     hsdata sd_easy= 0;
     int ret = curl_easy_getinfo(easy, CURLINFO_PRIVATE, &sd_easy);
     if(ret) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBCURL_ERROR,
             "msg",          "%s", "curl_easy_getinfo() FAILED",
@@ -631,8 +623,7 @@ PRIVATE int on_handle_socket(
         );
     }
     if(!sd_easy) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBCURL_ERROR,
             "msg",          "%s", "sd_easy NULL",
@@ -646,8 +637,7 @@ PRIVATE int on_handle_socket(
         poll_item = new_uv_poll(gobj, sd_easy, s);
     }
     if(!poll_item) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "uv_poll MUST NOT BE NULL",
@@ -693,12 +683,12 @@ PRIVATE size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userda
 {
     hsdata sd_easy = userdata;
 
-    GBUFFER *gbuf = sdata_read_pointer(sd_easy, "dst_gbuffer");
+    gbuffer_t *gbuf = sdata_read_pointer(sd_easy, "dst_gbuffer");
     if(!gbuf) {
-        gbuf = gbuf_create(8*1024, 128*1024, 0, 0);
+        gbuf = gbuffer_create(8*1024, 128*1024, 0, 0);
         sdata_write_pointer(sd_easy, "dst_gbuffer", gbuf);
     }
-    gbuf_append(gbuf, ptr, size*nmemb);
+    gbuffer_append(gbuf, ptr, size*nmemb);
     return size*nmemb;
 }
 
@@ -712,10 +702,10 @@ PRIVATE size_t read_callback(char *buffer, size_t size, size_t nitems, void *ins
     if((size == 0) || (nitems == 0) || ((size*nitems) < 1)) {
         return 0;
     }
-    GBUFFER *gbuf = sdata_read_pointer(sd_easy, "src_gbuffer");
-    int len = MIN(size*nitems, gbuf_chunk(gbuf));
+    gbuffer_t *gbuf = sdata_read_pointer(sd_easy, "src_gbuffer");
+    int len = MIN(size*nitems, gbuffer_chunk(gbuf));
     if(len > 0) {
-        memmove(buffer, gbuf_get(gbuf, len), len);
+        memmove(buffer, gbuffer_get(gbuf, len), len);
     }
     return len;
 }
@@ -739,9 +729,9 @@ PRIVATE size_t read_callback(char *buffer, size_t size, size_t nitems, void *ins
 // };
  *
  ***************************************************************************/
-PRIVATE GBUFFER *build_email(
+PRIVATE gbuffer_t *build_email(
     hgobj gobj,
-    GBUFFER *gbuf, // not owned
+    gbuffer_t *gbuf, // not owned
     const char *from,
     const char *from_beatiful,
     const char *to,
@@ -754,50 +744,50 @@ PRIVATE GBUFFER *build_email(
 )
 {
     off_t file_size = 0;
-    size_t len = gbuf_leftbytes(gbuf);
+    size_t len = gbuffer_leftbytes(gbuf);
     if(!empty_string(attachment)) {
         file_size = get_file_size(attachment);
     }
     len += 4*1024;
-    GBUFFER *new_gbuf = gbuf_create(len, len, file_size>0?(len+file_size*4):0, 0);
+    gbuffer_t *new_gbuf = gbuffer_create(len, len, file_size>0?(len+file_size*4):0, 0);
 
-    gbuf_printf(new_gbuf, "To: %s\r\n", to);
+    gbuffer_printf(new_gbuf, "To: %s\r\n", to);
     if(!empty_string(from_beatiful)) {
-        gbuf_printf(new_gbuf, "From: %s\r\n", from_beatiful);
+        gbuffer_printf(new_gbuf, "From: %s\r\n", from_beatiful);
     } else {
-        gbuf_printf(new_gbuf, "From: %s\r\n", from);
+        gbuffer_printf(new_gbuf, "From: %s\r\n", from);
     }
     if(!empty_string(cc)) {
-        gbuf_printf(new_gbuf, "Cc: %s\r\n", cc);
+        gbuffer_printf(new_gbuf, "Cc: %s\r\n", cc);
     }
     if(!empty_string(reply_to)) {
-        gbuf_printf(new_gbuf, "Reply-To: %s\r\n", reply_to);
+        gbuffer_printf(new_gbuf, "Reply-To: %s\r\n", reply_to);
     }
-    gbuf_printf(new_gbuf, "Subject: %s\r\n", subject);
-    gbuf_printf(new_gbuf, "MIME-Version: 1.0\r\n");
-    gbuf_printf(new_gbuf, "Content-Type: multipart/mixed;\r\n");
-    gbuf_printf(new_gbuf, " boundary=\"------------030203080101020302070708\"\r\n");
-    gbuf_printf(new_gbuf, "\r\nThis is a multi-part message in MIME format.\r\n");
-    gbuf_printf(new_gbuf, "--------------030203080101020302070708\r\n");
+    gbuffer_printf(new_gbuf, "Subject: %s\r\n", subject);
+    gbuffer_printf(new_gbuf, "MIME-Version: 1.0\r\n");
+    gbuffer_printf(new_gbuf, "Content-Type: multipart/mixed;\r\n");
+    gbuffer_printf(new_gbuf, " boundary=\"------------030203080101020302070708\"\r\n");
+    gbuffer_printf(new_gbuf, "\r\nThis is a multi-part message in MIME format.\r\n");
+    gbuffer_printf(new_gbuf, "--------------030203080101020302070708\r\n");
 
-    gbuf_printf(new_gbuf, "Content-Type: text/html; charset=UTF-8\r\n");
-//         gbuf_printf(new_gbuf, "Content-Type: text/plain; charset=UTF-8; format=Flowed\r\n");
-//         gbuf_printf(new_gbuf, "Content-Transfer-Encoding: 8bit\r\n");
+    gbuffer_printf(new_gbuf, "Content-Type: text/html; charset=UTF-8\r\n");
+//         gbuffer_printf(new_gbuf, "Content-Type: text/plain; charset=UTF-8; format=Flowed\r\n");
+//         gbuffer_printf(new_gbuf, "Content-Transfer-Encoding: 8bit\r\n");
 
     /*
      *  Mark the body
      */
-    gbuf_append(new_gbuf, "\r\n", 2);
+    gbuffer_append(new_gbuf, "\r\n", 2);
     /*
      *  Now the body
      */
     if(is_html) {
-        gbuf_append_gbuf(new_gbuf, gbuf);
-        gbuf_append(new_gbuf, "\r\n", 2);
+        gbuffer_append_gbuf(new_gbuf, gbuf);
+        gbuffer_append(new_gbuf, "\r\n", 2);
     } else {
-        gbuf_append_string(new_gbuf, "<html><body><pre>\r\n");
-        gbuf_append_gbuf(new_gbuf, gbuf);
-        gbuf_append_string(new_gbuf, "</pre></body></html>\r\n");
+        gbuffer_append_string(new_gbuf, "<html><body><pre>\r\n");
+        gbuffer_append_gbuf(new_gbuf, gbuf);
+        gbuffer_append_string(new_gbuf, "</pre></body></html>\r\n");
     }
 
     /*
@@ -806,23 +796,23 @@ PRIVATE GBUFFER *build_email(
     if(file_size) {
         FILE *infile = fopen(attachment, "rb");
         if(infile) {
-            gbuf_printf(new_gbuf, "\r\n--------------030203080101020302070708\r\n");
+            gbuffer_printf(new_gbuf, "\r\n--------------030203080101020302070708\r\n");
             char *filename = basename(attachment);
 
-            gbuf_printf(new_gbuf, "Content-Type: text/plain; name=\"%s\"\r\n", filename);
-            gbuf_printf(new_gbuf, "Content-Transfer-Encoding: base64\r\n");
+            gbuffer_printf(new_gbuf, "Content-Type: text/plain; name=\"%s\"\r\n", filename);
+            gbuffer_printf(new_gbuf, "Content-Transfer-Encoding: base64\r\n");
             if(!empty_string(inline_file_id)) {
-                gbuf_printf(new_gbuf, "Content-ID: <%s>\r\n", inline_file_id);
-                gbuf_printf(new_gbuf, "Content-Disposition: inline; filename=\"%s\"\r\n", filename);
+                gbuffer_printf(new_gbuf, "Content-ID: <%s>\r\n", inline_file_id);
+                gbuffer_printf(new_gbuf, "Content-Disposition: inline; filename=\"%s\"\r\n", filename);
             } else {
-                gbuf_printf(new_gbuf, "Content-Disposition: attachment; filename=\"%s\"\r\n", filename);
+                gbuffer_printf(new_gbuf, "Content-Disposition: attachment; filename=\"%s\"\r\n", filename);
             }
-            gbuf_printf(new_gbuf, "\r\n");
+            gbuffer_printf(new_gbuf, "\r\n");
 
             /* File content here */
             encode(gobj, infile, new_gbuf, 72);
 
-            gbuf_printf(new_gbuf, "\r\n--------------030203080101020302070708--\r\n");
+            gbuffer_printf(new_gbuf, "\r\n--------------030203080101020302070708--\r\n");
         }
     }
 
@@ -845,27 +835,26 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *url = kw_get_str(kw, "url", "", 0);
-    const char *where = kw_get_str(kw, "where", "", 0);
-    const char *username = kw_get_str(kw, "username", "", 0);
-    const char *password = kw_get_str(kw, "password", "", 0);
-    const char *command = kw_get_str(kw, "command", "", 0);
-    const char *dst_event = kw_get_str(kw, "dst_event", "", 0);
-    void * user_reference = (void *)(size_t)kw_get_int(kw, "user_reference", 0, 0);
+    const char *url = kw_get_str(gobj, kw, "url", "", 0);
+    const char *where = kw_get_str(gobj, kw, "where", "", 0);
+    const char *username = kw_get_str(gobj, kw, "username", "", 0);
+    const char *password = kw_get_str(gobj, kw, "password", "", 0);
+    const char *command = kw_get_str(gobj, kw, "command", "", 0);
+    const char *dst_event = kw_get_str(gobj, kw, "dst_event", "", 0);
+    void * user_reference = (void *)(size_t)kw_get_int(gobj, kw, "user_reference", 0, 0);
 
     /*
      *  mail_id only for RETR & DELE
      */
-    int mail_id = kw_get_int(kw, "mail_id", 0, FALSE);
+    int mail_id = kw_get_int(gobj, kw, "mail_id", 0, FALSE);
     /*
      *  mail_ref only for SEND
      */
-    const char *mail_ref = kw_get_str(kw, "mail_ref", "", 0);
+    const char *mail_ref = kw_get_str(gobj, kw, "mail_ref", "", 0);
 
     CURL *handle = curl_easy_init();
     if(!handle) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBCURL_ERROR,
             "msg",          "%s", "curl_easy_init() FAILED",
@@ -880,8 +869,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const sdata_desc_t *schema = gobj_read_iter_schema(gobj, "easyTb");
     hsdata sd_easy = sdata_create(schema, gobj, 0, 0, 0, "easyTb");
     if(!sd_easy) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBCURL_ERROR,
             "msg",          "%s", "table_create_row() FAILED",
@@ -908,8 +896,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     int ret = curl_easy_setopt(handle, CURLOPT_PRIVATE, sd_easy);
     if(ret) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBCURL_ERROR,
             "msg",          "%s", "curl_easy_setopt() FAILED",
@@ -946,8 +933,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     } else if(strcmp(command, "RETR")==0) {
         if(mail_id < 1) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "mail_id WRONG",
@@ -964,8 +950,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     } else if(strcmp(command, "DELE")==0) {
         if(mail_id < 1) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "mail_id WRONG",
@@ -983,10 +968,9 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, "DELE");
 
     } else if(strcmp(command, "SEND")==0) {
-        const char *from = kw_get_str(kw, "from", 0, 0);
+        const char *from = kw_get_str(gobj, kw, "from", 0, 0);
         if(empty_string(from)) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "email FROM is NULL",
@@ -996,8 +980,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         curl_easy_setopt(handle, CURLOPT_MAIL_FROM, from);
 
         if(priv->recipients) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "recipients MUST BE NULL",
@@ -1007,11 +990,10 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             curl_slist_free_all(priv->recipients);
             priv->recipients = 0;
         }
-        const char *cc = kw_get_str(kw, "cc", 0, 0);
-        const char *to = kw_get_str(kw, "to", 0, 0);
+        const char *cc = kw_get_str(gobj, kw, "cc", 0, 0);
+        const char *to = kw_get_str(gobj, kw, "to", 0, 0);
         if(empty_string(to)) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "email TO is NULL",
@@ -1063,14 +1045,14 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         // TODO V568 It's odd that 'sizeof()' operator evaluates the size of a pointer to a class, but not the size of the 'priv->recipients' class object.
         curl_easy_setopt(handle, CURLOPT_MAIL_RCPT, priv->recipients);
 
-        const char *from_beatiful = kw_get_str(kw, "from_beatiful", 0, 0);
-        const char *subject = kw_get_str(kw, "subject", 0, 0);
-        const char *reply_to = kw_get_str(kw, "reply_to", 0, 0);
-        BOOL is_html = kw_get_bool(kw, "is_html", 0, 0);
-        GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
-        const char *attachment = kw_get_str(kw, "attachment", 0, 0);
-        const char *inline_file_id = kw_get_str(kw, "inline_file_id", 0, 0);
-        GBUFFER *src_gbuffer = build_email(
+        const char *from_beatiful = kw_get_str(gobj, kw, "from_beatiful", 0, 0);
+        const char *subject = kw_get_str(gobj, kw, "subject", 0, 0);
+        const char *reply_to = kw_get_str(gobj, kw, "reply_to", 0, 0);
+        BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        const char *attachment = kw_get_str(gobj, kw, "attachment", 0, 0);
+        const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
+        gbuffer_t *src_gbuffer = build_email(
             gobj,
             gbuf,
             from,
@@ -1084,11 +1066,11 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             inline_file_id
         );
 
-        curl_off_t uploadsize = gbuf_leftbytes(src_gbuffer);
+        curl_off_t uploadsize = gbuffer_leftbytes(src_gbuffer);
         curl_easy_setopt(handle, CURLOPT_INFILESIZE_LARGE, uploadsize);
         sdata_write_pointer(sd_easy, "src_gbuffer", src_gbuffer);
 
-        const char *url = kw_get_str(kw, "url", 0, 0);
+        const char *url = kw_get_str(gobj, kw, "url", 0, 0);
         curl_easy_setopt(handle, CURLOPT_URL, url);
         curl_easy_setopt(handle, CURLOPT_UPLOAD, 1L);
 
@@ -1096,8 +1078,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         curl_easy_setopt(handle, CURLOPT_URL, url);
 
     } else {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "command UNKNOWN",
@@ -1122,7 +1103,7 @@ PRIVATE int ac_drop_request(hgobj gobj, const char *event, json_t *kw, hgobj src
     /*
      *  Cleanup easy query
      */
-    hsdata sd_easy = (hsdata)(size_t)kw_get_int(kw, "sd_easy", 0, FALSE);
+    hsdata sd_easy = (hsdata)(size_t)kw_get_int(gobj, kw, "sd_easy", 0, FALSE);
     CURL *easy = sdata_read_pointer(sd_easy, "easyCurl");
     curl_multi_remove_handle(priv->curl_handle, easy);
     BOOL cleanup = sdata_read_bool(sd_easy, "cleanup");
@@ -1178,8 +1159,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 PRIVATE const EVENT input_events[] = {
     {"EV_CURL_COMMAND",     0},
     {"EV_DROP_REQUEST",     0},
-    {"EV_TIMEOUT",          0},
-    {"EV_STOPPED",          0},
+    {EV_TIMEOUT,          0},
+    {EV_STOPPED,          0},
     {NULL, 0}
 };
 PRIVATE const EVENT output_events[] = {
@@ -1187,15 +1168,15 @@ PRIVATE const EVENT output_events[] = {
     {NULL,                  0}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
     {"EV_CURL_COMMAND",     ac_command,             0},
     {"EV_DROP_REQUEST",     ac_drop_request,        0},
-    {"EV_TIMEOUT",          ac_timeout,             0},
-    {"EV_STOPPED",          ac_stopped,             0},
+    {EV_TIMEOUT,          ac_timeout,             0},
+    {EV_STOPPED,          ac_stopped,             0},
     {0,0,0}
 };
 

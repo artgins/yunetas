@@ -36,8 +36,8 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help."),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help."),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
@@ -45,7 +45,7 @@ PRIVATE const char *a_help[] = {"h", "?", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD---type-----------name----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM (ASN_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM (DTP_SCHEMA,    "help",             a_help,             pm_help,        cmd_help,       "Command's help"),
 SDATA_END()
 };
 
@@ -55,18 +55,18 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
-SDATA (ASN_OCTET_STR,   "input_url",        SDF_WR|SDF_PERSIST, 0,          "input_side url"),
-SDATA (ASN_OCTET_STR,   "output_url",       SDF_WR|SDF_PERSIST, 0,          "output_side url"),
-SDATA (ASN_COUNTER64,   "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
-SDATA (ASN_COUNTER64,   "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
+SDATA (DTP_STRING,      "input_url",        SDF_WR|SDF_PERSIST, 0,          "input_side url"),
+SDATA (DTP_STRING,      "output_url",       SDF_WR|SDF_PERSIST, 0,          "output_side url"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD|SDF_RSTATS,  0,          "Messages receiveds"),
 
-SDATA (ASN_COUNTER64,   "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (ASN_COUNTER64,   "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
-SDATA (ASN_COUNTER64,   "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Messages by second"),
-SDATA (ASN_COUNTER64,   "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Messages by second"),
-SDATA (ASN_INTEGER,     "timeout",          SDF_RD,             1*1000,     "Timeout"),
-SDATA (ASN_POINTER,     "user_data",        0,                  0,          "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,          "more user data"),
+SDATA (DTP_INTEGER,     "txMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "rxMsgsec",         SDF_RD|SDF_RSTATS,  0,          "Messages by second"),
+SDATA (DTP_INTEGER,     "maxtxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_INTEGER,     "maxrxMsgsec",      SDF_WR|SDF_RSTATS,  0,          "Max Messages by second"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,             1*1000,     "Timeout"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA_END()
 };
 
@@ -93,8 +93,8 @@ typedef struct _PRIVATE_DATA {
     BOOL input_side_opened;
     BOOL output_side_opened;
 
-    uint64_t *ptxMsgs;
-    uint64_t *prxMsgs;
+    uint64_t txMsgs;
+    uint64_t rxMsgs;
     uint64_t txMsgsec;
     uint64_t rxMsgsec;
 
@@ -117,9 +117,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create(gobj_name(gobj), GCLASS_TIMER, 0, gobj);
-    priv->ptxMsgs = gobj_danger_attr_ptr(gobj, "txMsgs");
-    priv->prxMsgs = gobj_danger_attr_ptr(gobj, "rxMsgs");
+    priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
 
     create_input_side(gobj);
     create_output_side(gobj);
@@ -128,7 +126,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timeout,               gobj_read_int32_attr)
+    SET_PRIV(timeout,               gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -138,7 +136,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout,             gobj_read_int32_attr)
+    IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -193,8 +191,7 @@ PRIVATE int mt_play(hgobj gobj)
     const char *output_url = gobj_read_str_attr(gobj, "output_url");
 
     if(empty_string(input_url)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "What yuno input url?",
@@ -207,8 +204,7 @@ PRIVATE int mt_play(hgobj gobj)
     }
 
     if(empty_string(output_url)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "What yuno output url?",
@@ -259,7 +255,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -481,30 +477,27 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
-    (*priv->prxMsgs)++;
-    gobj_incr_qs(QS_RXMSGS, 1);
+    priv->rxMsgs++;
 
     if(src == priv->gobj_input_side) {
-        gbuf_incref(gbuf);
+        gbuffer_incref(gbuf);
         json_t *kw_send = json_pack("{s:I}",
             "gbuffer", (json_int_t)(size_t)gbuf
         );
-        gobj_send_event(priv->gobj_output_side, "EV_SEND_MESSAGE", kw_send, gobj);
+        gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
 
-        (*priv->ptxMsgs)++;
-        gobj_incr_qs(QS_TXMSGS, 1);
+        priv->txMsgs++;
 
     } else if (src == priv->gobj_output_side) {
-        gbuf_incref(gbuf);
+        gbuffer_incref(gbuf);
         json_t *kw_send = json_pack("{s:I}",
             "gbuffer", (json_int_t)(size_t)gbuf
         );
-        gobj_send_event(priv->gobj_input_side, "EV_SEND_MESSAGE", kw_send, gobj);
+        gobj_send_event(priv->gobj_input_side, EV_SEND_MESSAGE, kw_send, gobj);
 
-        (*priv->ptxMsgs)++;
-        gobj_incr_qs(QS_TXMSGS, 1);
+        priv->txMsgs++;
     }
 
     KW_DECREF(kw);
@@ -518,17 +511,17 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uint64_t maxtxMsgsec = gobj_read_uint64_attr(gobj, "maxtxMsgsec");
-    uint64_t maxrxMsgsec = gobj_read_uint64_attr(gobj, "maxrxMsgsec");
+    uint64_t maxtxMsgsec = gobj_read_integer_attr(gobj, "maxtxMsgsec");
+    uint64_t maxrxMsgsec = gobj_read_integer_attr(gobj, "maxrxMsgsec");
     if(priv->txMsgsec > maxtxMsgsec) {
-        gobj_write_uint64_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
+        gobj_write_integer_attr(gobj, "maxtxMsgsec", priv->txMsgsec);
     }
     if(priv->rxMsgsec > maxrxMsgsec) {
-        gobj_write_uint64_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
+        gobj_write_integer_attr(gobj, "maxrxMsgsec", priv->rxMsgsec);
     }
 
-    gobj_write_uint64_attr(gobj, "txMsgsec", priv->txMsgsec);
-    gobj_write_uint64_attr(gobj, "rxMsgsec", priv->rxMsgsec);
+    gobj_write_integer_attr(gobj, "txMsgsec", priv->txMsgsec);
+    gobj_write_integer_attr(gobj, "rxMsgsec", priv->rxMsgsec);
 
     priv->rxMsgsec = 0;
     priv->txMsgsec = 0;
@@ -542,12 +535,12 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE const EVENT input_events[] = {
     // top input
-    {"EV_ON_MESSAGE",       0,  0,  0},
-    {"EV_ON_OPEN",          0,  0,  0},
-    {"EV_ON_CLOSE",         0,  0,  0},
+    {EV_ON_MESSAGE,       0,  0,  0},
+    {EV_ON_OPEN,          0,  0,  0},
+    {EV_ON_CLOSE,         0,  0,  0},
     // bottom input
-    {"EV_TIMEOUT",      0,  0,  ""},
-    {"EV_STOPPED",      0,  0,  ""},
+    {EV_TIMEOUT,      0,  0,  ""},
+    {EV_STOPPED,      0,  0,  ""},
     // internal
     {NULL, 0, 0, ""}
 };
@@ -555,16 +548,16 @@ PRIVATE const EVENT output_events[] = {
     {NULL, 0, 0, ""}
 };
 PRIVATE const char *state_names[] = {
-    "ST_IDLE",
+    ST_IDLE,
     NULL
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_ON_MESSAGE",           ac_on_message,          0},
-    {"EV_ON_OPEN",              ac_on_open,             0},
-    {"EV_ON_CLOSE",             ac_on_close,            0},
-    {"EV_TIMEOUT",              ac_timeout,             0},
-    {"EV_STOPPED",              0,                      0},
+    {EV_ON_MESSAGE,           ac_on_message,          0},
+    {EV_ON_OPEN,              ac_on_open,             0},
+    {EV_ON_CLOSE,             ac_on_close,            0},
+    {EV_TIMEOUT,              ac_timeout,             0},
+    {EV_STOPPED,              0,                      0},
     {0,0,0}
 };
 

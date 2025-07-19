@@ -5,70 +5,37 @@
  *          Yuneta Agent22, the first authority of realms and yunos in a host
  *
  *          Copyright (c) 2022 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yuneta.h>
-#include "c_pty.h"
-
-/**rst**
-
-.. _agent22-gclass:
-
-**"Agent22"** :ref:`GClass`
-===========================
-
-Description
-===========
-
-Yuneta Agent22, the first authority of realms and yunos in a host
-
-Events
-======
-
-Input Events
-------------
-
-Order
-^^^^^
-
-Request
-^^^^^^^
-
-Output Events
--------------
-
-Response
-^^^^^^^^
-
-Unsolicited
-^^^^^^^^^^^
-
-Macros
-======
-
-``GCLASS_AGENT22_NAME``
-   Macro of the gclass string name, i.e **"Agent22"**.
-
-``GCLASS_AGENT22``
-   Macro of the :func:`gclass_agent22()` function.
-
-
-**rst**/
+#include <yunetas.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
-/**rst**
-   Return a pointer to the :ref:`GCLASS` struct defining the :ref:`agent22-gclass`.
-**rst**/
-PUBLIC GCLASS *gclass_agent22(void);
+/***************************************************************
+ *              FSM
+ ***************************************************************/
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DECLARE_GCLASS(C_AGENT22);
 
-#define GCLASS_AGENT22_NAME "Agent22"
-#define GCLASS_AGENT22 gclass_agent22()
+/*------------------------*
+ *      States
+ *------------------------*/
 
+/*------------------------*
+ *      Events
+ *------------------------*/
+
+/***************************************************************
+ *              Prototypes
+ ***************************************************************/
+PUBLIC int register_c_agent22(void);
 
 #ifdef __cplusplus
 }
