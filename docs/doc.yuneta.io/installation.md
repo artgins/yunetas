@@ -30,6 +30,15 @@ This project is licensed under the MIT License, except for the following files:
 - [openresty](https://openresty.org/) BSD 2-Clause, BSD 3-Clause, MIT, OpenSSL, Zlib, SSLeay
 
 
+## Create environment
+
+Firstly you must create the user/group `yuneta` and the directory `/yuneta`.
+
+    sudo adduser yuneta
+    sudo mkdir /yuneta
+    sudo chown yuneta:yuneta /yuneta
+
+Re-enter with the user yuneta
 
 ## Install system dependencies
 
