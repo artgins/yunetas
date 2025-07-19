@@ -314,14 +314,6 @@ PUBLIC yev_event_h yev_create_timer_event(
     hgobj gobj
 );
 
-PUBLIC yev_event_h yev_create_inotify_event(
-    yev_loop_h yev_loop,
-    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
-    hgobj gobj,
-    int fd,
-    gbuffer_t *gbuf
-);
-
 PUBLIC yev_event_h yev_create_connect_event( // create the socket to connect in yev_event->fd
     yev_loop_h yev_loop,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
