@@ -19,6 +19,7 @@
 #include <limits.h>
 #include <pwd.h>
 
+#include <run_command.h>
 #include "c_editline.h"
 #include "c_ycommand.h"
 
@@ -1432,7 +1433,7 @@ PRIVATE int edit_json(hgobj gobj, const char *path)
     char command[PATH_MAX];
     snprintf(command, sizeof(command), "%s %s", editor, path);
 
-    // TODO return pty_sync_spawn(command);
+    return pty_sync_spawn(command);
 }
 
 /***************************************************************************

@@ -68,6 +68,7 @@ extern "C"{
 #include <ydaemon.h>
 #include <yunetas_environment.h>
 #include <yev_loop.h>
+#include <run_command.h>
 #include <yunetas_register.h>
 
 #include <fs_watcher.h>
