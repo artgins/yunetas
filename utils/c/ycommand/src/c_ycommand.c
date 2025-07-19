@@ -481,6 +481,8 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     BOOL to_wait_stopped = FALSE;
 
     if(gobj_current_state(gobj)==ST_STOPPED) {
+        gobj_set_exit_code(-1);
+        gobj_shutdown();
         return;
     }
 
@@ -1602,7 +1604,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *kw_input_command = json_object();
-    gobj_send_event(src, EV_GETTEXT, kw_input_command, gobj); // EV_GETTEXT is EVF_KW_WRITING
+    gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // EV_GETTEXT is EVF_KW_WRITING
     const char *command = kw_get_str(gobj, kw_input_command, "text", 0, 0);
 
     if(empty_string(command)) {
@@ -2222,10 +2224,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_stopped[] = {
+        {EV_ON_CLOSE,               ac_on_close,            0},
         {0,0,0}
     };
 
     ev_action_t st_wait_stopped[] = {
+        {EV_ON_CLOSE,               ac_on_close,            0},
         {0,0,0}
     };
 
