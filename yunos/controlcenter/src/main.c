@@ -20,6 +20,12 @@
 #define APP_SUPPORT     "<support at artgins.com>"
 #define APP_DATETIME    __DATE__ " " __TIME__
 
+#define USE_OWN_SYSTEM_MEMORY   FALSE
+#define MEM_MIN_BLOCK           512
+#define MEM_MAX_BLOCK           (200*1024*1024L)     // 200*M
+#define MEM_SUPERBLOCK          (200*1024*1024L)     // 200*M
+#define MEM_MAX_SYSTEM_MEMORY   (2*1024*1024*1024L)    // 2*G
+
 /***************************************************************************
  *                      Default config
  ***************************************************************************/
@@ -37,12 +43,6 @@ PRIVATE char fixed_config[]= "\
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
-        'use_system_memory': true,                                  \n\
-        'log_gbmem_info': true,                                     \n\
-        'MEM_MIN_BLOCK': 512,                                       \n\
-        'MEM_MAX_BLOCK': 209715200,             #^^  200*M          \n\
-        'MEM_SUPERBLOCK': 209715200,            #^^  200*M          \n\
-        'MEM_MAX_SYSTEM_MEMORY': 2147483648,    #^^ 2*G             \n\
         'console_log_handlers': {                                   \n\
             'to_stdout': {                                          \n\
                 'handler_type': 'stdout',                           \n\
@@ -156,35 +156,17 @@ static int register_yuno_and_more(void)
 int main(int argc, char *argv[])
 {
     /*------------------------------------------------*
-     *  To trace memory
+     *      To check memory loss
      *------------------------------------------------*/
-#ifdef CONFIG_BUILD_TYPE_RELEASE
-    static uint32_t mem_list[] = {16336, 0};
-    gbmem_trace_alloc_free(0, mem_list);
-#endif
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
+    set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
-     *          Traces
+     *      To check
      *------------------------------------------------*/
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);  // Avoid timer trace, too much information
-
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
-
-// Samples
-//     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
-//     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
-//     gobj_set_gclass_trace(GCLASS_CONTROLCENTER, "messages", TRUE);
-
-//     gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
-//     gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
-//     gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
-//     gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-//     gobj_set_gobj_trace(0, "machine", TRUE, 0);
-//     gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-//     gobj_set_gobj_trace(0, "libuv", TRUE, 0);
-
-    //set_auto_kill_time(5);
+    // gobj_set_deep_tracing(1);
+    // set_auto_kill_time(6);
+    // set_measure_times(-1 & ~YEV_TIMER_TYPE);
 
     /*------------------------------------------------*
      *          Start yuneta
@@ -192,22 +174,23 @@ int main(int argc, char *argv[])
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
     yuneta_setup(
-        dbattrs_startup,            // dbsimple2
-        dbattrs_end,                // dbsimple2
-        dbattrs_load_persistent,    // dbsimple2
-        dbattrs_save_persistent,    // dbsimple2
-        dbattrs_remove_persistent,  // dbsimple2
-        dbattrs_list_persistent,    // dbsimple2
-        command_parser,
-        stats_parser,
-        authz_checker,              // Monoclass Authz
-        authenticate_parser         // Monoclass Authz
+        NULL,       // persistent_attrs, default internal dbsimple
+        NULL,       // command_parser, default internal command_parser
+        NULL,       // stats_parser, default internal stats_parser
+        NULL,       // authz_checker, default Monoclass C_AUTHZ
+        NULL,       // authenticate_parser, default Monoclass C_AUTHZ
+        MEM_MAX_BLOCK,
+        MEM_MAX_SYSTEM_MEMORY,
+        USE_OWN_SYSTEM_MEMORY,
+        MEM_MIN_BLOCK,
+        MEM_SUPERBLOCK
     );
     return yuneta_entry_point(
         argc, argv,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
         variable_config,
-        register_yuno_and_more
+        register_yuno_and_more,
+        NULL
     );
 }
