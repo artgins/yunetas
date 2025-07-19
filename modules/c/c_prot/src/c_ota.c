@@ -274,7 +274,7 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_stop(priv->gobj_timer);
+    clear_timeout(priv->gobj_timer);
     return 0;
 }
 

@@ -89,7 +89,6 @@ PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void tty_reset_mode(void);
 PRIVATE int tty_init(hgobj gobj);
-PRIVATE void do_close(hgobj gobj);
 PRIVATE int cmd_connect(hgobj gobj);
 PRIVATE int do_command(hgobj gobj, const char *command);
 PRIVATE int clear_input_line(hgobj gobj);
@@ -163,6 +162,7 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_connector;
     hgobj timer;
     hgobj gobj_editline;
+    hgobj gobj_remote_agent;
 
     yev_event_h yev_reading;
 
@@ -343,11 +343,10 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // try_to_stop_yevents(gobj);
+    try_to_stop_yevents(gobj);
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
 
-    do_close(gobj);
     gobj_stop_tree(gobj);
 
     return 0;
@@ -448,6 +447,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             NULL
                         );
                     }
+                    gobj_shutdown();
                 }
             }
             break;
@@ -524,6 +524,8 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
         gobj_change_state(gobj, ST_STOPPED);
+        gobj_set_exit_code(-1);
+        gobj_shutdown();
     }
 }
 
@@ -775,13 +777,13 @@ PRIVATE int cmd_connect(hgobj gobj)
         );
     }
 
-    hgobj gobj_remote_agent = gobj_create_tree(
+    priv->gobj_remote_agent = gobj_create_tree(
         gobj,
         agent_config,
         jn_config_variables
     );
 
-    gobj_start_tree(gobj_remote_agent);
+    gobj_start_tree(priv->gobj_remote_agent);
 
     if(priv->verbose || priv->interactive) {
         printf("Connecting to %s...\n", url);
@@ -1018,38 +1020,6 @@ skip:
     }
 
     return fd;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void do_close(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->tty_fd != -1) {
-        close(priv->tty_fd);
-        priv->tty_fd = -1;
-    }
-
-    // if(!priv->uv_handler_active) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-    //         "msg",          "%s", "UV handler NOT ACTIVE!",
-    //         NULL
-    //     );
-    //     return;
-    // }
-    // if(priv->uv_read_active) {
-    //     uv_read_stop((uv_stream_t *)&priv->uv_tty);
-    //     priv->uv_read_active = 0;
-    // }
-    //
-    // if(gobj_trace_level(gobj) & TRACE_UV) {
-    //     gobj_trace_msg(gobj, ">>> uv_close tty p=%p", &priv->uv_tty);
-    // }
-    // uv_close((uv_handle_t *)&priv->uv_tty, on_close_cb);
 }
 
 /***************************************************************************
@@ -1592,8 +1562,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         if(empty_string(command)) {
             printf("What command?\n");
-            gobj_set_exit_code(-1);
-            gobj_shutdown();
+            gobj_stop(priv->gobj_remote_agent);
         } else {
             do_command(gobj, command);
         }

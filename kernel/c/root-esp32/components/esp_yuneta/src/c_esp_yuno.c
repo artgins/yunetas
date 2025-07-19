@@ -592,8 +592,7 @@ PRIVATE int mt_stop(hgobj gobj)
      *  When yuno stops, it's the death of the app
      */
     clear_timeout(priv->gobj_timer);
-    gobj_stop(priv->gobj_timer);
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
 
 #ifdef ESP_PLATFORM
     esp_event_post_to(

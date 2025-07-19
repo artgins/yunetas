@@ -576,7 +576,6 @@ PRIVATE int mt_stop(hgobj gobj)
     ISTREAM_DESTROY(priv->istream_head);
 
     clear_timeout(priv->gobj_timer);
-    gobj_stop(priv->gobj_timer);
 
     JSON_DECREF(priv->jn_request_queue);
     JSON_DECREF(priv->jn_current_request);

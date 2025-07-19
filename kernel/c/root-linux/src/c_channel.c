@@ -138,6 +138,10 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(gobj_bottom && gobj_is_running(gobj_bottom)) {
+        gobj_stop(gobj_bottom);
+    }
     return 0;
 }
 
