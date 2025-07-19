@@ -12,7 +12,6 @@
 #include <sys/wait.h>
 #include <pty.h>
 #include <fcntl.h>
-#include <sys/ioctl.h>
 #include <string.h>
 #include <errno.h>
 #include <stdio.h>
@@ -85,9 +84,9 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-// PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-// PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf);
-// PRIVATE void on_close_cb(uv_handle_t* handle);
+PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
+PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void tty_reset_mode(void);
 PRIVATE int tty_init(hgobj gobj);
 PRIVATE void do_close(hgobj gobj);
@@ -159,13 +158,13 @@ typedef struct _PRIVATE_DATA {
     int32_t verbose;
     int32_t interactive;
     uint32_t wait;
-    // TODO uv_tty_t uv_tty;
     int tty_fd;
     struct termios orig_termios;
     hgobj gobj_connector;
     hgobj timer;
     hgobj gobj_editline;
-    // TODO grow_buffer_t bfinput;
+
+    yev_event_h yev_reading;
 
     BOOL on_mirror_tty;
     char mirror_tty_name[NAME_MAX];
@@ -232,9 +231,9 @@ PRIVATE void mt_create(hgobj gobj)
         "cy", winsz.ws_row
     );
 
-    priv->gobj_editline = gobj_create("", C_EDITLINE, kw_editline, gobj);
+    priv->gobj_editline = gobj_create_pure_child("", C_EDITLINE, kw_editline, gobj);
+    priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
 
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
@@ -263,6 +262,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
     /*
      *  Free data
      */
@@ -292,8 +292,32 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-    // priv->uv_read_active = 1;
-    // uv_read_start((uv_stream_t*)&priv->uv_tty, on_alloc_cb, on_read_cb);
+    /*-------------------------------*
+     *      Setup reading event
+     *-------------------------------*/
+    json_int_t rx_buffer_size = 1024;
+    if(!priv->yev_reading) {
+        priv->yev_reading = yev_create_read_event(
+            yuno_event_loop(),
+            yev_callback,
+            gobj,
+            priv->tty_fd,
+            gbuffer_create(rx_buffer_size, rx_buffer_size)
+        );
+    }
+
+    if(priv->yev_reading) {
+        yev_set_fd(priv->yev_reading, priv->tty_fd);
+
+        if(!yev_get_gbuf(priv->yev_reading)) {
+            yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
+        } else {
+            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+        }
+
+        yev_start_event(priv->yev_reading);
+    }
+
 
     gobj_start(priv->gobj_editline);
 
@@ -318,9 +342,8 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // uv_tty_set_mode(&priv->uv_tty, UV_TTY_MODE_NORMAL);
-    // uv_tty_reset_mode();
 
+    // try_to_stop_yevents(gobj);
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
 
@@ -339,6 +362,283 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int yev_callback(yev_event_h yev_event)
+{
+    if(!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return 0;
+    }
+
+    hgobj gobj = yev_get_gobj(yev_event);
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    int trace = trace_level & TRACE_URING;
+    if(trace) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "TCP 🌐🌐💥 yev callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
+            "flag",         "%j", jn_flags,
+            "p",            "%p", yev_event,
+            "fd",           "%d", yev_get_fd(yev_event),
+            "gbuffer",      "%p", yev_get_gbuf(yev_event),
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
+    yev_state_t yev_state = yev_get_state(yev_event);
+
+    switch(yev_get_type(yev_event)) {
+        case YEV_READ_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
+                     */
+                    int ret = 0;
+
+                    ret = on_read_cb(gobj, yev_get_gbuf(yev_event));
+
+                    /*
+                     *  Clear buffer, re-arm read
+                     *  Check ret is 0 because the EV_RX_DATA could provoke
+                     *      stop or destroy of gobj
+                     *      or order to disconnect (EV_DROP)
+                     *  If try_to_stop_yevents() has been called (mt_stop, EV_DROP,...)
+                     *      this event will be in stopped state.
+                     *  If it's in idle then re-arm
+                     */
+                    if(ret == 0 && yev_event_is_idle(yev_event)) {
+                        gbuffer_clear(yev_get_gbuf(yev_event));
+                        yev_start_event(yev_event);
+                    }
+
+                } else {
+                    /*
+                     *  Disconnected
+                     */
+                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+
+                    if(trace) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "TCP: read FAILED",
+                            "msg2",         "%s", "🌐TCP: read FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
+                            NULL
+                        );
+                    }
+                }
+            }
+            break;
+
+        default:
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "TCP: event type NOT IMPLEMENTED",
+                "msg2",         "%s", "🌐TCP: event type NOT IMPLEMENTED",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                "p",            "%p", yev_event,
+                NULL
+            );
+            break;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
+ *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
+ ***************************************************************************/
+PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL to_wait_stopped = FALSE;
+
+    if(gobj_current_state(gobj)==ST_STOPPED) {
+        return;
+    }
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_URING) {
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "try_to_stop_yevents",
+            "msg2",         "%s", "🟥🟥 try_to_stop_yevents",
+            NULL
+        );
+    }
+
+    if(priv->tty_fd > 0) {
+        if(trace_level & TRACE_URING) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "close socket fd_clisrv",
+                "msg2",         "%s", "💥🟥 close socket fd_clisrv",
+                "fd",           "%d", priv->tty_fd ,
+                NULL
+            );
+        }
+
+        close(priv->tty_fd);
+        priv->tty_fd = -1;
+    }
+
+    if(priv->yev_reading) {
+        if(!yev_event_is_stopped(priv->yev_reading)) {
+            yev_stop_event(priv->yev_reading);
+            if(!yev_event_is_stopped(priv->yev_reading)) {
+                to_wait_stopped = TRUE;
+            }
+        }
+    }
+
+    if(to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
+    } else {
+        gobj_change_state(gobj, ST_STOPPED);
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE struct keytable_s *event_by_key(uint8_t kb[8])
+{
+    for(int i=0; keytable[i].event!=0; i++) {
+        if(memcmp(kb, keytable[i].keycode, strlen((const char *)keytable[i].keycode))==0) {
+            return &keytable[i];
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int process_key(hgobj gobj, uint8_t kb)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(kb >= 0x20 && kb <= 0x7f) {
+        json_t *kw_char = json_pack("{s:i}",
+            "char", kb
+        );
+        gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  on read callback
+ ***************************************************************************/
+PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t nread = gbuffer_leftbytes(gbuf);
+    char *base = gbuffer_cur_rd_pointer(gbuf);
+
+    if(nread == 0) {
+        // Yes, sometimes arrive with nread 0.
+        return 0;
+    }
+
+    if(base[0] == 3) {
+        if(!priv->on_mirror_tty) {
+            gobj_shutdown();
+            return -1;
+        }
+    }
+    if(nread > 8) {
+        // It's must be the mouse cursor
+        char *p = strchr(base+1, 0x1B);
+        if(p) {
+            *p = 0;
+            nread = (int)(p - base);
+            if(gobj_trace_level(gobj) & (TRACE_KB)) {
+                gobj_trace_dump(
+                    gobj,
+                    base,
+                    nread,
+                    "REDUCE!"
+                );
+            }
+        }
+    }
+    uint8_t b[8];
+    memset(b, 0, sizeof(b));
+    memmove(b, base, MIN(8, nread));
+
+    do {
+        if(priv->on_mirror_tty) {
+            hgobj gobj_cmd = gobj_read_pointer_attr(gobj, "gobj_connector");
+
+            gbuffer_t *gbuf = gbuffer_create(nread, nread);
+            gbuffer_append(gbuf, base, nread);
+            gbuffer_t *gbuf_content64 = gbuffer_encode_base64(gbuf);
+            char *content64 = gbuffer_cur_rd_pointer(gbuf_content64);
+
+            json_t *kw_command = json_pack("{s:s, s:s, s:s}",
+                "name", priv->mirror_tty_name,
+                "agent_id", priv->mirror_tty_uuid,
+                "content64", content64
+            );
+
+            json_decref(gobj_command(gobj_cmd, "write-tty", kw_command, gobj));
+
+            GBUFFER_DECREF(gbuf_content64);
+            break;
+        }
+
+        struct keytable_s *kt = event_by_key(b);
+        if(kt) {
+            const char *dst = kt->dst_gobj;
+            const char *event = kt->event;
+
+            if(strcmp(dst, "editline")==0) {
+                gobj_send_event(priv->gobj_editline, event, 0, gobj);
+            } else {
+                gobj_send_event(gobj, event, 0, gobj);
+            }
+        } else {
+            for(int i=0; i<nread; i++) {
+                process_key(gobj, base[i]);
+            }
+        }
+
+    } while(0);
+
+    return 0;
+}
 
 /*****************************************************************
  *
@@ -488,173 +788,6 @@ PRIVATE int cmd_connect(hgobj gobj)
     }
     return 0;
 }
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE struct keytable_s *event_by_key(uint8_t kb[8])
-{
-    for(int i=0; keytable[i].event!=0; i++) {
-        if(memcmp(kb, keytable[i].keycode, strlen((const char *)keytable[i].keycode))==0) {
-            return &keytable[i];
-        }
-    }
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int process_key(hgobj gobj, uint8_t kb)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(kb >= 0x20 && kb <= 0x7f) {
-        json_t *kw_char = json_pack("{s:i}",
-            "char", kb
-        );
-        gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *  on alloc callback
- ***************************************************************************/
-// PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf)
-// {
-//     hgobj gobj = handle->data;
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     growbf_ensure_size(&priv->bfinput, suggested_size);
-//     buf->base = priv->bfinput.bf;
-//     buf->len = priv->bfinput.allocated;
-// }
-
-/***************************************************************************
- *  on read callback
- ***************************************************************************/
-// PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
-// {
-//     hgobj gobj = stream->data;
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     if(gobj_trace_level(gobj) & TRACE_UV) {
-//         gobj_trace_msg(gobj, "<<< on_read_cb %d tty p=%p",
-//             (int)nread,
-//             &priv->uv_tty
-//         );
-//     }
-//
-//     if(nread < 0) {
-//         if(nread == UV_ECONNRESET) {
-//             gobj_log_info(gobj, 0,
-//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//                 "msg",          "%s", "Connection Reset",
-//                 NULL
-//             );
-//         } else if(nread == UV_EOF) {
-//             gobj_log_info(gobj, 0,
-//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//                 "msg",          "%s", "EOF",
-//                 NULL
-//             );
-//         } else {
-//             gobj_log_error(gobj, 0,
-//                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
-//                 "msg",          "%s", "read FAILED",
-//                 "uv_error",     "%s", uv_err_name(nread),
-//                 NULL
-//             );
-//         }
-//         if(gobj_is_running(gobj)) {
-//             gobj_stop(gobj); // auto-stop
-//         }
-//         return;
-//     }
-//
-//     if(nread == 0) {
-//         // Yes, sometimes arrive with nread 0.
-//         return;
-//     }
-//
-//     if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
-//         gobj_trace_dump(gobj,
-//             0,
-//             buf->base,
-//             nread,
-//             "on_read_cb"
-//         );
-//     }
-//
-//     if(buf->base[0] == 3) {
-//         if(!priv->on_mirror_tty) {
-//             gobj_shutdown();
-//             return;
-//         }
-//     }
-//     if(nread > 8) {
-//         // It's must be the mouse cursor
-//         char *p = strchr(buf->base+1, 0x1B);
-//         if(p) {
-//             *p = 0;
-//             nread = (int)(p - buf->base);
-//             if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
-//                 gobj_trace_dump(gobj,
-//                     0,
-//                     buf->base,
-//                     nread,
-//                     "REDUCE!"
-//                 );
-//             }
-//         }
-//     }
-//     uint8_t b[8];
-//     memset(b, 0, sizeof(b));
-//     memmove(b, buf->base, MIN(8, nread));
-//
-//     do {
-//
-//         if(priv->on_mirror_tty) {
-//             hgobj gobj_cmd = gobj_read_pointer_attr(gobj, "gobj_connector");
-//
-//             gbuffer_t *gbuf = gbuffer_create(nread, nread, 0, 0);
-//             gbuffer_append(gbuf, buf->base, nread);
-//             gbuffer_t *gbuf_content64 = gbuffer_encode_base64(gbuf);
-//             char *content64 = gbuffer_cur_rd_pointer(gbuf_content64);
-//
-//             json_t *kw_command = json_pack("{s:s, s:s, s:s}",
-//                 "name", priv->mirror_tty_name,
-//                 "agent_id", priv->mirror_tty_uuid,
-//                 "content64", content64
-//             );
-//
-//             json_decref(gobj_command(gobj_cmd, "write-tty", kw_command, gobj));
-//
-//             GBUFFER_DECREF(gbuf_content64);
-//             break;
-//         }
-//
-//         struct keytable_s *kt = event_by_key(b);
-//         if(kt) {
-//             const char *dst = kt->dst_gobj;
-//             const char *event = kt->event;
-//
-//             if(strcmp(dst, "editline")==0) {
-//                 gobj_send_event(priv->gobj_editline, event, 0, gobj);
-//             } else {
-//                 gobj_send_event(gobj, event, 0, gobj);
-//             }
-//         } else {
-//             for(int i=0; i<nread; i++) {
-//                 process_key(gobj, buf->base[i]);
-//             }
-//         }
-//
-//     } while(0);
-// }
 
 /***************************************************************************
  *  Code copied from libuv
@@ -1486,8 +1619,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         printf("\nDisconnected.\n");
     }
 
-    gobj_set_exit_code(-1);
-    gobj_shutdown();
+    try_to_stop_yevents(gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -2120,6 +2252,14 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*------------------------*
      *      States
      *------------------------*/
+    ev_action_t st_stopped[] = {
+        {0,0,0}
+    };
+
+    ev_action_t st_wait_stopped[] = {
+        {0,0,0}
+    };
+
     ev_action_t st_disconnected[] = {
         {EV_ON_TOKEN,               ac_on_token,            0},
         {EV_ON_OPEN,                ac_on_open,             ST_CONNECTED},
@@ -2130,35 +2270,37 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     ev_action_t st_connected[] = {
-        {EV_COMMAND,              ac_command,             0},
-        {EV_MT_COMMAND_ANSWER,    ac_command_answer,      0},
-        {EV_MT_STATS_ANSWER,      ac_command_answer,      0},
-        {EV_EDIT_CONFIG,          ac_edit_config,         0},
-        {EV_VIEW_CONFIG,          ac_view_config,         0},
-        {EV_EDIT_YUNO_CONFIG,     ac_edit_config,         0},
-        {EV_VIEW_YUNO_CONFIG,     ac_view_config,         0},
-        {EV_READ_JSON,            ac_read_json,           0},
-        {EV_READ_FILE,            ac_read_file,           0},
-        {EV_READ_BINARY_FILE,     ac_read_binary_file,    0},
-        {EV_TTY_OPEN,             ac_tty_mirror_open,     0},
-        {EV_TTY_CLOSE,            ac_tty_mirror_close,    0},
-        {EV_TTY_DATA,             ac_tty_mirror_data,     0},
-        {EV_CLRSCR,               ac_screen_ctrl,         0},
-        {EV_SCROLL_PAGE_UP,       ac_screen_ctrl,         0},
-        {EV_SCROLL_PAGE_DOWN,     ac_screen_ctrl,         0},
-        {EV_SCROLL_LINE_UP,       ac_screen_ctrl,         0},
-        {EV_SCROLL_LINE_DOWN,     ac_screen_ctrl,         0},
-        {EV_SCROLL_TOP,           ac_screen_ctrl,         0},
-        {EV_SCROLL_BOTTOM,        ac_screen_ctrl,         0},
-        {EV_ON_CLOSE,             ac_on_close,            ST_DISCONNECTED},
-        {EV_TIMEOUT,              ac_timeout,             0},
-        {EV_STOPPED,              0,                      0},
+        {EV_COMMAND,                ac_command,             0},
+        {EV_MT_COMMAND_ANSWER,      ac_command_answer,      0},
+        {EV_MT_STATS_ANSWER,        ac_command_answer,      0},
+        {EV_EDIT_CONFIG,            ac_edit_config,         0},
+        {EV_VIEW_CONFIG,            ac_view_config,         0},
+        {EV_EDIT_YUNO_CONFIG,       ac_edit_config,         0},
+        {EV_VIEW_YUNO_CONFIG,       ac_view_config,         0},
+        {EV_READ_JSON,              ac_read_json,           0},
+        {EV_READ_FILE,              ac_read_file,           0},
+        {EV_READ_BINARY_FILE,       ac_read_binary_file,    0},
+        {EV_TTY_OPEN,               ac_tty_mirror_open,     0},
+        {EV_TTY_CLOSE,              ac_tty_mirror_close,    0},
+        {EV_TTY_DATA,               ac_tty_mirror_data,     0},
+        {EV_CLRSCR,                 ac_screen_ctrl,         0},
+        {EV_SCROLL_PAGE_UP,         ac_screen_ctrl,         0},
+        {EV_SCROLL_PAGE_DOWN,       ac_screen_ctrl,         0},
+        {EV_SCROLL_LINE_UP,         ac_screen_ctrl,         0},
+        {EV_SCROLL_LINE_DOWN,       ac_screen_ctrl,         0},
+        {EV_SCROLL_TOP,             ac_screen_ctrl,         0},
+        {EV_SCROLL_BOTTOM,          ac_screen_ctrl,         0},
+        {EV_ON_CLOSE,               ac_on_close,            ST_WAIT_STOPPED},
+        {EV_TIMEOUT,                ac_timeout,             0},
+        {EV_STOPPED,                0,                      0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_DISCONNECTED,         st_disconnected},
-        {ST_CONNECTED,            st_connected},
+        {ST_DISCONNECTED,           st_disconnected},
+        {ST_STOPPED,                st_stopped},
+        {ST_WAIT_STOPPED,           st_wait_stopped},
+        {ST_CONNECTED,              st_connected},
         {0, 0}
     };
 
