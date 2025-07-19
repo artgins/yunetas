@@ -172,26 +172,29 @@ static int register_yuno_and_more(void)
 
     // Samples of traces
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
-    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", TRUE);
-
-    // gobj_set_gclass_trace(gclass_find_by_name(C_PEPON), "messages", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TESTON), "messages", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
-    // Samples of global traces
-    // gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
-    // gobj_set_gobj_trace(0, "create_delete2", TRUE, 0);
-    // gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
-    // gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-    // gobj_set_gobj_trace(0, "machine", TRUE, 0);
-    // gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-    // gobj_set_gobj_trace(0, "liburing", TRUE, 0);
-    // gobj_set_gobj_trace(0, "liburing_timer", TRUE, 0);
+    // Global traces
+    // gobj_set_global_trace("create_delete", TRUE);
+    // gobj_set_global_trace("machine", TRUE);
+    // gobj_set_global_trace("create_delete", TRUE);
+    // gobj_set_global_trace("create_delete2", TRUE);
+    // gobj_set_global_trace("subscriptions", TRUE);
+    // gobj_set_global_trace("start_stop", TRUE);
+    // gobj_set_global_trace("monitor", TRUE);
+    // gobj_set_global_trace("event_monitor", TRUE);
+    // gobj_set_global_trace("liburing", TRUE);
+    // gobj_set_global_trace("ev_kw", TRUE);
+    // gobj_set_global_trace("authzs", TRUE);
+    // gobj_set_global_trace("states", TRUE);
+    // gobj_set_global_trace("gbuffers", TRUE);
+    // gobj_set_global_trace("timer_periodic", TRUE);
+    // gobj_set_global_trace("timer", TRUE);
+    // gobj_set_global_trace("liburing_timer", TRUE);
 
     return result;
 }
