@@ -158,13 +158,13 @@ int main(int argc, char *argv[])
     /*
      *  Estas trazas siempre en el cli.
      */
-    gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "identity-card", TRUE);
-    gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
     if(argv[1]) {
         if(strcmp(argv[1], "verbose2")==0) {
             gobj_set_gobj_trace(0, "machine", TRUE, 0);
-            gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents2", TRUE);
+            gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
             gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
             gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
             argc = 1;
@@ -176,11 +176,11 @@ int main(int argc, char *argv[])
             gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
             gobj_set_gobj_trace(0, "libuv", TRUE, 0);
             gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-            gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents2", TRUE);
+            gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
             gobj_set_gclass_trace(GCLASS_CLI, "trace-kb", TRUE);
             argc = 1;
         } else if(strcmp(argv[1], "verbose")==0) {
-            gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents2", TRUE);
+            gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
             gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
             argc = 1;
         }
@@ -188,9 +188,9 @@ int main(int argc, char *argv[])
 
 //     gobj_set_gclass_trace(GCLASS_CLI, "machine", TRUE);
 //     gobj_set_gclass_trace(GCLASS_CLI, "ev_kw", TRUE);
-//     gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "machine", TRUE);
-//     gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ev_kw", TRUE);
-//     gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents", TRUE);
+//     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "machine", TRUE);
+//     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ev_kw", TRUE);
+//     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents", TRUE);
 //     gobj_set_gclass_trace(GCLASS_IOGATE, "machine", TRUE);
 //     gobj_set_gclass_trace(GCLASS_IOGATE, "ev_kw", TRUE);
 //     gobj_set_gclass_trace(GCLASS_CHANNEL, "machine", TRUE);
@@ -221,7 +221,7 @@ int main(int argc, char *argv[])
 //     gobj_set_gclass_trace(GCLASS_CLI, "trace-kb", TRUE);
 //     gobj_set_gclass_trace(GCLASS_PTY, "traffic", TRUE);
 
-    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
 
     //set_auto_kill_time(5);
 

@@ -127,8 +127,6 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Global traces
@@ -168,14 +166,14 @@ int main(int argc, char *argv[])
     /*------------------------------------------------*
      *          Traces
      *------------------------------------------------*/
-    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);  // Avoid timer trace, too much information
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);  // Avoid timer trace, too much information
 
-    gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "identity-card", TRUE);
-    gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
 // Samples
-//     gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents2", TRUE);
-//     gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "ievents2", TRUE);
+//     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
+//     gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
 //     gobj_set_gclass_trace(GCLASS_CONTROLCENTER, "messages", TRUE);
 
 //     gobj_set_gobj_trace(0, "create_delete", TRUE, 0);

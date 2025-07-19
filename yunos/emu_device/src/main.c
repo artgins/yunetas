@@ -375,8 +375,6 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Global traces
@@ -572,8 +570,8 @@ int main(int argc, char *argv[])
         gobj_set_gclass_trace(GCLASS_EMU_DEVICE, "info", TRUE);
     }
     if(arguments.verbose > 1) {
-        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents", TRUE);
-        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "kw", TRUE);
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents", TRUE);
+        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "kw", TRUE);
     }
     if(arguments.verbose > 2) {
         gobj_set_gclass_trace(GCLASS_TCP0, "traffic", TRUE);
@@ -585,7 +583,7 @@ int main(int argc, char *argv[])
         gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
         gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
     }
-    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
 
 //     set_auto_kill_time(10);
 

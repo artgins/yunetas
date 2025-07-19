@@ -110,8 +110,6 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Global traces
@@ -148,7 +146,7 @@ int main(int argc, char *argv[])
     gbmem_trace_alloc_free(0, mem_list);
 #endif
 
-    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);  // Avoid timer trace, too much information
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);  // Avoid timer trace, too much information
 //     gobj_set_gobj_trace(0, "machine", TRUE, 0);
 //     gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
 //     gobj_set_gobj_trace(0, "libuv", TRUE, 0);

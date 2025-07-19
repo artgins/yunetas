@@ -337,8 +337,6 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "messages", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_TEST4), "machine", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 
     // Global traces
@@ -378,29 +376,29 @@ int main(int argc, char *argv[])
     /*
      *  Estas trazas siempre en el agente.
      */
-    gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "identity-card", TRUE);
-    gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
     if(argv[1]) {
         if(strcmp(argv[1], "verbose2")==0) {
-            gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "ievents2", TRUE);
+            gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
             argc = 1;
         } else if(strcmp(argv[1], "verbose3")==0) {
-            gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "ievents2", TRUE);
+            gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
             gobj_set_global_trace("machine", TRUE);
             argc = 1;
         } else if(strcmp(argv[1], "verbose4")==0) {
-            gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "ievents2", TRUE);
+            gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
             gobj_set_global_trace("machine", TRUE);
             gobj_set_global_trace("ev_kw", TRUE);
             argc = 1;
         } else if(strcmp(argv[1], "verbose5")==0) {
-            gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "ievents2", TRUE);
+            gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
             gobj_set_global_trace("", TRUE);
             gobj_set_global_trace("ev_kw", TRUE);
             argc = 1;
         } else if(strcmp(argv[1], "verbose")==0) {
-            gobj_set_gclass_trace(GCLASS_IEVENT_SRV, "ievents", TRUE);
+            gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents", TRUE);
             argc = 1;
         }
     }
@@ -427,7 +425,7 @@ int main(int argc, char *argv[])
 //     gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
 //     gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
 
-    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);
+    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
 
 //     set_auto_kill_time(7);
 
