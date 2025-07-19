@@ -49,6 +49,7 @@ extern "C"{
 #define MSGSET_YEV_LOOP                 "Yev_loop"
 #define MSGSET_TRACK_MEM                "TrackMem"
 #define MSGSET_AUTH                     "Auth"
+#define MSGSET_MONITORING               "Monitoring"
 
 #define MSGSET_PERSISTENT_IEVENTS       "Persistent IEvents"
 #define MSGSET_OPEN_CLOSE               "Open Close"

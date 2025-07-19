@@ -68,10 +68,10 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name------------flag--------------------default-----description--*/
 SDATA (DTP_STRING,      "__username__", SDF_RD,                 "",         "Username"),
 SDATA (DTP_STRING,      "filename_mask",SDF_RD|SDF_REQUIRED,    "%Y-%m",    "System organization of tables (file name format, see strftime())"),
-SDATA (DTP_BOOLEAN,     "master",       SDF_RD,                 TRUE,       "the master is the only that can write"),
-SDATA (DTP_INTEGER,     "xpermission",  SDF_RD,                 02770,      "Use in creation, default 02770"),
-SDATA (DTP_INTEGER,     "rpermission",  SDF_RD,                 0660,       "Use in creation, default 0660"),
-SDATA (DTP_INTEGER,     "exit_on_error",0,                      LOG_OPT_EXIT_ZERO,"exit on error"),
+SDATA (DTP_BOOLEAN,     "master",       SDF_RD,                 "1",       "the master is the only that can write"),
+SDATA (DTP_INTEGER,     "xpermission",  SDF_RD,                 "02770",    "Use in creation, default 02770"),
+SDATA (DTP_INTEGER,     "rpermission",  SDF_RD,                 "0660",     "Use in creation, default 0660"),
+SDATA (DTP_INTEGER,     "exit_on_error",0,                      "2",        "exit on error"),
 SDATA (DTP_INTEGER,     "txMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages transmitted"),
 SDATA (DTP_INTEGER,     "rxMsgs",       SDF_RD|SDF_RSTATS,      0,          "Messages receiveds"),
 
@@ -80,7 +80,7 @@ SDATA (DTP_INTEGER,     "rxMsgsec",     SDF_RD|SDF_RSTATS,      0,          "Mes
 SDATA (DTP_INTEGER,     "maxtxMsgsec",  SDF_WR|SDF_RSTATS,      0,          "Max Tx Messages by second"),
 SDATA (DTP_INTEGER,     "maxrxMsgsec",  SDF_WR|SDF_RSTATS,      0,          "Max Rx Messages by second"),
 
-SDATA (DTP_INTEGER,     "timeout",      SDF_RD,                 1*1000,     "Timeout"),
+SDATA (DTP_INTEGER,     "timeout",      SDF_RD,                 "1000",     "Timeout"),
 SDATA (DTP_POINTER,     "user_data",    0,                      0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",   0,                      0,          "more user data"),
 SDATA_END()
