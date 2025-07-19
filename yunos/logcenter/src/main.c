@@ -5,11 +5,11 @@
  *          Log Center
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <yuneta.h>
+#include <yunetas.h>
 #include "c_logcenter.h"
-#include "yuno_logcenter.h"
 
 /***************************************************************************
  *                      Names

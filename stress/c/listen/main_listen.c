@@ -3,7 +3,7 @@
  *
  *          Test server connections
  *
- *          Copyright (c) 2025 by ArtGins.
+ *          Copyright (c) 2025, by ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>

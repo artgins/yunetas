@@ -18,11 +18,11 @@
  *  command-yuno id=11 service=__yuno__ command=set-gclass-trace gclass_name=Tcp0 level=traffic set=1
  *
  *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <yuneta.h>
+#include <yunetas.h>
 #include "c_sgateway.h"
-#include "yuno_sgateway.h"
 
 /***************************************************************************
  *                      Names

@@ -13,7 +13,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ghelpers.h>
+#include <yunetas.h>
 
 /***************************************************************************
  *              Constants
@@ -70,8 +70,8 @@ static char args_doc[] = "";
  */
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
-{"verbose",         'l',    0,          0,      "Verbose mode."},
-{"all",             'a',    0,          0,      "List all messages, not only pending."},
+{"verbose",         'l',    0,          0,      "Verbose mode.",    0},
+{"all",             'a',    0,          0,      "List all messages, not only pending.", 0},
 {0,                 0,      0,          0,      "Database keys",    4},
 {"timeranger",      'd',    "STRING",   0,      "Timeranger.",       4},
 {"topic",           'p',    "STRING",   0,      "Topic.",           4},
@@ -83,7 +83,8 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,0,0
 };
 
 /***************************************************************************

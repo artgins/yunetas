@@ -5,13 +5,13 @@
  *          Emulator of device gates
  *
  *          Copyright (c) 2018 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
 #include <unistd.h>
-#include <yuneta.h>
+#include <yunetas.h>
 #include "c_emu_device.h"
-#include "yuno_emu_device.h"
 
 /***************************************************************************
  *              Structures

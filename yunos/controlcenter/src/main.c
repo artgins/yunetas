@@ -7,9 +7,8 @@
  *          Copyright (c) 2020 Niyamaka.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <yuneta_tls.h>
+#include <yunetas.h>
 #include "c_controlcenter.h"
-#include "yuno_controlcenter.h"
 
 /***************************************************************************
  *                      Names

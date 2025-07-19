@@ -3,12 +3,12 @@
  *          yuneta_cli main
  *
  *          Copyright (c) 2014,2015 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <yuneta_tls.h>
+#include <yunetas.h>
 #include "c_cli.h"
 #include "c_wn_stdscr.h"
-#include "yuno_yuneta_cli.h"
 
 /***************************************************************************
  *                      Names

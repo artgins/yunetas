@@ -3,11 +3,11 @@
  *          yuneta_agent main
  *
  *          Copyright (c) 2014,2018 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <yuneta_tls.h>
+#include <yunetas.h>
 #include "c_agent.h"
-#include "yuno_yuneta_agent.h"
 
 /***************************************************************************
  *                      Names

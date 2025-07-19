@@ -7,13 +7,11 @@
  *          Postgres DBA
  *
  *          Copyright (c) 2021 by Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <yuneta_postgres.h>
-#include <yuneta_tls.h>
-#include <yuneta.h>
+#include <yunetas.h>
 #include "c_dba_postgres.h"
-#include "yuno_dba_postgres.h"
 
 /***************************************************************************
  *                      Names
