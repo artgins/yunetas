@@ -7,7 +7,6 @@ cmake_minimum_required(VERSION 3.11)
 #   Source
 ##############################################
 add_subdirectory(dba_postgres)
-add_subdirectory(list_queue_msgs)
 
 # compile in Release mode :
 #
