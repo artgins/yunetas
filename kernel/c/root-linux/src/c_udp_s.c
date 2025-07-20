@@ -51,6 +51,7 @@ SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  "1", "Exit if Listen fa
 SDATA (DTP_BOOLEAN,     "set_broadcast",        SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0, "Share the port"),
 SDATA (DTP_STRING,      "sockname",             SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
+SDATA (DTP_INTEGER,     "rx_buffer_size",       SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. Default if null is parent."),
@@ -79,6 +80,7 @@ typedef struct _PRIVATE_DATA {
     BOOL exitOnError;
 
     yev_event_h yev_server_udp;
+    yev_event_h yev_reading;
     hytls ytls;
     hsskt sskt;
     BOOL use_ssl;
@@ -165,6 +167,17 @@ PRIVATE void mt_destroy(hgobj gobj)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->yev_server_udp) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "yev_server_udp ALREADY exists",
+            "state",        "%s", gobj_current_state(gobj),
+            NULL
+        );
+        return -1;
+    }
 
     if(empty_string(priv->url)) {
         gobj_log_error(gobj, 0,
@@ -289,9 +302,33 @@ PRIVATE int mt_start(hgobj gobj)
         NULL
     );
 
+    /*-------------------------------*
+     *      Setup reading event
+     *-------------------------------*/
+    if(!priv->yev_reading) {
+        json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+        priv->yev_reading = yev_create_read_event(
+            yuno_event_loop(),
+            yev_callback,
+            gobj,
+            yev_get_fd(priv->yev_server_udp),
+            gbuffer_create(rx_buffer_size, rx_buffer_size)
+        );
+    }
+
+    if(priv->yev_reading) {
+        if(!yev_get_gbuf(priv->yev_reading)) {
+            json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
+            yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
+        } else {
+            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+        }
+
+        yev_start_event(priv->yev_reading);
+    }
+
     gobj_change_state(gobj, ST_IDLE);
 
-    yev_start_event(priv->yev_server_udp);
     return 0;
 }
 
