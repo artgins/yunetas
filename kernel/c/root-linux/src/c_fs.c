@@ -349,7 +349,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_FS_RENAMED,     EVF_OUTPUT_EVENT},
         {EV_FS_CHANGED,     EVF_OUTPUT_EVENT},
-        {EV_STOPPED,        0},
         {0, 0}
     };
 
