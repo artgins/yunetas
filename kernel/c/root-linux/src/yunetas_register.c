@@ -8,6 +8,8 @@
 #include "c_yuno.h"         // the grandmother
 #include "c_tcp.h"
 #include "c_tcp_s.h"
+#include "c_udp.h"
+#include "c_udp_s.h"
 #include "c_uart.h"
 #include "c_timer0.h"
 #include "c_timer.h"
@@ -56,6 +58,8 @@ PUBLIC int yunetas_register_c_core(void)
     result += register_c_ievent_srv();
     result += register_c_tcp();
     result += register_c_tcp_s();
+    result += register_c_udp();
+    result += register_c_udp_s();
     result += register_c_uart();
     result += register_c_yuno();
     result += register_c_node();

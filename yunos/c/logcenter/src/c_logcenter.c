@@ -15,8 +15,7 @@
 #include <sys/statvfs.h>
 #include <syslog.h>
 #include "c_logcenter.h"
-
-#include "../../../../kernel/c/root-linux/src/c_udp_s.h"
+#include "c_udp_s.h"
 
 /***************************************************************************
  *              Constants

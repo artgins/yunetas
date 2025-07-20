@@ -63,7 +63,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'logcenter',                                    \n\
-            'gclass': 'Logcenter',                                  \n\
+            'gclass': 'C_LOGCENTER',                                \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
