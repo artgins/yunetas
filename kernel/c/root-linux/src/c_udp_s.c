@@ -27,9 +27,9 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
-PRIVATE int uv_udp_set_broadcast(int fd, int on);
+PRIVATE int udp_set_broadcast(int fd, int on);
 PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
-PRIVATE int get_sock_name(hgobj gobj);
+PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -49,7 +49,9 @@ SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0, "Trace TL
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,  "FALSE", "True if schema is secure. Set internally"),
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  "1", "Exit if Listen failed"),
 SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,  0, "tree of children to create on new accept, legacy method"),
-
+SDATA (DTP_BOOLEAN,     "set_broadcast",        SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
+SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0, "Share the port"),
+SDATA (DTP_STRING,      "sockname",             SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. Default if null is parent."),
@@ -80,10 +82,6 @@ typedef struct _PRIVATE_DATA {
     yev_event_h yev_server_accept;
     hytls ytls;
     BOOL use_ssl;
-    // uv_udp_t uv_udp;
-    // uv_udp_send_t req_send;
-    //
-    // ip_port ipp_sockname;
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
@@ -217,12 +215,13 @@ PRIVATE int mt_start(hgobj gobj)
     /*--------------------------------*
      *      Setup server
      *--------------------------------*/
+    BOOL shared = gobj_read_bool_attr(gobj, "shared");
     priv->yev_server_accept = yev_create_accept_event(
         yuno_event_loop(),
         yev_callback,
         priv->url,    // server_url,
-        0,      //backlog,
-        0,      // shared
+        0,      // backlog,
+        shared, // shared
         0,      // ai_family AF_UNSPEC
         0,      // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
         gobj
@@ -257,12 +256,17 @@ PRIVATE int mt_start(hgobj gobj)
         priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
     }
 
+    udp_set_broadcast(
+        yev_get_fd(priv->yev_server_accept),
+        gobj_read_bool_attr(gobj, "set_broadcast")
+    );
 
-    uv_udp_set_broadcast(yev_get_fd(priv->yev_server_accept), 0);
     gobj_write_str_attr(gobj, "lHost", host);
     gobj_write_str_attr(gobj, "lPort", port);
 
-    get_sock_name(gobj);
+    char temp[60];
+    get_sockname(temp, sizeof(temp), yev_get_fd(priv->yev_server_accept));
+    gobj_write_str_attr(gobj, "sockname", temp);
 
     /*
      *  Info of "listening..."
@@ -302,18 +306,11 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, ">>> uv_udp_recv_stop p=%p", &priv->uv_udp);
-    }
-    uv_udp_recv_stop((uv_udp_t *)&priv->uv_udp);
+    try_to_stop_yevents(gobj);
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, ">>> uv_close updS p=%p", &priv->uv_udp);
-    }
-    gobj_change_state(gobj, ST_WAIT_STOPPED);
-    uv_close((uv_handle_t *)&priv->uv_udp, on_close_cb);
+    gobj_reset_volatil_attrs(gobj);
 
     return 0;
 }
@@ -331,7 +328,7 @@ PRIVATE int mt_stop(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int uv_udp_set_broadcast(int fd, int on)
+PRIVATE int udp_set_broadcast(int fd, int on)
 {
     if(setsockopt(fd,
         SOL_SOCKET,
@@ -354,32 +351,62 @@ PRIVATE int uv_udp_set_broadcast(int fd, int on)
 }
 
 /***************************************************************************
- *
+ *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
+ *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
  ***************************************************************************/
-PRIVATE int get_sock_name(hgobj gobj)
+PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL to_wait_stopped = FALSE;
 
-    get_udp_sock_name(&priv->uv_udp, &priv->ipp_sockname);
+    if(gobj_current_state(gobj)==ST_STOPPED) {
+        return;
+    }
 
-    char url[60];
-    get_ipp_url(&priv->ipp_sockname, url, sizeof(url));
-    gobj_write_str_attr(gobj, "sockname", url);
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_URING) {
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "try_to_stop_yevents",
+            "msg2",         "%s", "🟥🟥 try_to_stop_yevents",
+            NULL
+        );
+    }
 
-    return 0;
-}
+    if(priv->yev_server_accept) {
+        yev_stop_event(priv->yev_server_accept);
+        if(yev_event_is_stopped(priv->yev_server_accept)) {
+            yev_destroy_event(priv->yev_server_accept);
+            priv->yev_server_accept = 0;
+        } else {
+            to_wait_stopped = TRUE;
+        }
+    }
 
-/***************************************************************************
- *  on alloc callback
- ***************************************************************************/
-PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf)
-{
-    hgobj gobj = handle->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // if(priv->yev_reading) {
+    //     if(!yev_event_is_stopped(priv->yev_reading)) {
+    //         yev_stop_event(priv->yev_reading);
+    //         if(!yev_event_is_stopped(priv->yev_reading)) {
+    //             to_wait_stopped = TRUE;
+    //         }
+    //     }
+    // }
+    //
+    // if(priv->tx_in_progress > 0) {
+    //     to_wait_stopped = TRUE;
+    // }
 
-    // TODO: OPTIMIZE to use few memory
-    buf->base = priv->bfinput;
-    buf->len = sizeof(priv->bfinput);
+    if(to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
+    } else {
+        if(gobj_current_state(gobj)==ST_DISCONNECTED) {
+            gobj_change_state(gobj, ST_STOPPED);
+        } else {
+            gobj_change_state(gobj, ST_STOPPED);
+            // set_disconnected(gobj);
+        }
+    }
 }
 
 /***************************************************************************
