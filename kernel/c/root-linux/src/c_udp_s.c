@@ -1119,7 +1119,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_DATA,            0},
         {EV_RX_DATA,            EVF_OUTPUT_EVENT},
         {EV_TX_READY,           EVF_OUTPUT_EVENT},
-        {EV_STOPPED,            0},
         {0, 0}
     };
 
