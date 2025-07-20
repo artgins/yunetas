@@ -305,7 +305,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GCLASS_FS);
+GOBJ_DEFINE_GCLASS(C_FS);
 
 /*------------------------*
  *      States
@@ -382,5 +382,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_fs(void)
 {
-    return create_gclass(GCLASS_FS);
+    return create_gclass(C_FS);
 }

@@ -2,11 +2,58 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
+project(dba_postgres C)
+
+#-----------------------------------------------------#
+#   Get yunetas base path:
+#   - defined in environment variable YUNETAS_BASE
+#   - else default "/yuneta/development/yunetas"
+#-----------------------------------------------------#
+if(DEFINED ENV{YUNETAS_BASE})
+    set(YUNETAS_BASE $ENV{YUNETAS_BASE})
+else()
+    set(YUNETAS_BASE "/yuneta/development/yunetas")
+endif()
+include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
 ##############################################
 #   Source
 ##############################################
-add_subdirectory(dba_postgres)
+SET (YUNO_SRCS
+    src/main.c
+    src/c_dba_postgres.c
+)
+SET (YUNO_HDRS
+    src/c_dba_postgres.h
+)
+
+##############################################
+#   yuno
+##############################################
+add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
+
+target_link_libraries(${PROJECT_NAME}
+    ${YUNETAS_KERNEL_LIBS}
+    ${YUNETAS_EXTERNAL_LIBS}
+    ${YUNETAS_PCRE_LIBS}
+    ${OPENSSL_LIBS}
+    ${MBEDTLS_LIBS}
+    ${DEBUG_LIBS}
+    pq          # postgres, WARNING this library use openssl of distribution
+)
+
+##############################################
+#   Installation
+##############################################
+install(
+    TARGETS ${PROJECT_NAME}
+    PERMISSIONS
+    OWNER_READ OWNER_WRITE OWNER_EXECUTE
+    GROUP_READ GROUP_WRITE GROUP_EXECUTE
+    WORLD_READ WORLD_EXECUTE
+    #    DESTINATION ${BIN_DEST_DIR}
+    DESTINATION "/yuneta/bin"
+)
 
 # compile in Release mode :
 #
@@ -23,5 +70,4 @@ add_subdirectory(dba_postgres)
 # compile to build static binary :
 #
 #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=/yuneta/development/yunetas/tools/cmake/musl-toolchain.cmake ..
-#
 #

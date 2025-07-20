@@ -35,7 +35,7 @@ add_subdirectory(kernel/c/root-linux)
 add_subdirectory(kernel/c/root-esp32)
 add_subdirectory(modules/c/c_prot)
 add_subdirectory(utils/c)
-add_subdirectory(yunos)
+add_subdirectory(yunos/c)
 
 if (ENABLE_TESTS)
     # Add tests
