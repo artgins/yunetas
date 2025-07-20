@@ -48,7 +48,6 @@ SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0, "Only all
 SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
 SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,  "FALSE", "True if schema is secure. Set internally"),
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  "1", "Exit if Listen failed"),
-SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,  0, "tree of children to create on new accept, legacy method"),
 SDATA (DTP_BOOLEAN,     "set_broadcast",        SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0, "Share the port"),
 SDATA (DTP_STRING,      "sockname",             SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
@@ -97,7 +96,6 @@ typedef struct _PRIVATE_DATA {
     int tx_in_progress;
 
     BOOL trace_tls;
-    json_t *child_tree_filter;
 
     char bfinput[BFINPUT_SIZE];
 
@@ -127,7 +125,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(url,               gobj_read_str_attr)
     SET_PRIV(exitOnError,       gobj_read_bool_attr)
     SET_PRIV(trace_tls,         gobj_read_bool_attr)
-    SET_PRIV(child_tree_filter, gobj_read_json_attr)
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber)
@@ -294,21 +291,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_change_state(gobj, ST_IDLE);
 
-    if(json_object_size(priv->child_tree_filter) > 0) {
-        /*--------------------------------*
-         *      Legacy method
-         *--------------------------------*/
-        yev_start_event(priv->yev_server_accept);
-
-    } else {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "NEW method not implemented",
-            "url",          "%s", priv->url,
-            NULL
-        );
-    }
+    yev_start_event(priv->yev_server_accept);
     return 0;
 }
 

@@ -2240,7 +2240,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             continue;
         }
 
-        if(hints.ai_protocol == IPPROTO_TCP || hints.ai_protocol == IPPROTO_PUP) {
+        if(hints.ai_protocol == IPPROTO_TCP || hints.ai_protocol == IPPROTO_UDP) {
             // TODO review for UDP
             int on = 1;
             setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
@@ -2265,20 +2265,22 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             break;
         }
 
-        ret = listen(fd, backlog);
-        if(ret == -1) {
-            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBURING_ERROR,
-                "msg",          "%s", "listen() FAILED",
-                "url",          "%s", listen_url,
-                "addrinfo",     "%s", saddr,
-                "errno",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
-                NULL
-            );
-            close(fd);
-            break;
+        if(hints.ai_protocol == IPPROTO_TCP) {
+            ret = listen(fd, backlog);
+            if(ret == -1) {
+                gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                    "msg",          "%s", "listen() FAILED",
+                    "url",          "%s", listen_url,
+                    "addrinfo",     "%s", saddr,
+                    "errno",        "%d", errno,
+                    "strerror",     "%s", strerror(errno),
+                    NULL
+                );
+                close(fd);
+                break;
+            }
         }
         set_nonblocking(fd);
 
