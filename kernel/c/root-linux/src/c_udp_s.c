@@ -78,7 +78,7 @@ typedef struct _PRIVATE_DATA {
     const char *url;
     BOOL exitOnError;
 
-    yev_event_h yev_server_accept;
+    yev_event_h yev_server_udp;
     hytls ytls;
     hsskt sskt;
     BOOL use_ssl;
@@ -224,7 +224,7 @@ PRIVATE int mt_start(hgobj gobj)
      *      Setup server
      *--------------------------------*/
     BOOL shared = gobj_read_bool_attr(gobj, "shared");
-    priv->yev_server_accept = yev_create_accept_event(
+    priv->yev_server_udp = yev_create_accept_event(
         yuno_event_loop(),
         yev_callback,
         priv->url,    // server_url,
@@ -234,7 +234,7 @@ PRIVATE int mt_start(hgobj gobj)
         0,      // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
         gobj
     );
-    if(!priv->yev_server_accept) {
+    if(!priv->yev_server_udp) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -245,15 +245,15 @@ PRIVATE int mt_start(hgobj gobj)
         if(priv->exitOnError) {
             exit(0); //WARNING exit with 0 to stop daemon watcher!
         } else {
-            if(priv->yev_server_accept) {
-                yev_destroy_event(priv->yev_server_accept);
-                priv->yev_server_accept = 0;
+            if(priv->yev_server_udp) {
+                yev_destroy_event(priv->yev_server_udp);
+                priv->yev_server_udp = 0;
             }
             return -1;
         }
     }
 
-    if(yev_get_flag(priv->yev_server_accept) & YEV_FLAG_USE_TLS) {
+    if(yev_get_flag(priv->yev_server_udp) & YEV_FLAG_USE_TLS) {
         priv->use_ssl = TRUE;
         gobj_write_bool_attr(gobj, "use_ssl", TRUE);
 
@@ -265,7 +265,7 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     udp_set_broadcast(
-        yev_get_fd(priv->yev_server_accept),
+        yev_get_fd(priv->yev_server_udp),
         gobj_read_bool_attr(gobj, "set_broadcast")
     );
 
@@ -273,7 +273,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_write_str_attr(gobj, "lPort", port);
 
     char temp[60];
-    get_sockname(temp, sizeof(temp), yev_get_fd(priv->yev_server_accept));
+    get_sockname(temp, sizeof(temp), yev_get_fd(priv->yev_server_udp));
     gobj_write_str_attr(gobj, "sockname", temp);
 
     /*
@@ -291,7 +291,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_change_state(gobj, ST_IDLE);
 
-    yev_start_event(priv->yev_server_accept);
+    yev_start_event(priv->yev_server_udp);
     return 0;
 }
 
@@ -389,7 +389,7 @@ PRIVATE int write_data(hgobj gobj)
         /*
          *  Transmit
          */
-        int fd =yev_get_fd(priv->yev_server_accept);
+        int fd =yev_get_fd(priv->yev_server_udp);
         yev_event_h yev_write_event = yev_create_write_event(
             yuno_event_loop(),
             yev_callback,
@@ -499,11 +499,11 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         );
     }
 
-    if(priv->yev_server_accept) {
-        yev_stop_event(priv->yev_server_accept);
-        if(yev_event_is_stopped(priv->yev_server_accept)) {
-            yev_destroy_event(priv->yev_server_accept);
-            priv->yev_server_accept = 0;
+    if(priv->yev_server_udp) {
+        yev_stop_event(priv->yev_server_udp);
+        if(yev_event_is_stopped(priv->yev_server_udp)) {
+            yev_destroy_event(priv->yev_server_udp);
+            priv->yev_server_udp = 0;
         } else {
             to_wait_stopped = TRUE;
         }
