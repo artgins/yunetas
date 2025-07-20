@@ -22,18 +22,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE void on_close_cb(uv_handle_t* handle);
-PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-PRIVATE void on_read_cb(
-    uv_udp_t* handle,
-    ssize_t nread,
-    const uv_buf_t* buf,
-    const struct sockaddr* addr,
-    unsigned flags
-);
 PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int get_sock_name(hgobj gobj);
-
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -53,9 +43,6 @@ SDATA (DTP_STRING,      "rHost",                SDF_RD,     0,      "remote ip")
 SDATA (DTP_STRING,      "rPort",                SDF_RD,     0,      "remote port"),
 SDATA (DTP_STRING,      "peername",             SDF_RD,     0,      "Peername"),
 SDATA (DTP_STRING,      "sockname",             SDF_RD,     0,      "Sockname"),
-SDATA (DTP_STRING,      "stopped_event_name",   SDF_RD,     EV_STOPPED, "Stopped event name"),
-SDATA (DTP_STRING,      "tx_ready_event_name",  0,          EV_TX_READY, "Must be empty if you don't want receive this event"),
-SDATA (DTP_STRING,      "rx_data_event_name",   0,          EV_RX_DATA, "Must be empty if you don't want receive this event"),
 SDATA (DTP_POINTER,     "user_data",            0,          0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,          0,      "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -82,16 +69,12 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 #define BFINPUT_SIZE (2*1024)
 
 typedef struct _PRIVATE_DATA {
-    // Conf
-    const char *tx_ready_event_name;
-    const char *rx_data_event_name;
-
     // Data oid
     uint64_t *ptxBytes;
     uint64_t *prxBytes;
 
-    uv_udp_t uv_udp;
-    uv_udp_send_t req_send;
+    // uv_udp_t uv_udp;
+    // uv_udp_send_t req_send;
 
     const char *lHost;
     const char *lPort;
@@ -100,10 +83,10 @@ typedef struct _PRIVATE_DATA {
 
     const char *peername;
     const char *sockname;
-    ip_port ipp_sockname;
-    ip_port ipp_peername;
-
-    struct sockaddr raddr;
+    // ip_port ipp_sockname;
+    // ip_port ipp_peername;
+    //
+    // struct sockaddr raddr;
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
@@ -129,23 +112,18 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    dl_init(&priv->dl_tx);
-
-    priv->ptxBytes = gobj_danger_attr_ptr(gobj, "txBytes");
-    priv->prxBytes = gobj_danger_attr_ptr(gobj, "rxBytes");
+    dl_init(&priv->dl_tx, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(tx_ready_event_name,     gobj_read_str_attr)
-    SET_PRIV(rx_data_event_name,            gobj_read_str_attr)
-    SET_PRIV(peername,                      gobj_read_str_attr)
-    SET_PRIV(sockname,                      gobj_read_str_attr)
-    SET_PRIV(lHost,                         gobj_read_str_attr)
-    SET_PRIV(lPort,                         gobj_read_str_attr)
-    SET_PRIV(rHost,                         gobj_read_str_attr)
-    SET_PRIV(rPort,                         gobj_read_str_attr)
+    SET_PRIV(peername,              gobj_read_str_attr)
+    SET_PRIV(sockname,              gobj_read_str_attr)
+    SET_PRIV(lHost,                 gobj_read_str_attr)
+    SET_PRIV(lPort,                 gobj_read_str_attr)
+    SET_PRIV(rHost,                 gobj_read_str_attr)
+    SET_PRIV(rPort,                 gobj_read_str_attr)
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber)
@@ -665,153 +643,107 @@ PRIVATE int ac_tx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
     return 1;
 }
 
-/***************************************************************************
- *                          FSM
- ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    {EV_TX_DATA,      0,  0,  ""},
-    // bottom input
-    // internal
-    {NULL, 0, 0, ""}
-};
-PRIVATE const EVENT output_events[] = {
-    {EV_STOPPED,      0},
-    {EV_RX_DATA,      0,  0,  ""},
-    {EV_TX_READY,     0,  0,  ""},
-    {NULL, 0, 0, ""}
-};
-PRIVATE const char *state_names[] = {
-    ST_STOPPED,
-    ST_WAIT_STOPPED,
-    ST_IDLE,          /* H2UV handler for UV */
-    NULL
-};
-
-PRIVATE EV_ACTION ST_STOPPED[] = {
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION ST_WAIT_STOPPED[] = {
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION ST_IDLE[] = {
-    {EV_TX_DATA,        ac_tx_data,       0},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_STOPPED,
-    ST_WAIT_STOPPED,
-    ST_IDLE,
-    NULL
-};
-
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
-
-/***************************************************************************
- *              GClass
- ***************************************************************************/
+/***********************************************************************
+ *          FSM
+ ***********************************************************************/
 /*---------------------------------------------*
- *              Local methods table
+ *          Global methods table
  *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_destroy = mt_destroy,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
+    .mt_writing = mt_writing,
 };
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_UDP0_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0,  // cmds
-    0,  // gcflag
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(GCLASS_UDP);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************************
- *              Public access
+ *
  ***************************************************************************/
-PUBLIC GCLASS *gclass_udp0(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    static hgclass __gclass__ = 0;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_stopped[] = {
+        {0, 0, 0}
+    };
+    ev_action_t st_wait_stopped[] = {
+        {0, 0, 0}
+    };
+    ev_action_t st_idle[] = {
+        {EV_TX_DATA,            ac_tx_data,         0},
+        {0, 0, 0}
+    };
+
+    states_t states[] = {
+        {ST_STOPPED,            st_stopped},
+        {ST_WAIT_STOPPED,       st_wait_stopped},
+        {ST_IDLE,               st_idle},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_TX_DATA,            0},
+        {EV_RX_DATA,            EVF_OUTPUT_EVENT},
+        {EV_TX_READY,           EVF_OUTPUT_EVENT},
+        {EV_STOPPED,            0},
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // lmt
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table
+        0,  // command_table
+        s_user_trace_level,
+        0   // gcflag
+    );
+    if(!__gclass__) {
+        // Error already logged
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int register_c_udp(void)
+{
+    return create_gclass(GCLASS_UDP);
 }

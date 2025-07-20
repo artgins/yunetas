@@ -19,7 +19,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE void on_close_cb(uv_handle_t* handle);
+PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
+PRIVATE int get_sock_name(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -35,9 +36,6 @@ SDATA (DTP_STRING,      "lPort",                SDF_RD,  0, "Local port, got fro
 SDATA (DTP_STRING,      "sockname",             SDF_RD,  0, "Sockname"),
 SDATA (DTP_INTEGER,     "txBytes",              SDF_RD,  0, "Bytes transmitted by this socket"),
 SDATA (DTP_INTEGER,     "rxBytes",              SDF_RD,  0, "Bytes received by this socket"),
-SDATA (DTP_STRING,      "stopped_event_name",   SDF_RD,  EV_STOPPED, "Stopped event name"),
-SDATA (DTP_STRING,      "tx_ready_event_name",  SDF_RD,  EV_TX_READY, "Must be empty if you don't want receive this event"),
-SDATA (DTP_STRING,      "rx_data_event_name",   SDF_RD,  EV_RX_DATA, "Must be empty if you don't want receive this event"),
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  1, "Exit if Listen failed"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
@@ -64,18 +62,16 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     // Conf
     const char *url;
-    const char *tx_ready_event_name;
-    const char *rx_data_event_name;
     BOOL exitOnError;
 
     // Data oid
     uint64_t *ptxBytes;
     uint64_t *prxBytes;
 
-    uv_udp_t uv_udp;
-    uv_udp_send_t req_send;
-
-    ip_port ipp_sockname;
+    // uv_udp_t uv_udp;
+    // uv_udp_send_t req_send;
+    //
+    // ip_port ipp_sockname;
     const char *sockname;
 
     dl_list_t dl_tx;
@@ -84,20 +80,6 @@ typedef struct _PRIVATE_DATA {
     char bfinput[BFINPUT_SIZE];
 
 } PRIVATE_DATA;
-
-/***************************************************************************
- *              Prototypes
- ***************************************************************************/
-PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-PRIVATE void on_read_cb(
-    uv_udp_t* handle,
-    ssize_t nread,
-    const uv_buf_t* buf,
-    const struct sockaddr* addr,
-    unsigned flags
-);
-PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
-PRIVATE int get_sock_name(hgobj gobj);
 
 
 
@@ -122,12 +104,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(url,                       gobj_read_str_attr)
     SET_PRIV(exitOnError,               gobj_read_bool_attr)
-    SET_PRIV(tx_ready_event_name, gobj_read_str_attr)
-    SET_PRIV(rx_data_event_name,        gobj_read_str_attr)
     SET_PRIV(sockname,                  gobj_read_str_attr)
-
-    priv->ptxBytes = gobj_danger_attr_ptr(gobj, "txBytes");
-    priv->prxBytes = gobj_danger_attr_ptr(gobj, "rxBytes");
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber)
@@ -156,7 +133,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     if(!gobj_in_this_state(gobj, ST_STOPPED)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
             NULL
         );

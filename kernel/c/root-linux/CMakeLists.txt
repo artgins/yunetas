@@ -48,7 +48,7 @@ set (SRCS
     src/c_fs.c
     src/c_prot_raw.c
     src/c_udp.c
-    src/c_udp_s.c
+#    src/c_udp_s.c
     src/ghttp_parser.c
     src/istream.c
     src/yunetas_environment.c
