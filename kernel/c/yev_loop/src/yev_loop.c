@@ -2240,7 +2240,8 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             continue;
         }
 
-        if(hints.ai_protocol == IPPROTO_TCP) {
+        if(hints.ai_protocol == IPPROTO_TCP || hints.ai_protocol == IPPROTO_PUP) {
+            // TODO review for UDP
             int on = 1;
             setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
             if(shared) {

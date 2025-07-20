@@ -9,8 +9,15 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
+#include <errno.h>
 #include <regex.h>
+#include <sys/socket.h>
+
+#include <yev_loop.h>
+#include <ytls.h>
+#include "c_yuno.h"
 #include "c_udp_s.h"
+
 
 /***************************************************************************
  *              Constants
@@ -19,6 +26,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE int uv_udp_set_broadcast(int fd, int on);
 PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int get_sock_name(hgobj gobj);
 
@@ -33,10 +42,14 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "url",                  SDF_RD,  0, "url of udp server"),
 SDATA (DTP_STRING,      "lHost",                SDF_RD,  0, "Local ip, got from url"),
 SDATA (DTP_STRING,      "lPort",                SDF_RD,  0, "Local port, got from url."),
-SDATA (DTP_STRING,      "sockname",             SDF_RD,  0, "Sockname"),
-SDATA (DTP_INTEGER,     "txBytes",              SDF_RD,  0, "Bytes transmitted by this socket"),
-SDATA (DTP_INTEGER,     "rxBytes",              SDF_RD,  0, "Bytes received by this socket"),
-SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  1, "Exit if Listen failed"),
+SDATA (DTP_STRING,      "url",                  SDF_RD,  0, "Url"),
+SDATA (DTP_JSON,        "crypto",               SDF_WR|SDF_PERSIST, 0, "Crypto config"),
+SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
+SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
+SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,  "FALSE", "True if schema is secure. Set internally"),
+SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  "1", "Exit if Listen failed"),
+SDATA (DTP_DICT,        "child_tree_filter",    SDF_RD,  0, "tree of children to create on new accept, legacy method"),
+
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. Default if null is parent."),
@@ -64,18 +77,18 @@ typedef struct _PRIVATE_DATA {
     const char *url;
     BOOL exitOnError;
 
-    // Data oid
-    uint64_t *ptxBytes;
-    uint64_t *prxBytes;
-
+    yev_event_h yev_server_accept;
+    hytls ytls;
+    BOOL use_ssl;
     // uv_udp_t uv_udp;
     // uv_udp_send_t req_send;
     //
     // ip_port ipp_sockname;
-    const char *sockname;
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
+    BOOL trace_tls;
+    json_t *child_tree_filter;
 
     char bfinput[BFINPUT_SIZE];
 
@@ -102,9 +115,10 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(url,                       gobj_read_str_attr)
-    SET_PRIV(exitOnError,               gobj_read_bool_attr)
-    SET_PRIV(sockname,                  gobj_read_str_attr)
+    SET_PRIV(url,               gobj_read_str_attr)
+    SET_PRIV(exitOnError,       gobj_read_bool_attr)
+    SET_PRIV(trace_tls,         gobj_read_bool_attr)
+    SET_PRIV(child_tree_filter, gobj_read_json_attr)
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber)
@@ -117,10 +131,6 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    IF_EQ_SET_PRIV(sockname,                  gobj_read_str_attr)
-    END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -150,11 +160,7 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    uv_loop_t *loop = yuno_uv_event_loop();
-    struct addrinfo hints;
-    int r;
-
-    if(!priv->url) {
+    if(empty_string(priv->url)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
@@ -169,21 +175,20 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     char schema[20], host[120], port[40];
-    r = parse_http_url(
+    if(parse_url(
+        gobj,
         priv->url,
-        schema,
-        sizeof(schema),
-        host,
-        sizeof(host),
-        port,
-        sizeof(port),
+        schema, sizeof(schema),
+        host, sizeof(host),
+        port, sizeof(port),
+        0, 0,
+        0, 0,
         FALSE
-    );
-    if(r<0) {
+    )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "parse_http_url() FAILED",
+            "msg",          "%s", "Parsing url failed",
             "url",          "%s", priv->url,
             NULL
         );
@@ -194,61 +199,66 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;  /* Allow IPv4 or IPv6 */
-    hints.ai_socktype = SOCK_DGRAM;
-    hints.ai_protocol = IPPROTO_UDP;
-    hints.ai_flags = 0;
-    struct addrinfo *res;
-
-    r = getaddrinfo(
-        host,
-        port,
-        &hints,
-        &res
-    );
-    if(r!=0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "getaddrinfo() FAILED",
-            "lHost",        "%s", host,
-            "lPort",        "%s", port,
-            "errno",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
-            NULL
-        );
-        if(priv->exitOnError) {
-            exit(0); //WARNING exit with 0 to stop daemon watcher!
-        } else {
-            return -1;
-        }
-    }
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, ">>> uv_init udpS p=%p", &priv->uv_udp);
-    }
-    uv_udp_init(loop, &priv->uv_udp);
-    priv->uv_udp.data = gobj;
-    uv_udp_set_broadcast(&priv->uv_udp, 0);
-
-    r = uv_udp_bind(&priv->uv_udp, res->ai_addr, 0);
-    freeaddrinfo(res);
-    if(r<0) {
+    if(atoi(port) == 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-            "msg",          "%s", "uv_udp_bind() FAILED",
+            "msg",          "%s", "Cannot Listen on port 0",
             "url",          "%s", priv->url,
-            "uv_error",     "%s", uv_err_name(r),
             NULL
         );
         if(priv->exitOnError) {
-            exit(0); // WARNING exit with 0 to stop daemon watcher!
+            exit(0); //WARNING exit with 0 to stop daemon watcher!
         } else {
             return -1;
         }
     }
+
+    /*--------------------------------*
+     *      Setup server
+     *--------------------------------*/
+    priv->yev_server_accept = yev_create_accept_event(
+        yuno_event_loop(),
+        yev_callback,
+        priv->url,    // server_url,
+        0,      //backlog,
+        0,      // shared
+        0,      // ai_family AF_UNSPEC
+        0,      // ai_flags AI_V4MAPPED | AI_ADDRCONFIG
+        gobj
+    );
+    if(!priv->yev_server_accept) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "yev_create_accept_event() FAILED",
+            "url",          "%s", priv->url,
+            NULL
+        );
+        if(priv->exitOnError) {
+            exit(0); //WARNING exit with 0 to stop daemon watcher!
+        } else {
+            if(priv->yev_server_accept) {
+                yev_destroy_event(priv->yev_server_accept);
+                priv->yev_server_accept = 0;
+            }
+            return -1;
+        }
+    }
+
+    if(yev_get_flag(priv->yev_server_accept) & YEV_FLAG_USE_TLS) {
+        priv->use_ssl = TRUE;
+        gobj_write_bool_attr(gobj, "use_ssl", TRUE);
+
+        json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
+        json_object_set_new(jn_crypto, "trace", json_boolean(priv->trace_tls));
+
+        EXEC_AND_RESET(ytls_cleanup, priv->ytls)
+        priv->ytls = ytls_init(gobj, jn_crypto, TRUE);
+    }
+
+
+    uv_udp_set_broadcast(yev_get_fd(priv->yev_server_accept), 0);
     gobj_write_str_attr(gobj, "lHost", host);
     gobj_write_str_attr(gobj, "lPort", port);
 
@@ -260,18 +270,30 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_log_info(gobj, 0,
         "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
         "msg",          "%s", "UDP listening ...",
+        "msg2",         "%s", "UDP Listening...🔷",
         "url",          "%s", priv->url,
         "lHost",        "%s", host,
         "lPort",        "%s", port,
-        "sockname",     "%s", priv->sockname,
         NULL
     );
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, ">>> start_read udp p=%p", &priv->uv_udp);
-    }
-    uv_udp_recv_start(&priv->uv_udp, on_alloc_cb, on_read_cb);
     gobj_change_state(gobj, ST_IDLE);
+
+    if(json_object_size(priv->child_tree_filter) > 0) {
+        /*--------------------------------*
+         *      Legacy method
+         *--------------------------------*/
+        yev_start_event(priv->yev_server_accept);
+
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "NEW method not implemented",
+            "url",          "%s", priv->url,
+            NULL
+        );
+    }
     return 0;
 }
 
@@ -309,34 +331,26 @@ PRIVATE int mt_stop(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void on_close_cb(uv_handle_t* handle)
+PRIVATE int uv_udp_set_broadcast(int fd, int on)
 {
-    hgobj gobj = handle->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, "<<< on_close_cb udp_s0 p=%p",
-            &priv->uv_udp
+    if(setsockopt(fd,
+        SOL_SOCKET,
+        SO_BROADCAST,
+        &on,
+        sizeof(on))
+    ) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "setsockopt() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
         );
+        return -1;
     }
-    gobj_change_state(gobj, ST_STOPPED);
 
-    /*
-     *  Only NOW you can destroy this gobj,
-     *  when uv has released the handler.
-     */
-    const char *stopped_event_name = gobj_read_str_attr(
-        gobj,
-        "stopped_event_name"
-    );
-    if(!empty_string(stopped_event_name)) {
-        gobj_send_event(
-            gobj_parent(gobj),
-            stopped_event_name ,
-            0,
-            gobj
-        );
-    }
+    return 0;
 }
 
 /***************************************************************************
