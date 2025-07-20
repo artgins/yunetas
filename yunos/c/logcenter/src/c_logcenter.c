@@ -197,7 +197,7 @@ PRIVATE void mt_create(hgobj gobj)
     json_t *kw_gss_udps = json_pack("{s:s}",
         "url", gobj_read_str_attr(gobj, "url")
     );
-    priv->gobj_gss_udp_s = gobj_create("", C_PROT_UDP_S, kw_gss_udps, gobj);
+    priv->gobj_gss_udp_s = gobj_create("", C_UDP_S, kw_gss_udps, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -311,7 +311,7 @@ PRIVATE int mt_play(hgobj gobj)
                 cb_newfile,
                 gobj
             );
-            log_add_handler("logcenter", "file", LOG_OPT_ALL, priv->global_rotatory);
+            gobj_log_add_handler("logcenter", "file", LOG_OPT_ALL, priv->global_rotatory);
         }
     }
 
@@ -330,7 +330,7 @@ PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    log_del_handler("logcenter");
+    gobj_log_del_handler("logcenter");
 
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
@@ -377,7 +377,7 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
         );
     }
 
-    append_yuno_metadata(gobj, jn_stats, stats);
+    // append_yuno_metadata(gobj, jn_stats, stats); ???
 
     return msg_iev_build_response(
         gobj,
@@ -441,7 +441,10 @@ PRIVATE json_t *cmd_send_summary(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     current_timestamp(fecha, sizeof(fecha));
 
     json_t *jn_summary = make_summary(gobj, FALSE);
-    gbuffer_t *gbuf_summary = gbuffer_create(32*1024, MIN(1*1024*1024L, gbmem_get_maximum_block()), 0, codec_utf_8);
+    gbuffer_t *gbuf_summary = gbuffer_create(
+        32*1024,
+        MIN(1*1024*1024L, gbmem_get_maximum_block())
+    );
     gbuffer_printf(gbuf_summary, "From %s (%s, %s)\nat %s, \n\n",
         _get_hostname(),
         node_uuid(),
@@ -625,12 +628,12 @@ PRIVATE json_t *cmd_restart_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgob
     gobj_save_persistent_attrs(gobj, json_string("restart_on_alarm"));
 
     if(timeout_restart_yuneta != -1) {
-        gobj_write_uint32_attr(gobj, "timeout_restart_yuneta", timeout_restart_yuneta);
+        gobj_write_integer_attr(gobj, "timeout_restart_yuneta", timeout_restart_yuneta);
         gobj_save_persistent_attrs(gobj, json_string("timeout_restart_yuneta"));
     }
 
     if(queue_restart_limit != -1) {
-        gobj_write_uint32_attr(gobj, "queue_restart_limit", queue_restart_limit);
+        gobj_write_integer_attr(gobj, "queue_restart_limit", queue_restart_limit);
         gobj_save_persistent_attrs(gobj, json_string("queue_restart_limit"));
     }
 
@@ -678,14 +681,14 @@ PRIVATE int reset_counters(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     memset(priority_counter, 0, sizeof(priority_counter));
-    gobj_write_uint32_attr(gobj_yuno(), "log_alerts", 0);
-    gobj_write_uint32_attr(gobj_yuno(), "log_criticals", 0);
-    gobj_write_uint32_attr(gobj_yuno(), "log_errors", 0);
-    gobj_write_uint32_attr(gobj_yuno(), "log_warnings", 0);
-    gobj_write_uint32_attr(gobj_yuno(), "log_infos", 0);
-    gobj_write_uint32_attr(gobj_yuno(), "log_debugs", 0);
-    gobj_write_uint32_attr(gobj_yuno(), "log_audits", 0);
-    gobj_write_uint32_attr(gobj_yuno(), "log_monitors", 0);
+    gobj_write_integer_attr(gobj_yuno(), "log_alerts", 0);
+    gobj_write_integer_attr(gobj_yuno(), "log_criticals", 0);
+    gobj_write_integer_attr(gobj_yuno(), "log_errors", 0);
+    gobj_write_integer_attr(gobj_yuno(), "log_warnings", 0);
+    gobj_write_integer_attr(gobj_yuno(), "log_infos", 0);
+    gobj_write_integer_attr(gobj_yuno(), "log_debugs", 0);
+    gobj_write_integer_attr(gobj_yuno(), "log_audits", 0);
+    gobj_write_integer_attr(gobj_yuno(), "log_monitors", 0);
 
     json_object_clear(priv->global_alerts);
     json_object_clear(priv->global_criticals);
@@ -794,7 +797,7 @@ PRIVATE json_t *make_summary(hgobj gobj, BOOL show_internal_errors)
         "Monitor",  (json_int_t)priority_counter[LOG_MONITOR]
     );
     json_object_set_new(jn_summary, "Global Counters", jn_global_stats);
-    json_object_set_new(jn_summary, "Node Owner", json_string(gobj_node_owner()));
+    json_object_set_new(jn_summary, "Node Owner", json_string(gobj_yuno_node_owner()));
 
     if(show_internal_errors) { // THE same but in different order
         if(priority_counter[LOG_INFO]) {
@@ -850,7 +853,10 @@ PRIVATE int send_report_email(hgobj gobj, BOOL reset)
     current_timestamp(fecha, sizeof(fecha));
 
     json_t *jn_summary = make_summary(gobj, FALSE);
-    gbuffer_t *gbuf_summary = gbuffer_create(32*1024, MIN(1*1024*1024L, gbmem_get_maximum_block()), 0, codec_utf_8);
+    gbuffer_t *gbuf_summary = gbuffer_create(
+        32*1024,
+        MIN(1*1024*1024L, gbmem_get_maximum_block())
+    );
     gbuffer_printf(gbuf_summary, "From %s (%s, %s)\nat %s, Logcenter Summary:\n\n",
         _get_hostname(),
         node_uuid(),
@@ -933,7 +939,7 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
     json_t *jn_set = kw_get_dict(gobj, jn_dict, msgset, json_object(), KW_CREATE);
 
 /*
- *  TODO en vez estar harcoded que esté en config.
+ *  TODO en vez estar hardcoded que esté en config.
     "msg",          "%s", "path NOT FOUND, default value returned",
     "path",         "%s", path,
 
@@ -1062,7 +1068,7 @@ PRIVATE json_t *extrae_json(hgobj gobj, FILE *file, uint32_t maxcount, json_t *j
     int c;
     int st = WAIT_BEGIN_DICT;
     int brace_indent = 0;
-    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block(), 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     BOOL fin = FALSE;
     while(!fin && (c=fgetc(file))!=EOF) {
         switch(st) {
@@ -1070,8 +1076,7 @@ PRIVATE json_t *extrae_json(hgobj gobj, FILE *file, uint32_t maxcount, json_t *j
             if(c != '{') {
                 continue;
             }
-            gbuf_reset_wr(gbuf);
-            gbuf_reset_rd(gbuf);
+            gbuffer_clear(gbuf);
             if(gbuffer_append(gbuf, &c, 1)<=0) {
                 abort();
             }
@@ -1300,7 +1305,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         //return -1;
     }
 
-    gbuf_set_wr(gbuf, len-8);
+    gbuffer_set_wr(gbuf, len-8);
 
     char *spriority = gbuffer_get(gbuf, 1);
     char *p = gbuffer_get(gbuf, 8);
@@ -1361,17 +1366,18 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     BOOL send_report = FALSE;
 
-    const char *work_dir = yuneta_work_dir();
+    const char *work_dir = yuneta_root_dir();
     if(test_sectimer(priv->warn_free_disk)) {
         if(!empty_string(work_dir)) {
-            size_t min_free_disk = gobj_read_integer_attr(gobj, "min_free_disk");
-            struct statvfs64 fiData;
-            if(statvfs64(work_dir, &fiData) == 0) {
-                int disk_free_percent = (fiData.f_bavail * 100)/fiData.f_blocks;
-                if(disk_free_percent <= min_free_disk) {
-                    if(priv->last_disk_free_percent != disk_free_percent || 1) {
-                        send_warn_free_disk(gobj, disk_free_percent, min_free_disk);
-                        priv->last_disk_free_percent = disk_free_percent;
+            int min_free_disk = (int)gobj_read_integer_attr(gobj, "min_free_disk");
+            struct statvfs st;
+            if(statvfs(work_dir, &st) == 0) {
+                int free_percent = (int)((st.f_bavail * 100)/st.f_blocks);
+
+                if(free_percent <= min_free_disk) {
+                    if(priv->last_disk_free_percent != free_percent || 1) { // TODO review
+                        send_warn_free_disk(gobj, free_percent, min_free_disk);
+                        priv->last_disk_free_percent = free_percent;
                         send_report = TRUE;
                     }
                 }
@@ -1382,7 +1388,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(test_sectimer(priv->warn_free_mem)) {
         size_t min_free_mem = gobj_read_integer_attr(gobj, "min_free_mem");
-        uint64_t total_memory = uv_get_total_memory()/1024;
+        uint64_t total_memory = total_ram_in_kb();
         unsigned long free_memory = free_ram_in_kb();
         int mem_free_percent = (free_memory * 100)/total_memory;
         if(mem_free_percent <= min_free_mem) {

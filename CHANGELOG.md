@@ -116,6 +116,8 @@ New API
     trq_load_all_by_time
     gobj_sdata_create
     gobj_services2
+    _log_bf
+    total_ram_in_kb
 
 Delete API
 

@@ -109,7 +109,6 @@ typedef int hgen_t;
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
 PRIVATE void _log_jnbf(hgobj gobj, int priority, log_opt_t opt, va_list ap);
 PRIVATE void discover(hgobj gobj, hgen_t hgen);
 
@@ -918,7 +917,7 @@ PUBLIC void print_error(
  *      Log data in transparent format
  *      Used in trace_machine and trace_vjson
  *****************************************************************/
-PRIVATE void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
+PUBLIC void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
 {
     if(len <= 0) {
         return;

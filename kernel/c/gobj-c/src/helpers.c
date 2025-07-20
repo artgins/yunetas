@@ -21,6 +21,7 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <regex.h>
+#include <sys/sysinfo.h>
 #include <sys/stat.h>
 
 #include <yuneta_config.h>  /* don't remove */
@@ -5911,52 +5912,78 @@ PUBLIC int init_backtrace_with_backtrace(const char *program)
     return 0;
 }
 
-/***************************************************************************
- *  free_ram_in_kb()
- *
- *  Returns the current total free RAM in KB.
- *
- *  It uses MemAvailable from /proc/meminfo if present (modern kernels),
- *  otherwise falls back to MemFree + Buffers + Cached.
- ***************************************************************************/
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <sys/sysinfo.h>
+
+/***************************************************************
+ *  Return the free RAM in kilobytes
+ ***************************************************************/
 PUBLIC unsigned long free_ram_in_kb(void)
 {
     FILE *fp = fopen("/proc/meminfo", "r");
-    if(!fp) {
-        return 0;
-    }
+    if(fp) {
+        char line[256];
+        unsigned long memfree = 0;
+        unsigned long buffers = 0;
+        unsigned long cached = 0;
+        unsigned long available = 0;
 
-    unsigned long mem_available = 0;
-    unsigned long mem_free = 0;
-    unsigned long buffers = 0;
-    unsigned long cached = 0;
-
-    char line[512];
-    while(fgets(line, sizeof(line), fp)) {
-        char key[64];
-        unsigned long value = 0;
-
-        if(sscanf(line, "%63[^:]: %lu", key, &value) != 2) {
-            continue;
+        while(fgets(line, sizeof(line), fp)) {
+            if(strncmp(line, "MemAvailable:", 13) == 0) {
+                if(sscanf(line + 13, "%lu", &available) == 1) {
+                    fclose(fp);
+                    return available;
+                }
+            } else if(strncmp(line, "MemFree:", 8) == 0) {
+                sscanf(line + 8, "%lu", &memfree);
+            } else if(strncmp(line, "Buffers:", 8) == 0) {
+                sscanf(line + 8, "%lu", &buffers);
+            } else if(strncmp(line, "Cached:", 7) == 0) {
+                sscanf(line + 7, "%lu", &cached);
+            }
         }
 
-        if(strcmp(key, "MemAvailable") == 0) {
-            mem_available = value;
-            break;  // Prefer MemAvailable, stop parsing
-        } else if(strcmp(key, "MemFree") == 0) {
-            mem_free = value;
-        } else if(strcmp(key, "Buffers") == 0) {
-            buffers = value;
-        } else if(strcmp(key, "Cached") == 0) {
-            cached = value;
+        fclose(fp);
+        return memfree + buffers + cached;
+    }
+
+    // Fallback to sysinfo
+    struct sysinfo info;
+    if(sysinfo(&info) == 0) {
+        return (info.freeram * info.mem_unit) / 1024;
+    }
+
+    return 0;
+}
+
+/***************************************************************
+ *  Return the total RAM in kilobytes
+ ***************************************************************/
+PUBLIC unsigned long total_ram_in_kb(void)
+{
+    FILE *fp = fopen("/proc/meminfo", "r");
+    if(fp) {
+        char line[256];
+        while(fgets(line, sizeof(line), fp)) {
+            if(strncmp(line, "MemTotal:", 9) == 0) {
+                unsigned long kb = 0;
+                if(sscanf(line + 9, "%lu", &kb) == 1) {
+                    fclose(fp);
+                    return kb;
+                }
+                break;
+            }
         }
+        fclose(fp);
     }
 
-    fclose(fp);
-
-    if(mem_available > 0) {
-        return mem_available;
-    } else {
-        return mem_free + buffers + cached;
+    // Fallback to sysinfo if /proc/meminfo fails
+    struct sysinfo info;
+    if(sysinfo(&info) == 0) {
+        return (info.totalram * info.mem_unit) / 1024;
     }
+
+    return 0;  // Unable to determine total RAM
 }

@@ -1044,7 +1044,7 @@ PRIVATE int ac_tx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
-    send_data(gobj, gbuf);
+    // send_data(gobj, gbuf);
 
     JSON_DECREF(kw);
     return 1;
@@ -1076,7 +1076,6 @@ GOBJ_DEFINE_GCLASS(C_UDP_S);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_TX_DATA);
 
 /***************************************************************************
  *

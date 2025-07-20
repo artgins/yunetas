@@ -93,6 +93,8 @@ PUBLIC int gobj_log_add_handler(
 PUBLIC int gobj_log_del_handler(const char *handler_name); // delete all handlers if handle_name is empty
 PUBLIC json_t *gobj_log_list_handlers(void);
 
+PUBLIC void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len);
+
 /*
  *  Only for LOG_HND_OPT_BEAUTIFUL_JSON
  */

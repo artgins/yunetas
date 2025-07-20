@@ -79,10 +79,14 @@ DEFAULT_SUBSTITUTIONS = [
     ("gobj_read_uint64_attr",   "gobj_read_integer_attr"),
 
     ("gobj_write_int32_attr",   "gobj_write_integer_attr"),
+    ("gobj_write_uint32_attr",  "gobj_write_integer_attr"),
     ("gobj_write_uint64_attr",  "gobj_write_integer_attr"),
     ("gobj_start_childs",       "gobj_start_children"),
     ("gobj_stop_childs",        "gobj_stop_children"),
+    ("gobj_node_owner",         "gobj_yuno_node_owner"),
+    ("yuneta_work_dir",         "yuneta_root_dir"),
 
+    ("gbuf_set_wr",             "gbuffer_set_wr"),
     ("gbuf_set_rd_offset",      "gbuffer_set_rd_offset"),
     ("gbuf_clear",              "gbuffer_clear"),
     ("gbuf_create",             "gbuffer_create"),
