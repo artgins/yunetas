@@ -81,10 +81,21 @@ typedef struct _PRIVATE_DATA {
 
     yev_event_h yev_server_accept;
     hytls ytls;
+    hsskt sskt;
     BOOL use_ssl;
+
+    json_int_t connxs;
+    json_int_t txMsgs;
+    json_int_t rxMsgs;
+    json_int_t txBytes;
+    json_int_t rxBytes;
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
+
+    BOOL no_tx_ready_event;
+    int tx_in_progress;
+
     BOOL trace_tls;
     json_t *child_tree_filter;
 
@@ -351,6 +362,137 @@ PRIVATE int udp_set_broadcast(int fd, int on)
 }
 
 /***************************************************************************
+ *  Write the current gbuffer
+ ***************************************************************************/
+PRIVATE int write_data(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gbuffer_t *gbuf = priv->gbuf_txing;
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_TRAFFIC) {
+        gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
+            gobj_short_name(gobj),
+            gobj_read_str_attr(gobj, "sockname"),
+            " -> ",
+            gobj_read_str_attr(gobj, "peername")
+        );
+    }
+
+    if(priv->sskt) {
+        GBUFFER_INCREF(gbuf)
+        if(ytls_encrypt_data(priv->ytls, priv->sskt, gbuf)<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "ytls_encrypt_data() FAILED",
+                "error",        "%s", ytls_get_last_error(priv->ytls, priv->sskt),
+                NULL
+            );
+            try_to_stop_yevents(gobj);
+        }
+        if(gbuffer_leftbytes(gbuf) > 0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
+                NULL
+            );
+        }
+    } else {
+        priv->txMsgs++;
+
+        /*
+         *  Transmit
+         */
+        int fd =yev_get_fd(priv->yev_server_accept);
+        yev_event_h yev_write_event = yev_create_write_event(
+            yuno_event_loop(),
+            yev_callback,
+            gobj,
+            fd,
+            gbuffer_incref(gbuf)
+        );
+
+        priv->tx_in_progress++;
+        yev_start_event(yev_write_event);
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *  Try more writes
+ ***************************************************************************/
+PRIVATE void try_more_writes(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Clear the current tx msg
+     */
+    GBUFFER_DECREF(priv->gbuf_txing)
+
+    /*
+     *  Get the next tx msg
+     */
+    gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
+    if(!gbuf_txing) {
+        /*
+         *  If no more publish tx ready
+         */
+        if(!priv->no_tx_ready_event) {
+            json_t *kw_tx_ready = json_object();
+            /*
+             *  CHILD subscription model
+             */
+            if(gobj_is_service(gobj)) {
+                gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
+            } else {
+                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
+            }
+        }
+    } else {
+        priv->gbuf_txing = gbuf_txing;
+        dl_delete(&priv->dl_tx, gbuf_txing, 0);
+        write_data(gobj);
+    }
+}
+
+/***************************************************************************
+ *  Enqueue data
+ ***************************************************************************/
+PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    //static int counter = 0;
+    //size_t size = dl_size(&priv->dl_tx);
+    // if(priv->max_tx_queue && size >= priv->max_tx_queue) {
+    //     if((counter % priv->max_tx_queue)==0) {
+    //         log_error(0,
+    //             "gobj",         "%s", gobj_full_name(gobj),
+    //             "function",     "%s", __FUNCTION__,
+    //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+    //             "msg",          "%s", "Tiro mensaje tx",
+    //             "counter",      "%d", (int)counter,
+    //             NULL
+    //         );
+    //     }
+    //     counter++;
+    //     GBUFFER *gbuf_first = dl_first(&priv->dl_tx);
+    //     gobj_incr_qs(QS_DROP_BY_OVERFLOW, 1);
+    //     dl_delete(&priv->dl_tx, gbuf_first, 0);
+    //     gobj_decr_qs(QS_OUPUT_QUEUE, 1);
+    //     gbuf_decref(gbuf_first);
+    // }
+
+    dl_add(&priv->dl_tx, gbuf);
+
+    return 0;
+}
+
+/***************************************************************************
  *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
  *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
  ***************************************************************************/
@@ -412,6 +554,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 /***************************************************************************
  *  on read callback
  ***************************************************************************/
+#ifdef PEPE
 PRIVATE void on_read_cb(
     uv_udp_t* handle,
     ssize_t nread,
@@ -658,6 +801,227 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
             "udp_channel", "%s", udp_channel,
             NULL
         );
+    }
+
+    return 0;
+}
+#endif
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int yev_callback(yev_event_h yev_event)
+{
+    if(!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return 0;
+    }
+
+    hgobj gobj = yev_get_gobj(yev_event);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    int trace = trace_level & TRACE_URING;
+    if(trace) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "UDP 🌐🌐💥 yev callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
+            "flag",         "%j", jn_flags,
+            "p",            "%p", yev_event,
+            "fd",           "%d", yev_get_fd(yev_event),
+            "gbuffer",      "%p", yev_get_gbuf(yev_event),
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
+    yev_state_t yev_state = yev_get_state(yev_event);
+
+    switch(yev_get_type(yev_event)) {
+        case YEV_READ_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
+                     */
+                    if(trace_level & TRACE_TRAFFIC) {
+                        gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s%s",
+                            gobj_short_name(gobj),
+                            gobj_read_str_attr(gobj, "sockname"),
+                            " <- ",
+                            gobj_read_str_attr(gobj, "peername")
+                        );
+                    }
+
+                    priv->rxMsgs++;
+                    priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_get_gbuf(yev_event));
+
+                    int ret = 0;
+
+                    if(priv->use_ssl) {
+                        GBUFFER_INCREF(yev_get_gbuf(yev_event))
+                        ret = ytls_decrypt_data(priv->ytls, priv->sskt, yev_get_gbuf(yev_event));
+                        if(ret < 0) {
+                            /*
+                             *  If return -1 while doing handshake then is good stop here the gobj,
+                             *  But if return -1 in response of gobj_send_event,
+                             *      then it can be already stopped and destroyed
+                             *      Solution: don't return -1 on ytls_on_clear_data_callback
+                             */
+                            if(ret < -1000) { // Mark as TLS error
+                                if(gobj_is_running(gobj)) {
+                                    gobj_stop(gobj); // auto-stop
+                                    // WARNING if IS_CLISRV the gobj will be destroyed here
+                                }
+                            }
+                            break;
+                        }
+
+                    } else {
+                        GBUFFER_INCREF(yev_get_gbuf(yev_event))
+                        json_t *kw = json_pack("{s:I}",
+                            "gbuffer", (json_int_t)(size_t)yev_get_gbuf(yev_event)
+                        );
+                        /*
+                         *  CHILD subscription model
+                         */
+                        if(gobj_is_service(gobj)) {
+                            ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
+                        } else {
+                            ret = gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
+                        }
+                    }
+
+                    /*
+                     *  Clear buffer, re-arm read
+                     *  Check ret is 0 because the EV_RX_DATA could provoke
+                     *      stop or destroy of gobj
+                     *      or order to disconnect (EV_DROP)
+                     *  If try_to_stop_yevents() has been called (mt_stop, EV_DROP,...)
+                     *      this event will be in stopped state.
+                     *  If it's in idle then re-arm
+                     */
+                    if(ret == 0 && yev_event_is_idle(yev_event)) {
+                        gbuffer_clear(yev_get_gbuf(yev_event));
+                        yev_start_event(yev_event);
+                    }
+
+                } else {
+                    /*
+                     *  Disconnected
+                     */
+                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+
+                    if(trace) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "UDP: read FAILED",
+                            "msg2",         "%s", "🌐UDP: read FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
+                            NULL
+                        );
+                    }
+
+                    try_to_stop_yevents(gobj);
+                }
+            }
+            break;
+
+        case YEV_WRITE_TYPE:
+            {
+                priv->tx_in_progress--;
+
+                if(yev_state == YEV_ST_IDLE) {
+                    if(gobj_is_running(gobj)) {
+                        /*
+                         *  See if all data was transmitted
+                         */
+                        priv->txBytes += (json_int_t)yev_get_result(yev_event);
+                        if(gbuffer_leftbytes(yev_get_gbuf(yev_event)) > 0) {
+                            if(trace_level & TRACE_MACHINE) {
+                                trace_machine("🔄🍄🍄mach(%s%s^%s), st: %s transmit PENDING data %ld",
+                                    !gobj_is_running(gobj)?"!!":"",
+                                    gobj_gclass_name(gobj), gobj_name(gobj),
+                                    gobj_current_state(gobj),
+                                    (long)gbuffer_leftbytes(yev_get_gbuf(yev_event))
+                                );
+                            }
+
+                            priv->tx_in_progress++;
+                            yev_start_event(yev_event);
+                            break;
+                        }
+
+                        if(gobj_in_this_state(gobj, ST_CONNECTED)) { // Avoid while doing handshaking
+                            try_more_writes(gobj);
+                        }
+                        yev_destroy_event(yev_event);
+                    } else {
+                        yev_destroy_event(yev_event);
+                        try_to_stop_yevents(gobj);
+                    }
+
+                } else {
+                    /*
+                     *  Disconnected
+                     */
+                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+
+                    if(trace) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "UDP: write FAILED",
+                            "msg2",         "%s", "🌐UDP: write FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
+                            NULL
+                        );
+                    }
+
+                    yev_destroy_event(yev_event);
+
+                    try_to_stop_yevents(gobj);
+                }
+
+            }
+            break;
+
+        default:
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "UDP: event type NOT IMPLEMENTED",
+                "msg2",         "%s", "🌐UDP: event type NOT IMPLEMENTED",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                "p",            "%p", yev_event,
+                NULL
+            );
+            break;
     }
 
     return 0;
