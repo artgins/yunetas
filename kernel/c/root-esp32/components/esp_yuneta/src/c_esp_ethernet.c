@@ -81,9 +81,6 @@ typedef struct _PRIVATE_DATA {
     BOOL light_on;
 } PRIVATE_DATA;
 
-PRIVATE hgclass gclass = 0;
-
-
 
 
 
@@ -726,7 +723,7 @@ GOBJ_DEFINE_EVENT(EV_ETHERNET_ON_CLOSE);
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
     static hgclass __gclass__ = 0;
-    if(gclass) {
+    if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -790,7 +787,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Create the gclass
      *----------------------------------------*/
-    gclass = gclass_create(
+    __gclass__ = gclass_create(
         gclass_name,
         event_types,
         states,
@@ -803,7 +800,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0,  // s_user_trace_level
         0   // gclass_flag
     );
-    if(!gclass) {
+    if(!__gclass__) {
         // Error already logged
         return -1;
     }

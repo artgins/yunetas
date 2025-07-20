@@ -75,8 +75,6 @@ typedef struct _PRIVATE_DATA {
     uint32_t max_pkt_size;
 } PRIVATE_DATA;
 
-PRIVATE hgclass gclass = 0;
-
 
 
 

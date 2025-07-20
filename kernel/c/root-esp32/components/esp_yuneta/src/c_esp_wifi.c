@@ -87,8 +87,6 @@ typedef struct _PRIVATE_DATA {
     BOOL light_on;
 } PRIVATE_DATA;
 
-PRIVATE hgclass gclass = 0;
-
 
 
 
