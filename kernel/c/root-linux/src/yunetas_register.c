@@ -58,7 +58,7 @@ PUBLIC int yunetas_register_c_core(void)
     result += register_c_ievent_srv();
     result += register_c_tcp();
     result += register_c_tcp_s();
-    result += register_c_udp();
+    // result += register_c_udp();
     result += register_c_udp_s();
     result += register_c_uart();
     result += register_c_yuno();
