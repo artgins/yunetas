@@ -1067,7 +1067,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GCLASS_UDP_S);
+GOBJ_DEFINE_GCLASS(C_UDP_S);
 
 /*------------------------*
  *      States
@@ -1153,5 +1153,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_udp_s(void)
 {
-    return create_gclass(GCLASS_UDP_S);
+    return create_gclass(C_UDP_S);
 }

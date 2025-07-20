@@ -22,7 +22,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_PROT_UDP_S);
+GOBJ_DECLARE_GCLASS(C_UDP_S);
 
 /*------------------------*
  *      States

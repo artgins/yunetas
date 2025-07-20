@@ -251,7 +251,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GCLASS_PROT_RAW);
+GOBJ_DEFINE_GCLASS(C_PROT_RAW);
 
 /*------------------------*
  *      States
@@ -351,5 +351,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_prot_raw(void)
 {
-    return create_gclass(GCLASS_PROT_RAW);
+    return create_gclass(C_PROT_RAW);
 }

@@ -16,13 +16,15 @@
 #include <syslog.h>
 #include "c_logcenter.h"
 
+#include "../../../../kernel/c/root-linux/src/c_udp_s.h"
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define MAX_ROTATORYFILE_SIZE   600         /* multiply by 1024L*1024L */
-#define ROTATORY_BUFFER_SIZE    10          /* multiply by 1024L*1024L */
-#define MIN_FREE_DISK           20          /* % percent */
-#define MIN_FREE_MEM            20          /* % percent */
+#define MAX_ROTATORYFILE_SIZE   "600"      /* multiply by 1024L*1024L */
+#define ROTATORY_BUFFER_SIZE    "10"       /* multiply by 1024L*1024L */
+#define MIN_FREE_DISK           "20"       /* % percent */
+#define MIN_FREE_MEM            "20"       /* % percent */
 #define PATHBUFLEN              512
 
 /***************************************************************************
@@ -123,13 +125,13 @@ SDATA (DTP_INTEGER,     "rotatory_bf_size",     SDF_WR|SDF_PERSIST|SDF_REQUIRED,
 SDATA (DTP_INTEGER,     "min_free_disk",        SDF_WR|SDF_PERSIST|SDF_REQUIRED, MIN_FREE_DISK, "Minimun free percent disk"),
 SDATA (DTP_INTEGER,     "min_free_mem",         SDF_WR|SDF_PERSIST|SDF_REQUIRED, MIN_FREE_MEM, "Minimun free percent memory"),
 
-SDATA (DTP_BOOLEAN,     "restart_on_alarm",     SDF_PERSIST|SDF_WR,             FALSE, "If true the logcenter will execute 'restart_yuneta_command' after receive a queue alarm. Next restart will not execute until 'timeout_restart_yuneta' has pass"),
-SDATA (DTP_STRING,      "restart_yuneta_command", SDF_WR|SDF_PERSIST,           "/yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json", "Restart yuneta command"),
-SDATA (DTP_INTEGER,     "timeout_restart_yuneta",SDF_PERSIST|SDF_WR,        1*60*60, "Timeout between restarts in seconds"),
-SDATA (DTP_INTEGER,     "queue_restart_limit",  SDF_PERSIST|SDF_WR,        0, "Restart yuneta when queue size is greater"),
+SDATA (DTP_BOOLEAN,     "restart_on_alarm",     SDF_PERSIST|SDF_WR,         FALSE, "If true the logcenter will execute 'restart_yuneta_command' after receive a queue alarm. Next restart will not execute until 'timeout_restart_yuneta' has pass"),
+SDATA (DTP_STRING,      "restart_yuneta_command", SDF_WR|SDF_PERSIST,       "/yuneta/bin/yshutdown -s; sleep 1; /yuneta/agent/yuneta_agent --start --config-file=/yuneta/agent/yuneta_agent.json", "Restart yuneta command"),
+SDATA (DTP_INTEGER,     "timeout_restart_yuneta",SDF_PERSIST|SDF_WR,        "3600", "Timeout between restarts in seconds"),
+SDATA (DTP_INTEGER,     "queue_restart_limit",  SDF_PERSIST|SDF_WR,         0, "Restart yuneta when queue size is greater"),
 
-SDATA (DTP_BOOLEAN,     "send_summary_disabled",SDF_PERSIST|SDF_WR,         FALSE, "If true then disable send summary"),
-SDATA (DTP_INTEGER,     "timeout",              SDF_RD,  1*1000, "Timeout"),
+SDATA (DTP_BOOLEAN,     "send_summary_disabled",SDF_PERSIST|SDF_WR,         0, "If true then disable send summary"),
+SDATA (DTP_INTEGER,     "timeout",              SDF_RD,                     "1000", "Timeout"),
 SDATA_END()
 };
 
@@ -195,7 +197,7 @@ PRIVATE void mt_create(hgobj gobj)
     json_t *kw_gss_udps = json_pack("{s:s}",
         "url", gobj_read_str_attr(gobj, "url")
     );
-    priv->gobj_gss_udp_s = gobj_create("", GCLASS_GSS_UDP_S0, kw_gss_udps, gobj);
+    priv->gobj_gss_udp_s = gobj_create("", C_PROT_UDP_S, kw_gss_udps, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.

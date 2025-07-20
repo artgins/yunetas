@@ -255,7 +255,7 @@ PRIVATE void mt_create(hgobj gobj)
     );
     priv->gobj_treedbs = gobj_create_service(
         "treedbs",
-        GCLASS_TREEDB,
+        C_TREEDB,
         kw_treedbs,
         gobj
     );
