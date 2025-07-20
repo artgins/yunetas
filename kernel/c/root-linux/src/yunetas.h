@@ -54,6 +54,7 @@ extern "C"{
 #include <c_tranger.h>
 #include <c_treedb.h>
 #include <c_resource2.h>
+#include <c_fs.h>
 #include <c_iogate.h>
 #include <c_channel.h>
 #include <c_websocket.h>

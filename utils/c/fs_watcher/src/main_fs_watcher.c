@@ -78,7 +78,7 @@ int do_test(char *path)
 PRIVATE int fs_event_callback(fs_event_t *fs_event)
 {
     char full_path[PATH_MAX];
-    snprintf(full_path, PATH_MAX, "%s/%s", fs_event->directory, fs_event->filename);
+    snprintf(full_path, PATH_MAX, "%s/%s", (char *)fs_event->directory, (char *)fs_event->filename);
 
     if (fs_event->fs_type & (FS_SUBDIR_CREATED_TYPE)) {
         printf("  %sDire created :%s %s\n", On_Green BWhite, Color_Off, full_path);

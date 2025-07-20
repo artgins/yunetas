@@ -17,7 +17,6 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define PATTERNS_SIZE  100
 
 /***************************************************************************
  *              Structures
@@ -86,8 +85,8 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj gobj_fs;
     hgobj timer;
-    char *patterns_list[PATTERNS_SIZE];
-    regex_t regex[PATTERNS_SIZE];
+    const char **patterns_list;
+    regex_t *regex;
     int npatterns;
     BOOL use_parameter;
     BOOL ignore_changed_event;
@@ -155,11 +154,10 @@ PRIVATE int mt_start(hgobj gobj)
     );
 
     const char *patterns = gobj_read_str_attr(gobj, "patterns");
-    priv->npatterns = split(
+    priv->patterns_list = split2(
         patterns,
         ";",
-        priv->patterns_list,
-        PATTERNS_SIZE
+        &priv->npatterns
     );
 
     for(int i=0; i<priv->npatterns; i++) {
@@ -208,7 +206,7 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
 
-    split_free(priv->patterns_list, priv->npatterns);
+    split_free2(priv->patterns_list);
 
     for(int i=0; i<priv->npatterns; i++) {
         regfree(&priv->regex[i]);
@@ -443,6 +441,16 @@ PRIVATE const GMETHODS gmt = {
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_WATCHFS);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_RENAMED);
+GOBJ_DEFINE_EVENT(EV_CHANGED);
 
 /***************************************************************************
  *          Create the GClass

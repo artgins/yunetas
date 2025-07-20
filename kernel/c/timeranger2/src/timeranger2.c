@@ -3873,6 +3873,14 @@ PRIVATE int master_fs_callback(fs_event_t *fs_event)
                 NULL
             );
             break;
+        case FS_FILE_RENAME_TYPE:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "FS_FILE_RENAME_TYPE master fs_event NOT processed",
+                NULL
+            );
+            break;
     }
 
     return 0;
@@ -4182,6 +4190,14 @@ PRIVATE int client_fs_callback(fs_event_t *fs_event)
             );
             break;
 
+        case FS_FILE_RENAME_TYPE:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "FS_FILE_RENAME_TYPE client fs_event NOT processed",
+                NULL
+            );
+            break;
     }
 
     return 0;

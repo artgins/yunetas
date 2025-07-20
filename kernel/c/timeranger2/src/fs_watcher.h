@@ -28,6 +28,7 @@ typedef enum  {
     FS_FILE_CREATED_TYPE,           // use directory / filename
     FS_FILE_DELETED_TYPE,           // use directory / filename
     FS_FILE_MODIFIED_TYPE,          // use directory / filename, see WARNING
+    FS_FILE_RENAME_TYPE,            // use directory / filename TODO to check,copied from libuv
 
     // There are more fs events available with io_uring, but this code only manages these events.
 } fs_type_t;

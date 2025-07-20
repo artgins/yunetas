@@ -45,6 +45,7 @@ set (SRCS
     src/c_node.c
     src/c_treedb.c
     src/c_resource2.c
+    src/c_fs.c
     src/ghttp_parser.c
     src/istream.c
     src/yunetas_environment.c
@@ -81,6 +82,7 @@ set (HDRS
     src/c_node.h
     src/c_treedb.h
     src/c_resource2.h
+    src/c_fs.h
     src/ghttp_parser.h
     src/istream.h
     src/yunetas_environment.h

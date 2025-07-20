@@ -23,6 +23,7 @@
 #include "c_task_authenticate.h"
 #include "c_tranger.h"
 #include "c_treedb.h"
+#include "c_fs.h"
 
 #include "c_iogate.h"
 #include "c_channel.h"
@@ -68,6 +69,7 @@ PUBLIC int yunetas_register_c_core(void)
     result += register_c_timer();
     result += register_c_tranger();
     result += register_c_treedb();
+    result += register_c_fs();
 
     result += register_c_iogate();
     result += register_c_qiogate();
