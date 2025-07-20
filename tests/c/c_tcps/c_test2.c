@@ -73,7 +73,6 @@ typedef struct _PRIVATE_DATA {
     json_int_t rxMsgs;
 } PRIVATE_DATA;
 
-PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -301,6 +300,7 @@ GOBJ_DEFINE_GCLASS(C_TEST2);
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
+    static hgclass __gclass__ = 0;
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,

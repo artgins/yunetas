@@ -751,7 +751,6 @@ typedef struct _PRIVATE_DATA {
 
 } PRIVATE_DATA;
 
-PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -8391,6 +8390,7 @@ GOBJ_DEFINE_GCLASS(C_PROT_MQTT);
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
+    static hgclass __gclass__ = 0;
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,

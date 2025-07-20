@@ -5,6 +5,7 @@
  *          Raw protocol, no insert/deletion of headers
  *
  *          Copyright (c) 2017 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -32,13 +33,10 @@
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
-SDATA (ASN_BOOLEAN,     "connected",        SDF_RD|SDF_STATS,0,              "Connection state. Important filter!"),
-SDATA (ASN_OCTET_STR,   "on_open_event_name",SDF_RD,        "EV_ON_OPEN",   "Must be empty if you don't want receive this event"),
-SDATA (ASN_OCTET_STR,   "on_close_event_name",SDF_RD,       "EV_ON_CLOSE",  "Must be empty if you don't want receive this event"),
-SDATA (ASN_OCTET_STR,   "on_message_event_name",SDF_RD,     "EV_ON_MESSAGE","Must be empty if you don't want receive this event"),
-SDATA (ASN_POINTER,     "user_data",        0,              0,              "user data"),
-SDATA (ASN_POINTER,     "user_data2",       0,              0,              "more user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_BOOLEAN,     "connected",        SDF_RD|SDF_STATS,0,              "Connection state. Important filter!"),
+SDATA (DTP_POINTER,     "user_data",        0,              0,              "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,              0,              "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,              0,              "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
@@ -63,6 +61,7 @@ typedef struct _PRIVATE_DATA {
     const char *on_message_event_name;
     int inform_on_close;
 } PRIVATE_DATA;
+
 
 
 
@@ -105,7 +104,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
 //     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 //
-//     IF_EQ_SET_PRIV(sample_int,              gobj_read_int32_attr)
+//     IF_EQ_SET_PRIV(sample_int,              gobj_read_integer_attr)
 //     ELIF_EQ_SET_PRIV(sample_str,            gobj_read_str_attr)
 //     END_EQ_SET_PRIV()
 }
@@ -115,7 +114,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    gobj_start_childs(gobj);
+    gobj_start_children(gobj);
     return 0;
 }
 
@@ -124,7 +123,7 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
     return 0;
 }
 
@@ -160,7 +159,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gobj_write_bool_attr(gobj, "connected", TRUE);
-    gobj_change_state(gobj, "ST_SESSION");
+    gobj_change_state(gobj, ST_SESSION);
 
     priv->inform_on_close = TRUE;
     if(!empty_string(priv->on_open_event_name)) {
@@ -209,7 +208,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ********************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    return gobj_send_event(gobj_bottom_gobj(gobj), "EV_TX_DATA", kw, gobj);
+    return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);
 }
 
 /***************************************************************************
@@ -217,7 +216,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE int ac_drop(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -235,166 +234,122 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
     return 0;
 }
 
-
-/***************************************************************************
- *                          FSM
- ***************************************************************************/
-PRIVATE const EVENT input_events[] = {
-    // top input
-    // bottom input
-    {"EV_RX_DATA",          0,  0,  0},
-    {"EV_SEND_MESSAGE",     0,  0,  0},
-    {"EV_CONNECTED",        0,  0,  0},
-    {"EV_DISCONNECTED",     0,  0,  0},
-    {"EV_DROP",             0,  0,  0},
-    {"EV_TX_READY",         0,  0,  0},
-    {"EV_STOPPED",          0,  0,  0},
-    // internal
-    {NULL, 0, 0, 0}
-};
-PRIVATE const EVENT output_events[] = {
-    {"EV_ON_OPEN",          0,  0,  0},
-    {"EV_ON_CLOSE",         0,  0,  0},
-    {"EV_ON_MESSAGE",       0,  0,  0},
-    {NULL, 0, 0, 0}
-};
-PRIVATE const char *state_names[] = {
-    "ST_DISCONNECTED",
-    "ST_WAIT_CONNECTED",
-    "ST_SESSION",
-    NULL
-};
-
-PRIVATE EV_ACTION ST_DISCONNECTED[] = {
-    {"EV_CONNECTED",        ac_connected,               0},
-    {"EV_DISCONNECTED",     ac_disconnected,            0},
-    {"EV_STOPPED",          ac_stopped,                 0},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_WAIT_CONNECTED[] = {
-    {"EV_CONNECTED",        ac_connected,               0},
-    {"EV_DISCONNECTED",     ac_disconnected,            "ST_DISCONNECTED"},
-    {0,0,0}
-};
-PRIVATE EV_ACTION ST_SESSION[] = {
-    {"EV_RX_DATA",          ac_rx_data,                 0},
-    {"EV_SEND_MESSAGE",     ac_send_message,            0},
-    {"EV_TX_READY",         0,                          0},
-    {"EV_DROP",             ac_drop,                    0},
-    {"EV_DISCONNECTED",     ac_disconnected,            "ST_DISCONNECTED"},
-    {0,0,0}
-};
-
-PRIVATE EV_ACTION *states[] = {
-    ST_DISCONNECTED,
-    ST_WAIT_CONNECTED,
-    ST_SESSION,
-    NULL
-};
-
-PRIVATE FSM fsm = {
-    input_events,
-    output_events,
-    state_names,
-    states,
-};
-
-/***************************************************************************
- *              GClass
- ***************************************************************************/
+/***********************************************************************
+ *          FSM
+ ***********************************************************************/
 /*---------------------------------------------*
- *              Local methods table
+ *          Global methods table
  *---------------------------------------------*/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
+PRIVATE const GMETHODS gmt = {
+    .mt_create = mt_create,
+    .mt_destroy = mt_destroy,
+    .mt_start = mt_start,
+    .mt_stop = mt_stop,
+    .mt_writing = mt_writing,
 };
 
-/*---------------------------------------------*
- *              GClass
- *---------------------------------------------*/
-PRIVATE GCLASS _gclass = {
-    0,  // base
-    GCLASS_PROT_RAW_NAME,
-    &fsm,
-    {
-        mt_create,
-        0, //mt_create2,
-        mt_destroy,
-        mt_start,
-        mt_stop,
-        0, //mt_play,
-        0, //mt_pause,
-        mt_writing,
-        0, //mt_reading,
-        0, //mt_subscription_added,
-        0, //mt_subscription_deleted,
-        0, //mt_child_added,
-        0, //mt_child_removed,
-        0, //mt_stats,
-        0, //mt_command_parser,
-        0, //mt_inject_event,
-        0, //mt_create_resource,
-        0, //mt_list_resource,
-        0, //mt_save_resource,
-        0, //mt_delete_resource,
-        0, //mt_future21
-        0, //mt_future22
-        0, //mt_get_resource
-        0, //mt_state_changed,
-        0, //mt_authenticate,
-        0, //mt_list_childs,
-        0, //mt_stats_updated,
-        0, //mt_disable,
-        0, //mt_enable,
-        0, //mt_trace_on,
-        0, //mt_trace_off,
-        0, //mt_gobj_created,
-        0, //mt_future33,
-        0, //mt_future34,
-        0, //mt_publish_event,
-        0, //mt_publication_pre_filter,
-        0, //mt_publication_filter,
-        0, //mt_authz_checker,
-        0, //mt_future39,
-        0, //mt_create_node,
-        0, //mt_update_node,
-        0, //mt_delete_node,
-        0, //mt_link_nodes,
-        0, //mt_future44,
-        0, //mt_unlink_nodes,
-        0, //mt_topic_jtree,
-        0, //mt_get_node,
-        0, //mt_list_nodes,
-        0, //mt_shoot_snap,
-        0, //mt_activate_snap,
-        0, //mt_list_snaps,
-        0, //mt_treedbs,
-        0, //mt_treedb_topics,
-        0, //mt_topic_desc,
-        0, //mt_topic_links,
-        0, //mt_topic_hooks,
-        0, //mt_node_parents,
-        0, //mt_node_childs,
-        0, //mt_list_instances,
-        0, //mt_node_tree,
-        0, //mt_topic_size,
-        0, //mt_future62,
-        0, //mt_future63,
-        0, //mt_future64
-    },
-    lmt,
-    tattr_desc,
-    sizeof(PRIVATE_DATA),
-    0,  // acl
-    s_user_trace_level,
-    0,  // cmds
-    0,  // gcflag
-};
+/*------------------------*
+ *      GClass name
+ *------------------------*/
+GOBJ_DEFINE_GCLASS(GCLASS_PROT_RAW);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************************
- *              Public access
+ *
  ***************************************************************************/
-PUBLIC GCLASS *gclass_prot_raw(void)
+PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    return &_gclass;
+    static hgclass __gclass__ = 0;
+    if(__gclass__) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
+            NULL
+        );
+        return -1;
+    }
+
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
+    ev_action_t st_disconnected[] = {
+        {EV_CONNECTED,         ac_connected,              0},
+        {EV_DISCONNECTED,      ac_disconnected,           0},
+        {EV_STOPPED,           ac_stopped,                0},
+        {0,0,0}
+    };
+    ev_action_t st_wait_connected[] = {
+        {EV_CONNECTED,         ac_connected,              0},
+        {EV_DISCONNECTED,      ac_disconnected,           ST_DISCONNECTED},
+        {0,0,0}
+    };
+    ev_action_t st_session[] = {
+        {EV_RX_DATA,           ac_rx_data,                0},
+        {EV_SEND_MESSAGE,      ac_send_message,           0},
+        {EV_TX_READY,          0,                         0},
+        {EV_DROP,              ac_drop,                   0},
+        {EV_DISCONNECTED,      ac_disconnected,           ST_DISCONNECTED},
+        {0,0,0}
+    };
+
+    states_t states[] = {
+        {ST_DISCONNECTED,      st_disconnected},
+        {ST_WAIT_CONNECTED,    st_wait_connected},
+        {ST_SESSION,           st_session},
+        {0, 0}
+    };
+
+    event_type_t event_types[] = {
+        {EV_RX_DATA,           0},
+        {EV_SEND_MESSAGE,      0},
+        {EV_ON_OPEN,           EVF_OUTPUT_EVENT},
+        {EV_ON_CLOSE,          EVF_OUTPUT_EVENT},
+        {EV_ON_MESSAGE,        EVF_OUTPUT_EVENT},
+        {EV_CONNECTED,         0},
+        {EV_DISCONNECTED,      0},
+        {EV_DROP,              0},
+        {EV_TX_READY,          0},
+        {EV_STOPPED,           0},
+
+        {0, 0}
+    };
+
+    /*----------------------------------------*
+     *          Create the gclass
+     *----------------------------------------*/
+    __gclass__ = gclass_create(
+        gclass_name,
+        event_types,
+        states,
+        &gmt,
+        0,  // lmt
+        tattr_desc,
+        sizeof(PRIVATE_DATA),
+        0,  // authz_table
+        0,  // command_table
+        s_user_trace_level,
+        0   // gcflag
+    );
+    if(!__gclass__) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int register_c_prot_raw(void)
+{
+    return create_gclass(GCLASS_PROT_RAW);
 }

@@ -106,7 +106,6 @@ typedef struct _PRIVATE_DATA {
     char bfinput[BFINPUT_SIZE];
 } PRIVATE_DATA;
 
-PRIVATE hgclass __gclass__ = 0;
 
 
 

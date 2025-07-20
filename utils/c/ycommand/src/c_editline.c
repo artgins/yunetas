@@ -208,7 +208,6 @@ PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename);
 PRIVATE int linenoiseHistoryAdd(PRIVATE_DATA *l, const char *line);
 PRIVATE void refreshLine(PRIVATE_DATA *l);
 
-PRIVATE hgclass __gclass__ = 0;
 
 
 
@@ -1209,6 +1208,7 @@ GOBJ_DEFINE_EVENT(EV_SCROLL_BOTTOM);
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
+    static hgclass __gclass__ = 0;
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,

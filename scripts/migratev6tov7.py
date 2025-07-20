@@ -80,6 +80,8 @@ DEFAULT_SUBSTITUTIONS = [
 
     ("gobj_write_int32_attr",   "gobj_write_integer_attr"),
     ("gobj_write_uint64_attr",  "gobj_write_integer_attr"),
+    ("gobj_start_childs",       "gobj_start_children"),
+    ("gobj_stop_childs",        "gobj_stop_children"),
 
     ("gbuf_set_rd_offset",      "gbuffer_set_rd_offset"),
     ("gbuf_clear",              "gbuffer_clear"),

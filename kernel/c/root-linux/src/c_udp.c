@@ -5,10 +5,11 @@
  *          GClass of UDP level 0 uv-mixin
  *
  *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
-#include "c_udp0.h"
+#include "c_udp.h"
 
 /***************************************************************************
  *              Constants
@@ -30,7 +31,7 @@ PRIVATE void on_read_cb(
     const struct sockaddr* addr,
     unsigned flags
 );
-PRIVATE int send_data(hgobj gobj, GBUFFER *gbuf);
+PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int get_sock_name(hgobj gobj);
 
 
@@ -43,21 +44,21 @@ PRIVATE int get_sock_name(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag--------default-description---------- */
-SDATA (ASN_UNSIGNED,    "connxs",               SDF_RD,     0,      "Current connections"),
-SDATA (ASN_COUNTER64,   "txBytes",              SDF_RD,     0,      "Bytes transmitted by this socket"),
-SDATA (ASN_COUNTER64,   "rxBytes",              SDF_RD,     0,      "Bytes received by this socket"),
-SDATA (ASN_OCTET_STR,   "lHost",                SDF_RD,     0,      "local ip"),
-SDATA (ASN_OCTET_STR,   "lPort",                SDF_RD,     0,      "local port"),
-SDATA (ASN_OCTET_STR,   "rHost",                SDF_RD,     0,      "remote ip"),
-SDATA (ASN_OCTET_STR,   "rPort",                SDF_RD,     0,      "remote port"),
-SDATA (ASN_OCTET_STR,   "peername",             SDF_RD,     0,      "Peername"),
-SDATA (ASN_OCTET_STR,   "sockname",             SDF_RD,     0,      "Sockname"),
-SDATA (ASN_OCTET_STR,   "stopped_event_name",   SDF_RD,     "EV_STOPPED", "Stopped event name"),
-SDATA (ASN_OCTET_STR,   "tx_ready_event_name",  0,          "EV_TX_READY", "Must be empty if you don't want receive this event"),
-SDATA (ASN_OCTET_STR,   "rx_data_event_name",   0,          "EV_RX_DATA", "Must be empty if you don't want receive this event"),
-SDATA (ASN_POINTER,     "user_data",            0,          0,      "user data"),
-SDATA (ASN_POINTER,     "user_data2",           0,          0,      "more user data"),
-SDATA (ASN_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
+SDATA (DTP_INTEGER,     "connxs",               SDF_RD,     0,      "Current connections"),
+SDATA (DTP_INTEGER,     "txBytes",              SDF_RD,     0,      "Bytes transmitted by this socket"),
+SDATA (DTP_INTEGER,     "rxBytes",              SDF_RD,     0,      "Bytes received by this socket"),
+SDATA (DTP_STRING,      "lHost",                SDF_RD,     0,      "local ip"),
+SDATA (DTP_STRING,      "lPort",                SDF_RD,     0,      "local port"),
+SDATA (DTP_STRING,      "rHost",                SDF_RD,     0,      "remote ip"),
+SDATA (DTP_STRING,      "rPort",                SDF_RD,     0,      "remote port"),
+SDATA (DTP_STRING,      "peername",             SDF_RD,     0,      "Peername"),
+SDATA (DTP_STRING,      "sockname",             SDF_RD,     0,      "Sockname"),
+SDATA (DTP_STRING,      "stopped_event_name",   SDF_RD,     EV_STOPPED, "Stopped event name"),
+SDATA (DTP_STRING,      "tx_ready_event_name",  0,          EV_TX_READY, "Must be empty if you don't want receive this event"),
+SDATA (DTP_STRING,      "rx_data_event_name",   0,          EV_RX_DATA, "Must be empty if you don't want receive this event"),
+SDATA (DTP_POINTER,     "user_data",            0,          0,      "user data"),
+SDATA (DTP_POINTER,     "user_data2",           0,          0,      "more user data"),
+SDATA (DTP_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
@@ -105,7 +106,7 @@ typedef struct _PRIVATE_DATA {
     struct sockaddr raddr;
 
     dl_list_t dl_tx;
-    GBUFFER *gbuf_txing;
+    gbuffer_t *gbuf_txing;
 
     char bfinput[BFINPUT_SIZE];
 
@@ -196,8 +197,7 @@ PRIVATE int mt_start(hgobj gobj)
             &res
         );
         if(r!=0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "getaddrinfo() FAILED",
@@ -213,8 +213,7 @@ PRIVATE int mt_start(hgobj gobj)
         r = uv_udp_bind(&priv->uv_udp, res->ai_addr, 0);
         freeaddrinfo(res);
         if(r<0) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                 "msg",          "%s", "uv_udp_bind() FAILED",
@@ -243,8 +242,7 @@ PRIVATE int mt_start(hgobj gobj)
         &res
     );
     if(r!=0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "getaddrinfo() FAILED",
@@ -261,8 +259,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     r = uv_udp_connect((uv_udp_t *)&priv->uv_udp, &priv->raddr);
     if(r!=0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "uv_udp_connect() FAILED",
@@ -279,8 +276,7 @@ PRIVATE int mt_start(hgobj gobj)
      *  Info of "connecting..."
      */
     if(gobj_trace_level(gobj) & TRACE_CONNECT_DISCONNECT) {
-        log_info(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_info(gobj, 0,
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "UDP Connecting...",
             "lHost",        "%s", priv->lHost,
@@ -298,8 +294,7 @@ PRIVATE int mt_start(hgobj gobj)
     }
     r = uv_udp_recv_start(&priv->uv_udp, on_alloc_cb, on_read_cb);
     if(r!=0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "uv_udp_recv_start() FAILED",
@@ -312,7 +307,7 @@ PRIVATE int mt_start(hgobj gobj)
         );
     }
 
-    gobj_change_state(gobj, "ST_IDLE");
+    gobj_change_state(gobj, ST_IDLE);
 
     return 0;
 }
@@ -333,7 +328,7 @@ PRIVATE int mt_stop(hgobj gobj)
     if(gobj_trace_level(gobj) & TRACE_UV) {
         log_debug_printf(0, ">>> uv_close updS p=%p", &priv->uv_udp);
     }
-    gobj_change_state(gobj, "ST_WAIT_STOPPED");
+    gobj_change_state(gobj, ST_WAIT_STOPPED);
     uv_close((uv_handle_t *)&priv->uv_udp, on_close_cb);
 
     return 0;
@@ -346,9 +341,8 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_in_this_state(gobj, "ST_STOPPED")) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+    if(!gobj_in_this_state(gobj, ST_STOPPED)) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "GObj NOT STOPPED. UV handler ACTIVE!",
@@ -356,8 +350,8 @@ PRIVATE void mt_destroy(hgobj gobj)
         );
     }
 
-    GBUF_DECREF(priv->gbuf_txing);
-    dl_flush(&priv->dl_tx, (fnfree)gbuf_decref);
+    GBUFFER_DECREF(priv->gbuf_txing);
+    dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
 }
 
 
@@ -383,7 +377,7 @@ PRIVATE void on_close_cb(uv_handle_t* handle)
             &priv->uv_udp
         );
     }
-    gobj_change_state(gobj, "ST_STOPPED");
+    gobj_change_state(gobj, ST_STOPPED);
 
     /*
      *  Only NOW you can destroy this gobj,
@@ -452,8 +446,7 @@ PRIVATE void on_read_cb(
     }
 
     if(nread < 0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "read FAILED",
@@ -484,7 +477,7 @@ PRIVATE void on_read_cb(
             peername
         );
 
-        log_debug_dump(
+        gobj_trace_dump(gobj,
             0,
             buf->base,
             nread,
@@ -493,10 +486,9 @@ PRIVATE void on_read_cb(
     }
 
     if(!empty_string(priv->rx_data_event_name)) {
-        GBUFFER *gbuf = gbuf_create(nread, nread, 0,0);
+        gbuffer_t *gbuf = gbuffer_create(nread, nread, 0,0);
         if(!gbuf) {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_MEMORY_ERROR,
                 "msg",          "%s", "no memory for gbuf",
@@ -504,7 +496,7 @@ PRIVATE void on_read_cb(
                 NULL);
             return;
         }
-        gbuf_append(gbuf, buf->base, nread);
+        gbuffer_append(gbuf, buf->base, nread);
         gbuf_setlabel(gbuf, peername);
         json_t *kw = json_pack("{s:I}",
             "gbuffer", (json_int_t)(size_t)gbuf
@@ -528,29 +520,28 @@ PRIVATE void on_upd_send_cb(uv_udp_send_t* req, int status)
     }
 
     if (status != 0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "upd send FAILED",
             "uv_error",     "%s", uv_err_name(status),
             NULL
         );
-        gobj_change_state(gobj, "ST_CLOSED");
+        gobj_change_state(gobj, ST_CLOSED);
         return;
     }
 
-    size_t ln = gbuf_chunk(priv->gbuf_txing);
+    size_t ln = gbuffer_chunk(priv->gbuf_txing);
     if(ln) {
         send_data(gobj, 0);  // continue with gbuf_txing
         return;
 
     } else {
         // Remove curr txing and get the next
-        gbuf_decref(priv->gbuf_txing);
+        gbuffer_decref(priv->gbuf_txing);
         priv->gbuf_txing = 0;
 
-        GBUFFER *gbuf = dl_first(&priv->dl_tx);
+        gbuffer_t *gbuf = dl_first(&priv->dl_tx);
         if(gbuf) {
             dl_delete(&priv->dl_tx, gbuf, 0);
             send_data(gobj, gbuf);
@@ -566,7 +557,7 @@ PRIVATE void on_upd_send_cb(uv_udp_send_t* req, int status)
 /***************************************************************************
  *  Send data
  ***************************************************************************/
-PRIVATE int send_data(hgobj gobj, GBUFFER *gbuf)
+PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -580,11 +571,10 @@ PRIVATE int send_data(hgobj gobj, GBUFFER *gbuf)
     } else {
         gbuf = priv->gbuf_txing;
     }
-    size_t ln = gbuf_chunk(gbuf);
+    size_t ln = gbuffer_chunk(gbuf);
     if(ln > 1500) {
         // TODO aunque ponga un data_size de 1500 luego crece
-        //log_error(0,
-        //    "gobj",         "%s", gobj_full_name(gobj),
+        //gobj_log_error(gobj, 0,
         //    "function",     "%s", __FUNCTION__,
         //    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
         //    "msg",          "%s", "UPD lenght must not be greater than 1500",
@@ -595,7 +585,7 @@ PRIVATE int send_data(hgobj gobj, GBUFFER *gbuf)
         //);
         ln = 1500;
     }
-    char *bf = gbuf_get(gbuf, ln);
+    char *bf = gbuffer_get(gbuf, ln);
 
     uv_buf_t b[] = {
         {.base = bf, .len = ln}
@@ -614,7 +604,7 @@ PRIVATE int send_data(hgobj gobj, GBUFFER *gbuf)
             priv->rPort
         );
 
-        log_debug_dump(
+        gobj_trace_dump(gobj,
             0,
             b[0].base,
             b[0].len,
@@ -638,8 +628,7 @@ PRIVATE int send_data(hgobj gobj, GBUFFER *gbuf)
         on_upd_send_cb
     );
     if(ret < 0) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_LIBUV_ERROR,
             "msg",          "%s", "uv_udp_send() FAILED",
@@ -668,7 +657,7 @@ PRIVATE int send_data(hgobj gobj, GBUFFER *gbuf)
  ***************************************************************************/
 PRIVATE int ac_tx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, FALSE);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
 
     send_data(gobj, gbuf);
 
@@ -681,21 +670,21 @@ PRIVATE int ac_tx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE const EVENT input_events[] = {
     // top input
-    {"EV_TX_DATA",      0,  0,  ""},
+    {EV_TX_DATA,      0,  0,  ""},
     // bottom input
     // internal
     {NULL, 0, 0, ""}
 };
 PRIVATE const EVENT output_events[] = {
-    {"EV_STOPPED",      0},
-    {"EV_RX_DATA",      0,  0,  ""},
-    {"EV_TX_READY",     0,  0,  ""},
+    {EV_STOPPED,      0},
+    {EV_RX_DATA,      0,  0,  ""},
+    {EV_TX_READY,     0,  0,  ""},
     {NULL, 0, 0, ""}
 };
 PRIVATE const char *state_names[] = {
-    "ST_STOPPED",
-    "ST_WAIT_STOPPED",
-    "ST_IDLE",          /* H2UV handler for UV */
+    ST_STOPPED,
+    ST_WAIT_STOPPED,
+    ST_IDLE,          /* H2UV handler for UV */
     NULL
 };
 
@@ -708,7 +697,7 @@ PRIVATE EV_ACTION ST_WAIT_STOPPED[] = {
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_TX_DATA",        ac_tx_data,       0},
+    {EV_TX_DATA,        ac_tx_data,       0},
     {0,0,0}
 };
 

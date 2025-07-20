@@ -541,7 +541,8 @@ GOBJ_DEFINE_GCLASS(C_PROT_TCP4H);
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
-    if(gclass) {
+    static hgclass __gclass__ = 0;
+    if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -594,7 +595,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*----------------------------------------*
      *          Create the gclass
      *----------------------------------------*/
-    gclass = gclass_create(
+    __gclass__ = gclass_create(
         gclass_name,
         event_types,
         states,
@@ -607,7 +608,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         s_user_trace_level,
         0   // gcflag_t
     );
-    if(!gclass) {
+    if(!__gclass__) {
         // Error already logged
         return -1;
     }

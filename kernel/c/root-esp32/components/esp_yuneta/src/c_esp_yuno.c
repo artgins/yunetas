@@ -373,7 +373,6 @@ typedef struct _PRIVATE_DATA {
     json_int_t autokill_init;
 } PRIVATE_DATA;
 
-PRIVATE hgclass __gclass__ = 0;
 #ifdef ESP_PLATFORM
 ESP_EVENT_DEFINE_BASE(GOBJ_END);
 #endif
@@ -3536,6 +3535,7 @@ GOBJ_DEFINE_EVENT(EV_YUNO_TIME_ON);
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
+    static hgclass __gclass__ = 0;
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,

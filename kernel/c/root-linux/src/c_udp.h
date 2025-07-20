@@ -5,6 +5,7 @@
  *          GClass of UDP level 0 uv-mixin
  *
  *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once

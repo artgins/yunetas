@@ -201,7 +201,6 @@ typedef struct _PRIVATE_DATA {
     int history_index;  /* The history index we are currently editing. */
 } PRIVATE_DATA;
 
-PRIVATE hgclass __gclass__ = 0;
 
 PRIVATE void freeHistory(PRIVATE_DATA *l);
 PRIVATE int linenoiseHistorySetMaxLen(PRIVATE_DATA *l, int len);
@@ -1323,6 +1322,7 @@ GOBJ_DEFINE_EVENT(EV_COMMAND);
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
+    static hgclass __gclass__ = 0;
     if(__gclass__) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
