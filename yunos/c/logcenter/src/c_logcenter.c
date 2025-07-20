@@ -32,7 +32,7 @@ typedef struct {
     DL_ITEM_FIELDS
     const char *host;
     const char *app;
-    hrotatory_t hrot;
+    hrotatory_h hrot;
 } rot_item;
 
 /***************************************************************************
@@ -150,7 +150,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     int32_t timeout;
-    hrotatory_t global_rotatory;
+    hrotatory_h global_rotatory;
     const char *log_filename;
 
     hgobj timer;
@@ -205,8 +205,8 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(timeout,                   gobj_read_integer_attr)
     SET_PRIV(restart_on_alarm,          gobj_read_bool_attr)
     SET_PRIV(log_filename,              gobj_read_str_attr)
-    SET_PRIV(timeout_restart_yuneta,    gobj_read_uint32_attr)
-    SET_PRIV(queue_restart_limit,       gobj_read_uint32_attr)
+    SET_PRIV(timeout_restart_yuneta,    gobj_read_integer_attr)
+    SET_PRIV(queue_restart_limit,       gobj_read_integer_attr)
 
     priv->global_alerts = json_object();
     priv->global_criticals = json_object();
@@ -226,11 +226,11 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     IF_EQ_SET_PRIV(timeout,                     gobj_read_integer_attr)
-    ELIF_EQ_SET_PRIV(timeout_restart_yuneta,    gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(timeout_restart_yuneta,    gobj_read_integer_attr)
         if(priv->timeout_restart_yuneta == 0) {
             priv->t_restart = 0;
         }
-    ELIF_EQ_SET_PRIV(queue_restart_limit,       gobj_read_uint32_attr)
+    ELIF_EQ_SET_PRIV(queue_restart_limit,       gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(restart_on_alarm,          gobj_read_bool_attr)
         if(priv->restart_on_alarm == 0) {
             priv->t_restart = 0;
@@ -354,14 +354,14 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 
     if(stats && strstr(stats, "internal")) {
         jn_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
-            "Alert",    (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_alerts"),
-            "Critical", (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_criticals"),
-            "Error",    (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_errors"),
-            "Warning",  (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_warnings"),
-            "Info",     (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_infos"),
-            "Debug",    (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_debugs"),
-            "Audit",    (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_audits"),
-            "Monitor",  (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_monitors")
+            "Alert",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_alerts"),
+            "Critical", (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_criticals"),
+            "Error",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_errors"),
+            "Warning",  (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_warnings"),
+            "Info",     (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_infos"),
+            "Debug",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_debugs"),
+            "Audit",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_audits"),
+            "Monitor",  (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_monitors")
         );
     } else {
         jn_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
@@ -770,14 +770,14 @@ PRIVATE json_t *make_summary(hgobj gobj, BOOL show_internal_errors)
 
     if(show_internal_errors) {
         json_t *jn_internal_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
-            "Alert",    (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_alerts"),
-            "Critical", (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_criticals"),
-            "Error",    (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_errors"),
-            "Warning",  (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_warnings"),
-            "Info",     (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_infos"),
-            "Debug",    (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_debugs"),
-            "Audit",    (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_audits"),
-            "Monitor",  (json_int_t)(size_t)gobj_read_uint32_attr(gobj_yuno(), "log_monitors")
+            "Alert",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_alerts"),
+            "Critical", (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_criticals"),
+            "Error",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_errors"),
+            "Warning",  (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_warnings"),
+            "Info",     (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_infos"),
+            "Debug",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_debugs"),
+            "Audit",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_audits"),
+            "Monitor",  (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_monitors")
         );
         json_object_set_new(jn_summary, "Internal Counters", jn_internal_stats);
     }

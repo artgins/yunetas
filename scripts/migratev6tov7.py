@@ -75,7 +75,9 @@ DEFAULT_SUBSTITUTIONS = [
     ("uint64_t *prxMsgs;",      "uint64_t rxMsgs;"),
 
     ("gobj_read_int32_attr",    "gobj_read_integer_attr"),
+    ("gobj_read_uint32_attr",   "gobj_read_integer_attr"),
     ("gobj_read_uint64_attr",   "gobj_read_integer_attr"),
+
     ("gobj_write_int32_attr",   "gobj_write_integer_attr"),
     ("gobj_write_uint64_attr",  "gobj_write_integer_attr"),
 
