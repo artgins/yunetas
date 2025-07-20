@@ -1387,8 +1387,8 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     if(test_sectimer(priv->warn_free_mem)) {
-        size_t min_free_mem = gobj_read_integer_attr(gobj, "min_free_mem");
-        uint64_t total_memory = total_ram_in_kb();
+        int min_free_mem = (int)gobj_read_integer_attr(gobj, "min_free_mem");
+        unsigned long total_memory = total_ram_in_kb();
         unsigned long free_memory = free_ram_in_kb();
         int mem_free_percent = (free_memory * 100)/total_memory;
         if(mem_free_percent <= min_free_mem) {
