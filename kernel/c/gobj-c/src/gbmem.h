@@ -31,8 +31,24 @@ typedef void (*sys_free_fn_t)(void * ptr);
         (ptr) = 0;                  \
     }
 
-#define GBMEM_STRDUP gbmem_strdup
-#define GBMEM_STRNDUP gbmem_strndup
+#define GBMEM_STRDUP(dst, src)      \
+    if(dst) {                       \
+        gbmem_free((void *)(dst));  \
+        (dst) = 0;                  \
+    }                               \
+    if(src) {                       \
+        (dst) = gbmem_strdup(src);  \
+    }
+
+#define GBMEM_STRNDUP(dst, src, len)            \
+    if(dst) {                                   \
+        gbmem_free((void *)(dst));              \
+        (dst) = 0;                              \
+    }                                           \
+    if(src) {                                   \
+        (dst) = gbmem_strndup((src), (len));    \
+    }
+
 
 #define GBMEM_REALLOC(ptr, size) gbmem_realloc((ptr), (size))
 

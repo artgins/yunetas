@@ -1243,7 +1243,7 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
     if(plist_size) {
         *plist_size = 0; // error case
     }
-    char *buffer = GBMEM_STRDUP(str);
+    char *buffer = gbmem_strdup(str);
     if(!buffer) {
         return 0;
     }
@@ -1255,7 +1255,7 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
     }
     GBMEM_FREE(buffer)
 
-    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
+    buffer = gbmem_strdup(str);   // Prev buffer is destroyed!
     if(!buffer) {
         return 0;
     }
@@ -1268,7 +1268,7 @@ PUBLIC const char ** split2(const char *str, const char *delim, int *plist_size)
     int i = 0;
     for (ptr = strtok(buffer, delim); ptr != NULL; ptr = strtok(NULL, delim)) {
         if (i < list_size) {
-            list[i++] = GBMEM_STRDUP(ptr);
+            list[i++] = gbmem_strdup(ptr);
         } else {
             break;
         }
@@ -1311,7 +1311,7 @@ PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
     if(plist_size) {
         *plist_size = 0; // error case
     }
-    char *buffer = GBMEM_STRDUP(str);
+    char *buffer = gbmem_strdup(str);
     if(!buffer) {
         return 0;
     }
@@ -1325,7 +1325,7 @@ PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
     }
     GBMEM_FREE(buffer)
 
-    buffer = GBMEM_STRDUP(str);   // Prev buffer is destroyed!
+    buffer = gbmem_strdup(str);   // Prev buffer is destroyed!
     if(!buffer) {
         return 0;
     }
@@ -1339,7 +1339,7 @@ PUBLIC const char **split3(const char *str, const char *delim, int *plist_size)
     p = buffer;
     while ((ptr = strsep(&p, delim)) != NULL) {
         if (i < list_size) {
-            list[i] = GBMEM_STRDUP(ptr);
+            list[i] = gbmem_strdup(ptr);
             i++;
         } else {
             break;
@@ -2087,7 +2087,7 @@ PUBLIC char *jn2string(json_t *jn_var)
         s = json_is_true(jn_var)?"1":"0";
     }
 
-    return GBMEM_STRDUP(s);
+    return gbmem_strdup(s);
 }
 
 /***************************************************************************
@@ -2856,7 +2856,7 @@ PRIVATE int dir_array_add(
         da->capacity = new_capacity;
     }
 
-    da->items[da->count] = GBMEM_STRDUP(name);
+    da->items[da->count] = gbmem_strdup(name);
     da->count++;
     return 0;
 }
@@ -5383,7 +5383,7 @@ PUBLIC int comm_prot_register(gclass_name_t gclass_name, const char *schema)
         );
         return -1;
     }
-    lh->schema = GBMEM_STRDUP(schema);
+    lh->schema = gbmem_strdup(schema);
     lh->gclass_name = gclass_name;
 
     /*----------------*

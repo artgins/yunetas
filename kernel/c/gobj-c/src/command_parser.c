@@ -193,7 +193,7 @@ PRIVATE json_t *expand_command(
     }
 
     char *str, *p;
-    str = p = GBMEM_STRDUP(command);
+    str = p = gbmem_strdup(command);
     char *cmd = get_parameter(p, &p);
     if(empty_string(cmd)) {
         json_t *jn_error = json_sprintf("%s: No command", gobj_short_name(gobj));

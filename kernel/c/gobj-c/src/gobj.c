@@ -2293,7 +2293,7 @@ PUBLIC hgobj gobj_create_tree(
         return (hgobj) 0;
     }
 
-    char *config = GBMEM_STRDUP(tree_config);
+    char *config = gbmem_strdup(tree_config);
     helper_quote2doublequote(config);
 
     json_t *jn_tree_config = json_config(
@@ -3913,7 +3913,7 @@ PUBLIC int gobj_write_strn_attr(hgobj gobj_, const char *name, const char *value
 
     json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
-        char *value = GBMEM_STRNDUP(value_, len);
+        char *value = gbmem_strndup(value_, len);
         if(!value) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -5625,7 +5625,7 @@ PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
     if(empty_string(path_) || !gobj) {
         return 0;
     }
-    char *path = GBMEM_STRDUP(path_);
+    char *path = gbmem_strdup(path_);
 
     int list_size = 0;
     const char **ss = split2(path, delimiter, &list_size);

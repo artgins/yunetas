@@ -21,6 +21,8 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
+#include "c_timer.h"
+#include "c_udp_s.h"
 #include "c_gss_udp_s.h"
 
 /***************************************************************************
@@ -56,14 +58,9 @@ PRIVATE void free_channels(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "url",                  SDF_RD, 0, "url of udp server"),
-SDATA (ASN_COUNTER,     "txMsgs",               SDF_RD|SDF_RSTATS, 0, "Messages transmitted"),
-SDATA (ASN_COUNTER,     "rxMsgs",               SDF_RD|SDF_RSTATS, 0, "Messages received"),
-SDATA (DTP_INTEGER,     "timeout_base",         SDF_RD,  5*1000, "timeout base"),
-SDATA (DTP_INTEGER,     "seconds_inactivity",   SDF_RD,  5*60, "Seconds to consider a gossamer close"),
+SDATA (DTP_INTEGER,     "timeout_base",         SDF_RD,  "5000", "timeout base"),
+SDATA (DTP_INTEGER,     "seconds_inactivity",   SDF_RD,  "300", "Seconds to consider a gossamer close"),
 SDATA (DTP_BOOLEAN,     "disable_end_of_frame", SDF_RD|SDF_STATS, 0, "Disable null as end of frame"),
-SDATA (DTP_STRING,      "on_open_event_name",   SDF_RD,  EV_ON_OPEN, "Must be empty if you don't want receive this event"),
-SDATA (DTP_STRING,      "on_close_event_name",  SDF_RD,  EV_ON_CLOSE, "Must be empty if you don't want receive this event"),
-SDATA (DTP_STRING,      "on_message_event_name",SDF_RD,  EV_ON_MESSAGE, "Must be empty if you don't want receive this event"),
 SDATA (DTP_STRING,      "__username__",         SDF_RD,  "",             "Username"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
@@ -87,9 +84,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     // Conf
-    const char *on_open_event_name;
-    const char *on_close_event_name;
-    const char *on_message_event_name;
     int32_t timeout_base;
     int32_t seconds_inactivity;
 
@@ -120,7 +114,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -128,17 +122,14 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(timeout_base,          gobj_read_integer_attr)
     SET_PRIV(seconds_inactivity,    gobj_read_integer_attr)
-    SET_PRIV(on_open_event_name,    gobj_read_str_attr)
-    SET_PRIV(on_close_event_name,   gobj_read_str_attr)
-    SET_PRIV(on_message_event_name, gobj_read_str_attr)
     SET_PRIV(disable_end_of_frame,  gobj_read_bool_attr)
 
     json_t *kw_udps = json_pack("{s:s}",
         "url", gobj_read_str_attr(gobj, "url")
     );
-    priv->gobj_udp_s = gobj_create("", GCLASS_UDP_S0, kw_udps, gobj);
+    priv->gobj_udp_s = gobj_create("", C_UDP_S, kw_udps, gobj);
 
-    dl_init(&priv->dl_channel);
+    dl_init(&priv->dl_channel, gobj);
 
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
@@ -217,7 +208,7 @@ PRIVATE UDP_CHANNEL *new_udp_channel(hgobj gobj, const char *name)
         );
         return 0;
     }
-    GBMEM_STR_DUP(ch->name, name);
+    GBMEM_STRDUP(ch->name, name);
     dl_add(&priv->dl_channel, ch);
 
     return ch;
@@ -292,14 +283,12 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(!ch) {
         ch = new_udp_channel(gobj, udp_channel);
 
-        if(!empty_string(priv->on_open_event_name)) {
-            gobj_publish_event(gobj, priv->on_open_event_name, 0);
-        }
+        gobj_publish_event(gobj, EV_ON_OPEN, 0);
     }
     ch->t_inactivity = start_sectimer(priv->seconds_inactivity);
 
     if(priv->disable_end_of_frame) {
-        gobj_publish_event(gobj, priv->on_message_event_name, kw);
+        gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
         return 0;
     }
 
@@ -313,7 +302,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
          */
         if(!ch->gbuf) {
             size_t size = MIN(1*1024L*1024L, gbmem_get_maximum_block());
-            ch->gbuf = gbuffer_create(size, size, 0, 0);
+            ch->gbuf = gbuffer_create(size, size);
             if(!ch->gbuf) {
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
@@ -333,7 +322,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 "gbuffer", (json_int_t)(size_t)ch->gbuf
             );
             ch->gbuf = 0;
-            gobj_publish_event(gobj, priv->on_message_event_name, kw_ev);
+            gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ev);
         } else {
             if(gbuffer_append(ch->gbuf, p, 1)!=1) {
                 gobj_log_error(gobj, 0,
@@ -349,7 +338,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     "gbuffer", (json_int_t)(size_t)ch->gbuf
                 );
                 ch->gbuf = 0;
-                gobj_publish_event(gobj, priv->on_message_event_name, kw_ev);
+                gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ev);
                 //break;
             }
         }
@@ -403,9 +392,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     while(ch) {
         nx = dl_next(ch);
         if(test_sectimer(ch->t_inactivity)) {
-            if(!empty_string(priv->on_close_event_name)) {
-                gobj_publish_event(gobj, priv->on_close_event_name, 0);
-            }
+            gobj_publish_event(gobj, EV_ON_CLOSE, 0);
             del_udp_channel(gobj, ch);
         }
         ch = nx;
@@ -432,7 +419,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GCLASS_GSS_UDP_S0);
+GOBJ_DEFINE_GCLASS(C_GSS_UDP_S);
 
 /*------------------------*
  *      States
@@ -441,9 +428,6 @@ GOBJ_DEFINE_GCLASS(GCLASS_GSS_UDP_S0);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_RX_DATA);
-GOBJ_DEFINE_EVENT(EV_SEND_MESSAGE);
-GOBJ_DEFINE_EVENT(EV_TX_READY);
 
 /***************************************************************************
  *
@@ -518,7 +502,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int register_c_gss_udp_s0(void)
+PUBLIC int register_c_gss_udp_s(void)
 {
-    return create_gclass(GCLASS_GSS_UDP_S0);
+    return create_gclass(C_GSS_UDP_S);
 }

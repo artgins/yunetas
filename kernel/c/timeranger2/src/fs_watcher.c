@@ -142,7 +142,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
     }
 
     fs_event->yev_loop = yev_loop;
-    fs_event->path = GBMEM_STRDUP(path);
+    fs_event->path = gbmem_strdup(path);
     fs_event->fs_flag = fs_flag;
     fs_event->fs_type = 0;
     fs_event->directory = NULL;

@@ -4553,9 +4553,9 @@ PRIVATE int db__message_store(
 
     GBMEM_FREE(stored->source_id);
     if(priv->client_id) {
-        stored->source_id = GBMEM_STRDUP(priv->client_id);
+        stored->source_id = gbmem_strdup(priv->client_id);
     } else {
-        stored->source_id = GBMEM_STRDUP("");
+        stored->source_id = gbmem_strdup("");
     }
     if(!stored->source_id) {
         // Error already logged
@@ -4565,7 +4565,7 @@ PRIVATE int db__message_store(
 
     GBMEM_FREE(stored->source_username);
     if(priv->username) {
-        stored->source_username = GBMEM_STRDUP(priv->username);
+        stored->source_username = gbmem_strdup(priv->username);
         if(!stored->source_username) {
             // Error already logged
             GBMEM_FREE(stored);
@@ -4596,8 +4596,8 @@ PRIVATE struct mosquitto_msg_store *db_duplicate_msg(
 {
     struct mosquitto_msg_store *store_dup = GBMEM_MALLOC(sizeof(struct mosquitto_msg_store));
 
-    store_dup->topic = GBMEM_STRDUP(stored->topic);
-    store_dup->payload = GBMEM_MALLOC(stored->payloadlen);
+    store_dup->topic = gbmem_strdup(stored->topic);
+    store_dup->payload = gbmem_malloc(stored->payloadlen);
     memcpy(store_dup->payload, stored->payload, stored->payloadlen);
     store_dup->payloadlen = stored->payloadlen;
     store_dup->mid = stored->mid;
@@ -4605,8 +4605,8 @@ PRIVATE struct mosquitto_msg_store *db_duplicate_msg(
     store_dup->retain = stored->retain;
 
     store_dup->message_expiry_time = stored->message_expiry_time;
-    store_dup->source_id = GBMEM_STRDUP(stored->source_id);
-    store_dup->source_username = GBMEM_STRDUP(stored->source_username);
+    store_dup->source_id = gbmem_strdup(stored->source_id);
+    store_dup->source_username = gbmem_strdup(stored->source_username);
     // TODO int ref_count; usa referencias
     store_dup->source_mid = stored->source_mid;
     store_dup->properties = json_incref(stored->properties);
@@ -5307,7 +5307,7 @@ PRIVATE char *find_alias_topic(hgobj gobj, uint16_t alias)
     if(!topic_name) {
         return 0;
     }
-    return GBMEM_STRDUP(topic_name);
+    return gbmem_strdup(topic_name);
 }
 
 /***************************************************************************
@@ -7090,7 +7090,7 @@ PRIVATE int handle_publish(hgobj gobj, gbuffer_t *gbuf)
         db_free_msg_store(msg);
         return MOSQ_ERR_MALFORMED_PACKET;
     }
-    msg->topic = GBMEM_STRNDUP(topic_, slen);
+    msg->topic = gbmem_strndup(topic_, slen);
 
     if(!slen && priv->protocol_version != mosq_p_mqtt5) {
         /* Invalid publish topic, disconnect client. */
@@ -7505,7 +7505,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
                 JSON_DECREF(jn_list)
                 return MOSQ_ERR_MALFORMED_PACKET;
             }
-            sub = GBMEM_STRNDUP(sub_, slen); // Por algún motivo es necesario
+            sub = gbmem_strndup(sub_, slen); // Por algún motivo es necesario
             if(mosquitto_sub_topic_check(sub)) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,

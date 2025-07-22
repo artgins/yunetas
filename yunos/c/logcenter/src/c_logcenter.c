@@ -14,8 +14,9 @@
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <syslog.h>
+
+#include <c_gss_udp_s.h>
 #include "c_logcenter.h"
-#include "c_udp_s.h"
 
 /***************************************************************************
  *              Constants
