@@ -572,86 +572,9 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 }
 
 /***************************************************************************
- *  on read callback
- ***************************************************************************/
-#ifdef PEPE
-PRIVATE void on_read_cb(
-    uv_udp_t* handle,
-    ssize_t nread,
-    const uv_buf_t* buf,
-    const struct sockaddr* addr,
-    unsigned flags)
-{
-    hgobj gobj = handle->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, "<<< on_read_cb(%s:%s)",
-            gobj_gclass_name(gobj), gobj_name(gobj)
-        );
-    }
-
-    if(nread < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "read FAILED",
-            "uv_error",     "%s", uv_err_name(nread),
-            NULL
-        );
-        return;
-    }
-
-    if(nread == 0 && !addr) {
-        // Yes, sometimes arrive with nread 0.
-        return;
-    }
-    *priv->prxBytes += nread;
-
-    ip_port ipp;
-    ipp.is_ip6 = priv->ipp_sockname.is_ip6;
-    memcpy(&ipp.sa.ip, addr, sizeof(ipp.sa.ip));
-    char peername[60];
-    get_ipp_url(&ipp, peername, sizeof(peername));
-
-    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-        gobj_trace_dump(gobj,
-            0,
-            buf->base,
-            nread,
-            "%s: %s %s %s",
-                gobj_full_name(gobj),
-                priv->sockname,
-                "<-",
-                peername
-        );
-    }
-
-    if(!empty_string(priv->rx_data_event_name)) {
-        if(nread) {
-            gbuffer_t *gbuf = gbuffer_create(nread, nread, 0,0);
-            if(!gbuf) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_MEMORY_ERROR,
-                    "msg",          "%s", "no memory for gbuf",
-                    "size",         "%d", nread,
-                    NULL);
-                return;
-            }
-            gbuffer_append(gbuf, buf->base, nread);
-            gbuf_setlabel(gbuf, peername);
-            json_t *kw_ev = json_pack("{s:I}",
-                "gbuffer", (json_int_t)(size_t)gbuf
-            );
-            gobj_publish_event(gobj, priv->rx_data_event_name, kw_ev);
-        }
-    }
-}
-
-/***************************************************************************
  *  on write callback
  ***************************************************************************/
+#ifdef PEPE
 PRIVATE void on_upd_send_cb(uv_udp_send_t* req, int status)
 {
     hgobj gobj = req->data;
@@ -1058,6 +981,19 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+
+    // send_data(gobj, gbuf);
+
+    JSON_DECREF(kw);
+    return 1;
+}
+
+/***************************************************************************
  *  udp_channel is "ip:port" and it's in the label of gbuff.
  ***************************************************************************/
 PRIVATE int ac_tx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -1124,6 +1060,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0, 0}
     };
     ev_action_t st_idle[] = {
+        {EV_RX_DATA,            ac_rx_data,         0},
         {EV_TX_DATA,            ac_tx_data,         0},
         {0, 0, 0}
     };

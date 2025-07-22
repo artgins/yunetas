@@ -196,7 +196,7 @@ PRIVATE void mt_create(hgobj gobj)
     json_t *kw_gss_udps = json_pack("{s:s}",
         "url", gobj_read_str_attr(gobj, "url")
     );
-    priv->gobj_gss_udp_s = gobj_create(gobj_name(gobj), C_UDP_S, kw_gss_udps, gobj);
+    priv->gobj_gss_udp_s = gobj_create(gobj_name(gobj), C_GSS_UDP_S, kw_gss_udps, gobj);
 
     /*
      *  Do copy of heavy used parameters, for quick access.
