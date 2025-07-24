@@ -13,10 +13,11 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
-#include <syslog.h>
+#include <limits.h>
 
 #include <c_gss_udp_s.h>
 #include "c_logcenter.h"
+
 
 /***************************************************************************
  *              Constants
@@ -25,7 +26,6 @@
 #define ROTATORY_BUFFER_SIZE    "10"       /* multiply by 1024L*1024L */
 #define MIN_FREE_DISK           "20"       /* % percent */
 #define MIN_FREE_MEM            "20"       /* % percent */
-#define PATHBUFLEN              512
 
 /***************************************************************************
  *              Structures
@@ -282,7 +282,7 @@ PRIVATE int mt_play(hgobj gobj)
     gobj_start(priv->timer);
 
     if(!empty_string(priv->log_filename)) {
-        char destination[PATHBUFLEN];
+        char destination[PATH_MAX];
         yuneta_realm_file(
             destination,
             sizeof(destination),
