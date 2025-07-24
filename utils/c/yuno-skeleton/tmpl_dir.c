@@ -75,6 +75,7 @@
  ***************************************************************************/
 int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
+    // TODO
     // pcre *re;
     // const char *error;
     // int erroffset;
@@ -132,6 +133,7 @@ int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *
  ***************************************************************************/
 int render_filename(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
+    // TODO
     // pcre *re;
     // const char *error;
     // int erroffset;
