@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <argp.h>
+#include <argp-standalone.h>
 #include <yunetas.h>
 #include "make_skeleton.h"
 

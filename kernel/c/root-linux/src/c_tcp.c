@@ -13,7 +13,7 @@
 #include <helpers.h>
 #include <kwid.h>
 #include <ytls.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <yev_loop.h>
 #include <testing.h>
 #include "c_timer.h"

@@ -11,7 +11,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <argp.h>
+#include <argp-standalone.h>
 #include <jansson.h>
 #include <yunetas.h>
 #include "make_skeleton.h"

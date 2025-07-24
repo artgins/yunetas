@@ -18,11 +18,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <stddef.h>
-#include <pcre.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <jansson.h>
+#define PCRE2_STATIC
+#define PCRE2_CODE_UNIT_WIDTH 8
+#include <pcre2.h>
 #include <yunetas.h>
 #include "00_replace_string.h"
 #include "clone_tree_dir.h"
@@ -68,50 +70,128 @@
  *  de dicha clave en el dict jn_values
  *  Busca tb "_tmpl$" y elimínalo.
  ***************************************************************************/
+// int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values, BOOL is_file)
+// {
+//     pcre *re;
+//     const char *error;
+//     int erroffset;
+//     int ovector[100];
+//
+//     if(is_file) {
+//         snprintf(rendered_str, rendered_str_size, "%s_tmpl", str);
+//     } else {
+//         snprintf(rendered_str, rendered_str_size, "%s", str);
+//     }
+//
+//     const char *old_name; json_t *jn_value;
+//     json_object_foreach(jn_values, old_name, jn_value) {
+//         const char *new_name = json_string_value(jn_value);
+//         if(empty_string(new_name)) {
+//             continue;
+//         }
+//         char pattern[NAME_MAX];
+//         snprintf(pattern, sizeof(pattern), "(%s+?)", old_name);
+//         re = pcre_compile(
+//             pattern,        /* the pattern */
+//             0,              /* default options */
+//             &error,         /* for error message */
+//             &erroffset,     /* for error offset */
+//             0               /* use default character tables */
+//         );
+//         if(!re) {
+//             fprintf(stderr, "pcre_compile failed (offset: %d), %s\n", erroffset, error);
+//             exit(-1);
+//         }
+//
+//         int rc;
+//         int offset = 0;
+//         int len = (int)strlen(str);
+//         while (offset < len && (rc = pcre_exec(re, 0, str, len, offset, 0, ovector, sizeof(ovector))) >= 0)
+//         {
+//             for(int i = 0; i < rc; ++i)
+//             {
+//                 int macro_len = ovector[2*i+1] - ovector[2*i];
+//                 //printf("%2d: %.*s\n", i, macro_len, str + ovector[2*i]);
+//                 char macro[NAME_MAX]; // enough of course
+//                 char value[NAME_MAX]; // enough of course
+//                 snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
+//                 const char *value_ = json_string_value(json_object_get(jn_values, macro));
+//                 if(is_file) {
+//                     snprintf(value, sizeof(value), "+%s+", value_);
+//                 } else {
+//                     snprintf(value, sizeof(value), "{{%s}}", value_);
+//                 }
+//                 char * new_value = replace_string(rendered_str, macro, value);
+//                 snprintf(rendered_str, rendered_str_size, "%s", new_value);
+//                 free(new_value);
+//             }
+//             offset = ovector[1];
+//         }
+//         free(re);
+//     }
+//
+//     return 0;
+// }
+
 int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values, BOOL is_file)
 {
-    pcre *re;
-    const char *error;
-    int erroffset;
-    int ovector[100];
-
     if(is_file) {
         snprintf(rendered_str, rendered_str_size, "%s_tmpl", str);
     } else {
         snprintf(rendered_str, rendered_str_size, "%s", str);
     }
 
-    const char *old_name; json_t *jn_value;
+    const char *old_name;
+    json_t *jn_value;
     json_object_foreach(jn_values, old_name, jn_value) {
         const char *new_name = json_string_value(jn_value);
         if(empty_string(new_name)) {
             continue;
         }
+
         char pattern[NAME_MAX];
         snprintf(pattern, sizeof(pattern), "(%s+?)", old_name);
-        re = pcre_compile(
-            pattern,        /* the pattern */
-            0,              /* default options */
-            &error,         /* for error message */
-            &erroffset,     /* for error offset */
-            0               /* use default character tables */
+
+        int error_code;
+        PCRE2_SIZE error_offset;
+        pcre2_code *re = pcre2_compile(
+            (PCRE2_SPTR)pattern,
+            PCRE2_ZERO_TERMINATED,
+            0,
+            &error_code,
+            &error_offset,
+            NULL
         );
         if(!re) {
-            fprintf(stderr, "pcre_compile failed (offset: %d), %s\n", erroffset, error);
+            PCRE2_UCHAR buffer[256];
+            pcre2_get_error_message(error_code, buffer, sizeof(buffer));
+            fprintf(stderr, "pcre2_compile failed at offset %d: %s\n", (int)error_offset, buffer);
             exit(-1);
         }
 
-        int rc;
+        pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
+
         int offset = 0;
         int len = (int)strlen(str);
-        while (offset < len && (rc = pcre_exec(re, 0, str, len, offset, 0, ovector, sizeof(ovector))) >= 0)
-        {
-            for(int i = 0; i < rc; ++i)
-            {
-                int macro_len = ovector[2*i+1] - ovector[2*i];
-                //printf("%2d: %.*s\n", i, macro_len, str + ovector[2*i]);
-                char macro[NAME_MAX]; // enough of course
-                char value[NAME_MAX]; // enough of course
+        while(1) {
+            int rc = pcre2_match(
+                re,
+                (PCRE2_SPTR)str,
+                len,
+                offset,
+                0,
+                match_data,
+                NULL
+            );
+            if(rc < 0) {
+                break; // no more matches
+            }
+
+            PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
+            for(int i = 0; i < rc; ++i) {
+                int macro_len = (int)(ovector[2*i+1] - ovector[2*i]);
+                char macro[NAME_MAX];
+                char value[NAME_MAX];
                 snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
                 const char *value_ = json_string_value(json_object_get(jn_values, macro));
                 if(is_file) {
@@ -119,13 +199,15 @@ int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *
                 } else {
                     snprintf(value, sizeof(value), "{{%s}}", value_);
                 }
-                char * new_value = replace_string(rendered_str, macro, value);
+                char *new_value = replace_string(rendered_str, macro, value);
                 snprintf(rendered_str, rendered_str_size, "%s", new_value);
                 free(new_value);
             }
-            offset = ovector[1];
+            offset = (int)ovector[1];
         }
-        free(re);
+
+        pcre2_match_data_free(match_data);
+        pcre2_code_free(re);
     }
 
     return 0;

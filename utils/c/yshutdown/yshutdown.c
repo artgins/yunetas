@@ -7,7 +7,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp.h>
+#include <argp-standalone.h>
 #include <errno.h>
 #include <signal.h>
 #include <unistd.h>

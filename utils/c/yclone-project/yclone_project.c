@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <argp.h>
+#include <argp-standalone.h>
 #include <yunetas.h>
 #include "make_clone.h"
 

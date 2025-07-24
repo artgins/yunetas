@@ -13,7 +13,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <argp.h>
+#include <argp-standalone.h>
 #include <regex.h>
 #include <jansson.h>
 #include <helpers.h>

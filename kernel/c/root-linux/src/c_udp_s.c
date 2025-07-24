@@ -28,7 +28,7 @@
  ***************************************************************************/
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int udp_set_broadcast(int fd, int on);
-PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
+// PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 
 /***************************************************************************
@@ -382,6 +382,39 @@ PRIVATE int udp_set_broadcast(int fd, int on)
 }
 
 /***************************************************************************
+ *  Enqueue data
+ ***************************************************************************/
+PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    //static int counter = 0;
+    //size_t size = dl_size(&priv->dl_tx);
+    // if(priv->max_tx_queue && size >= priv->max_tx_queue) {
+    //     if((counter % priv->max_tx_queue)==0) {
+    //         log_error(0,
+    //             "gobj",         "%s", gobj_full_name(gobj),
+    //             "function",     "%s", __FUNCTION__,
+    //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+    //             "msg",          "%s", "Tiro mensaje tx",
+    //             "counter",      "%d", (int)counter,
+    //             NULL
+    //         );
+    //     }
+    //     counter++;
+    //     GBUFFER *gbuf_first = dl_first(&priv->dl_tx);
+    //     gobj_incr_qs(QS_DROP_BY_OVERFLOW, 1);
+    //     dl_delete(&priv->dl_tx, gbuf_first, 0);
+    //     gobj_decr_qs(QS_OUPUT_QUEUE, 1);
+    //     gbuf_decref(gbuf_first);
+    // }
+
+    dl_add(&priv->dl_tx, gbuf);
+
+    return 0;
+}
+
+/***************************************************************************
  *  Write the current gbuffer
  ***************************************************************************/
 PRIVATE int write_data(hgobj gobj)
@@ -480,148 +513,10 @@ PRIVATE void try_more_writes(hgobj gobj)
 }
 
 /***************************************************************************
- *  Enqueue data
- ***************************************************************************/
-PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    //static int counter = 0;
-    //size_t size = dl_size(&priv->dl_tx);
-    // if(priv->max_tx_queue && size >= priv->max_tx_queue) {
-    //     if((counter % priv->max_tx_queue)==0) {
-    //         log_error(0,
-    //             "gobj",         "%s", gobj_full_name(gobj),
-    //             "function",     "%s", __FUNCTION__,
-    //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-    //             "msg",          "%s", "Tiro mensaje tx",
-    //             "counter",      "%d", (int)counter,
-    //             NULL
-    //         );
-    //     }
-    //     counter++;
-    //     GBUFFER *gbuf_first = dl_first(&priv->dl_tx);
-    //     gobj_incr_qs(QS_DROP_BY_OVERFLOW, 1);
-    //     dl_delete(&priv->dl_tx, gbuf_first, 0);
-    //     gobj_decr_qs(QS_OUPUT_QUEUE, 1);
-    //     gbuf_decref(gbuf_first);
-    // }
-
-    dl_add(&priv->dl_tx, gbuf);
-
-    return 0;
-}
-
-/***************************************************************************
- *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
- *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
- ***************************************************************************/
-PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL to_wait_stopped = FALSE;
-
-    if(gobj_current_state(gobj)==ST_STOPPED) {
-        return;
-    }
-
-    uint32_t trace_level = gobj_trace_level(gobj);
-    if(trace_level & TRACE_URING) {
-        gobj_log_debug(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_YEV_LOOP,
-            "msg",          "%s", "try_to_stop_yevents",
-            "msg2",         "%s", "🟥🟥 try_to_stop_yevents",
-            NULL
-        );
-    }
-
-    if(priv->yev_server_udp) {
-        yev_stop_event(priv->yev_server_udp);
-        if(yev_event_is_stopped(priv->yev_server_udp)) {
-            yev_destroy_event(priv->yev_server_udp);
-            priv->yev_server_udp = 0;
-        } else {
-            to_wait_stopped = TRUE;
-        }
-    }
-
-    // if(priv->yev_reading) {
-    //     if(!yev_event_is_stopped(priv->yev_reading)) {
-    //         yev_stop_event(priv->yev_reading);
-    //         if(!yev_event_is_stopped(priv->yev_reading)) {
-    //             to_wait_stopped = TRUE;
-    //         }
-    //     }
-    // }
-    //
-    // if(priv->tx_in_progress > 0) {
-    //     to_wait_stopped = TRUE;
-    // }
-
-    if(to_wait_stopped) {
-        gobj_change_state(gobj, ST_WAIT_STOPPED);
-    } else {
-        if(gobj_current_state(gobj)==ST_DISCONNECTED) {
-            gobj_change_state(gobj, ST_STOPPED);
-        } else {
-            gobj_change_state(gobj, ST_STOPPED);
-            // set_disconnected(gobj);
-        }
-    }
-}
-
-/***************************************************************************
- *  on write callback
+ *  Send data
+ *  udp_channel is "ip:port" and it's in the label of gbuf.
  ***************************************************************************/
 #ifdef PEPE
-PRIVATE void on_upd_send_cb(uv_udp_send_t* req, int status)
-{
-    hgobj gobj = req->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, "<<< on_upd_send_cb(%s:%s)",
-            gobj_gclass_name(gobj), gobj_name(gobj)
-        );
-    }
-
-    if (status != 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "upd send FAILED",
-            "uv_error",     "%s", uv_err_name(status),
-            NULL);
-    }
-
-    size_t ln = gbuffer_chunk(priv->gbuf_txing);
-    if(ln) {
-        send_data(gobj, 0);  // continue with gbuf_txing
-        return;
-
-    } else {
-        // Remove curr txing and get the next
-        gbuffer_decref(priv->gbuf_txing);
-        priv->gbuf_txing = 0;
-
-        gbuffer_t *gbuf = dl_first(&priv->dl_tx);
-        if(gbuf) {
-            dl_delete(&priv->dl_tx, gbuf, 0);
-            send_data(gobj, gbuf);
-            return;
-        }
-    }
-
-    if(!empty_string(priv->tx_ready_event_name)) {
-        gobj_publish_event(gobj, priv->tx_ready_event_name, 0);
-    }
-}
-
-/***************************************************************************
- *  Send data
- *  udp_channel is "ip:port" and it's in the label of gbuff.
- ***************************************************************************/
 PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -749,6 +644,65 @@ PRIVATE int send_data(hgobj gobj, gbuffer_t *gbuf)
     return 0;
 }
 #endif
+
+/***************************************************************************
+ *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
+ *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
+ ***************************************************************************/
+PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL to_wait_stopped = FALSE;
+
+    if(gobj_current_state(gobj)==ST_STOPPED) {
+        return;
+    }
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_URING) {
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "try_to_stop_yevents",
+            "msg2",         "%s", "🟥🟥 try_to_stop_yevents",
+            NULL
+        );
+    }
+
+    if(priv->yev_server_udp) {
+        yev_stop_event(priv->yev_server_udp);
+        if(yev_event_is_stopped(priv->yev_server_udp)) {
+            yev_destroy_event(priv->yev_server_udp);
+            priv->yev_server_udp = 0;
+        } else {
+            to_wait_stopped = TRUE;
+        }
+    }
+
+    // if(priv->yev_reading) {
+    //     if(!yev_event_is_stopped(priv->yev_reading)) {
+    //         yev_stop_event(priv->yev_reading);
+    //         if(!yev_event_is_stopped(priv->yev_reading)) {
+    //             to_wait_stopped = TRUE;
+    //         }
+    //     }
+    // }
+    //
+    // if(priv->tx_in_progress > 0) {
+    //     to_wait_stopped = TRUE;
+    // }
+
+    if(to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
+    } else {
+        if(gobj_current_state(gobj)==ST_DISCONNECTED) {
+            gobj_change_state(gobj, ST_STOPPED);
+        } else {
+            gobj_change_state(gobj, ST_STOPPED);
+            // set_disconnected(gobj);
+        }
+    }
+}
 
 /***************************************************************************
  *
@@ -981,29 +935,33 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
-
-    // send_data(gobj, gbuf);
-
-    JSON_DECREF(kw);
-    return 1;
-}
-
-/***************************************************************************
  *  udp_channel is "ip:port" and it's in the label of gbuff.
  ***************************************************************************/
 PRIVATE int ac_tx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // send_data(gobj, gbuf);
+    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    if(!gbuf) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "gbuffer NULL",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
 
-    JSON_DECREF(kw);
-    return 1;
+    if(!priv->gbuf_txing) {
+        priv->gbuf_txing = gbuffer_incref(gbuf);
+        write_data(gobj);
+    } else {
+        enqueue_write(gobj, gbuffer_incref(gbuf));
+    }
+
+    KW_DECREF(kw)
+    return 0;
 }
 
 /***********************************************************************
@@ -1060,7 +1018,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0, 0}
     };
     ev_action_t st_idle[] = {
-        {EV_RX_DATA,            ac_rx_data,         0},
         {EV_TX_DATA,            ac_tx_data,         0},
         {0, 0, 0}
     };
@@ -1076,6 +1033,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TX_DATA,            0},
         {EV_RX_DATA,            EVF_OUTPUT_EVENT},
         {EV_TX_READY,           EVF_OUTPUT_EVENT},
+        {ST_STOPPED,            EVF_OUTPUT_EVENT},
         {0, 0}
     };
 

@@ -7,7 +7,7 @@
  ****************************************************************************/
 #include <dirent.h>
 #include <sys/stat.h>
-#include <argp.h>
+#include <argp-standalone.h>
 #include <jansson.h>
 #include <helpers.h>
 #include "render_file.h"
