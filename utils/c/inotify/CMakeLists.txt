@@ -33,9 +33,13 @@ SET (YUNO_HDRS
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
-    ${YUNETAS_KERNEL_LIBS}
-    ${YUNETAS_EXTERNAL_LIBS}
-    ${DEBUG_LIBS}
+    libyunetas-core-linux.a
+    libyunetas-gobj.a
+    liburing.a
+    libjansson.a
+    libpcre2-8.a
+    libargp-standalone.a
+    libbacktrace.a
 )
 
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)

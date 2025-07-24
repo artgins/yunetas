@@ -171,7 +171,6 @@ set(YUNETAS_KERNEL_LIBS
 set(YUNETAS_EXTERNAL_LIBS
     libjansson.a
     liburing.a
-    libpcre2-8.a
 )
 
 set(YUNETAS_PCRE_LIBS

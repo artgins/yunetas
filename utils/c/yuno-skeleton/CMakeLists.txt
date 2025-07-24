@@ -35,7 +35,8 @@ add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
     libjansson.a
-    pcre.a
+    libpcre2-8.a
+    libargp-standalone.a
 )
 
 #TARGET_LINK_LIBRARIES(yclone-gclass
