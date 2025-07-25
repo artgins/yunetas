@@ -70,6 +70,7 @@
  *  de dicha clave en el dict jn_values
  *  Busca tb "_tmpl$" y elimínalo.
  ***************************************************************************/
+// version with pcre, changed to pcre2
 // int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values, BOOL is_file)
 // {
 //     pcre *re;

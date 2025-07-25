@@ -73,55 +73,127 @@
  *  Busca en str las {{clave}} y sustituye la clave con el valor
  *  de dicha clave en el dict jn_values
  ***************************************************************************/
+// int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
+// {
+//     pcre *re;
+//     const char *error;
+//     int erroffset;
+//     int ovector[100];
+//
+//     re = pcre_compile(
+//              "(\\{\\{.+?\\}\\})",   /* the pattern */
+//              0,                     /* default options */
+//              &error,                /* for error message */
+//              &erroffset,            /* for error offset */
+//              0                      /* use default character tables */
+//     );
+//     if(!re) {
+//         fprintf(stderr, "pcre_compile failed (offset: %d), %s\n", erroffset, error);
+//         exit(-1);
+//     }
+//
+//     snprintf(rendered_str, rendered_str_size, "%s", str);
+//
+//     int rc;
+//     unsigned int offset = 0;
+//     unsigned int len = strlen(str);
+//     while (offset < len && (rc = pcre_exec(re, 0, str, len, offset, 0, ovector, sizeof(ovector))) >= 0)
+//     {
+//         for(int i = 0; i < rc; ++i)
+//         {
+//             int macro_len = ovector[2*i+1] - ovector[2*i];
+//             //printf("%2d: %.*s\n", i, macro_len, str + ovector[2*i]);
+//             char macro[256]; // enough of course
+//             char rendered[256];
+//             snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
+//             char key[256];
+//             snprintf(key, sizeof(key), "%.*s", macro_len-4, str + ovector[2*i] + 2);
+//
+//             const char *value = json_string_value(json_object_get(jn_values, key));
+//             if(!value)
+//                 value = "";
+//             snprintf(rendered, sizeof(rendered), "%s", value);
+//
+//             char * new_value = replace_string(rendered_str, macro, rendered);
+//             snprintf(rendered_str, rendered_str_size, "%s", new_value);
+//             free(new_value);
+//         }
+//         offset = ovector[1];
+//     }
+//     free(re);
+//
+//     return 0;
+// }
+
 int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
-    // TODO
-    // pcre *re;
-    // const char *error;
-    // int erroffset;
-    // int ovector[100];
-    //
-    // re = pcre_compile(
-    //          "(\\{\\{.+?\\}\\})",   /* the pattern */
-    //          0,                     /* default options */
-    //          &error,                /* for error message */
-    //          &erroffset,            /* for error offset */
-    //          0                      /* use default character tables */
-    // );
-    // if(!re) {
-    //     fprintf(stderr, "pcre_compile failed (offset: %d), %s\n", erroffset, error);
-    //     exit(-1);
-    // }
-    //
-    // snprintf(rendered_str, rendered_str_size, "%s", str);
-    //
-    // int rc;
-    // unsigned int offset = 0;
-    // unsigned int len = strlen(str);
-    // while (offset < len && (rc = pcre_exec(re, 0, str, len, offset, 0, ovector, sizeof(ovector))) >= 0)
-    // {
-    //     for(int i = 0; i < rc; ++i)
-    //     {
-    //         int macro_len = ovector[2*i+1] - ovector[2*i];
-    //         //printf("%2d: %.*s\n", i, macro_len, str + ovector[2*i]);
-    //         char macro[256]; // enough of course
-    //         char rendered[256];
-    //         snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
-    //         char key[256];
-    //         snprintf(key, sizeof(key), "%.*s", macro_len-4, str + ovector[2*i] + 2);
-    //
-    //         const char *value = json_string_value(json_object_get(jn_values, key));
-    //         if(!value)
-    //             value = "";
-    //         snprintf(rendered, sizeof(rendered), "%s", value);
-    //
-    //         char * new_value = replace_string(rendered_str, macro, rendered);
-    //         snprintf(rendered_str, rendered_str_size, "%s", new_value);
-    //         free(new_value);
-    //     }
-    //     offset = ovector[1];
-    // }
-    // free(re);
+    pcre2_code *re;
+    PCRE2_SPTR pattern = (PCRE2_SPTR)"(\\{\\{.+?\\}\\})";
+    int errornumber;
+    PCRE2_SIZE erroroffset;
+
+    re = pcre2_compile(
+        pattern,                  /* the pattern */
+        PCRE2_ZERO_TERMINATED,    /* pattern is zero-terminated */
+        0,                        /* default options */
+        &errornumber,             /* for error code */
+        &erroroffset,             /* for error offset */
+        NULL                      /* use default compile context */
+    );
+    if(!re) {
+        PCRE2_UCHAR buffer[256];
+        pcre2_get_error_message(errornumber, buffer, sizeof(buffer));
+        fprintf(stderr, "pcre2_compile failed at offset %d: %s\n", (int)erroroffset, buffer);
+        exit(-1);
+    }
+
+    snprintf(rendered_str, rendered_str_size, "%s", str);
+
+    pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
+    size_t offset = 0;
+    size_t len = strlen(str);
+
+    while(offset < len) {
+        int rc = pcre2_match(
+            re,
+            (PCRE2_SPTR)str,
+            len,
+            offset,
+            0,
+            match_data,
+            NULL
+        );
+
+        if(rc <= 0) {
+            break;
+        }
+
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
+
+        for(int i = 0; i < rc; ++i) {
+            int macro_len = (int)(ovector[2*i+1] - ovector[2*i]);
+            char macro[256];
+            char rendered[256];
+            snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
+
+            char key[256];
+            snprintf(key, sizeof(key), "%.*s", macro_len - 4, str + ovector[2*i] + 2);
+
+            const char *value = json_string_value(json_object_get(jn_values, key));
+            if(!value) {
+                value = "";
+            }
+            snprintf(rendered, sizeof(rendered), "%s", value);
+
+            char *new_value = replace_string(rendered_str, macro, rendered);
+            snprintf(rendered_str, rendered_str_size, "%s", new_value);
+            free(new_value);
+        }
+        offset = ovector[1];  /* move past the last match */
+    }
+
+    pcre2_match_data_free(match_data);
+    pcre2_code_free(re);
 
     return 0;
 }
