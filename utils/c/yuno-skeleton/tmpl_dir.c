@@ -73,6 +73,7 @@
  *  Busca en str las {{clave}} y sustituye la clave con el valor
  *  de dicha clave en el dict jn_values
  ***************************************************************************/
+// version with pcre, changed to pcre2
 // int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 // {
 //     pcre *re;
