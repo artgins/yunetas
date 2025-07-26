@@ -1,5 +1,5 @@
 /****************************************************************************
- *          test_yevent_traffic1.c
+ *          test_yevent_udp_traffic1.c
  *
  *          Setup
  *          -----
@@ -15,7 +15,7 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#define APP "test_yevent_traffic1"
+#define APP "test_yevent_udp_traffic1"
 
 #include <string.h>
 #include <signal.h>
@@ -28,7 +28,7 @@
 /***************************************************************
  *              Constants
  ***************************************************************/
-const char *server_url = "tcp://localhost:3333";
+const char *server_url = "udp://localhost:3333";
 #define MESSAGE "AaaaaaaaaaaaaaaaBbbbbbbbbbbbbbb2"
 
 /***************************************************************
