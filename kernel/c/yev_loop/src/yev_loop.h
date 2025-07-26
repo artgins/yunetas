@@ -76,13 +76,15 @@ extern "C"{
  ***************************************************************/
 #define DEFAULT_ENTRIES 2400    /* 2400 is recommended for manage 1000 connections */
 
-typedef enum  { // WARNING 8 bits only
+typedef enum  { // WARNING 16 bits only
     YEV_CONNECT_TYPE    = 0x01,
     YEV_ACCEPT_TYPE     = 0x02,
     YEV_READ_TYPE       = 0x04,
     YEV_WRITE_TYPE      = 0x08,
     YEV_TIMER_TYPE      = 0x10,
     YEV_POLL_TYPE       = 0x20,
+    YEV_RECVMSG_TYPE    = 0x40,
+    YEV_SENDMSG_TYPE    = 0x80,
 } yev_type_t;
 
 typedef enum  { // WARNING 8 bits only, strings in yev_flag_s[]
@@ -121,7 +123,7 @@ typedef int (*yev_callback_t)(
 
 struct yev_event_s {
     yev_loop_h yev_loop;
-    uint8_t type;           // yev_type_t
+    uint16_t type;          // yev_type_t
     uint8_t flag;           // yev_flag_t
     uint8_t state;          // yev_state_t
     int fd;
@@ -132,9 +134,11 @@ struct yev_event_s {
     void *user_data;
     int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
 
-    sock_info_t *sock_info; // Only used in YEV_ACCEPT_TYPE and YEV_CONNECT_TYPE types
+    sock_info_t *sock_info; // Used in YEV_ACCEPT_TYPE,YEV_CONNECT_TYPE,YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
     int dup_idx;            // Duplicate events with the same fd
-    unsigned poll_mask;     // To use in POLL
+    unsigned poll_mask;     // Used in POLL
+    struct msghdr *msg;     // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
+    struct iovec iov;       // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
 };
 
 typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
@@ -374,6 +378,21 @@ PUBLIC yev_event_h yev_create_read_event(
     gbuffer_t *gbuf
 );
 PUBLIC yev_event_h yev_create_write_event(
+    yev_loop_h yev_loop,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
+    hgobj gobj,
+    int fd,
+    gbuffer_t *gbuf
+);
+
+PUBLIC yev_event_h yev_create_recvmsg_event(
+    yev_loop_h yev_loop,
+    yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
+    hgobj gobj,
+    int fd,
+    gbuffer_t *gbuf
+);
+PUBLIC yev_event_h yev_create_sendmsg_event(
     yev_loop_h yev_loop,
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj,

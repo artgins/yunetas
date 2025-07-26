@@ -440,6 +440,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             break;
 
         case YEV_WRITE_TYPE: // cqe ready
+        case YEV_SENDMSG_TYPE:
             {
                 if(cqe_res > 0 && yev_event->gbuf) {
                     // Pop the read bytes used to write fd
@@ -459,6 +460,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             break;
 
         case YEV_READ_TYPE: // cqe ready
+        case YEV_RECVMSG_TYPE:
             {
                 if(cqe_res > 0 && yev_event->gbuf) {
                     // Mark the written bytes of reading fd
@@ -1216,6 +1218,131 @@ PUBLIC int yev_start_event(
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
+        case YEV_SENDMSG_TYPE: // Summit sqe
+            {
+                if(yev_event->fd <= 0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "Cannot start event: fd negative",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+                if(!yev_event->gbuf) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "Cannot start event: gbuffer NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+                if(gbuffer_leftbytes(yev_event->gbuf)==0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "Cannot start event: gbuffer WITHOUT data to write",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
+                        NULL
+                    );
+                    return -1;
+                }
+
+                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                if(sqe) {
+                    io_uring_sqe_set_data(sqe, yev_event);
+
+                    yev_event->iov.iov_base = gbuffer_cur_rd_pointer(yev_event->gbuf);
+                    yev_event->iov.iov_len = gbuffer_leftbytes(yev_event->gbuf);
+
+                    io_uring_prep_sendmsg_zc(
+                        sqe,
+                        yev_event->fd,
+                        yev_event->msg,
+                        0
+                    );
+                    io_uring_submit(&yev_loop->ring);
+                    yev_set_state(yev_event, YEV_ST_RUNNING);
+                } else {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK|LOG_OPT_ABORT,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "io_uring_get_sqe() FAILED",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+            }
+            break;
+        case YEV_RECVMSG_TYPE: // Summit sqe
+            {
+                if(yev_event->fd <= 0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "Cannot start event: fd negative",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+                if(!yev_event->gbuf) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "Cannot start event: gbuffer NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+                if(gbuffer_freebytes(yev_event->gbuf)==0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "Cannot start event: gbuffer WITHOUT space to read",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        "gbuf_label",   "%s", gbuffer_getlabel(yev_event->gbuf),
+                        NULL
+                    );
+                    return -1;
+                }
+
+                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                io_uring_sqe_set_data(sqe, yev_event);
+
+                yev_event->iov.iov_base = gbuffer_cur_wr_pointer(yev_event->gbuf);
+                yev_event->iov.iov_len = gbuffer_freebytes(yev_event->gbuf);
+
+                io_uring_prep_recvmsg(
+                    sqe,
+                    yev_event->fd,
+                    yev_event->msg,
+                    0
+                );
+                io_uring_submit(&yev_loop->ring);
+                yev_set_state(yev_event, YEV_ST_RUNNING);
+            }
+            break;
         case YEV_POLL_TYPE: // Summit sqe
             {
                 if(yev_event->fd <= 0) {
@@ -1496,6 +1623,8 @@ PUBLIC int yev_stop_event(yev_event_h yev_event_) // IDEMPOTENT close fd (timer,
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
+        case YEV_RECVMSG_TYPE:
+        case YEV_SENDMSG_TYPE:
         case YEV_ACCEPT_TYPE:
         case YEV_POLL_TYPE:
             break;
@@ -1656,6 +1785,7 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
      *---------------------------*/
     GBUFFER_DECREF(yev_event->gbuf)
     GBMEM_FREE(yev_event->sock_info)
+    GBMEM_FREE(yev_event->msg)
 
     /*-------------------------------*
      *      destroying
@@ -1663,6 +1793,8 @@ PUBLIC void yev_destroy_event(yev_event_h yev_event_)
     switch((yev_type_t)yev_event->type) {
         case YEV_READ_TYPE:
         case YEV_WRITE_TYPE:
+        case YEV_RECVMSG_TYPE:
+        case YEV_SENDMSG_TYPE:
         case YEV_POLL_TYPE:
             break;
         case YEV_CONNECT_TYPE:  // it must not happen
@@ -2601,6 +2733,102 @@ PUBLIC yev_event_h yev_create_write_event(
             "msgset",       "%s", MSGSET_YEV_LOOP,
             "msg",          "%s", "yev_create_write_event",
             "msg2",         "%s", "💥🟦 yev_create_write_event",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
+            "fd",           "%d", fd,
+            "p",            "%p", yev_event,
+            "gbuffer",      "%p", gbuf,
+            "flag",         "%j", jn_flags,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
+    return yev_event;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC yev_event_h yev_create_recvmsg_event(
+    yev_loop_h yev_loop_,
+    yev_callback_t callback,
+    hgobj gobj,
+    int fd,
+    gbuffer_t *gbuf
+) {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_RECVMSG_TYPE;
+    yev_event->msg = GBMEM_MALLOC(sizeof(struct msghdr));
+
+    yev_event->msg->msg_name = &yev_event->sock_info->addr;
+    yev_event->msg->msg_namelen = sizeof(yev_event->sock_info->addr);
+    yev_event->msg->msg_iov = &yev_event->iov;
+    yev_event->msg->msg_iovlen = 1;
+
+    yev_event->gbuf = gbuf;
+
+    if(gobj_trace_level(yev_loop->yuno?gobj:0) & (TRACE_URING)) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+        gobj_log_debug(yev_loop->yuno?gobj:0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev_create_recvmsg_event",
+            "msg2",         "%s", "💥🟦 yev_create_recvmsg_event",
+            "type",         "%s", yev_event_type_name(yev_event),
+            "yev_state",    "%s", yev_get_state_name(yev_event),
+            "fd",           "%d", fd,
+            "p",            "%p", yev_event,
+            "gbuffer",      "%p", gbuf,
+            "flag",         "%j", jn_flags,
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
+    return yev_event;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC yev_event_h yev_create_sendmsg_event(
+    yev_loop_h yev_loop_,
+    yev_callback_t callback,
+    hgobj gobj,
+    int fd,
+    gbuffer_t *gbuf
+) {
+    yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
+    yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
+    if(!yev_event) {
+        // Error already logged
+        return NULL;
+    }
+
+    yev_event->type = YEV_SENDMSG_TYPE;
+
+    yev_event->msg = GBMEM_MALLOC(sizeof(struct msghdr));
+    yev_event->msg->msg_name = &yev_event->sock_info->addr;
+    yev_event->msg->msg_namelen = sizeof(yev_event->sock_info->addr);
+    yev_event->msg->msg_iov = &yev_event->iov;
+    yev_event->msg->msg_iovlen = 1;
+
+    yev_event->gbuf = gbuf;
+
+    if(gobj_trace_level(yev_loop->yuno?gobj:0) & (TRACE_URING)) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
+        gobj_log_debug(yev_loop->yuno?gobj:0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev_create_sendmsg_event",
+            "msg2",         "%s", "💥🟦 yev_create_sendmsg_event",
             "type",         "%s", yev_event_type_name(yev_event),
             "yev_state",    "%s", yev_get_state_name(yev_event),
             "fd",           "%d", fd,
