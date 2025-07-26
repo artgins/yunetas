@@ -166,6 +166,9 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
 
                 if(yev_event->result <= 0) {
                     /*
+                     *  HACK: with zerocopy there is a second YEV_SENDMSG_TYPE event
+                     *  indicating that the buffer can be deleted.
+                     *
                      *  Destroy the write event
                      */
                     yev_destroy_event(yev_event);
