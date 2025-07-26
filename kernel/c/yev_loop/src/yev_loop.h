@@ -134,11 +134,12 @@ struct yev_event_s {
     void *user_data;
     int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
 
-    sock_info_t *sock_info; // Used in YEV_ACCEPT_TYPE,YEV_CONNECT_TYPE,YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
+    sock_info_t *sock_info; // Used in YEV_ACCEPT_TYPE,YEV_CONNECT_TYPE types
     int dup_idx;            // Duplicate events with the same fd
     unsigned poll_mask;     // Used in POLL
-    struct msghdr *msg;     // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
+    struct msghdr *msghdr;  // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
     struct iovec iov;       // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
+    struct sockaddr udp_addr;
 };
 
 typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
