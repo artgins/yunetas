@@ -1273,6 +1273,19 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
+                if(!yev_event->msghdr->msg_name || yev_event->msghdr->msg_namelen <= 0) {
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_LIBURING_ERROR,
+                        "msg",          "%s", "Cannot start event: sendmsg addr NULL",
+                        "event_type",   "%s", yev_event_type_name(yev_event),
+                        "yev_state",    "%s", yev_get_state_name(yev_event),
+                        "p",            "%p", yev_event,
+                        NULL
+                    );
+                    return -1;
+                }
+
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                 if(sqe) {
                     io_uring_sqe_set_data(sqe, yev_event);

@@ -411,6 +411,7 @@ PRIVATE void _mem_free(void *p)
 
     dl_delete(&dl_busy_mem, pm_, 0);
     __cur_system_memory__ -= size;
+    memset(pm, 0, size);
     free(pm);
 #else
     free(p);
