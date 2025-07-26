@@ -152,6 +152,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                      *  You can advise to someone, ready to more writes.
                      */
                     msg = "Server: Tx ready";
+
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
                      *  Cannot send, something went bad
@@ -163,11 +164,13 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                     msg = "Server: What?";
                 }
 
-                /*
-                 *  Destroy the write event
-                 */
-                yev_destroy_event(yev_event);
-                yev_event = NULL;
+                if(yev_event->result <= 0) {
+                    /*
+                     *  Destroy the write event
+                     */
+                    yev_destroy_event(yev_event);
+                    yev_event = NULL;
+                }
             }
             break;
 
@@ -545,18 +548,17 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    // json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-    //     "msg", "Client: Connection Accepted",
-    //     "msg", "Server: Listen Connection Accepted",
-    //     "msg", "client: send request",
-    //     "msg", "Server: Message from the client",
-    //     "msg", "Client: Response from the server",
-    //     "msg", "Server: Listen socket failed or stopped"
-    // );
+    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+        "msg", "Client: Connection Accepted",
+        "msg", "client: send request",
+        "msg", "Server: Message from the client",
+        "msg", "Server: Tx ready",
+        "msg", "Client: Response from the server"
+    );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-0,//        error_list,  // error_list
+        error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose

@@ -2,7 +2,23 @@
  *          yev_loop.c
  *
  *          Yunetas Event Loop
- *
+
+1. Two-phase completion in zerocopy
+    When you use io_uring_prep_sendmsg_zc(), the kernel may send data without copying it from your buffer.
+    But your buffer cannot be freed immediately:
+        The kernel keeps referencing your buffer until it’s transmitted.
+        The zerocopy mechanism has to notify you when the buffer is finally safe to reuse.
+
+2. Completion events
+    First CQE → The send request completed (data queued for sending).
+        cqe->res > 0 = number of bytes accepted for transmission.
+    Second CQE → The zerocopy buffer release notification:
+        cqe->res = 0 (no new data sent, just a notification).
+        This is delivered after the NIC has finished using your buffer.
+        It comes with a special flag:
+        cqe->flags & IORING_CQE_F_NOTIF
+        or sometimes IORING_CQE_F_MORE.
+
  *          Copyright (c) 2023 Niyamaka.
  *          Copyright (c) 2024-2025, ArtGins.
  *          All Rights Reserved.
@@ -295,6 +311,10 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             return 0;
 
         case YEV_ST_IDLE: // cqe ready
+            if(yev_event->type == YEV_SENDMSG_TYPE) {
+                break;
+            }
+            /* fall through */
         default:
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -440,7 +460,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
             break;
 
         case YEV_WRITE_TYPE: // cqe ready
-        case YEV_SENDMSG_TYPE:
+        case YEV_SENDMSG_TYPE: // SEE doc of zerocopy in header
             {
                 if(cqe_res > 0 && yev_event->gbuf) {
                     // Pop the read bytes used to write fd
@@ -1233,7 +1253,7 @@ PUBLIC int yev_start_event(
             }
             break;
 
-        case YEV_SENDMSG_TYPE: // Summit sqe
+        case YEV_SENDMSG_TYPE: // Summit sqe, SEE doc of zerocopy in header
             {
                 if(yev_event->fd <= 0) {
                     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
