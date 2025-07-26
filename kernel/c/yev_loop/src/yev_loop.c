@@ -1077,14 +1077,14 @@ PUBLIC int yev_start_event(
                     return -1;
                 }
 
-                struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
-                io_uring_sqe_set_data(sqe, yev_event);
-
                 if(is_tcp_socket(yev_event->fd)) {
                     /*
                      *  Use the file descriptor fd to start accepting a connection request
                      *  described by the socket address at addr and of structure length addrlen
                      */
+                    struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
+                    io_uring_sqe_set_data(sqe, yev_event);
+
                     if(multishot_available) {
                         io_uring_prep_multishot_accept(
                             sqe,
@@ -2784,13 +2784,14 @@ PUBLIC yev_event_h yev_create_recvmsg_event(
 
     yev_event->type = YEV_RECVMSG_TYPE;
     yev_event->msghdr = GBMEM_MALLOC(sizeof(struct msghdr));
+    yev_event->sock_info = GBMEM_MALLOC(sizeof(sock_info_t));
 
     yev_event->msghdr->msg_iov = &yev_event->iov;
     yev_event->msghdr->msg_iovlen = 1;
     yev_event->gbuf = gbuf;
 
-    yev_event->msghdr->msg_name = &yev_event->udp_addr; // TODO in start?
-    yev_event->msghdr->msg_namelen = sizeof(yev_event->udp_addr);
+    yev_event->msghdr->msg_name = &yev_event->sock_info->addr;
+    yev_event->msghdr->msg_namelen = sizeof(yev_event->sock_info->addr);
 
     if(gobj_trace_level(yev_loop->yuno?gobj:0) & (TRACE_URING)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);
@@ -2821,7 +2822,8 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     yev_callback_t callback,
     hgobj gobj,
     int fd,
-    gbuffer_t *gbuf
+    gbuffer_t *gbuf,
+    struct sockaddr *dst_addr
 ) {
     yev_loop_t *yev_loop = (yev_loop_t *)yev_loop_;
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, fd);
@@ -2833,12 +2835,13 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     yev_event->type = YEV_SENDMSG_TYPE;
 
     yev_event->msghdr = GBMEM_MALLOC(sizeof(struct msghdr));
+
     yev_event->msghdr->msg_iov = &yev_event->iov;
     yev_event->msghdr->msg_iovlen = 1;
     yev_event->gbuf = gbuf;
 
-    yev_event->msghdr->msg_name = &yev_event->udp_addr; // TODO in start?
-    yev_event->msghdr->msg_namelen = sizeof(yev_event->udp_addr);
+    yev_event->msghdr->msg_name = dst_addr;
+    yev_event->msghdr->msg_namelen = sizeof(struct sockaddr);
 
     if(gobj_trace_level(yev_loop->yuno?gobj:0) & (TRACE_URING)) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_s, yev_event->flag);

@@ -87,7 +87,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                 }
             }
             break;
-        case YEV_READ_TYPE:
+        case YEV_RECVMSG_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
                     /*
@@ -104,20 +104,23 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                      *  Response to the client
                      *  Get their callback and fd
                      */
-                    yev_event_h yev_response = yev_create_write_event(
+                    sock_info_t *sock_info = yev_get_sock_info(yev_event);
+
+                    yev_event_h yev_response = yev_create_sendmsg_event(
                         yev_loop,
                         yev_get_callback(yev_event),
                         NULL,   // gobj
                         yev_get_fd(yev_event),
-                        gbuffer_incref(gbuf_rx)
+                        gbuffer_incref(gbuf_rx),
+                        &sock_info->addr
                     );
                     yev_start_event(yev_response);
 
                     /*
                      *  Re-arm the read event
                      */
-//                    gbuffer_clear(gbuf_rx); // Empty the buffer
-//                    yev_start_event(yev_event);
+                    // gbuffer_clear(gbuf_rx); // Empty the buffer
+                    // yev_start_event(yev_event);
 
                 } else if(yev_state == YEV_ST_STOPPED) {
                     /*
@@ -141,7 +144,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
             }
             break;
 
-        case YEV_WRITE_TYPE:
+        case YEV_SENDMSG_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {
                     /*
@@ -390,6 +393,7 @@ int do_test(void)
             yev_get_fd(yev_event_connect),
             gbuf
         );
+        trace_msg0("====> client write_event %p", yev_client_msg);
         yev_start_event(yev_client_msg);
 
         /*
@@ -403,6 +407,7 @@ int do_test(void)
             yev_get_fd(yev_event_connect),
             gbuf
         );
+        trace_msg0("====> client read_event %p", yev_client_reader_msg);
         yev_start_event(yev_client_reader_msg);
     }
 
@@ -420,13 +425,14 @@ int do_test(void)
          *  Setup a reader yevent
          */
         gbuffer_t *gbuf = gbuffer_create(1024, 1024);
-        yev_server_reader_msg = yev_create_read_event(
+        yev_server_reader_msg = yev_create_recvmsg_event(
             yev_loop,
             yev_server_callback,
             NULL,   // gobj
-            yev_get_result(yev_event_accept), //srv_cli_fd,
+            yev_get_fd(yev_event_accept), //srv_cli_fd,
             gbuf
         );
+        trace_msg0("====> server sendmsg_event %p", yev_server_reader_msg);
         yev_start_event(yev_server_reader_msg);
     }
 
@@ -539,18 +545,18 @@ int main(int argc, char *argv[])
      *      Test
      *--------------------------------*/
     const char *test = APP;
-    json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
-        "msg", "Client: Connection Accepted",
-        "msg", "Server: Listen Connection Accepted",
-        "msg", "client: send request",
-        "msg", "Server: Message from the client",
-        "msg", "Client: Response from the server",
-        "msg", "Server: Listen socket failed or stopped"
-    );
+    // json_t *error_list = json_pack("[{s:s}, {s:s}, {s:s}, {s:s}, {s:s}, {s:s}]",  // error_list
+    //     "msg", "Client: Connection Accepted",
+    //     "msg", "Server: Listen Connection Accepted",
+    //     "msg", "client: send request",
+    //     "msg", "Server: Message from the client",
+    //     "msg", "Client: Response from the server",
+    //     "msg", "Server: Listen socket failed or stopped"
+    // );
 
     set_expected_results( // Check that no logs happen
         test,   // test name
-        error_list,  // error_list
+0,//        error_list,  // error_list
         NULL,  // expected
         NULL,   // ignore_keys
         TRUE    // verbose

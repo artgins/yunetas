@@ -134,12 +134,11 @@ struct yev_event_s {
     void *user_data;
     int result;             // In YEV_ACCEPT_TYPE event it has the socket of cli_srv
 
-    sock_info_t *sock_info; // Used in YEV_ACCEPT_TYPE,YEV_CONNECT_TYPE types
+    sock_info_t *sock_info; // Used in YEV_ACCEPT_TYPE,YEV_CONNECT_TYPE,YEV_RECVMSG_TYPE types
     int dup_idx;            // Duplicate events with the same fd
     unsigned poll_mask;     // Used in POLL
     struct msghdr *msghdr;  // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
     struct iovec iov;       // Used in YEV_RECVMSG_TYPE,YEV_SENDMSG_TYPE types
-    struct sockaddr udp_addr;
 };
 
 typedef int (*yev_protocol_fill_hints_fn_t)( // fill hints according the schema
@@ -208,6 +207,11 @@ PUBLIC int yev_set_gbuffer( // only for yev_create_read_event() and yev_create_w
 static inline gbuffer_t *yev_get_gbuf(yev_event_h yev_event)
 {
     return yev_event->gbuf;
+}
+
+static inline sock_info_t *yev_get_sock_info(yev_event_h yev_event)
+{
+    return yev_event->sock_info;
 }
 
 static inline PUBLIC int yev_get_fd(yev_event_h yev_event)
@@ -398,7 +402,8 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     yev_callback_t callback, // if return -1 the loop in yev_loop_run will break;
     hgobj gobj,
     int fd,
-    gbuffer_t *gbuf
+    gbuffer_t *gbuf,
+    struct sockaddr *dst_addr
 );
 
 /***************************************************************************
@@ -419,9 +424,12 @@ static inline const char *yev_event_type_name(yev_event_h yev_event)
             return "YEV_TIMER_TYPE";
         case YEV_POLL_TYPE:
             return "YEV_POLL_TYPE";
-        default:
-            return "YEV_?_TYPE";
+        case YEV_SENDMSG_TYPE:
+            return "YEV_SENDMSG_TYPE";
+        case YEV_RECVMSG_TYPE:
+            return "YEV_RECVMSG_TYPE";
     }
+    return "YEV_???_TYPE";
 }
 
 /*
