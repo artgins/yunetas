@@ -600,9 +600,9 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
         /*
          *  To measure the time of executing of the event
          */
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         MT_START_TIME2(yev_time_measure, 1)
-#endif
+        #endif
         if (err < 0) {
             if(err == -EINTR) {
                 // Ctrl+C cause this
@@ -613,20 +613,22 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             }
             if(err == -ETIME) {
                 // Timeout
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+                #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
                 if(measuring_times & YEV_TIMER_TYPE) {
                     MT_PRINT_TIME(yev_time_measure, "BEFORE callback_cqe TIMEOUT");
                 }
-#endif
+                #endif
+
                 if(callback_cqe(yev_loop, NULL)<0) {
                     yev_loop->running = false;
                 }
 
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+                #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
                 if(measuring_times & YEV_TIMER_TYPE) {
                     MT_PRINT_TIME(yev_time_measure, "AFTER callback_cqe TIMEOUT");
                 }
-#endif
+                #endif
+
                 /* Mark this request as processed */
                 io_uring_cqe_seen(&yev_loop->ring, cqe);
                 continue;
@@ -646,7 +648,7 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             break;
         }
 
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
         int yev_event_type = yev_event? yev_event->type:0;
         measuring_cur_type = measuring_times & yev_event_type;
@@ -657,12 +659,13 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             );
             MT_PRINT_TIME(yev_time_measure, print_temp);
         }
-#endif
+        #endif
+
         if(callback_cqe(yev_loop, cqe)<0) {
             yev_loop->running = false;
         }
 
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_cur_type) {
             snprintf(print_temp, sizeof(print_temp), "AFTER callback_cqe(%s): res %d\n",
                 yev_event?yev_event_type_name(yev_event):"",
@@ -670,7 +673,8 @@ PUBLIC int yev_loop_run(yev_loop_h yev_loop_, int timeout_in_seconds)
             );
             MT_PRINT_TIME(yev_time_measure, print_temp);
         }
-#endif
+        #endif
+
         /*
          * Mark this request as processed
          */
@@ -722,15 +726,15 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         );
     }
 
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+    #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
     int measuring_times = get_measure_times();
     MT_START_TIME(yev_time_measure)
     MT_SET_COUNT(yev_time_measure, 1)
-#endif
+    #endif
 
     cqe = 0;
     while(io_uring_peek_cqe(&yev_loop->ring, &cqe)==0) {
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         yev_event_t *yev_event = (yev_event_t *)(uintptr_t)cqe->user_data;
         int yev_event_type = yev_event? yev_event->type:0;
         measuring_cur_type = measuring_times & yev_event_type;
@@ -742,7 +746,7 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
             );
             MT_PRINT_TIME(yev_time_measure, temp);
         }
-#endif
+        #endif
 
         if(callback_cqe(yev_loop, cqe)<0) {
             if(yev_loop->stopping) {
@@ -751,11 +755,12 @@ PUBLIC int yev_loop_run_once(yev_loop_h yev_loop_)
         }
         /* Mark this request as processed */
         io_uring_cqe_seen(&yev_loop->ring, cqe);
-#ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
+
+        #ifdef CONFIG_DEBUG_PRINT_YEV_LOOP_TIMES
         if(measuring_cur_type) {
             MT_PRINT_TIME(yev_time_measure, "run1 AFTER io_uring_cqe_seen()\n");
         }
-#endif
+        #endif
     }
 
     if(gobj_is_level_tracing(0, TRACE_MACHINE|TRACE_START_STOP|TRACE_URING)) {
@@ -1054,6 +1059,7 @@ PUBLIC int yev_start_event(
                 yev_set_flag(yev_event, YEV_FLAG_CONNECTED, false);
             }
             break;
+
         case YEV_ACCEPT_TYPE: // Summit sqe
             {
                 if(!yev_event->sock_info || yev_event->sock_info->addrlen <= 0) {
@@ -1073,32 +1079,39 @@ PUBLIC int yev_start_event(
 
                 struct io_uring_sqe *sqe = io_uring_get_sqe(&yev_loop->ring);
                 io_uring_sqe_set_data(sqe, yev_event);
-                /*
-                 *  Use the file descriptor fd to start accepting a connection request
-                 *  described by the socket address at addr and of structure length addrlen
-                 */
-                if(multishot_available) {
-                    io_uring_prep_multishot_accept(
-                        sqe,
-                        yev_event->fd,
-                        NULL,
-                        NULL,
-                        0
-                    );
 
-                } else {
-                    io_uring_prep_accept(
-                        sqe,
-                        yev_event->fd,
-                        &yev_event->sock_info->addr,
-                        &yev_event->sock_info->addrlen,
-                        0
-                    );
+                if(is_tcp_socket(yev_event->fd)) {
+                    /*
+                     *  Use the file descriptor fd to start accepting a connection request
+                     *  described by the socket address at addr and of structure length addrlen
+                     */
+                    if(multishot_available) {
+                        io_uring_prep_multishot_accept(
+                            sqe,
+                            yev_event->fd,
+                            NULL,
+                            NULL,
+                            0
+                        );
+
+                    } else {
+                        io_uring_prep_accept(
+                            sqe,
+                            yev_event->fd,
+                            &yev_event->sock_info->addr,
+                            &yev_event->sock_info->addrlen,
+                            0
+                        );
+                    }
+                    io_uring_submit(&yev_loop->ring);
+                    yev_set_state(yev_event, YEV_ST_RUNNING);
+
+                } else if(is_udp_socket(yev_event->fd)) {
+
                 }
-                io_uring_submit(&yev_loop->ring);
-                yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
+
         case YEV_WRITE_TYPE: // Summit sqe
             {
                 if(yev_event->fd <= 0) {
@@ -1165,6 +1178,7 @@ PUBLIC int yev_start_event(
                 }
             }
             break;
+
         case YEV_READ_TYPE: // Summit sqe
             {
                 if(yev_event->fd <= 0) {
@@ -1218,6 +1232,7 @@ PUBLIC int yev_start_event(
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
+
         case YEV_SENDMSG_TYPE: // Summit sqe
             {
                 if(yev_event->fd <= 0) {
@@ -1287,6 +1302,7 @@ PUBLIC int yev_start_event(
                 }
             }
             break;
+
         case YEV_RECVMSG_TYPE: // Summit sqe
             {
                 if(yev_event->fd <= 0) {
@@ -1343,6 +1359,7 @@ PUBLIC int yev_start_event(
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
+
         case YEV_POLL_TYPE: // Summit sqe
             {
                 if(yev_event->fd <= 0) {
@@ -1369,6 +1386,7 @@ PUBLIC int yev_start_event(
                 yev_set_state(yev_event, YEV_ST_RUNNING);
             }
             break;
+
         case YEV_TIMER_TYPE: // Summit sqe
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
