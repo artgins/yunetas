@@ -1202,12 +1202,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     switch(yev_get_type(yev_event)) {
         case YEV_READ_TYPE:
             {
+                /*
+                 *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
+                 */
+                gbuffer_t *gbuf = yev_get_gbuf(yev_event);
                 if(yev_state == YEV_ST_IDLE) {
-                    /*
-                     *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
-                     */
                     if(trace_level & TRACE_TRAFFIC) {
-                        gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s%s",
+                        gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
                             " <- ",
@@ -1216,13 +1217,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     }
 
                     priv->rxMsgs++;
-                    priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_get_gbuf(yev_event));
+                    priv->rxBytes += (json_int_t)gbuffer_leftbytes(gbuf);
 
                     int ret = 0;
 
                     if(priv->use_ssl) {
-                        GBUFFER_INCREF(yev_get_gbuf(yev_event))
-                        ret = ytls_decrypt_data(priv->ytls, priv->sskt, yev_get_gbuf(yev_event));
+                        GBUFFER_INCREF(gbuf)
+                        ret = ytls_decrypt_data(priv->ytls, priv->sskt, gbuf);
                         if(ret < 0) {
                             /*
                              *  If return -1 while doing handshake then is good stop here the gobj,
@@ -1240,9 +1241,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         }
 
                     } else {
-                        GBUFFER_INCREF(yev_get_gbuf(yev_event))
+                        GBUFFER_INCREF(gbuf)
                         json_t *kw = json_pack("{s:I}",
-                            "gbuffer", (json_int_t)(size_t)yev_get_gbuf(yev_event)
+                            "gbuffer", (json_int_t)(size_t)gbuf
                         );
                         /*
                          *  CHILD subscription model
@@ -1264,7 +1265,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      *  If it's in idle then re-arm
                      */
                     if(ret == 0 && yev_event_is_idle(yev_event)) {
-                        gbuffer_clear(yev_get_gbuf(yev_event));
+                        gbuffer_clear(gbuf);
                         yev_start_event(yev_event);
                     }
 

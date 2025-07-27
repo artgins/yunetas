@@ -34,7 +34,7 @@ typedef struct gbuffer_s {
 
     char *label;                /* like user_data */
     size_t mark;                /* like user_data */
-    struct sockaddr addr;
+    struct sockaddr addr;       /* like user_data, mainly to use in udp */
 
     size_t data_size;           /* nº bytes allocated for data */
     size_t max_memory_size;     /* maximum size in memory */
@@ -264,11 +264,7 @@ static inline size_t gbuffer_getmark(gbuffer_t *gbuf)
 
 static inline void gbuffer_setaddr(gbuffer_t *gbuf, struct sockaddr *addr)
 {
-    if(addr) {
-        gbuf->addr = *addr;
-    } else {
-        memset(&gbuf->addr, 0, sizeof(gbuf->addr));
-    }
+    gbuf->addr = *addr;
 }
 
 static inline struct sockaddr *gbuffer_getaddr(gbuffer_t *gbuf)

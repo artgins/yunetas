@@ -440,19 +440,7 @@ PRIVATE int write_data(hgobj gobj)
          *  Transmit
          */
         int fd =yev_get_fd(priv->yev_server_udp);
-        struct sockaddr addr; int x;// TODO
-
-        const char *udp_channel = gbuffer_getlabel(gbuf);
-        if(!udp_channel) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "udp_channel NULL",
-                NULL
-            );
-            GBUFFER_DECREF(priv->gbuf_txing);
-            return -1;
-        }
+        struct sockaddr *addr = gbuffer_getaddr(gbuf);
 
         yev_event_h yev_write_event = yev_create_sendmsg_event(
             yuno_event_loop(),
@@ -460,7 +448,7 @@ PRIVATE int write_data(hgobj gobj)
             gobj,
             fd,
             gbuffer_incref(gbuf),
-            &addr
+            addr
         );
 
         priv->tx_in_progress++;
@@ -739,14 +727,20 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     yev_state_t yev_state = yev_get_state(yev_event);
 
     switch(yev_get_type(yev_event)) {
-        case YEV_READ_TYPE:
+        case YEV_RECVMSG_TYPE:
             {
+                /*
+                 *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
+                 */
+                gbuffer_t *gbuf = yev_get_gbuf(yev_event);
+                gbuffer_setaddr(gbuf, yev_event->msghdr->msg_name);
+
                 if(yev_state == YEV_ST_IDLE) {
                     /*
                      *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
                      */
                     if(trace_level & TRACE_TRAFFIC) {
-                        gobj_trace_dump_gbuf(gobj, yev_get_gbuf(yev_event), "%s: %s%s%s",
+                        gobj_trace_dump_gbuf(gobj, gbuf, "%s: %s%s%s",
                             gobj_short_name(gobj),
                             gobj_read_str_attr(gobj, "sockname"),
                             " <- ",
@@ -755,13 +749,13 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     }
 
                     priv->rxMsgs++;
-                    priv->rxBytes += (json_int_t)gbuffer_leftbytes(yev_get_gbuf(yev_event));
+                    priv->rxBytes += (json_int_t)gbuffer_leftbytes(gbuf);
 
                     int ret = 0;
 
                     if(priv->use_ssl) {
-                        GBUFFER_INCREF(yev_get_gbuf(yev_event))
-                        ret = ytls_decrypt_data(priv->ytls, priv->sskt, yev_get_gbuf(yev_event));
+                        GBUFFER_INCREF(gbuf)
+                        ret = ytls_decrypt_data(priv->ytls, priv->sskt, gbuf);
                         if(ret < 0) {
                             /*
                              *  If return -1 while doing handshake then is good stop here the gobj,
@@ -779,9 +773,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         }
 
                     } else {
-                        GBUFFER_INCREF(yev_get_gbuf(yev_event))
+                        GBUFFER_INCREF(gbuf)
                         json_t *kw = json_pack("{s:I}",
-                            "gbuffer", (json_int_t)(size_t)yev_get_gbuf(yev_event)
+                            "gbuffer", (json_int_t)(size_t)gbuf
                         );
                         /*
                          *  CHILD subscription model
@@ -803,7 +797,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                      *  If it's in idle then re-arm
                      */
                     if(ret == 0 && yev_event_is_idle(yev_event)) {
-                        gbuffer_clear(yev_get_gbuf(yev_event));
+                        gbuffer_clear(gbuf);
                         yev_start_event(yev_event);
                     }
 
@@ -835,12 +829,12 @@ PRIVATE int yev_callback(yev_event_h yev_event)
             }
             break;
 
-        case YEV_WRITE_TYPE:
+        case YEV_SENDMSG_TYPE:
             {
                 priv->tx_in_progress--;
 
                 if(yev_state == YEV_ST_IDLE) {
-                    if(gobj_is_running(gobj)) {
+                    if(gobj_is_running(gobj) && yev_get_result(yev_event) > 0) {
                         /*
                          *  See if all data was transmitted
                          */
@@ -864,7 +858,14 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             try_more_writes(gobj);
                         }
                         yev_destroy_event(yev_event);
+
                     } else {
+                        /*
+                         *  HACK: with zerocopy there is a second YEV_SENDMSG_TYPE event
+                         *  indicating that the buffer can be deleted (result == 0).
+                         *
+                         *  Destroy the write event
+                         */
                         yev_destroy_event(yev_event);
                         try_to_stop_yevents(gobj);
                     }
