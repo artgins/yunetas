@@ -1128,17 +1128,24 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
             gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
         } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "Service found but no event or not public",
-                "service",      "%s", gobj_short_name(gobj_service),
-                "event",        "%s", iev_event,
-                NULL
+            // TODO by now publish event, agent change the destine
+            // TODO in future restore the gobj_log_error
+            gobj_publish_event( /* NOTE original behavior */
+                gobj,
+                iev_event,
+                iev_kw
             );
-            KW_DECREF(iev_kw)
-            KW_DECREF(kw)
-            return -1;
+            // gobj_log_error(gobj, 0,
+            //     "function",     "%s", __FUNCTION__,
+            //     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            //     "msg",          "%s", "Service found but no event or not public",
+            //     "service",      "%s", gobj_short_name(gobj_service),
+            //     "event",        "%s", iev_event,
+            //     NULL
+            // );
+            // KW_DECREF(iev_kw)
+            // KW_DECREF(kw)
+            // return -1;
         }
     } else {
         /*
@@ -1368,7 +1375,6 @@ PRIVATE int ac_play_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*
      *      __RESPONSE__ __MESSAGE__
      */
-
     int ret = gobj_play(gobj_yuno());
     json_t *jn_result = json_pack("{s:i}",
         "result",

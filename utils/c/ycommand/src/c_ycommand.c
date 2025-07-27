@@ -691,7 +691,7 @@ PRIVATE int do_authenticate_task(hgobj gobj)
  ***************************************************************************/
 PRIVATE char agent_config[]= "\
 {                                               \n\
-    'name': 'agent_client',                    \n\
+    'name': '(^^__url__^^)',                    \n\
     'gclass': 'IEvent_cli',                     \n\
     'as_service': true,                          \n\
     'kw': {                                     \n\
