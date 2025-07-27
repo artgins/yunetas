@@ -9844,7 +9844,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return -1;
     }
 
-    save_pid_in_file(gobj, yuno, pid); // TODO remove cuando pases los yunos a version 5.11.4
+    // save_pid_in_file(gobj, yuno, pid); // TODO remove cuando pases los yunos a version 5.11.4
 
     if(strcmp(yuno_role, SDATA_GET_STR(yuno, "yuno_role"))!=0) {
         gobj_log_error(gobj, 0,

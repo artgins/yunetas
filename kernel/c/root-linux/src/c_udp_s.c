@@ -163,6 +163,9 @@ PRIVATE void mt_destroy(hgobj gobj)
         );
     }
 
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_server_udp)
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+
     GBUFFER_DECREF(priv->gbuf_txing);
     dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
 }
@@ -765,7 +768,9 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                  *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
                  */
                 gbuffer_t *gbuf = yev_get_gbuf(yev_event);
-                gbuffer_setaddr(gbuf, yev_event->msghdr->msg_name);
+                if(gbuf) {
+                    gbuffer_setaddr(gbuf, yev_event->msghdr->msg_name);
+                }
 
                 if(yev_state == YEV_ST_IDLE) {
                     /*

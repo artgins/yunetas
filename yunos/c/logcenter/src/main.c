@@ -99,11 +99,11 @@ static int register_yuno_and_more(void)
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
     // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
-    gobj_set_gclass_trace(gclass_find_by_name(C_UDP_S), "traffic", TRUE);
+    // gobj_set_gclass_trace(gclass_find_by_name(C_UDP_S), "traffic", TRUE);
 
     // Global traces
     // gobj_set_global_trace("create_delete", TRUE);
-    gobj_set_global_trace("machine", TRUE);
+    // gobj_set_global_trace("machine", TRUE);
     // gobj_set_global_trace("create_delete", TRUE);
     // gobj_set_global_trace("create_delete2", TRUE);
     // gobj_set_global_trace("subscriptions", TRUE);
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
      *      To check
      *------------------------------------------------*/
     // gobj_set_deep_tracing(1);
-    set_auto_kill_time(6);
+    // set_auto_kill_time(6);
     // set_measure_times(-1 & ~YEV_TIMER_TYPE);
 
     /*------------------------------------------------*
