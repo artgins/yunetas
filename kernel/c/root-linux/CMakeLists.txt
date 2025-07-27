@@ -47,7 +47,7 @@ set (SRCS
     src/c_resource2.c
     src/c_fs.c
     src/c_prot_raw.c
-#    src/c_udp.c
+    src/c_udp.c
     src/c_udp_s.c
     src/c_gss_udp_s.c
     src/ghttp_parser.c

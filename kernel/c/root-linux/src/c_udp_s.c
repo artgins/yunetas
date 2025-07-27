@@ -50,6 +50,7 @@ SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,  "FALSE", "True if schem
 SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  "1", "Exit if Listen failed"),
 SDATA (DTP_BOOLEAN,     "set_broadcast",        SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
 SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0, "Share the port"),
+SDATA (DTP_STRING,      "peername",             SDF_VOLATIL|SDF_STATS, "",  "Peername"),
 SDATA (DTP_STRING,      "sockname",             SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
 SDATA (DTP_INTEGER,     "rx_buffer_size",       SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
