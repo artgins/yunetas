@@ -73,20 +73,6 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
     int ret = 0;
     yev_state_t yev_state = yev_get_state(yev_event);
     switch(yev_get_type(yev_event)) {
-        case YEV_ACCEPT_TYPE:
-            {
-                if(yev_state == YEV_ST_IDLE) {
-                    msg = "Server: Listen Connection Accepted";
-                    ret = 0; // re-arm
-                } else if(yev_state == YEV_ST_STOPPED) {
-                    msg = "Server: Listen socket failed or stopped";
-                    ret = -1; // break the loop
-                } else {
-                    msg = "Server: What?";
-                    ret = -1; // break the loop
-                }
-            }
-            break;
         case YEV_RECVMSG_TYPE:
             {
                 if(yev_state == YEV_ST_IDLE) {

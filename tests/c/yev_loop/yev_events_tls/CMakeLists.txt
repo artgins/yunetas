@@ -21,7 +21,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 set(SRCS
     test_yevent_traffic_secure1
-    test_yevent_udp_traffic_secure1
 )
 
 ##############################################

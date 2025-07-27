@@ -196,7 +196,7 @@ int ytls_client_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
     const char *text = json_string_value(msg);
 
     if(strcmp(text, MESSAGE)!=0) {
-        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't macthc");
+        printf("%sERROR%s <-- %s\n", On_Red BWhite, Color_Off, "Messages tx and rx don't match");
         print_track_mem();
         result += -1;
     } else {
