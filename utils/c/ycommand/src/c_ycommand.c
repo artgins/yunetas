@@ -1675,7 +1675,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             webix
         );
     } else {
-        /* asychronous responses return 0 */
+        /* asynchronous responses return 0 */
         printf("\n"); fflush(stdout);
     }
     KW_DECREF(kw_input_command);

@@ -2457,7 +2457,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 webix
             );
         } else {
-            /* asychronous responses return 0 */
+            /* asynchronous responses return 0 */
             msg2statusline(gobj, 0, "Waiting response...");
         }
     }
@@ -2640,7 +2640,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Response from agent mt_stats
  *  Response from agent mt_command
- *  Response to asychronous queries
+ *  Response to asynchronous queries
  ***************************************************************************/
 PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
