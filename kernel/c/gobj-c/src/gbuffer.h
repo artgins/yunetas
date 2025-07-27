@@ -10,6 +10,7 @@
 #pragma once
 
 #include <string.h>
+#include <netdb.h>  // need it by struct sockaddr
 
 #include "gtypes.h"
 #include "dl_list.h"
@@ -33,6 +34,7 @@ typedef struct gbuffer_s {
 
     char *label;                /* like user_data */
     size_t mark;                /* like user_data */
+    struct sockaddr addr;
 
     size_t data_size;           /* nº bytes allocated for data */
     size_t max_memory_size;     /* maximum size in memory */
@@ -166,7 +168,14 @@ static inline char gbuffer_getchar(gbuffer_t *gbuf) /* pop one byte */
     }
 }
 
-PUBLIC size_t gbuffer_chunk(gbuffer_t *gbuf);   /* return the chunk of data available */
+static inline size_t gbuffer_chunk(gbuffer_t *gbuf) /* return the chunk of data available */
+{
+    size_t ln = gbuf->tail - gbuf->curp; /* gbuffer_leftbytes() */
+    size_t chunk_size = MIN(gbuf->data_size, ln);
+
+    return chunk_size;
+}
+
 PUBLIC char *gbuffer_getline(gbuffer_t *gbuf, char separator);
 
 /*
@@ -251,6 +260,20 @@ static inline size_t gbuffer_getmark(gbuffer_t *gbuf)
 {
     /* Get mark */
     return gbuf->mark;
+}
+
+static inline void gbuffer_setaddr(gbuffer_t *gbuf, struct sockaddr *addr)
+{
+    if(addr) {
+        gbuf->addr = *addr;
+    } else {
+        memset(&gbuf->addr, 0, sizeof(gbuf->addr));
+    }
+}
+
+static inline struct sockaddr *gbuffer_getaddr(gbuffer_t *gbuf)
+{
+    return &gbuf->addr;
 }
 
 PUBLIC json_t* gbuffer_serialize(

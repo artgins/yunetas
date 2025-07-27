@@ -204,17 +204,6 @@ PUBLIC int gbuffer_set_rd_offset(gbuffer_t *gbuf, size_t position)
 }
 
 /***************************************************************************
- *  return the chunk of data available
- ***************************************************************************/
-PUBLIC size_t gbuffer_chunk(gbuffer_t *gbuf)
-{
-    size_t ln = gbuffer_leftbytes(gbuf);
-    size_t chunk_size = MIN(gbuf->data_size, ln);
-
-    return chunk_size;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC char *gbuffer_getline(gbuffer_t *gbuf, char separator)

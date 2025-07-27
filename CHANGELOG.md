@@ -118,6 +118,7 @@ New API
     gobj_services2
     _log_bf
     total_ram_in_kb
+    gbuffer_setaddr, gbuffer_getaddr
 
 Delete API
 
