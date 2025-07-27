@@ -60,6 +60,9 @@ extern "C"{
 #include <c_websocket.h>
 #include <c_qiogate.h>
 #include <c_mqiogate.h>
+#include <c_udp.h>
+#include <c_udp_s.h>
+#include <c_gss_udp_s.h>
 #include <istream.h>
 #include <ghttp_parser.h>
 #include <dbsimple.h>

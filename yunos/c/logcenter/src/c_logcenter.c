@@ -192,7 +192,7 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     json_t *kw_gss_udps = json_pack("{s:s}",
         "url", gobj_read_str_attr(gobj, "url")
     );
@@ -332,7 +332,6 @@ PRIVATE int mt_pause(hgobj gobj)
     gobj_log_del_handler("logcenter");
 
     clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
     if(priv->gobj_gss_udp_s) {
         gobj_stop(priv->gobj_gss_udp_s);
     }
@@ -1447,11 +1446,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_ON_MESSAGE,     ac_on_message,  0},
-        {EV_ON_OPEN,        ac_on_open,     0},
-        {EV_ON_CLOSE,       ac_on_close,    0},
-        {EV_TIMEOUT,        ac_timeout,     0},
-        {EV_STOPPED,        ac_stopped,     0},
+        {EV_ON_MESSAGE,         ac_on_message,  0},
+        {EV_ON_OPEN,            ac_on_open,     0},
+        {EV_ON_CLOSE,           ac_on_close,    0},
+        {EV_TIMEOUT_PERIODIC,   ac_timeout,     0},
+        {EV_STOPPED,            ac_stopped,     0},
         {0,0,0}
     };
 
@@ -1464,11 +1463,11 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_ON_MESSAGE,     0},
-        {EV_ON_OPEN,        0},
-        {EV_ON_CLOSE,       0},
-        {EV_TIMEOUT,        0},
-        {EV_STOPPED,        0},
+        {EV_ON_MESSAGE,         0},
+        {EV_ON_OPEN,            0},
+        {EV_ON_CLOSE,           0},
+        {EV_TIMEOUT_PERIODIC,   0},
+        {EV_STOPPED,            0},
         {NULL, 0}
     };
 
