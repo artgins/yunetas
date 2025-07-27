@@ -344,36 +344,21 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    json_t *jn_stats;
-
     if(stats && strcmp(stats, "__reset__")==0) {
         reset_counters(gobj);
         trunk_data_log_file(gobj);
     }
 
-    if(stats && strstr(stats, "internal")) {
-        jn_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
-            "Alert",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_alerts"),
-            "Critical", (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_criticals"),
-            "Error",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_errors"),
-            "Warning",  (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_warnings"),
-            "Info",     (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_infos"),
-            "Debug",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_debugs"),
-            "Audit",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_audits"),
-            "Monitor",  (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_monitors")
-        );
-    } else {
-        jn_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
-            "Alert",    (json_int_t)priority_counter[LOG_ALERT],
-            "Critical", (json_int_t)priority_counter[LOG_CRIT],
-            "Error",    (json_int_t)priority_counter[LOG_ERR],
-            "Warning",  (json_int_t)priority_counter[LOG_WARNING],
-            "Info",     (json_int_t)priority_counter[LOG_INFO],
-            "Debug",    (json_int_t)priority_counter[LOG_DEBUG],
-            "Audit",    (json_int_t)priority_counter[LOG_AUDIT],
-            "Monitor",  (json_int_t)priority_counter[LOG_MONITOR]
-        );
-    }
+    json_t *jn_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
+        "Alert",    (json_int_t)priority_counter[LOG_ALERT],
+        "Critical", (json_int_t)priority_counter[LOG_CRIT],
+        "Error",    (json_int_t)priority_counter[LOG_ERR],
+        "Warning",  (json_int_t)priority_counter[LOG_WARNING],
+        "Info",     (json_int_t)priority_counter[LOG_INFO],
+        "Debug",    (json_int_t)priority_counter[LOG_DEBUG],
+        "Audit",    (json_int_t)priority_counter[LOG_AUDIT],
+        "Monitor",  (json_int_t)priority_counter[LOG_MONITOR]
+    );
 
     // append_yuno_metadata(gobj, jn_stats, stats); ???
 
@@ -679,14 +664,6 @@ PRIVATE int reset_counters(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     memset(priority_counter, 0, sizeof(priority_counter));
-    gobj_write_integer_attr(gobj_yuno(), "log_alerts", 0);
-    gobj_write_integer_attr(gobj_yuno(), "log_criticals", 0);
-    gobj_write_integer_attr(gobj_yuno(), "log_errors", 0);
-    gobj_write_integer_attr(gobj_yuno(), "log_warnings", 0);
-    gobj_write_integer_attr(gobj_yuno(), "log_infos", 0);
-    gobj_write_integer_attr(gobj_yuno(), "log_debugs", 0);
-    gobj_write_integer_attr(gobj_yuno(), "log_audits", 0);
-    gobj_write_integer_attr(gobj_yuno(), "log_monitors", 0);
 
     json_object_clear(priv->global_alerts);
     json_object_clear(priv->global_criticals);
@@ -757,20 +734,6 @@ PRIVATE json_t *make_summary(hgobj gobj, BOOL show_internal_errors)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     json_t *jn_summary = json_object();
-
-    if(show_internal_errors) {
-        json_t *jn_internal_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
-            "Alert",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_alerts"),
-            "Critical", (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_criticals"),
-            "Error",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_errors"),
-            "Warning",  (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_warnings"),
-            "Info",     (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_infos"),
-            "Debug",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_debugs"),
-            "Audit",    (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_audits"),
-            "Monitor",  (json_int_t)(size_t)gobj_read_integer_attr(gobj_yuno(), "log_monitors")
-        );
-        json_object_set_new(jn_summary, "Internal Counters", jn_internal_stats);
-    }
 
     json_t *jn_global_stats = json_pack("{s:I, s:I, s:I, s:I, s:I, s:I, s:I, s:I}",
         "Alert",    (json_int_t)priority_counter[LOG_ALERT],
