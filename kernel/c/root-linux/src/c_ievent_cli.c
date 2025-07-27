@@ -1419,7 +1419,7 @@ PRIVATE int ac_pause_yuno(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 /***************************************************************************
  *  For asynchronous responses
  ***************************************************************************/
-PRIVATE int ac_mt_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
+PRIVATE int ac_send_command_answer(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     /*
      *      __RESPONSE__ __MESSAGE__
@@ -1524,7 +1524,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         ac_on_message,          0},
         {EV_MT_COMMAND,         ac_mt_command,          0},
         {EV_MT_STATS,           ac_mt_stats,            0},
-        {EV_MT_COMMAND_ANSWER,  ac_mt_command_answer,   0},
+        {EV_SEND_COMMAND_ANSWER,ac_send_command_answer, 0},
         {EV_PLAY_YUNO,          ac_play_yuno,           0},
         {EV_PAUSE_YUNO,         ac_pause_yuno,          0},
         {EV_ON_CLOSE,           ac_on_close,            ST_DISCONNECTED},
@@ -1541,9 +1541,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,             0},
-        {EV_MT_COMMAND_ANSWER,      EVF_PUBLIC_EVENT},
         {EV_MT_COMMAND,             EVF_PUBLIC_EVENT},
         {EV_MT_STATS,               EVF_PUBLIC_EVENT},
+        {EV_SEND_COMMAND_ANSWER,    EVF_PUBLIC_EVENT},
         {EV_IDENTITY_CARD_ACK,      EVF_PUBLIC_EVENT},
         {EV_PLAY_YUNO,              EVF_PUBLIC_EVENT},  // Extra events to let agent
         {EV_PAUSE_YUNO,             EVF_PUBLIC_EVENT},  // request clients
