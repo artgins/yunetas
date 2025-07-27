@@ -39,23 +39,28 @@ PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (DTP_STRING,      "url",                  SDF_RD,  0, "url of udp server"),
-SDATA (DTP_STRING,      "lHost",                SDF_RD,  0, "Local ip, got from url"),
-SDATA (DTP_STRING,      "lPort",                SDF_RD,  0, "Local port, got from url."),
-SDATA (DTP_STRING,      "url",                  SDF_RD,  0, "Url"),
-SDATA (DTP_JSON,        "crypto",               SDF_WR|SDF_PERSIST, 0, "Crypto config"),
-SDATA (DTP_BOOLEAN,     "only_allowed_ips",     SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
-SDATA (DTP_BOOLEAN,     "trace_tls",            SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
-SDATA (DTP_BOOLEAN,     "use_ssl",              SDF_RD,  "FALSE", "True if schema is secure. Set internally"),
-SDATA (DTP_BOOLEAN,     "exitOnError",          SDF_RD,  "1", "Exit if Listen failed"),
-SDATA (DTP_BOOLEAN,     "set_broadcast",        SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
-SDATA (DTP_BOOLEAN,     "shared",               SDF_WR|SDF_PERSIST, 0, "Share the port"),
-SDATA (DTP_STRING,      "peername",             SDF_VOLATIL|SDF_STATS, "",  "Peername"),
-SDATA (DTP_STRING,      "sockname",             SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
-SDATA (DTP_INTEGER,     "rx_buffer_size",       SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
-SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
-SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
-SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. Default if null is parent."),
+SDATA (DTP_STRING,      "url",              SDF_RD,  0, "url of udp server"),
+SDATA (DTP_STRING,      "lHost",            SDF_RD,  0, "Local ip, got from url"),
+SDATA (DTP_STRING,      "lPort",            SDF_RD,  0, "Local port, got from url."),
+SDATA (DTP_STRING,      "url",              SDF_RD,  0, "Url"),
+SDATA (DTP_JSON,        "crypto",           SDF_WR|SDF_PERSIST, 0, "Crypto config"),
+SDATA (DTP_BOOLEAN,     "only_allowed_ips", SDF_WR|SDF_PERSIST, 0, "Only allowed ips"),
+SDATA (DTP_BOOLEAN,     "trace_tls",        SDF_WR|SDF_PERSIST, 0, "Trace TLS"),
+SDATA (DTP_BOOLEAN,     "use_ssl",          SDF_RD,  "FALSE", "True if schema is secure. Set internally"),
+SDATA (DTP_BOOLEAN,     "exitOnError",      SDF_RD,  "1", "Exit if Listen failed"),
+SDATA (DTP_BOOLEAN,     "set_broadcast",    SDF_WR|SDF_PERSIST, 0, "Set udp broadcast"),
+SDATA (DTP_BOOLEAN,     "shared",           SDF_WR|SDF_PERSIST, 0, "Share the port"),
+SDATA (DTP_INTEGER,     "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
+
+SDATA (DTP_INTEGER,     "txBytes",          SDF_RSTATS,     "0", "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxBytes",          SDF_RSTATS,     "0", "Messages received"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RSTATS,     "0", "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RSTATS,     "0", "Messages received"),
+SDATA (DTP_STRING,      "peername",         SDF_VOLATIL|SDF_STATS, "",  "Peername"),
+SDATA (DTP_STRING,      "sockname",         SDF_VOLATIL|SDF_STATS, "",  "Sockname"),
+SDATA (DTP_POINTER,     "user_data",        0,  0, "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,  0, "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,  0, "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
 
@@ -345,6 +350,33 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_reset_volatil_attrs(gobj);
 
     return 0;
+}
+
+/***************************************************************************
+ *      Framework Method reading
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "txBytes")==0) {
+        v.found = 1;
+        v.v.i = priv->txBytes;
+    } else if(strcmp(name, "rxBytes")==0) {
+        v.found = 1;
+        v.v.i = priv->rxBytes;
+    } else if(strcmp(name, "txMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->txMsgs;
+    } else if(strcmp(name, "rxMsgs")==0) {
+        v.found = 1;
+        v.v.i = priv->rxMsgs;
+    } else if(strcmp(name, "cur_tx_queue")==0) {
+        v.v.i = (json_int_t)dl_size(&priv->dl_tx);
+    }
+
+    return v;
 }
 
 
@@ -972,6 +1004,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_start = mt_start,
     .mt_stop = mt_stop,
     .mt_writing = mt_writing,
+    .mt_reading = mt_reading,
 };
 
 /*------------------------*

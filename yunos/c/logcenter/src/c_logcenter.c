@@ -48,7 +48,6 @@ PRIVATE int reset_counters(hgobj gobj);
 PRIVATE int trunk_data_log_file(hgobj gobj);
 PRIVATE json_t *search_log_message(hgobj gobj, const char *text, uint32_t maxcount);
 PRIVATE json_t *tail_log_message(hgobj gobj, uint32_t lines);
-PRIVATE const char *_get_hostname(void);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -446,7 +445,7 @@ PRIVATE json_t *cmd_send_summary(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         MIN(1*1024*1024L, gbmem_get_maximum_block())
     );
     gbuffer_printf(gbuf_summary, "From %s (%s, %s)\nat %s, \n\n",
-        _get_hostname(),
+        get_hostname(),
         node_uuid(),
         YUNETA_VERSION,
         fecha
@@ -737,25 +736,13 @@ PRIVATE int send_email(
     return gobj_send_event(gobj_emailsender, EV_SEND_EMAIL, kw_email, gobj);
 }
 
-/*****************************************************************
- *
- *****************************************************************/
-PRIVATE const char *_get_hostname(void)
-{
-    static char hostname[120 + 1] = {0};
-
-    if(!*hostname)
-        gethostname(hostname, sizeof(hostname)-1);
-    return hostname;
-}
-
 /***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int send_summary(hgobj gobj, gbuffer_t *gbuf)
 {
     char subject[120];
-    snprintf(subject, sizeof(subject), "%s: Log Center Summary", _get_hostname());
+    snprintf(subject, sizeof(subject), "%s: Log Center Summary", get_hostname());
     return send_email(gobj,
         gobj_read_str_attr(gobj, "from"),
         gobj_read_str_attr(gobj, "to"),
@@ -858,7 +845,7 @@ PRIVATE int send_report_email(hgobj gobj, BOOL reset)
         MIN(1*1024*1024L, gbmem_get_maximum_block())
     );
     gbuffer_printf(gbuf_summary, "From %s (%s, %s)\nat %s, Logcenter Summary:\n\n",
-        _get_hostname(),
+        get_hostname(),
         node_uuid(),
         YUNETA_VERSION,
         fecha

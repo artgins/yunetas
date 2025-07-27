@@ -4,6 +4,8 @@
  *
  *          Gossamer UDP Server
  *
+    TODO review, dl_list is not a good choice for performance
+
             Api Gossamer
             ------------
 
@@ -88,8 +90,6 @@ typedef struct _PRIVATE_DATA {
     int32_t seconds_inactivity;
 
     // Data oid
-    uint32_t *ptxMsgs;
-    uint32_t *prxMsgs;
     BOOL disable_end_of_frame;
 
     hgobj gobj_udp_s;
@@ -130,7 +130,6 @@ PRIVATE void mt_create(hgobj gobj)
     priv->gobj_udp_s = gobj_create("", C_UDP_S, kw_udps, gobj);
 
     dl_init(&priv->dl_channel, gobj);
-
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber)
