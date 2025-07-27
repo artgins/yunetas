@@ -308,7 +308,7 @@ PRIVATE int mt_start(hgobj gobj)
      *-------------------------------*/
     if(!priv->yev_reading) {
         json_int_t rx_buffer_size = gobj_read_integer_attr(gobj, "rx_buffer_size");
-        priv->yev_reading = yev_create_read_event(
+        priv->yev_reading = yev_create_recvmsg_event(
             yuno_event_loop(),
             yev_callback,
             gobj,
@@ -389,27 +389,6 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    //static int counter = 0;
-    //size_t size = dl_size(&priv->dl_tx);
-    // if(priv->max_tx_queue && size >= priv->max_tx_queue) {
-    //     if((counter % priv->max_tx_queue)==0) {
-    //         log_error(0,
-    //             "gobj",         "%s", gobj_full_name(gobj),
-    //             "function",     "%s", __FUNCTION__,
-    //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-    //             "msg",          "%s", "Tiro mensaje tx",
-    //             "counter",      "%d", (int)counter,
-    //             NULL
-    //         );
-    //     }
-    //     counter++;
-    //     GBUFFER *gbuf_first = dl_first(&priv->dl_tx);
-    //     gobj_incr_qs(QS_DROP_BY_OVERFLOW, 1);
-    //     dl_delete(&priv->dl_tx, gbuf_first, 0);
-    //     gobj_decr_qs(QS_OUPUT_QUEUE, 1);
-    //     gbuf_decref(gbuf_first);
-    // }
-
     dl_add(&priv->dl_tx, gbuf);
 
     return 0;
@@ -461,12 +440,27 @@ PRIVATE int write_data(hgobj gobj)
          *  Transmit
          */
         int fd =yev_get_fd(priv->yev_server_udp);
-        yev_event_h yev_write_event = yev_create_write_event(
+        struct sockaddr addr; int x;// TODO
+
+        const char *udp_channel = gbuffer_getlabel(gbuf);
+        if(!udp_channel) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "udp_channel NULL",
+                NULL
+            );
+            GBUFFER_DECREF(priv->gbuf_txing);
+            return -1;
+        }
+
+        yev_event_h yev_write_event = yev_create_sendmsg_event(
             yuno_event_loop(),
             yev_callback,
             gobj,
             fd,
-            gbuffer_incref(gbuf)
+            gbuffer_incref(gbuf),
+            &addr
         );
 
         priv->tx_in_progress++;
@@ -680,18 +674,18 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         }
     }
 
-    // if(priv->yev_reading) {
-    //     if(!yev_event_is_stopped(priv->yev_reading)) {
-    //         yev_stop_event(priv->yev_reading);
-    //         if(!yev_event_is_stopped(priv->yev_reading)) {
-    //             to_wait_stopped = TRUE;
-    //         }
-    //     }
-    // }
-    //
-    // if(priv->tx_in_progress > 0) {
-    //     to_wait_stopped = TRUE;
-    // }
+    if(priv->yev_reading) {
+        if(!yev_event_is_stopped(priv->yev_reading)) {
+            yev_stop_event(priv->yev_reading);
+            if(!yev_event_is_stopped(priv->yev_reading)) {
+                to_wait_stopped = TRUE;
+            }
+        }
+    }
+
+    if(priv->tx_in_progress > 0) {
+        to_wait_stopped = TRUE;
+    }
 
     if(to_wait_stopped) {
         gobj_change_state(gobj, ST_WAIT_STOPPED);
@@ -721,7 +715,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     uint32_t trace_level = gobj_trace_level(gobj);
-    int trace = trace_level & TRACE_URING;
+    int trace = (int)trace_level & TRACE_URING;
     if(trace) {
         json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
         gobj_log_debug(gobj, 0,
