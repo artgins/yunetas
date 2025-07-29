@@ -33,6 +33,7 @@ GOBJ_DECLARE_GCLASS(C_CURL);
  *      Events
  *------------------------*/
 GOBJ_DECLARE_EVENT(EV_SEND_CURL);
+GOBJ_DECLARE_EVENT(EV_CURL_COMMAND);
 GOBJ_DECLARE_EVENT(EV_CURL_RESPONSE);
 
 /***************************************************************

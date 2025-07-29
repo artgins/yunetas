@@ -10,7 +10,6 @@
  ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
-#include <uv.h>
 #include <sys/stat.h>
 #include <curl/curl.h>
 #include "c_curl.h"
@@ -23,16 +22,18 @@
 */
 static const char cb64[]="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+#define MSGSET_LIBCURL_ERROR "Curl Error""
+
 /***************************************************************************
  *              Structures
  ***************************************************************************/
 typedef struct dl_uv_poll_s {
     DL_ITEM_FIELDS
 
-    uv_poll_t uv_poll;
+    yev_event_h yev_poll;
     curl_socket_t sockfd;
     hgobj gobj;
-    hsdata sd_easy;
+    json_t *sd_easy;
 } dl_uv_poll_t;
 
 /***************************************************************************
@@ -45,7 +46,7 @@ PRIVATE BOOL __curl_initialized__ = FALSE;
  ***************************************************************************/
 PRIVATE int _curl_global_init(hgobj gobj);
 PRIVATE int _curl_global_cleanup(hgobj gobj);
-PRIVATE int clean_sd_easy(hgobj gobj, hsdata sd_easy);
+PRIVATE int clean_sd_easy(hgobj gobj, json_t *sd_easy);
 
 PRIVATE void start_timeout(
     CURLM *multi,
@@ -64,20 +65,20 @@ PRIVATE int on_handle_socket(
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE sdata_desc_t easyTb_it[] = {
-/*-ATTR-type------------name----------------flag------------------------default---------description----------*/
-SDATA (DTP_POINTER,     "easyCurl",         0,                          0,              "easy curl object"),
-SDATA (DTP_POINTER,     "gobj",             0,                          0,              "curl gobj"),
-SDATA (DTP_STRING,      "url",              0,                          0,              "request url"),
-SDATA (DTP_POINTER,     "dst_gobj",         0,                          0,              "destination gobj"),
-SDATA (DTP_STRING,      "dst_event",        0,                          0,              "destination event"),
-SDATA (DTP_POINTER,     "dst_gbuffer",      0,                          0,              "destination gbuffer"),
-SDATA (DTP_POINTER,     "src_gbuffer",      0,                          0,              "source gbuffer"),
-SDATA (DTP_INTEGER,     "mail_id",          0,                          0,              "mail id currently processing"),
-SDATA (DTP_STRING,      "mail_ref",         0,                          0,              "mail reference currently processing"),
-SDATA (DTP_BOOLEAN,     "cleanup",          0,                          0,              "True when curl_easy_cleanup is done"),
-SDATA (DTP_STRING,      "where",            0,                          0,              "write response to 'where' file"),
-SDATA (DTP_POINTER,     "fd",               0,                          0,              "FILE descriptor if using 'where'"),
-SDATA (DTP_POINTER,     "user_reference",   0,                          0,              "User reference"),
+/*-ATTR-type------------name----------------flag----default-description----------*/
+SDATA (DTP_POINTER,     "easyCurl",         0,      0,      "easy curl object"),
+SDATA (DTP_POINTER,     "gobj",             0,      0,      "curl gobj"),
+SDATA (DTP_STRING,      "url",              0,      0,      "request url"),
+SDATA (DTP_POINTER,     "dst_gobj",         0,      0,      "destination gobj"),
+SDATA (DTP_STRING,      "dst_event",        0,      0,      "destination event"),
+SDATA (DTP_POINTER,     "dst_gbuffer",      0,      0,      "destination gbuffer"),
+SDATA (DTP_POINTER,     "src_gbuffer",      0,      0,      "source gbuffer"),
+SDATA (DTP_INTEGER,     "mail_id",          0,      0,      "mail id currently processing"),
+SDATA (DTP_STRING,      "mail_ref",         0,      0,      "mail reference currently processing"),
+SDATA (DTP_BOOLEAN,     "cleanup",          0,      0,      "True when curl_easy_cleanup is done"),
+SDATA (DTP_STRING,      "where",            0,      0,      "write response to 'where' file"),
+SDATA (DTP_POINTER,     "fd",               0,      0,      "FILE descriptor if using 'where'"),
+SDATA (DTP_POINTER,     "user_reference",   0,      0,      "User reference"),
 
 SDATA_END()
 };
@@ -86,18 +87,15 @@ SDATA_END()
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-/*-DB----type-----------name----------------flag------------------------schema----------free_fn---------header-----------*/
-SDATADB (ASN_ITER,      "easyTb",           0,                          easyTb_it,      sdata_destroy,   "Curl Easy table"),
+/*-ATTR-type------------name----------------flag--------default-description----------*/
+SDATA (DTP_STRING,      "lHost",            SDF_RD,     0,      "local ip"),
+SDATA (DTP_STRING,      "lPort",            SDF_RD,     0,      "local port"),
+SDATA (DTP_STRING,      "peername",         SDF_RD,     0,      "Peername"),
+SDATA (DTP_STRING,      "sockname",         SDF_RD,     0,      "Sockname"),
 
-/*-ATTR-type------------name----------------flag------------------------default---------description----------*/
-SDATA (DTP_STRING,      "lHost",            SDF_RD,                     0,              "local ip"),
-SDATA (DTP_STRING,      "lPort",            SDF_RD,                     0,              "local port"),
-SDATA (DTP_STRING,      "peername",         SDF_RD,                     0,              "Peername"),
-SDATA (DTP_STRING,      "sockname",         SDF_RD,                     0,              "Sockname"),
-
-SDATA (DTP_POINTER,     "user_data",        0,                          0,              "user data"),
-SDATA (DTP_POINTER,     "user_data2",       0,                          0,              "more user data"),
-SDATA (DTP_POINTER,     "subscriber",       0,                          0,              "subscriber of output-events. Default if null is parent."),
+SDATA (DTP_POINTER,     "user_data",        0,          0,      "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,          0,      "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,          0,      "subscriber of output-events. Default if null is parent."),
 SDATA_END()
 };
 
@@ -118,7 +116,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 
 typedef struct _PRIVATE_DATA {
     hgobj timer;
-    dl_list_t *easyTb;
+    json_t *easyTb;
     CURLM *curl_handle;
     struct curl_slist *recipients;
     dl_list_t dl_uv_polls;
@@ -148,10 +146,10 @@ PRIVATE void mt_create(hgobj gobj)
 
     _curl_global_init(gobj);
 
-    dl_init(&priv->dl_uv_polls);
+    dl_init(&priv->dl_uv_polls, gobj);
 
     priv->timer = gobj_create("", C_TIMER, 0, gobj);
-    priv->easyTb = gobj_read_iter_attr(gobj, "easyTb");
+    priv->easyTb = json_array();
 
     /*
      *  Do copy of heavy used parameters, for quick access.
@@ -205,7 +203,6 @@ PRIVATE int mt_stop(hgobj gobj)
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
 
-    //gobj_free_iter(priv->easyTb, FALSE, sdata_destroy);
 
     rc_resource_t *sd_easy; rc_instance_t *resource_i;
     while((resource_i=rc_first_instance(priv->easyTb, &sd_easy))) {
@@ -324,7 +321,7 @@ PRIVATE off_t get_file_size(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE dl_uv_poll_t *new_uv_poll(hgobj gobj, hsdata sd_easy, curl_socket_t sockfd)
+PRIVATE dl_uv_poll_t *new_uv_poll(hgobj gobj, json_t *sd_easy, curl_socket_t sockfd)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -333,9 +330,6 @@ PRIVATE dl_uv_poll_t *new_uv_poll(hgobj gobj, hsdata sd_easy, curl_socket_t sock
     poll_item->gobj = gobj;
     poll_item->sd_easy = sd_easy;
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, ">>>> uv_poll_init_socket p=%p, s=%d", &poll_item->uv_poll, sockfd);
-    }
     uv_poll_init_socket(
         yuno_uv_event_loop(),
         &poll_item->uv_poll,
@@ -427,7 +421,7 @@ PRIVATE int _curl_global_init(hgobj gobj)
  ***************************************************************************/
 PRIVATE int _curl_global_cleanup(hgobj gobj)
 {
-    if(!gobj_instances(gobj)) {
+    if(__curl_initialized__) {
         curl_global_cleanup();
         __curl_initialized__ = 0;
     }
@@ -686,7 +680,7 @@ PRIVATE size_t write_callback(char *ptr, size_t size, size_t nmemb, void *userda
 
     gbuffer_t *gbuf = sdata_read_pointer(sd_easy, "dst_gbuffer");
     if(!gbuf) {
-        gbuf = gbuffer_create(8*1024, 128*1024, 0, 0);
+        gbuf = gbuffer_create(8*1024, 128*1024);
         sdata_write_pointer(sd_easy, "dst_gbuffer", gbuf);
     }
     gbuffer_append(gbuf, ptr, size*nmemb);
@@ -1093,36 +1087,6 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_drop_request(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    /*
-     *  Cleanup easy query
-     */
-    hsdata sd_easy = (hsdata)(size_t)kw_get_int(gobj, kw, "sd_easy", 0, FALSE);
-    CURL *easy = sdata_read_pointer(sd_easy, "easyCurl");
-    curl_multi_remove_handle(priv->curl_handle, easy);
-    BOOL cleanup = sdata_read_bool(sd_easy, "cleanup");
-    if(!cleanup) {
-        sdata_write_bool(sd_easy, "cleanup", TRUE);
-        curl_easy_cleanup(easy);
-        if(priv->recipients) {
-            curl_slist_free_all(priv->recipients);
-            priv->recipients = 0;
-        }
-    }
-    BOOL stopped = sdata_read_bool(sd_easy, "stopped");
-    if(stopped) {
-        clean_sd_easy(gobj, sd_easy);
-        rc_delete_resource(sd_easy, sdata_destroy);
-    }
-    JSON_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
  *  Child stopped
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -1178,6 +1142,7 @@ GOBJ_DEFINE_GCLASS(C_CURL);
  *      Events
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_SEND_CURL);
+GOBJ_DEFINE_EVENT(EV_CURL_COMMAND);
 GOBJ_DEFINE_EVENT(EV_CURL_RESPONSE);
 
 /***************************************************************************
@@ -1202,7 +1167,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     ev_action_t st_idle[] = {
         {EV_CURL_COMMAND,   ac_command,      0},
-        {EV_DROP_REQUEST,   ac_drop_request, 0},
         {EV_TIMEOUT,        ac_timeout,      0},
         {EV_STOPPED,        ac_stopped,      0},
         {0,0,0}
@@ -1218,7 +1182,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     event_type_t event_types[] = {
         {EV_CURL_COMMAND,   0},
-        {EV_DROP_REQUEST,   0},
         {EV_TIMEOUT,        0},
         {EV_STOPPED,        0},
         {NULL, 0}
@@ -1232,7 +1195,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         event_types,
         states,
         &gmt,
-        lmt,
+        0, // lmt,
         tattr_desc,
         sizeof(PRIVATE_DATA),
         0,                  // acl

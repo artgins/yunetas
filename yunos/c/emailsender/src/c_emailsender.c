@@ -16,6 +16,7 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+GOBJ_DEFINE_EVENT(ST_WAIT_SEND_ACK);
 
 /***************************************************************************
  *              Structures
@@ -488,7 +489,7 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw_curl = json_pack(
         "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:I}",
         "command", "SEND",
-        "dst_event", "EV_CURL_RESPONSE",
+        "dst_event", EV_CURL_RESPONSE,
         "username", priv->username,
         "password", priv->password,
         "url", priv->url,
@@ -543,9 +544,9 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    gobj_change_state(gobj, "ST_WAIT_SEND_ACK");
+    gobj_change_state(gobj, ST_WAIT_SEND_ACK);
     set_timeout(priv->timer, priv->timeout_response);
-    gobj_send_event(priv->curl, "EV_CURL_COMMAND", kw_curl, gobj);
+    gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -659,7 +660,7 @@ PRIVATE int ac_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
         } else {
             json_t *kw_email = kw_get_dict(gobj, priv->sd_cur_email, "kw_email", 0, KW_REQUIRED);
             KW_INCREF(kw_email);
-            gobj_send_event(gobj, "EV_SEND_CURL", kw_email, src);
+            gobj_send_event(gobj, EV_SEND_CURL, kw_email, src);
             KW_DECREF(kw);
             return 0;
         }
@@ -669,7 +670,7 @@ PRIVATE int ac_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(priv->sd_cur_email) {
         json_t *kw_email = kw_get_dict(gobj, priv->sd_cur_email, "kw_email", 0, KW_REQUIRED);
         KW_INCREF(kw_email);
-        gobj_send_event(gobj, "EV_SEND_CURL", kw_email, src);
+        gobj_send_event(gobj, EV_SEND_CURL, kw_email, src);
 
     }
 
@@ -760,7 +761,6 @@ GOBJ_DEFINE_GCLASS(C_EMAILSENDER);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(ST_WAIT_SEND_ACK);
 
 /***************************************************************************
  *          Create the GClass
