@@ -26,7 +26,6 @@ SET (YUNO_SRCS
 )
 SET (YUNO_HDRS
     src/c_emailsender.h
-    src/c_curl.h
 )
 
 ##############################################

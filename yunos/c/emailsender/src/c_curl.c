@@ -69,7 +69,7 @@ SDATA (DTP_POINTER,     "easyCurl",         0,                          0,      
 SDATA (DTP_POINTER,     "gobj",             0,                          0,              "curl gobj"),
 SDATA (DTP_STRING,      "url",              0,                          0,              "request url"),
 SDATA (DTP_POINTER,     "dst_gobj",         0,                          0,              "destination gobj"),
-SDATA (DTP_STRING,      "dst_event",        0,                          "EV_RESPONSE",  "destination event"),
+SDATA (DTP_STRING,      "dst_event",        0,                          0,              "destination event"),
 SDATA (DTP_POINTER,     "dst_gbuffer",      0,                          0,              "destination gbuffer"),
 SDATA (DTP_POINTER,     "src_gbuffer",      0,                          0,              "source gbuffer"),
 SDATA (DTP_INTEGER,     "mail_id",          0,                          0,              "mail id currently processing"),
@@ -885,9 +885,6 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     sdata_write_pointer(sd_easy, "gobj", gobj);
     sdata_write_pointer(sd_easy, "easyCurl", handle);
-    if(!empty_string(dst_event)) {
-        sdata_write_str(sd_easy, "dst_event", dst_event);
-    }
     sdata_write_str(sd_easy, "url", url);
     sdata_write_str(sd_easy, "where", where);
     sdata_write_pointer(sd_easy, "dst_gobj", src);
@@ -1214,7 +1211,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_DROP_REQUEST,   0},
         {EV_TIMEOUT,        0},
         {EV_STOPPED,        0},
-        {EV_RESPONSE,       0},
         {NULL, 0}
     };
 
