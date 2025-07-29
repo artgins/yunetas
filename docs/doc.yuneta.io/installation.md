@@ -28,7 +28,7 @@ This project is licensed under the MIT License, except for the following files:
 **Dependencies** for deploying in Linux: 
 - [nginx](https://nginx.org) BSD-2-Clause license
 - [openresty](https://openresty.org/) BSD 2-Clause, BSD 3-Clause, MIT, OpenSSL, Zlib, SSLeay
-
+- [curl](https://github.com/curl/curl) curl license, MIT/X derivate license,
 
 ## Create environment
 
@@ -46,11 +46,12 @@ Install the C dependencies:
 
     sudo apt -y install --no-install-recommends \
       git mercurial make cmake ninja-build \
-      gcc musl musl-dev musl-tools clang \
+      gcc musl musl-dev musl-tools clang g++ \
       python3-dev python3-pip python3-setuptools \
       python3-tk python3-wheel python3-venv \
-      libjansson-dev libpcre2-dev perl dos2unix liburing-dev \
-      libpcre3-dev zlib1g-dev libssl-dev g++ \
+      libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
+      libpcre3-dev zlib1g-dev libssl-dev \
+      perl dos2unix \
       kconfig-frontends telnet pipx 
 
     pipx install kconfiglib

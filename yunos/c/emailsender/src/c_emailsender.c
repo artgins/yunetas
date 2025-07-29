@@ -10,6 +10,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include "c_curl.h"
 #include "c_emailsender.h"
 
 /***************************************************************************
@@ -74,34 +75,29 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name--------------------flag------------------------default---------description---------- */
-SDATA (DTP_INTEGER,     "timeout_response",     0,                          60*1000L,       "Timer curl response"),
-SDATA (DTP_STRING,      "on_open_event_name",   0,                          EV_ON_OPEN,   "Must be empty if you don't want receive this event"),
-SDATA (DTP_STRING,      "on_close_event_name",  0,                          EV_ON_CLOSE,  "Must be empty if you don't want receive this event"),
-SDATA (DTP_STRING,      "on_message_event_name",0,                          EV_ON_MESSAGE,"Must be empty if you don't want receive this event"),
-SDATA (DTP_BOOLEAN,     "as_yuno",              SDF_RD,                     FALSE,          "True when acting as yuno"),
+SDATA (DTP_INTEGER,     "timeout_response",     0,                          "60000",    "Timer curl response"),
+SDATA (DTP_BOOLEAN,     "as_yuno",              SDF_RD,                     0,          "True when acting as yuno"),
 
 SDATA (DTP_STRING,      "username",             SDF_RD,                     0,              "email username"),
 SDATA (DTP_STRING,      "password",             SDF_RD,                     0,              "email password"),
 SDATA (DTP_STRING,      "url",                  SDF_RD|SDF_REQUIRED,        0,              "smtp URL"),
 SDATA (DTP_STRING,      "from",                 SDF_RD|SDF_REQUIRED,        0,              "default from"),
 SDATA (DTP_STRING,      "from_beatiful",        SDF_RD,                     "",             "from with name"),
-SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_PERSIST|SDF_WR,         200,            "Maximum messages in tx queue."),
-SDATA (DTP_INTEGER,     "timeout_dequeue",      SDF_PERSIST|SDF_WR,         10,             "Timeout to dequeue msgs."),
-SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,         4,              "Maximum retries to send email"),
-SDATA (DTP_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,         FALSE,          "True when testing, send only to test_email"),
-SDATA (DTP_BOOLEAN,     "add_test",             SDF_PERSIST|SDF_WR,         FALSE,          "True when testing, add test_email to send"),
+SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_PERSIST|SDF_WR,         "200",            "Maximum messages in tx queue."),
+SDATA (DTP_INTEGER,     "timeout_dequeue",      SDF_PERSIST|SDF_WR,         "10",             "Timeout to dequeue msgs."),
+SDATA (DTP_INTEGER,     "max_retries",          SDF_PERSIST|SDF_WR,         "4",              "Maximum retries to send email"),
+SDATA (DTP_BOOLEAN,     "only_test",            SDF_PERSIST|SDF_WR,         0,          "True when testing, send only to test_email"),
+SDATA (DTP_BOOLEAN,     "add_test",             SDF_PERSIST|SDF_WR,         0,          "True when testing, add test_email to send"),
 SDATA (DTP_STRING,      "test_email",           SDF_PERSIST|SDF_WR,         "",             "test email"),
 
 SDATA (DTP_INTEGER,     "send",                 SDF_RD|SDF_STATS,           0,              "Emails send"),
 SDATA (DTP_INTEGER,     "sent",                 SDF_RD|SDF_STATS,           0,              "Emails sent"),
-SDATA (DTP_BOOLEAN,     "disable_alarm_emails", SDF_PERSIST|SDF_WR,         FALSE,          "True to don't send alarm emails"),
+SDATA (DTP_BOOLEAN,     "disable_alarm_emails", SDF_PERSIST|SDF_WR,         0,          "True to don't send alarm emails"),
 
 SDATA (DTP_POINTER,     "user_data",            0,                          0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                          0,              "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,                          0,              "subscriber of output-events. If it's null then subscriber is the parent."),
 
-/*-DB----type-----------name----------------flag------------------------schema----------free_fn---------header-----------*/
-SDATADB (ASN_ITER,      "queueTb",          SDF_RD,                     queueTb_it,     sdata_destroy,  "Queue table"),
 SDATA_END()
 };
 
@@ -128,22 +124,22 @@ typedef struct _PRIVATE_DATA {
     uint32_t timeout_dequeue;
     uint32_t max_tx_queue;
     uint32_t max_retries;
-    hsdata sd_cur_email;
+    json_t *sd_cur_email;
 
     const char *on_open_event_name;
     const char *on_close_event_name;
     const char *on_message_event_name;
     BOOL as_yuno;
 
-    uint64_t *psend;
-    uint64_t *psent;
+    json_int_t send;
+    json_int_t sent;
 
     const char *username;
     const char *password;
     const char *url;
     const char *from;
 
-    dl_list_t *tb_queue;
+    json_t *tb_queue;
     int inform_on_close;
     int inform_no_more_email;
 } PRIVATE_DATA;
@@ -166,14 +162,11 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->tb_queue = gobj_read_iter_attr(gobj, "queueTb");
+    priv->tb_queue = json_array();
     priv->timer = gobj_create("", C_TIMER, 0, gobj);
-    priv->curl = gobj_create("emailsender", GCLASS_CURL, 0, gobj);
+    priv->curl = gobj_create("emailsender", C_CURL, 0, gobj);
     gobj_set_bottom_gobj(gobj, priv->curl);
     //priv->persist = gobj_find_service("persist", FALSE);
-
-    priv->psend = gobj_danger_attr_ptr(gobj, "send");
-    priv->psent = gobj_danger_attr_ptr(gobj, "sent");
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
@@ -188,17 +181,14 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(timeout_response,      gobj_read_integer_attr)
-    SET_PRIV(on_open_event_name,    gobj_read_str_attr)
-    SET_PRIV(on_close_event_name,   gobj_read_str_attr)
-    SET_PRIV(on_message_event_name, gobj_read_str_attr)
     SET_PRIV(username,              gobj_read_str_attr)
     SET_PRIV(password,              gobj_read_str_attr)
     SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(from,                  gobj_read_str_attr)
     SET_PRIV(as_yuno,               gobj_read_bool_attr)
-    SET_PRIV(max_tx_queue,          gobj_read_uint32_attr)
-    SET_PRIV(max_retries,           gobj_read_uint32_attr)
-    SET_PRIV(timeout_dequeue,       gobj_read_uint32_attr)
+    SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
+    SET_PRIV(max_retries,           gobj_read_integer_attr)
+    SET_PRIV(timeout_dequeue,       gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -208,9 +198,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(max_tx_queue,        gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(timeout_dequeue,   gobj_read_uint32_attr)
-    ELIF_EQ_SET_PRIV(max_retries,       gobj_read_uint32_attr)
+    IF_EQ_SET_PRIV(max_tx_queue,        gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(timeout_dequeue,   gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(max_retries,       gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -221,7 +211,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    size_t size = rc_iter_size(priv->tb_queue);
+    size_t size = json_array_size(priv->tb_queue);
     if(size) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -231,7 +221,7 @@ PRIVATE void mt_destroy(hgobj gobj)
             NULL
         );
     }
-    gobj_free_iter(priv->tb_queue, FALSE, sdata_destroy); // remove all rows
+    JSON_DECREF(priv->tb_queue)
 }
 
 /***************************************************************************
@@ -264,6 +254,25 @@ PRIVATE int mt_stop(hgobj gobj)
     //TODO V2 GBMEM_FREE(priv->mail_ref);
 
     return 0;
+}
+
+/***************************************************************************
+ *      Framework Method reading
+ ***************************************************************************/
+PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    SData_Value_t v = {0,{0}};
+    if(strcmp(name, "send")==0) {
+        v.found = 1;
+        v.v.i = priv->send;
+    } else if(strcmp(name, "sent")==0) {
+        v.found = 1;
+        v.v.i = priv->sent;
+    }
+
+    return v;
 }
 
 
@@ -319,8 +328,8 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
 
     }
-    int len = strlen(body);
-    gbuffer_t *gbuf = gbuffer_create(len, len, 0, 0);
+    int len = (int)strlen(body);
+    gbuffer_t *gbuf = gbuffer_create(len, len);
     if(len > 0) {
         gbuffer_append(gbuf, (void *)body, len);
     }
@@ -522,11 +531,16 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    (*priv->psend)++;
+    priv->send++;
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(gobj, kw_curl, "SEND EMAIL to %s", priv->url);
-        log_debug_bf(0, gbuffer_cur_rd_pointer(gbuf), gbuffer_leftbytes(gbuf), "SEND EMAIL to %s", priv->url);
+        gobj_trace_buffer(gobj,
+            gbuffer_cur_rd_pointer(gbuf),
+            gbuffer_leftbytes(gbuf),
+            "SEND EMAIL to %s",
+            priv->url
+        );
     }
 
     gobj_change_state(gobj, "ST_WAIT_SEND_ACK");
@@ -558,30 +572,28 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
         }
     }
 
-    size_t size = rc_iter_size(priv->tb_queue);
+    size_t size = json_array_size(priv->tb_queue);
     if(size >= priv->max_tx_queue) {
-        hsdata sd_email;
-        rc_first_instance(priv->tb_queue, (rc_resource_t **)&sd_email);
+        json_t *jn_msg = kw_get_list_value(priv->tb_queue, 0, 0, KW_EXTRACT);
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "Tiro EMAIL por cola llena",
             NULL
         );
-        json_t *jn_msg = sdata2json(sd_email, -1, 0);
         gobj_trace_json(gobj, jn_msg, "Tiro EMAIL por cola llena");
-        json_decref(jn_msg);
 
-        rc_delete_resource(sd_email, sdata_destroy);
+        JSON_DECREF(jn_msg)
     }
 
     /*
      *  Crea el registro del queue
      */
 
-    hsdata sd_email = sdata_create(queueTb_it, 0,0,0,0,0);
-    sdata_write_json(sd_email, "kw_email", kw); // kw incref
-    rc_add_instance(priv->tb_queue, sd_email, 0);
+    json_t *sd_email = gobj_sdata_create(gobj, queueTb_it);
+    json_object_set(sd_email, "kw_email", kw); // kw incref
+
+    json_array_append_new(priv->tb_queue, sd_email);
 
     if(gobj_in_this_state(gobj, ST_IDLE)) {
         set_timeout(priv->timer, priv->timeout_dequeue);
@@ -600,14 +612,13 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
 
     clear_timeout(priv->timer);
 
-    int result = kw_get_int(gobj, kw, "result", 0, FALSE);
+    int result = (int)kw_get_int(gobj, kw, "result", 0, FALSE);
     if(result) {
         // Error already logged
     } else {
-        rc_delete_resource(priv->sd_cur_email, sdata_destroy);
-        priv->sd_cur_email = 0;
+        JSON_DECREF(priv->sd_cur_email)
         gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
-        (*priv->psent)++;
+        priv->sent++;
     }
 
     gobj_change_state(gobj, ST_IDLE);
@@ -627,28 +638,26 @@ PRIVATE int ac_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->sd_cur_email) {
-        int retries = sdata_read_int32(priv->sd_cur_email, "retries");
+        int retries = (int)kw_get_int(gobj, priv->sd_cur_email, "retries", 0, 0);
         retries++;
-        sdata_write_int32(priv->sd_cur_email, "retries", retries);
+        json_object_set_new(priv->sd_cur_email, "retries", json_integer(retries));
         if(retries >= priv->max_retries) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBCURL_ERROR,
-                "msg",          "%s", "Tiro email por maximo reintentos",
+                "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+                "msg",          "%s", "Deleting email by maximum retries",
                 NULL
             );
-            json_t *jn_msg = sdata2json(priv->sd_cur_email, -1, 0);
-            gobj_trace_json(gobj, jn_msg, "Tiro email por maximo reintentos");
-            gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, jn_msg, "kw_email`gbuffer", 0, 0);
-            gbuf_reset_rd(gbuf);
-            gobj_trace_dump_gbuf(gobj, gbuf, "Tiro email por maximo reintentos");
-            json_decref(jn_msg);
+            gobj_trace_json(gobj, priv->sd_cur_email, "Deleting email by maximum retries");
+            gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, priv->sd_cur_email, "kw_email`gbuffer", 0, 0);
+            gbuffer_reset_rd(gbuf);
+            gobj_trace_dump_gbuf(gobj, gbuf, "Deleting email by maximum retries");
 
-            rc_delete_resource(priv->sd_cur_email, sdata_destroy);
-            priv->sd_cur_email = 0;
+            JSON_DECREF(priv->sd_cur_email)
             set_timeout(priv->timer, priv->timeout_dequeue);
+
         } else {
-            json_t *kw_email = sdata_read_json(priv->sd_cur_email, "kw_email");
+            json_t *kw_email = kw_get_dict(gobj, priv->sd_cur_email, "kw_email", 0, KW_REQUIRED);
             KW_INCREF(kw_email);
             gobj_send_event(gobj, "EV_SEND_CURL", kw_email, src);
             KW_DECREF(kw);
@@ -656,14 +665,14 @@ PRIVATE int ac_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    hsdata sd_email; rc_instance_t *i_queue;
-    i_queue = rc_first_instance(priv->tb_queue, (rc_resource_t **)&sd_email);
-    if(i_queue) {
-        priv->sd_cur_email = sd_email;
-        json_t *kw_email = sdata_read_json(sd_email, "kw_email");
+    priv->sd_cur_email = kw_get_list_value(priv->tb_queue, 0, 0, KW_EXTRACT);
+    if(priv->sd_cur_email) {
+        json_t *kw_email = kw_get_dict(gobj, priv->sd_cur_email, "kw_email", 0, KW_REQUIRED);
         KW_INCREF(kw_email);
         gobj_send_event(gobj, "EV_SEND_CURL", kw_email, src);
+
     }
+
     KW_DECREF(kw);
     return 0;
 }
@@ -682,7 +691,7 @@ PRIVATE int ac_timeout_response(hgobj gobj, const char *event, json_t *kw, hgobj
     //  TODO V2 GBMEM_FREE(priv->mail_ref);
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_LIBCURL_ERROR,
+        "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
         "msg",          "%s", "Timeout curl",
         "url",          "%s", priv->url,
         "state",        "%s", gobj_current_state(gobj),
@@ -735,13 +744,23 @@ PRIVATE const GMETHODS gmt = {
     .mt_destroy     = mt_destroy,
     .mt_start       = mt_start,
     .mt_stop        = mt_stop,
-    .mt_writing     = mt_writing
+    .mt_writing     = mt_writing,
+    .mt_reading     = mt_reading,
 };
 
 /*------------------------*
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_EMAILSENDER);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(ST_WAIT_SEND_ACK);
 
 /***************************************************************************
  *          Create the GClass
@@ -815,7 +834,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         event_types,
         states,
         &gmt,
-        lmt,
+        0, // lmt,
         tattr_desc,
         sizeof(PRIVATE_DATA),
         0,                          // acl
