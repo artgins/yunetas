@@ -1765,7 +1765,7 @@ PRIVATE int check_passwd(
             "createdDate": 1581316153674,
             "secretData": {
                 "value": "???",
-                "salt": "jtz3ZtLYBwRFMoe2gZg6pw=="
+                "salt": "???=="
             },
             "credentialData" : {
                 "hashIterations": 27500,
