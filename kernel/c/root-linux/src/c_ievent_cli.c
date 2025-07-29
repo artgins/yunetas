@@ -1128,7 +1128,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         if(gobj_has_event(gobj_service, iev_event, EVF_PUBLIC_EVENT)) {
             gobj_send_event(gobj_service, iev_event, iev_kw, gobj);
         } else {
-            // TODO by now publish event, agent change the destine
+            // TODO by now publish event, agent changing the destine (perhaps in ac_final_count)
             // TODO in future restore the gobj_log_error
             gobj_publish_event( /* NOTE original behavior */
                 gobj,
