@@ -5,6 +5,7 @@
  *          Email sender
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
@@ -16,7 +17,6 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-GOBJ_DEFINE_EVENT(ST_WAIT_SEND_ACK);
 
 /***************************************************************************
  *              Structures
@@ -127,9 +127,6 @@ typedef struct _PRIVATE_DATA {
     uint32_t max_retries;
     json_t *sd_cur_email;
 
-    const char *on_open_event_name;
-    const char *on_close_event_name;
-    const char *on_message_event_name;
     BOOL as_yuno;
 
     json_int_t send;
@@ -235,8 +232,6 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_start(priv->timer);
     gobj_start(priv->curl);
 
-    gobj_publish_event(gobj, priv->on_open_event_name, 0); // virtual
-
     return 0;
 }
 
@@ -246,8 +241,6 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_publish_event(gobj, priv->on_close_event_name, 0); // virtual
 
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
@@ -433,7 +426,7 @@ PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw,
  *  It can receive local messages (from command or beging child-gobj)
  *  or inter-events from others yunos.
  ********************************************************************/
-PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -544,7 +537,7 @@ PRIVATE int ac_send_curl(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    gobj_change_state(gobj, ST_WAIT_SEND_ACK);
+    gobj_change_state(gobj, ST_WAIT_RESPONSE);
     set_timeout(priv->timer, priv->timeout_response);
     gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj);
 
@@ -561,7 +554,8 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
 
     if(gobj_read_bool_attr(gobj, "disable_alarm_emails")) {
         const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
-        if(strstr(subject, "ALERTA Encolamiento")) { // WARNING repeated in c_qiogate.c
+        if(strstr(subject, "ALERTA Encolamiento") || strstr(subject, "ALERT Queuing")
+        ) { // WARNING repeated in c_qiogate.c
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
@@ -660,7 +654,7 @@ PRIVATE int ac_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
         } else {
             json_t *kw_email = kw_get_dict(gobj, priv->sd_cur_email, "kw_email", 0, KW_REQUIRED);
             KW_INCREF(kw_email);
-            gobj_send_event(gobj, EV_SEND_CURL, kw_email, src);
+            gobj_send_event(gobj, EV_CURL_COMMAND, kw_email, src);
             KW_DECREF(kw);
             return 0;
         }
@@ -670,66 +664,11 @@ PRIVATE int ac_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(priv->sd_cur_email) {
         json_t *kw_email = kw_get_dict(gobj, priv->sd_cur_email, "kw_email", 0, KW_REQUIRED);
         KW_INCREF(kw_email);
-        gobj_send_event(gobj, EV_SEND_CURL, kw_email, src);
+        gobj_send_event(gobj, EV_CURL_COMMAND, kw_email, src);
 
     }
 
     KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_timeout_response(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  WARNING No response: check your curl parameters!
-     *  Retry in poll time.
-     */
-    //  TODO V2 GBMEM_FREE(priv->mail_ref);
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-        "msg",          "%s", "Timeout curl",
-        "url",          "%s", priv->url,
-        "state",        "%s", gobj_current_state(gobj),
-        NULL
-    );
-    gobj_change_state(gobj, ST_IDLE);
-
-    set_timeout(priv->timer, 10); // tira de la cola, QUICK
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *  Child stopped
- ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    JSON_DECREF(kw);
     return 0;
 }
 
@@ -783,30 +722,22 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_SEND_CURL,      ac_send_curl,           0},
+        {EV_CURL_COMMAND,   ac_curl_command,        0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
-        {EV_TIMEOUT,        ac_dequeue,             0},
-        {EV_ON_OPEN,        ac_on_open,             0},
-        {EV_ON_CLOSE,       ac_on_close,            0},
-        {EV_STOPPED,        ac_stopped,             0},
         {0,0,0}
     };
 
-    ev_action_t st_wait_send_ack[] = {
+    ev_action_t st_wait_response[] = {
         {EV_CURL_RESPONSE,  ac_curl_response,       0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
-        {EV_ON_OPEN,        ac_on_open,             0},
-        {EV_ON_CLOSE,       ac_on_close,            0},
-        {EV_TIMEOUT,        ac_timeout_response,    0},
-        {EV_STOPPED,        ac_stopped,             0},
         {0,0,0}
     };
 
     states_t states[] = {
         {ST_IDLE,           st_idle},
-        {ST_WAIT_SEND_ACK,  st_wait_send_ack},
+        {ST_WAIT_RESPONSE,  st_wait_response},
         {0, 0}
     };
 
@@ -816,13 +747,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_SEND_MESSAGE,       EVF_PUBLIC_EVENT},
         {EV_SEND_EMAIL,         EVF_PUBLIC_EVENT},
-        {EV_SEND_CURL,          0},
+        {EV_CURL_COMMAND,       0},
         {EV_CURL_RESPONSE,      0},
-        {EV_ON_OPEN,            EVF_NO_WARN_SUBS},
-        {EV_ON_CLOSE,           EVF_NO_WARN_SUBS},
-        {EV_ON_MESSAGE,         EVF_NO_WARN_SUBS},
-        {EV_STOPPED,            0},
-        {EV_TIMEOUT,            0},
         {NULL, 0}
     };
 

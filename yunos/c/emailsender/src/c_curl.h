@@ -1,9 +1,6 @@
 /****************************************************************************
  *          C_CURL.H
- *          GClass of CURL uv-mixin.
- *
- *          Mixin libcurl-uv-gobj
- *          Based on https://gist.github.com/clemensg/5248927
+ *          GClass of CURL.
  *
  *          Copyright (c) 2014 by Niyamaka.
  *          Copyright (c) 2025, ArtGins.
@@ -16,6 +13,11 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
+
+/***************************************************************
+ *              Constants
+ ***************************************************************/
+#define MSGSET_LIBCURL_ERROR "Curl Error"
 
 /***************************************************************
  *              FSM
@@ -32,7 +34,6 @@ GOBJ_DECLARE_GCLASS(C_CURL);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DECLARE_EVENT(EV_SEND_CURL);
 GOBJ_DECLARE_EVENT(EV_CURL_COMMAND);
 GOBJ_DECLARE_EVENT(EV_CURL_RESPONSE);
 

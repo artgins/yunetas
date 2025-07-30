@@ -51,8 +51,8 @@ Install the C dependencies:
       python3-tk python3-wheel python3-venv \
       libjansson-dev libpcre2-dev liburing-dev libcurl4-openssl-dev \
       libpcre3-dev zlib1g-dev libssl-dev \
-      perl dos2unix \
-      kconfig-frontends telnet pipx 
+      perl dos2unix tree curl \
+      kconfig-frontends telnet pipx
 
     pipx install kconfiglib
 

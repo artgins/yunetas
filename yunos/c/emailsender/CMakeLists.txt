@@ -4,6 +4,9 @@
 cmake_minimum_required(VERSION 3.11)
 project(emailsender C)
 
+# Find libcurl (dynamic)
+find_package(CURL REQUIRED)
+
 #-----------------------------------------------------#
 #   Get yunetas base path:
 #   - defined in environment variable YUNETAS_BASE
@@ -26,6 +29,7 @@ SET (YUNO_SRCS
 )
 SET (YUNO_HDRS
     src/c_emailsender.h
+    src/c_curl.h
 )
 
 ##############################################
@@ -40,6 +44,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
+    ${CURL_LIBRARIES}
 )
 
 ##############################################
