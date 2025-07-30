@@ -11,12 +11,16 @@
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <limits.h>
 #include "c_curl.h"
 #include "c_emailsender.h"
 
 /***************************************************************************
  *              Constants
  ***************************************************************************/
+enum {
+    MARK_PENDING_ACK = 1, // TODO debería ser configurable
+};
 
 /***************************************************************************
  *              Structures
@@ -25,6 +29,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int open_queues(hgobj gobj);
+PRIVATE int close_queues(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -140,6 +146,15 @@ typedef struct _PRIVATE_DATA {
     json_t *tb_queue;
     int inform_on_close;
     int inform_no_more_email;
+
+
+    hgobj gobj_tranger_queues;
+    json_t *tranger;
+    tr_queue_t *trq_msgs;
+    int32_t alert_queue_size;
+    BOOL with_metadata;
+    q_msg_t *last_msg_sent;
+
 } PRIVATE_DATA;
 
 
@@ -247,6 +262,26 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_stop(priv->curl);
     //TODO V2 GBMEM_FREE(priv->mail_ref);
 
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method play
+ *  Yuneta rule:
+ *  If service has mt_play then start only the service gobj.
+ *      (Let mt_play be responsible to start their tree)
+ *  If service has not mt_play then start the tree with gobj_start_tree().
+ ***************************************************************************/
+PRIVATE int mt_play(hgobj gobj)
+{
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method pause
+ ***************************************************************************/
+PRIVATE int mt_pause(hgobj gobj)
+{
     return 0;
 }
 
@@ -411,6 +446,158 @@ PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw,
             /***************************
              *      Local Methods
              ***************************/
+
+
+
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int open_queues(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->tranger) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger NOT NULL",
+            NULL
+        );
+        tranger2_shutdown(priv->tranger);
+    }
+
+    const char *path = gobj_read_str_attr(gobj, "tranger_path");
+    if(empty_string(path)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger path EMPTY",
+            NULL
+        );
+        return -1;
+    }
+
+    if(!is_directory(path)) {
+        mkrdir(path, yuneta_xpermission());
+    }
+
+    const char *database = gobj_read_str_attr(gobj, "tranger_database");
+    if(empty_string(database)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger database EMPTY",
+            NULL
+        );
+        return -1;
+    }
+
+    const char *topic_name = gobj_read_str_attr(gobj, "topic_name");
+    if(empty_string(topic_name)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger topic_name EMPTY",
+            NULL
+        );
+        return -1;
+    }
+
+    /*---------------------------------*
+     *      Open Timeranger queues
+     *---------------------------------*/
+    json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:I, s:i}",
+        "path", path,
+        "database", database,
+        "master", 1,
+        "subscriber", (json_int_t)(size_t)gobj,
+        "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
+    );
+    char name[NAME_MAX];
+    snprintf(name, sizeof(name), "tranger_%s", gobj_name(gobj));
+    priv->gobj_tranger_queues = gobj_create_service(
+        name,
+        C_TRANGER,
+        kw_tranger,
+        gobj
+    );
+    gobj_start(priv->gobj_tranger_queues);
+    priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
+
+    priv->trq_msgs = trq_open(
+        priv->tranger,
+        topic_name,
+        gobj_read_str_attr(gobj, "tkey"),
+        tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
+        gobj_read_integer_attr(gobj, "backup_queue_size")
+    );
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int close_queues(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    EXEC_AND_RESET(trq_close, priv->trq_msgs);
+
+    /*----------------------------------*
+     *      Close Timeranger queues
+     *----------------------------------*/
+    gobj_stop(priv->gobj_tranger_queues);
+    EXEC_AND_RESET(gobj_destroy, priv->gobj_tranger_queues);
+    priv->tranger = 0;
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Enqueue message
+ ***************************************************************************/
+PRIVATE q_msg_t *enqueue_message(
+    hgobj gobj,
+    json_t *kw  // not owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->trq_msgs) {
+        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "trq_msgs NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    json_t *kw_clean_clone;
+
+    if(!priv->with_metadata) {
+        kw_incref(kw);
+        kw_clean_clone = kw_filter_metadata(gobj, kw);
+    } else {
+        kw_clean_clone = kw_incref(kw);
+    }
+    q_msg_t *msg = trq_append(
+        priv->trq_msgs,
+        kw_clean_clone
+    );
+    if(!msg) {
+        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Message NOT SAVED in the queue",
+            NULL
+        );
+        return 0;
+    }
+
+    return msg;
+}
 
 
 
@@ -686,6 +873,8 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop        = mt_stop,
     .mt_writing     = mt_writing,
     .mt_reading     = mt_reading,
+    .mt_play        = mt_play,
+    .mt_pause       = mt_pause,
 };
 
 /*------------------------*

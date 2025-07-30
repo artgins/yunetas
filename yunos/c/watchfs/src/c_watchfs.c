@@ -215,6 +215,10 @@ PRIVATE int mt_stop(hgobj gobj)
 
 /***************************************************************************
  *      Framework Method play
+ *  Yuneta rule:
+ *  If service has mt_play then start only the service gobj.
+ *      (Let mt_play be responsible to start their tree)
+ *  If service has not mt_play then start the tree with gobj_start_tree().
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
