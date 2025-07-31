@@ -1,0 +1,1 @@
+./emailsender --config-file="[\"/yuneta/realms/artgins/utilities.artgins.com/emailsender^1/bin/1-emailsender^artgins.json\",\"/yuneta/realms/artgins/utilities.artgins.com/emailsender^1/bin/2-emailsender^artgins.json\",\"/yuneta/realms/artgins/utilities.artgins.com/emailsender^1/bin/3-emailsender^artgins.json\"]" $1

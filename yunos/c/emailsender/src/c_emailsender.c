@@ -70,13 +70,6 @@ SDATACM (DTP_SCHEMA,    "enable-alarm-emails",0,                0,              
 SDATA_END()
 };
 
-PRIVATE sdata_desc_t queueTb_it[] = {
-/*-ATTR-type------------name----------------flag------------------------default---------description----------*/
-SDATA (DTP_JSON,        "kw_email",         0,                          0,              "kw email"),
-SDATA (DTP_INTEGER,     "retries",          0,                          0,              "Retries send email"),
-SDATA_END()
-};
-
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
@@ -742,7 +735,7 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
             gobj_log_warning(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INFO,
-                "msg",          "%s", "Ignore 'ALERTA Encolamiento' email",
+                "msg",          "%s", "Ignore 'ALERT Queuing' email",
                 NULL
             );
             KW_DECREF(kw);
@@ -753,14 +746,37 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
     /*
      *  Crea el registro del queue
      */
-
-    json_t *sd_email = gobj_sdata_create(gobj, queueTb_it);
-    json_object_set(sd_email, "kw_email", kw); // kw incref
-
-    json_array_append_new(priv->tb_queue, sd_email);
+    json_array_append(priv->tb_queue, kw);
 
     if(gobj_in_this_state(gobj, ST_IDLE)) {
         set_timeout(priv->timer, priv->timeout_dequeue);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->sd_cur_email) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Already a current sending email",
+            NULL
+        );
+        gobj_trace_json(gobj, priv->sd_cur_email, "Already a current sending email");
+        JSON_DECREF(priv->sd_cur_email)
+    }
+
+    priv->sd_cur_email = kw_get_list_value(priv->tb_queue, 0, 0, KW_EXTRACT);
+    if(priv->sd_cur_email) {
+        gobj_send_event(gobj, EV_CURL_COMMAND, json_object(), src);
     }
 
     KW_DECREF(kw);
@@ -774,7 +790,17 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    clear_timeout(priv->timer);
+    if(!priv->sd_cur_email) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "NOT a current sending email",
+            NULL
+        );
+        set_timeout(priv->timer, priv->timeout_dequeue);
+        KW_DECREF(kw);
+        return -1;
+    }
 
     const char *from = kw_get_str(gobj, kw, "from", 0, 0);
     if(empty_string(from)) {
@@ -801,8 +827,8 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "url",          "%s", priv->url,
             NULL
         );
-        KW_DECREF(kw);
         set_timeout(priv->timer, priv->timeout_dequeue);
+        KW_DECREF(kw);
         return -1;
     }
     if(empty_string(to)) {
@@ -813,20 +839,17 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "url",          "%s", priv->url,
             NULL
         );
-        KW_DECREF(kw);
         set_timeout(priv->timer, priv->timeout_dequeue);
+        KW_DECREF(kw);
         return -1;
     }
-
 
     /*
      *  Como la url esté mal y no se resuelva libcurl NO RETORNA NUNCA!
      *  Usa ips numéricas!
      */
     json_t *kw_curl = json_pack(
-        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:I}",
-        "command", "SEND",
-        "dst_event", EV_CURL_RESPONSE,
+        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:I}",
         "username", priv->username,
         "password", priv->password,
         "url", priv->url,
@@ -847,9 +870,9 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "msg",          "%s", "json_pack() FAILED",
             NULL
         );
-        KW_DECREF(kw);
         set_timeout(priv->timer, priv->timeout_dequeue);
-        return 0;
+        KW_DECREF(kw);
+        return -1;
     }
 
     if(!empty_string(attachment)) {
@@ -912,53 +935,6 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
 
     KW_DECREF(kw);
 
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->sd_cur_email) {
-        int retries = (int)kw_get_int(gobj, priv->sd_cur_email, "retries", 0, 0);
-        retries++;
-        json_object_set_new(priv->sd_cur_email, "retries", json_integer(retries));
-        if(retries >= priv->max_retries) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-                "msg",          "%s", "Deleting email by maximum retries",
-                NULL
-            );
-            gobj_trace_json(gobj, priv->sd_cur_email, "Deleting email by maximum retries");
-            gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, priv->sd_cur_email, "kw_email`gbuffer", 0, 0);
-            gbuffer_reset_rd(gbuf);
-            gobj_trace_dump_gbuf(gobj, gbuf, "Deleting email by maximum retries");
-
-            JSON_DECREF(priv->sd_cur_email)
-            set_timeout(priv->timer, priv->timeout_dequeue);
-
-        } else {
-            json_t *kw_email = kw_get_dict(gobj, priv->sd_cur_email, "kw_email", 0, KW_REQUIRED);
-            KW_INCREF(kw_email);
-            gobj_send_event(gobj, EV_CURL_COMMAND, kw_email, src);
-            KW_DECREF(kw);
-            return 0;
-        }
-    }
-
-    priv->sd_cur_email = kw_get_list_value(priv->tb_queue, 0, 0, KW_EXTRACT);
-    if(priv->sd_cur_email) {
-        json_t *kw_email = kw_get_dict(gobj, priv->sd_cur_email, "kw_email", 0, KW_REQUIRED);
-        KW_INCREF(kw_email);
-        gobj_send_event(gobj, EV_CURL_COMMAND, kw_email, src);
-
-    }
-
-    KW_DECREF(kw);
     return 0;
 }
 
@@ -1042,6 +1018,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_EMAIL,         EVF_PUBLIC_EVENT},
         {EV_CURL_COMMAND,       0},
         {EV_CURL_RESPONSE,      0},
+        {EV_TIMEOUT,            0},
         {NULL, 0}
     };
 

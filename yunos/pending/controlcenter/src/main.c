@@ -83,22 +83,14 @@ PRIVATE char variable_config[]= "\
             'gclass': 'Controlcenter',                              \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': false,                                      \n\
-            'kw': {                                                 \n\
-            },                                                      \n\
-            'zchilds': [                                            \n\
-            ]                                                       \n\
+            'autoplay': false                                       \n\
         },                                                          \n\
         {                                                           \n\
             'name': 'authz',                                        \n\
             'gclass': 'Authz',                                      \n\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-            },                                                      \n\
-            'zchilds': [                                            \n\
-            ]                                                       \n\
+            'autoplay': true                                        \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\

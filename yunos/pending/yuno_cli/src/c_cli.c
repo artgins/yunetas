@@ -524,23 +524,23 @@ PRIVATE char agent_insecure_config[]= "\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
         'remote_yuno_service': '(^^__yuno_service__^^)' \n\
     },                                          \n\
-    'zchilds': [                                 \n\
+    'children': [                                 \n\
         {                                               \n\
             'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-            'gclass': 'IOGate',                         \n\
+            'gclass': 'C_IOGATE',                         \n\
             'kw': {                                     \n\
             },                                          \n\
-            'zchilds': [                                 \n\
+            'children': [                                 \n\
                 {                                               \n\
                     'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-                    'gclass': 'Channel',                        \n\
+                    'gclass': 'C_CHANNEL',                        \n\
                     'kw': {                                     \n\
                     },                                          \n\
-                    'zchilds': [                                 \n\
+                    'children': [                                 \n\
                         {                                               \n\
                             'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-                            'gclass': 'GWebSocket',                     \n\
-                            'zchilds': [                                \n\
+                            'gclass': 'C_WEBSOCKET',                     \n\
+                            'children': [                                \n\
                                 {                                       \n\
                                     'name': '(^^__url__^^)-(^^__range__^^)',\n\
                                     'gclass': 'Connex',                 \n\
@@ -571,23 +571,23 @@ PRIVATE char agent_secure_config[]= "\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
         'remote_yuno_service': '(^^__yuno_service__^^)' \n\
     },                                          \n\
-    'zchilds': [                                 \n\
+    'children': [                                 \n\
         {                                               \n\
             'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-            'gclass': 'IOGate',                         \n\
+            'gclass': 'C_IOGATE',                         \n\
             'kw': {                                     \n\
             },                                          \n\
-            'zchilds': [                                 \n\
+            'children': [                                 \n\
                 {                                               \n\
                     'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-                    'gclass': 'Channel',                        \n\
+                    'gclass': 'C_CHANNEL',                        \n\
                     'kw': {                                     \n\
                     },                                          \n\
-                    'zchilds': [                                 \n\
+                    'children': [                                 \n\
                         {                                               \n\
                             'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-                            'gclass': 'GWebSocket',                     \n\
-                            'zchilds': [                                \n\
+                            'gclass': 'C_WEBSOCKET',                     \n\
+                            'children': [                                \n\
                                 {                                       \n\
                                     'name': '(^^__url__^^)-(^^__range__^^)',\n\
                                     'gclass': 'Connexs',                \n\

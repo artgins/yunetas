@@ -83,11 +83,7 @@ PRIVATE char variable_config[]= "\
             'gclass': 'Dba_postgres',                               \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': false,                                      \n\
-            'kw': {                                                 \n\
-            },                                                      \n\
-            'zchilds': [                                            \n\
-            ]                                                       \n\
+            'autoplay': false                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\

@@ -9,6 +9,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
+#include "c_curl.h"
 #include "c_emailsender.h"
 
 /***************************************************************************
@@ -75,29 +76,29 @@ PRIVATE char variable_config[]= "\
                 'schema' : 'ws',                                        \n\
                 'connector' : {                                         \n\
                     'name': 'emailsender',                              \n\
-                    'gclass': 'IEvent_cli',                             \n\
+                    'gclass': 'C_IEVENT_CLI',                           \n\
                     'autostart': true,                                  \n\
                     'kw': {                                             \n\
                         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
                         'remote_yuno_role': 'emailsender',              \n\
                         'remote_yuno_service': 'emailsender'            \n\
                     },                                                  \n\
-                    'zchilds': [                                        \n\
+                    'children': [                                        \n\
                         {                                               \n\
                             'name': 'emailsender',                      \n\
-                            'gclass': 'IOGate',                         \n\
+                            'gclass': 'C_IOGATE',                       \n\
                             'kw': {                                     \n\
                             },                                          \n\
-                            'zchilds': [                                \n\
+                            'children': [                                \n\
                                 {                                       \n\
                                     'name': 'emailsender',              \n\
-                                    'gclass': 'Channel',                \n\
+                                    'gclass': 'C_CHANNEL',              \n\
                                     'kw': {                             \n\
                                     },                                  \n\
-                                    'zchilds': [                        \n\
+                                    'children': [                        \n\
                                         {                               \n\
                                             'name': 'emailsender',      \n\
-                                            'gclass': 'GWebSocket',     \n\
+                                            'gclass': 'C_WEBSOCKET',    \n\
                                             'kw': {                     \n\
                                                 'kw_connex': {          \n\
                                                     'urls':[            \n\
@@ -115,7 +116,7 @@ PRIVATE char variable_config[]= "\
             }                                                           \n\
         },                                                              \n\
         'trace_levels': {                                           \n\
-            'Tcp0': ['connections']                                 \n\
+            'C_TCP': ['connections']                                \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
@@ -123,30 +124,30 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'emailsender',                                  \n\
-            'gclass': 'Emailsender',                                \n\
+            'gclass': 'C_EMAILSENDER',                              \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
             },                                                      \n\
-            'zchilds': [                                            \n\
+            'children': [                                            \n\
                 {                                                   \n\
                     'name': '__input_side__',                       \n\
-                    'gclass': 'IOGate',                             \n\
+                    'gclass': 'C_IOGATE',                           \n\
                     'as_service': true,                             \n\
                     'kw': {                                         \n\
                     },                                              \n\
-                    'zchilds': [                                        \n\
+                    'children': [                                        \n\
                         {                                               \n\
                             'name': 'emailsender',                      \n\
-                            'gclass': 'TcpS0',                          \n\
+                            'gclass': 'C_TCP_S',                        \n\
                             'kw': {                                     \n\
                                 'url': '(^^__url__^^)',                 \n\
                                 'child_tree_filter': {                  \n\
                                     'op': 'find',                       \n\
                                     'kw': {                                 \n\
                                         '__prefix_gobj_name__': 'wss',      \n\
-                                        '__gclass_name__': 'IEvent_srv',    \n\
+                                        '__gclass_name__': 'C_IEVENT_SRV',  \n\
                                         '__disabled__': false,              \n\
                                         'connected': false                  \n\
                                     }                                       \n\
@@ -154,27 +155,25 @@ PRIVATE char variable_config[]= "\
                             }                                           \n\
                         }                                               \n\
                     ],                                                  \n\
-                    '[^^zchilds^^]': {                                  \n\
+                    '[^^children^^]': {                                  \n\
                         '__range__': [[0,300]], #^^ max 300 users     \n\
                         '__vars__': {                                   \n\
                         },                                              \n\
                         '__content__': {                                \n\
                             'name': 'wss-(^^__range__^^)',                  \n\
-                            'gclass': 'IEvent_srv',                         \n\
+                            'gclass': 'C_IEVENT_SRV',                         \n\
                             'kw': {                                         \n\
                             },                                              \n\
-                            'zchilds': [                                     \n\
+                            'children': [                                     \n\
                                 {                                               \n\
                                     'name': 'wss-(^^__range__^^)',              \n\
-                                    'gclass': 'Channel',                        \n\
+                                    'gclass': 'C_CHANNEL',                        \n\
                                     'kw': {                                         \n\
-                                        'lHost': '(^^__ip__^^)',                    \n\
-                                        'lPort': '(^^__port__^^)'                   \n\
                                     },                                              \n\
-                                    'zchilds': [                                     \n\
+                                    'children': [                                     \n\
                                         {                                               \n\
                                             'name': 'wss-(^^__range__^^)',              \n\
-                                            'gclass': 'GWebSocket',                     \n\
+                                            'gclass': 'C_WEBSOCKET',                    \n\
                                             'kw': {                                     \n\
                                                 'iamServer': true                       \n\
                                             }                                           \n\
@@ -187,8 +186,8 @@ PRIVATE char variable_config[]= "\
                 }                                               \n\
             ]                                           \n\
         }                                               \n\
-    ]                                                               \n\
-}                                                                   \n\
+    ]  \n\
+} \n\
 ";
 
 
@@ -202,6 +201,7 @@ static int register_yuno_and_more(void)
      *  Register gclass
      *--------------------*/
     register_c_emailsender();
+    register_c_curl();
 
     /*------------------------------------------------*
      *          Traces

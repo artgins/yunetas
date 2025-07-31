@@ -171,25 +171,25 @@ PRIVATE char variable_config[]= "\
                 'remote_yuno_role': 'controlcenter',    \n\
                 'remote_yuno_service': 'controlcenter'  \n\
             },                                          \n\
-            'zchilds': [                                \n\
+            'children': [                                \n\
                 {                                               \n\
                     'name': '__controlcenter__',                \n\
-                    'gclass': 'IOGate',                         \n\
+                    'gclass': 'C_IOGATE',                         \n\
                     'as_service': true,                         \n\
                     'kw': {                                     \n\
                         'persistent_channels': false            \n\
                     },                                          \n\
-                    'zchilds': [                                \n\
+                    'children': [                                \n\
                         {                                               \n\
                             'name': '__controlcenter__',                \n\
-                            'gclass': 'Channel',                        \n\
+                            'gclass': 'C_CHANNEL',                        \n\
                             'kw': {                                     \n\
                             },                                          \n\
-                            'zchilds': [                                \n\
+                            'children': [                                \n\
                                 {                                       \n\
                                     'name': '__controlcenter__',        \n\
-                                    'gclass': 'Prot_header4',           \n\
-                                    'zchilds': [                                \n\
+                                    'gclass': 'C_PROT_TCP4H',           \n\
+                                    'children': [                                \n\
                                         {                                       \n\
                                             'name': '__connex_controlcenter__', \n\
                                             'gclass': 'Connexs',                \n\
@@ -214,13 +214,13 @@ PRIVATE char variable_config[]= "\
         },                                              \n\
         {                                                           \n\
             'name': 'authz',                                        \n\
-            'gclass': 'Authz',                                      \n\
+            'gclass': 'C_AUTHZ',                                      \n\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
             },                                                      \n\
-            'zchilds': [                                            \n\
+            'children': [                                            \n\
             ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\

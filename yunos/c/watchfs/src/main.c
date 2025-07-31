@@ -78,9 +78,7 @@ PRIVATE char variable_config[]= "\
                 'command': 'make html', \n\
                 'patterns': '.*\\u005C.py;.*\\u005C.mako;.*\\u005C.js;.*\\u005C.css;.*\\u005C.scss;.*\\u005C.rst;.*\\u005C.json', \n\
                 'recursive': true                                   \n\
-            },                                                      \n\
-            'zchilds': [                                            \n\
-            ]                                                       \n\
+            }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\

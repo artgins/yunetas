@@ -167,15 +167,15 @@ PRIVATE char variable_config[]= "\
             'autoplay': false,                          \n\
             'kw': {                                     \n\
             },                                          \n\
-            'zchilds': [                                \n\
+            'children': [                                \n\
                 {                                               \n\
                     'name': '__input_side__',                   \n\
-                    'gclass': 'IOGate',                         \n\
+                    'gclass': 'C_IOGATE',                         \n\
                     'as_service': true,                         \n\
                     'kw': {                                     \n\
                         'persistent_channels': false            \n\
                     },                                          \n\
-                    'zchilds': [                                        \n\
+                    'children': [                                        \n\
                         {                                               \n\
                             'name': 'server_port',                      \n\
                             'gclass': 'TcpS0',                          \n\
@@ -217,7 +217,7 @@ PRIVATE char variable_config[]= "\
                             }                                               \n\
                         }                                                   \n\
                     ],                                                  \n\
-                    '[^^zchilds^^]': {                                  \n\
+                    '[^^children^^]': {                                  \n\
                         '__range__': [[0,300]], #^^ max 300 users     \n\
                         '__vars__': {                                   \n\
                         },                                              \n\
@@ -226,16 +226,16 @@ PRIVATE char variable_config[]= "\
                             'gclass': 'IEvent_srv',                         \n\
                             'kw': {                                         \n\
                             },                                              \n\
-                            'zchilds': [                                     \n\
+                            'children': [                                     \n\
                                 {                                               \n\
                                     'name': 'wss-(^^__range__^^)',              \n\
-                                    'gclass': 'Channel',                        \n\
+                                    'gclass': 'C_CHANNEL',                        \n\
                                     'kw': {                                         \n\
                                     },                                              \n\
-                                    'zchilds': [                                     \n\
+                                    'children': [                                     \n\
                                         {                                               \n\
                                             'name': 'wss-(^^__range__^^)',              \n\
-                                            'gclass': 'GWebSocket',                     \n\
+                                            'gclass': 'C_WEBSOCKET',                     \n\
                                             'kw': {                                     \n\
                                                 'iamServer': true                       \n\
                                             }                                           \n\
@@ -258,25 +258,25 @@ PRIVATE char variable_config[]= "\
                 'remote_yuno_role': 'controlcenter',    \n\
                 'remote_yuno_service': 'controlcenter'  \n\
             },                                          \n\
-            'zchilds': [                                \n\
+            'children': [                                \n\
                 {                                               \n\
                     'name': '__controlcenter__',                \n\
-                    'gclass': 'IOGate',                         \n\
+                    'gclass': 'C_IOGATE',                         \n\
                     'as_service': true,                         \n\
                     'kw': {                                     \n\
                         'persistent_channels': false            \n\
                     },                                          \n\
-                    'zchilds': [                                \n\
+                    'children': [                                \n\
                         {                                               \n\
                             'name': '__controlcenter__',                \n\
-                            'gclass': 'Channel',                        \n\
+                            'gclass': 'C_CHANNEL',                        \n\
                             'kw': {                                     \n\
                             },                                          \n\
-                            'zchilds': [                                \n\
+                            'children': [                                \n\
                                 {                                       \n\
                                     'name': '__controlcenter__',        \n\
-                                    'gclass': 'Prot_header4',           \n\
-                                    'zchilds': [                                \n\
+                                    'gclass': 'C_PROT_TCP4H',           \n\
+                                    'children': [                                \n\
                                         {                                       \n\
                                             'name': '__connex_controlcenter__', \n\
                                             'gclass': 'Connexs',                \n\
@@ -301,13 +301,13 @@ PRIVATE char variable_config[]= "\
         },                                              \n\
         {                                                           \n\
             'name': 'authz',                                        \n\
-            'gclass': 'Authz',                                      \n\
+            'gclass': 'C_AUTHZ',                                      \n\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
             },                                                      \n\
-            'zchilds': [                                            \n\
+            'children': [                                            \n\
             ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\

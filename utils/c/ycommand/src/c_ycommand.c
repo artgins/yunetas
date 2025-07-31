@@ -699,22 +699,22 @@ PRIVATE char agent_config[]= "\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
         'remote_yuno_service': '(^^__yuno_service__^^)' \n\
     },                                          \n\
-    'zchilds': [                                 \n\
+    'children': [                                 \n\
         {                                               \n\
             'name': 'agent_client',                    \n\
-            'gclass': 'IOGate',                         \n\
+            'gclass': 'C_IOGATE',                         \n\
             'kw': {                                     \n\
             },                                          \n\
-            'zchilds': [                                 \n\
+            'children': [                                 \n\
                 {                                               \n\
                     'name': 'agent_client',                    \n\
-                    'gclass': 'Channel',                        \n\
+                    'gclass': 'C_CHANNEL',                        \n\
                     'kw': {                                     \n\
                     },                                          \n\
-                    'zchilds': [                                 \n\
+                    'children': [                                 \n\
                         {                                               \n\
                             'name': 'agent_client',                    \n\
-                            'gclass': 'GWebSocket',                     \n\
+                            'gclass': 'C_WEBSOCKET',                     \n\
                             'kw': {                                     \n\
                                 'kw_connex': {                              \n\
                                     'timeout_inactivity': -1,               \n\

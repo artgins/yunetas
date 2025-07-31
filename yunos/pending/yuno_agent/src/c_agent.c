@@ -181,22 +181,22 @@ PRIVATE char agent_filter_chain_config[]= "\
                     'yuno_id': '%s'                         \n\
                 }                                           \n\
             },                                          \n\
-            'zchilds': [                                 \n\
+            'children': [                                 \n\
                 {                                       \n\
                     'name': 'agent_client',             \n\
-                    'gclass': 'IOGate',                 \n\
+                    'gclass': 'C_IOGATE',                 \n\
                     'kw': {                             \n\
                     },                                  \n\
-                    'zchilds': [                         \n\
+                    'children': [                         \n\
                         {                                   \n\
                             'name': 'agent_client',         \n\
-                            'gclass': 'Channel',            \n\
+                            'gclass': 'C_CHANNEL',            \n\
                             'kw': {                         \n\
                             },                              \n\
-                            'zchilds': [                         \n\
+                            'children': [                         \n\
                                 {                               \n\
                                     'name': 'agent_client',         \n\
-                                    'gclass': 'GWebSocket',         \n\
+                                    'gclass': 'C_WEBSOCKET',         \n\
                                     'kw': {                         \n\
                                         'resource': '/',            \n\
                                         'iamServer': 0,             \n\
@@ -9541,7 +9541,7 @@ PRIVATE int ac_play_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj sr
     /*
      *  Saco al originante por el user_data del canal.
      *  HACK aquí nos viene directamente el evento del canal,
-     *  sin pasar por IOGate (spiderden), y por lo tanto sin "_channel_gobj"
+     *  sin pasar por C_IOGATE (spiderden), y por lo tanto sin "_channel_gobj"
      *  porque el iev_srv no eleva ON_MESSAGE como los gossamer a spiderden,
      *  se lo queda, y procesa el inter-evento.
      *  Los mensajes ON_OPEN y ON_CLOSE del iogate:route nos llegan porque estamos

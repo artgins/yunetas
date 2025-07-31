@@ -135,26 +135,22 @@ PRIVATE char variable_config[]= "\
             'gclass': 'Emu_device',                                 \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-            },                                                      \n\
-            'zchilds': [                                            \n\
-            ]                                                       \n\
+            'autoplay': true                                        \n\
         },                                                          \n\
         {                                                           \n\
             'name': '__output_side__',                              \n\
-            'gclass': 'IOGate',                                     \n\
+            'gclass': 'C_IOGATE',                                     \n\
             'autostart': false,                                     \n\
             'autoplay': false,                                      \n\
-            'zchilds': [                                            \n\
+            'children': [                                            \n\
                 {                                                   \n\
                     'name': 'output',                               \n\
-                    'gclass': 'Channel',                            \n\
-                    'zchilds': [                                    \n\
+                    'gclass': 'C_CHANNEL',                            \n\
+                    'children': [                                    \n\
                         {                                           \n\
                             'name': 'output',                       \n\
                             'gclass': 'Prot_raw',                   \n\
-                            'zchilds': [                            \n\
+                            'children': [                            \n\
                                 {                                   \n\
                                     'name': 'output',               \n\
                                     'gclass': 'Connex',             \n\
