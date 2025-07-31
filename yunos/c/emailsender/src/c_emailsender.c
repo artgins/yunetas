@@ -90,6 +90,14 @@ SDATA (DTP_INTEGER,     "send",                 SDF_STATS,              0,      
 SDATA (DTP_INTEGER,     "sent",                 SDF_STATS,              0,      "Emails sent"),
 SDATA (DTP_BOOLEAN,     "disable_alarm_emails", SDF_PERSIST|SDF_WR,     0,      "True to don't send alarm emails"),
 
+SDATA (DTP_STRING,      "tranger_path",         SDF_RD,                 "",     "tranger path"),
+SDATA (DTP_STRING,      "tranger_database",     SDF_RD,                 "",     "tranger database"),
+SDATA (DTP_STRING,      "topic_name",           SDF_RD,                 "",     "trq_open topic_name"),
+SDATA (DTP_STRING,      "tkey",                 SDF_RD,                 "",     "trq_open tkey"),
+SDATA (DTP_STRING,      "system_flag",          SDF_RD,                 "",     "trq_open system_flag"),
+SDATA (DTP_INTEGER,     "on_critical_error",    SDF_RD,                 "0",    "LOG_OPT_TRACE_STACK"),
+SDATA (DTP_INTEGER,     "backup_queue_size",SDF_WR|SDF_PERSIST, "1000000",  "Do backup at this size"),
+
 SDATA (DTP_POINTER,     "user_data",            0,                      0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,                      0,      "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,                      0,      "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -164,7 +172,6 @@ PRIVATE void mt_create(hgobj gobj)
     priv->tb_queue = json_array();
     priv->timer = gobj_create("", C_TIMER, 0, gobj);
     priv->curl = gobj_create("emailsender", C_CURL, 0, gobj);
-    gobj_set_bottom_gobj(gobj, priv->curl);
     //priv->persist = gobj_find_service("persist", FALSE);
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
@@ -704,10 +711,7 @@ PRIVATE int process_ack(
 
     KW_DECREF(kw)
 
-    // TODO send more
-    // if(priv->bottom_side_opened) {
-    //     send_batch_messages(gobj, 0); // try to send more messages after receiving ack
-    // }
+    // TODO send more, set timeout
     return 0;
 }
 
