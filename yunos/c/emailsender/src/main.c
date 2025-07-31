@@ -100,11 +100,7 @@ PRIVATE char variable_config[]= "\
                                             'name': 'emailsender',      \n\
                                             'gclass': 'C_WEBSOCKET',    \n\
                                             'kw': {                     \n\
-                                                'kw_connex': {          \n\
-                                                    'urls':[            \n\
-                                                        '(^^__url__^^)' \n\
-                                                    ]                   \n\
-                                                }                       \n\
+                                                'url':'(^^__url__^^)'   \n\
                                             }                           \n\
                                         }                               \n\
                                     ]                                   \n\

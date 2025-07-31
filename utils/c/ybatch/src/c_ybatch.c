@@ -485,13 +485,7 @@ PRIVATE char agent_config[]= "\
                             'name': 'agent_client',                    \n\
                             'gclass': 'C_WEBSOCKET',                     \n\
                             'kw': {                                     \n\
-                                'kw_connex': {                              \n\
-                                    'timeout_inactivity': -1,               \n\
-                                    'timeout_between_connections': 2000,    \n\
-                                    'urls':[                        \n\
-                                        '(^^__url__^^)'             \n\
-                                    ]                               \n\
-                                }                                   \n\
+                                'url':'(^^__url__^^)'   \n\
                             }                                   \n\
                         }                                       \n\
                     ]                                           \n\

@@ -198,15 +198,7 @@ PRIVATE char agent_filter_chain_config[]= "\
                                     'name': 'agent_client',         \n\
                                     'gclass': 'C_WEBSOCKET',         \n\
                                     'kw': {                         \n\
-                                        'resource': '/',            \n\
-                                        'iamServer': 0,             \n\
-                                        'kw_connex': {              \n\
-                                            'timeout_inactivity': -1,               \n\
-                                            'timeout_between_connections': 2000,    \n\
-                                            'urls':[                                \n\
-                                                'ws://127.0.0.1:1991'               \n\
-                                            ]                                       \n\
-                                        }    \n\
+                                        'url':'(^^__url__^^)'   \n\
                                     }    \n\
                                 }    \n\
                             ]    \n\
