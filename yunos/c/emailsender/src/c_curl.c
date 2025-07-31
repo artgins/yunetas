@@ -194,7 +194,7 @@ PRIVATE gbuffer_t *build_email(
     hgobj gobj,
     gbuffer_t *gbuf, // not owned
     const char *from,
-    const char *from_beatiful,
+    const char *from_beautiful,
     const char *to,
     const char *cc,
     const char *reply_to,
