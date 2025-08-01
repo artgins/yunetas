@@ -180,10 +180,21 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
-/***************************************************************************
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <curl/curl.h>
+#include <time.h>
+#include <sys/utsname.h>
+
+#define MAX_RETRIES      5
+#define INITIAL_BACKOFF  2   // seconds
+
+/*--------------------------------------*
  *      Progress callback
- ***************************************************************************/
-PRIVATE int progress_callback(void *clientp,
+ *--------------------------------------*/
+static int progress_callback(void *clientp,
                              curl_off_t dltotal, curl_off_t dlnow,
                              curl_off_t ultotal, curl_off_t ulnow) {
     if(ultotal > 0) {
@@ -194,10 +205,10 @@ PRIVATE int progress_callback(void *clientp,
     return 0;
 }
 
-/***************************************************************************
+/*--------------------------------------*
  *      Tokenize generic string
- ***************************************************************************/
-PRIVATE char **parse_list_string(const char *input, size_t *count) {
+ *--------------------------------------*/
+static char **parse_list_string(const char *input, size_t *count) {
     *count = 0;
     if(!input) return NULL;
 
@@ -219,10 +230,10 @@ PRIVATE char **parse_list_string(const char *input, size_t *count) {
     return list;
 }
 
-/***************************************************************************
+/*--------------------------------------*
  *      Tokenize recipients (curl_slist)
- ***************************************************************************/
-PRIVATE struct curl_slist *parse_recipients(const char *recipients_str) {
+ *--------------------------------------*/
+static struct curl_slist *parse_recipients(const char *recipients_str) {
     struct curl_slist *list = NULL;
     if(!recipients_str) return NULL;
 
@@ -236,10 +247,10 @@ PRIVATE struct curl_slist *parse_recipients(const char *recipients_str) {
     return list;
 }
 
-/***************************************************************************
+/*--------------------------------------*
  *  Auto-detect <img src="..."> in HTML
- ***************************************************************************/
-PRIVATE char *process_html_for_inline_images(
+ *--------------------------------------*/
+static char *process_html_for_inline_images(
     const char *html,
     char ***out_images,
     size_t *out_count
@@ -299,10 +310,10 @@ PRIVATE char *process_html_for_inline_images(
     return modified_html;
 }
 
-/***************************************************************************
+/*--------------------------------------*
  *      Cleanup helper
- ***************************************************************************/
-PRIVATE void free_string_list(char ***list, size_t *count) {
+ *--------------------------------------*/
+static void free_string_list(char ***list, size_t *count) {
     if(list && *list) {
         for(size_t i = 0; i < *count; i++) {
             if((*list)[i]) {
@@ -316,19 +327,29 @@ PRIVATE void free_string_list(char ***list, size_t *count) {
     }
 }
 
-/***************************************************************************
- * Send email with:
- *   - TO, CC, BCC recipients
- *   - Reply-To header
- *   - Optional inline image detection
+/*--------------------------------------*
+ *  Generate RFC 5322 Message-ID
+ *--------------------------------------*/
+static void generate_message_id(char *buf, size_t buflen) {
+    struct utsname uts;
+    uname(&uts);
+    time_t now = time(NULL);
+    long rnd = random();
+    snprintf(buf, buflen, "<%ld.%ld@%s>", (long)now, rnd, uts.nodename);
+}
+
+/**
+ * Send email with RFC 5322 compliance:
+ *   - Adds From, To, Cc, Reply-To, Date, Message-ID, Subject, MIME-Version
+ *   - BCC only in SMTP envelope
  *   - Attachments (one string)
- *   - TLS strict/relaxed
+ *   - Optional inline image detection
  *   - OAuth2 or username/password authentication
- *   - Retry & progress callback
+ *   - TLS strict/relaxed, retry, progress callback
  *
  * Returns 0 on success, -1 on error
- ***************************************************************************/
-PRIVATE int send_email(
+ */
+int send_email(
     const char *smtp_url,
     const char *from,
     const char *to,
@@ -443,7 +464,7 @@ retry_send:
             curl_mime_encoder(part, "base64");
             curl_mime_filename(part, inline_images[i]);
 
-            char hdr[512];
+            char hdr[300];
             snprintf(hdr, sizeof(hdr), "Content-ID: <%s>", cid);
             struct curl_slist *cid_header = NULL;
             cid_header = curl_slist_append(cid_header, hdr);
@@ -468,10 +489,15 @@ retry_send:
 
     curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
 
-    /* headers */
+    /* --- headers --- */
     snprintf(subject_header, sizeof(subject_header), "Subject: %s", subject);
     headers = curl_slist_append(headers, subject_header);
 
+    if (from && *from) {
+        char from_header[1024];
+        snprintf(from_header, sizeof(from_header), "From: %s", from);
+        headers = curl_slist_append(headers, from_header);
+    }
     if (to && *to) {
         char to_header[1024];
         snprintf(to_header, sizeof(to_header), "To: %s", to);
@@ -486,6 +512,26 @@ retry_send:
         char rt_header[1024];
         snprintf(rt_header, sizeof(rt_header), "Reply-To: %s", reply_to);
         headers = curl_slist_append(headers, rt_header);
+    }
+
+    /* Date header (RFC 5322) */
+    {
+        char date_header[128];
+        time_t now = time(NULL);
+        struct tm tm;
+        gmtime_r(&now, &tm);
+        strftime(date_header, sizeof(date_header),
+                 "Date: %a, %d %b %Y %H:%M:%S +0000", &tm);
+        headers = curl_slist_append(headers, date_header);
+    }
+
+    /* Message-ID */
+    {
+        char msgid[256];
+        generate_message_id(msgid, sizeof(msgid));
+        char msgid_header[300];
+        snprintf(msgid_header, sizeof(msgid_header), "Message-ID: %s", msgid);
+        headers = curl_slist_append(headers, msgid_header);
     }
 
     headers = curl_slist_append(headers, "MIME-Version: 1.0");
@@ -531,6 +577,7 @@ cleanup:
     fprintf(stderr, "\n");
     return ret;
 }
+
 
 
 
