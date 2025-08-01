@@ -55,7 +55,7 @@ PRIVATE char variable_config[]= "\
     'yuno': {                                                       \n\
         'required_services': ['emailsender'],                       \n\
         'trace_levels': {                                           \n\
-            'Tcp0': ['connections']                                 \n\
+            'C_TCP': ['connections']                                \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\

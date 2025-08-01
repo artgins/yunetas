@@ -118,6 +118,15 @@ PRIVATE char variable_config[]= "\
     'global': {                                                     \n\
     },                                                              \n\
     'services': [                                                   \n\
+        {                                       \n\
+            'name': 'authz',                    \n\
+            'gclass': 'C_AUTHZ',                \n\
+            'default_service': false,           \n\
+            'autostart': true,                  \n\
+            'autoplay': true,                   \n\
+            'kw': {                             \n\
+            }                                   \n\
+        },                                      \n\
         {                                                           \n\
             'name': 'emailsender',                                  \n\
             'gclass': 'C_EMAILSENDER',                              \n\
