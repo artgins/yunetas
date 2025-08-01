@@ -298,7 +298,6 @@ PRIVATE int mt_pause(hgobj gobj)
     /*
      *  Stop services
      */
-    gobj_unsubscribe_event(priv->gobj_input_side, 0, 0, gobj);
     EXEC_AND_RESET(gobj_stop_tree, priv->gobj_input_side);
 
     return 0;
@@ -966,6 +965,26 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    // Some app is connected, ignore
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    // Some app is disconnected, ignore
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *                          FSM
  ***************************************************************************/
 
@@ -1021,6 +1040,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
         {EV_TIMEOUT,        ac_timeout_to_dequeue,  0},
+        {EV_ON_OPEN,        ac_on_open,             0},
+        {EV_ON_CLOSE,       ac_on_close,            0},
         {0,0,0}
     };
 
@@ -1028,6 +1049,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_CURL_RESPONSE,  ac_curl_response,       0},
         {EV_SEND_EMAIL,     ac_enqueue_message,     0},
         {EV_SEND_MESSAGE,   ac_enqueue_message,     0},
+        {EV_ON_OPEN,        ac_on_open,             0},
+        {EV_ON_CLOSE,       ac_on_close,            0},
         {0,0,0}
     };
 
@@ -1045,6 +1068,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_SEND_EMAIL,         EVF_PUBLIC_EVENT},
         {EV_CURL_COMMAND,       0},
         {EV_CURL_RESPONSE,      0},
+        {EV_ON_OPEN,            0},
+        {EV_ON_CLOSE,           0},
         {EV_TIMEOUT,            0},
         {NULL, 0}
     };

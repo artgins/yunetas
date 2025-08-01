@@ -53,6 +53,8 @@ PRIVATE int add_user_login(
     const char *peername
 );
 
+PRIVATE int is_yuneta_user(const char *username);
+
 PRIVATE json_t *identify_system_user(
     hgobj gobj,
     const char **username,
@@ -624,24 +626,28 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         struct passwd *pw = getpwuid(getuid());
         username = pw->pw_name;
 
-        json_t *user = identify_system_user(gobj, &username, TRUE, FALSE);
-        if(!user) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "System user not found or not authorized",
-                "user",         "%s", username,
-                "service",      "%s", dst_service,
-                NULL
-            );
-            KW_DECREF(kw)
-            return json_pack("{s:i, s:s, s:s}",
-                "result", -1,
-                "comment", "System user not found or not authorized",
-                "username", username
-            );
+        if(is_yuneta_user(username)) {
+            username = "yuneta";
+        } else {
+            json_t *user = identify_system_user(gobj, &username, TRUE, FALSE);
+            if(!user) {
+                gobj_log_info(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_AUTH,
+                    "msg",          "%s", "System user not found or not authorized",
+                    "user",         "%s", username,
+                    "service",      "%s", dst_service,
+                    NULL
+                );
+                KW_DECREF(kw)
+                return json_pack("{s:i, s:s, s:s}",
+                    "result", -1,
+                    "comment", "System user not found or not authorized",
+                    "username", username
+                );
+            }
+            json_decref(user);
         }
-        json_decref(user);
 
         char *comment = "";
         do {
@@ -675,32 +681,6 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             comment = "Local Ip allowed";
         } while(0);
 
-        json_t *services_roles = get_user_roles(
-            gobj,
-            gobj_yuno_realm_id(),
-            dst_service,
-            username,
-            kw
-        );
-
-        if(!kw_has_key(services_roles, dst_service)) {
-            gobj_log_info(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "Username has not authz in service",
-                "user",         "%s", username,
-                "service",      "%s", dst_service,
-                NULL
-            );
-            KW_DECREF(kw)
-            return json_pack("{s:i, s:s, s:s, s:s}",
-                "result", -1,
-                "comment", "Username has not authz in service",
-                "dst_service", dst_service,
-                "username", username
-            );
-        }
-
         /*------------------------------------------------*
          *  HACK guarda username en src (IEvent_srv)
          *------------------------------------------------*/
@@ -718,12 +698,12 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             NULL
         );
         KW_DECREF(kw)
-        return json_pack("{s:i, s:s, s:s, s:s, s:o, s:o}",
+        return json_pack("{s:i, s:s, s:s, s:s, s:{}, s:o}",
             "result", 0,
             "comment", comment,
             "username", username,
             "dst_service", dst_service,
-            "services_roles", services_roles,
+            "services_roles",
             "jwt_payload", json_null()
         );
     }
@@ -1961,6 +1941,69 @@ PRIVATE BOOL verify_token(
     }
 
     return validated;
+}
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pwd.h>
+#include <grp.h>
+#include <unistd.h>
+#include <limits.h>
+#include <sys/types.h>
+
+/***************************************************************************
+ * Check if a given username belongs to the "yuneta" group
+ * or is exactly the "yuneta" user.
+ *
+ * Return:
+ *      TRUE -> user is "yuneta" or belongs to "yuneta" group
+ *      FALSE -> otherwise
+ ***************************************************************************/
+PRIVATE int is_yuneta_user(const char *username)
+{
+    if(!username) {
+        return FALSE;
+    }
+
+    /* Check if user is exactly "yuneta" */
+    if(strcmp(username, "yuneta") == 0) {
+        return TRUE;
+    }
+
+    /* Get passwd entry for user */
+    struct passwd *pw = getpwnam(username);
+    if(!pw) {
+        return FALSE;
+    }
+
+    /* Get group entry for "yuneta" */
+    struct group *gr = getgrnam("yuneta");
+    if(!gr) {
+        return FALSE;
+    }
+
+    /* Check if user's primary group is yuneta */
+    if(pw->pw_gid == gr->gr_gid) {
+        return TRUE;
+    }
+
+    /* Check supplementary groups */
+    gid_t groups[NGROUPS_MAX];
+    int ngroups = NGROUPS_MAX;
+
+    if(getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
+        /* In case of error, fallback: user likely has more groups than NGROUPS_MAX */
+        return FALSE;
+    }
+
+    for(int i = 0; i < ngroups; i++) {
+        if(groups[i] == gr->gr_gid) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
 }
 
 /***************************************************************************
