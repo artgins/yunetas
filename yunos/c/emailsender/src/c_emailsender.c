@@ -171,8 +171,8 @@ PRIVATE void mt_create(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->tb_queue = json_array();
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
-    priv->curl = gobj_create("emailsender", C_CURL, 0, gobj);
+    priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
+    priv->curl = gobj_create_pure_child(gobj_name(gobj), C_CURL, 0, gobj);
     //priv->persist = gobj_find_service("persist", FALSE);
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
@@ -240,8 +240,8 @@ PRIVATE int mt_start(hgobj gobj)
     /*--------------------------------*
      *      Output queue
      *--------------------------------*/
-    open_queue(gobj);
-    trq_load(priv->trq_msgs);
+    // open_queue(gobj);
+    // trq_load(priv->trq_msgs);
 
     return 0;
 }
@@ -257,7 +257,7 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_stop(priv->curl);
     //TODO V2 GBMEM_FREE(priv->mail_ref);
 
-    close_queue(gobj);
+    // close_queue(gobj);
 
     return 0;
 }
@@ -277,8 +277,8 @@ PRIVATE int mt_play(hgobj gobj)
      *  Start services
      */
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
-    gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
-    gobj_start_tree(priv->gobj_input_side);
+    // gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
+    // gobj_start_tree(priv->gobj_input_side);
 
     /*
      *  Periodic timer
@@ -801,7 +801,7 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
         JSON_DECREF(priv->sd_cur_email)
     }
 
-    priv->sd_cur_email = kw_get_list_value(priv->tb_queue, 0, 0, KW_EXTRACT);
+    priv->sd_cur_email = kw_get_list_value(gobj, priv->tb_queue, 0, KW_EXTRACT);
     if(priv->sd_cur_email) {
         gobj_send_event(gobj, EV_CURL_COMMAND, json_object(), src);
     }

@@ -293,23 +293,6 @@ PRIVATE void mt_create(hgobj gobj)
 
     helper_quote2doublequote(treedb_schema_authzs);
 
-    /*
-     *  Chequea schema fichador, exit si falla.
-     */
-    json_t *jn_treedb_schema = legalstring2json(treedb_schema_authzs, TRUE);
-    if(parse_schema(jn_treedb_schema)<0) {
-        /*
-         *  Exit if schema fails
-         */
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
-            "msg",          "%s", "Parse schema fails",
-            NULL
-        );
-        exit(-1);
-    }
-
     /*---------------------------*
      *      OAuth
      *---------------------------*/
@@ -329,7 +312,6 @@ PRIVATE void mt_create(hgobj gobj)
         malloc_func,
         free_func
     );
-    create_jwt_validations(gobj);
 
     /*---------------------------*
      *  Create Timeranger
@@ -356,7 +338,7 @@ PRIVATE void mt_create(hgobj gobj)
             gobj_yuno_realm_owner(),
             gobj_yuno_realm_id(),
             "authzs",
-            TRUE
+            master?TRUE:FALSE
         );
         gobj_write_str_attr(gobj, "tranger_path", path_);
         path = gobj_read_str_attr(gobj, "tranger_path");
@@ -367,6 +349,44 @@ PRIVATE void mt_create(hgobj gobj)
          *------------------------------------*/
     }
 
+    /*--------------------------------------------------------*
+     *  If path not exist check then authz only local access
+     *--------------------------------------------------------*/
+    if(!is_directory(path)) {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INFO,
+            "msg",          "%s", "No authz db, authz only to local access",
+            NULL
+        );
+        return;
+    }
+
+    /*
+     *  Create validators
+     */
+    create_jwt_validations(gobj);
+
+    /*
+     *  Check schema, exit if fails
+     */
+    json_t *jn_treedb_schema = legalstring2json(treedb_schema_authzs, TRUE);
+    if(parse_schema(jn_treedb_schema)<0) {
+        /*
+         *  Exit if schema fails
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "Parse schema fails",
+            NULL
+        );
+        exit(-1);
+    }
+
+    /*------------------------------------*
+     *  Open treedb
+     *------------------------------------*/
     json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:i}",
         "path", path,
         "filename_mask", "%Y",
@@ -447,14 +467,15 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!gobj_is_running(priv->gobj_tranger)) {
+    if(priv->gobj_tranger && !gobj_is_running(priv->gobj_tranger)) {
         gobj_start(priv->gobj_tranger);
     }
-    if(!gobj_is_running(priv->gobj_treedb)) {
+    if(priv->gobj_treedb && !gobj_is_running(priv->gobj_treedb)) {
         gobj_start(priv->gobj_treedb);
     }
 
-    if(gobj_topic_size(priv->gobj_treedb, "roles", "")==0 &&
+    if(priv->gobj_treedb &&
+        gobj_topic_size(priv->gobj_treedb, "roles", "")==0 &&
         gobj_topic_size(priv->gobj_treedb, "users", "")==0
     ) {
         /*------------------------------------*
@@ -493,8 +514,12 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_stop(priv->gobj_treedb);
-    gobj_stop(priv->gobj_tranger);
+    if(priv->gobj_treedb) {
+        gobj_stop(priv->gobj_treedb);
+    }
+    if(priv->gobj_tranger) {
+        gobj_stop(priv->gobj_tranger);
+    }
 
     return 0;
 }
