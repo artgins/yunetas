@@ -585,166 +585,166 @@ PRIVATE int close_queue(hgobj gobj)
 /***************************************************************************
  *  Enqueue message
  ***************************************************************************/
-PRIVATE q_msg_t *enqueue_message(
-    hgobj gobj,
-    json_t *kw  // not owned
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    if(!priv->trq_msgs) {
-        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "trq_msgs NULL",
-            NULL
-        );
-        return 0;
-    }
-
-    json_t *kw_clean_clone;
-
-    if(!priv->with_metadata) {
-        kw_incref(kw);
-        kw_clean_clone = kw_filter_metadata(gobj, kw);
-    } else {
-        kw_clean_clone = kw_incref(kw);
-    }
-    q_msg_t *msg = trq_append(
-        priv->trq_msgs,
-        kw_clean_clone
-    );
-    if(!msg) {
-        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Message NOT SAVED in the queue",
-            NULL
-        );
-        return 0;
-    }
-
-    return msg;
-}
+// PRIVATE q_msg_t *enqueue_message(
+//     hgobj gobj,
+//     json_t *kw  // not owned
+// )
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//     if(!priv->trq_msgs) {
+//         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msg",          "%s", "trq_msgs NULL",
+//             NULL
+//         );
+//         return 0;
+//     }
+//
+//     json_t *kw_clean_clone;
+//
+//     if(!priv->with_metadata) {
+//         kw_incref(kw);
+//         kw_clean_clone = kw_filter_metadata(gobj, kw);
+//     } else {
+//         kw_clean_clone = kw_incref(kw);
+//     }
+//     q_msg_t *msg = trq_append(
+//         priv->trq_msgs,
+//         kw_clean_clone
+//     );
+//     if(!msg) {
+//         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msg",          "%s", "Message NOT SAVED in the queue",
+//             NULL
+//         );
+//         return 0;
+//     }
+//
+//     return msg;
+// }
 
 /***************************************************************************
  *  Resetea los timeout_ack y los MARK_PENDING_ACK
  ***************************************************************************/
-PRIVATE int reset_soft_queue(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(priv->trq_msgs) { // 0 if not running
-        q_msg_t *msg;
-        qmsg_foreach_forward(priv->trq_msgs, msg) {
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
-        }
-    }
-    priv->pending_acks = 0;
-    priv->last_msg_sent = 0;
-
-    return 0;
-}
+// PRIVATE int reset_soft_queue(hgobj gobj)
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     if(priv->trq_msgs) { // 0 if not running
+//         q_msg_t *msg;
+//         qmsg_foreach_forward(priv->trq_msgs, msg) {
+//             trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
+//         }
+//     }
+//     priv->pending_acks = 0;
+//     priv->last_msg_sent = 0;
+//
+//     return 0;
+// }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int dequeue_msg(
-    hgobj gobj,
-    uint64_t __t__,
-    uint64_t rowid,
-    int result
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    q_msg_t *msg = trq_get_by_rowid(priv->trq_msgs, rowid);
-    if(msg) {
-        if(priv->last_msg_sent == msg) {
-            priv->last_msg_sent = 0;
-        }
-        if((trq_get_soft_mark(msg) & MARK_PENDING_ACK)) {
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
-
-            if (priv->pending_acks > 0) {
-                priv->pending_acks--;
-            } else {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "ppending_acks ZERO or NEGATIVE",
-                    "pending_acks", "%ld", (unsigned long) priv->pending_acks,
-                    NULL
-                );
-            }
-        }
-
-        trq_unload_msg(msg, result);
-
-    } else {
-        if(trq_check_pending_rowid(
-            priv->trq_msgs,
-            __t__,
-            rowid
-        )!=0) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Message not found in the queue",
-                "rowid",        "%ld", (unsigned long)rowid,
-                NULL
-            );
-        }
-    }
-
-    return 0;
-}
+// PRIVATE int dequeue_msg(
+//     hgobj gobj,
+//     uint64_t __t__,
+//     uint64_t rowid,
+//     int result
+// )
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     q_msg_t *msg = trq_get_by_rowid(priv->trq_msgs, rowid);
+//     if(msg) {
+//         if(priv->last_msg_sent == msg) {
+//             priv->last_msg_sent = 0;
+//         }
+//         if((trq_get_soft_mark(msg) & MARK_PENDING_ACK)) {
+//             trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
+//
+//             if (priv->pending_acks > 0) {
+//                 priv->pending_acks--;
+//             } else {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                     "msg",          "%s", "ppending_acks ZERO or NEGATIVE",
+//                     "pending_acks", "%ld", (unsigned long) priv->pending_acks,
+//                     NULL
+//                 );
+//             }
+//         }
+//
+//         trq_unload_msg(msg, result);
+//
+//     } else {
+//         if(trq_check_pending_rowid(
+//             priv->trq_msgs,
+//             __t__,
+//             rowid
+//         )!=0) {
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                 "msg",          "%s", "Message not found in the queue",
+//                 "rowid",        "%ld", (unsigned long)rowid,
+//                 NULL
+//             );
+//         }
+//     }
+//
+//     return 0;
+// }
 
 /***************************************************************************
  *  Process ACK message
  ***************************************************************************/
-PRIVATE int process_ack(
-    hgobj gobj,
-    const char *event,
-    json_t *kw, // owned
-    hgobj src
-) {
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
-    gbuffer_incref(gbuf);
-    json_t *jn_ack_message = gbuf2json(gbuf, 2);
-
-    json_t *trq_md = trq_get_metadata(jn_ack_message);
-    uint64_t rowid = kw_get_int(
-        gobj,
-        trq_md,
-        "__msg_rowid__",
-        0,
-        KW_REQUIRED
-    );
-    uint64_t __t__ = kw_get_int(
-        gobj,
-        trq_md,
-        "__msg_t__",
-        0,
-        KW_REQUIRED
-    );
-    int result = (int)kw_get_int(
-        gobj,
-        trq_md,
-        "result",
-        0,
-        KW_REQUIRED
-    );
-
-    dequeue_msg(gobj, __t__, rowid, result);
-
-    JSON_DECREF(jn_ack_message)
-
-    KW_DECREF(kw)
-
-    // TODO send more, set timeout
-    return 0;
-}
+// PRIVATE int process_ack(
+//     hgobj gobj,
+//     const char *event,
+//     json_t *kw, // owned
+//     hgobj src
+// ) {
+//     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+//
+//     gbuffer_incref(gbuf);
+//     json_t *jn_ack_message = gbuf2json(gbuf, 2);
+//
+//     json_t *trq_md = trq_get_metadata(jn_ack_message);
+//     uint64_t rowid = kw_get_int(
+//         gobj,
+//         trq_md,
+//         "__msg_rowid__",
+//         0,
+//         KW_REQUIRED
+//     );
+//     uint64_t __t__ = kw_get_int(
+//         gobj,
+//         trq_md,
+//         "__msg_t__",
+//         0,
+//         KW_REQUIRED
+//     );
+//     int result = (int)kw_get_int(
+//         gobj,
+//         trq_md,
+//         "result",
+//         0,
+//         KW_REQUIRED
+//     );
+//
+//     dequeue_msg(gobj, __t__, rowid, result);
+//
+//     JSON_DECREF(jn_ack_message)
+//
+//     KW_DECREF(kw)
+//
+//     // TODO send more, set timeout
+//     return 0;
+// }
 
 
 
@@ -842,17 +842,16 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
     if(empty_string(from)) {
         from = priv->from;
     }
-    const char *from_beautiful = kw_get_str(gobj, kw, "from_beautiful", "", 0);
-    if(empty_string(from_beautiful)) {
-        from_beautiful = gobj_read_str_attr(gobj, "from_beautiful");
-    }
     const char *to = kw_get_str(gobj, kw, "to", 0, 0);
     const char *cc = kw_get_str(gobj, kw, "cc", "", 0);
+    const char *bcc = kw_get_str(gobj, kw, "bcc", "", 0);
     const char *reply_to = kw_get_str(gobj, kw, "reply_to", "", 0);
     const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
-    BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
-    const char *attachment = kw_get_str(gobj, kw, "attachment", "", 0);
+    const char *attachments = kw_get_str(gobj, kw, "attachments", "", 0);
     const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
+    BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
+    BOOL strict_tls = kw_get_bool(gobj, kw, "strict_tls", 0, 0);
+    BOOL auto_inline_images = kw_get_bool(gobj, kw, "auto_inline_images", 0, 0);
 
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     if(!gbuf) {
@@ -886,20 +885,23 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
      */
     gbuffer_incref(gbuf);
     json_t *kw_curl = json_pack(
-        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:I}",
+        "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:b, s:b, s:I}",
         "username", priv->username,
         "password", priv->password,
         "url", priv->url,
+        "subject", subject,
         "from", from,
-        "from_beautiful", from_beautiful?from_beautiful:"",
         "to", to,
         "cc", cc,
+        "bcc", bcc,
         "reply_to", reply_to,
-        "subject", subject,
+        "attachments", attachments,
         "is_html", is_html,
-        "mail_ref", "",
+        "strict_tls", strict_tls,
+        "auto_inline_images", auto_inline_images,
         "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
+
     if(!kw_curl) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -912,9 +914,9 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
         return -1;
     }
 
-    if(!empty_string(attachment)) {
-        if(access(attachment, 0)==0) {
-            json_object_set_new(kw_curl, "attachment", json_string(attachment));
+    if(!empty_string(attachments)) {
+        if(access(attachments, 0)==0) {
+            json_object_set_new(kw_curl, "attachments", json_string(attachments));
             if(!empty_string(inline_file_id)) {
                 json_object_set_new(kw_curl, "inline_file_id", json_string(inline_file_id));
             }
@@ -923,7 +925,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "attachment file not found, ignoring it",
-                "attachment",   "%s", attachment,
+                "attachments",  "%s", attachments,
                 NULL
             );
         }
@@ -942,7 +944,20 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
-    gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj);
+    int result = gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj);
+
+    // Code repeated
+    if(result < 0) {
+        // Error already logged
+        gobj_trace_msg(gobj, "EMAIL NOT SENT to %s", priv->url);
+        // TODO save in error queue
+    } else {
+        gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
+        priv->sent++;
+    }
+    KW_DECREF(priv->sd_cur_email) // it includes a gbuffer
+    gobj_change_state(gobj, ST_IDLE);
+    set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
 
     KW_DECREF(kw);
     return 0;
@@ -956,20 +971,21 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     int result = (int)kw_get_int(gobj, kw, "result", 0, FALSE);
-    if(result) {
+
+    // Code repeated
+    if(result < 0) {
         // Error already logged
+        gobj_trace_msg(gobj, "EMAIL NOT SENT to %s", priv->url);
+        // TODO save in error queue
     } else {
-        KW_DECREF(priv->sd_cur_email) // it includes a gbuffer
         gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
         priv->sent++;
     }
-
+    KW_DECREF(priv->sd_cur_email) // it includes a gbuffer
     gobj_change_state(gobj, ST_IDLE);
-
     set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
 
     KW_DECREF(kw);
-
     return 0;
 }
 

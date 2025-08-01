@@ -128,8 +128,6 @@ typedef struct _PRIVATE_DATA {
  ***************************************************************************/
 PRIVATE void mt_create(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
@@ -161,8 +159,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     return 0;
 }
 
@@ -171,9 +167,6 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-
     return 0;
 }
 
@@ -188,33 +181,11 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE gbuffer_t *build_email(
-    hgobj gobj,
-    gbuffer_t *gbuf, // not owned
-    const char *from,
-    const char *from_beautiful,
-    const char *to,
-    const char *cc,
-    const char *reply_to,
-    const char *subject,
-    BOOL is_html,
-    const char *attachment,
-    const char *inline_file_id
-)
-{
-    // return new_gbuf;
-}
-
-/***************************************************************************
  *      Progress callback
  ***************************************************************************/
-PRIVATE int progress_callback(
-    void *clientp,
-    curl_off_t dltotal, curl_off_t dlnow,
-    curl_off_t ultotal, curl_off_t ulnow
-) {
+PRIVATE int progress_callback(void *clientp,
+                             curl_off_t dltotal, curl_off_t dlnow,
+                             curl_off_t ultotal, curl_off_t ulnow) {
     if(ultotal > 0) {
         double percent = ((double)ulnow / (double)ultotal) * 100.0;
         fprintf(stderr, "\rUpload progress: %.2f%%", percent);
@@ -226,8 +197,7 @@ PRIVATE int progress_callback(
 /***************************************************************************
  *      Tokenize generic string
  ***************************************************************************/
-PRIVATE char **parse_list_string(const char *input, size_t *count)
-{
+PRIVATE char **parse_list_string(const char *input, size_t *count) {
     *count = 0;
     if(!input) return NULL;
 
@@ -252,8 +222,7 @@ PRIVATE char **parse_list_string(const char *input, size_t *count)
 /***************************************************************************
  *      Tokenize recipients (curl_slist)
  ***************************************************************************/
-PRIVATE struct curl_slist *parse_recipients(const char *recipients_str)
-{
+PRIVATE struct curl_slist *parse_recipients(const char *recipients_str) {
     struct curl_slist *list = NULL;
     if(!recipients_str) return NULL;
 
@@ -333,8 +302,7 @@ PRIVATE char *process_html_for_inline_images(
 /***************************************************************************
  *      Cleanup helper
  ***************************************************************************/
-PRIVATE void free_string_list(char ***list, size_t *count)
-{
+PRIVATE void free_string_list(char ***list, size_t *count) {
     if(list && *list) {
         for(size_t i = 0; i < *count; i++) {
             if((*list)[i]) {
@@ -350,23 +318,23 @@ PRIVATE void free_string_list(char ***list, size_t *count)
 
 /***************************************************************************
  * Send email with:
- *   - Plain text + HTML body
- *   - Optional auto inline image detection & Content-ID injection
- *   - Fast path (skip multipart/related) when no inline images
- *   - Attachments from one string ("file1; file2, file3")
- *   - Recipients parsed from one string
- *   - OAuth2 or username/password authentication
+ *   - TO, CC, BCC recipients
+ *   - Reply-To header
+ *   - Optional inline image detection
+ *   - Attachments (one string)
  *   - TLS strict/relaxed
- *   - Retry on transient errors
- *   - Progress callback
+ *   - OAuth2 or username/password authentication
+ *   - Retry & progress callback
  *
- * @return 0 on success, -1 on error
- *      Cleanup helper
+ * Returns 0 on success, -1 on error
  ***************************************************************************/
 PRIVATE int send_email(
     const char *smtp_url,
     const char *from,
-    const char *recipients,
+    const char *to,
+    const char *cc,
+    const char *bcc,
+    const char *reply_to,
     const char *subject,
     const char *text_body,
     const char *html_body,
@@ -394,13 +362,25 @@ PRIVATE int send_email(
     char **attachments = NULL;
     size_t attach_count = 0;
 
-    /*--- Parse inputs ---*/
-    rcpt_list = parse_recipients(recipients);
+    /*--- Parse recipients ---*/
+    rcpt_list = parse_recipients(to);
+    struct curl_slist *cc_list = parse_recipients(cc);
+    struct curl_slist *bcc_list = parse_recipients(bcc);
+
+    for(struct curl_slist *p = cc_list; p; p = p->next)
+        rcpt_list = curl_slist_append(rcpt_list, p->data);
+    for(struct curl_slist *p = bcc_list; p; p = p->next)
+        rcpt_list = curl_slist_append(rcpt_list, p->data);
+
+    curl_slist_free_all(cc_list);
+    curl_slist_free_all(bcc_list);
+
     if(!rcpt_list) {
         fprintf(stderr, "No valid recipients found\n");
         goto cleanup;
     }
 
+    /*--- Inline images ---*/
     if(auto_inline_images) {
         modified_html = process_html_for_inline_images(html_body, &inline_images, &inline_count);
     } else {
@@ -434,22 +414,21 @@ retry_send:
 
     mime = curl_mime_init(curl);
 
-    /*--- multipart/alternative (always present) ---*/
+    /* multipart/alternative */
     alt = curl_mime_init(curl);
-    if(text_body) {
+    if(!empty_string(text_body)) {
         part = curl_mime_addpart(alt);
         curl_mime_data(part, text_body, CURL_ZERO_TERMINATED);
         curl_mime_type(part, "text/plain; charset=utf-8");
     }
-    if(modified_html) {
+    if(!empty_string(modified_html)) {
         part = curl_mime_addpart(alt);
         curl_mime_data(part, modified_html, CURL_ZERO_TERMINATED);
         curl_mime_type(part, "text/html; charset=utf-8");
     }
 
-    /*--- Choose structure ---*/
+    /* related only if inline images present */
     if(auto_inline_images && inline_count > 0) {
-        /* multipart/related -> inline images */
         related = curl_mime_init(curl);
         part = curl_mime_addpart(related);
         curl_mime_subparts(part, alt);
@@ -464,7 +443,7 @@ retry_send:
             curl_mime_encoder(part, "base64");
             curl_mime_filename(part, inline_images[i]);
 
-            char hdr[256];
+            char hdr[512];
             snprintf(hdr, sizeof(hdr), "Content-ID: <%s>", cid);
             struct curl_slist *cid_header = NULL;
             cid_header = curl_slist_append(cid_header, hdr);
@@ -475,13 +454,12 @@ retry_send:
         curl_mime_subparts(part, related);
         curl_mime_type(part, "multipart/related");
     } else {
-        /* simpler: just multipart/alternative */
         part = curl_mime_addpart(mime);
         curl_mime_subparts(part, alt);
         curl_mime_type(part, "multipart/alternative");
     }
 
-    /*--- Regular attachments ---*/
+    /* regular attachments */
     for(size_t i = 0; i < attach_count; i++) {
         part = curl_mime_addpart(mime);
         curl_mime_filedata(part, attachments[i]);
@@ -490,8 +468,26 @@ retry_send:
 
     curl_easy_setopt(curl, CURLOPT_MIMEPOST, mime);
 
+    /* headers */
     snprintf(subject_header, sizeof(subject_header), "Subject: %s", subject);
     headers = curl_slist_append(headers, subject_header);
+
+    if (to && *to) {
+        char to_header[1024];
+        snprintf(to_header, sizeof(to_header), "To: %s", to);
+        headers = curl_slist_append(headers, to_header);
+    }
+    if (cc && *cc) {
+        char cc_header[1024];
+        snprintf(cc_header, sizeof(cc_header), "Cc: %s", cc);
+        headers = curl_slist_append(headers, cc_header);
+    }
+    if (reply_to && *reply_to) {
+        char rt_header[1024];
+        snprintf(rt_header, sizeof(rt_header), "Reply-To: %s", reply_to);
+        headers = curl_slist_append(headers, rt_header);
+    }
+
     headers = curl_slist_append(headers, "MIME-Version: 1.0");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -521,7 +517,7 @@ retry_send:
         }
     }
 
-    ret = 0;  // success
+    ret = 0; // success
 
 cleanup:
     if(mime) { curl_mime_free(mime); mime = NULL; }
@@ -549,20 +545,42 @@ cleanup:
  ***************************************************************************/
 PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_trace_json(gobj, kw, "curl command");
-
-    const char *url = kw_get_str(gobj, kw, "url", "", 0);
-    const char *where = kw_get_str(gobj, kw, "where", "", 0);
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     const char *password = kw_get_str(gobj, kw, "password", "", 0);
-    const char *command = kw_get_str(gobj, kw, "command", "", 0);
-    const char *dst_event = kw_get_str(gobj, kw, "dst_event", "", 0);
-    void * user_reference = (void *)(uintptr_t)kw_get_int(gobj, kw, "user_reference", 0, 0);
+    const char *url = kw_get_str(gobj, kw, "url", "", 0);
+    const char *subject = kw_get_str(gobj, kw, "subject", "", 0);
+    const char *from = kw_get_str(gobj, kw, "from", "", 0);
+    const char *to = kw_get_str(gobj, kw, "to", "", 0);
+    const char *cc = kw_get_str(gobj, kw, "cc", "", 0);
+    const char *bcc = kw_get_str(gobj, kw, "bcc", "", 0);
+    const char *attachments = kw_get_str(gobj, kw, "attachments", "", 0);
+    const char *reply_to = kw_get_str(gobj, kw, "reply_to", "", 0);
+    BOOL is_html = kw_get_bool(gobj, kw, "is_html", 0, 0);
+    BOOL strict_tls = kw_get_bool(gobj, kw, "strict_tls", 0, 0);
+    BOOL auto_inline_images = kw_get_bool(gobj, kw, "auto_inline_images", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    char *p = gbuffer_cur_rd_pointer(gbuf);
+
+    int result = send_email(
+        url,    // smtp_url,
+        from,
+        to,
+        cc,
+        bcc,
+        reply_to,
+        subject,
+        !is_html?p:"", // text_body,
+        is_html?p:"", // html_body,
+        attachments, // attachments,
+        username, // username,
+        password, // password,
+        "", // oauth2_token,
+        strict_tls,
+        auto_inline_images
+    );
 
     KW_DECREF(kw);
-    return 0;
+    return result;
 }
 
 /***************************************************************************
@@ -656,13 +674,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     return 0;
 }
-
-/***************************************************************************
- *              Local methods table
- ***************************************************************************/
-PRIVATE LMETHOD lmt[] = {
-    {0, 0, 0}
-};
 
 /***************************************************************************
  *              Public access
