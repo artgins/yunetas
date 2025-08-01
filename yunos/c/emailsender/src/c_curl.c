@@ -561,7 +561,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *dst_event = kw_get_str(gobj, kw, "dst_event", "", 0);
     void * user_reference = (void *)(uintptr_t)kw_get_int(gobj, kw, "user_reference", 0, 0);
 
-    JSON_DECREF(kw);
+    KW_DECREF(kw);
     return 0;
 }
 

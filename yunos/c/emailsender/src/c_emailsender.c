@@ -224,6 +224,15 @@ PRIVATE void mt_destroy(hgobj gobj)
             NULL
         );
     }
+    KW_DECREF(priv->sd_cur_email)
+
+    while(1) {
+        json_t *k = kw_get_list_value(gobj, priv->tb_queue, 0, KW_EXTRACT);
+        if(!k) {
+            break;
+        }
+        KW_DECREF(k)
+    }
     JSON_DECREF(priv->tb_queue)
 }
 
@@ -772,7 +781,8 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
     /*
      *  Crea el registro del queue
      */
-    json_array_append(priv->tb_queue, kw);
+    KW_INCREF(kw)
+    json_array_append_new(priv->tb_queue, kw);
 
     if(gobj_in_this_state(gobj, ST_IDLE)) {
         set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
@@ -797,12 +807,12 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
             NULL
         );
         gobj_trace_json(gobj, priv->sd_cur_email, "Already a current sending email");
-        JSON_DECREF(priv->sd_cur_email)
+        KW_DECREF(priv->sd_cur_email) // it includes a gbuffer
     }
 
     priv->sd_cur_email = kw_get_list_value(gobj, priv->tb_queue, 0, KW_EXTRACT);
     if(priv->sd_cur_email) {
-        gobj_send_event(gobj, EV_CURL_COMMAND, json_incref(priv->sd_cur_email), src);
+        gobj_send_event(gobj, EV_CURL_COMMAND, kw_incref(priv->sd_cur_email), src);
     }
 
     KW_DECREF(kw);
@@ -945,13 +955,11 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    clear_timeout(priv->timer);
-
     int result = (int)kw_get_int(gobj, kw, "result", 0, FALSE);
     if(result) {
         // Error already logged
     } else {
-        JSON_DECREF(priv->sd_cur_email)
+        KW_DECREF(priv->sd_cur_email) // it includes a gbuffer
         gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
         priv->sent++;
     }
