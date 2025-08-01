@@ -1943,15 +1943,6 @@ PRIVATE BOOL verify_token(
     return validated;
 }
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <pwd.h>
-#include <grp.h>
-#include <unistd.h>
-#include <limits.h>
-#include <sys/types.h>
-
 /***************************************************************************
  * Check if a given username belongs to the "yuneta" group
  * or is exactly the "yuneta" user.
