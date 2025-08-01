@@ -305,8 +305,12 @@ PUBLIC int yuneta_setup(
     if(stats_parser) {
         __stats_parser_fn__ = stats_parser;
     }
-    __authz_checker_fn__ = authz_checker;
-    __authenticate_parser_fn__ = authenticate_parser;
+    if(authz_checker) {
+        __authz_checker_fn__ = authz_checker;
+    }
+    if(authenticate_parser) {
+        __authenticate_parser_fn__ = authenticate_parser;
+    }
 
     USE_OWN_SYSTEM_MEMORY = use_own_system_memory;
 
