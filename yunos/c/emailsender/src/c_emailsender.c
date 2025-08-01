@@ -123,6 +123,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     hgobj curl;
     hgobj timer;
+    hgobj gobj_input_side;
     hgobj persist;
     json_int_t timeout_dequeue;
     json_int_t max_retries;
@@ -201,7 +202,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(timeout_dequeue,   gobj_read_integer_attr)
+    IF_EQ_SET_PRIV(timeout_dequeue,     gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(max_retries,       gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
@@ -270,6 +271,20 @@ PRIVATE int mt_stop(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_play(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Start services
+     */
+    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
+    gobj_start_tree(priv->gobj_input_side);
+
+    /*
+     *  Periodic timer
+     */
+    set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
+
     return 0;
 }
 
@@ -278,6 +293,14 @@ PRIVATE int mt_play(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_pause(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Stop services
+     */
+    gobj_unsubscribe_event(priv->gobj_input_side, 0, 0, gobj);
+    EXEC_AND_RESET(gobj_stop_tree, priv->gobj_input_side);
+
     return 0;
 }
 
@@ -753,7 +776,7 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
     json_array_append(priv->tb_queue, kw);
 
     if(gobj_in_this_state(gobj, ST_IDLE)) {
-        set_timeout(priv->timer, priv->timeout_dequeue);
+        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
     }
 
     KW_DECREF(kw);
@@ -801,7 +824,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "msg",          "%s", "NOT a current sending email",
             NULL
         );
-        set_timeout(priv->timer, priv->timeout_dequeue);
+        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
         return -1;
     }
@@ -831,7 +854,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "url",          "%s", priv->url,
             NULL
         );
-        set_timeout(priv->timer, priv->timeout_dequeue);
+        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
         return -1;
     }
@@ -843,7 +866,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "url",          "%s", priv->url,
             NULL
         );
-        set_timeout(priv->timer, priv->timeout_dequeue);
+        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
         return -1;
     }
@@ -874,7 +897,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "msg",          "%s", "json_pack() FAILED",
             NULL
         );
-        set_timeout(priv->timer, priv->timeout_dequeue);
+        set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
         return -1;
     }
@@ -935,7 +958,7 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
 
     gobj_change_state(gobj, ST_IDLE);
 
-    set_timeout(priv->timer, priv->timeout_dequeue); // tira de la cola, QUICK
+    set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
 
     KW_DECREF(kw);
 
