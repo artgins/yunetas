@@ -805,7 +805,7 @@ PRIVATE int enqueue_write(hgobj gobj, GBUFFER *gbuf)
 PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    GBUFFER *gbuf = (GBUFFER *)(size_t)kw_get_int(kw, "gbuffer", 0, TRUE);
+    GBUFFER *gbuf = (GBUFFER *)(uintptr_t)kw_get_int(kw, "gbuffer", 0, TRUE);
 
     if(priv->uv_req_write_active) {
         gbuf_incref(gbuf); // Quédate una copia

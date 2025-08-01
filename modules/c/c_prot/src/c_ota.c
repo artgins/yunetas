@@ -755,7 +755,7 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             return 0;
         }
 
-        char *ota_write_data = (char *)(size_t)kw_get_int(gobj, kw, "__pbf__", 0, 0);
+        char *ota_write_data = (char *)(uintptr_t)kw_get_int(gobj, kw, "__pbf__", 0, 0);
         if(ota_write_data) {
             /*---------------------------------------------*
              *          Receiving file

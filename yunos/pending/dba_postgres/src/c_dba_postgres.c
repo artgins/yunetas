@@ -886,7 +886,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     priv->rxMsgsec++;
 
     if(src == priv->gobj_input_side ) {
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
         gbuffer_incref(gbuf);
         json_t *jn_msg = gbuf2json(gbuf, 2);

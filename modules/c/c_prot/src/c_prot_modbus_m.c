@@ -3117,7 +3117,7 @@ PRIVATE cell_control_t *get_cell_control(
     }
 //    json_t *jn_value = json_object_get(jn_type, saddress);
     // TODO cambia el metodo, json_integer_value_pointer() is not available
-    // TODO cell_control_t *cell_control = (cell_control_t *)(size_t)json_integer_value_pointer(jn_value);
+    // TODO cell_control_t *cell_control = (cell_control_t *)(uintptr_t)json_integer_value_pointer(jn_value);
 // TODO   return cell_control;
     return NULL;
 }
@@ -3186,7 +3186,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     /*---------------------------------------------*
      *   Recupera el frame
      *---------------------------------------------*/
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     /*---------------------------------------------*
      *

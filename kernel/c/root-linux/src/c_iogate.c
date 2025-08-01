@@ -769,7 +769,7 @@ PRIVATE int send_one_rotate(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         if(gbuf) {
             gobj_trace_dump_gbuf(
                 gobj,
@@ -814,7 +814,7 @@ PRIVATE int send_all(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(gobj_match_gobj(child, json_incref(jn_filter))) {
             if(gobj_read_bool_attr(child, "opened")) {
                 if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-                    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+                    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
                     if(gbuf) {
                         gobj_trace_dump_gbuf(
                             gobj,
@@ -989,7 +989,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         if(gbuf) {
             gobj_trace_dump_gbuf(
                 gobj,
@@ -1057,7 +1057,7 @@ PRIVATE int ac_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
         if(gbuf) {
             gobj_trace_dump_gbuf(
                 gobj,

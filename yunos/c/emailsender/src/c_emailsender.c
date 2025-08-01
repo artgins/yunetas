@@ -699,7 +699,7 @@ PRIVATE int process_ack(
     json_t *kw, // owned
     hgobj src
 ) {
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     gbuffer_incref(gbuf);
     json_t *jn_ack_message = gbuf2json(gbuf, 2);
@@ -802,7 +802,7 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
 
     priv->sd_cur_email = kw_get_list_value(gobj, priv->tb_queue, 0, KW_EXTRACT);
     if(priv->sd_cur_email) {
-        gobj_send_event(gobj, EV_CURL_COMMAND, json_object(), src);
+        gobj_send_event(gobj, EV_CURL_COMMAND, json_incref(priv->sd_cur_email), src);
     }
 
     KW_DECREF(kw);
@@ -844,7 +844,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
     const char *attachment = kw_get_str(gobj, kw, "attachment", "", 0);
     const char *inline_file_id = kw_get_str(gobj, kw, "inline_file_id", 0, 0);
 
-    gbuffer_t *gbuf = (gbuffer_t *)(size_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -874,6 +874,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
      *  Como la url esté mal y no se resuelva libcurl NO RETORNA NUNCA!
      *  Usa ips numéricas!
      */
+    gbuffer_incref(gbuf);
     json_t *kw_curl = json_pack(
         "{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b, s:s, s:I}",
         "username", priv->username,
@@ -887,7 +888,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
         "subject", subject,
         "is_html", is_html,
         "mail_ref", "",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     if(!kw_curl) {
         gobj_log_error(gobj, 0,

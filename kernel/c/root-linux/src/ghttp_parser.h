@@ -52,7 +52,7 @@ PUBLIC GHTTP_PARSER *ghttp_parser_create(
         /*
            kw of event:
             {
-                "__pbf__":              (uint8_t *)(size_t) (int) pointer to buffer with the partial body received,
+                "__pbf__":              (uint8_t *)(uintptr_t) (int) pointer to buffer with the partial body received,
                 "__pbf_size__":         (size_t) (int) size of buffer
             }
             HACK: The last event without "__pbf__" key will indicate that all message is completed

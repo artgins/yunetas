@@ -20,10 +20,10 @@ extern "C"{
  *              Constants
  ***************************************************************/
 #define CONTINUE_TASK() \
-    return (void *)(size_t)0;
+    return (void *)(uintptr_t)0;
 
 #define STOP_TASK() \
-    return (void *)(size_t)-1;
+    return (void *)(uintptr_t)-1;
 
 
 /***************************************************************

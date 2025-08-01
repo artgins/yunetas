@@ -551,13 +551,15 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    gobj_trace_json(gobj, kw, "curl command");
+
     const char *url = kw_get_str(gobj, kw, "url", "", 0);
     const char *where = kw_get_str(gobj, kw, "where", "", 0);
     const char *username = kw_get_str(gobj, kw, "username", "", 0);
     const char *password = kw_get_str(gobj, kw, "password", "", 0);
     const char *command = kw_get_str(gobj, kw, "command", "", 0);
     const char *dst_event = kw_get_str(gobj, kw, "dst_event", "", 0);
-    void * user_reference = (void *)(size_t)kw_get_int(gobj, kw, "user_reference", 0, 0);
+    void * user_reference = (void *)(uintptr_t)kw_get_int(gobj, kw, "user_reference", 0, 0);
 
     JSON_DECREF(kw);
     return 0;

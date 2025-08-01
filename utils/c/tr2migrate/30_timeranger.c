@@ -856,7 +856,7 @@ PRIVATE int get_topic_idx_fd(
  ***************************************************************************/
 PRIVATE int close_topic_idx_file(json_t *tranger, json_t *topic)
 {
-    FILE *file = (FILE *)(size_t)kw_get_int(0,topic, "topic_idx_file", 0, KW_REQUIRED);
+    FILE *file = (FILE *)(uintptr_t)kw_get_int(0,topic, "topic_idx_file", 0, KW_REQUIRED);
     if(file) {
         fclose(file);
         json_object_set_new(topic, "topic_idx_file", json_integer(0));
@@ -873,7 +873,7 @@ PRIVATE FILE *get_topic_idx_file(
     BOOL verbose
 )
 {
-    FILE *file = (FILE *)(size_t)kw_get_int(0,topic, "topic_idx_file", 0, KW_REQUIRED);
+    FILE *file = (FILE *)(uintptr_t)kw_get_int(0,topic, "topic_idx_file", 0, KW_REQUIRED);
     if(!file) {
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -1119,7 +1119,7 @@ PUBLIC int tranger_close_topic(
     }
     json_t *file_opened_files = kw_get_dict(0, topic, "file_opened_files", 0, KW_REQUIRED);
     json_object_foreach(file_opened_files, key, jn_value) {
-        FILE *file = (FILE *)(size_t)kw_get_int(0,file_opened_files, key, 0, KW_REQUIRED);
+        FILE *file = (FILE *)(uintptr_t)kw_get_int(0,file_opened_files, key, 0, KW_REQUIRED);
         if(file) {
             fclose(file);
         }
@@ -1167,7 +1167,7 @@ PRIVATE int close_file_opened_files(
 
     json_t *file_opened_files = kw_get_dict(0, topic, "file_opened_files", 0, KW_REQUIRED);
     json_object_foreach_safe(file_opened_files, tmp, key, jn_value) {
-        FILE *file = (FILE *)(size_t)kw_get_int(0,file_opened_files, key, 0, KW_REQUIRED);
+        FILE *file = (FILE *)(uintptr_t)kw_get_int(0,file_opened_files, key, 0, KW_REQUIRED);
         if(file) {
             fclose(file);
         }
@@ -1897,7 +1897,7 @@ PRIVATE FILE * get_content_file(json_t *tranger, json_t *topic, uint64_t __t__)
     /*-----------------------------*
      *      Open content file
      *-----------------------------*/
-    FILE *file = (FILE *)(size_t)kw_get_int(0,
+    FILE *file = (FILE *)(uintptr_t)kw_get_int(0,
         kw_get_dict(0, topic, "file_opened_files", 0, KW_REQUIRED),
         full_path,
         0,

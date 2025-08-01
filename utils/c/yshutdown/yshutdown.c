@@ -188,7 +188,7 @@ int shutdown_yuneta(int no_kill_agent, int verbose)
         "yuno.pid",
         WD_RECURSIVE|WD_MATCH_REGULAR_FILE,
         find_yuno_pid_cb,
-        (void *)(size_t)verbose
+        (void *)(uintptr_t)verbose
     );
     if(!no_kill_agent) {
         kill_yuno("/yuneta/agent", "/yuneta/realms/agent/yuneta_agent.pid", verbose);

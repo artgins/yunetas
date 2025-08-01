@@ -4565,7 +4565,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         0
     );
     void *user_data =
-        (void *)(size_t)kw_get_int(gobj,
+        (void *)(uintptr_t)kw_get_int(gobj,
         treedb,
         "__treedb_callback_user_data__",
         0,
@@ -4756,7 +4756,7 @@ PUBLIC int treedb_save_node(
         0
     );
     void *user_data =
-        (void *)(size_t)kw_get_int(gobj,
+        (void *)(uintptr_t)kw_get_int(gobj,
         treedb,
         "__treedb_callback_user_data__",
         0,

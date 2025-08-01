@@ -279,7 +279,7 @@ PRIVATE int yev_server_callback(yev_event_h yev_event)
                         ytls_server_on_handshake_done_callback,
                         ytls_server_on_clear_data_callback,
                         ytls_server_on_encrypted_data_callback,
-                        (void *)(size_t)yev_get_result(yev_event_accept)
+                        (void *)(uintptr_t)yev_get_result(yev_event_accept)
                     );
                     if(!sskt_server) {
                         //msg = "Server: Bad ytls";
@@ -420,7 +420,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
                         ytls_client_on_handshake_done_callback,
                         ytls_client_on_clear_data_callback,
                         ytls_client_on_encrypted_data_callback,
-                        (void *)(size_t)yev_get_fd(yev_event_connect)
+                        (void *)(uintptr_t)yev_get_fd(yev_event_connect)
                     );
                     if(!sskt_client) {
                         //msg = "Client: Bad ytls";

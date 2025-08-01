@@ -101,7 +101,7 @@ PUBLIC json_t *kw_serialize( // return the same kw
             /*
              *  Pop the binary field from kw
              */
-            void *binary = (void *)(size_t)kw_get_int(
+            void *binary = (void *)(uintptr_t)kw_get_int(
                 gobj,
                 kw,
                 pf->binary_field_name,
@@ -224,7 +224,7 @@ PUBLIC json_t *kw_incref(json_t *kw)
             /*
              *  Get the binary field from kw
              */
-            void *binary = (void *)(size_t)kw_get_int(
+            void *binary = (void *)(uintptr_t)kw_get_int(
                 0,
                 kw,
                 pf->binary_field_name,
@@ -273,7 +273,7 @@ PUBLIC json_t *kw_decref(json_t* kw)
             /*
              *  Get the binary field from kw
              */
-            void *binary = (void *)(size_t)kw_get_int(
+            void *binary = (void *)(uintptr_t)kw_get_int(
                 0,
                 kw,
                 pf->binary_field_name,
@@ -2110,7 +2110,7 @@ PRIVATE json_t * _duplicate_object(json_t *kw, const char **keys, int underscore
                 if(serialize) {
                     serialize_fields_t * pf = get_serialize_field(key);
                     if(pf) {
-                        pf->incref_fn((void *)(size_t)binary);
+                        pf->incref_fn((void *)(uintptr_t)binary);
                     }
                 }
             }

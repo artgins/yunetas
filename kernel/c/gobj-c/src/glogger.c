@@ -802,7 +802,7 @@ PUBLIC void gobj_trace_json(
     va_end(ap);
 
     if((gobj_trace_level(gobj) & TRACE_GBUFFERS)) {
-        gbuffer_t *gbuf = (gbuffer_t *)(size_t)json_integer_value(json_object_get(jn, "gbuffer"));
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)json_integer_value(json_object_get(jn, "gbuffer"));
         if(gbuf) {
             gobj_trace_dump_gbuf(gobj, gbuf, "gbuffer");
         }

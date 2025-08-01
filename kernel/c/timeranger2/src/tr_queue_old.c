@@ -252,7 +252,7 @@ PRIVATE int load_record_callback(
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
-    tr_queue_t *trq = (tr_queue_t *)(size_t)kw_get_int(gobj, list, "trq", 0, KW_REQUIRED);
+    tr_queue_t *trq = (tr_queue_t *)(uintptr_t)kw_get_int(gobj, list, "trq", 0, KW_REQUIRED);
 
     if(first_rowid==0) {
         first_rowid = rowid;

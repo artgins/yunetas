@@ -1399,7 +1399,7 @@ PUBLIC json_t *gobj_service_register(void)
 
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
-        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         json_t *jn_srv = json_object();
 
         json_object_set_new(
@@ -2971,7 +2971,7 @@ PUBLIC json_t *gobj_list_persistent_attrs(hgobj gobj, json_t *jn_attrs)
     } else {
         const char *key; json_t *jn_service;
         json_object_foreach(__jn_services__, key, jn_service) {
-            gobj_t *gobj_ = (gobj_t *)(size_t)json_integer_value(jn_service);
+            gobj_t *gobj_ = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
 
             json_t *jn_item = __global_list_persistent_attrs_fn__(
                 gobj_,
@@ -3859,7 +3859,7 @@ PUBLIC void *gobj_read_pointer_attr(hgobj gobj_, const char *name)
             }
         }
         const json_t *jn_value = json_object_get(hs, name);
-        return (void *)(size_t)json_integer_value(jn_value);
+        return (void *)(uintptr_t)json_integer_value(jn_value);
     }
 
     gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
@@ -4751,7 +4751,7 @@ PUBLIC int gobj_autostart_services(void)
 {
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
-        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
@@ -4773,7 +4773,7 @@ PUBLIC int gobj_autoplay_services(void)
 {
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
-        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
@@ -4791,7 +4791,7 @@ PUBLIC int gobj_pause_autoplay_services(void)
 {
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
-        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
@@ -4820,7 +4820,7 @@ PUBLIC int gobj_stop_autostart_services(void)
 {
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
-        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         if(gobj->gobj_flag & gobj_flag_yuno) {
             continue;
         }
@@ -5137,7 +5137,7 @@ PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose) 
 {
     const char *key; json_t *jn_service;
     json_object_foreach(__jn_services__, key, jn_service) {
-        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_service);
+        gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         const char *gclass_name_ = gobj_gclass_name(gobj);
         if(strcasecmp(gclass_name, gclass_name_)==0) {
             return gobj;
@@ -5585,7 +5585,7 @@ PUBLIC int gobj_free_iter(json_t *iter)
 {
     int idx; json_t *jn_gobj;
     json_array_foreach(iter, idx, jn_gobj) {
-        gobj_t *gobj = (gobj_t *)(size_t)json_integer_value(jn_gobj);
+        gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_gobj);
         if(!gobj) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -7896,14 +7896,14 @@ PRIVATE BOOL _match_subscription(
     json_t *__filter__ = kw_get_dict_value(publisher, kw, "__filter__", 0, 0);
 
     if(publisher) {
-        gobj_t *publisher_ = (gobj_t *)(size_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
+        gobj_t *publisher_ = (gobj_t *)(uintptr_t)kw_get_int(0, subs, "publisher", 0, KW_REQUIRED);
         if(publisher != publisher_) {
             return FALSE;
         }
     }
 
     if(subscriber) {
-        gobj_t *subscriber_ = (gobj_t *)(size_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
+        gobj_t *subscriber_ = (gobj_t *)(uintptr_t)kw_get_int(0, subs, "subscriber", 0, KW_REQUIRED);
         if(subscriber != subscriber_) {
             return FALSE;
         }
@@ -8029,8 +8029,8 @@ PRIVATE int _delete_subscription(
     BOOL force,
     BOOL not_inform
 ) {
-    gobj_t *publisher = (gobj_t *)(size_t)kw_get_int(gobj, subs, "publisher", 0, KW_REQUIRED);
-    gobj_t *subscriber = (gobj_t *)(size_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
+    gobj_t *publisher = (gobj_t *)(uintptr_t)kw_get_int(gobj, subs, "publisher", 0, KW_REQUIRED);
+    gobj_t *subscriber = (gobj_t *)(uintptr_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
     gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
     subs_flag_t subs_flag = (subs_flag_t)kw_get_int(gobj, subs, "subs_flag", 0, KW_REQUIRED);
     BOOL hard_subscription = (subs_flag & __hard_subscription__)?1:0;
@@ -8786,7 +8786,7 @@ PUBLIC int gobj_publish_event(
                 continue;
             }
         }
-        gobj_t *subscriber = (gobj_t *)(size_t)kw_get_int(
+        gobj_t *subscriber = (gobj_t *)(uintptr_t)kw_get_int(
             publisher, subs, "subscriber", 0, KW_REQUIRED
         );
         if(!(subscriber && !(subscriber->obflag & (obflag_destroying|obflag_destroyed)))) {
