@@ -240,8 +240,8 @@ PRIVATE int mt_start(hgobj gobj)
     /*--------------------------------*
      *      Output queue
      *--------------------------------*/
-    // open_queue(gobj);
-    // trq_load(priv->trq_msgs);
+    open_queue(gobj);
+    trq_load(priv->trq_msgs);
 
     return 0;
 }
@@ -257,7 +257,7 @@ PRIVATE int mt_stop(hgobj gobj)
     gobj_stop(priv->curl);
     //TODO V2 GBMEM_FREE(priv->mail_ref);
 
-    // close_queue(gobj);
+    close_queue(gobj);
 
     return 0;
 }
@@ -278,7 +278,7 @@ PRIVATE int mt_play(hgobj gobj)
      */
     priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
     // gobj_subscribe_event(priv->gobj_input_side, 0, 0, gobj);
-    // gobj_start_tree(priv->gobj_input_side);
+    gobj_start_tree(priv->gobj_input_side);
 
     /*
      *  Periodic timer

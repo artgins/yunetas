@@ -1997,7 +1997,6 @@ PRIVATE json_t *identify_system_user(
          *-------------------------------*/
         static gid_t groups[30]; // HACK to use outside
         int ngroups = sizeof(groups)/sizeof(groups[0]);
-
         getgrouplist(*username, 0, groups, &ngroups);
         for(int i=0; i<ngroups; i++) {
             struct group *gr = getgrgid(groups[i]);
