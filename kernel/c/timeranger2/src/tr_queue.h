@@ -112,7 +112,7 @@ PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t);
 PUBLIC q_msg_t * trq_append2(
     tr_queue_t * trq,
     json_int_t t,   // __t__
-    json_t *jn_msg  // owned
+    json_t *kw  // owned
 );
 
 /**
@@ -120,10 +120,10 @@ PUBLIC q_msg_t * trq_append2(
 */
 static inline q_msg_t *trq_append(
     tr_queue_t * trq,
-    json_t *jn_msg  // owned
+    json_t *kw  // owned
 )
 {
-    return trq_append2(trq, 0, jn_msg);
+    return trq_append2(trq, 0, kw);
 }
 
 /**

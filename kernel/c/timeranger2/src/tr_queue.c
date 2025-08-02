@@ -378,21 +378,23 @@ PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t)
 PUBLIC q_msg_t *trq_append2(
     tr_queue_t * trq,
     json_int_t t,   // __t__
-    json_t *jn_msg  // owned
+    json_t *kw  // owned
 )
 {
     hgobj gobj = 0;
 
-    if(!jn_msg || jn_msg->refcount <= 0) {
+    if(!kw || kw->refcount <= 0) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "jn_msg NULL",
+            "msg",          "%s", "kw NULL",
             "topic",        "%s", trq->topic_name,
             NULL
         );
         return 0;
     }
+
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     md2_record_ex_t md_record;
     tranger2_append_record(
@@ -401,15 +403,19 @@ PUBLIC q_msg_t *trq_append2(
         t,      // __t__
         TRQ_MSG_PENDING,    // __flag__
         &md_record,
-        kw_incref(jn_msg) // owned
+        kw_incref(kw) // owned
     );
+
+    gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     q_msg_t *msg = new_msg(
         trq,
         (json_int_t)md_record.rowid,
         &md_record,
-        jn_msg  // owned
+        kw  // owned
     );
+
+    gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     return msg;
 }
 

@@ -286,7 +286,7 @@ PRIVATE int master_to_update_client_load_record_callback(
     json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
-    json_t *record      // must be owned
+    json_t *kw      // must be owned
 );
 PRIVATE json_int_t update_new_records_from_disk(
     hgobj gobj,
@@ -2230,16 +2230,16 @@ PUBLIC int tranger2_append_record(
     uint64_t __t__,         // if 0 then the time will be set by TimeRanger with now time
     uint16_t user_flag,
     md2_record_ex_t *md_record_ex, // required, to return the metadata
-    json_t *jn_record       // owned
+    json_t *kw       // owned
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    if(!jn_record || jn_record->refcount <= 0) {
+    if(!kw || kw->refcount <= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Cannot append record, jn_record NULL",
+            "msg",          "%s", "Cannot append record, kw NULL",
             "topic",        "%s", topic_name,
             NULL
         );
@@ -2257,8 +2257,8 @@ PUBLIC int tranger2_append_record(
             "topic",        "%s", topic_name,
             NULL
         );
-        gobj_trace_json(gobj, jn_record, "Cannot append record, NO master");
-        JSON_DECREF(jn_record)
+        gobj_trace_json(gobj, kw, "Cannot append record, NO master");
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -2271,8 +2271,8 @@ PUBLIC int tranger2_append_record(
             "topic",        "%s", topic_name,
             NULL
         );
-        gobj_trace_json(gobj, jn_record, "Cannot append record, topic not found");
-        JSON_DECREF(jn_record)
+        gobj_trace_json(gobj, kw, "Cannot append record, topic not found");
+        KW_DECREF(kw)
         return -1;
     }
 
@@ -2309,7 +2309,7 @@ PUBLIC int tranger2_append_record(
     switch(system_flag_key_type) {
         case sf_string_key:
             {
-                key_value = json_string_value(json_object_get(jn_record, pkey));
+                key_value = json_string_value(json_object_get(kw, pkey));
                 if(empty_string(key_value)) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -2319,8 +2319,8 @@ PUBLIC int tranger2_append_record(
                         "pkey",         "%s", pkey,
                         NULL
                     );
-                    gobj_trace_json(gobj, jn_record, "Cannot append record, no pkey");
-                    JSON_DECREF(jn_record)
+                    gobj_trace_json(gobj, kw, "Cannot append record, no pkey");
+                    KW_DECREF(kw)
                     return -1;
                 }
                 if(strlen(key_value) > NAME_MAX) {
@@ -2335,8 +2335,8 @@ PUBLIC int tranger2_append_record(
                         "maxsize",      "%d", NAME_MAX,
                         NULL
                     );
-                    gobj_trace_json(gobj, jn_record, "Cannot append record, pkey too long");
-                    JSON_DECREF(jn_record)
+                    gobj_trace_json(gobj, kw, "Cannot append record, pkey too long");
+                    KW_DECREF(kw)
                     return -1;
                 }
             }
@@ -2344,7 +2344,7 @@ PUBLIC int tranger2_append_record(
 
         case sf_int_key:
             {
-                uint64_t i = json_integer_value(json_object_get(jn_record, pkey));
+                uint64_t i = json_integer_value(json_object_get(kw, pkey));
                 snprintf(key_int, sizeof(key_int), "%0*"PRIu64, 19, i);
                 key_value = key_int;
             }
@@ -2353,7 +2353,7 @@ PUBLIC int tranger2_append_record(
         case sf_rowid_key:
             {
                 key_value = "__rowid__";
-                json_object_set_new(jn_record, "__rowid__", json_string("__rowid__"));
+                json_object_set_new(kw, "__rowid__", json_string("__rowid__"));
             }
             break;
 
@@ -2367,8 +2367,8 @@ PUBLIC int tranger2_append_record(
                 "pkey",         "%s", pkey,
                 NULL
             );
-            gobj_trace_json(gobj, jn_record, "Cannot append record, no pkey type");
-            JSON_DECREF(jn_record)
+            gobj_trace_json(gobj, kw, "Cannot append record, no pkey type");
+            KW_DECREF(kw)
             return -1;
     }
 
@@ -2379,7 +2379,7 @@ PUBLIC int tranger2_append_record(
      *--------------------------------------------*/
     const char *tkey = json_string_value(json_object_get(topic, "tkey"));
     if(!empty_string(tkey)) {
-        json_t *jn_tval = json_object_get(jn_record, tkey);
+        json_t *jn_tval = json_object_get(kw, tkey);
         if(!jn_tval) {
             md_record.__tm__ = 0; // No tkey value, mark with 0
         } else {
@@ -2424,8 +2424,8 @@ PUBLIC int tranger2_append_record(
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
-            gobj_trace_json(gobj, jn_record, "Cannot append record, lseek() FAILED");
-            JSON_DECREF(jn_record)
+            gobj_trace_json(gobj, kw, "Cannot append record, lseek() FAILED");
+            KW_DECREF(kw)
             return -1;
         }
         md_record.__offset__ = __offset__;
@@ -2433,7 +2433,7 @@ PUBLIC int tranger2_append_record(
         /*--------------------------------------------*
          *  Get the record's content, always json
          *--------------------------------------------*/
-        char *srecord = json_dumps(jn_record, JSON_COMPACT|JSON_ENCODE_ANY);
+        char *srecord = json_dumps(kw, JSON_COMPACT|JSON_ENCODE_ANY);
         if(!srecord) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -2442,8 +2442,8 @@ PUBLIC int tranger2_append_record(
                 "topic",        "%s", topic_name,
                 NULL
             );
-            gobj_trace_json(gobj, jn_record, "Cannot append record, json_dumps() FAILED");
-            JSON_DECREF(jn_record)
+            gobj_trace_json(gobj, kw, "Cannot append record, json_dumps() FAILED");
+            KW_DECREF(kw)
             return -1;
         }
         size_t size = strlen(srecord);
@@ -2489,8 +2489,8 @@ PUBLIC int tranger2_append_record(
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
-            gobj_trace_json(gobj, jn_record, "Cannot append record, write FAILED");
-            JSON_DECREF(jn_record)
+            gobj_trace_json(gobj, kw, "Cannot append record, write FAILED");
+            KW_DECREF(kw)
             jsonp_free(srecord);
             return -1;
         }
@@ -2522,8 +2522,8 @@ PUBLIC int tranger2_append_record(
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
-            gobj_trace_json(gobj, jn_record, "Cannot append record, lseek() FAILED");
-            JSON_DECREF(jn_record)
+            gobj_trace_json(gobj, kw, "Cannot append record, lseek() FAILED");
+            KW_DECREF(kw)
             return -1;
         }
 
@@ -2553,7 +2553,7 @@ PUBLIC int tranger2_append_record(
                 "serrno",       "%s", strerror(errno),
                 NULL
             );
-            JSON_DECREF(jn_record)
+            KW_DECREF(kw)
             return -1;
         }
 
@@ -2594,7 +2594,7 @@ PUBLIC int tranger2_append_record(
 
     json_t *__md_tranger__ = md2json(md_record_ex, g_rowid);
     json_object_set_new(
-        jn_record,
+        kw,
         "__md_tranger__",
         __md_tranger__  // owned
     );
@@ -2623,13 +2623,13 @@ PUBLIC int tranger2_append_record(
                     list,
                     g_rowid,
                     md_record_ex,
-                    json_incref(jn_record)
+                    json_incref(kw)
                 );
             }
         }
     }
 
-    JSON_DECREF(jn_record)
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -3896,7 +3896,7 @@ PRIVATE int master_to_update_client_load_record_callback(
     json_t *list, // iterator or rt_list/rt_disk id, don't own
     json_int_t rowid,
     md2_record_ex_t *md_record_ex,
-    json_t *record      // must be owned
+    json_t *kw      // must be owned
 )
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
@@ -3985,7 +3985,7 @@ PRIVATE int master_to_update_client_load_record_callback(
         }
     }
 
-    JSON_DECREF(record)
+    KW_DECREF(kw)
     return 0;
 }
 
@@ -5430,22 +5430,22 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
             }
             if(tranger2_match_metadata(match_cond, total_rows, rowid, &md_record_ex, &end)) {
                 const char *file_id = json_string_value(json_object_get(segment, "id"));
-                json_t *record = NULL;
+                json_t *kw = NULL;
 
                 md_record_ex.system_flag |= sf_loading_from_disk;
 
                 if(!only_md) {
-                    record = read_record_content(
+                    kw = read_record_content(
                         tranger,
                         topic,
                         key,
                         file_id,
                         &md_record_ex
                     );
-                    if(record) {
+                    if(kw) {
                         json_t *__md_tranger__ = md2json(&md_record_ex, rowid);
                         json_object_set_new(
-                            record,
+                            kw,
                             "__md_tranger__",
                             __md_tranger__  // owned
                         );
@@ -5461,7 +5461,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                         iterator,
                         rowid,  // rowid
                         &md_record_ex,
-                        json_incref(record) // must be owned
+                        kw_incref(kw) // must be owned
                     );
                     /*
                      *  Return:
@@ -5469,14 +5469,14 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
                      *      -1 break the load
                      */
                     if(ret < 0) {
-                        JSON_DECREF(record)
+                        KW_DECREF(kw)
                         break;
                     }
                 }
                 if(data) {
-                    json_array_append(data, record);
+                    json_array_append(data, kw);
                 }
-                JSON_DECREF(record)
+                KW_DECREF(kw)
             }
 
             cur_segment = next_segment_row(

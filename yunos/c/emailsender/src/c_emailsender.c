@@ -603,11 +603,15 @@ PRIVATE q_msg_t *enqueue_message(
         return 0;
     }
 
-    kw_incref(kw);
+    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
     q_msg_t *msg = trq_append(
         priv->trq_emails_queue,
-        kw
+        kw_incref(kw)
     );
+
+    gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
+
     if(!msg) {
         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -786,11 +790,11 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
     /*
      *  Dequeue the message
      */
-    priv->sd_cur_email = trq_first_msg(priv->trq_emails_queue);
-    if(priv->sd_cur_email) {
-        json_t *msg = trq_msg_json(priv->sd_cur_email);
-        gobj_send_event(gobj, EV_CURL_COMMAND, kw_incref(msg), src);
-    }
+    // priv->sd_cur_email = trq_first_msg(priv->trq_emails_queue);
+    // if(priv->sd_cur_email) {
+    //     json_t *msg = trq_msg_json(priv->sd_cur_email);
+    //     gobj_send_event(gobj, EV_CURL_COMMAND, kw_incref(msg), src);
+    // }
 
     KW_DECREF(kw);
     return 0;
