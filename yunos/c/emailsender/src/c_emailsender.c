@@ -128,7 +128,7 @@ typedef struct _PRIVATE_DATA {
     hgobj persist;
     json_int_t timeout_dequeue;
     json_int_t max_retries;
-    json_t *sd_cur_email;
+    q_msg_t *sd_cur_email;
 
     json_int_t send;
     json_int_t sent;
@@ -139,7 +139,6 @@ typedef struct _PRIVATE_DATA {
     const char *url;
     const char *from;
 
-    json_t *tb_queue;
     int inform_on_close;
     int inform_no_more_email;
 
@@ -149,7 +148,6 @@ typedef struct _PRIVATE_DATA {
     tr_queue_t *trq_emails_queue;
     tr_queue_t *trq_emails_failed;
     int32_t alert_queue_size;
-    BOOL with_metadata;
     q_msg_t *last_msg_sent;
 
 } PRIVATE_DATA;
@@ -172,7 +170,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->tb_queue = json_array();
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
     priv->curl = gobj_create_pure_child(gobj_name(gobj), C_CURL, 0, gobj);
     //priv->persist = gobj_find_service("persist", FALSE);
@@ -214,28 +211,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE void mt_destroy(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    size_t size = json_array_size(priv->tb_queue);
-    if(size) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Emails lost by destroying gobj",
-            "size",         "%s", size,
-            NULL
-        );
-    }
-    KW_DECREF(priv->sd_cur_email)
-
-    while(1) {
-        json_t *k = kw_get_list_value(gobj, priv->tb_queue, 0, KW_EXTRACT);
-        if(!k) {
-            break;
-        }
-        KW_DECREF(k)
-    }
-    JSON_DECREF(priv->tb_queue)
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 }
 
 /***************************************************************************
@@ -609,48 +585,80 @@ PRIVATE int close_queues(hgobj gobj)
 }
 
 /***************************************************************************
- *  Enqueue message
+ *  Enqueue a new message
  ***************************************************************************/
-// PRIVATE q_msg_t *enqueue_message(
-//     hgobj gobj,
-//     json_t *kw  // not owned
-// )
-// {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//     if(!priv->trq_msgs) {
-//         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
-//             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//             "msg",          "%s", "trq_msgs NULL",
-//             NULL
-//         );
-//         return 0;
-//     }
-//
-//     json_t *kw_clean_clone;
-//
-//     if(!priv->with_metadata) {
-//         kw_incref(kw);
-//         kw_clean_clone = kw_filter_metadata(gobj, kw);
-//     } else {
-//         kw_clean_clone = kw_incref(kw);
-//     }
-//     q_msg_t *msg = trq_append(
-//         priv->trq_msgs,
-//         kw_clean_clone
-//     );
-//     if(!msg) {
-//         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
-//             "function",     "%s", __FUNCTION__,
-//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//             "msg",          "%s", "Message NOT SAVED in the queue",
-//             NULL
-//         );
-//         return 0;
-//     }
-//
-//     return msg;
-// }
+PRIVATE q_msg_t *enqueue_message(
+    hgobj gobj,
+    json_t *kw  // not owned
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    if(!priv->trq_emails_queue) {
+        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "trq_msgs NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    kw_incref(kw);
+    q_msg_t *msg = trq_append(
+        priv->trq_emails_queue,
+        kw
+    );
+    if(!msg) {
+        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Message NOT SAVED in the emails queue",
+            NULL
+        );
+        return 0;
+    }
+
+    return msg;
+}
+
+/***************************************************************************
+ *  Enqueue failing message
+ ***************************************************************************/
+PRIVATE q_msg_t *enqueue_failing_message(
+    hgobj gobj,
+    q_msg_t *msg
+)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->trq_emails_failed) {
+        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "trq_msgs NULL",
+            NULL
+        );
+        return 0;
+    }
+
+    json_t *kw = trq_msg_json(msg);
+    kw_incref(kw);
+    msg = trq_append(
+        priv->trq_emails_failed,
+        kw
+    );
+    if(!msg) {
+        gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Message NOT SAVED in the failing queue",
+            NULL
+        );
+        return 0;
+    }
+
+    return msg;
+}
 
 /***************************************************************************
  *  Resetea los timeout_ack y los MARK_PENDING_ACK
@@ -659,9 +667,9 @@ PRIVATE int close_queues(hgobj gobj)
 // {
 //     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 //
-//     if(priv->trq_msgs) { // 0 if not running
+//     if(priv->trq_emails_queue) { // 0 if not running
 //         q_msg_t *msg;
-//         qmsg_foreach_forward(priv->trq_msgs, msg) {
+//         qmsg_foreach_forward(priv->trq_emails_queue, msg) {
 //             trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
 //         }
 //     }
@@ -672,105 +680,42 @@ PRIVATE int close_queues(hgobj gobj)
 // }
 
 /***************************************************************************
- *
+ *  Enqueue failing message
  ***************************************************************************/
-// PRIVATE int dequeue_msg(
-//     hgobj gobj,
-//     uint64_t __t__,
-//     uint64_t rowid,
-//     int result
-// )
-// {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     q_msg_t *msg = trq_get_by_rowid(priv->trq_msgs, rowid);
-//     if(msg) {
-//         if(priv->last_msg_sent == msg) {
-//             priv->last_msg_sent = 0;
-//         }
-//         if((trq_get_soft_mark(msg) & MARK_PENDING_ACK)) {
-//             trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
-//
-//             if (priv->pending_acks > 0) {
-//                 priv->pending_acks--;
-//             } else {
-//                 gobj_log_error(gobj, 0,
-//                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                     "msg",          "%s", "ppending_acks ZERO or NEGATIVE",
-//                     "pending_acks", "%ld", (unsigned long) priv->pending_acks,
-//                     NULL
-//                 );
-//             }
-//         }
-//
-//         trq_unload_msg(msg, result);
-//
-//     } else {
-//         if(trq_check_pending_rowid(
-//             priv->trq_msgs,
-//             __t__,
-//             rowid
-//         )!=0) {
-//             gobj_log_error(gobj, 0,
-//                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                 "msg",          "%s", "Message not found in the queue",
-//                 "rowid",        "%ld", (unsigned long)rowid,
-//                 NULL
-//             );
-//         }
-//     }
-//
-//     return 0;
-// }
+PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-/***************************************************************************
- *  Process ACK message
- ***************************************************************************/
-// PRIVATE int process_ack(
-//     hgobj gobj,
-//     const char *event,
-//     json_t *kw, // owned
-//     hgobj src
-// ) {
-//     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-//
-//     gbuffer_incref(gbuf);
-//     json_t *jn_ack_message = gbuf2json(gbuf, 2);
-//
-//     json_t *trq_md = trq_get_metadata(jn_ack_message);
-//     uint64_t rowid = kw_get_int(
-//         gobj,
-//         trq_md,
-//         "__msg_rowid__",
-//         0,
-//         KW_REQUIRED
-//     );
-//     uint64_t __t__ = kw_get_int(
-//         gobj,
-//         trq_md,
-//         "__msg_t__",
-//         0,
-//         KW_REQUIRED
-//     );
-//     int result = (int)kw_get_int(
-//         gobj,
-//         trq_md,
-//         "result",
-//         0,
-//         KW_REQUIRED
-//     );
-//
-//     dequeue_msg(gobj, __t__, rowid, result);
-//
-//     JSON_DECREF(jn_ack_message)
-//
-//     KW_DECREF(kw)
-//
-//     // TODO send more, set timeout
-//     return 0;
-// }
+    if(result < 0) {
+        // Error already logged
+        gobj_trace_msg(gobj, "EMAIL NOT SENT to %s", priv->url);
+        enqueue_failing_message(gobj, msg);
+
+    } else {
+        gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
+        priv->sent++;
+
+        trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
+
+        if (priv->pending_acks > 0) {
+            priv->pending_acks--;
+        } else {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "pending_acks ZERO or NEGATIVE",
+                "pending_acks", "%ld", (unsigned long) priv->pending_acks,
+                NULL
+            );
+        }
+        trq_unload_msg(msg, result);
+    }
+
+    gobj_change_state(gobj, ST_IDLE);
+    set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
+
+    return 0;
+}
 
 
 
@@ -805,10 +750,12 @@ PRIVATE int ac_enqueue_message(hgobj gobj, const char *event, json_t *kw, hgobj 
     }
 
     /*
-     *  Crea el registro del queue
+     *  Enqueue the message
      */
-    KW_INCREF(kw)
-    json_array_append_new(priv->tb_queue, kw);
+    enqueue_message(
+        gobj,
+        kw  // not owned
+    );
 
     if(gobj_in_this_state(gobj, ST_IDLE)) {
         set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
@@ -832,13 +779,17 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
             "msg",          "%s", "Already a current sending email",
             NULL
         );
-        gobj_trace_json(gobj, priv->sd_cur_email, "Already a current sending email");
-        KW_DECREF(priv->sd_cur_email) // it includes a gbuffer
+        enqueue_failing_message(gobj, priv->sd_cur_email);
+        priv->sd_cur_email = NULL;
     }
 
-    priv->sd_cur_email = kw_get_list_value(gobj, priv->tb_queue, 0, KW_EXTRACT);
+    /*
+     *  Dequeue the message
+     */
+    priv->sd_cur_email = trq_first_msg(priv->trq_emails_queue);
     if(priv->sd_cur_email) {
-        gobj_send_event(gobj, EV_CURL_COMMAND, kw_incref(priv->sd_cur_email), src);
+        json_t *msg = trq_msg_json(priv->sd_cur_email);
+        gobj_send_event(gobj, EV_CURL_COMMAND, kw_incref(msg), src);
     }
 
     KW_DECREF(kw);
@@ -970,20 +921,11 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
-    int result = gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj);
+    int result = gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj); // Synchronous response
 
-    // Code repeated
-    if(result < 0) {
-        // Error already logged
-        gobj_trace_msg(gobj, "EMAIL NOT SENT to %s", priv->url);
-        // TODO save in error queue
-    } else {
-        gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
-        priv->sent++;
-    }
-    KW_DECREF(priv->sd_cur_email) // it includes a gbuffer
-    gobj_change_state(gobj, ST_IDLE);
-    set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
+    q_msg_t *msg = priv->sd_cur_email;
+    priv->sd_cur_email = NULL;
+    process_curl_response(gobj, msg, result);
 
     KW_DECREF(kw);
     return 0;
@@ -998,18 +940,10 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
 
     int result = (int)kw_get_int(gobj, kw, "result", 0, FALSE);
 
-    // Code repeated
-    if(result < 0) {
-        // Error already logged
-        gobj_trace_msg(gobj, "EMAIL NOT SENT to %s", priv->url);
-        // TODO save in error queue
-    } else {
-        gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
-        priv->sent++;
-    }
-    KW_DECREF(priv->sd_cur_email) // it includes a gbuffer
-    gobj_change_state(gobj, ST_IDLE);
-    set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
+    // TODO future case, to get response from another yuno, recover the msg
+    q_msg_t *msg = priv->sd_cur_email;
+    priv->sd_cur_email = NULL;
+    process_curl_response(gobj, msg, result);
 
     KW_DECREF(kw);
     return 0;
