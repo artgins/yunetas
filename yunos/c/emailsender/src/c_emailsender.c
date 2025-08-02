@@ -29,8 +29,8 @@ enum {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int open_queue(hgobj gobj);
-PRIVATE int close_queue(hgobj gobj);
+PRIVATE int open_queues(hgobj gobj);
+PRIVATE int close_queues(hgobj gobj);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -92,7 +92,8 @@ SDATA (DTP_BOOLEAN,     "disable_alarm_emails", SDF_PERSIST|SDF_WR,     0,      
 
 SDATA (DTP_STRING,      "tranger_path",         SDF_RD,                 "",     "tranger path"),
 SDATA (DTP_STRING,      "tranger_database",     SDF_RD,                 "",     "tranger database"),
-SDATA (DTP_STRING,      "topic_name",           SDF_RD,                 "",     "trq_open topic_name"),
+SDATA (DTP_STRING,      "topic_emails_queue",   SDF_RD,                 "",     "queue topic for emails"),
+SDATA (DTP_STRING,      "topic_emails_failed",   SDF_RD,                "",     "queue topic for emails failing"),
 SDATA (DTP_STRING,      "tkey",                 SDF_RD,                 "",     "trq_open tkey"),
 SDATA (DTP_STRING,      "system_flag",          SDF_RD,                 "",     "trq_open system_flag"),
 SDATA (DTP_INTEGER,     "on_critical_error",    SDF_RD,                 "0",    "LOG_OPT_TRACE_STACK"),
@@ -145,7 +146,8 @@ typedef struct _PRIVATE_DATA {
 
     hgobj gobj_tranger_queues;
     json_t *tranger;
-    tr_queue_t *trq_msgs;
+    tr_queue_t *trq_emails_queue;
+    tr_queue_t *trq_emails_failed;
     int32_t alert_queue_size;
     BOOL with_metadata;
     q_msg_t *last_msg_sent;
@@ -246,12 +248,6 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_start(priv->timer);
     gobj_start(priv->curl);
 
-    /*--------------------------------*
-     *      Output queue
-     *--------------------------------*/
-    open_queue(gobj);
-    trq_load(priv->trq_msgs);
-
     return 0;
 }
 
@@ -264,9 +260,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     clear_timeout(priv->timer);
     gobj_stop(priv->curl);
-    //TODO V2 GBMEM_FREE(priv->mail_ref);
-
-    close_queue(gobj);
 
     return 0;
 }
@@ -281,6 +274,11 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE int mt_play(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------------*
+     *      Open queues
+     *--------------------------------*/
+    open_queues(gobj);
 
     /*
      *  Start services
@@ -303,6 +301,11 @@ PRIVATE int mt_play(hgobj gobj)
 PRIVATE int mt_pause(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*--------------------------------*
+     *      Close queues
+     *--------------------------------*/
+    close_queues(gobj);
 
     /*
      *  Stop services
@@ -480,7 +483,7 @@ PRIVATE json_t *cmd_enable_alarm_emails(hgobj gobj, const char *cmd, json_t *kw,
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int open_queue(hgobj gobj)
+PRIVATE int open_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -520,12 +523,23 @@ PRIVATE int open_queue(hgobj gobj)
         return -1;
     }
 
-    const char *topic_name = gobj_read_str_attr(gobj, "topic_name");
-    if(empty_string(topic_name)) {
+    const char *topic_emails_queue = gobj_read_str_attr(gobj, "topic_emails_queue");
+    if(empty_string(topic_emails_queue)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "tranger topic_name EMPTY",
+            "msg",          "%s", "tranger topic_emails_queue EMPTY",
+            NULL
+        );
+        return -1;
+    }
+
+    const char *topic_emails_failed = gobj_read_str_attr(gobj, "topic_emails_failed");
+    if(empty_string(topic_emails_failed)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "tranger topic_emails_failed EMPTY",
             NULL
         );
         return -1;
@@ -552,13 +566,24 @@ PRIVATE int open_queue(hgobj gobj)
     gobj_start(priv->gobj_tranger_queues);
     priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger_queues, "tranger");
 
-    priv->trq_msgs = trq_open(
+    priv->trq_emails_queue = trq_open(
         priv->tranger,
-        topic_name,
+        topic_emails_queue,
         gobj_read_str_attr(gobj, "tkey"),
         tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
         gobj_read_integer_attr(gobj, "backup_queue_size")
     );
+
+    priv->trq_emails_failed = trq_open(
+        priv->tranger,
+        topic_emails_failed,
+        gobj_read_str_attr(gobj, "tkey"),
+        tranger2_str2system_flag(gobj_read_str_attr(gobj, "system_flag")),
+        gobj_read_integer_attr(gobj, "backup_queue_size")
+    );
+
+    trq_load(priv->trq_emails_queue);
+    trq_load(priv->trq_emails_failed);
 
     return 0;
 }
@@ -566,11 +591,12 @@ PRIVATE int open_queue(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int close_queue(hgobj gobj)
+PRIVATE int close_queues(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    EXEC_AND_RESET(trq_close, priv->trq_msgs);
+    EXEC_AND_RESET(trq_close, priv->trq_emails_queue);
+    EXEC_AND_RESET(trq_close, priv->trq_emails_failed);
 
     /*----------------------------------*
      *      Close Timeranger queues

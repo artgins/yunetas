@@ -136,10 +136,11 @@ PRIVATE char variable_config[]= "\
             'kw': {                                                 \n\
                 'tranger_path': '/yuneta/store/queues/gate_msgs2',              \n\
                 'tranger_database': '(^^__yuno_role__^^)^(^^__yuno_name__^^)',  \n\
-                'topic_name': 'gate_events',                                    \n\
-                'tkey': 'tm'                                                    \n\
+                'topic_emails_queue': 'emails_queue',                 \n\
+                'topic_emails_failed': 'emails_failed',               \n\
+                'tkey': 'tm'                                        \n\
             },                                                      \n\
-            'children': [                                            \n\
+            'children': [                                           \n\
                 {                                                   \n\
                     'name': '__input_side__',                       \n\
                     'gclass': 'C_IOGATE',                           \n\
