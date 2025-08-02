@@ -394,8 +394,6 @@ PUBLIC q_msg_t *trq_append2(
         return 0;
     }
 
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
     md2_record_ex_t md_record;
     tranger2_append_record(
         trq->tranger,
@@ -406,8 +404,6 @@ PUBLIC q_msg_t *trq_append2(
         kw_incref(kw) // owned
     );
 
-    gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
     q_msg_t *msg = new_msg(
         trq,
         (json_int_t)md_record.rowid,
@@ -415,7 +411,6 @@ PUBLIC q_msg_t *trq_append2(
         kw  // owned
     );
 
-    gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
     return msg;
 }
 

@@ -603,14 +603,10 @@ PRIVATE q_msg_t *enqueue_message(
         return 0;
     }
 
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
-
     q_msg_t *msg = trq_append(
         priv->trq_emails_queue,
         kw_incref(kw)
     );
-
-    gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, 0);
 
     if(!msg) {
         gobj_log_critical(gobj, LOG_OPT_ABORT|LOG_OPT_TRACE_STACK,
