@@ -158,6 +158,7 @@ PRIVATE q_msg_t *new_msg(
             "msg",          "%s", "Cannot create msg. GBMEM_MALLOC() FAILED",
             NULL
         );
+        kw_decref(jn_record);
         return 0;
     }
     if(rowid != md_record->rowid) {
@@ -171,7 +172,7 @@ PRIVATE q_msg_t *new_msg(
         );
     }
     memmove(&msg->md_record, md_record, sizeof(md2_record_ex_t));
-    JSON_DECREF(jn_record);
+    kw_decref(jn_record);
     msg->trq = trq;
     msg->rowid = rowid;
 
@@ -400,7 +401,7 @@ PUBLIC q_msg_t *trq_append2(
         t,      // __t__
         TRQ_MSG_PENDING,    // __flag__
         &md_record,
-        json_incref(jn_msg) // owned
+        kw_incref(jn_msg) // owned
     );
 
     q_msg_t *msg = new_msg(
