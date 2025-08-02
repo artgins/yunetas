@@ -920,6 +920,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
     }
 
+    priv->pending_acks++;
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
     int result = gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj); // Synchronous response
 

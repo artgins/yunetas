@@ -30,7 +30,7 @@
 #define APP         "tr2list"
 #define DOC         "List messages of TimeRanger2 database.\n Examples TIME:\n  1.seconds (minutes,hours,days,weeks,months,years)"
 
-#define VERSION     "1.0" // __ghelpers_version__
+#define VERSION     YUNETA_VERSION
 #define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 

@@ -29,7 +29,7 @@
 #define NAME        "list_queue_msgs2"
 #define DOC         "List messages in message's queue, for tranger2."
 
-#define VERSION     "1.9.0"
+#define VERSION     YUNETA_VERSION
 #define SUPPORT     "<support at artgins.com>"
 #define DATETIME    __DATE__ " " __TIME__
 
