@@ -815,6 +815,9 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
         return -1;
     }
 
+    q_msg_t *qmsg = priv->sd_cur_email;
+    priv->sd_cur_email = NULL;
+
     const char *from = kw_get_str(gobj, kw, "from", 0, 0);
     if(empty_string(from)) {
         from = priv->from;
@@ -839,6 +842,9 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "url",          "%s", priv->url,
             NULL
         );
+
+        process_curl_response(gobj, qmsg, -1);
+
         set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
         return -1;
@@ -851,6 +857,9 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "url",          "%s", priv->url,
             NULL
         );
+
+        process_curl_response(gobj, qmsg, -1);
+
         set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
         return -1;
@@ -886,6 +895,9 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             "msg",          "%s", "json_pack() FAILED",
             NULL
         );
+
+        process_curl_response(gobj, qmsg, -1);
+
         set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
         return -1;
@@ -924,9 +936,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
     int result = gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj); // Synchronous response
 
-    q_msg_t *msg = priv->sd_cur_email;
-    priv->sd_cur_email = NULL;
-    process_curl_response(gobj, msg, result);
+    process_curl_response(gobj, qmsg, result);
 
     KW_DECREF(kw);
     return 0;
@@ -942,9 +952,9 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
     int result = (int)kw_get_int(gobj, kw, "result", 0, FALSE);
 
     // TODO future case, to get response from another yuno, recover the msg
-    q_msg_t *msg = priv->sd_cur_email;
+    q_msg_t *qmsg = priv->sd_cur_email;
     priv->sd_cur_email = NULL;
-    process_curl_response(gobj, msg, result);
+    process_curl_response(gobj, qmsg, result);
 
     KW_DECREF(kw);
     return 0;
