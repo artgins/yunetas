@@ -7747,7 +7747,7 @@ PRIVATE json_t *read_record_content(
         );
         return NULL;
     }
-    char *p = gbuffer_cur_rd_pointer(gbuf);
+    char *p = gbuffer_cur_wr_pointer(gbuf);
     size_t ln = read( // read content
         fd,
         p,
