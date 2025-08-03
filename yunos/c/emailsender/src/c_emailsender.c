@@ -786,11 +786,11 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
     /*
      *  Dequeue the message
      */
-    // priv->sd_cur_email = trq_first_msg(priv->trq_emails_queue);
-    // if(priv->sd_cur_email) {
-    //     json_t *msg = trq_msg_json(priv->sd_cur_email);
-    //     gobj_send_event(gobj, EV_CURL_COMMAND, kw_incref(msg), src);
-    // }
+    priv->sd_cur_email = trq_first_msg(priv->trq_emails_queue);
+    if(priv->sd_cur_email) {
+        json_t *msg = trq_msg_json(priv->sd_cur_email);
+        gobj_send_event(gobj, EV_CURL_COMMAND, kw_incref(msg), src);
+    }
 
     KW_DECREF(kw);
     return 0;
