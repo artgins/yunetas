@@ -7740,9 +7740,10 @@ PRIVATE json_t *read_record_content(
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "Cannot read record data. gbuf_create() FAILED",
+            "msg",          "%s", "Cannot read record data. NO Memory",
             "topic",        "%s", tranger2_topic_name(topic),
             "directory",    "%s", kw_get_str(gobj, topic, "directory", 0, KW_REQUIRED),
+            "size",         "%d", (int)md_record_ex->__size__,
             NULL
         );
         return NULL;
@@ -7793,16 +7794,20 @@ PRIVATE json_t *read_record_content(
 //    }
 
 
-    json_t *jn_record;
+    json_t *kw;
     if(empty_string(p)) {
-        jn_record = json_object();
+        kw = json_object();
     } else {
-        jn_record = anystring2json(p, strlen(p), FALSE);
+
+        /*
+         *  Kw from world outside, deserialize!
+         */
+        kw = anystring2json(p, strlen(p), FALSE);
     }
 
     gbmem_free(p);
 
-    if(!jn_record) {
+    if(!kw) {
         gobj_log_critical(gobj, 0, // Let continue, will be a message lost
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -7816,7 +7821,9 @@ PRIVATE json_t *read_record_content(
         return NULL;
     }
 
-    return jn_record;
+    kw = kw_deserialize(gobj, kw);
+
+    return kw;
 }
 
 /***************************************************************************

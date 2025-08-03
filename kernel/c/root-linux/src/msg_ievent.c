@@ -200,13 +200,10 @@ PUBLIC json_t *iev_create_from_gbuffer(
     }
 
     /*
-     *  Aquí se tendría que tracear el inter-evento de entrada
-     */
-    /*
      *  Inter-event from world outside, deserialize!
      */
     json_incref(kw);
-    json_t *new_kw = kw_deserialize(gobj, kw); // TODO review
+    json_t *new_kw = kw_deserialize(gobj, kw);
 
     if(event) {
         *event = gclass_find_public_event(event_, verbose);
