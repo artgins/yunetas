@@ -222,27 +222,22 @@ PUBLIC json_t *kw_incref(json_t *kw)
 
     serialize_fields_t * pf = serialize_fields;
     while(pf->binary_field_name) {
-        if(kw_has_key(kw, pf->binary_field_name)) {
-            /*
-             *  Get the binary field from kw
-             */
-            void *binary = (void *)(uintptr_t)kw_get_int(
-                0,
-                kw,
-                pf->binary_field_name,
-                0,
-                0
-            );
+        /*
+         *  Get the binary field from kw
+         */
+        void *binary = (void *)(uintptr_t) json_integer_value(
+            json_object_get(kw, pf->binary_field_name)
+        );
 
-            if(binary) {
-                /*
-                *  Incref binary
-                */
-                if(pf->incref_fn) {
-                    pf->incref_fn(binary);
-                }
+        if(binary) {
+            /*
+            *  Incref binary
+            */
+            if(pf->incref_fn) {
+                pf->incref_fn(binary);
             }
         }
+
         pf++;
     }
     JSON_INCREF(kw);
@@ -271,26 +266,22 @@ PUBLIC json_t *kw_decref(json_t* kw)
 
     serialize_fields_t * pf = serialize_fields;
     while(pf->binary_field_name) {
-        if(kw_has_key(kw, pf->binary_field_name)) {
+        /*
+         *  Get the binary field from kw
+         */
+        void *binary = (void *)(uintptr_t) json_integer_value(
+            json_object_get(kw, pf->binary_field_name)
+        );
+
+        if(binary) {
             /*
-             *  Get the binary field from kw
-             */
-            void *binary = (void *)(uintptr_t)kw_get_int(
-                0,
-                kw,
-                pf->binary_field_name,
-                0,
-                0
-            );
-            if(binary) {
-                /*
-                *  Incref binary
-                */
-                if(pf->decref_fn) {
-                    pf->decref_fn(binary);
-                }
+            *  Incref binary
+            */
+            if(pf->decref_fn) {
+                pf->decref_fn(binary);
             }
         }
+
         pf++;
     }
     JSON_DECREF(kw)
