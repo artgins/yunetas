@@ -125,6 +125,10 @@ PUBLIC json_t *kw_serialize( // return the same kw
     hgobj gobj,
     json_t *kw
 );
+PUBLIC char *kw_serialize_to_string( // return must be free with jsonp_free()
+    hgobj gobj,
+    json_t *kw
+);
 PUBLIC json_t *kw_deserialize( // return the same kw
     hgobj gobj,
     json_t *kw

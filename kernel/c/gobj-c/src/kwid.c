@@ -100,13 +100,12 @@ PUBLIC json_t *kw_serialize( // return the same kw
         /*
          *  Pop the binary field from kw
          */
-        void *binary = (void *)(uintptr_t)json_integer_value(
-            json_object_get(kw, pf->binary_field_name)
-        );
-        if(binary) {
+        json_t *jn_binary = json_object_get(kw, pf->binary_field_name);
+        if(jn_binary) {
             /*
              *  Serialize
              */
+            void *binary = (void *)(uintptr_t)json_integer_value(jn_binary);
             if(pf->serialize_fn) {
                 json_t *jn_serialized = pf->serialize_fn(gobj, binary);
 
@@ -142,6 +141,79 @@ PUBLIC json_t *kw_serialize( // return the same kw
         pf++;
     }
     return kw;
+}
+
+/***************************************************************************
+ *  Serialize fields to string, return must be free with jsonp_free()
+ ***************************************************************************/
+PUBLIC char *kw_serialize_to_string( // return must be free with jsonp_free()
+    hgobj gobj,
+    json_t *kw
+)
+{
+    json_t *kw_to_restore = json_object();
+    json_t *kw_to_delete = json_object();
+
+    serialize_fields_t * pf = serialize_fields;
+    while(pf->binary_field_name) {
+        /*
+         *  Pop the binary field from kw
+         */
+        json_t *jn_binary = json_object_get(kw, pf->binary_field_name);
+        if(jn_binary) {
+            /*
+             *  Serialize
+             */
+            void *binary = (void *)(uintptr_t)json_integer_value(jn_binary);
+            if(pf->serialize_fn) {
+                json_t *jn_serialized = pf->serialize_fn(gobj, binary);
+
+                /*
+                 *  Save the serialized json field to kw
+                 */
+                if(jn_serialized) {
+                    json_object_set_new(
+                        kw,
+                        pf->serialized_field_name,
+                        jn_serialized
+                    );
+                    json_object_set_new(kw_to_delete, pf->serialized_field_name, json_true());
+
+                } else {
+                    gobj_log_error(0, LOG_OPT_TRACE_STACK,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "serialize_fn() FAILED",
+                        "key",          "%s", pf->binary_field_name,
+                        NULL
+                    );
+                }
+            }
+
+            /*
+             *  Save
+             */
+            json_object_set(kw_to_restore, pf->binary_field_name, jn_binary);
+
+            json_object_del(kw, pf->binary_field_name);
+        }
+
+        pf++;
+    }
+
+    char *srecord = json_dumps(kw, JSON_COMPACT|JSON_ENCODE_ANY);
+
+    const char *key; json_t *jn;
+    json_object_foreach(kw_to_restore, key, jn) {
+        json_object_set(kw, key, jn);
+    }
+    json_object_foreach(kw_to_delete, key, jn) {
+        json_object_del(kw, key);
+    }
+    json_decref(kw_to_restore);
+    json_decref(kw_to_delete);
+
+    return srecord;
 }
 
 /***************************************************************************

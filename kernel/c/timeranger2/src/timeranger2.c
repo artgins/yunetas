@@ -2433,9 +2433,11 @@ PUBLIC int tranger2_append_record(
         /*--------------------------------------------*
          *  Get the record's content, always json
          *--------------------------------------------*/
-        json_t *kw_ = json_deep_copy(kw);
-        kw_ = kw_serialize(gobj, kw_); // HACK external/internal conversion
-        char *srecord = json_dumps(kw_, JSON_COMPACT|JSON_ENCODE_ANY);
+        // json_t *kw_ = json_deep_copy(kw);
+        // kw_ = kw_serialize(gobj, kw_); // HACK external/internal conversion
+        // char *srecord = json_dumps(kw_, JSON_COMPACT|JSON_ENCODE_ANY);
+
+        char *srecord = kw_serialize_to_string(gobj, kw);
         if(!srecord) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -2446,10 +2448,10 @@ PUBLIC int tranger2_append_record(
             );
             gobj_trace_json(gobj, kw, "Cannot append record, json_dumps() FAILED");
             KW_DECREF(kw)
-            JSON_DECREF(kw_)
+            // JSON_DECREF(kw_)
             return -1;
         }
-        JSON_DECREF(kw_)
+        // JSON_DECREF(kw_)
 
         size_t size = strlen(srecord);
         char *p = srecord;
