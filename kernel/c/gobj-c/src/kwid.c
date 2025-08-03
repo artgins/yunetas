@@ -97,18 +97,11 @@ PUBLIC json_t *kw_serialize( // return the same kw
 {
     serialize_fields_t * pf = serialize_fields;
     while(pf->binary_field_name) {
-        if(kw_has_key(kw, pf->binary_field_name)) {
-            /*
-             *  Pop the binary field from kw
-             */
-            void *binary = (void *)(uintptr_t)kw_get_int(
-                gobj,
-                kw,
-                pf->binary_field_name,
-                0,
-                0
-            );
-
+        /*
+         *  Pop the binary field from kw
+         */
+        void *binary = (void *)(uintptr_t)json_object_get(kw, pf->binary_field_name);
+        if(binary) {
             /*
              *  Serialize
              */
@@ -143,6 +136,7 @@ PUBLIC json_t *kw_serialize( // return the same kw
             }
             json_object_del(kw, pf->binary_field_name);
         }
+
         pf++;
     }
     return kw;
@@ -161,7 +155,9 @@ PUBLIC json_t *kw_deserialize( // return the same kw
      */
     serialize_fields_t *pf = serialize_fields;
     while(pf->binary_field_name) {
-        // Don't ask if kw_has_key, rush!
+        /*
+         *  Don't ask if kw_has_key, rush!
+         */
         json_object_del(kw, pf->binary_field_name);
         pf++;
     }
@@ -171,21 +167,18 @@ PUBLIC json_t *kw_deserialize( // return the same kw
      */
     pf = serialize_fields;
     while(pf->serialized_field_name) {
-        if(kw_has_key(kw, pf->serialized_field_name)) {
-            /*
-             *  Pop the serialized json field from kw
-             */
-            json_t *jn_serialized = kw_get_dict(
-                gobj,
-                kw,
-                pf->serialized_field_name,
-                0,
-                0
-            );
+        /*
+         *  Don't ask if kw_has_key, rush!
+         */
+        /*
+         *  Pop the serialized json field from kw
+         */
+        json_t *jn_serialized = json_object_get(kw, pf->serialized_field_name);
 
-            /*
-             *  Deserialize
-             */
+        /*
+         *  Deserialize
+         */
+        if(jn_serialized) {
             if(pf->deserialize_fn) {
                 void *binary = pf->deserialize_fn(gobj, jn_serialized);
 
@@ -195,12 +188,12 @@ PUBLIC json_t *kw_deserialize( // return the same kw
                 json_object_set_new(
                     kw,
                     pf->binary_field_name,
-                    json_integer((json_int_t)(size_t)binary)
+                    json_integer((json_int_t)(uintptr_t)binary)
                 );
             }
             json_object_del(kw, pf->serialized_field_name);
-
         }
+
         pf++;
     }
 
