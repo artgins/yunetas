@@ -161,9 +161,8 @@ PUBLIC json_t *kw_deserialize( // return the same kw
      */
     serialize_fields_t *pf = serialize_fields;
     while(pf->binary_field_name) {
-        if(kw_has_key(kw, pf->binary_field_name)) {
-            json_object_del(kw, pf->binary_field_name);
-        }
+        // Don't ask if kw_has_key, rush!
+        json_object_del(kw, pf->binary_field_name);
         pf++;
     }
 
