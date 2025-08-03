@@ -52,6 +52,8 @@ int main(void) {
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <sys/utsname.h>
 #include <unistd.h>
 #include <curl/curl.h>
 #include "c_curl.h"
@@ -180,27 +182,18 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <curl/curl.h>
-#include <time.h>
-#include <sys/utsname.h>
-
-#define MAX_RETRIES      5
-#define INITIAL_BACKOFF  2   // seconds
-
 /*--------------------------------------*
  *      Progress callback
  *--------------------------------------*/
-static int progress_callback(void *clientp,
-                             curl_off_t dltotal, curl_off_t dlnow,
-                             curl_off_t ultotal, curl_off_t ulnow) {
-    if(ultotal > 0) {
-        double percent = ((double)ulnow / (double)ultotal) * 100.0;
-        fprintf(stderr, "\rUpload progress: %.2f%%", percent);
-        fflush(stderr);
+static int progress_callback(hgobj gobj,
+    curl_off_t dltotal, curl_off_t dlnow,
+    curl_off_t ultotal, curl_off_t ulnow
+) {
+    if(gobj_trace_level(gobj) & TRACE_CURL) {
+        if(ultotal > 0) {
+            double percent = ((double)ulnow / (double)ultotal) * 100.0;
+            trace_msg0("Upload progress: %.2f%%", percent);
+        }
     }
     return 0;
 }
@@ -349,7 +342,8 @@ static void generate_message_id(char *buf, size_t buflen) {
  *
  * Returns 0 on success, -1 on error
  */
-int send_email(
+PRIVATE int send_email(
+    hgobj gobj,
     const char *smtp_url,
     const char *from,
     const char *to,
@@ -537,9 +531,12 @@ retry_send:
     headers = curl_slist_append(headers, "MIME-Version: 1.0");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
+    if(gobj_trace_level(gobj) & TRACE_CURL) {
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
+        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, gobj);
+    }
 
     res = curl_easy_perform(curl);
 
@@ -609,6 +606,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     char *p = gbuffer_cur_rd_pointer(gbuf);
 
     int result = send_email(
+        gobj,
         url,    // smtp_url,
         from,
         to,
