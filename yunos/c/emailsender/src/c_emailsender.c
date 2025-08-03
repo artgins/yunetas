@@ -639,7 +639,6 @@ PRIVATE q_msg_t *enqueue_failing_message(
     }
 
     json_t *kw = trq_msg_json(msg);
-    kw_incref(kw);
     msg = trq_append(
         priv->trq_emails_failed,
         kw
@@ -686,7 +685,7 @@ PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result)
     if(result < 0) {
         // Error already logged
         gobj_trace_msg(gobj, "EMAIL NOT SENT to %s", priv->url);
-        // enqueue_failing_message(gobj, msg);
+        enqueue_failing_message(gobj, msg);
     } else {
         gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
         priv->sent++;
@@ -783,7 +782,7 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
     priv->sd_cur_email = trq_first_msg(priv->trq_emails_queue);
     if(priv->sd_cur_email) {
         json_t *msg = trq_msg_json(priv->sd_cur_email);
-        gobj_send_event(gobj, EV_CURL_COMMAND, kw_incref(msg), src);
+        gobj_send_event(gobj, EV_CURL_COMMAND, msg, src);
     }
 
     KW_DECREF(kw);
@@ -796,8 +795,6 @@ PRIVATE int ac_timeout_to_dequeue(hgobj gobj, const char *event, json_t *kw, hgo
 PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-print_json2("KW", kw);
 
     if(!priv->sd_cur_email) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,

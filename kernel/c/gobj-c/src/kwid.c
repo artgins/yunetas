@@ -100,7 +100,9 @@ PUBLIC json_t *kw_serialize( // return the same kw
         /*
          *  Pop the binary field from kw
          */
-        void *binary = (void *)(uintptr_t)json_object_get(kw, pf->binary_field_name);
+        void *binary = (void *)(uintptr_t)json_integer_value(
+            json_object_get(kw, pf->binary_field_name)
+        );
         if(binary) {
             /*
              *  Serialize

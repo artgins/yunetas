@@ -142,7 +142,7 @@ PUBLIC int trq_check_pending_rowid(
 );
 
 /**
-    Unload a message from iter
+    Unload a message successfully from iter (TRQ_MSG_PENDING set to 0)
 */
 PUBLIC void trq_unload_msg(q_msg_t *msg, int32_t result);
 
