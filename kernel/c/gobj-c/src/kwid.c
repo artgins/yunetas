@@ -156,7 +156,21 @@ PUBLIC json_t *kw_deserialize( // return the same kw
     json_t *kw
 )
 {
-    serialize_fields_t * pf = serialize_fields;
+    /*
+     *  Check that no binary field exits
+     */
+    serialize_fields_t *pf = serialize_fields;
+    while(pf->binary_field_name) {
+        if(kw_has_key(kw, pf->binary_field_name)) {
+            json_object_del(kw, pf->binary_field_name);
+        }
+        pf++;
+    }
+
+    /*
+     *  Deserialize
+     */
+    pf = serialize_fields;
     while(pf->serialized_field_name) {
         if(kw_has_key(kw, pf->serialized_field_name)) {
             /*
@@ -177,11 +191,6 @@ PUBLIC json_t *kw_deserialize( // return the same kw
                 void *binary = pf->deserialize_fn(gobj, jn_serialized);
 
                 /*
-                 *  Decref json
-                 */
-                // JSON_DECREF(jn_serialized); TODO CHECK creo que no hace falta
-
-                /*
                  *  Save the binary field to kw
                  */
                 json_object_set_new(
@@ -195,6 +204,7 @@ PUBLIC json_t *kw_deserialize( // return the same kw
         }
         pf++;
     }
+
     return kw;
 }
 
