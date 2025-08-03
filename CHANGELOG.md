@@ -119,6 +119,7 @@ New API
     _log_bf
     total_ram_in_kb
     gbuffer_setaddr, gbuffer_getaddr
+    kw_serialize_to_string
 
 Delete API
 
