@@ -7735,8 +7735,8 @@ PRIVATE json_t *read_record_content(
         return NULL;
     }
 
-    gbuffer_t *gbuf = gbuffer_create(md_record_ex->__size__, md_record_ex->__size__);
-    if(!gbuf) {
+    char *p = gbmem_malloc(md_record_ex->__size__);
+    if(!p) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
@@ -7747,7 +7747,6 @@ PRIVATE json_t *read_record_content(
         );
         return NULL;
     }
-    char *p = gbuffer_cur_wr_pointer(gbuf);
     size_t ln = read( // read content
         fd,
         p,
@@ -7766,7 +7765,7 @@ PRIVATE json_t *read_record_content(
             "serrno",       "%s", strerror(errno),
             NULL
         );
-        gbuffer_decref(gbuf);
+        gbmem_free(p);
         return NULL;
     }
 
@@ -7797,23 +7796,24 @@ PRIVATE json_t *read_record_content(
     json_t *jn_record;
     if(empty_string(p)) {
         jn_record = json_object();
-        gbuffer_decref(gbuf);
     } else {
         jn_record = anystring2json(p, strlen(p), FALSE);
-        gbuffer_decref(gbuf);
-        if(!jn_record) {
-            gobj_log_critical(gobj, 0, // Let continue, will be a message lost
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "Bad data, anystring2json() FAILED.",
-                "topic",        "%s", tranger2_topic_name(topic),
-                "__t__",        "%lu", (unsigned long)md_record_ex->__t__,
-                "__size__",     "%lu", (unsigned long)md_record_ex->__size__,
-                "__offset__",   "%lu", (unsigned long)md_record_ex->__offset__,
-                NULL
-            );
-            return NULL;
-        }
+    }
+
+    gbmem_free(p);
+
+    if(!jn_record) {
+        gobj_log_critical(gobj, 0, // Let continue, will be a message lost
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "Bad data, anystring2json() FAILED.",
+            "topic",        "%s", tranger2_topic_name(topic),
+            "__t__",        "%lu", (unsigned long)md_record_ex->__t__,
+            "__size__",     "%lu", (unsigned long)md_record_ex->__size__,
+            "__offset__",   "%lu", (unsigned long)md_record_ex->__offset__,
+            NULL
+        );
+        return NULL;
     }
 
     return jn_record;
