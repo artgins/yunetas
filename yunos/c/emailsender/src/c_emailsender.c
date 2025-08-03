@@ -85,6 +85,7 @@ SDATA (DTP_STRING,      "test_email",           SDF_PERSIST|SDF_WR,     "",     
 
 SDATA (DTP_INTEGER,     "send",                 SDF_STATS,              0,      "Emails send"),
 SDATA (DTP_INTEGER,     "sent",                 SDF_STATS,              0,      "Emails sent"),
+SDATA (DTP_INTEGER,     "pending_acks",         SDF_STATS,              0,      "Pending acks"),
 SDATA (DTP_BOOLEAN,     "disable_alarm_emails", SDF_PERSIST|SDF_WR,     0,      "True to don't send alarm emails"),
 
 SDATA (DTP_STRING,      "tranger_path",         SDF_RD,                 "",     "tranger path"),
@@ -302,6 +303,9 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     } else if(strcmp(name, "sent")==0) {
         v.found = 1;
         v.v.i = priv->sent;
+    } else if(strcmp(name, "pending_acks")==0) {
+        v.found = 1;
+        v.v.i = priv->pending_acks;
     }
 
     return v;
