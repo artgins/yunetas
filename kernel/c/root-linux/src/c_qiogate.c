@@ -24,9 +24,6 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-enum {
-    MARK_PENDING_ACK = 1, // TODO debería ser configurable
-};
 
 /***************************************************************************
  *              Structures
@@ -688,7 +685,7 @@ PRIVATE q_msg_t *enqueue_message(
 }
 
 /***************************************************************************
- *  Resetea los timeout_ack y los MARK_PENDING_ACK
+ *  Resetea los timeout_ack y los TRQ_MSG_PENDING
  ***************************************************************************/
 PRIVATE int reset_soft_queue(hgobj gobj)
 {
@@ -697,7 +694,7 @@ PRIVATE int reset_soft_queue(hgobj gobj)
     if(priv->trq_msgs) { // 0 if not running
         q_msg_t *msg;
         qmsg_foreach_forward(priv->trq_msgs, msg) {
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
+            trq_set_soft_mark(msg, TRQ_MSG_PENDING, FALSE);
         }
     }
     priv->pending_acks = 0;
@@ -764,13 +761,13 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
         }
 
         /*
-         *  Check: no send if the previous to last has no MARK_PENDING_ACK
+         *  Check: no send if the previous to last has no TRQ_MSG_PENDING
          *  (the last is this message)
          */
         q_msg_t *last_msg = trq_last_msg(priv->trq_msgs);
         q_msg_t *prev_last_msg = trq_prev_msg(last_msg);
         if(prev_last_msg) {
-            if(!(trq_get_soft_mark(prev_last_msg) & MARK_PENDING_ACK)) {
+            if(!(trq_get_soft_mark(prev_last_msg) & TRQ_MSG_PENDING)) {
                 if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
                     gobj_trace_msg(gobj, "     (1) xxx - rowid %"PRIu64", t %"PRIu64"", rowid, t);
                 }
@@ -784,7 +781,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
             }
             send_message_to_bottom_side(gobj, msg);
             priv->pending_acks++;
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, TRUE);
+            trq_set_soft_mark(msg, TRQ_MSG_PENDING, TRUE);
             return 1; // Sent one message
 
         } else {
@@ -818,16 +815,16 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
             gobj_trace_msg(gobj, "     ( )     - rowid %"PRIu64", t %"PRIu64", pending_acks %d", rowid, t, priv->pending_acks);
         }
 
-        if((trq_get_soft_mark(msg) & MARK_PENDING_ACK)) {
+        if((trq_get_soft_mark(msg) & TRQ_MSG_PENDING)) {
             /*
-             *  with MARK_PENDING_ACK
+             *  with TRQ_MSG_PENDING
              */
             if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
                 gobj_trace_msg(gobj, "     (X)     - rowid %"PRIu64", t %"PRIu64", sent %d", rowid, t, sent);
             }
         } else {
             /*
-             *  Send new msgs without MARK_PENDING_ACK
+             *  Send new msgs without TRQ_MSG_PENDING
              */
             if(priv->max_pending_acks==0 ||  priv->pending_acks < priv->max_pending_acks) {
                 if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
@@ -836,7 +833,7 @@ PRIVATE int send_batch_messages(hgobj gobj, q_msg_t *msg)
                 send_message_to_bottom_side(gobj, msg);
                 sent++;
                 priv->pending_acks++;
-                trq_set_soft_mark(msg, MARK_PENDING_ACK, TRUE);
+                trq_set_soft_mark(msg, TRQ_MSG_PENDING, TRUE);
             } else {
                 // Max pending reached
                 if(gobj_trace_level(gobj) & TRACE_QUEUE_PROT) {
@@ -872,8 +869,8 @@ PRIVATE int dequeue_msg(
             gobj_trace_msg(gobj, "     ( ) <-  - rowid %"PRIu64", t %"PRIu64" ACK", rowid, tt);
         }
 
-        if((trq_get_soft_mark(msg) & MARK_PENDING_ACK)) {
-            trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
+        if((trq_get_soft_mark(msg) & TRQ_MSG_PENDING)) {
+            trq_set_soft_mark(msg, TRQ_MSG_PENDING, FALSE);
 
             if (priv->pending_acks > 0) {
                 priv->pending_acks--;
@@ -1019,7 +1016,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(src == priv->gobj_bottom_side) {
         clear_timeout(priv->timer);     // Active only when bottom side is open
         priv->bottom_side_opened = FALSE;
-        reset_soft_queue(gobj); // Resetea los timeout_ack y los MARK_PENDING_ACK
+        reset_soft_queue(gobj); // Resetea los timeout_ack y los TRQ_MSG_PENDING
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

@@ -18,9 +18,6 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-enum {
-    MARK_PENDING_ACK = 1, // TODO debería ser configurable
-};
 
 /***************************************************************************
  *              Structures
@@ -661,7 +658,7 @@ PRIVATE q_msg_t *enqueue_failing_message(
 }
 
 /***************************************************************************
- *  Resetea los timeout_ack y los MARK_PENDING_ACK
+ *  Resetea los timeout_ack y los TRQ_MSG_PENDING
  ***************************************************************************/
 // PRIVATE int reset_soft_queue(hgobj gobj)
 // {
@@ -670,7 +667,7 @@ PRIVATE q_msg_t *enqueue_failing_message(
 //     if(priv->trq_emails_queue) { // 0 if not running
 //         q_msg_t *msg;
 //         qmsg_foreach_forward(priv->trq_emails_queue, msg) {
-//             trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
+//             trq_set_soft_mark(msg, TRQ_MSG_PENDING, FALSE);
 //         }
 //     }
 //     priv->pending_acks = 0;
@@ -689,27 +686,24 @@ PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result)
     if(result < 0) {
         // Error already logged
         gobj_trace_msg(gobj, "EMAIL NOT SENT to %s", priv->url);
-        enqueue_failing_message(gobj, msg);
-
+        // enqueue_failing_message(gobj, msg);
     } else {
         gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
         priv->sent++;
-
-        trq_set_soft_mark(msg, MARK_PENDING_ACK, FALSE);
-
-        if (priv->pending_acks > 0) {
-            priv->pending_acks--;
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "pending_acks ZERO or NEGATIVE",
-                "pending_acks", "%ld", (unsigned long) priv->pending_acks,
-                NULL
-            );
-        }
-        trq_unload_msg(msg, result);
     }
+
+    if (priv->pending_acks > 0) {
+        priv->pending_acks--;
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "pending_acks ZERO or NEGATIVE",
+            "pending_acks", "%ld", (unsigned long) priv->pending_acks,
+            NULL
+        );
+    }
+    trq_unload_msg(msg, result);
 
     gobj_change_state(gobj, ST_IDLE);
     set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
@@ -803,6 +797,8 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+print_json2("KW", kw);
+
     if(!priv->sd_cur_email) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -814,6 +810,8 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
         KW_DECREF(kw);
         return -1;
     }
+
+    priv->pending_acks++;
 
     q_msg_t *qmsg = priv->sd_cur_email;
     priv->sd_cur_email = NULL;
@@ -932,7 +930,6 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
     }
 
-    priv->pending_acks++;
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
     int result = gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj); // Synchronous response
 
