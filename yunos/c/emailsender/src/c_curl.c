@@ -185,17 +185,26 @@ PRIVATE int mt_stop(hgobj gobj)
 /*--------------------------------------*
  *      Progress callback
  *--------------------------------------*/
-static int progress_callback(hgobj gobj,
-    curl_off_t dltotal, curl_off_t dlnow,
-    curl_off_t ultotal, curl_off_t ulnow
-) {
-    if(gobj_trace_level(gobj) & TRACE_CURL) {
-        if(ultotal > 0) {
-            double percent = ((double)ulnow / (double)ultotal) * 100.0;
-            trace_msg0("Upload progress: %.2f%%", percent);
-        }
+static int debug_callback(CURL *handle,
+    curl_infotype type,
+    char *data,
+    size_t size,
+    hgobj gobj
+)
+{
+    const char *text;
+    switch (type) {
+        case CURLINFO_TEXT:         text = "INFO"; break;
+        case CURLINFO_HEADER_IN:    text = "HEADER_IN"; break;
+        case CURLINFO_HEADER_OUT:   text = "HEADER_OUT"; break;
+        case CURLINFO_DATA_IN:      text = "DATA_IN"; break;
+        case CURLINFO_DATA_OUT:     text = "DATA_OUT"; break;
+        default:                    text = "OTHER"; break;
     }
-    return 0;
+
+    trace_msg0("[%s] %.*s", text, (int)size, data);
+
+    return 0;  // return nonzero to abort transfer
 }
 
 /*--------------------------------------*
@@ -391,7 +400,12 @@ PRIVATE int send_email(
     curl_slist_free_all(bcc_list);
 
     if(!rcpt_list) {
-        fprintf(stderr, "No valid recipients found\n");
+        gobj_log_error(0, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "No valid recipients found",
+            NULL
+        );
         goto cleanup;
     }
 
@@ -407,8 +421,19 @@ PRIVATE int send_email(
 retry_send:
     curl = curl_easy_init();
     if(!curl) {
-        fprintf(stderr, "curl_easy_init() failed\n");
+        gobj_log_error(0, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "curl_easy_init() failed",
+            NULL
+        );
         goto cleanup;
+    }
+
+    if(gobj_trace_level(gobj) & TRACE_CURL) {
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, debug_callback);
+        curl_easy_setopt(curl, CURLOPT_DEBUGDATA, gobj);
     }
 
     curl_easy_setopt(curl, CURLOPT_URL, smtp_url);
@@ -531,24 +556,30 @@ retry_send:
     headers = curl_slist_append(headers, "MIME-Version: 1.0");
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-    if(gobj_trace_level(gobj) & TRACE_CURL) {
-        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
-        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
-        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, gobj);
-    }
-
     res = curl_easy_perform(curl);
 
     if(res != CURLE_OK) {
         long response_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
-        fprintf(stderr, "\nSend attempt %d failed: %s (SMTP code %ld)\n",
-                attempt + 1, curl_easy_strerror(res), response_code);
+        gobj_log_error(0, 0,
+            "function", "%s", __FUNCTION__,
+            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+            "msg",      "%s", "Send attempt failed",
+            "try",      "%d", attempt + 1,
+            "serror",   "%s", curl_easy_strerror(res),
+            "SMTP code","%ld", response_code,
+            NULL
+        );
 
         if(attempt < MAX_RETRIES && (response_code == 421 || response_code == 450)) {
             int backoff = INITIAL_BACKOFF << attempt;
-            fprintf(stderr, "Retrying in %d seconds...\n", backoff);
+            gobj_log_error(0, 0,
+                "function", "%s", __FUNCTION__,
+                "msgset",   "%s", MSGSET_INTERNAL_ERROR,
+                "msg",      "%s", "Retrying in seconds...",
+                "seconds",  "%d", backoff,
+                NULL
+            );
             sleep(backoff);
             if(mime) { curl_mime_free(mime); mime = NULL; }
             if(headers) { curl_slist_free_all(headers); headers = NULL; }
@@ -571,7 +602,6 @@ cleanup:
     free_string_list(&inline_images, &inline_count);
     free_string_list(&attachments, &attach_count);
 
-    fprintf(stderr, "\n");
     return ret;
 }
 

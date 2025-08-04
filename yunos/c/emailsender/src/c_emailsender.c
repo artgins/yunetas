@@ -682,16 +682,28 @@ PRIVATE q_msg_t *enqueue_failing_message(
 /***************************************************************************
  *  Enqueue failing message
  ***************************************************************************/
-PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result)
+PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result, const char *to)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(result < 0) {
         // Error already logged
-        gobj_trace_msg(gobj, "EMAIL NOT SENT to %s", priv->url);
+        gobj_log_error(gobj, 0,
+            "msgset",   "%s", MSGSET_APP_ERROR,
+            "msg",      "%s", "email NOT sent",
+            "to",       "%s", to,
+            "url",      "%s", priv->url,
+            NULL
+        );
         enqueue_failing_message(gobj, msg);
     } else {
-        gobj_trace_msg(gobj, "EMAIL SENT to %s", priv->url);
+        gobj_log_info(gobj, 0,
+            "msgset",   "%s", MSGSET_INFO,
+            "msg",      "%s", "email sent",
+            "to",       "%s", to,
+            "url",      "%s", priv->url,
+            NULL
+        );
         priv->sent++;
     }
 
@@ -702,6 +714,7 @@ PRIVATE int process_curl_response(hgobj gobj, q_msg_t *msg, int result)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "pending_acks ZERO or NEGATIVE",
+            "to",           "%s", to,
             "pending_acks", "%ld", (unsigned long) priv->pending_acks,
             NULL
         );
@@ -842,7 +855,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             NULL
         );
 
-        process_curl_response(gobj, qmsg, -1);
+        process_curl_response(gobj, qmsg, -1, to);
 
         set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
@@ -857,7 +870,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             NULL
         );
 
-        process_curl_response(gobj, qmsg, -1);
+        process_curl_response(gobj, qmsg, -1, to);
 
         set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
@@ -895,7 +908,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
             NULL
         );
 
-        process_curl_response(gobj, qmsg, -1);
+        process_curl_response(gobj, qmsg, -1, to);
 
         set_timeout(priv->timer, priv->timeout_dequeue); // pull from queue, QUICK
         KW_DECREF(kw);
@@ -934,7 +947,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
     int result = gobj_send_event(priv->curl, EV_CURL_COMMAND, kw_curl, gobj); // Synchronous response
 
-    process_curl_response(gobj, qmsg, result);
+    process_curl_response(gobj, qmsg, result, to);
 
     KW_DECREF(kw);
     return 0;
@@ -952,7 +965,7 @@ PRIVATE int ac_curl_response(hgobj gobj, const char *event, json_t *kw, hgobj sr
     // TODO future case, to get response from another yuno, recover the msg
     q_msg_t *qmsg = priv->sd_cur_email;
     priv->sd_cur_email = NULL;
-    process_curl_response(gobj, qmsg, result);
+    process_curl_response(gobj, qmsg, result, "");
 
     KW_DECREF(kw);
     return 0;
