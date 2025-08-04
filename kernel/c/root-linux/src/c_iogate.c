@@ -13,7 +13,6 @@
 #include "msg_ievent.h"
 #include "c_timer.h"
 #include "c_channel.h"
-#include "c_ievent_srv.h"
 #include "c_iogate.h"
 
 /***************************************************************************
@@ -357,8 +356,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
     if(empty_string(channel)) {
         hgobj child = gobj_first_child(gobj);
         while(child) {
-            // TODO review the order channel-ievent_srv in the tree
-            if(gobj_gclass_name(child) == C_CHANNEL || gobj_gclass_name(child) == C_IEVENT_SRV) {
+            if(gobj_gclass_name(child) == C_CHANNEL) {
                 if(opened) {
                     if(gobj_read_bool_attr(child, "opened")) {
                         add_child_to_data(gobj, jn_data, child);
@@ -385,8 +383,7 @@ PRIVATE json_t *cmd_view_channels(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
         hgobj child = gobj_first_child(gobj);
         while(child) {
-            // TODO review the order channel-ievent_srv in the tree
-            if(gobj_gclass_name(child) == C_CHANNEL || gobj_gclass_name(child) == C_IEVENT_SRV) {
+            if(gobj_gclass_name(child) == C_CHANNEL) {
                 const char *name = gobj_name(child);
                 if(regexec(&_re_name, name, 0, 0, 0)!=0) {
                     continue;
