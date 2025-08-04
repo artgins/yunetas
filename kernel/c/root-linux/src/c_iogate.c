@@ -1042,7 +1042,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *  Server, receiving a IEvent inter-event to publish.
  ***************************************************************************/
-PRIVATE int ac_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -1304,7 +1304,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_ON_MESSAGE,         ac_on_message,      0},
         {EV_SEND_MESSAGE,       ac_send_message,    0},
-        {EV_ON_IEV_MESSAGE,     ac_iev_message,     0},
+        {EV_ON_IEV_MESSAGE,     ac_on_iev_message,  0},
         {EV_SEND_IEV,           ac_send_iev,        0},
         {EV_ON_COMMAND,         ac_on_message,      0},
         {EV_ON_ID,              ac_on_message,      0},

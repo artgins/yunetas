@@ -323,6 +323,32 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(
+            gobj,
+            kw, // not own
+            "%s", gobj_short_name(src)
+        );
+    }
+    priv->rxMsgs++;
+
+    /*
+     *  CHILD subscription model
+     */
+    if(gobj_is_service(gobj)) {
+        return gobj_publish_event(gobj, event, kw);  // reuse kw
+    } else {
+        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int ac_on_id(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -521,6 +547,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     ev_action_t st_opened[] = {
         {EV_ON_MESSAGE,         ac_on_message,      0},
+        {EV_ON_IEV_MESSAGE,     ac_on_iev_message,  0},
         {EV_SEND_MESSAGE,       ac_send_message,    0},
         {EV_ON_ID,              ac_on_id,           0},
         {EV_ON_ID_NAK,          ac_on_id_nak,       0},
@@ -539,6 +566,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
+        {EV_ON_IEV_MESSAGE,         EVF_OUTPUT_EVENT},
         {EV_SEND_MESSAGE,           0},
         {EV_ON_ID,                  EVF_OUTPUT_EVENT},
         {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},

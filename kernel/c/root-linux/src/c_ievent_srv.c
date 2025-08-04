@@ -1340,7 +1340,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         } else {
             gobj_send_event(
                 priv->subscriber,
-                EV_ON_IEV_MESSAGE, //EV_IEV_MESSAGE, TODO check
+                EV_ON_IEV_MESSAGE,
                 jn_iev,
                 gobj
             );
@@ -1805,11 +1805,12 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,             0},
+        {EV_ON_IEV_MESSAGE,         EVF_OUTPUT_EVENT},
         {EV_MT_COMMAND_ANSWER,      0},
         {EV_MT_COMMAND,             EVF_PUBLIC_EVENT},
         {EV_MT_STATS,               EVF_PUBLIC_EVENT},
-        {EV_ON_OPEN,                EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_ON_OPEN,                EVF_OUTPUT_EVENT}, // |EVF_NO_WARN_SUBS
+        {EV_ON_CLOSE,               EVF_OUTPUT_EVENT}, // |EVF_NO_WARN_SUBS
         {EV_IDENTITY_CARD,          EVF_PUBLIC_EVENT},
         {EV_GOODBYE,                EVF_PUBLIC_EVENT},
         {EV_REMOTE_LOG,             EVF_PUBLIC_EVENT},
