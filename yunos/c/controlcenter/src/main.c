@@ -5,6 +5,7 @@
  *          Control Center of Yuneta Systems
  *
  *          Copyright (c) 2020 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
