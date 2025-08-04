@@ -157,7 +157,7 @@ PRIVATE char variable_config[]= "\
                                     'op': 'find',                       \n\
                                     'kw': {                                 \n\
                                         '__prefix_gobj_name__': 'wss',      \n\
-                                        '__gclass_name__': 'C_IEVENT_SRV',  \n\
+                                        '__gclass_name__': 'C_CHANNEL',     \n\
                                         '__disabled__': false,              \n\
                                         'connected': false                  \n\
                                     }                                       \n\
@@ -166,18 +166,18 @@ PRIVATE char variable_config[]= "\
                         }                                               \n\
                     ],                                                  \n\
                     '[^^children^^]': {                                  \n\
-                        '__range__': [[0,1]], #^^ TODO 0,300 max 300 users     \n\
+                        '__range__': [[0,300]], #^^ max 300 users     \n\
                         '__vars__': {                                   \n\
                         },                                              \n\
                         '__content__': {                                \n\
-                            'name': 'wss-(^^__range__^^)',                  \n\
-                            'gclass': 'C_IEVENT_SRV',                         \n\
+                            'name': 'wss-(^^__range__^^)',              \n\
+                            'gclass': 'C_CHANNEL',                         \n\
                             'kw': {                                         \n\
                             },                                              \n\
                             'children': [                                     \n\
                                 {                                               \n\
                                     'name': 'wss-(^^__range__^^)',              \n\
-                                    'gclass': 'C_CHANNEL',                        \n\
+                                    'gclass': 'C_IEVENT_SRV',                       \n\
                                     'kw': {                                         \n\
                                     },                                              \n\
                                     'children': [                                     \n\
