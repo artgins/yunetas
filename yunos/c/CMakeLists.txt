@@ -19,7 +19,7 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-#add_subdirectory(controlcenter)
+add_subdirectory(controlcenter)
 #add_subdirectory(dba_postgres)
 add_subdirectory(emailsender)
 #add_subdirectory(emu_device)
