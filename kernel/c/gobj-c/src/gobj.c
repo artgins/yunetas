@@ -7522,7 +7522,7 @@ PRIVATE int cb_send_event_if_in(hgobj child, void *user_data, void *user_data2, 
 }
 PUBLIC int gobj_send_event_to_children(  // Send the event to all children of first level supporting the event
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw,
     hgobj src)
 {
@@ -7548,7 +7548,7 @@ PUBLIC int gobj_send_event_to_children(  // Send the event to all children of fi
  ***************************************************************************/
 PUBLIC int gobj_send_event_to_children_tree(
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw,
     hgobj src)
 {

@@ -120,6 +120,8 @@ New API
     total_ram_in_kb
     gbuffer_setaddr, gbuffer_getaddr
     kw_serialize_to_string
+    gobj_send_event_to_children
+    gobj_send_event_to_children_tree
 
 Delete API
 

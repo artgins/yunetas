@@ -867,159 +867,159 @@ PRIVATE json_t *cmd_drop_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj s
 
 
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int process_msg(
-    hgobj gobj,
-    json_t *kw,  // NOT owned
-    hgobj src
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    const char *id = kw_get_str(gobj, kw, "id", "", KW_REQUIRED);
-    if(empty_string(id)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Message without id",
-            NULL
-        );
-        gobj_trace_json(gobj, kw, "Message without id");
-        return 0; // que devuelva ack para que borre el msg
-    }
-
-    /*--------------------------------*
-     *  Get device of track
-     *  Create it if not exist
-     *--------------------------------*/
-    json_t *device = gobj_get_node(
-        priv->gobj_treedb_controlcenter,
-        "devices",
-        json_incref(kw),
-        0,
-        src
-    );
-
-    if(!device) {
-        /*
-         *  Nuevo device, crea registro
-         */
-        time_t t;
-        time(&t);
-        BOOL enabled_new_devices = gobj_read_bool_attr(gobj, "enabled_new_devices");
-        json_t *jn_device = json_pack("{s:s, s:s, s:b, s:{}, s:s, s:I}",
-            "id", id,
-            "name", id,
-            "enabled", enabled_new_devices,
-            "properties",
-            "yuno", kw_get_str(gobj, kw, "yuno", "", 0),
-            "time", (json_int_t)t
-        );
-
-        device = gobj_create_node(
-            priv->gobj_treedb_controlcenter,
-            "devices",
-            jn_device,
-            0,
-            src
-        );
-    }
-
-    if(!device) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Device ???",
-            NULL
-        );
-        return 0; // que devuelva ack para que borre el msg
-    }
-
-    /*
-     *  Actualiza nombre si ha cambiado en el dispositivo
-     */
-    const char *old_name = kw_get_str(gobj, device, "name", "", 0);
-    if(empty_string(old_name)) {
-        old_name = id;
-    }
-
-    /*---------------------*
-     *      Free device
-     *---------------------*/
-    JSON_DECREF(device);
-
-    return 0;
-}
-
-/***************************************************************************
- *  Todo child debería tener data, device solo si es
- ***************************************************************************/
-PRIVATE int add_devices_callback(
-    json_t *parent, // not owned
-    json_t *node, // not owned
-    void *user_data
-)
-{
-    hgobj gobj = user_data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *data = kw_get_list(gobj, node, "data", 0, 0);
-    if(!data) {
-        // Must be a device added to "data"
-        return 0;
-    }
-
-    // Add id as value (for webix tree pattern)
-    json_object_set_new(
-        node,
-        "value",
-        json_string(
-            kw_get_str(gobj, node, "id", "", KW_REQUIRED)
-        )
-    );
-
-    json_t *devices = kw_get_list(gobj, node, "devices", 0, KW_REQUIRED|KW_EXTRACT);
-    if(json_array_size(devices)==0) {
-        json_object_set_new( // Open pure groups by default
-            node,
-            "open",
-            json_true()
-        );
-    }
-
-    int idx; json_t *jn_device;
-    json_array_foreach(devices, idx, jn_device) {
-        const char *id = kw_get_str(gobj, jn_device, "id", "", KW_REQUIRED);
-        json_t *device = gobj_get_node(
-            priv->gobj_treedb_controlcenter,
-            "devices",
-            json_pack("{s:s}",
-                "id", id
-            ),
-            json_pack("{s:b}", "list_dict", 1),  // fkey,hook options
-            gobj
-        );
-        json_object_set_new(device, "device", json_true()); // Marca como device
-
-        // Add name as value (for webix tree pattern)
-        json_object_set_new(
-            device,
-            "value",
-            json_string(
-                kw_get_str(gobj, device, "name", "", KW_REQUIRED)
-            )
-        );
-
-        json_array_append_new(data, device); // Añade el device a "data"
-        add_jtree_path(node, device); // Crea __path__
-    }
-
-    json_decref(devices);
-
-    return 0;
-}
+// /***************************************************************************
+//  *
+//  ***************************************************************************/
+// PRIVATE int process_msg(
+//     hgobj gobj,
+//     json_t *kw,  // NOT owned
+//     hgobj src
+// )
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     const char *id = kw_get_str(gobj, kw, "id", "", KW_REQUIRED);
+//     if(empty_string(id)) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msg",          "%s", "Message without id",
+//             NULL
+//         );
+//         gobj_trace_json(gobj, kw, "Message without id");
+//         return 0; // que devuelva ack para que borre el msg
+//     }
+//
+//     /*--------------------------------*
+//      *  Get device of track
+//      *  Create it if not exist
+//      *--------------------------------*/
+//     json_t *device = gobj_get_node(
+//         priv->gobj_treedb_controlcenter,
+//         "devices",
+//         json_incref(kw),
+//         0,
+//         src
+//     );
+//
+//     if(!device) {
+//         /*
+//          *  Nuevo device, crea registro
+//          */
+//         time_t t;
+//         time(&t);
+//         BOOL enabled_new_devices = gobj_read_bool_attr(gobj, "enabled_new_devices");
+//         json_t *jn_device = json_pack("{s:s, s:s, s:b, s:{}, s:s, s:I}",
+//             "id", id,
+//             "name", id,
+//             "enabled", enabled_new_devices,
+//             "properties",
+//             "yuno", kw_get_str(gobj, kw, "yuno", "", 0),
+//             "time", (json_int_t)t
+//         );
+//
+//         device = gobj_create_node(
+//             priv->gobj_treedb_controlcenter,
+//             "devices",
+//             jn_device,
+//             0,
+//             src
+//         );
+//     }
+//
+//     if(!device) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msg",          "%s", "Device ???",
+//             NULL
+//         );
+//         return 0; // que devuelva ack para que borre el msg
+//     }
+//
+//     /*
+//      *  Actualiza nombre si ha cambiado en el dispositivo
+//      */
+//     const char *old_name = kw_get_str(gobj, device, "name", "", 0);
+//     if(empty_string(old_name)) {
+//         old_name = id;
+//     }
+//
+//     /*---------------------*
+//      *      Free device
+//      *---------------------*/
+//     JSON_DECREF(device);
+//
+//     return 0;
+// }
+//
+// /***************************************************************************
+//  *  Todo child debería tener data, device solo si es
+//  ***************************************************************************/
+// PRIVATE int add_devices_callback(
+//     json_t *parent, // not owned
+//     json_t *node, // not owned
+//     void *user_data
+// )
+// {
+//     hgobj gobj = user_data;
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     json_t *data = kw_get_list(gobj, node, "data", 0, 0);
+//     if(!data) {
+//         // Must be a device added to "data"
+//         return 0;
+//     }
+//
+//     // Add id as value (for webix tree pattern)
+//     json_object_set_new(
+//         node,
+//         "value",
+//         json_string(
+//             kw_get_str(gobj, node, "id", "", KW_REQUIRED)
+//         )
+//     );
+//
+//     json_t *devices = kw_get_list(gobj, node, "devices", 0, KW_REQUIRED|KW_EXTRACT);
+//     if(json_array_size(devices)==0) {
+//         json_object_set_new( // Open pure groups by default
+//             node,
+//             "open",
+//             json_true()
+//         );
+//     }
+//
+//     int idx; json_t *jn_device;
+//     json_array_foreach(devices, idx, jn_device) {
+//         const char *id = kw_get_str(gobj, jn_device, "id", "", KW_REQUIRED);
+//         json_t *device = gobj_get_node(
+//             priv->gobj_treedb_controlcenter,
+//             "devices",
+//             json_pack("{s:s}",
+//                 "id", id
+//             ),
+//             json_pack("{s:b}", "list_dict", 1),  // fkey,hook options
+//             gobj
+//         );
+//         json_object_set_new(device, "device", json_true()); // Marca como device
+//
+//         // Add name as value (for webix tree pattern)
+//         json_object_set_new(
+//             device,
+//             "value",
+//             json_string(
+//                 kw_get_str(gobj, device, "name", "", KW_REQUIRED)
+//             )
+//         );
+//
+//         json_array_append_new(data, device); // Añade el device a "data"
+//         add_jtree_path(node, device); // Crea __path__
+//     }
+//
+//     json_decref(devices);
+//
+//     return 0;
+// }
 
 
 

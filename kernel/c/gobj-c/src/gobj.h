@@ -1424,13 +1424,13 @@ PUBLIC int gobj_send_event(
 
 PUBLIC int gobj_send_event_to_children(  // Send the event to all children of first level supporting the event
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw,
     hgobj src
 );
 PUBLIC int gobj_send_event_to_children_tree( // same as gobj_send_event_to_children but recursive
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw,
     hgobj src
 );

@@ -148,7 +148,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     gobj_send_event(gobj, "EV_PAINT", 0, gobj);
-    gobj_start_childs(gobj);
+    gobj_start_children(gobj);
     return 0;
 }
 
@@ -157,7 +157,7 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
     return 0;
 }
 
@@ -320,7 +320,7 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "x", x,
         "y", y
     );
-    gobj_send_event_to_childs(gobj, "EV_MOVE", kw_move, gobj);
+    gobj_send_event_to_children(gobj, "EV_MOVE", kw_move, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -354,7 +354,7 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "cx", cx,
         "cy", cy
     );
-    gobj_send_event_to_childs(gobj, "EV_SIZE", kw_size, gobj);
+    gobj_send_event_to_children(gobj, "EV_SIZE", kw_size, gobj);
 
     KW_DECREF(kw);
     return 0;

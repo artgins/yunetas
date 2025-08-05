@@ -12,6 +12,8 @@
 #include <ncurses/panel.h>
 #include "c_wn_layout.h"
 
+#include "c_wn_stdscr.h"
+
 /***********************************************************************
  *  layout_type: 'vertical' -> the elements are blocks
  *               'horizontal' -> the elements are inline-blocks
@@ -103,8 +105,8 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "layout_type",          0,  "vertical", "Layout 'vertical' or 'horizontal"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (DTP_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
-SDATA (DTP_INTEGER,     "cy",                   0,  1, "physical height window size"),
+SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
 SDATA (DTP_STRING,      "bg_color",             0,  "cyan", "Background color"),
 SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
@@ -213,7 +215,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     gobj_send_event(gobj, "EV_PAINT", 0, gobj);
-    gobj_start_childs(gobj);
+    gobj_start_children(gobj);
     return 0;
 }
 
@@ -222,7 +224,7 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
     return 0;
 }
 
@@ -324,7 +326,7 @@ PRIVATE int fix_child_sizes(hgobj gobj)
 
     for(int i=0; i<ln; i++) {
         hgobj child;
-        gobj_child_by_index(gobj, i+1, &child);
+        child = gobj_child_by_index(gobj, i+1);
         if(gobj_is_destroying(child)) {
             continue;
         }
@@ -366,7 +368,7 @@ PRIVATE int fix_child_sizes(hgobj gobj)
         int partial_height = 0;
         for(int i=0; i<ln; i++) {
             hgobj child;
-            gobj_child_by_index(gobj, i+1, &child);
+            child = gobj_child_by_index(gobj, i+1);
             if(gobj_is_destroying(child)) {
                 continue;
             }
@@ -405,7 +407,7 @@ PRIVATE int fix_child_sizes(hgobj gobj)
         int partial_width = 0;
         for(int i=0; i<ln; i++) {
             hgobj child;
-            gobj_child_by_index(gobj, i+1, &child);
+            child = gobj_child_by_index(gobj, i+1);
             if(gobj_is_destroying(child)) {
                 continue;
             }
@@ -414,7 +416,7 @@ PRIVATE int fix_child_sizes(hgobj gobj)
             if (width_flexs[i]) {
                 new_width = arepartir * width_flexs[i];
             } else {
-                new_width = gobj_read_integer_attr(child, "w");
+                new_width = (int)gobj_read_integer_attr(child, "w");
             }
             new_height = parent_height;
 
@@ -518,7 +520,7 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "x", x,
         "y", y
     );
-    gobj_send_event_to_childs(gobj, "EV_MOVE", kw_move, gobj);
+    gobj_send_event_to_children(gobj, "EV_MOVE", kw_move, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -577,6 +579,11 @@ PRIVATE const GMETHODS gmt = {
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_WN_LAYOUT);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_DISABLED);
 
 /*------------------------*
  *      Events

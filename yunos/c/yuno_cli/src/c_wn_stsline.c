@@ -10,6 +10,8 @@
 #include <string.h>
 #include <ncurses/ncurses.h>
 #include <ncurses/panel.h>
+
+#include "c_wn_stdscr.h"
 #include "c_wn_stsline.h"
 
 /***************************************************************************
@@ -36,8 +38,8 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "text",                 0,  0, "Text of status line"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (DTP_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
-SDATA (DTP_INTEGER,     "cy",                   0,  1, "physical height window size"),
+SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
 SDATA (DTP_STRING,      "bg_color",             0,  "cyan", "Background color"),
 SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
@@ -345,6 +347,15 @@ PRIVATE const GMETHODS gmt = {
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_WN_STSLINE);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_DISABLED);
+
+/*------------------------*
+ *      Events
+ *------------------------*/
 
 /***************************************************************************
  *          Create the GClass

@@ -54,7 +54,7 @@ PRIVATE char __new_stdsrc_size__ = FALSE;
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (DTP_INTEGER,     "timeout",              0,  500, "Timeout, to detect size change in stdscr"),
+SDATA (DTP_INTEGER,     "timeout",              0,  "500", "Timeout, to detect size change in stdscr"),
 SDATA (DTP_INTEGER,     "cx",                   0,  0, "cx window size"),
 SDATA (DTP_INTEGER,     "cy",                   0,  0, "cy window size"),
 
@@ -182,9 +182,9 @@ PRIVATE int mt_start(hgobj gobj)
     json_t *jn_kw = json_object();
     json_object_set_new(jn_kw, "cx", json_integer(cx));
     json_object_set_new(jn_kw, "cy", json_integer(cy));
-    gobj_send_event_to_childs(gobj, "EV_SIZE", jn_kw, gobj);
+    gobj_send_event_to_children(gobj, "EV_SIZE", jn_kw, gobj);
 
-    gobj_start_childs(gobj);
+    gobj_start_children(gobj);
     //wrefresh(priv->wn);
 
     return 0;
@@ -198,7 +198,7 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     clear_timeout(priv->timer);
     gobj_stop(priv->timer);
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
     return 0;
 }
 
@@ -250,7 +250,7 @@ PRIVATE int get_color_pair(int fg, int bg)
 PRIVATE int get_color_id(const char *color)
 {
     int i;
-    int len = ARRAY_NSIZE(table_id);
+    int len = ARRAY_SIZE(table_id);
     for(i=0; i<len; i++) {
         if(strcasecmp(table_id[i].name, color)==0) {
             return table_id[i].id;
@@ -341,9 +341,9 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_object_set_new(jn_kw, "cy", json_integer(cy));
 
         json_incref(jn_kw);
-        gobj_send_event_to_childs(gobj, "EV_SIZE", jn_kw, gobj);
+        gobj_send_event_to_children(gobj, "EV_SIZE", jn_kw, gobj);
 
-        gobj_publish_event(gobj, "EV_SCREEN_SIZE_CHANGE", jn_kw);
+        gobj_publish_event(gobj, EV_SCREEN_SIZE_CHANGE, jn_kw);
     }
     KW_DECREF(kw);
     return 0;
@@ -373,6 +373,10 @@ GOBJ_DEFINE_GCLASS(C_WN_STDSCR);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_SETTEXT);
+GOBJ_DEFINE_EVENT(EV_MOVE);
+GOBJ_DEFINE_EVENT(EV_SIZE);
+GOBJ_DEFINE_EVENT(EV_PAINT);
 GOBJ_DEFINE_EVENT(EV_SCREEN_SIZE_CHANGE);
 
 /***************************************************************************
@@ -543,12 +547,12 @@ PUBLIC int DrawText(hgobj gobj, int x, int y, const char *s)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int cb_play(rc_instance_t *i_gobj, hgobj gobj, void *user_data, void *user_data2, void *user_data3)
+PRIVATE int cb_play(hgobj gobj, void *user_data, void *user_data2, void *user_data3)
 {
     gobj_play(gobj);
     return 0;
 }
-PRIVATE int cb_pause(rc_instance_t *i_gobj, hgobj gobj, void *user_data, void *user_data2, void *user_data3)
+PRIVATE int cb_pause(hgobj gobj, void *user_data, void *user_data2, void *user_data3)
 {
     gobj_pause(gobj);
     return 0;
@@ -556,10 +560,10 @@ PRIVATE int cb_pause(rc_instance_t *i_gobj, hgobj gobj, void *user_data, void *u
 PUBLIC int EnableWindow(hgobj gobj, BOOL enable)
 {
     if(enable) {
-        gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_play, 0, 0, 0);
+        gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_play, 0, 0, 0);
         // TODO send EV_ACTIVATE si es una window padre
     } else {
-        gobj_walk_gobj_childs_tree(gobj, WALK_TOP2BOTTOM, cb_pause, 0, 0, 0);
+        gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_pause, 0, 0, 0);
     }
     return 0;
 }

@@ -12,6 +12,8 @@
 #include <ncurses/panel.h>
 #include "c_wn_static.h"
 
+#include "c_wn_stdscr.h"
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
@@ -37,8 +39,8 @@ SDATA (DTP_INTEGER,     "w",                    0,  0, "logical witdh window siz
 SDATA (DTP_INTEGER,     "h",                    0,  0, "logical height window size"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (DTP_INTEGER,     "cx",                   0,  40, "physical witdh window size"),
-SDATA (DTP_INTEGER,     "cy",                   0,  1, "physical height window size"),
+SDATA (DTP_INTEGER,     "cx",                   0,  "40", "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
 SDATA (DTP_STRING,      "bg_color",             0,  "blue", "Background color"),
 SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
 SDATA (DTP_STRING,      "text",                 0,  0, "Text of status line"),
@@ -347,6 +349,11 @@ PRIVATE const GMETHODS gmt = {
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_WN_STATIC);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_DISABLED);
 
 /*------------------------*
  *      Events

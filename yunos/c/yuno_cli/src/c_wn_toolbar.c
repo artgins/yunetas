@@ -12,6 +12,8 @@
 #include <ncurses/panel.h>
 #include "c_wn_toolbar.h"
 
+#include "c_wn_stdscr.h"
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
@@ -37,8 +39,8 @@ PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "layout_type",          0,  "horizontal", "Layout 'vertical' or 'horizontal"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (DTP_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
-SDATA (DTP_INTEGER,     "cy",                   0,  1, "physical height window size"),
+SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
 SDATA (DTP_STRING,      "bg_color",             0,  "cyan", "Background color"),
 SDATA (DTP_STRING,      "fg_color",             0,  "black", "Foreground color"),
 SDATA (DTP_STRING,      "bgc_selected",         0,  "blue", "Background color"),
@@ -163,7 +165,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     gobj_send_event(gobj, "EV_PAINT", 0, gobj);
-    gobj_start_childs(gobj);
+    gobj_start_children(gobj);
     return 0;
 }
 
@@ -172,7 +174,7 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
     return 0;
 }
 
@@ -276,13 +278,13 @@ PRIVATE int fix_child_sizes(hgobj gobj)
 
     for(int i=0; i<ln; i++) {
         hgobj child;
-        gobj_child_by_index(gobj, i+1, &child);
+        child = gobj_child_by_index(gobj, i+1);
         if(gobj_is_destroying(child)) {
             continue;
         }
 
-        int child_width = gobj_read_integer_attr(child, "w");
-        int child_height = gobj_read_integer_attr(child, "h");
+        int child_width = (int)gobj_read_integer_attr(child, "w");
+        int child_height = (int)gobj_read_integer_attr(child, "h");
 
         /*
          *  height
@@ -319,7 +321,7 @@ PRIVATE int fix_child_sizes(hgobj gobj)
         int partial_height = 0;
         for(int i=0; i<ln; i++) {
             hgobj child;
-            gobj_child_by_index(gobj, i+1, &child);
+            child = gobj_child_by_index(gobj, i+1);
             if(gobj_is_destroying(child)) {
                 continue;
             }
@@ -358,7 +360,7 @@ PRIVATE int fix_child_sizes(hgobj gobj)
         int partial_width = 0;
         for(int i=0; i<ln; i++) {
             hgobj child;
-            gobj_child_by_index(gobj, i+1, &child);
+            child = gobj_child_by_index(gobj, i+1);
             if(gobj_is_destroying(child)) {
                 continue;
             }
@@ -501,10 +503,10 @@ PRIVATE int ac_set_selected_button(hgobj gobj, const char *event, json_t *kw, hg
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *selected = kw_get_str(gobj, kw, "selected", 0, KW_REQUIRED);
-    hgobj child = gobj_child_by_name(gobj, selected, 0);
+    hgobj child = gobj_child_by_name(gobj, selected);
     if(child) {
         if(!empty_string(priv->selected)) {
-            hgobj prev = gobj_child_by_name(gobj, priv->selected, 0);
+            hgobj prev = gobj_child_by_name(gobj, priv->selected);
             if(prev) {
                 gobj_write_str_attr(prev, "bg_color", priv->bg_color);
                 gobj_write_str_attr(prev, "fg_color", priv->fg_color);
@@ -527,15 +529,15 @@ PRIVATE int ac_set_selected_button(hgobj gobj, const char *event, json_t *kw, hg
 PRIVATE int ac_get_prev_selected_button(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    hgobj prev; rc_instance_t *i_prev;
+    hgobj prev;
 
-    prev = gobj_child_by_name(gobj, priv->selected, &i_prev);
+    prev = gobj_child_by_name(gobj, priv->selected);
     if(!prev) {
-        i_prev = gobj_first_child(gobj, &prev);
+        prev = gobj_first_child(gobj);
     } else {
-        i_prev = gobj_prev_child(i_prev, &prev);
+        prev = gobj_prev_child(prev);
         if(!prev) {
-            i_prev = gobj_first_child(gobj, &prev);
+            prev = gobj_first_child(gobj);
         }
     }
     if(prev) {
@@ -554,15 +556,15 @@ PRIVATE int ac_get_next_selected_button(hgobj gobj, const char *event, json_t *k
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    hgobj next; rc_instance_t *i_next;
+    hgobj next;
 
-    next = gobj_child_by_name(gobj, priv->selected, &i_next);
+    next = gobj_child_by_name(gobj, priv->selected);
     if(!next) {
-        i_next = gobj_first_child(gobj, &next);
+        next = gobj_first_child(gobj);
     } else {
-        i_next = gobj_next_child(i_next, &next);
+        next = gobj_next_child(next);
         if(!next) {
-            i_next = gobj_last_child(gobj, &next);
+            next = gobj_last_child(gobj);
         }
     }
 
@@ -599,6 +601,18 @@ PRIVATE const GMETHODS gmt = {
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_WN_TOOLBAR);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_DISABLED);
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_SET_SELECTED_BUTTON);
+GOBJ_DEFINE_EVENT(EV_GET_PREV_SELECTED_BUTTON);
+GOBJ_DEFINE_EVENT(EV_GET_NEXT_SELECTED_BUTTON);
 
 /***************************************************************************
  *          Create the GClass
@@ -645,8 +659,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     event_type_t event_types[] = {
         {EV_SET_SELECTED_BUTTON,       0},
-        {EV_GET_PREV_SELECTED_BUTTON,  EVF_KW_WRITING},
-        {EV_GET_NEXT_SELECTED_BUTTON,  EVF_KW_WRITING},
+        {EV_GET_PREV_SELECTED_BUTTON,  0},
+        {EV_GET_NEXT_SELECTED_BUTTON,  0},
         {EV_MOVE,                      0},
         {EV_SIZE,                      0},
         {EV_PAINT,                     0},

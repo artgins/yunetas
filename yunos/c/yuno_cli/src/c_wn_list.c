@@ -46,9 +46,9 @@ SDATA (DTP_INTEGER,     "w",                    0,  0, "logical witdh window siz
 SDATA (DTP_INTEGER,     "h",                    0,  0, "logical height window size"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (DTP_INTEGER,     "cx",                   0,  80, "physical witdh window size"),
-SDATA (DTP_INTEGER,     "cy",                   0,  1, "physical height window size"),
-SDATA (DTP_INTEGER,     "scroll_size",          0,  1000000, "scroll size. 0 is unlimited (until out of memory)"),
+SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
+SDATA (DTP_INTEGER,     "scroll_size",          0,  "1000000", "scroll size. 0 is unlimited (until out of memory)"),
 SDATA (DTP_STRING,      "bg_color",             0,  "blue", "Background color"),
 SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
@@ -148,7 +148,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
     //scrollok(priv->wn, true);
 
-    dl_init(&priv->dl_lines);
+    dl_init(&priv->dl_lines, gobj);
 }
 
 /***************************************************************************
@@ -175,7 +175,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     gobj_send_event(gobj, "EV_PAINT", 0, gobj);
-    gobj_start_childs(gobj);
+    gobj_start_children(gobj);
     return 0;
 }
 
@@ -184,7 +184,7 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    gobj_stop_childs(gobj);
+    gobj_stop_children(gobj);
     return 0;
 }
 
@@ -407,7 +407,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(strchr(text, '\n')) {
         int len = strlen(text);
-        gbuffer_t *gbuf = gbuffer_create(len, len, 0, 0);
+        gbuffer_t *gbuf = gbuffer_create(len, len);
         gbuffer_append(gbuf, (void *)text, len);
         if(gbuf) {
             char *s;
@@ -705,6 +705,11 @@ PRIVATE const GMETHODS gmt = {
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_WN_LIST);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_DISABLED);
 
 /*------------------------*
  *      Events

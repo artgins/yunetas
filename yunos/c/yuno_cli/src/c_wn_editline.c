@@ -120,6 +120,8 @@
 #include <unistd.h>
 #include <ncurses/ncurses.h>
 #include <ncurses/panel.h>
+
+#include "c_wn_stdscr.h"
 #include "c_wn_editline.h"
 
 /***************************************************************************
@@ -425,7 +427,7 @@ static int completeLine(PRIVATE_DATA *ls)
             }
 
             nread = read(STDIN_FILENO, &c, 1);
-            log_debug_printf(0, "kb x%X %c", c, c);
+            // trace_msg0("kb x%X %c", c, c);
             if (nread <= 0) {
                 freeCompletions(&lc);
                 return -1;
@@ -1290,6 +1292,11 @@ PRIVATE const GMETHODS gmt = {
 GOBJ_DEFINE_GCLASS(C_WN_EDITLINE);
 
 /*------------------------*
+ *      States
+ *------------------------*/
+GOBJ_DEFINE_STATE(ST_DISABLED);
+
+/*------------------------*
  *      Events
  *------------------------*/
 GOBJ_DEFINE_EVENT(EV_KEYCHAR);
@@ -1388,7 +1395,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_EDITLINE_SWAP_CHAR,      0},
         {EV_EDITLINE_DEL_LINE,       0},
         {EV_EDITLINE_DEL_PREV_WORD,  0},
-        {EV_GETTEXT,                 EVF_KW_WRITING},
+        {EV_GETTEXT,                 0},
         {EV_SETTEXT,                 0},
         {EV_KILLFOCUS,               0},
         {EV_SETFOCUS,                0},

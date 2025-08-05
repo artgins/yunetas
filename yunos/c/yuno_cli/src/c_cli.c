@@ -889,7 +889,7 @@ PRIVATE json_t *cmd_refresh(hgobj gobj, const char *command, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_send_event_to_childs_tree(priv->gwin_stdscr, "EV_PAINT", 0, gobj);
+    gobj_send_event_to_children_tree(priv->gwin_stdscr, "EV_PAINT", 0, gobj);
 
     return msg_iev_build_response(
         gobj,

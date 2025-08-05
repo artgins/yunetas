@@ -57,6 +57,11 @@ GOBJ_DECLARE_GCLASS(C_WN_STDSCR);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_SETTEXT);
+GOBJ_DECLARE_EVENT(EV_MOVE);
+GOBJ_DECLARE_EVENT(EV_SIZE);
+GOBJ_DECLARE_EVENT(EV_PAINT);
+GOBJ_DECLARE_EVENT(EV_SCREEN_SIZE_CHANGE);
 
 /***************************************************************
  *              Prototypes
