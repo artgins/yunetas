@@ -12,7 +12,19 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <pwd.h>
+#include <limits.h>
+
+#include "c_wn_box.h"
+#include "c_wn_editline.h"
+#include "c_wn_stsline.h"
+#include "c_wn_toolbar.h"
+#include "c_wn_layout.h"
+#include "c_wn_stdscr.h"
 #include "c_cli.h"
+
+#include "c_wn_list.h"
+#include "c_wn_static.h"
+
 
 /***************************************************************************
  *              Constants
@@ -86,9 +98,6 @@
  ***************************************************************************/
 PRIVATE int create_display_framework(hgobj gobj);
 
-PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
-PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf);
-PRIVATE void on_close_cb(uv_handle_t* handle);
 PRIVATE void do_close(hgobj gobj);
 
 PRIVATE hgobj create_display_window(hgobj gobj, const char* name, json_t* kw_display_window);
@@ -348,8 +357,8 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_bottomtoolbarbox;
     hgobj gobj_stsline;
 
-    grow_buffer_t bfinput;
-    uv_tty_t uv_tty;
+    // grow_buffer_t bfinput; TODO
+    // uv_tty_t uv_tty;
     char uv_handler_active;
     char uv_read_active;
 
@@ -415,7 +424,7 @@ PRIVATE void mt_destroy(hgobj gobj)
     /*
      *  Free data
      */
-    growbf_reset(&priv->bfinput);
+    // growbf_reset(&priv->bfinput); TODO
     JSON_DECREF(priv->jn_window_counters);
 }
 
@@ -432,17 +441,17 @@ PRIVATE int mt_start(hgobj gobj)
     }
     gobj_start(priv->timer);
 
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, ">>> uv_init tty p=%p", &priv->uv_tty);
-    }
-    uv_tty_init(yuno_uv_event_loop(), &priv->uv_tty, STDIN_FILENO, 0);
-    priv->uv_tty.data = gobj;
-    priv->uv_handler_active = 1;
-
-    uv_tty_set_mode(&priv->uv_tty, UV_TTY_MODE_RAW);
-
-    priv->uv_read_active = 1;
-    uv_read_start((uv_stream_t*)&priv->uv_tty, on_alloc_cb, on_read_cb);
+    // TODO if(gobj_trace_level(gobj) & TRACE_UV) {
+    //     gobj_trace_msg(gobj, ">>> uv_init tty p=%p", &priv->uv_tty);
+    // }
+    // uv_tty_init(yuno_uv_event_loop(), &priv->uv_tty, STDIN_FILENO, 0);
+    // priv->uv_tty.data = gobj;
+    // priv->uv_handler_active = 1;
+    //
+    // uv_tty_set_mode(&priv->uv_tty, UV_TTY_MODE_RAW);
+    //
+    // priv->uv_read_active = 1;
+    // uv_read_start((uv_stream_t*)&priv->uv_tty, on_alloc_cb, on_read_cb);
 
     SetDefaultFocus(priv->gobj_editline);
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
@@ -485,8 +494,8 @@ PRIVATE int mt_stop(hgobj gobj)
         priv->file_saving_output = 0;
     }
 
-    uv_tty_set_mode(&priv->uv_tty, UV_TTY_MODE_NORMAL);
-    uv_tty_reset_mode();
+    // uv_tty_set_mode(&priv->uv_tty, UV_TTY_MODE_NORMAL); TODO
+    // uv_tty_reset_mode();
     do_close(gobj);
 
     gobj_stop_tree(gobj);
@@ -514,9 +523,9 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
 
 
 
-PRIVATE char agent_insecure_config[]= "\
+PRIVATE char agent_config[]= "\
 {                                               \n\
-    'name': '(^^__url__^^)-(^^__range__^^)',    \n\
+    'name': '(^^__url__^^)',                    \n\
     'gclass': 'IEvent_cli',                     \n\
     'as_service': true,                          \n\
     'kw': {                                     \n\
@@ -526,83 +535,26 @@ PRIVATE char agent_insecure_config[]= "\
     },                                          \n\
     'children': [                                 \n\
         {                                               \n\
-            'name': '(^^__url__^^)-(^^__range__^^)',    \n\
+            'name': 'agent_client',                    \n\
             'gclass': 'C_IOGATE',                         \n\
             'kw': {                                     \n\
             },                                          \n\
             'children': [                                 \n\
                 {                                               \n\
-                    'name': '(^^__url__^^)-(^^__range__^^)',    \n\
+                    'name': 'agent_client',                    \n\
                     'gclass': 'C_CHANNEL',                        \n\
                     'kw': {                                     \n\
                     },                                          \n\
                     'children': [                                 \n\
                         {                                               \n\
-                            'name': '(^^__url__^^)-(^^__range__^^)',    \n\
+                            'name': 'agent_client',                    \n\
                             'gclass': 'C_WEBSOCKET',                     \n\
-                            'children': [                                \n\
-                                {                                       \n\
-                                    'name': '(^^__url__^^)-(^^__range__^^)',\n\
-                                    'gclass': 'Connex',                 \n\
-                                    'kw': {                             \n\
-                                        'urls':[                        \n\
-                                            '(^^__url__^^)'             \n\
-                                        ]                               \n\
-                                    }                                   \n\
-                                }                                       \n\
-                            ]                                           \n\
-                        }                                               \n\
-                    ]                                           \n\
-                }                                               \n\
-            ]                                           \n\
-        }                                               \n\
-    ]                                           \n\
-}                                               \n\
-";
-
-PRIVATE char agent_secure_config[]= "\
-{                                               \n\
-    'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-    'gclass': 'IEvent_cli',                     \n\
-    'as_service': true,                          \n\
-    'kw': {                                     \n\
-        'jwt': '(^^__jwt__^^)',                         \n\
-        'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
-        'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
-        'remote_yuno_service': '(^^__yuno_service__^^)' \n\
-    },                                          \n\
-    'children': [                                 \n\
-        {                                               \n\
-            'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-            'gclass': 'C_IOGATE',                         \n\
-            'kw': {                                     \n\
-            },                                          \n\
-            'children': [                                 \n\
-                {                                               \n\
-                    'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-                    'gclass': 'C_CHANNEL',                        \n\
-                    'kw': {                                     \n\
-                    },                                          \n\
-                    'children': [                                 \n\
-                        {                                               \n\
-                            'name': '(^^__url__^^)-(^^__range__^^)',    \n\
-                            'gclass': 'C_WEBSOCKET',                     \n\
-                            'children': [                                \n\
-                                {                                       \n\
-                                    'name': '(^^__url__^^)-(^^__range__^^)',\n\
-                                    'gclass': 'Connexs',                \n\
-                                    'kw': {                             \n\
-                                        'crypto': {                     \n\
-                                            'library': 'openssl',       \n\
-                                            'trace': false              \n\
-                                        },                              \n\
-                                        'urls':[                        \n\
-                                            '(^^__url__^^)'             \n\
-                                        ]                               \n\
-                                    }                                   \n\
-                                }                                       \n\
-                            ]                                           \n\
-                        }                                               \n\
+                            'kw': {                                     \n\
+                                'kw_connex': {                              \n\
+                                    'url':'(^^__url__^^)'   \n\
+                                }                                   \n\
+                            }                                   \n\
+                        }                                       \n\
                     ]                                           \n\
                 }                                               \n\
             ]                                           \n\
@@ -626,25 +578,29 @@ PRIVATE json_t *cmd_connect(hgobj gobj, const char *command, json_t *kw, hgobj s
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    static int range = 0;
-    range++;
-    json_t * jn_config_variables = json_pack("{s:{s:s, s:s, s:s, s:s, s:s, s:i}}",
-        "__json_config_variables__",
-            "__jwt__", jwt,
-            "__url__", url,
-            "__yuno_name__", yuno_name,
-            "__yuno_role__", yuno_role,
-            "__yuno_service__", yuno_service,
-            "__range__", range
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+        "__jwt__", jwt,
+        "__url__", url,
+        "__yuno_name__", yuno_name,
+        "__yuno_role__", yuno_role,
+        "__yuno_service__", yuno_service
     );
-    char *sjson_config_variables = json2str(jn_config_variables);
-    JSON_DECREF(jn_config_variables);
 
     /*
      *  Get schema to select tls or not
      */
     char schema[20]={0}, host[120]={0}, port[40]={0};
-    if(parse_http_url(url, schema, sizeof(schema), host, sizeof(host), port, sizeof(port), FALSE)<0) {
+    if(parse_url(
+        gobj,
+        url,
+        schema,
+        sizeof(schema),
+        host, sizeof(host),
+        port, sizeof(port),
+        0, 0,
+        0, 0,
+        FALSE
+    )<0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -654,19 +610,11 @@ PRIVATE json_t *cmd_connect(hgobj gobj, const char *command, json_t *kw, hgobj s
         );
     }
 
-    char *agent_config = agent_secure_config; // Prevalence
-    if(strcmp(schema, "ws")==0) {
-        agent_config = agent_insecure_config;
-    }
-
     hgobj gobj_remote_agent = gobj_create_tree(
         gobj,
         agent_config,
-        sjson_config_variables,
-        "EV_ON_SETUP",
-        "EV_ON_SETUP_COMPLETE"
+        jn_config_variables
     );
-    gbmem_free(sjson_config_variables);
 
     gobj_start_tree(gobj_remote_agent);
 
@@ -710,7 +658,7 @@ PRIVATE json_t *cmd_disconnect(hgobj gobj, const char *command, json_t *kw)
 PRIVATE char *get_primary_ip(hgobj gobj, char *bf, int bfsize)
 {
     json_t *webix = gobj_stats(gobj_yuno(), "ifs", 0, gobj);
-    int result = kw_get_int(gobj, webix, "result", -1, 0);
+    int result = (int)kw_get_int(gobj, webix, "result", -1, 0);
     json_t *jn_data = kw_get_list(gobj, webix, "data", 0, 0);
 
     if(result!=0 || json_array_size(jn_data)==0) {
@@ -767,7 +715,7 @@ PRIVATE json_t *cmd_open_log(hgobj gobj, const char *command, json_t *kw, hgobj 
     json_t *kw_gss_udps = json_pack("{s:s}",
         "url", url
     );
-    hgobj gobj_gss_udp_s = gobj_create("", GCLASS_GSS_UDP_S0, kw_gss_udps, wn_disp);
+    hgobj gobj_gss_udp_s = gobj_create("", C_GSS_UDP_S, kw_gss_udps, wn_disp);
     if(!gobj_gss_udp_s) {
         gobj_destroy(wn_disp);
         return msg_iev_build_response(
@@ -1199,7 +1147,7 @@ PRIVATE json_t *cmd_do_authenticate_task(hgobj gobj, const char *cmd, json_t *kw
     /*-----------------------------*
      *      Create the task
      *-----------------------------*/
-    hgobj gobj_task = gobj_find_unique_gobj("task-authenticate", FALSE);
+    hgobj gobj_task = gobj_find_service("task-authenticate", FALSE);
     if(!gobj_task) {
         json_t *kw_task = json_pack("{s:s, s:s, s:s, s:s, s:s}",
             "auth_system", auth_system,
@@ -1208,7 +1156,7 @@ PRIVATE json_t *cmd_do_authenticate_task(hgobj gobj, const char *cmd, json_t *kw
             "user_passw", user_passw,
             "azp", azp
         );
-        gobj_task = gobj_create_unique("task-authenticate", GCLASS_TASK_AUTHENTICATE, kw_task, gobj);
+        gobj_task = gobj_create_service("task-authenticate", C_TASK_AUTHENTICATE, kw_task, gobj);
     } else {
         gobj_write_str_attr(gobj_task, "auth_system", auth_system);
         gobj_write_str_attr(gobj_task, "auth_url", auth_url);
@@ -1262,7 +1210,7 @@ PRIVATE int create_display_framework(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->gwin_stdscr = gobj_create("cli", GCLASS_WN_STDSCR, 0, gobj);
+    priv->gwin_stdscr = gobj_create("cli", C_WN_STDSCR, 0, gobj);
 
     /*---------------------------------*
      *  Layout stdscr
@@ -1275,7 +1223,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
     hgobj gobj_layout = gobj_create(
         "layout",
-        GCLASS_WN_LAYOUT,
+        C_WN_LAYOUT,
         kw_layout,
         priv->gwin_stdscr
     );
@@ -1292,7 +1240,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
     hgobj gobj_toptoolbarbox = gobj_create(
         "toptoolbarbox",
-        GCLASS_WN_BOX,
+        C_WN_BOX,
         kw_toptoolbarbox,
         gobj_layout
     );
@@ -1304,7 +1252,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
     priv->gobj_toptoolbar = gobj_create(
         "toptoolbar",
-        GCLASS_WN_TOOLBAR,
+        C_WN_TOOLBAR,
         kw_toptoolbar,
         gobj_toptoolbarbox
     );
@@ -1321,7 +1269,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
     priv->gobj_workareabox = gobj_create(
         "workareabox",
-        GCLASS_WN_BOX,
+        C_WN_BOX,
         kw_workareabox,
         gobj_layout
     );
@@ -1338,7 +1286,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
     priv->gobj_editbox = gobj_create(
         "editbox",
-        GCLASS_WN_BOX,
+        C_WN_BOX,
         kw_editbox,
         gobj_layout
     );
@@ -1356,9 +1304,9 @@ PRIVATE int create_display_framework(hgobj gobj)
         "fg_color", "black",
         "subscriber", (json_int_t)(size_t)gobj
     );
-    priv->gobj_editline = gobj_create_unique(
+    priv->gobj_editline = gobj_create_service(
         "editline",
-        GCLASS_WN_EDITLINE,
+        C_WN_EDITLINE,
         kw_editline,
         priv->gobj_editbox
     );
@@ -1375,7 +1323,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
     priv->gobj_bottomtoolbarbox = gobj_create(
         "bottomtoolbarbox",
-        GCLASS_WN_BOX,
+        C_WN_BOX,
         kw_bottomtoolbarbox,
         gobj_layout
     );
@@ -1386,7 +1334,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
     priv->gobj_stsline = gobj_create(
         "stsline",
-        GCLASS_WN_STSLINE,
+        C_WN_STSLINE,
         kw_stsline,
         priv->gobj_bottomtoolbarbox
     );
@@ -1410,7 +1358,7 @@ PRIVATE hgobj create_display_window(hgobj gobj, const char *name, json_t *kw_dis
     }
     hgobj wn_display = gobj_create(
         name,
-        GCLASS_WN_LIST,
+        C_WN_LIST,
         kw_display_window,
         priv->gobj_workareabox
     );
@@ -1426,7 +1374,7 @@ PRIVATE hgobj get_display_window(hgobj gobj, const char* name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    hgobj gobj_display = gobj_child_by_name(priv->gobj_workareabox, name, 0);
+    hgobj gobj_display = gobj_child_by_name(priv->gobj_workareabox, name);
     return gobj_display;
 }
 
@@ -1467,7 +1415,7 @@ PRIVATE hgobj create_static(hgobj gobj, const char *name, json_t *kw_static)
     }
     hgobj wn_static = gobj_create(
         name,
-        GCLASS_WN_STATIC,
+        C_WN_STATIC,
         kw_static,
         priv->gobj_toptoolbar
     );
@@ -1498,7 +1446,7 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    hgobj gobj_display = gobj_child_by_name(priv->gobj_workareabox, name, 0);
+    hgobj gobj_display = gobj_child_by_name(priv->gobj_workareabox, name);
     if(gobj_display) {
         gobj_send_event(gobj_display, "EV_SET_TOP_WINDOW", 0, gobj);
         __top_display_window__ = gobj_display;
@@ -1540,8 +1488,8 @@ PRIVATE hgobj get_top_display_window(hgobj gobj)
  ***************************************************************************/
 PRIVATE gbuffer_t *jsontable2str(json_t *jn_schema, json_t *jn_data)
 {
-    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block(), 0, 0);
-
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
+    hgobj gobj = 0;
     size_t col;
     json_t *jn_col;
     /*
@@ -1642,7 +1590,7 @@ PRIVATE int display_webix_result(
     }
 
     const char *display_mode = gobj_read_str_attr(gobj, "display_mode");
-    json_t *jn_display_mode = kw_get_subdict_value(webix, "__md_iev__", "display_mode", 0, 0);
+    json_t *jn_display_mode = kw_get_subdict_value(gobj, webix, "__md_iev__", "display_mode", 0, 0);
     if(jn_display_mode) {
         display_mode = json_string_value(jn_display_mode);
     }
@@ -1816,215 +1764,215 @@ PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
 /***************************************************************************
  *  on alloc callback
  ***************************************************************************/
-PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf)
-{
-    hgobj gobj = handle->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    growbf_ensure_size(&priv->bfinput, suggested_size);
-    buf->base = priv->bfinput.bf;
-    buf->len = priv->bfinput.allocated;
-}
+// PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf)
+// {
+//     hgobj gobj = handle->data;
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     growbf_ensure_size(&priv->bfinput, suggested_size);
+//     buf->base = priv->bfinput.bf;
+//     buf->len = priv->bfinput.allocated;
+// }
 
 /***************************************************************************
  *  on read callback
  ***************************************************************************/
-PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
-{
-    hgobj gobj = stream->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, "<<< on_read_cb %d tty p=%p",
-            (int)nread,
-            &priv->uv_tty
-        );
-    }
-
-    if(nread < 0) {
-        if(nread == UV_ECONNRESET) {
-            gobj_log_info(gobj, 0,
-                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                "msg",          "%s", "Connection Reset",
-                NULL
-            );
-        } else if(nread == UV_EOF) {
-            gobj_log_info(gobj, 0,
-                "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-                "msg",          "%s", "EOF",
-                NULL
-            );
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                "msg",          "%s", "read FAILED",
-                "uv_error",     "%s", uv_err_name(nread),
-                NULL
-            );
-        }
-        if(gobj_is_running(gobj)) {
-            gobj_stop(gobj); // auto-stop
-        }
-        return;
-    }
-
-    if(nread == 0) {
-        // Yes, sometimes arrive with nread 0.
-        return;
-    }
-
-    if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
-        gobj_trace_dump(gobj,
-            0,
-            buf->base,
-            nread,
-            "on_read_cb"
-        );
-    }
-
-    if(buf->base[0] == 3) {
-        gobj_shutdown();
-        return;
-    }
-    if(nread > 8) {
-        // It must be the mouse cursor
-        char *p = strchr(buf->base+1, 0x1B);
-        if(p) {
-            *p = 0;
-            nread = (int)(p - buf->base);
-            if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
-                gobj_trace_dump(gobj,
-                    0,
-                    buf->base,
-                    nread,
-                    "REDUCE!"
-                );
-            }
-        }
-    }
-    uint8_t b[8];
-    memset(b, 0, sizeof(b));
-    memmove(b, buf->base, MIN(8, nread));
-
-    do {
-        /*
-         *  Level 1, window management functions
-         */
-        keytable_t *kt = event_by_key(keytable1, b);
-        if(kt) {
-            const char *dst = kt->dst_gobj;
-            const char *event = kt->event;
-
-            hgobj dst_gobj = gobj_find_unique_gobj(dst, FALSE);
-            if(!dst_gobj) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "unique gobj NOT FOUND",
-                    "unique",       "%s", dst,
-                    NULL
-                );
-            } else {
-                gobj_send_event(dst_gobj, event, 0, gobj);
-            }
-            return;
-        }
-
-        /*
-         *  Level 2, top window or editline functions
-         */
-        kt = event_by_key(keytable2, b);
-        if(kt) {
-            const char *dst = kt->dst_gobj;
-            const char *event = kt->event;
-
-            hgobj dst_gobj;
-            if(!empty_string(dst)) {
-                if(strcmp(dst, "__top_display_window__")==0) {
-                    dst_gobj = __top_display_window__;
-                } else {
-                    dst_gobj = gobj_find_unique_gobj(dst, FALSE);
-                }
-            } else {
-                dst_gobj = GetFocus();
-            }
-            if(!dst_gobj) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "unique gobj NOT FOUND",
-                    "unique",       "%s", dst,
-                    NULL
-                );
-            } else {
-                if(gobj_event_in_input_event_list(dst_gobj, event, 0)) {
-                    gobj_send_event(dst_gobj, event, 0, gobj);
-                    if(strcmp(event, "EV_EDITLINE_DEL_LINE")==0) {
-                        msg2statusline(gobj, 0, "%s", "");
-                    }
-                }
-            }
-            return;
-        }
-
-        /*
-         *  Level 3, chars to window with focus
-         */
-        if(buf->base[0] >= 0x20 && buf->base[0] <= 0x7f) {
-            // No pases escapes ni utf8
-            gbuffer_t *gbuf = gbuffer_create(nread, nread, 0, 0);
-            gbuffer_append(gbuf, buf->base, nread);
-
-            json_t *kw_keychar = json_pack("{s:I}",
-                "gbuffer", (json_int_t)(size_t)gbuf
-            );
-            gobj_send_event(GetFocus(), "EV_KEYCHAR", kw_keychar, gobj);
-        }
-
-    } while(0);
-}
+// PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
+// {
+//     hgobj gobj = stream->data;
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     if(gobj_trace_level(gobj) & TRACE_UV) {
+//         gobj_trace_msg(gobj, "<<< on_read_cb %d tty p=%p",
+//             (int)nread,
+//             &priv->uv_tty
+//         );
+//     }
+//
+//     if(nread < 0) {
+//         if(nread == UV_ECONNRESET) {
+//             gobj_log_info(gobj, 0,
+//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+//                 "msg",          "%s", "Connection Reset",
+//                 NULL
+//             );
+//         } else if(nread == UV_EOF) {
+//             gobj_log_info(gobj, 0,
+//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+//                 "msg",          "%s", "EOF",
+//                 NULL
+//             );
+//         } else {
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//                 "msg",          "%s", "read FAILED",
+//                 "uv_error",     "%s", uv_err_name(nread),
+//                 NULL
+//             );
+//         }
+//         if(gobj_is_running(gobj)) {
+//             gobj_stop(gobj); // auto-stop
+//         }
+//         return;
+//     }
+//
+//     if(nread == 0) {
+//         // Yes, sometimes arrive with nread 0.
+//         return;
+//     }
+//
+//     if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
+//         gobj_trace_dump(gobj,
+//             0,
+//             buf->base,
+//             nread,
+//             "on_read_cb"
+//         );
+//     }
+//
+//     if(buf->base[0] == 3) {
+//         gobj_shutdown();
+//         return;
+//     }
+//     if(nread > 8) {
+//         // It must be the mouse cursor
+//         char *p = strchr(buf->base+1, 0x1B);
+//         if(p) {
+//             *p = 0;
+//             nread = (int)(p - buf->base);
+//             if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
+//                 gobj_trace_dump(gobj,
+//                     0,
+//                     buf->base,
+//                     nread,
+//                     "REDUCE!"
+//                 );
+//             }
+//         }
+//     }
+//     uint8_t b[8];
+//     memset(b, 0, sizeof(b));
+//     memmove(b, buf->base, MIN(8, nread));
+//
+//     do {
+//         /*
+//          *  Level 1, window management functions
+//          */
+//         keytable_t *kt = event_by_key(keytable1, b);
+//         if(kt) {
+//             const char *dst = kt->dst_gobj;
+//             const char *event = kt->event;
+//
+//             hgobj dst_gobj = gobj_find_unique_gobj(dst, FALSE);
+//             if(!dst_gobj) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                     "msg",          "%s", "unique gobj NOT FOUND",
+//                     "unique",       "%s", dst,
+//                     NULL
+//                 );
+//             } else {
+//                 gobj_send_event(dst_gobj, event, 0, gobj);
+//             }
+//             return;
+//         }
+//
+//         /*
+//          *  Level 2, top window or editline functions
+//          */
+//         kt = event_by_key(keytable2, b);
+//         if(kt) {
+//             const char *dst = kt->dst_gobj;
+//             const char *event = kt->event;
+//
+//             hgobj dst_gobj;
+//             if(!empty_string(dst)) {
+//                 if(strcmp(dst, "__top_display_window__")==0) {
+//                     dst_gobj = __top_display_window__;
+//                 } else {
+//                     dst_gobj = gobj_find_unique_gobj(dst, FALSE);
+//                 }
+//             } else {
+//                 dst_gobj = GetFocus();
+//             }
+//             if(!dst_gobj) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                     "msg",          "%s", "unique gobj NOT FOUND",
+//                     "unique",       "%s", dst,
+//                     NULL
+//                 );
+//             } else {
+//                 if(gobj_event_in_input_event_list(dst_gobj, event, 0)) {
+//                     gobj_send_event(dst_gobj, event, 0, gobj);
+//                     if(strcmp(event, "EV_EDITLINE_DEL_LINE")==0) {
+//                         msg2statusline(gobj, 0, "%s", "");
+//                     }
+//                 }
+//             }
+//             return;
+//         }
+//
+//         /*
+//          *  Level 3, chars to window with focus
+//          */
+//         if(buf->base[0] >= 0x20 && buf->base[0] <= 0x7f) {
+//             // No pases escapes ni utf8
+//             gbuffer_t *gbuf = gbuffer_create(nread, nread, 0, 0);
+//             gbuffer_append(gbuf, buf->base, nread);
+//
+//             json_t *kw_keychar = json_pack("{s:I}",
+//                 "gbuffer", (json_int_t)(size_t)gbuf
+//             );
+//             gobj_send_event(GetFocus(), "EV_KEYCHAR", kw_keychar, gobj);
+//         }
+//
+//     } while(0);
+// }
 
 /***************************************************************************
  *  Only NOW you can destroy this gobj,
  *  when uv has released the handler.
  ***************************************************************************/
-PRIVATE void on_close_cb(uv_handle_t* handle)
-{
-    hgobj gobj = handle->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, "<<< on_close_cb tcp0 p=%p", &priv->uv_tty);
-    }
-    priv->uv_handler_active = 0;
-}
+// PRIVATE void on_close_cb(uv_handle_t* handle)
+// {
+//     hgobj gobj = handle->data;
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     if(gobj_trace_level(gobj) & TRACE_UV) {
+//         gobj_trace_msg(gobj, "<<< on_close_cb tcp0 p=%p", &priv->uv_tty);
+//     }
+//     priv->uv_handler_active = 0;
+// }
 
 /***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void do_close(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!priv->uv_handler_active) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "UV handler NOT ACTIVE!",
-            NULL
-        );
-        return;
-    }
-    if(priv->uv_read_active) {
-        uv_read_stop((uv_stream_t *)&priv->uv_tty);
-        priv->uv_read_active = 0;
-    }
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, ">>> uv_close tty p=%p", &priv->uv_tty);
-    }
-    uv_close((uv_handle_t *)&priv->uv_tty, on_close_cb);
+    // if(!priv->uv_handler_active) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",     "%s", __FUNCTION__,
+    //         "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+    //         "msg",          "%s", "UV handler NOT ACTIVE!",
+    //         NULL
+    //     );
+    //     return;
+    // }
+    // if(priv->uv_read_active) {
+    //     uv_read_stop((uv_stream_t *)&priv->uv_tty);
+    //     priv->uv_read_active = 0;
+    // }
+    //
+    // if(gobj_trace_level(gobj) & TRACE_UV) {
+    //     gobj_trace_msg(gobj, ">>> uv_close tty p=%p", &priv->uv_tty);
+    // }
+    // uv_close((uv_handle_t *)&priv->uv_tty, on_close_cb);
 }
 
 /***************************************************************************
@@ -2050,7 +1998,7 @@ PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *na
     }
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
-        mkrdir(path, 0, 0700);
+        mkrdir(path, 0700);
     }
     if(strlen(name) > 5 && strstr(name + strlen(name) - strlen(".json"), ".json")) {
         snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
@@ -2074,7 +2022,7 @@ PRIVATE int save_local_string(hgobj gobj, char *path, int pathsize, const char *
     }
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
-        mkrdir(path, 0, 0700);
+        mkrdir(path, 0700);
     }
     snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
     const char *s = json_string_value(jn_content);
@@ -2101,13 +2049,13 @@ PRIVATE int save_local_base64(hgobj gobj, char *path, int pathsize, const char *
     }
     snprintf(path, pathsize, "%s/.yuneta/configs/", homedir);
     if(access(path, 0)!=0) {
-        mkrdir(path, 0, 0700);
+        mkrdir(path, 0700);
     }
     snprintf(path, pathsize, "%s/.yuneta/configs/%s", homedir, name);
 
     const char *s = json_string_value(jn_content);
     if(s) {
-        gbuffer_t *gbuf_bin = gbuf_decodebase64string(s);
+        gbuffer_t *gbuf_bin = gbuffer_base64_to_string(s, strlen(s));
         if(gbuf_bin) {
             int fp = newfile(path, 0700, TRUE);
             if(fp) {
@@ -2185,7 +2133,7 @@ PRIVATE gbuffer_t *source2base64_for_yuneta(const char *source, char **comment)
         *comment = "source is not a regular file";
         return 0;
     }
-    gbuffer_t *gbuf_b64 = gbuf_file2base64(path);
+    gbuffer_t *gbuf_b64 = gbuffer_file2base64(path);
     if(!gbuf_b64) {
         *comment = "conversion to base64 failed";
     }
@@ -2212,7 +2160,7 @@ PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char **comment)
         snprintf(path, sizeof(path), "%s", source);
     } else {
         const char *yunetas_base = get_yunetas_base();
-        build_path2(path, sizeof(path), yunetas_base, source);
+        build_path(path, sizeof(path), yunetas_base, source, NULL);
     }
 
     if(access(path, 0)!=0) {
@@ -2223,7 +2171,7 @@ PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char **comment)
         *comment = "source is not a regular file";
         return 0;
     }
-    gbuffer_t *gbuf_b64 = gbuf_file2base64(path);
+    gbuffer_t *gbuf_b64 = gbuffer_file2base64(path);
     if(!gbuf_b64) {
         *comment = "conversion to base64 failed";
     }
@@ -2236,7 +2184,7 @@ PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char **comment)
  ***************************************************************************/
 PRIVATE gbuffer_t * replace_cli_vars_for_yuneta(hgobj gobj, const char *command, char **comment)
 {
-    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block(), 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     char *command_ = gbmem_strdup(command);
     char *p = command_;
 
@@ -2426,7 +2374,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_cmd = gobj;
         } else if(*xcmd == '*') {
             xcmd++;
-            kw_set_subdict_value(kw_command, "__md_iev__", "display_mode", json_string("form"));
+            kw_set_subdict_value(gobj, kw_command, "__md_iev__", "display_mode", json_string("form"));
             gobj_cmd = gobj_read_pointer_attr(wn_display, "user_data");
         } else {
             gobj_cmd = gobj_read_pointer_attr(wn_display, "user_data");
@@ -2485,7 +2433,7 @@ PRIVATE int ac_quit(hgobj gobj, const char *event, json_t *kw, hgobj src)
         KW_DECREF(kw);
         return 0;
     }
-    gobj_set_yuno_must_die();
+    set_yuno_must_die();
     KW_DECREF(kw);
     return 0;
 }
@@ -2555,7 +2503,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      */
     hgobj wn_disp = get_display_window(gobj, agent_name);
     if(wn_disp) {
-        int n = kw_get_int(gobj, priv->jn_window_counters, agent_name, 0, KW_CREATE);
+        int n = (int)kw_get_int(gobj, priv->jn_window_counters, agent_name, 0, KW_CREATE);
         n++;
         snprintf(temp, sizeof(temp), "%s-%d", agent_name, n);
         json_object_set_new(priv->jn_window_counters, agent_name, json_integer(n));
@@ -2667,7 +2615,7 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     hgobj wn_display = gobj_read_pointer_attr(src, "user_data");
 
-    int result = kw_get_int(gobj, kw, "result", -1, 0);
+    int result = (int)kw_get_int(gobj, kw, "result", -1, 0);
     if(result < 0) {
         return display_webix_result(
             gobj,
@@ -3182,6 +3130,28 @@ PRIVATE const GMETHODS gmt = {
  *      GClass name
  *------------------------*/
 GOBJ_DEFINE_GCLASS(C_CLI);
+
+/*------------------------*
+ *      States
+ *------------------------*/
+
+/*------------------------*
+ *      Events
+ *------------------------*/
+GOBJ_DEFINE_EVENT(EV_COMMAND);
+GOBJ_DEFINE_EVENT(EV_QUIT);
+GOBJ_DEFINE_EVENT(EV_PREVIOUS_WINDOW);
+GOBJ_DEFINE_EVENT(EV_NEXT_WINDOW);
+GOBJ_DEFINE_EVENT(EV_EDIT_CONFIG);
+GOBJ_DEFINE_EVENT(EV_VIEW_CONFIG);
+GOBJ_DEFINE_EVENT(EV_EDIT_YUNO_CONFIG);
+GOBJ_DEFINE_EVENT(EV_VIEW_YUNO_CONFIG);
+GOBJ_DEFINE_EVENT(EV_READ_JSON);
+GOBJ_DEFINE_EVENT(EV_READ_FILE);
+GOBJ_DEFINE_EVENT(EV_READ_BINARY_FILE);
+GOBJ_DEFINE_EVENT(EV_TTY_OPEN);
+GOBJ_DEFINE_EVENT(EV_TTY_CLOSE);
+GOBJ_DEFINE_EVENT(EV_TTY_DATA);
 
 /***************************************************************************
  *          Create the GClass
