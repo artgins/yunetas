@@ -1021,71 +1021,6 @@ PRIVATE int add_devices_callback(
     return 0;
 }
 
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *build_webix_tree_by_device_groups(
-    hgobj gobj,
-    json_t *user, // not owned
-    int *result
-)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    json_t *user_groups = kw_get_list(gobj, user, "user_groups", 0, KW_REQUIRED);
-    if(!user_groups) {
-        *result = -1;
-        return json_sprintf("No user groups");
-    }
-
-    json_t *jn_tree = json_array();
-
-    int idx; json_t *jn_user_group;
-    json_array_foreach(user_groups, idx, jn_user_group) {
-        const char *id = kw_get_str(gobj, jn_user_group, "id", "", KW_REQUIRED);
-        const char *topic_name = kw_get_str(gobj, jn_user_group, "topic_name", "", KW_REQUIRED);
-        if(strcmp(topic_name, "device_groups")!=0) {
-            continue;
-        }
-
-        json_t *root = gobj_topic_jtree( // Return MUST be decref
-            priv->gobj_treedb_controlcenter,
-            "device_groups",
-            "device_groups",
-            "data", // change the hook name in the tree response
-            json_pack("{s:s}", "id", id),
-            0,  // filter to match records
-            0,  // fkey,hook options
-            gobj
-        );
-        json_array_append_new(jn_tree, root);
-
-        kwid_walk_childs(
-            root,
-            "data",
-            add_devices_callback,
-            (void *)gobj
-        );
-    }
-
-    json_decref(user_groups);
-
-    return jn_tree;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE json_t *build_webix_tree_by_user_groups(
-    hgobj gobj,
-    json_t *user, // not owned
-    int *result
-)
-{
-    *result = -1;
-    return json_sprintf("Option not implemented");
-}
-
 
 
 
@@ -1187,7 +1122,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_answer(gobj, kw, kw, 0); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
 
     return gobj_send_event(
         gobj_requester,
@@ -1234,7 +1169,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_answer(gobj, kw, kw, 0); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
 
     return gobj_send_event(
         gobj_requester,
@@ -1285,7 +1220,7 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_answer(gobj, kw, kw, 0); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
 
     return gobj_send_event(
         gobj_requester,
@@ -1336,7 +1271,7 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_answer(gobj, kw, kw, 0); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
 
     return gobj_send_event(
         gobj_requester,
@@ -1383,7 +1318,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_answer(gobj, kw, kw, 0); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
 
     return gobj_send_event(
         gobj_requester,
@@ -1464,177 +1399,6 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     KW_DECREF(kw);
     return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_list_groups(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->rxMsgs++;
-    priv->rxMsgsec++;
-
-    int result = 0;
-    json_t *jn_data = 0;
-    json_t *jn_comment = 0;
-
-    do {
-        /*----------------------------------------*
-         *  Check AUTHZS
-         *----------------------------------------*/
-        const char *permission = "list-groups";
-        if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-            jn_comment = json_sprintf("No permission to '%s'", permission);
-            result = -1;
-            break;
-        }
-
-        /*
-         *  Check parameters
-         */
-        const char *topic_name = kw_get_str(gobj, kw, "topic_name", "", KW_REQUIRED);
-        if(empty_string(topic_name)) {
-            jn_comment = json_sprintf("What topic_name?");
-            result = -1;
-            break;
-        }
-
-        const char *username = kw_get_str(gobj, kw, "__temp__`__username__", "", KW_REQUIRED);
-        json_t *user = gobj_get_node(
-            priv->gobj_treedb_controlcenter,
-            "users",
-            json_pack("{s:s}",
-                "id", username
-            ),
-            json_pack("{s:b}", "list_dict", 1),  // fkey,hook options
-            src
-        );
-        if(!user) {
-            jn_comment = json_sprintf("User not found: '%s'", username);
-            result = -1;
-            break;
-        }
-
-        if(strcmp(topic_name, "device_groups")==0 ) {
-            jn_data = build_webix_tree_by_device_groups(gobj, user, &result);
-            if(result < 0) {
-                jn_comment = jn_data;
-                jn_data = 0;
-            }
-
-        } else if(strcmp(topic_name, "user_groups")==0) {
-            jn_data = build_webix_tree_by_user_groups(gobj, user, &result); // TODO
-            if(result < 0) {
-                jn_comment = jn_data;
-                jn_data = 0;
-            }
-
-        } else {
-            jn_comment = json_sprintf("Topic name must be 'device_groups' or 'user_groups'");
-            result = -1;
-            break;
-        }
-
-        json_decref(user);
-
-    } while(0);
-
-    /*
-     *  Response
-     */
-    json_t *iev = iev_create2(
-        event,
-        msg_iev_build_response2(gobj,
-            result,
-            jn_comment,
-            0,
-            jn_data?jn_data:json_array(),  // owned
-            json_incref(kw),  // owned, increase for use below
-            "__answer__"
-        ),
-        kw // owned
-    );
-
-    /*
-     *  Inform
-     */
-    return gobj_send_event(
-        src,
-        EV_SEND_IEV,
-        iev,
-        gobj
-    );
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_list_tracks(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->rxMsgs++;
-    priv->rxMsgsec++;
-
-    int result = 0;
-    json_t *jn_data = 0;
-    json_t *jn_comment = 0;
-
-//    do {
-//        /*----------------------------------------*
-//         *  Check AUTHZS
-//         *----------------------------------------*/
-//        const char *permission = "list-tracks";
-//        if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-//            jn_comment = json_sprintf("No permission to '%s'", permission);
-//            result = -1;
-//            break;
-//        }
-//
-//        /*
-//         *  Get track list
-//         */
-//        KW_INCREF(kw);
-//        json_t *list = trmsg_open_list(
-//            priv->tranger_tracks,
-//            "raw_tracks",
-//            kw
-//        );
-//        // WARNING aquí no podemos aplicar kw como filtro,
-//        // tendría que venir dentro de kw en una key tipo "filter" de tercer nivel
-//        jn_data = trmsg_data_tree(list, 0);
-//
-//        trmsg_close_list(priv->tranger_tracks, list);
-//
-//    } while(0);
-
-    /*
-     *  Response
-     */
-    json_t *iev = iev_create2(
-        event,
-        msg_iev_build_response2(gobj,
-            result,
-            jn_comment,
-            0,
-            jn_data?jn_data:json_array(),  // owned
-            json_incref(kw),  // owned, increase for use below
-            "__answer__"
-        ),
-        kw // owned
-    );
-
-    /*
-     *  Inform
-     */
-    return gobj_send_event(
-        src,
-        EV_SEND_IEV,
-        iev,
-        gobj
-    );
 }
 
 /***************************************************************************
@@ -2182,10 +1946,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_CLOSE,               0},
         {EV_TIMEOUT,                0},
         {EV_STOPPED,                0},
-
-        // {EV_LIST_TRACKS,            EVF_PUBLIC_EVENT},
-        // {EV_LIST_GROUPS,            EVF_PUBLIC_EVENT},
-        // {EV_REALTIME_TRACK,         EVF_PUBLIC_EVENT|EVF_NO_WARN_SUBS},
 
         {NULL, 0}
     };
