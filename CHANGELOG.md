@@ -122,6 +122,8 @@ New API
     kw_serialize_to_string
     gobj_send_event_to_children
     gobj_send_event_to_children_tree
+    dl_nfind
+    dl_delete_item
 
 Delete API
 

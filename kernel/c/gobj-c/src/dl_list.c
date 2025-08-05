@@ -134,6 +134,29 @@ PUBLIC void * dl_find(dl_list_t *dl, void *item)
 }
 
 /***************************************************************
+ *      dl_find - find forward the item in position `nitem`
+ ***************************************************************/
+PUBLIC void *dl_nfind(dl_list_t *dl, size_t nitem)
+{
+    register dl_item_t * curr;
+    register size_t i;
+
+    if(nitem == 0 || nitem > dl_size(dl)) {
+        return 0; /* out of range */
+    }
+    curr = dl->head;
+    nitem--;
+    i=0;
+    while(curr != 0)  {
+        if(i == nitem)
+            return curr;
+        curr = curr->__next__;
+        i++;
+    }
+    return 0; /* not found */
+}
+
+/***************************************************************
  *    Delete current item
  ***************************************************************/
 PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
@@ -221,6 +244,23 @@ PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *))
     }
 
     return 0;
+}
+
+/***************************************************************
+ *    Delete current item
+ ***************************************************************/
+PUBLIC int dl_delete_item(void *curr_, void (*fnfree)(void *))
+{
+    register dl_item_t * curr = curr_;
+    /*-------------------------*
+     *     Check nulls
+     *-------------------------*/
+    if(curr==0) {
+        return -1;
+    }
+    if(check_no_links(curr)) return -1;
+
+    return dl_delete(curr->__dl__, curr, fnfree);
 }
 
 /***************************************************************
