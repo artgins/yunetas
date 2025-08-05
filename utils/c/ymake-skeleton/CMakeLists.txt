@@ -23,7 +23,6 @@ SET (YUNO_SRCS
     ymake_skeleton.c
     make_skeleton.c
     clone_tree_dir.c
-    00_replace_string.c
 )
 SET (YUNO_HDRS
 )

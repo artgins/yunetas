@@ -23,7 +23,6 @@ SET (YUNO_SRCS
     yuno_skeleton.c
     make_skeleton.c
     tmpl_dir.c
-    00_replace_string.c
 )
 SET (YUNO_HDRS
 )
@@ -34,6 +33,7 @@ SET (YUNO_HDRS
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
 
 target_link_libraries(${PROJECT_NAME}
+    libyunetas-gobj.a
     libjansson.a
     libpcre2-8.a
     libargp-standalone.a

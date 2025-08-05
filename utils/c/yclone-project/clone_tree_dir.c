@@ -25,7 +25,6 @@
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
 #include <helpers.h>
-#include "00_replace_string.h"
 #include "clone_tree_dir.h"
 
 #define Color_Off "\033[0m"       // Text Reset

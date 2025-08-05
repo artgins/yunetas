@@ -29,8 +29,9 @@
 #include <jansson.h>
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
+#include <helpers.h>
 #include <pcre2.h>
-#include "00_replace_string.h"
+#include <helpers.h>
 #include "tmpl_dir.h"
 
 #define Color_Off "\033[0m"       // Text Reset
