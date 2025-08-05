@@ -353,15 +353,10 @@ GOBJ_DEFINE_GCLASS(C_WN_STATIC);
 /*------------------------*
  *      States
  *------------------------*/
-GOBJ_DEFINE_STATE(ST_DISABLED);
 
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_SETTEXT);
-GOBJ_DEFINE_EVENT(EV_PAINT);
-GOBJ_DEFINE_EVENT(EV_MOVE);
-GOBJ_DEFINE_EVENT(EV_SIZE);
 
 /***************************************************************************
  *          Create the GClass

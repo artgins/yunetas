@@ -605,7 +605,6 @@ GOBJ_DEFINE_GCLASS(C_WN_TOOLBAR);
 /*------------------------*
  *      States
  *------------------------*/
-GOBJ_DEFINE_STATE(ST_DISABLED);
 
 /*------------------------*
  *      Events

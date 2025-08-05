@@ -351,7 +351,6 @@ GOBJ_DEFINE_GCLASS(C_WN_STSLINE);
 /*------------------------*
  *      States
  *------------------------*/
-GOBJ_DEFINE_STATE(ST_DISABLED);
 
 /*------------------------*
  *      Events

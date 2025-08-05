@@ -1294,7 +1294,6 @@ GOBJ_DEFINE_GCLASS(C_WN_EDITLINE);
 /*------------------------*
  *      States
  *------------------------*/
-GOBJ_DEFINE_STATE(ST_DISABLED);
 
 /*------------------------*
  *      Events
