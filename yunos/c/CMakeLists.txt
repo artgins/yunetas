@@ -28,7 +28,7 @@ add_subdirectory(logcenter)
 add_subdirectory(watchfs)
 #add_subdirectory(yuno_agent)
 #add_subdirectory(yuno_agent22)
-#add_subdirectory(yuno_cli)
+add_subdirectory(yuno_cli)
 
 # compile in Release mode :
 #
