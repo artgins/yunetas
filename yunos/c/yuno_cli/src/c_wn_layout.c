@@ -531,8 +531,8 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int cx = kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
-    int cy = kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
+    int cx = (int)kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
+    int cy = (int)kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
     gobj_write_integer_attr(gobj, "cx", cx);
     gobj_write_integer_attr(gobj, "cy", cy);
 

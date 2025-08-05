@@ -388,6 +388,7 @@ GOBJ_DEFINE_GCLASS(C_WN_BOX);
 /*------------------------*
  *      States
  *------------------------*/
+GOBJ_DEFINE_STATE(ST_DISABLED);
 
 /*------------------------*
  *      Events

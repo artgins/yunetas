@@ -1312,7 +1312,8 @@ typedef enum {
 typedef int (*cb_walking_t)(
     hgobj gobj,
     void *user_data,
-    void *user_data2
+    void *user_data2,
+    void *user_data3
 );
 
 PUBLIC int gobj_walk_gobj_children(
@@ -1320,14 +1321,16 @@ PUBLIC int gobj_walk_gobj_children(
     walk_type_t walk_type,
     cb_walking_t cb_walking,
     void *user_data,
-    void *user_data2
+    void *user_data2,
+    void *user_data3
 );
 PUBLIC int gobj_walk_gobj_children_tree(
     hgobj gobj,
     walk_type_t walk_type,
     cb_walking_t cb_walking,
     void *user_data,
-    void *user_data2
+    void *user_data2,
+    void *user_data3
 );
 
 /*---------------------------------*
@@ -1418,6 +1421,21 @@ PUBLIC int gobj_send_event(
     json_t *kw,  // owned
     hgobj src
 );
+
+PUBLIC int gobj_send_event_to_children(  // Send the event to all children of first level supporting the event
+    hgobj gobj,
+    const char *event,
+    json_t *kw,
+    hgobj src
+);
+PUBLIC int gobj_send_event_to_children_tree( // same as gobj_send_event_to_children but recursive
+    hgobj gobj,
+    const char *event,
+    json_t *kw,
+    hgobj src
+);
+
+
 PUBLIC BOOL gobj_change_state(
     hgobj gobj,
     gobj_state_t state_name
