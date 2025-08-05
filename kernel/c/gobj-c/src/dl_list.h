@@ -73,7 +73,9 @@ static inline void *dl_prev(void *curr) /* previous Item */
 PUBLIC int dl_insert(dl_list_t *dl, void *item);
 PUBLIC int dl_add(dl_list_t *dl, void *item);
 PUBLIC void * dl_find(dl_list_t *dl, void *item);
+PUBLIC void * dl_nfind(dl_list_t *dl, size_t nitem); /* Search from beginning by number, relative to 1 */
 PUBLIC int dl_delete(dl_list_t *dl, void * curr_, void (*fnfree)(void *));
+PUBLIC int dl_delete_item(void *curr, void (*fnfree)(void *));
 PUBLIC void dl_flush(dl_list_t *dl, void (*fnfree)(void *));
 
 static inline size_t dl_size(dl_list_t *dl) /* Return number of items in list */

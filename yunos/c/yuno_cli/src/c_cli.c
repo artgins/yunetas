@@ -1751,15 +1751,15 @@ PRIVATE int msg2statusline(hgobj gobj, BOOL error, const char *fmt, ...)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
-{
-    for(int i=0; keytable[i].event!=0; i++) {
-        if(memcmp(kb, keytable[i].keycode, strlen((const char *)keytable[i].keycode))==0) {
-            return &keytable[i];
-        }
-    }
-    return 0;
-}
+// PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
+// {
+//     for(int i=0; keytable[i].event!=0; i++) {
+//         if(memcmp(kb, keytable[i].keycode, strlen((const char *)keytable[i].keycode))==0) {
+//             return &keytable[i];
+//         }
+//     }
+//     return 0;
+// }
 
 /***************************************************************************
  *  on alloc callback
