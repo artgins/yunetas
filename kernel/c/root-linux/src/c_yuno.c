@@ -3672,7 +3672,7 @@ static const json_desc_t subs_desc[] = {
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int cb_list_subscriptions(hgobj child, void *user_data, void *user_data2)
+PRIVATE int cb_list_subscriptions(hgobj child, void *user_data, void *user_data2, void *user_data3)
 {
     json_t *jn_list = user_data;
     gobj_event_t event = user_data2;
@@ -3741,7 +3741,7 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
     BOOL tree = kw_get_bool(gobj, kw, "tree", 0, KW_WILD_NUMBER);
     if(tree) {
         gobj_walk_gobj_children_tree(
-            gobj, WALK_TOP2BOTTOM, cb_list_subscriptions, jn_data, (void *)event
+            gobj, WALK_TOP2BOTTOM, cb_list_subscriptions, jn_data, (void *)event, 0
         );
     }
 
@@ -3762,7 +3762,7 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
 /***************************************************************************
  *  list subscribings
  ***************************************************************************/
-PRIVATE int cb_list_subscribings(hgobj child, void *user_data, void *user_data2)
+PRIVATE int cb_list_subscribings(hgobj child, void *user_data, void *user_data2, void *user_data3)
 {
     json_t *jn_list = user_data;
     gobj_event_t event = user_data2;
@@ -3831,7 +3831,7 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
     BOOL tree = kw_get_bool(gobj, kw, "tree", 0, KW_WILD_NUMBER);
     if(tree) {
         gobj_walk_gobj_children_tree(
-            gobj, WALK_TOP2BOTTOM, cb_list_subscribings, jn_data, (void *)event
+            gobj, WALK_TOP2BOTTOM, cb_list_subscribings, jn_data, (void *)event, 0
         );
     }
 
