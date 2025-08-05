@@ -124,6 +124,7 @@ New API
     gobj_send_event_to_children_tree
     dl_nfind
     dl_delete_item
+    replace_string
 
 Delete API
 

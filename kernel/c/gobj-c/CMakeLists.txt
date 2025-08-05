@@ -36,6 +36,7 @@ set (SRCS
     src/json_config.c
     src/json_replace_vars.c
     src/rotatory.c
+    src/replace_string.c
 )
 
 set (HDRS
@@ -56,6 +57,7 @@ set (HDRS
     src/stats_parser.h
     src/testing.h
     src/rotatory.h
+    src/replace_string.h
 )
 
 ##############################################
