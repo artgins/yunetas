@@ -1,5 +1,5 @@
 /****************************************************************************
- *          g_states.h
+ *          g_st_kernel.h
  *
  *          Global States of Kernel
  *
@@ -14,7 +14,6 @@
 extern "C"{
 #endif
 
-// Frequent states
 GOBJ_DECLARE_STATE(ST_DISCONNECTED);
 GOBJ_DECLARE_STATE(ST_WAIT_CONNECTED);
 GOBJ_DECLARE_STATE(ST_CONNECTED);

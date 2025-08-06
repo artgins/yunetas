@@ -6,9 +6,8 @@
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include "g_ev_kernel.h"
+#include "g_st_kernel.h"
 
-// Frequent states
 GOBJ_DEFINE_STATE(ST_DISCONNECTED);
 GOBJ_DEFINE_STATE(ST_WAIT_CONNECTED);
 GOBJ_DEFINE_STATE(ST_CONNECTED);
