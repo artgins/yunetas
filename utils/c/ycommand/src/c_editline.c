@@ -150,9 +150,9 @@ typedef struct linenoiseCompletions {
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (DTP_STRING,      "prompt",               0,  "ycommand> ", "Prompt"),
+SDATA (DTP_STRING,      "prompt",               0,  "> ", "Prompt"),
 SDATA (DTP_STRING,      "history_file",         0,  0, "History file"),
-SDATA (DTP_INTEGER,     "history_max_len",      0,  "100000", "history max len (max lines)"),
+SDATA (DTP_INTEGER,     "history_max_len",      0,  "200000", "history max len (max lines)"),
 SDATA (DTP_INTEGER,     "buffer_size",          0,  "4096", "edition buffer size"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
@@ -208,7 +208,6 @@ PRIVATE int linenoiseHistorySetMaxLen(PRIVATE_DATA *l, int len);
 PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename);
 PRIVATE int linenoiseHistoryAdd(PRIVATE_DATA *l, const char *line);
 PRIVATE void refreshLine(PRIVATE_DATA *l);
-
 
 
 

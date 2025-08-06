@@ -53,6 +53,9 @@
  * - http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
  * - http://www.3waylabs.com/nw/WWW/products/wizcon/vt220.html
  *
+ * - https://en.wikipedia.org/wiki/ANSI_escape_code
+ * - https://www.systutorials.com/docs/linux/man/4-console_codes/
+ *
  * Todo list:
  * - Filter bogus Ctrl+<char> combinations.
  * - Win32 support
@@ -112,6 +115,7 @@
  *
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
 #include <stdio.h>
@@ -144,6 +148,7 @@ typedef struct linenoiseCompletions {
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
@@ -203,12 +208,12 @@ typedef struct _PRIVATE_DATA {
     int history_index;  /* The history index we are currently editing. */
 } PRIVATE_DATA;
 
-
 PRIVATE void freeHistory(PRIVATE_DATA *l);
 PRIVATE int linenoiseHistorySetMaxLen(PRIVATE_DATA *l, int len);
 PRIVATE int linenoiseHistoryLoad(PRIVATE_DATA *l, const char *filename);
 PRIVATE int linenoiseHistoryAdd(PRIVATE_DATA *l, const char *line);
 PRIVATE void refreshLine(PRIVATE_DATA *l);
+
 
 
 
@@ -251,7 +256,7 @@ PRIVATE void mt_create(hgobj gobj)
     int x = gobj_read_integer_attr(gobj, "x");
     int y = gobj_read_integer_attr(gobj, "y");
 
-    int buffer_size = gobj_read_integer_attr(gobj, "buffer_size");
+    int buffer_size = (int)gobj_read_integer_attr(gobj, "buffer_size");
     priv->buf = gbmem_malloc(buffer_size);
     priv->buflen = buffer_size - 1;
 
@@ -275,7 +280,6 @@ PRIVATE void mt_create(hgobj gobj)
     /* The latest history entry is always our current buffer, that
      * initially is just an empty string. */
     linenoiseHistoryAdd(priv, "");
-
 }
 
 /***************************************************************************
@@ -293,7 +297,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(cx,                    gobj_read_integer_attr)
         priv->cols = priv->cx;
         //TODO igual hay que refrescar
-    ELIF_EQ_SET_PRIV(cy,                    gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(cy,                    gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(history_max_len,       gobj_read_integer_attr)
         linenoiseHistorySetMaxLen(priv, priv->history_max_len);
