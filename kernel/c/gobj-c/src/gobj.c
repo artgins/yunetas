@@ -171,6 +171,9 @@ GOBJ_DEFINE_EVENT(EV_TX_DATA);
 GOBJ_DEFINE_EVENT(EV_TX_READY);
 GOBJ_DEFINE_EVENT(EV_STOPPED);
 
+// CLI Messages
+GOBJ_DEFINE_EVENT(EV_COMMAND);
+
 // Frequent states
 GOBJ_DEFINE_STATE(ST_DISCONNECTED);
 GOBJ_DEFINE_STATE(ST_WAIT_CONNECTED);
@@ -2516,6 +2519,54 @@ PUBLIC void gobj_destroy_children(hgobj gobj_)
          */
         child = next;
     }
+}
+
+/***************************************************************************
+ *  Destroy named childs, with auto pause/stop
+ ***************************************************************************/
+PRIVATE int cb_destroy_named_childs(
+    hgobj child, void *user_data, void *user_data2, void *user_data3
+)
+{
+    const char *name = user_data;
+    const char *name_ = gobj_name(child);
+    if(name_ && strcmp(name_, name)==0) {
+        if(__trace_gobj_create_delete__(child)) {
+            trace_machine("❎❎❌ gobj_destroy with previous pause/stop: %s",
+                gobj_short_name(child)
+            );
+        }
+        if(gobj_is_playing(child))
+            gobj_pause(child);
+        if(gobj_is_running(child))
+            gobj_stop(child);
+        gobj_destroy(child);
+    }
+    return 0;
+}
+PUBLIC int gobj_destroy_named_childs(hgobj gobj_, const char *name)
+{
+    gobj_t * gobj = gobj_;
+    if(!gobj) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "gobj NULL",
+            NULL
+        );
+        return -1;
+    }
+
+    if(__trace_gobj_create_delete__(gobj)) {
+        trace_machine("❎❎ gobj_destroy_named_childs: %s",
+            name
+        );
+    }
+
+    gobj_walk_gobj_children(
+        gobj, WALK_FIRST2LAST, cb_destroy_named_childs, (void *)name, 0, 0
+    );
+    return 0;
 }
 
 /***************************************************************************
