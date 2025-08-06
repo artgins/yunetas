@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yuneta_agent C)
+project(yagent C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -46,6 +46,9 @@ target_link_libraries(${PROJECT_NAME}
 ##############################################
 #   Installation
 ##############################################
+
+# TODO change to /yuneta/agent/
+
 install(DIRECTORY service
     USE_SOURCE_PERMISSIONS
     DESTINATION ${BIN_DEST_DIR}
@@ -82,13 +85,16 @@ install(FILES
     DESTINATION ${BIN_DEST_DIR}
 )
 
+# TODO change to /yuneta/agent/
+
 install(
     TARGETS ${PROJECT_NAME}
     PERMISSIONS
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    DESTINATION ${BIN_DEST_DIR}
+    #    DESTINATION ${BIN_DEST_DIR}
+    DESTINATION "/yuneta/agent"
 )
 
 # compile in Release mode :

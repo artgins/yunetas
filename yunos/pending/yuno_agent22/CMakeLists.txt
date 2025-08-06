@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yuneta_agent22 C)
+project(yagent22 C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -51,7 +51,8 @@ install(
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    DESTINATION ${BIN_DEST_DIR}
+    #    DESTINATION ${BIN_DEST_DIR}
+    DESTINATION "/yuneta/agent"
 )
 
 # compile in Release mode :
