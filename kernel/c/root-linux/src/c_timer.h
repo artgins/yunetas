@@ -34,9 +34,6 @@ GOBJ_DECLARE_GCLASS(C_TIMER);
 /*------------------------*
  *      Events
  *------------------------*/
-// HACK: Systems events: defined in gobj.h
-//GOBJ_DECLARE_EVENT(EV_TIMEOUT);
-//GOBJ_DECLARE_EVENT(EV_TIMEOUT_PERIODIC);
 
 
 /***************************************************************

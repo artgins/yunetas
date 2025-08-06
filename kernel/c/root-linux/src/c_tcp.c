@@ -67,8 +67,6 @@
 #define IS_CLI      (!empty_string(priv->url))
 #define IS_CLISRV   (priv->__clisrv__)
 
-GOBJ_DECLARE_EVENT(EV_SEND_ENCRYPTED_DATA);
-
 /***************************************************************
  *              Prototypes
  ***************************************************************/
@@ -1658,7 +1656,6 @@ GOBJ_DEFINE_GCLASS(C_TCP);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_SEND_ENCRYPTED_DATA);
 
 /***************************************************************************
  *
