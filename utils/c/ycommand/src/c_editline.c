@@ -864,9 +864,22 @@ PRIVATE int ac_keychar(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
-    int c = kw_get_int(gobj, kw, "char", 0, KW_REQUIRED);
 
-    linenoiseEditInsert(l, c);
+    if(kw_has_key(kw, "char")) {
+        int c = (int)kw_get_int(gobj, kw, "char", 0, KW_REQUIRED);
+        linenoiseEditInsert(l, c);
+    }
+
+    if(kw_has_key(kw, "gbuffer")) {
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+        char *p = gbuffer_cur_rd_pointer(gbuf);
+        int len = (int)gbuffer_leftbytes(gbuf);
+
+        for(int i=0; i<len; i++) {
+            int c = p[i];
+            linenoiseEditInsert(l, c);  // ascii editor, no utf-8
+        }
+    }
 
     KW_DECREF(kw);
     return 0;
@@ -1136,7 +1149,50 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
         linenoiseHistoryAdd(l, "");
     }
 
-    refreshLine(l);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_setfocus(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->wn) {
+        wmove(priv->wn, 0, priv->plen + priv->pos);
+        wrefresh(priv->wn);
+    }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int x = (int)kw_get_int(gobj, kw, "x", 0, KW_REQUIRED);
+    int y = (int)kw_get_int(gobj, kw, "y", 0, KW_REQUIRED);
+    gobj_write_integer_attr(gobj, "x", x);
+    gobj_write_integer_attr(gobj, "y", y);
+
+    if(priv->panel) {
+        //log_debug_printf(0, "move panel x %d y %d %s", x, y, gobj_name(gobj));
+        move_panel(priv->panel, y, x);
+        update_panels();
+        doupdate();
+    } else if(priv->wn) {
+        //log_debug_printf(0, "move window x %d y %d %s", x, y, gobj_name(gobj));
+        mvwin(priv->wn, y, x);
+        wrefresh(priv->wn);
+    }
 
     KW_DECREF(kw);
     return 0;
@@ -1149,12 +1205,25 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int cx = kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
-    int cy = kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
+    int cx = (int)kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
+    int cy = (int)kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
     gobj_write_integer_attr(gobj, "cx", cx);
     gobj_write_integer_attr(gobj, "cy", cy);
 
-    refreshLine(priv);
+    if(priv->use_ncurses) {
+        if(priv->panel) {
+            //log_debug_printf(0, "size panel cx %d cy %d %s", cx, cy, gobj_name(gobj));
+            wresize(priv->wn, cy, cx);
+            update_panels();
+            doupdate();
+        } else if(priv->wn) {
+            //log_debug_printf(0, "size window cx %d cy %d %s", cx, cy, gobj_name(gobj));
+            wresize(priv->wn, cy, cx);
+            wrefresh(priv->wn);
+        }
+    }
+
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);  // repaint, ncurses doesn't do it
 
     KW_DECREF(kw);
     return 0;

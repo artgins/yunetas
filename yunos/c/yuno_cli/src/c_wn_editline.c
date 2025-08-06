@@ -864,13 +864,21 @@ PRIVATE int ac_keychar(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     PRIVATE_DATA *l = priv;
-    gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
-    char *p = gbuffer_cur_rd_pointer(gbuf);
-    int len = gbuffer_leftbytes(gbuf);
 
-    for(int i=0; i<len; i++) {
-        int c = p[i];
-        linenoiseEditInsert(l, c);  // ascii editor, no utf-8
+    if(kw_has_key(kw, "char")) {
+        int c = (int)kw_get_int(gobj, kw, "char", 0, KW_REQUIRED);
+        linenoiseEditInsert(l, c);
+    }
+
+    if(kw_has_key(kw, "gbuffer")) {
+        gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_REQUIRED);
+        char *p = gbuffer_cur_rd_pointer(gbuf);
+        int len = (int)gbuffer_leftbytes(gbuf);
+
+        for(int i=0; i<len; i++) {
+            int c = p[i];
+            linenoiseEditInsert(l, c);  // ascii editor, no utf-8
+        }
     }
 
     KW_DECREF(kw);
@@ -1102,37 +1110,6 @@ PRIVATE int ac_del_prev_word(hgobj gobj, const char *event, json_t *kw, hgobj sr
 }
 
 /***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!priv->wn) {
-        // Debugging in kdevelop or batch mode has no wn
-        printf("\n%s%s", priv->prompt, priv->buf);
-        fflush(stdout);
-        KW_DECREF(kw);
-        return 0;
-    }
-
-    wclear(priv->wn);
-
-    if(has_colors()) {
-        if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
-            wbkgd(
-                priv->wn,
-                get_curses_color(priv->fg_color, priv->bg_color)
-            );
-        }
-    }
-    refreshLine(priv);
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
  *  HACK kw is EVF_KW_WRITING
  ***************************************************************************/
 PRIVATE int ac_gettext(hgobj gobj, const char *event, json_t *kw, hgobj src)
@@ -1201,8 +1178,8 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int x = kw_get_int(gobj, kw, "x", 0, KW_REQUIRED);
-    int y = kw_get_int(gobj, kw, "y", 0, KW_REQUIRED);
+    int x = (int)kw_get_int(gobj, kw, "x", 0, KW_REQUIRED);
+    int y = (int)kw_get_int(gobj, kw, "y", 0, KW_REQUIRED);
     gobj_write_integer_attr(gobj, "x", x);
     gobj_write_integer_attr(gobj, "y", y);
 
@@ -1228,22 +1205,58 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int cx = kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
-    int cy = kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
+    int cx = (int)kw_get_int(gobj, kw, "cx", 0, KW_REQUIRED);
+    int cy = (int)kw_get_int(gobj, kw, "cy", 0, KW_REQUIRED);
     gobj_write_integer_attr(gobj, "cx", cx);
     gobj_write_integer_attr(gobj, "cy", cy);
 
-    if(priv->panel) {
-        //log_debug_printf(0, "size panel cx %d cy %d %s", cx, cy, gobj_name(gobj));
-        wresize(priv->wn, cy, cx);
-        update_panels();
-        doupdate();
-    } else if(priv->wn) {
-        //log_debug_printf(0, "size window cx %d cy %d %s", cx, cy, gobj_name(gobj));
-        wresize(priv->wn, cy, cx);
-        wrefresh(priv->wn);
+    if(priv->use_ncurses) {
+        if(priv->panel) {
+            //log_debug_printf(0, "size panel cx %d cy %d %s", cx, cy, gobj_name(gobj));
+            wresize(priv->wn, cy, cx);
+            update_panels();
+            doupdate();
+        } else if(priv->wn) {
+            //log_debug_printf(0, "size window cx %d cy %d %s", cx, cy, gobj_name(gobj));
+            wresize(priv->wn, cy, cx);
+            wrefresh(priv->wn);
+        }
     }
+
     gobj_send_event(gobj, EV_PAINT, 0, gobj);  // repaint, ncurses doesn't do it
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->use_ncurses) {
+        if(!priv->wn) {
+            // Debugging in kdevelop or batch mode has no wn
+            printf("\n%s%s", priv->prompt, priv->buf);
+            fflush(stdout);
+            KW_DECREF(kw);
+            return 0;
+        }
+
+        wclear(priv->wn);
+
+        if(has_colors()) {
+            if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
+                wbkgd(
+                    priv->wn,
+                    get_curses_color(priv->fg_color, priv->bg_color)
+                );
+            }
+        }
+    }
+    refreshLine(priv);
 
     KW_DECREF(kw);
     return 0;
@@ -1285,7 +1298,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_EDITLINE);
+GOBJ_DEFINE_GCLASS(C_WN_EDITLINE);
 
 /*------------------------*
  *      States
@@ -1406,5 +1419,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_editline(void)
 {
-    return create_gclass(C_EDITLINE);
+    return create_gclass(C_WN_EDITLINE);
 }
