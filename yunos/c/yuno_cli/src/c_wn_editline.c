@@ -1135,7 +1135,7 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *  HACK kw is EVF_KW_WRITING
  ***************************************************************************/
 PRIVATE int ac_gettext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {

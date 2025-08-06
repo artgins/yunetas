@@ -219,9 +219,6 @@ PRIVATE void refreshLine(PRIVATE_DATA *l);
 
 
 
-/***************************************************************************
- *      Framework Method create
- ***************************************************************************/
 
 /***************************************************************************
  *      Framework Method create
@@ -391,7 +388,7 @@ static int completeLine(PRIVATE_DATA *ls)
             }
 
             nread = read(STDIN_FILENO, &c, 1);
-            // log_debug_printf(0, "kb x%X %c", c, c);
+            // trace_msg0("kb x%X %c", c, c);
             if (nread <= 0) {
                 freeCompletions(&lc);
                 return -1;
@@ -768,6 +765,12 @@ PRIVATE int linenoiseHistorySave(PRIVATE_DATA *l, const char *filename)
         return -1;
     for (int i = 0; i < l->history_len; i++) {
         if(!empty_string(l->history[i])) {
+            #define PASSW "passw"
+            char *p = strstr(l->history[i], PASSW);
+            if(p) {
+                p += strlen(PASSW);
+                *p = 0;
+            }
             fprintf(fp, "%s\n", l->history[i]);
         }
     }
