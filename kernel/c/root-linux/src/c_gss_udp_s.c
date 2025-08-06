@@ -26,7 +26,7 @@
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
-#include <g_states.h>
+#include <g_st_kernel.h>
 #include <helpers.h>
 #include "c_timer.h"
 #include "c_udp_s.h"

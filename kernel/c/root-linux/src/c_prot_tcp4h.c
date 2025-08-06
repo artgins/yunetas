@@ -13,7 +13,7 @@
 #include <netinet/in.h>
 #include <gobj.h>
 #include <g_ev_kernel.h>
-#include <g_states.h>
+#include <g_st_kernel.h>
 #include <helpers.h>
 #ifdef ESP_PLATFORM
     #include <c_esp_transport.h>

@@ -23,8 +23,8 @@
 #include "stats_parser.h"
 #include "testing.h"
 #include "gobj.h"
-#include "g_events.h"
-#include "g_states.h"
+#include "g_ev_kernel.h"
+#include "g_st_kernel.h"
 
 extern void jsonp_free(void *ptr);
 

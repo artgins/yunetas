@@ -37,8 +37,8 @@ set (SRCS
     src/json_replace_vars.c
     src/rotatory.c
     src/replace_string.c
-    src/g_events.c
-    src/g_states.c
+    src/g_ev_kernel.c
+    src/g_st_kernel.c
 )
 
 set (HDRS
@@ -60,8 +60,8 @@ set (HDRS
     src/testing.h
     src/rotatory.h
     src/replace_string.h
-    src/g_events.h
-    src/g_states.h
+    src/g_ev_kernel.h
+    src/g_st_kernel.h
 )
 
 ##############################################

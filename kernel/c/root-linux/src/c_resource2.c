@@ -21,7 +21,7 @@
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
-#include <g_states.h>
+#include <g_st_kernel.h>
 #include <helpers.h>
 #include "yunetas_environment.h"
 #include "c_resource2.h"
