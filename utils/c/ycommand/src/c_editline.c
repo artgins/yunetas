@@ -122,6 +122,8 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <ncurses/ncurses.h>
+#include <ncurses/panel.h>
 
 #include "c_editline.h"
 
@@ -150,13 +152,14 @@ typedef struct linenoiseCompletions {
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
+SDATA (DTP_BOOLEAN,     "ncurses",              0,  0, "True to use ncurses"),
 SDATA (DTP_STRING,      "prompt",               0,  "> ", "Prompt"),
 SDATA (DTP_STRING,      "history_file",         0,  0, "History file"),
 SDATA (DTP_INTEGER,     "history_max_len",      0,  "200000", "history max len (max lines)"),
 SDATA (DTP_INTEGER,     "buffer_size",          0,  "4096", "edition buffer size"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical width window size"),
 SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
 SDATA (DTP_STRING,      "bg_color",             0,  "cyan", "Background color"),
 SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
@@ -186,6 +189,8 @@ typedef struct _PRIVATE_DATA {
     int cy;
     const char *fg_color;
     const char *bg_color;
+    WINDOW *wn;     // ncurses window handler
+    PANEL *panel;   // panel handler
 
     const char *history_file;
     const char *prompt; /* Prompt to display. */
@@ -201,6 +206,7 @@ typedef struct _PRIVATE_DATA {
     size_t len;         /* Current edited line length. */
     size_t cols;        /* Number of columns in terminal. */
     int history_index;  /* The history index we are currently editing. */
+    BOOL use_ncurses;
 } PRIVATE_DATA;
 
 PRIVATE void freeHistory(PRIVATE_DATA *l);
@@ -247,10 +253,24 @@ PRIVATE void mt_create(hgobj gobj)
         priv->cols = priv->cx;
     SET_PRIV(cy,                        gobj_read_integer_attr)
     SET_PRIV(history_max_len,           gobj_read_integer_attr)
+    SET_PRIV(use_ncurses,               gobj_read_bool_attr)
+
+    int x = (int)gobj_read_integer_attr(gobj, "x");
+    int y = (int)gobj_read_integer_attr(gobj, "y");
 
     int buffer_size = (int)gobj_read_integer_attr(gobj, "buffer_size");
     priv->buf = gbmem_malloc(buffer_size);
     priv->buflen = buffer_size - 1;
+
+    /*
+     *  Don't log errors, in batch mode there is no curses windows.
+     */
+    if(priv->use_ncurses) {
+        priv->wn = newwin(priv->cy, priv->cx, y, x);
+        if(priv->wn) {
+            priv->panel = new_panel(priv->wn);
+        }
+    }
 
     /*
      *  Load history from file.
@@ -277,7 +297,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(fg_color,              gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(prompt,                gobj_read_str_attr)
         priv->plen = strlen(priv->prompt);
-        refreshLine(priv);
+        gobj_send_event(gobj, EV_PAINT, 0, gobj);
     ELIF_EQ_SET_PRIV(cx,                    gobj_read_integer_attr)
         priv->cols = priv->cx;
         //TODO igual hay que refrescar
