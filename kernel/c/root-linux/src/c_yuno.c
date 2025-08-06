@@ -36,7 +36,7 @@
 #include <linux/capability.h>  // for CAP_SYS_NICE, CAP_IPC_LOCK#include <sys/prctl.h>
 
 #include <gobj.h>
-#include <g_events.h>
+#include <g_ev_kernel.h>
 #include <g_states.h>
 #include <helpers.h>
 #include <command_parser.h>

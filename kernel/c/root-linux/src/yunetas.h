@@ -21,8 +21,8 @@ extern "C"{
 #include <gtypes.h>
 #include <dl_list.h>
 #include <gobj.h>
-#include <g_events.h>
-#include <g_states.h>
+#include <g_ev_kernel.h>
+#include <g_st_kernel.h>
 #include <gbmem.h>
 #include <gbuffer.h>
 #include <glogger.h>

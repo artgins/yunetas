@@ -1,12 +1,12 @@
 /****************************************************************************
- *          g_events.c
+ *          g_ev_kernel.c
  *
- *          Global Events
+ *          Global Events of Kernel
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include "g_events.h"
+#include "g_ev_kernel.h"
 
 // Timer Events, defined here to easy filtering in trace
 GOBJ_DEFINE_EVENT(EV_TIMEOUT);

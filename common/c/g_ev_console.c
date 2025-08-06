@@ -1,12 +1,12 @@
 /****************************************************************************
  *          g_events.c
  *
- *          Global Events
- *
+ *          Global Events of Console
+  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include "g_events.h"
+#include "g_ev_console.h"
 
 // Timer Events, defined here to easy filtering in trace
 GOBJ_DEFINE_EVENT(EV_TIMEOUT);

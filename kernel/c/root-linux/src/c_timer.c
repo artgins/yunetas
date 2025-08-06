@@ -14,7 +14,7 @@
 #include <time.h>
 
 #include <gobj.h>
-#include <g_events.h>
+#include <g_ev_kernel.h>
 #include <g_states.h>
 #include <helpers.h>
 #include "c_timer.h"

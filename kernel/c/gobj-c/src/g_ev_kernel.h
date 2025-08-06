@@ -1,7 +1,7 @@
 /****************************************************************************
- *          g_events.h
+ *          g_ev_kernel.h
  *
- *          Global Events
+ *          Global Events of Kernel
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.

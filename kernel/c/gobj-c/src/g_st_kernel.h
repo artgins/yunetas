@@ -1,7 +1,7 @@
 /****************************************************************************
  *          g_states.h
  *
- *          Global States
+ *          Global States of Kernel
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.

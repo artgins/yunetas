@@ -1,12 +1,12 @@
 /****************************************************************************
  *          g_states.c
  *
- *          Global States
+ *          Global States of Console
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
-#include "g_states.h"
+#include "g_st_console.h"
 
 // Frequent states
 GOBJ_DEFINE_STATE(ST_DISCONNECTED);

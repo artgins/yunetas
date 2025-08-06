@@ -1,7 +1,7 @@
 /****************************************************************************
- *          g_events.h
+ *          g_ev_console.h
  *
- *          Global Events
+ *          Global Events of Console
  *
  *          Copyright (c) 2024, ArtGins.
  *          All Rights Reserved.
