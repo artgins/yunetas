@@ -15,7 +15,11 @@
   #include <driver/uart.h>
   #include <driver/gpio.h>
 #endif
-#include <kwid.h>
+
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include "c_esp_uart.h"
 
 /***************************************************************

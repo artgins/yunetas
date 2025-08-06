@@ -22,8 +22,10 @@
     #include <driver/gpio.h>
 #endif
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
-#include <kwid.h>
 #include "c_timer.h"
 #include "c_esp_yuno.h"
 #include "c_esp_wifi.h"

@@ -23,7 +23,10 @@
 #include <time.h>
 #include <arpa/inet.h>
 
-#include <kwid.h>
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 
 #if defined(CONFIG_HAVE_OPENSSL)
     #include <openssl/ssl.h>

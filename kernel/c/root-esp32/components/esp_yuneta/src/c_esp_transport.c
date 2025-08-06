@@ -16,8 +16,11 @@
   #include <esp_transport_ssl.h>
   #include <c_esp_yuno.h>
 #endif
+
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
-#include <kwid.h>
 #include "c_esp_transport.h"
 
 #ifdef ESP_PLATFORM

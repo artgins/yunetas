@@ -13,6 +13,10 @@
 #include <unistd.h>
 #include <libgen.h>
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include <c_timer.h>
 #include <c_prot_http_cl.h>
 

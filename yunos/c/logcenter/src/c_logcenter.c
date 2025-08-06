@@ -15,6 +15,10 @@
 #include <sys/statvfs.h>
 #include <limits.h>
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include <c_gss_udp_s.h>
 #include "c_logcenter.h"
 

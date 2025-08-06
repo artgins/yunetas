@@ -13,8 +13,10 @@
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-#include <backtrace.h>
-
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include "c_test1.h"
 
 /***************************************************************************

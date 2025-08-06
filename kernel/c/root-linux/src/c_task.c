@@ -78,7 +78,10 @@
  ***********************************************************************/
 #include <string.h>
 
-#include <kwid.h>
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include <command_parser.h>
 
 #include "msg_ievent.h"

@@ -8,6 +8,11 @@
  ***********************************************************************/
 #include <unistd.h>
 #include <limits.h>
+
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include <fs_watcher.h>
 #include "c_yuno.h"
 #include "c_fs.h"

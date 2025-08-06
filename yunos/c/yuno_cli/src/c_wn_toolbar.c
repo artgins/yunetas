@@ -10,8 +10,12 @@
 #include <string.h>
 #include <ncurses/ncurses.h>
 #include <ncurses/panel.h>
-#include "c_wn_toolbar.h"
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
+#include "c_wn_toolbar.h"
 #include "c_wn_stdscr.h"
 
 /***************************************************************************

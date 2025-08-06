@@ -12,8 +12,11 @@
 #include <time.h>
 #include <arpa/inet.h>
 
-#include <yuneta_version.h>
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
+#include <yuneta_version.h>
 #include "sha1.h"
 #include "c_timer.h"
 #include "c_tcp.h"

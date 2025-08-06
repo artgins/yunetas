@@ -14,8 +14,11 @@
 #include <sys/types.h>
 #include <time.h>
 
-#include "00_http_parser.h" /* don't remove */
-#include "00_security.h"    /* don't remove */
+/*
+ * Do not remove, include the list of dependencies
+ */
+#include "00_http_parser.h"
+#include "00_security.h"
 #include "replace_string.h"
 #include "ansi_escape_codes.h"
 #include "gtypes.h"

@@ -23,6 +23,11 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
+
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include "c_timer.h"
 #include "c_udp_s.h"
 #include "c_gss_udp_s.h"

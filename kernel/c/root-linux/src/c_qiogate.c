@@ -12,6 +12,10 @@
 #include <stdio.h>
 #include <limits.h>
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include <timeranger2.h>
 #include <command_parser.h>
 #include <tr_queue.h>

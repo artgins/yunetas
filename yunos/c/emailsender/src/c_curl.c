@@ -56,6 +56,11 @@ int main(void) {
 #include <sys/utsname.h>
 #include <unistd.h>
 #include <curl/curl.h>
+
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include "c_curl.h"
 
 /***************************************************************************

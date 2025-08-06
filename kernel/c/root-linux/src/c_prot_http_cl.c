@@ -10,8 +10,11 @@
  ****************************************************************************/
 #include <string.h>
 #include <strings.h>
+
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
-#include <kwid.h>
 #include <yuneta_version.h>
 
 #ifdef ESP_PLATFORM

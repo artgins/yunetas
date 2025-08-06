@@ -19,8 +19,10 @@
 #include <limits.h>
 #include <stdio.h>
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
-#include <kwid.h>
 #include "yunetas_environment.h"
 #include "c_resource2.h"
 

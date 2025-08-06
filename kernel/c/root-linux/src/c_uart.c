@@ -14,7 +14,10 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include <kwid.h>
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include <yev_loop.h>
 #include "c_timer.h"
 #include "c_yuno.h"

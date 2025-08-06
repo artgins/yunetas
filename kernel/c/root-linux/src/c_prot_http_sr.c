@@ -9,8 +9,10 @@
  ***********************************************************************/
 #include <string.h>
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
-#include <kwid.h>
 #include "msg_ievent.h"
 #include "c_timer.h"
 #include "ghttp_parser.h"

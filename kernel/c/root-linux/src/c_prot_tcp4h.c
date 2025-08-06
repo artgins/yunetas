@@ -11,6 +11,9 @@
  ****************************************************************************/
 #include <string.h>
 #include <netinet/in.h>
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
 #ifdef ESP_PLATFORM
     #include <c_esp_transport.h>
@@ -18,7 +21,6 @@
 #ifdef __linux__
     #include "c_tcp.h"
 #endif
-#include <kwid.h>
 #include "c_prot_tcp4h.h"
 
 /***************************************************************

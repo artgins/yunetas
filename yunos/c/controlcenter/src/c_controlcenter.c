@@ -15,6 +15,10 @@
 #include <limits.h>
 #include <pwd.h>
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include "c_controlcenter.h"
 #include "treedb_schema_controlcenter.c"
 

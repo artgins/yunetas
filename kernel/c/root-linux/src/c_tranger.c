@@ -29,7 +29,9 @@ command-yuno id=1911 service=tranger command=close-list list_id=pepe
  ***********************************************************************/
 #include <string.h>
 
-#include <kwid.h>
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
 #include <command_parser.h>
 #include <timeranger2.h>

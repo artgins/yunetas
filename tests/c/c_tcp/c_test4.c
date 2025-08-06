@@ -15,6 +15,10 @@
  ***********************************************************************/
 #include <string.h>
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include "common/c_pepon.h"
 #include "c_test4.h"
 

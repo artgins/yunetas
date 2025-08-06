@@ -12,7 +12,7 @@ Example of id_token
   "iat": 1627485502,
   "auth_time": 0,
   "jti": "868d1822-53ea-41bc-9530-4d39a4443494",
-  "iss": "http://localhost:8281/auth/realms/mulesol",
+  "iss": "http://localhost:8281/auth/realms/yyyy",
   "aud": "yunetacontrol",
   "sub": "277f7140-5dde-4549-ae58-5284e5afb7db",
   "typ": "ID",
@@ -22,11 +22,11 @@ Example of id_token
   "acr": "1",
   "email_verified": TRUE,
   "name": "Yuneta Admin",
-  "preferred_username": "yuneta_admin@mulesol.es",
+  "preferred_username": "yuneta_admin@yyyy.es",
   "locale": "es",
   "given_name": "Yuneta Admin",
   "family_name": "",
-  "email": "yuneta_admin@mulesol.es"
+  "email": "yuneta_admin@yyyy.es"
 }
 
 Example of access_token
@@ -36,7 +36,7 @@ Example of access_token
   "exp": 1973085502,
   "iat": 1627485502,
   "jti": "e3ebab65-2092-4f59-9498-561c5a72932a",
-  "iss": "http://localhost:8281/auth/realms/mulesol",
+  "iss": "http://localhost:8281/auth/realms/yyyy",
   "aud": [
     "realm-management",
     "account"
@@ -47,13 +47,13 @@ Example of access_token
   "session_state": "8d192831-cfe1-4a25-a42e-4ea71f6f555d",
   "acr": "1",
   "allowed-origins": [
-    "https://mulesol.yunetacontrol.com"
+    "https://yyyy.yunetacontrol.com"
   ],
   "realm_access": {
     "roles": [
       "offline_access",
       "uma_authorization",
-      "default-roles-mulesol"
+      "default-roles-yyyy"
     ]
   },
   "resource_access": {
@@ -91,11 +91,11 @@ Example of access_token
   "scope": "openid profile offline_access email",
   "email_verified": TRUE,
   "name": "Yuneta Admin",
-  "preferred_username": "yuneta_admin@mulesol.es",
+  "preferred_username": "yuneta_admin@yyyy.es",
   "locale": "es",
   "given_name": "Yuneta Admin",
   "family_name": "",
-  "email": "yuneta_admin@mulesol.es"
+  "email": "yuneta_admin@yyyy.es"
 }
 
 Example of refresh_token
@@ -105,8 +105,8 @@ Example of refresh_token
   "exp": 1973085502,
   "iat": 1627485502,
   "jti": "05365154-dfd7-4513-a48f-35015bb3746e",
-  "iss": "http://localhost:8281/auth/realms/mulesol",
-  "aud": "http://localhost:8281/auth/realms/mulesol",
+  "iss": "http://localhost:8281/auth/realms/yyyy",
+  "aud": "http://localhost:8281/auth/realms/yyyy",
   "sub": "277f7140-5dde-4549-ae58-5284e5afb7db",
   "typ": "Offline",
   "azp": "yunetacontrol",
@@ -123,10 +123,11 @@ Example of refresh_token
 #include <stdio.h>
 #include <limits.h>
 
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
-#include <kwid.h>
 #include <command_parser.h>
-#include <helpers.h>
 
 #include "msg_ievent.h"
 #include "c_prot_http_cl.h"

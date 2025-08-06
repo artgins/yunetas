@@ -9,6 +9,11 @@
  ***********************************************************************/
 #include <string.h>
 #include <stdio.h>
+
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
+#include <helpers.h>
 #include "c_teston.h"
 
 /***************************************************************************

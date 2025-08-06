@@ -11,9 +11,10 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <testing.h>
+#include <gobj.h>
+#include <g_events.h>
+#include <g_states.h>
 #include <helpers.h>
-#include <kwid.h>
 #include <ytls.h>
 #include <yev_loop.h>
 #include "c_yuno.h"
