@@ -102,7 +102,7 @@ PRIVATE sdata_desc_t pm_write_tty[] = {
 };
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
-PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
+PRIVATE const char *a_write_tty[] = {EV_WRITE_TTY, 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD2--type-----------name----------------flag----------------alias---------------items-----------json_fn---------description---------- */
@@ -1272,7 +1272,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw_tty = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
-    gobj_send_event(gobj_console, "EV_WRITE_TTY", kw_tty, gobj);
+    gobj_send_event(gobj_console, EV_WRITE_TTY, kw_tty, gobj);
 
     KW_DECREF(kw);
     return 0;

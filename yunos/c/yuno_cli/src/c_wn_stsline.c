@@ -152,7 +152,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
     return 0;
 }
 
@@ -265,7 +265,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     const char *text = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
     gobj_write_str_attr(gobj, "text", text);
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -320,7 +320,7 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
         wresize(priv->wn, cy, cx);
         wrefresh(priv->wn);
     }
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);  // repaint, ncurses doesn't do it
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);  // repaint, ncurses doesn't do it
 
     KW_DECREF(kw);
     return 0;

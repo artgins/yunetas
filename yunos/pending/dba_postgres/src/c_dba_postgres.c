@@ -328,7 +328,7 @@ PRIVATE json_t *action_create_table_if_not_exists(
             schema_
         )
     );
-    gobj_send_event(priv->gobj_postgres, "EV_SEND_QUERY", query, gobj);
+    gobj_send_event(priv->gobj_postgres, EV_SEND_QUERY, query, gobj);
 
     KW_DECREF(kw);
     CONTINUE_TASK();
@@ -389,7 +389,7 @@ PRIVATE json_t *action_add_row(
             input_data
         )
     );
-    gobj_send_event(priv->gobj_postgres, "EV_SEND_QUERY", query, gobj);
+    gobj_send_event(priv->gobj_postgres, EV_SEND_QUERY, query, gobj);
 
     KW_DECREF(kw);
     CONTINUE_TASK();
@@ -462,7 +462,7 @@ PRIVATE json_t *result_add_row(
 //         "dst", gobj_name(src),
 //         "query", "SELECT * from tracks_geodb2;"
 //     );
-//     gobj_send_event(priv->gobj_postgres, "EV_SEND_QUERY", query, gobj);
+//     gobj_send_event(priv->gobj_postgres, EV_SEND_QUERY, query, gobj);
 //
 //     KW_DECREF(kw);
 //     return (void *)0; // continue

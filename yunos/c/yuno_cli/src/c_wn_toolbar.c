@@ -164,7 +164,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
     gobj_start_children(gobj);
     return 0;
 }
@@ -224,7 +224,7 @@ PRIVATE int mt_child_added(hgobj gobj, hgobj child)
     //PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     fix_child_sizes(gobj);
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj); // repaint myself: in resize of childs the remain zones are not refreshed
+    gobj_send_event(gobj, EV_PAINT, 0, gobj); // repaint myself: in resize of childs the remain zones are not refreshed
     return 0;
 }
 
@@ -235,7 +235,7 @@ PRIVATE int mt_child_removed(hgobj gobj, hgobj child)
 {
     if(!gobj_is_destroying(gobj) && gobj_is_running(gobj)) {
         fix_child_sizes(gobj);
-        gobj_send_event(gobj, "EV_PAINT", 0, gobj); // repaint myself: in resize of childs the remain zones are not refreshed
+        gobj_send_event(gobj, EV_PAINT, 0, gobj); // repaint myself: in resize of childs the remain zones are not refreshed
     }
     return 0;
 }
@@ -338,13 +338,13 @@ PRIVATE int fix_child_sizes(hgobj gobj)
                 "x", abs_x,
                 "y", partial_height
             );
-            gobj_send_event(child, "EV_MOVE", kw_move, gobj);
+            gobj_send_event(child, EV_MOVE, kw_move, gobj);
 
             json_t *kw_size = json_pack("{s:i, s:i}",
                 "cx", new_width,
                 "cy", new_height
             );
-            gobj_send_event(child, "EV_SIZE", kw_size, gobj);
+            gobj_send_event(child, EV_SIZE, kw_size, gobj);
 
             partial_height += new_height;
         }
@@ -377,13 +377,13 @@ PRIVATE int fix_child_sizes(hgobj gobj)
                 "x", partial_width,
                 "y", abs_y
             );
-            gobj_send_event(child, "EV_MOVE", kw_move, gobj);
+            gobj_send_event(child, EV_MOVE, kw_move, gobj);
 
             json_t *kw_size = json_pack("{s:i, s:i}",
                 "cx", new_width,
                 "cy", new_height
             );
-            gobj_send_event(child, "EV_SIZE", kw_size, gobj);
+            gobj_send_event(child, EV_SIZE, kw_size, gobj);
 
             partial_width += new_width;
         }
@@ -488,7 +488,7 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
         wresize(priv->wn, cy, cx);
         wrefresh(priv->wn);
     }
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);  // repaint, ncurses doesn't do it
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);  // repaint, ncurses doesn't do it
 
     fix_child_sizes(gobj);
 
@@ -510,13 +510,13 @@ PRIVATE int ac_set_selected_button(hgobj gobj, const char *event, json_t *kw, hg
             if(prev) {
                 gobj_write_str_attr(prev, "bg_color", priv->bg_color);
                 gobj_write_str_attr(prev, "fg_color", priv->fg_color);
-                gobj_send_event(prev, "EV_PAINT", 0, gobj);
+                gobj_send_event(prev, EV_PAINT, 0, gobj);
             }
         }
         gobj_write_str_attr(gobj, "selected", selected);
         gobj_write_str_attr(child, "bg_color", priv->bgc_selected);
         gobj_write_str_attr(child, "fg_color", priv->fgc_selected);
-        gobj_send_event(child, "EV_PAINT", 0, gobj);
+        gobj_send_event(child, EV_PAINT, 0, gobj);
     }
 
     KW_DECREF(kw);
@@ -609,9 +609,6 @@ GOBJ_DEFINE_GCLASS(C_WN_TOOLBAR);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_SET_SELECTED_BUTTON);
-GOBJ_DEFINE_EVENT(EV_GET_PREV_SELECTED_BUTTON);
-GOBJ_DEFINE_EVENT(EV_GET_NEXT_SELECTED_BUTTON);
 
 /***************************************************************************
  *          Create the GClass

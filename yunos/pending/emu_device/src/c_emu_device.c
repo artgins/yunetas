@@ -224,7 +224,7 @@ PRIVATE int mt_play(hgobj gobj)
                 "msg",          "%s", "What yuno __input_side__ url?",
                 NULL
             );
-            gobj_send_event(agent_client, "EV_PAUSE_YUNO", 0, gobj);
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
         } else {
             fprintf(stderr, "What yuno __input_side__ url?\n");
             exit(-1);
@@ -255,7 +255,7 @@ PRIVATE int mt_play(hgobj gobj)
                 "msg",          "%s", "What TimeRanger path?",
                 NULL
             );
-            gobj_send_event(agent_client, "EV_PAUSE_YUNO", 0, gobj);
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
         } else {
             fprintf(stderr, "What TimeRanger path?\n");
             exit(-1);
@@ -269,7 +269,7 @@ PRIVATE int mt_play(hgobj gobj)
                 "msg",          "%s", "What Database?",
                 NULL
             );
-            gobj_send_event(agent_client, "EV_PAUSE_YUNO", 0, gobj);
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
         } else {
             fprintf(stderr, "What Database?\n\n");
             list_databases(path);
@@ -284,7 +284,7 @@ PRIVATE int mt_play(hgobj gobj)
                 "msg",          "%s", "What Topic?",
                 NULL
             );
-            gobj_send_event(agent_client, "EV_PAUSE_YUNO", 0, gobj);
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
         } else {
             fprintf(stderr, "What Topic?\n\n");
             list_topics(path, database);

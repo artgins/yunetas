@@ -199,7 +199,7 @@ PRIVATE int mt_play(hgobj gobj)
             NULL
         );
         if(agent_client) {
-            gobj_send_event(agent_client, "EV_PAUSE_YUNO", 0, gobj);
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
         }
         return -1;
     }
@@ -212,7 +212,7 @@ PRIVATE int mt_play(hgobj gobj)
             NULL
         );
         if(agent_client) {
-            gobj_send_event(agent_client, "EV_PAUSE_YUNO", 0, gobj);
+            gobj_send_event(agent_client, EV_PAUSE_YUNO, 0, gobj);
         }
         return -1;
     }

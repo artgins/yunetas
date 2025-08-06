@@ -149,7 +149,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
     gobj_start_children(gobj);
     return 0;
 }
@@ -213,7 +213,7 @@ PRIVATE int mt_child_added(hgobj gobj, hgobj child)
         "x", x,
         "y", y
     );
-    gobj_send_event(child, "EV_MOVE", kw_move, gobj);
+    gobj_send_event(child, EV_MOVE, kw_move, gobj);
 
     int cx = gobj_read_integer_attr(gobj, "cx");
     int cy = gobj_read_integer_attr(gobj, "cy");
@@ -222,7 +222,7 @@ PRIVATE int mt_child_added(hgobj gobj, hgobj child)
         "cx", cx,
         "cy", cy
     );
-    gobj_send_event(child, "EV_SIZE", kw_size, gobj);
+    gobj_send_event(child, EV_SIZE, kw_size, gobj);
 
     return 0;
 }
@@ -322,7 +322,7 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
         "x", x,
         "y", y
     );
-    gobj_send_event_to_children(gobj, "EV_MOVE", kw_move, gobj);
+    gobj_send_event_to_children(gobj, EV_MOVE, kw_move, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -350,13 +350,13 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
         wresize(priv->wn, cy, cx);
         wrefresh(priv->wn);
     }
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);  // repaint, ncurses doesn't do it
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);  // repaint, ncurses doesn't do it
 
     json_t *kw_size  = json_pack("{s:i, s:i}",
         "cx", cx,
         "cy", cy
     );
-    gobj_send_event_to_children(gobj, "EV_SIZE", kw_size, gobj);
+    gobj_send_event_to_children(gobj, EV_SIZE, kw_size, gobj);
 
     KW_DECREF(kw);
     return 0;

@@ -641,7 +641,7 @@ PRIVATE json_t *cmd_disconnect(hgobj gobj, const char *command, json_t *kw)
         "name", agent
     );
     json_t *jn_resp;
-    if(gobj_send_event(gobj_router, "EV_DEL_STATIC_ROUTE", kw_route, gobj)<0) {
+    if(gobj_send_event(gobj_router, EV_DEL_STATIC_ROUTE, kw_route, gobj)<0) {
          jn_resp = json_sprintf("Agent '%s' NOT FOUND.", agent);
     } else {
          jn_resp = json_sprintf("Disconnecting from %s...", agent);
@@ -770,7 +770,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 PRIVATE json_t *cmd_quit(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
     KW_INCREF(kw);
-    gobj_send_event(gobj, "EV_QUIT", kw, gobj);
+    gobj_send_event(gobj, EV_QUIT, kw, gobj);
     return msg_iev_build_response(
         gobj,
         0,
@@ -837,7 +837,7 @@ PRIVATE json_t *cmd_refresh(hgobj gobj, const char *command, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_send_event_to_children_tree(priv->gwin_stdscr, "EV_PAINT", 0, gobj);
+    gobj_send_event_to_children_tree(priv->gwin_stdscr, EV_PAINT, 0, gobj);
 
     return msg_iev_build_response(
         gobj,
@@ -1454,7 +1454,7 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
         json_t *kw_sel = json_pack("{s:s}",
             "selected", name
         );
-        gobj_send_event(priv->gobj_toptoolbar, "EV_SET_SELECTED_BUTTON", kw_sel, gobj);
+        gobj_send_event(priv->gobj_toptoolbar, EV_SET_SELECTED_BUTTON, kw_sel, gobj);
 
         char prompt[32];
         snprintf(prompt, sizeof(prompt), "%s> ", name);
@@ -1607,7 +1607,7 @@ PRIVATE int display_webix_result(
             "text", jn_error,
             "bg_color", "red"
         );
-        gobj_send_event(display_window, "EV_SETTEXT", jn_text, gobj);
+        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
         // Pinta error en statusline, ya que no puedo pintar colores en la ventana-lista.
         msg2statusline(gobj, result, "Be careful! Response with ERROR.");
         if(priv->file_saving_output) {
@@ -1625,7 +1625,7 @@ PRIVATE int display_webix_result(
                 json_t *jn_text = json_pack("{s:s}",
                     "text", data
                 );
-                gobj_send_event(display_window, "EV_SETTEXT", jn_text, gobj);
+                gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
                 if(priv->file_saving_output) {
                     fprintf(priv->file_saving_output, "%s\n", data);
                 }
@@ -1642,7 +1642,7 @@ PRIVATE int display_webix_result(
                     json_t *jn_text = json_pack("{s:s}",
                         "text", p
                     );
-                    gobj_send_event(display_window, "EV_SETTEXT", jn_text, gobj);
+                    gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
                     if(priv->file_saving_output) {
                         fprintf(priv->file_saving_output, "%s\n", p);
                     }
@@ -1655,7 +1655,7 @@ PRIVATE int display_webix_result(
                         json_t *jn_text = json_pack("{s:s}",
                             "text", text
                         );
-                        gobj_send_event(display_window, "EV_SETTEXT", jn_text, gobj);
+                        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
                         if(priv->file_saving_output) {
                             fprintf(priv->file_saving_output, "%s\n", text);
                         }
@@ -1669,7 +1669,7 @@ PRIVATE int display_webix_result(
         json_t *jn_text = json_pack("{s:s}",
             "text", data
         );
-        gobj_send_event(display_window, "EV_SETTEXT", jn_text, gobj);
+        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
         if(priv->file_saving_output) {
             fprintf(priv->file_saving_output, "%s\n", data);
         }
@@ -1679,7 +1679,7 @@ PRIVATE int display_webix_result(
         json_t *jn_text = json_pack("{s:s}",
             "text", data
         );
-        gobj_send_event(display_window, "EV_SETTEXT", jn_text, gobj);
+        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
         if(priv->file_saving_output) {
             fprintf(priv->file_saving_output, "%s\n", data);
         }
@@ -1689,7 +1689,7 @@ PRIVATE int display_webix_result(
         json_t *jn_text = json_pack("{s:s}",
             "text", comment
         );
-        gobj_send_event(display_window, "EV_SETTEXT", jn_text, gobj);
+        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
         if(priv->file_saving_output) {
             fprintf(priv->file_saving_output, "%s\n", comment);
         }
@@ -1719,7 +1719,7 @@ PUBLIC int msg2display(hgobj gobj, const char *fmt, ...)
         "text", temp
     );
     hgobj wn_display = get_top_display_window(gobj);
-    gobj_send_event(wn_display, "EV_SETTEXT", jn_text, gobj);
+    gobj_send_event(wn_display, EV_SETTEXT, jn_text, gobj);
 
     va_end(ap);
 
@@ -1927,7 +1927,7 @@ PRIVATE int msg2statusline(hgobj gobj, BOOL error, const char *fmt, ...)
 //             json_t *kw_keychar = json_pack("{s:I}",
 //                 "gbuffer", (json_int_t)(size_t)gbuf
 //             );
-//             gobj_send_event(GetFocus(), "EV_KEYCHAR", kw_keychar, gobj);
+//             gobj_send_event(GetFocus(), EV_KEYCHAR, kw_keychar, gobj);
 //         }
 //
 //     } while(0);
@@ -1983,7 +1983,7 @@ PRIVATE void new_line(hgobj gobj, hgobj wn_display)
     json_t *jn_text = json_pack("{s:s}",
         "text", ""
     );
-    gobj_send_event(wn_display, "EV_SETTEXT", jn_text, gobj);
+    gobj_send_event(wn_display, EV_SETTEXT, jn_text, gobj);
 }
 
 /***************************************************************************
@@ -2280,7 +2280,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     //PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *kw_input_command = json_object();
-    gobj_send_event(src, "EV_GETTEXT", kw_input_command, gobj); // EV_GETTEXT is EVF_KW_WRITING
+    gobj_send_event(src, EV_GETTEXT, kw_input_command, gobj); // EV_GETTEXT is EVF_KW_WRITING
     const char *command = kw_get_str(gobj, kw_input_command, "text", 0, 0);
 
     char params_[4*1024];
@@ -2414,7 +2414,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Clear input line
      */
     json_object_set_new(kw_input_command, "text", json_string(""));
-    gobj_send_event(src, "EV_SETTEXT", kw_input_command, gobj);
+    gobj_send_event(src, EV_SETTEXT, kw_input_command, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -2462,7 +2462,7 @@ PRIVATE int ac_previous_window(hgobj gobj, const char *event, json_t *kw, hgobj 
     json_t *kw_sel = json_pack("{s:s}",
         "selected", ""
     );
-    gobj_send_event(priv->gobj_toptoolbar, "EV_GET_PREV_SELECTED_BUTTON", kw_sel, gobj);
+    gobj_send_event(priv->gobj_toptoolbar, EV_GET_PREV_SELECTED_BUTTON, kw_sel, gobj);
     set_top_window(gobj, kw_get_str(gobj, kw_sel, "selected", "", 0));
     KW_DECREF(kw_sel);
 
@@ -2480,7 +2480,7 @@ PRIVATE int ac_next_window(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw_sel = json_pack("{s:s}",
         "selected", ""
     );
-    gobj_send_event(priv->gobj_toptoolbar, "EV_GET_NEXT_SELECTED_BUTTON", kw_sel, gobj);
+    gobj_send_event(priv->gobj_toptoolbar, EV_GET_NEXT_SELECTED_BUTTON, kw_sel, gobj);
     set_top_window(gobj, kw_get_str(gobj, kw_sel, "selected", "", 0));
     KW_DECREF(kw_sel);
 
@@ -2711,7 +2711,7 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *jn_text = json_pack("{s:s}",
         "text", upgrade_command
     );
-    gobj_send_event(priv->gobj_editline, "EV_SETTEXT", jn_text, gobj);
+    gobj_send_event(priv->gobj_editline, EV_SETTEXT, jn_text, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -3100,7 +3100,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
 //
 //         hgobj wn_tty_mirror_disp = get_tty_mirror_window(gobj, window_tty_mirror_name);
 //         if(wn_tty_mirror_disp) {
-//             gobj_send_event(wn_tty_mirror_disp, "EV_WRITE_TTY", jn_data, src);
+//             gobj_send_event(wn_tty_mirror_disp, EV_WRITE_TTY, jn_data, src);
 //         } else {
 //             json_decref(jn_data);
 //         }

@@ -176,7 +176,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
     gobj_start_children(gobj);
     return 0;
 }
@@ -435,7 +435,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
     while(priv->scroll_size > 0 && dl_size(&priv->dl_lines) > priv->scroll_size) {
         delete_line(gobj, 1);
     }
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -466,7 +466,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     while(priv->scroll_size > 0 && dl_size(&priv->dl_lines) > priv->scroll_size) {
         delete_line(gobj, 1);
     }
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -485,7 +485,7 @@ PRIVATE int ac_scroll_line_up(hgobj gobj, const char *event, json_t *kw, hgobj s
     if(n_lines > n_win) {
         if(priv->base < n_lines - n_win) {
             priv->base++;
-            gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+            gobj_send_event(gobj, EV_PAINT, 0, gobj);
         }
     }
 
@@ -502,7 +502,7 @@ PRIVATE int ac_scroll_line_down(hgobj gobj, const char *event, json_t *kw, hgobj
 
     if(priv->base > 0) {
         priv->base--;
-        gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+        gobj_send_event(gobj, EV_PAINT, 0, gobj);
     }
 
     KW_DECREF(kw);
@@ -525,7 +525,7 @@ PRIVATE int ac_scroll_page_up(hgobj gobj, const char *event, json_t *kw, hgobj s
             if(priv->base >= n_lines - n_win) {
                 priv->base = n_lines - n_win;
             }
-            gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+            gobj_send_event(gobj, EV_PAINT, 0, gobj);
         }
     }
 
@@ -547,7 +547,7 @@ PRIVATE int ac_scroll_page_down(hgobj gobj, const char *event, json_t *kw, hgobj
         if(priv->base < 0) {
             priv->base = 0;
         }
-        gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+        gobj_send_event(gobj, EV_PAINT, 0, gobj);
     }
 
     KW_DECREF(kw);
@@ -566,7 +566,7 @@ PRIVATE int ac_scroll_top(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     priv->base = n_lines - n_win;
 
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -581,7 +581,7 @@ PRIVATE int ac_scroll_bottom(hgobj gobj, const char *event, json_t *kw, hgobj sr
 
     priv->base = 0;
 
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -596,7 +596,7 @@ PRIVATE int ac_clrscr(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     clrscr(gobj);
     priv->base = 0;
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -660,7 +660,7 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
         wresize(priv->wn, cy, cx);
         wrefresh(priv->wn);
     }
-    gobj_send_event(gobj, "EV_PAINT", 0, gobj);  // repaint, ncurses doesn't do it
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);  // repaint, ncurses doesn't do it
 
     KW_DECREF(kw);
     return 0;

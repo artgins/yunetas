@@ -806,7 +806,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE const EVENT input_events[] = {
     // top input
-    {"EV_WRITE_TTY",    0,  0,  ""},
+    {EV_WRITE_TTY,    0,  0,  ""},
     // bottom input
     // internal
     {NULL, 0, 0, ""}
@@ -823,7 +823,7 @@ PRIVATE const char *state_names[] = {
 };
 
 PRIVATE EV_ACTION ST_IDLE[] = {
-    {"EV_WRITE_TTY",    ac_write_tty,   0},
+    {EV_WRITE_TTY,    ac_write_tty,   0},
     {0,0,0}
 };
 

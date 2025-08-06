@@ -768,7 +768,7 @@ PRIVATE const char *a_read_file[] = {"EV_READ_FILE", 0};
 PRIVATE const char *a_read_binary_file[] = {"EV_READ_BINARY_FILE", 0};
 PRIVATE const char *a_read_running_keys[] = {"EV_READ_RUNNING_KEYS", 0};
 PRIVATE const char *a_read_running_bin[] = {"EV_READ_RUNNING_BIN", 0};
-PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
+PRIVATE const char *a_write_tty[] = {EV_WRITE_TTY, 0};
 
 PRIVATE const char *a_top_yunos[] = {"t", 0};
 
@@ -7952,7 +7952,7 @@ PRIVATE int play_yuno(hgobj gobj, json_t *yuno, json_t *kw, hgobj src)
 
     return gobj_send_event(
         channel_gobj,
-        "EV_PLAY_YUNO",
+        EV_PLAY_YUNO,
         kw,
         gobj
     );
@@ -10412,7 +10412,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw_tty = json_pack("{s:I}",
         "gbuffer", (json_int_t)(size_t)gbuf
     );
-    gobj_send_event(gobj_console, "EV_WRITE_TTY", kw_tty, gobj);
+    gobj_send_event(gobj_console, EV_WRITE_TTY, kw_tty, gobj);
 
     KW_DECREF(kw);
     return 0;

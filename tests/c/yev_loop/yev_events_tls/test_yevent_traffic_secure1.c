@@ -163,7 +163,7 @@ int ytls_server_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
 //    json_t *kw = json_pack("{s:I}",
 //        "gbuffer", (json_int_t)(size_t)gbuf
 //    );
-//    gobj_send_event(gobj, "EV_SEND_ENCRYPTED_DATA", kw, gobj);
+//    gobj_send_event(gobj, EV_SEND_ENCRYPTED_DATA, kw, gobj);
 
     yev_event_h yev_tx_msg = yev_create_write_event(
         yev_loop,
@@ -215,7 +215,7 @@ int ytls_client_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
 //    json_t *kw = json_pack("{s:I}",
 //        "gbuffer", (json_int_t)(size_t)gbuf
 //    );
-//    gobj_send_event(gobj, "EV_SEND_ENCRYPTED_DATA", kw, gobj);
+//    gobj_send_event(gobj, EV_SEND_ENCRYPTED_DATA, kw, gobj);
 
     yev_event_h yev_tx_msg = yev_create_write_event(
         yev_loop,

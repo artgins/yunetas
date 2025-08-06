@@ -183,7 +183,7 @@ PRIVATE int mt_start(hgobj gobj)
     json_t *jn_kw = json_object();
     json_object_set_new(jn_kw, "cx", json_integer(cx));
     json_object_set_new(jn_kw, "cy", json_integer(cy));
-    gobj_send_event_to_children(gobj, "EV_SIZE", jn_kw, gobj);
+    gobj_send_event_to_children(gobj, EV_SIZE, jn_kw, gobj);
 
     gobj_start_children(gobj);
     //wrefresh(priv->wn);
@@ -342,7 +342,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_object_set_new(jn_kw, "cy", json_integer(cy));
 
         json_incref(jn_kw);
-        gobj_send_event_to_children(gobj, "EV_SIZE", jn_kw, gobj);
+        gobj_send_event_to_children(gobj, EV_SIZE, jn_kw, gobj);
 
         gobj_publish_event(gobj, EV_SCREEN_SIZE_CHANGE, jn_kw);
     }
@@ -483,10 +483,10 @@ PUBLIC int SetFocus(hgobj gobj)
     }
 
     __gobj_with_focus__ = gobj;
-    if(gobj_send_event(__gobj_with_focus__, "EV_SETFOCUS", 0, 0)<0) {
+    if(gobj_send_event(__gobj_with_focus__, EV_SETFOCUS, 0, 0)<0) {
         // Si el nuevo focus no acepta pon el default focus
         __gobj_with_focus__ = __gobj_default_focus__;
-        gobj_send_event(__gobj_default_focus__, "EV_SETFOCUS", 0, 0);
+        gobj_send_event(__gobj_default_focus__, EV_SETFOCUS, 0, 0);
         if(gobj_trace_level(gobj) & (TRACE_MACHINE|TRACE_EV_KW)) {
             gobj_trace_msg(gobj, "👁 👁 ⏩ %s", gobj_short_name(__gobj_with_focus__));
         }
@@ -533,9 +533,9 @@ PUBLIC int DrawText(hgobj gobj, int x, int y, const char *s)
         "x", x,
         "y", y
     );
-    gobj_send_event(gobj, "EV_SETTEXT", kw, gobj);
+    gobj_send_event(gobj, EV_SETTEXT, kw, gobj);
     if(__gobj_with_focus__) {
-        gobj_send_event(__gobj_with_focus__, "EV_SETFOCUS", 0, 0);
+        gobj_send_event(__gobj_with_focus__, EV_SETFOCUS, 0, 0);
     }
     return 0;
 }
