@@ -1,0 +1,41 @@
+/****************************************************************************
+ *          g_states.h
+ *
+ *          Global States
+ *
+ *          Copyright (c) 2024, ArtGins.
+ *          All Rights Reserved.
+ ****************************************************************************/
+#pragma once
+
+#include "gobj.h"
+
+#ifdef __cplusplus
+extern "C"{
+#endif
+
+// Frequent states
+GOBJ_DECLARE_STATE(ST_DISCONNECTED);
+GOBJ_DECLARE_STATE(ST_WAIT_CONNECTED);
+GOBJ_DECLARE_STATE(ST_CONNECTED);
+GOBJ_DECLARE_STATE(ST_WAIT_TXED);
+GOBJ_DECLARE_STATE(ST_WAIT_DISCONNECTED);
+GOBJ_DECLARE_STATE(ST_WAIT_STOPPED);
+GOBJ_DECLARE_STATE(ST_WAIT_HANDSHAKE);
+GOBJ_DECLARE_STATE(ST_WAIT_IMEI);
+GOBJ_DECLARE_STATE(ST_WAIT_ID);
+GOBJ_DECLARE_STATE(ST_STOPPED);
+GOBJ_DECLARE_STATE(ST_SESSION);
+GOBJ_DECLARE_STATE(ST_IDLE);
+GOBJ_DECLARE_STATE(ST_WAIT_RESPONSE);
+GOBJ_DECLARE_STATE(ST_OPENED);
+GOBJ_DECLARE_STATE(ST_CLOSED);
+GOBJ_DECLARE_STATE(ST_DISABLED);
+
+GOBJ_DECLARE_STATE(ST_WAITING_HANDSHAKE);
+GOBJ_DECLARE_STATE(ST_WAITING_FRAME_HEADER);
+GOBJ_DECLARE_STATE(ST_WAITING_PAYLOAD_DATA);
+
+#ifdef __cplusplus
+}
+#endif
