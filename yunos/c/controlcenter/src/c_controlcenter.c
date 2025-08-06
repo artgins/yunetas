@@ -1869,10 +1869,6 @@ GOBJ_DEFINE_GCLASS(C_CONTROLCENTER);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_TTY_OPEN);
-GOBJ_DEFINE_EVENT(EV_TTY_CLOSE);
-GOBJ_DEFINE_EVENT(EV_TTY_DATA);
-GOBJ_DEFINE_EVENT(EV_WRITE_TTY);
 
 /***************************************************************************
  *          Create the GClass
