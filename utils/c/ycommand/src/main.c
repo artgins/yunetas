@@ -11,7 +11,7 @@
 #include <argp-standalone.h>
 #include <unistd.h>
 #include <yunetas.h>
-#include "c_editline.h"
+#include "common/c_editline.h"
 #include "c_ycommand.h"
 
 /***************************************************************************

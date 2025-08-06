@@ -22,11 +22,11 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 SET (YUNO_SRCS
     src/main.c
     src/c_ycommand.c
-    src/c_editline.c
+    src/common/c_editline.c
 )
 SET (YUNO_HDRS
     src/c_ycommand.h
-    src/c_editline.h
+    src/common/c_editline.h
 )
 
 ##############################################
