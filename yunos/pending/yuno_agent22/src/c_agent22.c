@@ -1234,7 +1234,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(src, "EV_DROP", 0, gobj);
+        gobj_send_event(src, EV_DROP, 0, gobj);
         KW_DECREF(kw);
         return 0;
     }
@@ -1249,7 +1249,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(src, "EV_DROP", 0, gobj);
+        gobj_send_event(src, EV_DROP, 0, gobj);
         KW_DECREF(kw);
         return 0;
     }
@@ -1264,7 +1264,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
             "name",         "%s", name,
             NULL
         );
-        gobj_send_event(src, "EV_DROP", 0, gobj);
+        gobj_send_event(src, EV_DROP, 0, gobj);
         KW_DECREF(kw);
         return 0;
     }

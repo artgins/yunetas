@@ -971,7 +971,7 @@ PRIVATE int ac_end_task(
 
             json_t *kw_clear = json_object();
             json_object_set_new(kw_clear, "id", json_string(gobj_name(src)));
-            gobj_send_event(priv->gobj_postgres, "EV_CLEAR_QUEUE", kw_clear, gobj);
+            gobj_send_event(priv->gobj_postgres, EV_CLEAR_QUEUE, kw_clear, gobj);
 
             break;
         case 0:

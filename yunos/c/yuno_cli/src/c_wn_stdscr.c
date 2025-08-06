@@ -475,7 +475,7 @@ PUBLIC int SetFocus(hgobj gobj)
     if(gobj != __gobj_with_focus__) {
         // Si hay nuevo focus avisa al antiguo
         if(__gobj_with_focus__) {
-            gobj_send_event(__gobj_with_focus__, "EV_KILLFOCUS", 0, 0);
+            gobj_send_event(__gobj_with_focus__, EV_KILLFOCUS, 0, 0);
             if(gobj_trace_level(gobj) & (TRACE_MACHINE|TRACE_EV_KW)) {
                 gobj_trace_msg(gobj, "👁 👁 ⏪ %s", gobj_short_name(__gobj_with_focus__));
             }

@@ -388,7 +388,7 @@ PRIVATE int mt_start(hgobj gobj)
         "rows", (int)priv->rows,
         "cols", (int)priv->cols
     );
-    gobj_publish_event(gobj, "EV_TTY_OPEN", kw_on_open);
+    gobj_publish_event(gobj, EV_TTY_OPEN, kw_on_open);
 
     return 0;
 }
@@ -507,7 +507,7 @@ PRIVATE void on_close_cb(uv_handle_t* handle)
             "uuid", node_uuid(),
             "slave_name", priv->slave_name
         );
-        gobj_publish_event(gobj, "EV_TTY_CLOSE", kw_on_close);
+        gobj_publish_event(gobj, EV_TTY_CLOSE, kw_on_close);
 
         if(gobj_is_volatil(gobj)) {
             gobj_destroy(gobj);
@@ -625,7 +625,7 @@ PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
         "slave_name", priv->slave_name,
         "content64", gbuffer_cur_rd_pointer(gbuf)
     );
-    gobj_publish_event(gobj, "EV_TTY_DATA", kw);
+    gobj_publish_event(gobj, EV_TTY_DATA, kw);
     gbuffer_decref(gbuf);
 }
 

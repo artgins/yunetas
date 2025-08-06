@@ -1077,7 +1077,7 @@ PRIVATE json_t *cmd_list_history(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 PRIVATE json_t *cmd_clear_history(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    gobj_send_event(priv->gobj_editline, "EV_CLEAR_HISTORY", 0, gobj);
+    gobj_send_event(priv->gobj_editline, EV_CLEAR_HISTORY, 0, gobj);
 
     return msg_iev_build_response(
         gobj,
@@ -1448,7 +1448,7 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
 
     hgobj gobj_display = gobj_child_by_name(priv->gobj_workareabox, name);
     if(gobj_display) {
-        gobj_send_event(gobj_display, "EV_SET_TOP_WINDOW", 0, gobj);
+        gobj_send_event(gobj_display, EV_SET_TOP_WINDOW, 0, gobj);
         __top_display_window__ = gobj_display;
 
         json_t *kw_sel = json_pack("{s:s}",

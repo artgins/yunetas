@@ -963,7 +963,7 @@ PRIVATE int ac_enter(hgobj gobj, const char *event, json_t *kw, hgobj src)
             linenoiseHistorySave(priv, priv->history_file); /* Save the history on disk. */
         }
     }
-    gobj_publish_event(gobj, "EV_COMMAND", 0);
+    gobj_publish_event(gobj, EV_COMMAND, 0);
 
     KW_DECREF(kw);
     return 0;
