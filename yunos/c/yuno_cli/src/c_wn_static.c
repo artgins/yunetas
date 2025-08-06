@@ -11,10 +11,6 @@
 #include <ncurses/ncurses.h>
 #include <ncurses/panel.h>
 
-#include <gobj.h>
-#include <g_events.h>
-#include <g_states.h>
-#include <helpers.h>
 #include "c_wn_static.h"
 #include "c_wn_stdscr.h"
 
