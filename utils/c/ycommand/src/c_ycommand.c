@@ -2004,7 +2004,7 @@ PRIVATE int ac_screen_ctrl(hgobj gobj, const char *event, json_t *kw, hgobj src)
         CASES(EV_CLRSCR)
             printf(Clear_Screen);
             fflush(stdout);
-            gobj_send_event(priv->gobj_editline, EV_REFRESH_LINE, 0, gobj);
+            gobj_send_event(priv->gobj_editline, EV_PAINT, 0, gobj);
             break;
         CASES(EV_SCROLL_PAGE_UP)
             break;
@@ -2325,4 +2325,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 PUBLIC int register_c_ycommand(void)
 {
     return create_gclass(C_YCOMMAND);
+}
+
+PUBLIC int get_curses_color(const char *fg_color, const char *bg_color)
+{
+    return 0;
 }

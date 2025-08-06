@@ -23,8 +23,6 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int get_color_pair(int fg, int bg);
-PRIVATE int get_color_id(const char *color);
 PRIVATE void my_endwin(void) { endwin();}
 PRIVATE void catch_signals(void);
 
@@ -450,7 +448,7 @@ PUBLIC int register_c_wn_stdscr(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int _get_curses_color(const char *fg_color, const char *bg_color)
+PUBLIC int get_curses_color(const char *fg_color, const char *bg_color)
 {
     return get_color_pair(
         get_color_id(fg_color),

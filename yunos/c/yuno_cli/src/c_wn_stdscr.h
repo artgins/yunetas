@@ -104,7 +104,7 @@ PUBLIC int get_stdscr_size(int *w, int *h);
 
 **rst**/
 
-PUBLIC int _get_curses_color(const char *fg_color, const char *bg_color);
+PUBLIC int get_curses_color(const char *fg_color, const char *bg_color);
 
 PUBLIC int SetDefaultFocus(hgobj gobj);
 PUBLIC int SetFocus(hgobj gobj);

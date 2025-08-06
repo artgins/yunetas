@@ -1,6 +1,6 @@
 /****************************************************************************
  *          MAIN_YUNETA_CLI.C
- *          yuneta_cli main
+ *          ycli main
  *
  *          Copyright (c) 2014,2015 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
@@ -59,7 +59,7 @@ PRIVATE char variable_config[]= "\
             },                                                      \n\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
-                'filename_mask': 'yuneta_cli-W.log',            \n\
+                'filename_mask': 'ycli-W.log',                      \n\
                 'handler_options': 255                              \n\
             }                                                       \n\
         }                                                           \n\
@@ -67,7 +67,7 @@ PRIVATE char variable_config[]= "\
     'yuno': {                                                       \n\
         'timeout': 200,                                             \n\
         'trace_levels': {                                           \n\
-            'Tcp0': ['connections']                                 \n\
+            'C_TCP': ['connections']                                \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\

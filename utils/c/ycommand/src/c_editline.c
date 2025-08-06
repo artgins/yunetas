@@ -312,9 +312,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    refreshLine(priv);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
     return 0;
 }
 
@@ -332,7 +330,16 @@ PRIVATE int mt_stop(hgobj gobj)
 PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
+    if(priv->panel) {
+        del_panel(priv->panel);
+        priv->panel = 0;
+        update_panels();
+        doupdate();
+    }
+    if(priv->wn) {
+        delwin(priv->wn);
+        priv->wn = 0;
+    }
     GBMEM_FREE(priv->buf);
     freeHistory(priv);
 }
@@ -494,12 +501,27 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
         }
     }
 
-    printf(Erase_Whole_Line);           // Erase line
-    printf(Move_Horizontal, 1);         // Move to begining of line
-    /* Write the prompt and the current buffer content */
-    printf("%s%*.*s", l->prompt, (int)len, (int)len, buf);
-    printf(Move_Horizontal, (int)(pos+plen+1));   // Move cursor to original position
-    fflush(stdout);
+    if(l->use_ncurses) {
+        /* Cursor to left edge */
+        wmove(l->wn, 0, 0); // move to begining of line
+        wclrtoeol(l->wn);   // erase to end of line
+
+        /* Write the prompt and the current buffer content */
+        waddnstr(l->wn, l->prompt, plen);
+        waddnstr(l->wn, buf, len);
+
+        /* Move cursor to original position. */
+        wmove(l->wn, 0, (int)(pos+plen));
+
+        wrefresh(l->wn);
+    } else {
+        printf(Erase_Whole_Line);           // Erase line
+        printf(Move_Horizontal, 1);         // Move to begining of line
+        /* Write the prompt and the current buffer content */
+        printf("%s%*.*s", l->prompt, (int)len, (int)len, buf);
+        printf(Move_Horizontal, (int)(pos+plen+1));   // Move cursor to original position
+        fflush(stdout);
+    }
 }
 
 /***************************************************************************
@@ -1141,10 +1163,30 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_refresh_line(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->use_ncurses) {
+        if(!priv->wn) {
+            // Debugging in kdevelop or batch mode has no wn
+            printf("\n%s%s", priv->prompt, priv->buf);
+            fflush(stdout);
+            KW_DECREF(kw);
+            return 0;
+        }
+
+        wclear(priv->wn);
+
+        if(has_colors()) {
+            if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
+                wbkgd(
+                    priv->wn,
+                    get_curses_color(priv->fg_color, priv->bg_color)
+                );
+            }
+        }
+    }
     refreshLine(priv);
 
     KW_DECREF(kw);
@@ -1218,31 +1260,34 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_KEYCHAR,                ac_keychar,             0},
-        {EV_EDITLINE_MOVE_START,    ac_move_start,          0},
-        {EV_EDITLINE_MOVE_LEFT,     ac_move_left,           0},
-        {EV_EDITLINE_DEL_CHAR,      ac_del_char,            0},
-        {EV_EDITLINE_MOVE_END,      ac_move_end,            0},
-        {EV_EDITLINE_MOVE_RIGHT,    ac_move_right,          0},
-        {EV_EDITLINE_BACKSPACE,     ac_backspace,           0},
-        {EV_EDITLINE_COMPLETE_LINE, ac_complete_line,       0},
-        {EV_EDITLINE_DEL_EOL,       ac_del_eol,             0},
-        {EV_EDITLINE_ENTER,         ac_enter,               0},
-        {EV_EDITLINE_PREV_HIST,     ac_prev_hist,           0},
-        {EV_EDITLINE_NEXT_HIST,     ac_next_hist,           0},
-        {EV_EDITLINE_SWAP_CHAR,     ac_swap_char,           0},
-        {EV_EDITLINE_DEL_LINE,      ac_del_line,            0},
-        {EV_EDITLINE_DEL_PREV_WORD, ac_del_prev_word,       0},
-        {EV_GETTEXT,                ac_gettext,             0},
-        {EV_SETTEXT,                ac_settext,             0},
-        {EV_SIZE,                   ac_size,                0},
-        {EV_REFRESH_LINE,           ac_refresh_line,        0},
-        {EV_CLEAR_HISTORY,          ac_clear_history,       0},
+        {EV_KEYCHAR,                 ac_keychar,         0},
+        {EV_EDITLINE_MOVE_START,     ac_move_start,      0},
+        {EV_EDITLINE_MOVE_LEFT,      ac_move_left,       0},
+        {EV_EDITLINE_DEL_CHAR,       ac_del_char,        0},
+        {EV_EDITLINE_MOVE_END,       ac_move_end,        0},
+        {EV_EDITLINE_MOVE_RIGHT,     ac_move_right,      0},
+        {EV_EDITLINE_BACKSPACE,      ac_backspace,       0},
+        {EV_EDITLINE_COMPLETE_LINE,  ac_complete_line,   0},
+        {EV_EDITLINE_DEL_EOL,        ac_del_eol,         0},
+        {EV_EDITLINE_ENTER,          ac_enter,           0},
+        {EV_EDITLINE_PREV_HIST,      ac_prev_hist,       0},
+        {EV_EDITLINE_NEXT_HIST,      ac_next_hist,       0},
+        {EV_EDITLINE_SWAP_CHAR,      ac_swap_char,       0},
+        {EV_EDITLINE_DEL_LINE,       ac_del_line,        0},
+        {EV_EDITLINE_DEL_PREV_WORD,  ac_del_prev_word,   0},
+        {EV_GETTEXT,                 ac_gettext,         0},
+        {EV_SETTEXT,                 ac_settext,         0},
+        {EV_SETFOCUS,                ac_setfocus,        0},
+        {EV_KILLFOCUS,               0,                  0},
+        {EV_MOVE,                    ac_move,            0},
+        {EV_SIZE,                    ac_size,            0},
+        {EV_PAINT,                   ac_paint,           0},
+        {EV_CLEAR_HISTORY,           ac_clear_history,   0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_IDLE,      st_idle},
+        {ST_IDLE,       st_idle},
         {0, 0}
     };
 
@@ -1250,27 +1295,30 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_COMMAND,               EVF_OUTPUT_EVENT},
-        {EV_KEYCHAR,               0},
-        {EV_EDITLINE_MOVE_START,   0},
-        {EV_EDITLINE_MOVE_LEFT,    0},
-        {EV_EDITLINE_DEL_CHAR,     0},
-        {EV_EDITLINE_MOVE_END,     0},
-        {EV_EDITLINE_MOVE_RIGHT,   0},
-        {EV_EDITLINE_BACKSPACE,    0},
-        {EV_EDITLINE_COMPLETE_LINE,0},
-        {EV_EDITLINE_DEL_EOL,      0},
-        {EV_EDITLINE_ENTER,        0},
-        {EV_EDITLINE_PREV_HIST,    0},
-        {EV_EDITLINE_NEXT_HIST,    0},
-        {EV_EDITLINE_SWAP_CHAR,    0},
-        {EV_EDITLINE_DEL_LINE,     0},
-        {EV_EDITLINE_DEL_PREV_WORD,0},
-        {EV_GETTEXT,               0},
-        {EV_SETTEXT,               0},
-        {EV_SIZE,                  0},
-        {EV_REFRESH_LINE,          0},
-        {EV_CLEAR_HISTORY,         0},
+        {EV_COMMAND,                    EVF_OUTPUT_EVENT},
+        {EV_KEYCHAR,                    0},
+        {EV_EDITLINE_MOVE_START,        0},
+        {EV_EDITLINE_MOVE_LEFT,         0},
+        {EV_EDITLINE_DEL_CHAR,          0},
+        {EV_EDITLINE_MOVE_END,          0},
+        {EV_EDITLINE_MOVE_RIGHT,        0},
+        {EV_EDITLINE_BACKSPACE,         0},
+        {EV_EDITLINE_COMPLETE_LINE,     0},
+        {EV_EDITLINE_DEL_EOL,           0},
+        {EV_EDITLINE_ENTER,             0},
+        {EV_EDITLINE_PREV_HIST,         0},
+        {EV_EDITLINE_NEXT_HIST,         0},
+        {EV_EDITLINE_SWAP_CHAR,         0},
+        {EV_EDITLINE_DEL_LINE,          0},
+        {EV_EDITLINE_DEL_PREV_WORD,     0},
+        {EV_GETTEXT,                    0},
+        {EV_SETTEXT,                    0},
+        {EV_KILLFOCUS,                  0},
+        {EV_SETFOCUS,                   0},
+        {EV_PAINT,                      0},
+        {EV_MOVE,                       0},
+        {EV_SIZE,                       0},
+        {EV_CLEAR_HISTORY,              0},
         {NULL, 0}
     };
 
@@ -1282,13 +1330,13 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         event_types,
         states,
         &gmt,
-        0,  // Local methods table (LMT)
+        0,  // lmt
         tattr_desc,
         sizeof(PRIVATE_DATA),
-        0,  // Authorization table
-        0,  // Command table
+        0,  // acl
+        0,  // cmds
         s_user_trace_level,
-        0   // GClass flags
+        0   // gcflags
     );
     if(!__gclass__) {
         return -1;
