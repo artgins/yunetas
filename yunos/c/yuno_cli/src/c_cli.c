@@ -1495,7 +1495,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         }
     }
     if(nread > 8) {
-        // It's must be the mouse cursor
+        // It must be the mouse cursor
         char *p = strchr(base+1, 0x1B);
         if(p) {
             *p = 0;
