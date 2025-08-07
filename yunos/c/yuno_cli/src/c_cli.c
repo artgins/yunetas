@@ -354,6 +354,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     hgobj timer;
+    BOOL use_ncurses;
     hgobj gwin_stdscr;
     hgobj gobj_toptoolbar;
     hgobj gobj_workareabox;
@@ -403,7 +404,7 @@ PRIVATE void mt_create(hgobj gobj)
     }
     priv->jn_window_counters = json_object();
 
-    if(gobj_read_bool_attr(gobj, "use_ncurses")) {
+    if(priv->use_ncurses) {
         create_display_framework(gobj);
     }
 
@@ -435,12 +436,18 @@ PRIVATE void mt_create(hgobj gobj)
     get_history_file(history_file, sizeof(history_file));
 
     /*
+     *  Do copy of heavy used parameters, for quick access.
+     *  HACK The writable attributes must be repeated in mt_writing method.
+     */
+    SET_PRIV(use_ncurses,      gobj_read_bool_attr)
+
+    /*
      *  Editline
      */
     json_t *kw_editline = json_pack("{s:s, s:s, s:b, s:s, s:s, s:i, s:i, s:I}",
         "prompt", "> ",
         "history_file", history_file,
-        "use_ncurses", gobj_read_bool_attr(gobj, "use_ncurses"),
+        "use_ncurses", priv->use_ncurses,
         "bg_color", "gray",
         "fg_color", "black",
         "cx", winsz.ws_col,
@@ -453,11 +460,6 @@ PRIVATE void mt_create(hgobj gobj)
         kw_editline,
         priv->gobj_editbox?priv->gobj_editbox:gobj
     );
-
-    /*
-     *  Do copy of heavy used parameters, for quick access.
-     *  HACK The writable attributes must be repeated in mt_writing method.
-     */
 }
 
 /***************************************************************************
@@ -542,26 +544,25 @@ PRIVATE int mt_start(hgobj gobj)
     SetDefaultFocus(priv->gobj_editline);
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
 
-    /*
-     *  Create display window of console
-     */
-    hgobj wn_disp = create_display_window(gobj, "console", 0);
-    /*
-     *  Each display window has a gobj to send the commands (saved in user_data).
-     *  For console window his gobj is this gobj
-     */
-    gobj_write_pointer_attr(wn_disp, "user_data", gobj);
-    gobj_write_pointer_attr(gobj, "user_data", wn_disp);
+    if(priv->use_ncurses) {
+        /*
+         *  Create display window of console
+         */
+        hgobj wn_disp = create_display_window(gobj, "console", 0);
+        /*
+         *  Each display window has a gobj to send the commands (saved in user_data).
+         *  For console window his gobj is this gobj
+         */
+        gobj_write_pointer_attr(wn_disp, "user_data", gobj);
+        gobj_write_pointer_attr(gobj, "user_data", wn_disp);
 
-    /*
-     *  Create button window of console (right now implemented as static window)
-     */
-    create_static(gobj, "console", 0);
-    set_top_window(gobj, "console");
+        /*
+         *  Create button window of console (right now implemented as static window)
+         */
+        create_static(gobj, "console", 0);
+        set_top_window(gobj, "console");
+    }
 
-#ifdef TEST_KDEVELOP_DIE
-        set_timeout(priv->timer, 1000);
-#endif
     return 0;
 }
 
@@ -1606,6 +1607,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
             json_t *kw_keychar = json_pack("{s:I}",
                 "gbuffer", (json_int_t)(uintptr_t)gbuf2
             );
+
             gobj_send_event(GetFocus(), EV_KEYCHAR, kw_keychar, gobj);
         }
 
@@ -3215,18 +3217,6 @@ PRIVATE int ac_on_token(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-#ifdef TEST_KDEVELOP_DIE
-    gobj_set_yuno_must_die();
-#endif
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
 //     const char *agent_name = gobj_name(gobj_read_pointer_attr(src, "user_data"));
@@ -3404,7 +3394,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_TTY_CLOSE,              ac_tty_mirror_close,    0},
         {EV_TTY_DATA,               ac_tty_mirror_data,     0},
         {EV_ON_TOKEN,               ac_on_token,            0},
-        {EV_TIMEOUT,                ac_timeout,             0},
         {EV_STOPPED,                0,                      0},
         {0,0,0}
     };
@@ -3441,7 +3430,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,              0},
         {EV_ON_CLOSE,             0},
         {EV_ON_TOKEN,             0},
-        {EV_TIMEOUT,              0},
         {EV_STOPPED,              0},
         {NULL, 0}
     };
