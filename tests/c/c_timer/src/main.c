@@ -49,7 +49,7 @@ PRIVATE char variable_config[]= "\
         'autoplay': true,                                           \n\
         'required_services': [],                                    \n\
         'public_services': [],                                      \n\
-        'periodic_timeout': 100,                                    \n\
+        'timeout_periodic': 100,                                    \n\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'i18n_dirname': '/yuneta/share/locale/',                    \n\

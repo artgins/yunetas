@@ -68,7 +68,7 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
-        'timeout': 200,                                             \n\
+        'timeout_periodic': 200,                                    \n\
         'trace_levels': {                                           \n\
             'C_TCP': ['connections']                                \n\
         }                                                           \n\
