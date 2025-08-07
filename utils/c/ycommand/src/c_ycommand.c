@@ -97,9 +97,6 @@ PRIVATE int do_authenticate_task(hgobj gobj);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-PRIVATE int orig_termios_fd = -1;
-PRIVATE struct termios orig_termios;
-PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 #define MAX_KEYS 40
 typedef struct keytable_s {
     const char *dst_gobj;
@@ -155,13 +152,13 @@ typedef struct _PRIVATE_DATA {
     int32_t verbose;
     int32_t interactive;
     uint32_t wait;
-    int tty_fd;
-    struct termios orig_termios;
+
     hgobj gobj_connector;
     hgobj timer;
     hgobj gobj_editline;
     hgobj gobj_remote_agent;
 
+    int tty_fd;
     yev_event_h yev_reading;
 
     BOOL on_mirror_tty;
@@ -217,9 +214,10 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Editline
      */
-    json_t *kw_editline = json_pack("{s:s, s:s, s:i, s:i}",
+    json_t *kw_editline = json_pack("{s:s, s:s, s:b, s:i, s:i}",
         "prompt", "ycommand> ",
         "history_file", history_file,
+        "use_ncurses", 0,
         "cx", winsz.ws_col,
         "cy", winsz.ws_row
     );

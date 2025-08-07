@@ -154,7 +154,7 @@ PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (DTP_BOOLEAN,     "ncurses",              0,  0, "True to use ncurses"),
+SDATA (DTP_BOOLEAN,     "use_ncurses",          0,  0, "True to use ncurses"),
 SDATA (DTP_STRING,      "prompt",               0,  "> ", "Prompt"),
 SDATA (DTP_STRING,      "history_file",         0,  0, "History file"),
 SDATA (DTP_INTEGER,     "history_max_len",      0,  "200000", "history max len (max lines)"),

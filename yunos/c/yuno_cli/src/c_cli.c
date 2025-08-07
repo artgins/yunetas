@@ -98,10 +98,12 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
+PRIVATE int yev_callback(yev_event_h yev_event);
+PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
+
 PRIVATE int create_display_framework(hgobj gobj);
-
 PRIVATE void do_close(hgobj gobj);
-
 PRIVATE hgobj create_display_window(hgobj gobj, const char* name, json_t* kw_display_window);
 PRIVATE hgobj get_display_window(hgobj gobj, const char *name);
 PRIVATE int destroy_display_window(hgobj gobj, const char *name);
@@ -327,7 +329,9 @@ SDATA (DTP_STRING,      "jwt",              0,                  "",         "Jwt
 SDATA (DTP_STRING,      "display_mode",     SDF_WR|SDF_PERSIST, "table",    "Display mode: table or form"),
 SDATA (DTP_STRING,      "editor",           SDF_WR|SDF_PERSIST, "vim",      "Editor"),
 SDATA (DTP_JSON,        "shortkeys",        SDF_WR|SDF_PERSIST, 0,          "Shortkeys. A dict {key: command}."),
-SDATA (DTP_BOOLEAN,     "batch",            0,                  0,          "In batch mode don't use framework. For testing."),
+// TODO set to "1"
+SDATA (DTP_BOOLEAN,     "use_ncurses",      0,                  "0",        "True to use ncurses, set False for easy testing"),
+
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
 SDATA_END()
@@ -349,7 +353,6 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    BOOL batch;
     hgobj timer;
     hgobj gwin_stdscr;
     hgobj gobj_toptoolbar;
@@ -359,10 +362,12 @@ typedef struct _PRIVATE_DATA {
     hgobj gobj_bottomtoolbarbox;
     hgobj gobj_stsline;
 
-    // grow_buffer_t bfinput; TODO
-    // uv_tty_t uv_tty;
-    char uv_handler_active;
-    char uv_read_active;
+    int tty_fd;
+    yev_event_h yev_reading;
+
+    BOOL on_mirror_tty;
+    char mirror_tty_name[NAME_MAX];
+    char mirror_tty_uuid[NAME_MAX];
 
     FILE *file_saving_output;
     json_t *jn_shortkeys;
@@ -402,7 +407,6 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(batch,                 gobj_read_bool_attr)
 }
 
 /***************************************************************************
@@ -437,10 +441,58 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!priv->batch) {
+    if(gobj_read_bool_attr(gobj, "use_ncurses")) {
         create_display_framework(gobj);
         gobj_start(priv->gwin_stdscr);
     }
+
+    /*
+     *  Input screen size
+     */
+    struct winsize winsz;
+    if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ioctl() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    if(winsz.ws_row <= 0) {
+        winsz.ws_row = 1;
+    }
+    if(winsz.ws_col <= 0) {
+        winsz.ws_col = 80;
+    }
+
+    /*
+     *  History filename, for editline
+     */
+    char history_file[PATH_MAX];
+    get_history_file(history_file, sizeof(history_file));
+
+    /*
+     *  Editline
+     */
+    json_t *kw_editline = json_pack("{s:s, s:s, s:b, s:s, s:s, s:i, s:i, s:I}",
+        "prompt", "> ",
+        "history_file", history_file,
+        "use_ncurses", gobj_read_bool_attr(gobj, "use_ncurses"),
+        "bg_color", "gray",
+        "fg_color", "black",
+        "cx", winsz.ws_col,
+        "cy", winsz.ws_row,
+        "subscriber", (json_int_t)(uintptr_t)gobj
+    );
+    priv->gobj_editline = gobj_create_service(
+        "editline",
+        C_EDITLINE,
+        kw_editline,
+        priv->gobj_editbox
+    );
+
     gobj_start(priv->timer);
 
     // TODO if(gobj_trace_level(gobj) & TRACE_UV) {
@@ -1184,11 +1236,180 @@ PRIVATE json_t *cmd_do_authenticate_task(hgobj gobj, const char *cmd, json_t *kw
 
 
             /***************************
-             *      Display framework
+             *      Local Methods
              ***************************/
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int yev_callback(yev_event_h yev_event)
+{
+    if(!yev_event) {
+        /*
+         *  It's the timeout
+         */
+        return 0;
+    }
+
+    hgobj gobj = yev_get_gobj(yev_event);
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    int trace = trace_level & TRACE_URING;
+    if(trace) {
+        json_t *jn_flags = bits2jn_strlist(yev_flag_strings(), yev_get_flag(yev_event));
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "yev callback",
+            "msg2",         "%s", "TCP 🌐🌐💥 yev callback",
+            "event type",   "%s", yev_event_type_name(yev_event),
+            "state",        "%s", yev_get_state_name(yev_event),
+            "result",       "%d", yev_get_result(yev_event),
+            "sres",         "%s", (yev_get_result(yev_event)<0)? strerror(-yev_get_result(yev_event)):"",
+            "flag",         "%j", jn_flags,
+            "p",            "%p", yev_event,
+            "fd",           "%d", yev_get_fd(yev_event),
+            "gbuffer",      "%p", yev_get_gbuf(yev_event),
+            NULL
+        );
+        json_decref(jn_flags);
+    }
+
+    yev_state_t yev_state = yev_get_state(yev_event);
+
+    switch(yev_get_type(yev_event)) {
+        case YEV_READ_TYPE:
+            {
+                if(yev_state == YEV_ST_IDLE) {
+                    /*
+                     *  yev_get_gbuf(yev_event) can be null if yev_stop_event() was called
+                     */
+                    int ret = 0;
+
+                    ret = on_read_cb(gobj, yev_get_gbuf(yev_event));
+
+                    /*
+                     *  Clear buffer, re-arm read
+                     *  Check ret is 0 because the EV_RX_DATA could provoke
+                     *      stop or destroy of gobj
+                     *      or order to disconnect (EV_DROP)
+                     *  If try_to_stop_yevents() has been called (mt_stop, EV_DROP,...)
+                     *      this event will be in stopped state.
+                     *  If it's in idle then re-arm
+                     */
+                    if(ret == 0 && yev_event_is_idle(yev_event)) {
+                        gbuffer_clear(yev_get_gbuf(yev_event));
+                        yev_start_event(yev_event);
+                    }
+
+                } else {
+                    /*
+                     *  Disconnected
+                     */
+                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
+
+                    if(trace) {
+                        gobj_log_debug(gobj, 0,
+                            "function",     "%s", __FUNCTION__,
+                            "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+                            "msg",          "%s", "TCP: read FAILED",
+                            "msg2",         "%s", "🌐TCP: read FAILED",
+                            "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                            "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                            "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                            "errno",        "%d", -yev_get_result(yev_event),
+                            "strerror",     "%s", strerror(-yev_get_result(yev_event)),
+                            "p",            "%p", yev_event,
+                            "fd",           "%d", yev_get_fd(yev_event),
+                            NULL
+                        );
+                    }
+                    gobj_shutdown();
+                }
+            }
+            break;
+
+        default:
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "TCP: event type NOT IMPLEMENTED",
+                "msg2",         "%s", "🌐TCP: event type NOT IMPLEMENTED",
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
+                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
+                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                "event_type",   "%s", yev_event_type_name(yev_event),
+                "p",            "%p", yev_event,
+                NULL
+            );
+            break;
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  Stop all events, is someone is running go to WAIT_STOPPED else STOPPED
+ *  IMPORTANT this is the only place to set ST_WAIT_STOPPED state
+ ***************************************************************************/
+PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    BOOL to_wait_stopped = FALSE;
+
+    if(gobj_current_state(gobj)==ST_STOPPED) {
+        gobj_set_exit_code(-1);
+        gobj_shutdown();
+        return;
+    }
+
+    uint32_t trace_level = gobj_trace_level(gobj);
+    if(trace_level & TRACE_URING) {
+        gobj_log_debug(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_YEV_LOOP,
+            "msg",          "%s", "try_to_stop_yevents",
+            "msg2",         "%s", "🟥🟥 try_to_stop_yevents",
+            NULL
+        );
+    }
+
+    if(priv->tty_fd > 0) {
+        if(trace_level & TRACE_URING) {
+            gobj_log_debug(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_YEV_LOOP,
+                "msg",          "%s", "close socket fd_clisrv",
+                "msg2",         "%s", "💥🟥 close socket fd_clisrv",
+                "fd",           "%d", priv->tty_fd ,
+                NULL
+            );
+        }
+
+        close(priv->tty_fd);
+        priv->tty_fd = -1;
+    }
+
+    if(priv->yev_reading) {
+        if(!yev_event_is_stopped(priv->yev_reading)) {
+            yev_stop_event(priv->yev_reading);
+            if(!yev_event_is_stopped(priv->yev_reading)) {
+                to_wait_stopped = TRUE;
+            }
+        }
+    }
+
+    if(to_wait_stopped) {
+        gobj_change_state(gobj, ST_WAIT_STOPPED);
+    } else {
+        gobj_change_state(gobj, ST_STOPPED);
+        gobj_set_exit_code(-1);
+        gobj_shutdown();
+    }
+}
 
 /***************************************************************************
  *
@@ -1291,51 +1512,6 @@ PRIVATE int create_display_framework(hgobj gobj)
         C_WN_BOX,
         kw_editbox,
         gobj_layout
-    );
-
-    /*
-     *  Input screen size
-     */
-    struct winsize winsz;
-    if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "ioctl() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-    }
-    if(winsz.ws_row <= 0) {
-        winsz.ws_row = 1;
-    }
-    if(winsz.ws_col <= 0) {
-        winsz.ws_col = 80;
-    }
-
-    /*
-     *  History filename, for editline
-     */
-    char history_file[PATH_MAX];
-    get_history_file(history_file, sizeof(history_file));
-
-    /*
-     *  Editline
-     */
-    json_t *kw_editline = json_pack("{s:s, s:s, s:s, s:i, s:i, s:I}",
-        "history_file", history_file,
-        "bg_color", "gray",
-        "fg_color", "black",
-        "cx", winsz.ws_col,
-        "cy", winsz.ws_row,
-        "subscriber", (json_int_t)(uintptr_t)gobj
-    );
-    priv->gobj_editline = gobj_create_service(
-        "editline",
-        C_EDITLINE,
-        kw_editline,
-        priv->gobj_editbox
     );
 
     /*---------------------------------*
