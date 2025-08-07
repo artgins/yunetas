@@ -52,6 +52,9 @@ PRIVATE char variable_config[]= "\
 #^^            'to_stdout': {                                       \n\
 #^^                'handler_type': 'stdout'                         \n\
 #^^            },                                                   \n\
+            'to_stdout': {                                       \n\
+                'handler_type': 'stdout'                         \n\
+            },                                                   \n\
             'to_udp': {                                             \n\
                 'handler_type': 'udp',                              \n\
                 'url': 'udp://127.0.0.1:1992',                      \n\
@@ -82,7 +85,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'cli',                                          \n\
-            'gclass': 'Cli',                                        \n\
+            'gclass': 'C_CLI',                                      \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\

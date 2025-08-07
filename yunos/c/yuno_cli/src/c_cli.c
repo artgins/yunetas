@@ -451,7 +451,7 @@ PRIVATE void mt_create(hgobj gobj)
         "editline",
         C_EDITLINE,
         kw_editline,
-        priv->gobj_editbox
+        priv->gobj_editbox?priv->gobj_editbox:gobj
     );
 
     /*
