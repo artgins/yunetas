@@ -15,6 +15,7 @@ extern "C"{
 #endif
 
 extern int get_curses_color(const char *fg_color, const char *bg_color);
+extern int tty_init(void);
 
 /***************************************************************
  *              FSM

@@ -119,6 +119,8 @@
 #include <unistd.h>
 #include <ncurses/ncurses.h>
 #include <ncurses/panel.h>
+#include <fcntl.h>
+#include <pty.h>
 
 #include <g_ev_console.h>
 #include "c_editline.h"
@@ -139,10 +141,14 @@ typedef struct linenoiseCompletions {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE void tty_reset_mode(void);
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+PRIVATE int orig_termios_fd = -1;
+PRIVATE struct termios orig_termios;
+PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
@@ -234,6 +240,11 @@ PRIVATE void refreshLine(PRIVATE_DATA *l);
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!atexit_registered) {
+        atexit(tty_reset_mode);
+        atexit_registered = 1;
+    }
 
     /*
      *  CHILD subscription model
@@ -345,6 +356,8 @@ PRIVATE void mt_destroy(hgobj gobj)
     }
     GBMEM_FREE(priv->buf);
     freeHistory(priv);
+
+    tty_reset_mode();
 }
 
 
@@ -356,6 +369,251 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 
 
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE void tty_reset_mode(void)
+{
+    /* This function is async signal-safe, meaning that it's safe to call from
+     * inside a signal handler _unless_ execution was inside uv_tty_set_mode()'s
+     * critical section when the signal was raised.
+     */
+    if(orig_termios_fd != -1) {
+        tcsetattr(orig_termios_fd, TCSANOW, &orig_termios);
+        tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
+        orig_termios_fd = -1;
+    }
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+static inline int tty_is_slave(const int fd) {
+    int result;
+    int dummy;
+
+    result = ioctl(fd, TIOCGPTN, &dummy) != 0;
+    return result;
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+PRIVATE int open_cloexec(const char* path, int flags) {
+    int fd = open(path, flags | O_CLOEXEC);
+    if (fd == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "open() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    return fd;
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+PRIVATE int dup2_cloexec(int oldfd, int newfd)
+{
+    int r;
+
+    r = dup3(oldfd, newfd, O_CLOEXEC);
+    if (r == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "dup3() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    return r;
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+PRIVATE int nonblock(int fd, int set) {
+    int r;
+
+    do
+        r = ioctl(fd, FIONBIO, &set);
+    while (r == -1 && errno == EINTR);
+
+    if(r) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ioctl() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    return r;
+}
+
+/***************************************************************************
+ *  Code copied from libuv
+ *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+ ***************************************************************************/
+PUBLIC int tty_init(void)
+{
+#define UV_HANDLE_BLOCKING_WRITES 0x00100000
+
+    int fd = STDIN_FILENO;
+    int flags;
+    int newfd;
+    int r;
+    int saved_flags;
+    int mode;
+    char path[256];
+
+    flags = 0;
+    newfd = -1;
+
+    /* Save the fd flags in case we need to restore them due to an error. */
+    do
+        saved_flags = fcntl(fd, F_GETFL);
+    while (saved_flags == -1 && errno == EINTR);
+
+    if (saved_flags == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "fcntl() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    mode = saved_flags & O_ACCMODE;
+
+    /* Reopen the file descriptor when it refers to a tty. This lets us put the
+     * tty in non-blocking mode without affecting other processes that share it
+     * with us.
+     *
+     * Example: `node | cat` - if we put our fd 0 in non-blocking mode, it also
+     * affects fd 1 of `cat` because both file descriptors refer to the same
+     * struct file in the kernel. When we reopen our fd 0, it points to a
+     * different struct file, hence changing its properties doesn't affect
+     * other processes.
+     */
+
+    if(isatty(fd)) {
+        /* Reopening a pty in master mode won't work either because the reopened
+         * pty will be in slave mode (*BSD) or reopening will allocate a new
+         * master/slave pair (Linux). Therefore check if the fd points to a
+         * slave device.
+         */
+        if (tty_is_slave(fd) && ttyname_r(fd, path, sizeof(path)) == 0) {
+            r = open_cloexec(path, mode | O_NOCTTY);
+        } else {
+            r = -1;
+        }
+
+        if (r < 0) {
+            /* fallback to using blocking writes */
+            if (mode != O_RDONLY) {
+                flags |= UV_HANDLE_BLOCKING_WRITES;
+            }
+            goto skip;
+        }
+
+        newfd = r;
+
+        r = dup2_cloexec(newfd, fd);
+        if (r < 0 && errno != EINVAL) {
+            /* EINVAL means newfd == fd which could conceivably happen if another
+             * thread called close(fd) between our calls to isatty() and open().
+             * That's a rather unlikely event but let's handle it anyway.
+             */
+            close(newfd);
+            return r;
+        }
+
+        fd = newfd;
+    }
+
+skip:
+    // if (!(flags & UV_HANDLE_BLOCKING_WRITES)) {
+        if(nonblock(fd, 1)<0) {
+            close(fd);
+            fd = -1;
+        }
+    // }
+
+    if (mode != O_WRONLY) {
+        // flags |= UV_HANDLE_READABLE;
+    }
+    if (mode != O_RDONLY) {
+        // flags |= UV_HANDLE_WRITABLE;
+    }
+
+    // uv__stream_open((uv_stream_t*) tty, fd, flags);
+    // tty->mode = UV_TTY_MODE_NORMAL;
+
+    do
+        r = tcgetattr(fd, &orig_termios);
+    while (r == -1 && errno == EINTR);
+
+    if (r == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "tcgetattr() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    /* This is used for tty_reset_mode() */
+    if (orig_termios_fd == -1) {
+        orig_termios_fd = fd;
+    }
+
+    struct termios tmp;
+    tmp = orig_termios;
+    tmp.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    tmp.c_oflag |= (ONLCR);
+    tmp.c_cflag |= (CS8);
+    tmp.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    tmp.c_cc[VMIN] = 1;
+    tmp.c_cc[VTIME] = 0;
+
+    do
+        r = tcsetattr(fd, TCSADRAIN, &tmp);
+    while (r == -1 && errno == EINTR);
+
+    if (r == -1) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "tcsetattr() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+
+    return fd;
+}
 
 /***************************************************************************
  *  Beep, used for completion when there is nothing to complete or when all

@@ -88,8 +88,6 @@
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
-PRIVATE void tty_reset_mode(void);
-PRIVATE int tty_init(hgobj gobj);
 PRIVATE int cmd_connect(hgobj gobj);
 PRIVATE int do_command(hgobj gobj, const char *command);
 PRIVATE int clear_input_line(hgobj gobj);
@@ -189,11 +187,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(!atexit_registered) {
-        atexit(tty_reset_mode);
-        atexit_registered = 1;
-    }
-
     /*
      *  Input screen size
      */
@@ -272,7 +265,6 @@ PRIVATE void mt_destroy(hgobj gobj)
      *  Free data
      */
     // TODO growbf_reset(&priv->bfinput);
-    tty_reset_mode();
 }
 
 /***************************************************************************
@@ -284,7 +276,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_start(priv->timer);
 
-    priv->tty_fd = tty_init(gobj);
+    priv->tty_fd = tty_init();
     if(priv->tty_fd < 0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
@@ -649,22 +641,6 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
     return 0;
 }
 
-/*****************************************************************
- *
- *****************************************************************/
-PRIVATE void tty_reset_mode(void)
-{
-    /* This function is async signal-safe, meaning that it's safe to call from
-     * inside a signal handler _unless_ execution was inside uv_tty_set_mode()'s
-     * critical section when the signal was raised.
-     */
-    if(orig_termios_fd != -1) {
-        tcsetattr(orig_termios_fd, TCSANOW, &orig_termios);
-        tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
-        orig_termios_fd = -1;
-    }
-}
-
 /***************************************************************************
  *
  ***************************************************************************/
@@ -792,237 +768,6 @@ PRIVATE int cmd_connect(hgobj gobj)
         printf("Connecting to %s...\n", url);
     }
     return 0;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-static inline int tty_is_slave(const int fd) {
-    int result;
-    int dummy;
-
-    result = ioctl(fd, TIOCGPTN, &dummy) != 0;
-    return result;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-PRIVATE int open_cloexec(const char* path, int flags) {
-    int fd = open(path, flags | O_CLOEXEC);
-    if (fd == -1) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "open() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-    }
-    return fd;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-PRIVATE int dup2_cloexec(int oldfd, int newfd)
-{
-    int r;
-
-    r = dup3(oldfd, newfd, O_CLOEXEC);
-    if (r == -1) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "dup3() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return -1;
-    }
-
-    return r;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-PRIVATE int nonblock(int fd, int set) {
-    int r;
-
-    do
-        r = ioctl(fd, FIONBIO, &set);
-    while (r == -1 && errno == EINTR);
-
-    if(r) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "ioctl() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-    }
-
-    return r;
-}
-
-/***************************************************************************
- *  Code copied from libuv
- *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
- ***************************************************************************/
-PRIVATE int tty_init(hgobj gobj)
-{
-#define UV_HANDLE_BLOCKING_WRITES 0x00100000
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    int fd = STDIN_FILENO;
-    int flags;
-    int newfd;
-    int r;
-    int saved_flags;
-    int mode;
-    char path[256];
-
-    flags = 0;
-    newfd = -1;
-
-    /* Save the fd flags in case we need to restore them due to an error. */
-    do
-        saved_flags = fcntl(fd, F_GETFL);
-    while (saved_flags == -1 && errno == EINTR);
-
-    if (saved_flags == -1) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "fcntl() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-        return -1;
-    }
-
-    mode = saved_flags & O_ACCMODE;
-
-    /* Reopen the file descriptor when it refers to a tty. This lets us put the
-     * tty in non-blocking mode without affecting other processes that share it
-     * with us.
-     *
-     * Example: `node | cat` - if we put our fd 0 in non-blocking mode, it also
-     * affects fd 1 of `cat` because both file descriptors refer to the same
-     * struct file in the kernel. When we reopen our fd 0, it points to a
-     * different struct file, hence changing its properties doesn't affect
-     * other processes.
-     */
-
-    if(isatty(fd)) {
-        /* Reopening a pty in master mode won't work either because the reopened
-         * pty will be in slave mode (*BSD) or reopening will allocate a new
-         * master/slave pair (Linux). Therefore check if the fd points to a
-         * slave device.
-         */
-        if (tty_is_slave(fd) && ttyname_r(fd, path, sizeof(path)) == 0) {
-            r = open_cloexec(path, mode | O_NOCTTY);
-        } else {
-            r = -1;
-        }
-
-        if (r < 0) {
-            /* fallback to using blocking writes */
-            if (mode != O_RDONLY) {
-                flags |= UV_HANDLE_BLOCKING_WRITES;
-            }
-            goto skip;
-        }
-
-        newfd = r;
-
-        r = dup2_cloexec(newfd, fd);
-        if (r < 0 && errno != EINVAL) {
-            /* EINVAL means newfd == fd which could conceivably happen if another
-             * thread called close(fd) between our calls to isatty() and open().
-             * That's a rather unlikely event but let's handle it anyway.
-             */
-            close(newfd);
-            return r;
-        }
-
-        fd = newfd;
-    }
-
-skip:
-    // if (!(flags & UV_HANDLE_BLOCKING_WRITES)) {
-        if(nonblock(fd, 1)<0) {
-            close(fd);
-            fd = -1;
-        }
-    // }
-
-    if (mode != O_WRONLY) {
-        // flags |= UV_HANDLE_READABLE;
-    }
-    if (mode != O_RDONLY) {
-        // flags |= UV_HANDLE_WRITABLE;
-    }
-
-    // uv__stream_open((uv_stream_t*) tty, fd, flags);
-    // tty->mode = UV_TTY_MODE_NORMAL;
-
-    do
-        r = tcgetattr(fd, &priv->orig_termios);
-    while (r == -1 && errno == EINTR);
-
-    if (r == -1) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "tcgetattr() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-    }
-
-    /* This is used for tty_reset_mode() */
-    if (orig_termios_fd == -1) {
-        orig_termios = priv->orig_termios;
-        orig_termios_fd = fd;
-    }
-
-    struct termios tmp;
-    tmp = priv->orig_termios;
-    tmp.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    tmp.c_oflag |= (ONLCR);
-    tmp.c_cflag |= (CS8);
-    tmp.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    tmp.c_cc[VMIN] = 1;
-    tmp.c_cc[VTIME] = 0;
-
-    do
-        r = tcsetattr(fd, TCSADRAIN, &tmp);
-    while (r == -1 && errno == EINTR);
-
-    if (r == -1) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "tcsetattr() FAILED",
-            "errno",        "%d", errno,
-            "serrno",       "%s", strerror(errno),
-            NULL
-        );
-    }
-
-    return fd;
 }
 
 /***************************************************************************

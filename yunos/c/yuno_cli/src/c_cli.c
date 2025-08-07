@@ -10,7 +10,6 @@
 #include <string.h>
 #include <ncurses/ncurses.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <pwd.h>
 #include <limits.h>
 #include <errno.h>
@@ -1321,6 +1320,9 @@ PRIVATE int create_display_framework(hgobj gobj)
     char history_file[PATH_MAX];
     get_history_file(history_file, sizeof(history_file));
 
+    /*
+     *  Editline
+     */
     json_t *kw_editline = json_pack("{s:s, s:s, s:s, s:i, s:i, s:I}",
         "history_file", history_file,
         "bg_color", "gray",
