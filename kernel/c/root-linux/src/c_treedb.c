@@ -298,7 +298,7 @@ PRIVATE void mt_create(hgobj gobj)
         KW_REQUIRED
     );
     json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i}",
-        "tranger", (json_int_t)(size_t)priv->tranger_system_,
+        "tranger", (json_int_t)(uintptr_t)priv->tranger_system_,
         "treedb_name", treedb_name,
         "treedb_schema", jn_treedb_system_schema,
         "exit_on_error", LOG_OPT_EXIT_ZERO
@@ -572,7 +572,7 @@ PRIVATE json_t *cmd_open_treedb(hgobj gobj, const char *cmd, json_t *kw, hgobj s
      *      Create Client Treedb
      *-------------------------------*/
     json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i}",
-        "tranger", (json_int_t)(size_t)tranger_client,
+        "tranger", (json_int_t)(uintptr_t)tranger_client,
         "treedb_name", treedb_name,
         "treedb_schema", jn_client_treedb_schema,
         "exit_on_error", exit_on_error

@@ -331,7 +331,7 @@ PUBLIC json_t *tranger2_startup(
 {
     json_t *tranger = create_json_record(gobj, tranger2_json_desc); // no master by default
     json_object_update_existing(tranger, jn_tranger);
-    json_object_set_new(tranger, "gobj", json_integer((json_int_t)(size_t)gobj));
+    json_object_set_new(tranger, "gobj", json_integer((json_int_t)(uintptr_t)gobj));
     JSON_DECREF(jn_tranger)
 
     char path[PATH_MAX];
@@ -511,7 +511,7 @@ PUBLIC json_t *tranger2_startup(
     kw_set_dict_value(gobj, tranger, "fd_opened_files", json_object());
     kw_set_dict_value(gobj, tranger, "topics", json_object());
     kw_set_subdict_value(gobj, tranger, "fd_opened_files", "__timeranger2__.json", json_integer(fd));
-    kw_set_dict_value(gobj, tranger, "yev_loop", json_integer((json_int_t)(size_t)yev_loop));
+    kw_set_dict_value(gobj, tranger, "yev_loop", json_integer((json_int_t)(uintptr_t)yev_loop));
 
     return tranger;
 }
@@ -1068,7 +1068,7 @@ PUBLIC json_t *tranger2_open_topic( // WARNING returned json IS NOT YOURS
                 gobj,
                 topic,
                 "fs_event_master",
-                json_integer((json_int_t)(size_t)fs_event_master)
+                json_integer((json_int_t)(uintptr_t)fs_event_master)
             );
         }
     }
@@ -3157,7 +3157,7 @@ PUBLIC json_t *tranger2_open_rt_mem(
         "topic_name", topic_name,
         "key", key,
         "match_cond", match_cond,
-        "load_record_callback", (json_int_t)(size_t)load_record_callback
+        "load_record_callback", (json_int_t)(uintptr_t)load_record_callback
     ));
     json_object_set_new(mem, "list_type", json_string("rt_mem"));
     json_object_update_missing_new(mem, extra);
@@ -3396,7 +3396,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
         "topic_name", topic_name,
         "key", key,
         "match_cond", match_cond,
-        "load_record_callback", (json_int_t)(size_t)load_record_callback
+        "load_record_callback", (json_int_t)(uintptr_t)load_record_callback
     ));
     json_object_update_missing_new(disk, extra);
     json_object_set_new(disk, "list_type", json_string("rt_disk"));
@@ -3448,7 +3448,7 @@ PUBLIC json_t *tranger2_open_rt_disk(
                 gobj,
                 disk,
                 "fs_event_client",
-                json_integer((json_int_t)(size_t)fs_event_client)
+                json_integer((json_int_t)(uintptr_t)fs_event_client)
             );
         }
     }
@@ -5379,7 +5379,7 @@ PUBLIC json_t *tranger2_open_iterator( // LOADING: load data from disk, APPENDIN
     json_object_set_new(
         iterator,
         "load_record_callback",
-        json_integer((json_int_t)(size_t)load_record_callback)
+        json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
     json_object_update_missing_new(iterator, extra);
 

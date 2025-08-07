@@ -220,7 +220,7 @@ PUBLIC size_t istream_consume(istream_h istream, char *bf, size_t len)
     if(ist->completed) {
         if(!empty_string(ist->event_name)) {
             json_t *kw = json_pack("{s:I}",
-                "gbuffer", (json_int_t)(size_t)ist->gbuf
+                "gbuffer", (json_int_t)(uintptr_t)ist->gbuf
             );
             /*
             *  gbuf is for client, create a new gbuf

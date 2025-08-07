@@ -3736,7 +3736,7 @@ PRIVATE int send_packet(hgobj gobj, gbuffer_t *gbuf)
         );
     }
     json_t *kw = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);
 }
@@ -5013,7 +5013,7 @@ PRIVATE int XXX_sub__messages_queue(
         json_t *kw = json_pack("{s:s, s:s, s:I}",
             "mqtt_action", "publishing",
             "topic", topic_name,
-            "gbuffer", (json_int_t)(size_t)gbuf_message
+            "gbuffer", (json_int_t)(uintptr_t)gbuf_message
         );
         gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
     }
@@ -5667,10 +5667,10 @@ PRIVATE int connect_on_authorised(
     if(ret == 0) {
         kw_set_dict_value(gobj, client, "isConnected", json_true());
         kw_set_dict_value(gobj,
-            client, "_gobj", json_integer((json_int_t)(size_t)(gobj))
+            client, "_gobj", json_integer((json_int_t)(uintptr_t)(gobj))
         );
         kw_set_dict_value(gobj,
-            client, "_gobj_bottom", json_integer((json_int_t)(size_t)gobj_bottom_gobj(gobj))
+            client, "_gobj_bottom", json_integer((json_int_t)(uintptr_t)gobj_bottom_gobj(gobj))
         );
         gobj_write_bool_attr(gobj, "in_session", TRUE);
         gobj_write_json_attr(gobj, "client", client);

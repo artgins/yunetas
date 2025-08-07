@@ -375,7 +375,7 @@ PRIVATE json_t *cmd_send_email(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         "to", to,
         "reply_to", reply_to?reply_to:"",
         "subject", subject,
-        "gbuffer", (json_int_t)(size_t)gbuf,
+        "gbuffer", (json_int_t)(uintptr_t)gbuf,
         "is_html", is_html,
         "__persistent_event__", 1,
         "__persistence_reference__", "asdfasdfasfdsdf" // TODO no se usa persistencia
@@ -530,7 +530,7 @@ PRIVATE int open_queues(hgobj gobj)
         "path", path,
         "database", database,
         "master", 1,
-        "subscriber", (json_int_t)(size_t)gobj,
+        "subscriber", (json_int_t)(uintptr_t)gobj,
         "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
     );
     char name[NAME_MAX];

@@ -140,7 +140,7 @@ int ytls_server_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
     // int fd = (int)user_data;
 
 //    json_t *kw = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(size_t)gbuf
+//        "gbuffer", (json_int_t)(uintptr_t)gbuf
 //    );
 //    gobj_publish_event(gobj, priv->rx_data_event_name, kw);
     gobj_info_msg(0, "Server: query from the client");
@@ -161,7 +161,7 @@ int ytls_server_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
     int fd = (int)(size_t)user_data;
 
 //    json_t *kw = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(size_t)gbuf
+//        "gbuffer", (json_int_t)(uintptr_t)gbuf
 //    );
 //    gobj_send_event(gobj, EV_SEND_ENCRYPTED_DATA, kw, gobj);
 
@@ -182,7 +182,7 @@ int ytls_client_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
     // int fd = (int)user_data;
 
     //    json_t *kw = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(size_t)gbuf
+//        "gbuffer", (json_int_t)(uintptr_t)gbuf
 //    );
 //    gobj_publish_event(gobj, priv->rx_data_event_name, kw);
 
@@ -213,7 +213,7 @@ int ytls_client_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
     int fd = (int)(size_t)user_data;
 
 //    json_t *kw = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(size_t)gbuf
+//        "gbuffer", (json_int_t)(uintptr_t)gbuf
 //    );
 //    gobj_send_event(gobj, EV_SEND_ENCRYPTED_DATA, kw, gobj);
 

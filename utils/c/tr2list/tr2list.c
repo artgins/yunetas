@@ -535,7 +535,7 @@ PRIVATE int list_messages(void)
     json_object_set_new(
         match_cond,
         "load_record_callback",
-        json_integer((json_int_t)(size_t)load_record_callback)
+        json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
 
     if(arguments.key) {

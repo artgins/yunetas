@@ -1270,7 +1270,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     json_t *kw_tty = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     gobj_send_event(gobj_console, EV_WRITE_TTY, kw_tty, gobj);
 

@@ -311,7 +311,7 @@ PRIVATE int (*__global_remove_persistent_attrs_fn__)(hgobj gobj, json_t *keys) =
 PRIVATE json_t * (*__global_list_persistent_attrs_fn__)(hgobj gobj, json_t *keys) = 0;
 
 PRIVATE dl_list_t dl_gclass = {0};
-PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(size_t)gobj
+PRIVATE json_t *__jn_services__ = 0;        // Dict service:(json_int_t)(uintptr_t)gobj
 PRIVATE dl_list_t dl_trans_filter = {0};
 PRIVATE int trace_machine_format = 1;       // 0 legacy, 1 simpler
 /*
@@ -1967,7 +1967,7 @@ PRIVATE hgobj gobj_create_tree0(
     if(gclass_has_attr(gclass, "subscriber")) {
         if(!kw_has_key(kw, "subscriber")) { // WARNING TOO implicit
             if(parent != gobj_yuno()) {
-                json_object_set_new(kw, "subscriber", json_integer((json_int_t)(size_t)parent));
+                json_object_set_new(kw, "subscriber", json_integer((json_int_t)(uintptr_t)parent));
             }
         } else {
             json_t *jn_subscriber = kw_get_dict_value(parent, kw, "subscriber", 0, 0);
@@ -1975,7 +1975,7 @@ PRIVATE hgobj gobj_create_tree0(
                 const char *subscriber_name = json_string_value(jn_subscriber);
                 hgobj subscriber = gobj_find_service(subscriber_name, FALSE);
                 if(subscriber) {
-                    json_object_set_new(kw, "subscriber", json_integer((json_int_t)(size_t)subscriber));
+                    json_object_set_new(kw, "subscriber", json_integer((json_int_t)(uintptr_t)subscriber));
                 } else {
                     gobj_log_error(parent, 0,
                         "function",     "%s", __FUNCTION__,
@@ -2539,7 +2539,7 @@ PRIVATE int _register_service(gobj_t *gobj)
     int ret = json_object_set_new(
         __jn_services__,
         service_name,
-        json_integer((json_int_t)(size_t)gobj)
+        json_integer((json_int_t)(uintptr_t)gobj)
     );
     if(ret == -1) {
         gobj_log_error(0, 0,
@@ -3078,7 +3078,7 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             }
             break;
         case DTP_POINTER:
-            jn_value = json_integer((json_int_t)(size_t)it->default_value);
+            jn_value = json_integer((json_int_t)(uintptr_t)it->default_value);
             break;
     }
 
@@ -4105,7 +4105,7 @@ PUBLIC int gobj_write_pointer_attr(hgobj gobj_, const char *name, void *value)
 
     json_t *hs = gobj_hsdata2(gobj, name, FALSE);
     if(hs) {
-        int ret = json_object_set_new(hs, name, json_integer((json_int_t)(size_t)value));
+        int ret = json_object_set_new(hs, name, json_integer((json_int_t)(uintptr_t)value));
         if(gobj->gclass->gmt->mt_writing) {
             if((gobj->obflag & obflag_created) && !(gobj->obflag & obflag_destroyed)) {
                 // Avoid call to mt_writing before mt_create!
@@ -5497,7 +5497,7 @@ PRIVATE int cb_match_children(
 
     if(gobj_match_gobj(child, json_incref(jn_filter))) {
         child->__refs__++;
-        json_array_append_new(dl_list, json_integer((json_int_t)(size_t)child));
+        json_array_append_new(dl_list, json_integer((json_int_t)(uintptr_t)child));
     }
     return 0;
 }
@@ -7881,9 +7881,9 @@ PRIVATE json_t * _create_subscription(
     gobj_t * subscriber)
 {
     json_t *subs = gobj_sdata_create(publisher, subscription_desc);
-    json_object_set_new(subs, "event", json_integer((json_int_t)(size_t)event));
-    json_object_set_new(subs, "subscriber", json_integer((json_int_t)(size_t)subscriber));
-    json_object_set_new(subs, "publisher", json_integer((json_int_t)(size_t)publisher));
+    json_object_set_new(subs, "event", json_integer((json_int_t)(uintptr_t)event));
+    json_object_set_new(subs, "subscriber", json_integer((json_int_t)(uintptr_t)subscriber));
+    json_object_set_new(subs, "publisher", json_integer((json_int_t)(uintptr_t)publisher));
     subs_flag_t subs_flag = 0;
 
     if(kw) {

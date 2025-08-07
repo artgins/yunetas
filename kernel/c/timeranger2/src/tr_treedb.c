@@ -986,7 +986,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         json_t *match_cond = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
             "rkey", "",
-            "load_record_callback", (json_int_t)(size_t)load_id_callback
+            "load_record_callback", (json_int_t)(uintptr_t)load_id_callback
         );
         json_t *jn_extra = json_pack("{s:s, s:{}}",
             "treedb_name", treedb_name,
@@ -1038,7 +1038,7 @@ PUBLIC json_t *treedb_open_db( // WARNING Return IS NOT YOURS!
         json_t *match_cond = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
             "rkey", "",
-            "load_record_callback", (json_int_t)(size_t)load_id_callback
+            "load_record_callback", (json_int_t)(uintptr_t)load_id_callback
         );
         json_t *jn_extra = json_pack("{s:s, s:{}}",
             "treedb_name", treedb_name,
@@ -1199,12 +1199,12 @@ PUBLIC int treedb_set_callback(
     json_object_set_new(
         treedb,
         "__treedb_callback__",
-        json_integer((json_int_t)(size_t)treedb_callback)
+        json_integer((json_int_t)(uintptr_t)treedb_callback)
     );
     json_object_set_new(
         treedb,
         "__treedb_callback_user_data__",
-        json_integer((json_int_t)(size_t)user_data)
+        json_integer((json_int_t)(uintptr_t)user_data)
     );
     return 0;
 }
@@ -1422,7 +1422,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         "id", rt_id,
         "backward", 1,
         "rkey", "",
-        "load_record_callback", (json_int_t)(size_t)load_id_callback
+        "load_record_callback", (json_int_t)(uintptr_t)load_id_callback
     );
 
     if(snap_tag) {
@@ -1494,7 +1494,7 @@ PUBLIC json_t *treedb_create_topic(  // WARNING Return is NOT YOURS
         json_t *match_cond2 = json_pack("{s:b, s:s, s:I}",
             "backward", 1,
             "rkey", "",
-            "load_record_callback", (json_int_t)(size_t)load_pkey2_callback
+            "load_record_callback", (json_int_t)(uintptr_t)load_pkey2_callback
         );
 
 //        if(snap_tag) { // TODO esto no está en timeranger1

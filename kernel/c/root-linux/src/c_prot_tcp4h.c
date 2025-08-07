@@ -275,7 +275,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 );
                 len -= pend_size;
                 json_t *kw_tx = json_pack("{s:I}",
-                    "gbuffer", (json_int_t)(size_t)priv->last_pkt
+                    "gbuffer", (json_int_t)(uintptr_t)priv->last_pkt
                 );
                 priv->last_pkt = 0;
 
@@ -375,7 +375,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                     len -= header_erpl4.len;
                 }
                 json_t *kw_tx = json_pack("{s:I}",
-                    "gbuffer", (json_int_t)(size_t)new_pkt
+                    "gbuffer", (json_int_t)(uintptr_t)new_pkt
                 );
                 /*
                  *  CHILD subscription model
@@ -432,7 +432,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 //        );
 //    }
 //    json_t *kw_tx = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(size_t)gbuf_header
+//        "gbuffer", (json_int_t)(uintptr_t)gbuf_header
 //    );
 //    gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
 //
@@ -446,7 +446,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 //        );
 //    }
 //    kw_tx = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(size_t)gbuf_payload
+//        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload
 //    );
 //    gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
 //
@@ -471,7 +471,7 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     gbuffer_append_gbuf(new_gbuf, gbuf);
 
     json_t *kw_tx = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)new_gbuf
+        "gbuffer", (json_int_t)(uintptr_t)new_gbuf
     );
     int ret = gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
 

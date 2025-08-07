@@ -1321,14 +1321,13 @@ PRIVATE int create_display_framework(hgobj gobj)
     char history_file[PATH_MAX];
     get_history_file(history_file, sizeof(history_file));
 
-    json_t *kw_editline = json_pack(
-        "{s:s, s:s, s:s, s:I}",
+    json_t *kw_editline = json_pack("{s:s, s:s, s:s, s:I}",
         "history_file", history_file,
         "bg_color", "gray",
         "fg_color", "black",
-        "subscriber", (json_int_t)(size_t)gobj
+        "subscriber", (json_int_t)(uintptr_t)gobj
     );
-    priv->gobj_editline = gobj_create_service(
+    priv->gobj_editline = gobj_create_pure_child(
         "editline",
         C_EDITLINE,
         kw_editline,
@@ -1949,7 +1948,7 @@ PRIVATE int msg2statusline(hgobj gobj, BOOL error, const char *fmt, ...)
 //             gbuffer_append(gbuf, buf->base, nread);
 //
 //             json_t *kw_keychar = json_pack("{s:I}",
-//                 "gbuffer", (json_int_t)(size_t)gbuf
+//                 "gbuffer", (json_int_t)(uintptr_t)gbuf
 //             );
 //             gobj_send_event(GetFocus(), EV_KEYCHAR, kw_keychar, gobj);
 //         }

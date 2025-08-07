@@ -3632,10 +3632,10 @@ PUBLIC int gobj_post_event(
     hgobj yuno = gobj_yuno();
     json_error_t error;
     json_t *jn = json_pack_ex(&error, 0, "{s:I, s:I, s:o, s:I}",
-        "dst", (json_int_t)(size_t)dst,
-        "event", (json_int_t)(size_t)event,
+        "dst", (json_int_t)(uintptr_t)dst,
+        "event", (json_int_t)(uintptr_t)event,
         "kw", kw?kw:json_object(),
-        "src", (json_int_t)(size_t)src
+        "src", (json_int_t)(uintptr_t)src
     );
     if(!jn) {
         gobj_log_error(yuno, LOG_OPT_TRACE_STACK,

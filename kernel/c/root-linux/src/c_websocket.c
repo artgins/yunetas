@@ -538,7 +538,7 @@ PRIVATE int _write_control_frame(hgobj gobj, char h_fin, char h_opcode, char *da
     }
 
     json_t *kw = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     if(h_opcode == OPCODE_CONTROL_CLOSE) {
         //TODO NOOOO disconnect_on_last_transmit
@@ -972,7 +972,7 @@ PRIVATE int frame_completed(hgobj gobj)
                         return -1;
                     }
                     json_t *kw = json_pack("{s:I}",
-                        "gbuffer", (json_int_t)(size_t)unmasked
+                        "gbuffer", (json_int_t)(uintptr_t)unmasked
                     );
                     gbuffer_reset_rd(unmasked);
 
@@ -992,7 +992,7 @@ PRIVATE int frame_completed(hgobj gobj)
             case OPCODE_BINARY_FRAME:
                 {
                     json_t *kw = json_pack("{s:I}",
-                        "gbuffer", (json_int_t)(size_t)unmasked
+                        "gbuffer", (json_int_t)(uintptr_t)unmasked
                     );
                     gbuffer_reset_rd(unmasked);
 
@@ -1240,7 +1240,7 @@ PRIVATE int send_http_message(hgobj gobj, const char *http_message)
     gbuffer_append(gbuf, (char *)http_message, strlen(http_message));
 
     json_t *kw = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);
 }
@@ -1267,7 +1267,7 @@ PRIVATE int send_http_message2(hgobj gobj, const char *format, ...)
     va_end(ap);
 
     json_t *kw = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     return gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);
 }
@@ -1329,7 +1329,7 @@ PRIVATE BOOL do_request(
     gbuffer_printf(gbuf, "\r\n");
 
     json_t *kw = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);
     return TRUE;
@@ -1987,7 +1987,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         _add_frame_header(gobj, gbuf_header, TRUE, h_opcode, ln);
 
         json_t *kww = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(size_t)gbuf_header
+            "gbuffer", (json_int_t)(uintptr_t)gbuf_header
         );
         gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kww, gobj);    // header
         gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw, gobj);     // paylaod
@@ -2019,7 +2019,7 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
 
     json_t *kww = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kww, gobj);
 

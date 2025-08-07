@@ -365,7 +365,7 @@ PUBLIC json_t *msg2db_open_db(
             );
         }
         json_t *match_cond = json_pack("{s:I}",
-            "load_record_callback", (json_int_t)(size_t)load_record_callback
+            "load_record_callback", (json_int_t)(uintptr_t)load_record_callback
         );
 
         json_t *jn_extra = json_pack("{s:s, s:s, s:s}",

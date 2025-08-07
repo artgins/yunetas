@@ -261,14 +261,14 @@ PUBLIC int trq_load(tr_queue_t * trq)
     json_object_set_new(
         match_cond,
         "load_record_callback",
-        json_integer((json_int_t)(size_t)load_record_callback)
+        json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
 
     trq->first_rowid = 0;
 
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
-        "trq", (json_int_t)(size_t)trq
+        "trq", (json_int_t)(uintptr_t)trq
     );
 
     json_t *tr_list = tranger2_open_list(
@@ -314,11 +314,11 @@ PUBLIC int trq_load_all(tr_queue_t * trq, int64_t from_rowid, int64_t to_rowid)
     if(to_rowid) {
         json_object_set_new(match_cond, "to_rowid", json_integer(to_rowid));
     }
-    json_object_set_new(match_cond, "load_record_callback", json_integer((json_int_t)(size_t)load_record_callback));
+    json_object_set_new(match_cond, "load_record_callback", json_integer((json_int_t)(uintptr_t)load_record_callback));
 
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
-        "trq", (json_int_t)(size_t)trq
+        "trq", (json_int_t)(uintptr_t)trq
     );
     json_t *tr_list = tranger2_open_list(
         trq->tranger,
@@ -349,14 +349,14 @@ PUBLIC int trq_load_all_by_time(tr_queue_t * trq, int64_t from_t, int64_t to_t)
     json_object_set_new(
         match_cond,
         "load_record_callback",
-        json_integer((json_int_t)(size_t)load_record_callback)
+        json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
 
     json_object_set_new(match_cond, "only_md", json_true());
 
     json_t *jn_extra = json_pack("{s:s, s:I}",
         "topic_name", trq->topic_name,
-        "trq", (json_int_t)(size_t)trq
+        "trq", (json_int_t)(uintptr_t)trq
     );
     json_t *tr_list = tranger2_open_list(
         trq->tranger,

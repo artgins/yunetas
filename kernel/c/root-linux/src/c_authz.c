@@ -410,7 +410,7 @@ PRIVATE void mt_create(hgobj gobj)
      *----------------------*/
     const char *treedb_name = "treedb_authzs"; // HACK hardcoded service name
     json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i}",
-        "tranger", (json_int_t)(size_t)priv->tranger,
+        "tranger", (json_int_t)(uintptr_t)priv->tranger,
         "treedb_name", treedb_name,
         "treedb_schema", jn_treedb_schema,
         "exit_on_error", LOG_OPT_EXIT_ZERO
@@ -931,7 +931,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     );
     session = json_pack("{s:s, s:I}",
         "id", session_id,
-        "channel_gobj", (json_int_t)(size_t)src
+        "channel_gobj", (json_int_t)(uintptr_t)src
     );
     json_object_set(sessions, session_id, session);
 

@@ -643,7 +643,7 @@ PRIVATE int send_static_iev(
         return -1;
     }
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     return gobj_send_event(below_gobj,
         EV_SEND_MESSAGE,

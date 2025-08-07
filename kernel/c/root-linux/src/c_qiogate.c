@@ -476,7 +476,7 @@ PRIVATE int send_alert(hgobj gobj, const char *subject, const char *message)
 
     json_object_set_new(kw_email,
         "gbuffer",
-        json_integer((json_int_t)(size_t)gbuf)
+        json_integer((json_int_t)(uintptr_t)gbuf)
     );
     gobj_send_event(gobj_emailsender, EV_SEND_EMAIL, kw_email, gobj_default_service());
     return 0;
@@ -543,7 +543,7 @@ PRIVATE int open_queue(hgobj gobj)
         "path", path,
         "database", database,
         "master", 1,
-        "subscriber", (json_int_t)(size_t)gobj,
+        "subscriber", (json_int_t)(uintptr_t)gobj,
         "on_critical_error", (int)gobj_read_integer_attr(gobj, "on_critical_error")
     );
     char name[NAME_MAX];
@@ -736,7 +736,7 @@ PRIVATE int send_message_to_bottom_side(hgobj gobj, q_msg_t *msg)
     }
 
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)json2gbuf(0, jn_msg, JSON_COMPACT)
+        "gbuffer", (json_int_t)(uintptr_t)json2gbuf(0, jn_msg, JSON_COMPACT)
     );
     return gobj_send_event(priv->gobj_bottom_side, EV_SEND_MESSAGE, kw_send, gobj);
 }

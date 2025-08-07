@@ -322,7 +322,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
              *  End of frame
              */
             json_t *kw_ev = json_pack("{s:I}",
-                "gbuffer", (json_int_t)(size_t)ch->gbuf
+                "gbuffer", (json_int_t)(uintptr_t)ch->gbuf
             );
             ch->gbuf = 0;
             gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ev);
@@ -338,7 +338,7 @@ PRIVATE int ac_rx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
                  *  No space, process whatever received
                  */
                 json_t *kw_ev = json_pack("{s:I}",
-                    "gbuffer", (json_int_t)(size_t)ch->gbuf
+                    "gbuffer", (json_int_t)(uintptr_t)ch->gbuf
                 );
                 ch->gbuf = 0;
                 gobj_publish_event(gobj, EV_ON_MESSAGE, kw_ev);

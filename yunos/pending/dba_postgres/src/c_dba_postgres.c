@@ -515,7 +515,7 @@ PRIVATE int send_ack(
 
     gbuffer_t *gbuf = json2gbuf(0, kw_ack, JSON_COMPACT);
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
 
     json_object_set_new(kw_send, "__temp__", __temp__);  // Set the channel
@@ -795,8 +795,8 @@ PRIVATE int process_msg(
         "{s:o, s:o, s:O, s:["
             "{s:s, s:s, s:i}"
             "]}",
-        "gobj_jobs", json_integer((json_int_t)(size_t)gobj),
-        "gobj_results", json_integer((json_int_t)(size_t)priv->gobj_postgres),
+        "gobj_jobs", json_integer((json_int_t)(uintptr_t)gobj),
+        "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_postgres),
         "input_data", kw,
         "jobs",
             "exec_action", "action_add_row",

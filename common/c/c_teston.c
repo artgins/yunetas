@@ -304,7 +304,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     gbuffer_incref(gbuf);
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
 
@@ -339,7 +339,7 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gbuffer_printf(gbuf, "Holaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     gobj_send_event(priv->gobj_output_side, EV_SEND_MESSAGE, kw_send, gobj);
 

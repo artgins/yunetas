@@ -342,8 +342,8 @@ PRIVATE int mt_start(hgobj gobj)
             "{s:s, s:s},"
             "{s:s, s:s}"
         "]}",
-        "gobj_jobs", json_integer((json_int_t)(size_t)gobj),
-        "gobj_results", json_integer((json_int_t)(size_t)priv->gobj_http),
+        "gobj_jobs", json_integer((json_int_t)(uintptr_t)gobj),
+        "gobj_results", json_integer((json_int_t)(uintptr_t)priv->gobj_http),
         "output_data", json_object(),
         "jobs",
             "exec_action", "action_get_token",

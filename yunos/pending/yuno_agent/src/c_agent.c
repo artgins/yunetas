@@ -1128,7 +1128,7 @@ PRIVATE void mt_create(hgobj gobj)
         "path", path,
         "filename_mask", "%Y",
         "master", 1,
-        "subscriber", (json_int_t)(size_t)gobj,
+        "subscriber", (json_int_t)(uintptr_t)gobj,
         "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
     );
     priv->gobj_tranger = gobj_create_service(
@@ -1149,7 +1149,7 @@ PRIVATE void mt_create(hgobj gobj)
         KW_REQUIRED
     );
     json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i}",
-        "tranger", (json_int_t)(size_t)priv->tranger,
+        "tranger", (json_int_t)(uintptr_t)priv->tranger,
         "treedb_name", treedb_name,
         "treedb_schema", jn_treedb_schema_yuneta_agent,
         "exit_on_error", LOG_OPT_EXIT_ZERO
@@ -4870,7 +4870,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         }
         if(yuno_running) {
             if(kill_yuno(gobj, yuno)==0) {
-                json_int_t channel_gobj = (json_int_t)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
+                json_int_t channel_gobj = (json_int_t)(uintptr_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:I}}",
                     "event", EV_ON_CLOSE,
                     "filters",
@@ -9926,7 +9926,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_object_set_new(yuno, "yuno_pid", json_integer(pid));
     json_object_set_new(yuno, "watcher_pid", json_integer(watcher_pid));
 
-    json_object_set_new(yuno, "_channel_gobj", json_integer((json_int_t)(size_t)channel_gobj));
+    json_object_set_new(yuno, "_channel_gobj", json_integer((json_int_t)(uintptr_t)channel_gobj));
     if(channel_gobj) {
         gobj_write_user_data(
             channel_gobj,
@@ -10410,7 +10410,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     json_t *kw_tty = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     gobj_send_event(gobj_console, EV_WRITE_TTY, kw_tty, gobj);
 

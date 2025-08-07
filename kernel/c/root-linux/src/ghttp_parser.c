@@ -207,7 +207,7 @@ PRIVATE int on_body(http_parser* http_parser, const char* at, size_t length)
     if(parser->on_body_event) {
         json_t *kw_http = json_pack("{s:i, s:I, s:I}",
             "response_status_code", (int)parser->http_parser.status_code,
-            "__pbf__", (json_int_t)(size_t)at,
+            "__pbf__", (json_int_t)(uintptr_t)at,
             "__pbf_size__", (json_int_t)length
         );
         if(parser->send_event) {
@@ -324,7 +324,7 @@ PRIVATE int on_message_complete(http_parser* http_parser)
                 json_t *jn_body = anystring2json(body, body_len, TRUE);
                 json_object_set_new(kw_http, "body", jn_body);
             } else {
-                json_object_set_new(kw_http, "gbuffer", json_integer((json_int_t)(size_t)parser->gbuf_body));
+                json_object_set_new(kw_http, "gbuffer", json_integer((json_int_t)(uintptr_t)parser->gbuf_body));
                 parser->gbuf_body = 0;
             }
         }

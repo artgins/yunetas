@@ -253,7 +253,7 @@ PRIVATE int do_test(json_t *tranger)
         match_cond = json_pack("{s:b, s:i, s:I}",
             "backward", 0,
             "from_rowid", -10,
-            "load_record_callback", (json_int_t)(size_t)rt_disk_record_callback
+            "load_record_callback", (json_int_t)(uintptr_t)rt_disk_record_callback
         );
         json_t *list = tranger2_open_list(
             tranger,

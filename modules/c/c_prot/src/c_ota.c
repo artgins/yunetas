@@ -148,7 +148,7 @@ PRIVATE void mt_create(hgobj gobj)
     json_t *kw = json_pack("{s:b, s:s, s:I}",
         "raw_body_data", TRUE,
         "url", "",
-        "subscriber", (json_int_t)(size_t)gobj
+        "subscriber", (json_int_t)(uintptr_t)gobj
     );
     priv->gobj_http_cli_ota = gobj_create_pure_child("http_cli_ota", C_PROT_HTTP_CL, kw, gobj);
     gobj_set_bottom_gobj(gobj, priv->gobj_http_cli_ota);

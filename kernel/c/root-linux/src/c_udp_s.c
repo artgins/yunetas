@@ -816,7 +816,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     } else {
                         GBUFFER_INCREF(gbuf)
                         json_t *kw = json_pack("{s:I}",
-                            "gbuffer", (json_int_t)(size_t)gbuf
+                            "gbuffer", (json_int_t)(uintptr_t)gbuf
                         );
                         /*
                          *  CHILD subscription model

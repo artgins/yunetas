@@ -611,7 +611,7 @@ PRIVATE void rx_task(void *pv)
                         gbuffer_append(gbuf, priv->buf_rx, read_len);
 
                         json_t *kw = json_pack("{s:I}",
-                            "gbuffer", (json_int_t)(size_t)gbuf
+                            "gbuffer", (json_int_t)(uintptr_t)gbuf
                         );
                         gobj_post_event(gobj, EV_RX_DATA, kw, gobj);
                     }

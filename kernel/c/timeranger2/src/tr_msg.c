@@ -316,7 +316,7 @@ PUBLIC json_t *trmsg_open_list( // WARNING loading all records causes delay in s
     json_object_set_new(
         match_cond,
         "load_record_callback",
-        json_integer((json_int_t)(size_t)load_record_callback)
+        json_integer((json_int_t)(uintptr_t)load_record_callback)
     );
 
     json_t *rt = tranger2_open_list(

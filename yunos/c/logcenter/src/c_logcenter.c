@@ -700,7 +700,7 @@ PRIVATE int send_email(
     json_object_set_new(kw_email, "subject", json_string(subject));
     json_object_set_new(kw_email,
         "gbuffer",
-        json_integer((json_int_t)(size_t)gbuf)
+        json_integer((json_int_t)(uintptr_t)gbuf)
     );
 
     /*  TODO ??? commentario obsoleto

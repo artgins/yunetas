@@ -888,8 +888,8 @@ PRIVATE json_t *cmd_open_list(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 ////        "id", list_id,
 ////        "topic_name", topic_name,
 ////        "match_cond", match_cond,
-////        "load_record_callback", (json_int_t)(size_t)load_record_callback,
-////        "gobj", (json_int_t)(size_t)gobj
+////        "load_record_callback", (json_int_t)(uintptr_t)load_record_callback,
+////        "gobj", (json_int_t)(uintptr_t)gobj
 ////    );
 ////
 ////    list = tranger_open_list(priv->tranger, jn_list);
@@ -1371,7 +1371,7 @@ PRIVATE int ac_tranger_add_record(hgobj gobj, const char *event, json_t *kw, hgo
         return -1;
     }
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     return gobj_send_event(src,
         EV_SEND_MESSAGE, // original is "EV_SEND_IEV" TODO check

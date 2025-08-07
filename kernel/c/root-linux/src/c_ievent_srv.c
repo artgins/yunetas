@@ -504,7 +504,7 @@ PRIVATE int send_static_iev(
         return -1;
     }
     json_t *kw_send = json_pack("{s:I}",
-        "gbuffer", (json_int_t)(size_t)gbuf
+        "gbuffer", (json_int_t)(uintptr_t)gbuf
     );
     return gobj_send_event(below_gobj,
         EV_SEND_MESSAGE,
@@ -561,7 +561,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj,
         kw2match,
         "__local__", "__subscription_reference__",
-        json_integer((json_int_t)(size_t)gobj)
+        json_integer((json_int_t)(uintptr_t)gobj)
     );
 
     json_t *dl_s = gobj_find_subscribings(gobj, 0, kw2match, 0);
@@ -1191,7 +1191,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj,
             iev_kw,
             "__local__", "__subscription_reference__",
-            json_integer((json_int_t)(size_t)gobj)
+            json_integer((json_int_t)(uintptr_t)gobj)
         );
 
         // Prepare the return of response

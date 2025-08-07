@@ -753,7 +753,7 @@ PRIVATE int send_gps_msgs(hgobj gobj, hgobj channel_gobj)
         }
 
         json_t *kw_tx = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(size_t)gbuf
+            "gbuffer", (json_int_t)(uintptr_t)gbuf
         );
         gobj_send_event(channel_gobj, EV_SEND_MESSAGE, kw_tx, gobj);
 
@@ -836,7 +836,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gbuffer_append(gbuf, (void *)frame, len);
 
             json_t *kw_tx = json_pack("{s:I}",
-                "gbuffer", (json_int_t)(size_t)gbuf
+                "gbuffer", (json_int_t)(uintptr_t)gbuf
             );
             gobj_send_event(src, EV_SEND_MESSAGE, kw_tx, gobj);
 

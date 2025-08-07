@@ -726,7 +726,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     }
                     GBUFFER_INCREF(yev_get_gbuf(yev_event))
                     json_t *kw = json_pack("{s:I}",
-                        "gbuffer", (json_int_t)(size_t)yev_get_gbuf(yev_event)
+                        "gbuffer", (json_int_t)(uintptr_t)yev_get_gbuf(yev_event)
                     );
 
                     /*
