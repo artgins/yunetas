@@ -14,6 +14,8 @@
 #include <pwd.h>
 #include <limits.h>
 
+#include <g_ev_console.h>
+#include <c_editline.h>
 #include "c_wn_box.h"
 #include "c_wn_editline.h"
 #include "c_wn_stsline.h"
@@ -1306,7 +1308,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
     priv->gobj_editline = gobj_create_service(
         "editline",
-        C_WN_EDITLINE,
+        C_EDITLINE,
         kw_editline,
         priv->gobj_editbox
     );

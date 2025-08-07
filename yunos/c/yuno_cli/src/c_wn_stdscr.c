@@ -10,6 +10,7 @@
 #include <ncurses/ncurses.h>
 #include <string.h>
 
+#include <g_ev_console.h>
 #include "c_wn_stdscr.h"
 
 /***************************************************************************

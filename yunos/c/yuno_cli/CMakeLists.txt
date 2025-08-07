@@ -33,10 +33,11 @@ SET (YUNO_SRCS
     src/c_wn_layout.c
     src/c_wn_box.c
     src/c_wn_stsline.c
-    src/c_wn_editline.c
     src/c_wn_list.c
     src/c_wn_toolbar.c
     src/c_wn_static.c
+    src/common/c_editline.c
+    src/common/g_ev_console.c
 )
 SET (YUNO_HDRS
     src/c_cli.h
@@ -44,7 +45,6 @@ SET (YUNO_HDRS
     src/c_wn_layout.h
     src/c_wn_box.h
     src/c_wn_stsline.h
-    src/c_wn_editline.h
     src/c_wn_list.h
     src/c_wn_toolbar.h
     src/c_wn_static.h

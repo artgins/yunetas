@@ -23,6 +23,7 @@ SET (YUNO_SRCS
     src/main.c
     src/c_ycommand.c
     src/common/c_editline.c
+    src/common/g_ev_console.c
 )
 SET (YUNO_HDRS
     src/c_ycommand.h

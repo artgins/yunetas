@@ -19,7 +19,8 @@
 #include <limits.h>
 #include <pwd.h>
 
-#include "common/c_editline.h"
+#include <g_ev_console.h>
+#include <c_editline.h>
 #include "c_ycommand.h"
 
 /***************************************************************************

@@ -22,6 +22,7 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 SET (YUNO_SRCS
     src/main.c
     src/c_controlcenter.c
+    src/common/g_ev_console.c
 )
 SET (YUNO_HDRS
     src/c_controlcenter.h
