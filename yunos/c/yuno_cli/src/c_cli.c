@@ -1321,13 +1321,15 @@ PRIVATE int create_display_framework(hgobj gobj)
     char history_file[PATH_MAX];
     get_history_file(history_file, sizeof(history_file));
 
-    json_t *kw_editline = json_pack("{s:s, s:s, s:s, s:I}",
+    json_t *kw_editline = json_pack("{s:s, s:s, s:s, s:i, s:i, s:I}",
         "history_file", history_file,
         "bg_color", "gray",
         "fg_color", "black",
+        "cx", winsz.ws_col,
+        "cy", winsz.ws_row,
         "subscriber", (json_int_t)(uintptr_t)gobj
     );
-    priv->gobj_editline = gobj_create_pure_child(
+    priv->gobj_editline = gobj_create_service(
         "editline",
         C_EDITLINE,
         kw_editline,
