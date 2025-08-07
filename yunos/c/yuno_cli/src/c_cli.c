@@ -403,47 +403,8 @@ PRIVATE void mt_create(hgobj gobj)
     }
     priv->jn_window_counters = json_object();
 
-    /*
-     *  Do copy of heavy used parameters, for quick access.
-     *  HACK The writable attributes must be repeated in mt_writing method.
-     */
-}
-
-/***************************************************************************
- *      Framework Method writing
- ***************************************************************************/
-PRIVATE void mt_writing(hgobj gobj, const char *path)
-{
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
-//     END_EQ_SET_PRIV()
-}
-
-/***************************************************************************
- *      Framework Method destroy
- ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    /*
-     *  Free data
-     */
-    // growbf_reset(&priv->bfinput); TODO
-    JSON_DECREF(priv->jn_window_counters);
-}
-
-/***************************************************************************
- *      Framework Method start
- ***************************************************************************/
-PRIVATE int mt_start(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     if(gobj_read_bool_attr(gobj, "use_ncurses")) {
         create_display_framework(gobj);
-        gobj_start(priv->gwin_stdscr);
     }
 
     /*
@@ -493,19 +454,90 @@ PRIVATE int mt_start(hgobj gobj)
         priv->gobj_editbox
     );
 
-    gobj_start(priv->timer);
+    /*
+     *  Do copy of heavy used parameters, for quick access.
+     *  HACK The writable attributes must be repeated in mt_writing method.
+     */
+}
 
-    // TODO if(gobj_trace_level(gobj) & TRACE_UV) {
-    //     gobj_trace_msg(gobj, ">>> uv_init tty p=%p", &priv->uv_tty);
-    // }
-    // uv_tty_init(yuno_uv_event_loop(), &priv->uv_tty, STDIN_FILENO, 0);
-    // priv->uv_tty.data = gobj;
-    // priv->uv_handler_active = 1;
-    //
-    // uv_tty_set_mode(&priv->uv_tty, UV_TTY_MODE_RAW);
-    //
-    // priv->uv_read_active = 1;
-    // uv_read_start((uv_stream_t*)&priv->uv_tty, on_alloc_cb, on_read_cb);
+/***************************************************************************
+ *      Framework Method writing
+ ***************************************************************************/
+PRIVATE void mt_writing(hgobj gobj, const char *path)
+{
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
+//     END_EQ_SET_PRIV()
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Free data
+     */
+    // growbf_reset(&priv->bfinput); TODO
+    JSON_DECREF(priv->jn_window_counters);
+}
+
+/***************************************************************************
+ *      Framework Method start
+ ***************************************************************************/
+PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->timer);
+    if(priv->gwin_stdscr) {
+        create_display_framework(gobj);
+        gobj_start(priv->gwin_stdscr);
+    }
+
+    priv->tty_fd = tty_init();
+    if(priv->tty_fd < 0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "cannot open a tty window",
+            NULL
+        );
+        gobj_set_exit_code(-1);
+        gobj_shutdown();
+        return -1;
+    }
+
+    /*-------------------------------*
+     *      Setup reading event
+     *-------------------------------*/
+    json_int_t rx_buffer_size = 1024;
+    if(!priv->yev_reading) {
+        priv->yev_reading = yev_create_read_event(
+            yuno_event_loop(),
+            yev_callback,
+            gobj,
+            priv->tty_fd,
+            gbuffer_create(rx_buffer_size, rx_buffer_size)
+        );
+    }
+
+    if(priv->yev_reading) {
+        yev_set_fd(priv->yev_reading, priv->tty_fd);
+
+        if(!yev_get_gbuf(priv->yev_reading)) {
+            yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
+        } else {
+            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
+        }
+
+        yev_start_event(priv->yev_reading);
+    }
+
+    gobj_start(priv->gobj_editline);
 
     SetDefaultFocus(priv->gobj_editline);
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
@@ -548,8 +580,7 @@ PRIVATE int mt_stop(hgobj gobj)
         priv->file_saving_output = 0;
     }
 
-    // uv_tty_set_mode(&priv->uv_tty, UV_TTY_MODE_NORMAL); TODO
-    // uv_tty_reset_mode();
+    try_to_stop_yevents(gobj);
     do_close(gobj);
 
     gobj_stop_tree(gobj);
@@ -1414,6 +1445,279 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
+{
+    for(int i=0; keytable[i].event!=0; i++) {
+        if(memcmp(kb, keytable[i].keycode, strlen((const char *)keytable[i].keycode))==0) {
+            return &keytable[i];
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int process_key(hgobj gobj, uint8_t kb)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(kb >= 0x20 && kb <= 0x7f) {
+        json_t *kw_char = json_pack("{s:i}",
+            "char", kb
+        );
+        gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *  on read callback
+ ***************************************************************************/
+PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t nread = gbuffer_leftbytes(gbuf);
+    char *base = gbuffer_cur_rd_pointer(gbuf);
+
+    if(nread == 0) {
+        // Yes, sometimes arrive with nread 0.
+        return 0;
+    }
+
+    if(base[0] == 3) {
+        if(!priv->on_mirror_tty) {
+            gobj_shutdown();
+            return -1;
+        }
+    }
+    if(nread > 8) {
+        // It's must be the mouse cursor
+        char *p = strchr(base+1, 0x1B);
+        if(p) {
+            *p = 0;
+            nread = (int)(p - base);
+            if(gobj_trace_level(gobj) & (TRACE_KB)) {
+                gobj_trace_dump(
+                    gobj,
+                    base,
+                    nread,
+                    "REDUCE!"
+                );
+            }
+        }
+    }
+    uint8_t b[8];
+    memset(b, 0, sizeof(b));
+    memmove(b, base, MIN(8, nread));
+
+    do {
+        if(priv->on_mirror_tty) {
+            hgobj gobj_cmd = gobj_read_pointer_attr(gobj, "gobj_connector");
+
+            gbuffer_t *gbuf2 = gbuffer_create(nread, nread);
+            gbuffer_append(gbuf2, base, nread);
+            gbuffer_t *gbuf_content64 = gbuffer_encode_base64(gbuf2);
+            char *content64 = gbuffer_cur_rd_pointer(gbuf_content64);
+
+            json_t *kw_command = json_pack("{s:s, s:s, s:s}",
+                "name", priv->mirror_tty_name,
+                "agent_id", priv->mirror_tty_uuid,
+                "content64", content64
+            );
+
+            json_decref(gobj_command(gobj_cmd, "write-tty", kw_command, gobj));
+
+            GBUFFER_DECREF(gbuf_content64)
+            GBUFFER_DECREF(gbuf2)
+            break;
+        }
+
+        struct keytable_s *kt = event_by_key(b);
+        if(kt) {
+            const char *dst = kt->dst_gobj;
+            const char *event = kt->event;
+
+            if(strcmp(dst, "editline")==0) {
+                gobj_send_event(priv->gobj_editline, event, 0, gobj);
+            } else {
+                gobj_send_event(gobj, event, 0, gobj);
+            }
+        } else {
+            for(int i=0; i<nread; i++) {
+                process_key(gobj, base[i]);
+            }
+        }
+
+    } while(0);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  on read callback
+ ***************************************************************************/
+// PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
+// {
+//     hgobj gobj = stream->data;
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     if(gobj_trace_level(gobj) & TRACE_UV) {
+//         gobj_trace_msg(gobj, "<<< on_read_cb %d tty p=%p",
+//             (int)nread,
+//             &priv->uv_tty
+//         );
+//     }
+//
+//     if(nread < 0) {
+//         if(nread == UV_ECONNRESET) {
+//             gobj_log_info(gobj, 0,
+//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+//                 "msg",          "%s", "Connection Reset",
+//                 NULL
+//             );
+//         } else if(nread == UV_EOF) {
+//             gobj_log_info(gobj, 0,
+//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
+//                 "msg",          "%s", "EOF",
+//                 NULL
+//             );
+//         } else {
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//                 "msg",          "%s", "read FAILED",
+//                 "uv_error",     "%s", uv_err_name(nread),
+//                 NULL
+//             );
+//         }
+//         if(gobj_is_running(gobj)) {
+//             gobj_stop(gobj); // auto-stop
+//         }
+//         return;
+//     }
+//
+//     if(nread == 0) {
+//         // Yes, sometimes arrive with nread 0.
+//         return;
+//     }
+//
+//     if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
+//         gobj_trace_dump(gobj,
+//             0,
+//             buf->base,
+//             nread,
+//             "on_read_cb"
+//         );
+//     }
+//
+//     if(buf->base[0] == 3) {
+//         gobj_shutdown();
+//         return;
+//     }
+//     if(nread > 8) {
+//         // It must be the mouse cursor
+//         char *p = strchr(buf->base+1, 0x1B);
+//         if(p) {
+//             *p = 0;
+//             nread = (int)(p - buf->base);
+//             if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
+//                 gobj_trace_dump(gobj,
+//                     0,
+//                     buf->base,
+//                     nread,
+//                     "REDUCE!"
+//                 );
+//             }
+//         }
+//     }
+//     uint8_t b[8];
+//     memset(b, 0, sizeof(b));
+//     memmove(b, buf->base, MIN(8, nread));
+//
+//     do {
+//         /*
+//          *  Level 1, window management functions
+//          */
+//         keytable_t *kt = event_by_key(keytable1, b);
+//         if(kt) {
+//             const char *dst = kt->dst_gobj;
+//             const char *event = kt->event;
+//
+//             hgobj dst_gobj = gobj_find_unique_gobj(dst, FALSE);
+//             if(!dst_gobj) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                     "msg",          "%s", "unique gobj NOT FOUND",
+//                     "unique",       "%s", dst,
+//                     NULL
+//                 );
+//             } else {
+//                 gobj_send_event(dst_gobj, event, 0, gobj);
+//             }
+//             return;
+//         }
+//
+//         /*
+//          *  Level 2, top window or editline functions
+//          */
+//         kt = event_by_key(keytable2, b);
+//         if(kt) {
+//             const char *dst = kt->dst_gobj;
+//             const char *event = kt->event;
+//
+//             hgobj dst_gobj;
+//             if(!empty_string(dst)) {
+//                 if(strcmp(dst, "__top_display_window__")==0) {
+//                     dst_gobj = __top_display_window__;
+//                 } else {
+//                     dst_gobj = gobj_find_unique_gobj(dst, FALSE);
+//                 }
+//             } else {
+//                 dst_gobj = GetFocus();
+//             }
+//             if(!dst_gobj) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                     "msg",          "%s", "unique gobj NOT FOUND",
+//                     "unique",       "%s", dst,
+//                     NULL
+//                 );
+//             } else {
+//                 if(gobj_event_in_input_event_list(dst_gobj, event, 0)) {
+//                     gobj_send_event(dst_gobj, event, 0, gobj);
+//                     if(strcmp(event, "EV_EDITLINE_DEL_LINE")==0) {
+//                         msg2statusline(gobj, 0, "%s", "");
+//                     }
+//                 }
+//             }
+//             return;
+//         }
+//
+//         /*
+//          *  Level 3, chars to window with focus
+//          */
+//         if(buf->base[0] >= 0x20 && buf->base[0] <= 0x7f) {
+//             // No pases escapes ni utf8
+//             gbuffer_t *gbuf = gbuffer_create(nread, nread, 0, 0);
+//             gbuffer_append(gbuf, buf->base, nread);
+//
+//             json_t *kw_keychar = json_pack("{s:I}",
+//                 "gbuffer", (json_int_t)(uintptr_t)gbuf
+//             );
+//             gobj_send_event(GetFocus(), EV_KEYCHAR, kw_keychar, gobj);
+//         }
+//
+//     } while(0);
+// }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE char *get_history_file(char *bf, int bfsize)
 {
     char *home = getenv("HOME");
@@ -1950,206 +2254,6 @@ PRIVATE int msg2statusline(hgobj gobj, BOOL error, const char *fmt, ...)
 
     return 0;
 }
-
-/***************************************************************************
- *
- ***************************************************************************/
-// PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
-// {
-//     for(int i=0; keytable[i].event!=0; i++) {
-//         if(memcmp(kb, keytable[i].keycode, strlen((const char *)keytable[i].keycode))==0) {
-//             return &keytable[i];
-//         }
-//     }
-//     return 0;
-// }
-
-/***************************************************************************
- *  on alloc callback
- ***************************************************************************/
-// PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf)
-// {
-//     hgobj gobj = handle->data;
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     growbf_ensure_size(&priv->bfinput, suggested_size);
-//     buf->base = priv->bfinput.bf;
-//     buf->len = priv->bfinput.allocated;
-// }
-
-/***************************************************************************
- *  on read callback
- ***************************************************************************/
-// PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
-// {
-//     hgobj gobj = stream->data;
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     if(gobj_trace_level(gobj) & TRACE_UV) {
-//         gobj_trace_msg(gobj, "<<< on_read_cb %d tty p=%p",
-//             (int)nread,
-//             &priv->uv_tty
-//         );
-//     }
-//
-//     if(nread < 0) {
-//         if(nread == UV_ECONNRESET) {
-//             gobj_log_info(gobj, 0,
-//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//                 "msg",          "%s", "Connection Reset",
-//                 NULL
-//             );
-//         } else if(nread == UV_EOF) {
-//             gobj_log_info(gobj, 0,
-//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//                 "msg",          "%s", "EOF",
-//                 NULL
-//             );
-//         } else {
-//             gobj_log_error(gobj, 0,
-//                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
-//                 "msg",          "%s", "read FAILED",
-//                 "uv_error",     "%s", uv_err_name(nread),
-//                 NULL
-//             );
-//         }
-//         if(gobj_is_running(gobj)) {
-//             gobj_stop(gobj); // auto-stop
-//         }
-//         return;
-//     }
-//
-//     if(nread == 0) {
-//         // Yes, sometimes arrive with nread 0.
-//         return;
-//     }
-//
-//     if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
-//         gobj_trace_dump(gobj,
-//             0,
-//             buf->base,
-//             nread,
-//             "on_read_cb"
-//         );
-//     }
-//
-//     if(buf->base[0] == 3) {
-//         gobj_shutdown();
-//         return;
-//     }
-//     if(nread > 8) {
-//         // It must be the mouse cursor
-//         char *p = strchr(buf->base+1, 0x1B);
-//         if(p) {
-//             *p = 0;
-//             nread = (int)(p - buf->base);
-//             if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
-//                 gobj_trace_dump(gobj,
-//                     0,
-//                     buf->base,
-//                     nread,
-//                     "REDUCE!"
-//                 );
-//             }
-//         }
-//     }
-//     uint8_t b[8];
-//     memset(b, 0, sizeof(b));
-//     memmove(b, buf->base, MIN(8, nread));
-//
-//     do {
-//         /*
-//          *  Level 1, window management functions
-//          */
-//         keytable_t *kt = event_by_key(keytable1, b);
-//         if(kt) {
-//             const char *dst = kt->dst_gobj;
-//             const char *event = kt->event;
-//
-//             hgobj dst_gobj = gobj_find_unique_gobj(dst, FALSE);
-//             if(!dst_gobj) {
-//                 gobj_log_error(gobj, 0,
-//                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                     "msg",          "%s", "unique gobj NOT FOUND",
-//                     "unique",       "%s", dst,
-//                     NULL
-//                 );
-//             } else {
-//                 gobj_send_event(dst_gobj, event, 0, gobj);
-//             }
-//             return;
-//         }
-//
-//         /*
-//          *  Level 2, top window or editline functions
-//          */
-//         kt = event_by_key(keytable2, b);
-//         if(kt) {
-//             const char *dst = kt->dst_gobj;
-//             const char *event = kt->event;
-//
-//             hgobj dst_gobj;
-//             if(!empty_string(dst)) {
-//                 if(strcmp(dst, "__top_display_window__")==0) {
-//                     dst_gobj = __top_display_window__;
-//                 } else {
-//                     dst_gobj = gobj_find_unique_gobj(dst, FALSE);
-//                 }
-//             } else {
-//                 dst_gobj = GetFocus();
-//             }
-//             if(!dst_gobj) {
-//                 gobj_log_error(gobj, 0,
-//                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                     "msg",          "%s", "unique gobj NOT FOUND",
-//                     "unique",       "%s", dst,
-//                     NULL
-//                 );
-//             } else {
-//                 if(gobj_event_in_input_event_list(dst_gobj, event, 0)) {
-//                     gobj_send_event(dst_gobj, event, 0, gobj);
-//                     if(strcmp(event, "EV_EDITLINE_DEL_LINE")==0) {
-//                         msg2statusline(gobj, 0, "%s", "");
-//                     }
-//                 }
-//             }
-//             return;
-//         }
-//
-//         /*
-//          *  Level 3, chars to window with focus
-//          */
-//         if(buf->base[0] >= 0x20 && buf->base[0] <= 0x7f) {
-//             // No pases escapes ni utf8
-//             gbuffer_t *gbuf = gbuffer_create(nread, nread, 0, 0);
-//             gbuffer_append(gbuf, buf->base, nread);
-//
-//             json_t *kw_keychar = json_pack("{s:I}",
-//                 "gbuffer", (json_int_t)(uintptr_t)gbuf
-//             );
-//             gobj_send_event(GetFocus(), EV_KEYCHAR, kw_keychar, gobj);
-//         }
-//
-//     } while(0);
-// }
-
-/***************************************************************************
- *  Only NOW you can destroy this gobj,
- *  when uv has released the handler.
- ***************************************************************************/
-// PRIVATE void on_close_cb(uv_handle_t* handle)
-// {
-//     hgobj gobj = handle->data;
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     if(gobj_trace_level(gobj) & TRACE_UV) {
-//         gobj_trace_msg(gobj, "<<< on_close_cb tcp0 p=%p", &priv->uv_tty);
-//     }
-//     priv->uv_handler_active = 0;
-// }
 
 /***************************************************************************
  *

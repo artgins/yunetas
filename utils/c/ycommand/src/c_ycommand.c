@@ -313,7 +313,6 @@ PRIVATE int mt_start(hgobj gobj)
         yev_start_event(priv->yev_reading);
     }
 
-
     gobj_start(priv->gobj_editline);
 
     const char *auth_url = gobj_read_str_attr(gobj, "auth_url");
@@ -529,7 +528,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE struct keytable_s *event_by_key(uint8_t kb[8])
+PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
 {
     for(int i=0; keytable[i].event!=0; i++) {
         if(memcmp(kb, keytable[i].keycode, strlen((const char *)keytable[i].keycode))==0) {
@@ -601,9 +600,9 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         if(priv->on_mirror_tty) {
             hgobj gobj_cmd = gobj_read_pointer_attr(gobj, "gobj_connector");
 
-            gbuffer_t *gbuf = gbuffer_create(nread, nread);
-            gbuffer_append(gbuf, base, nread);
-            gbuffer_t *gbuf_content64 = gbuffer_encode_base64(gbuf);
+            gbuffer_t *gbuf2 = gbuffer_create(nread, nread);
+            gbuffer_append(gbuf2, base, nread);
+            gbuffer_t *gbuf_content64 = gbuffer_encode_base64(gbuf2);
             char *content64 = gbuffer_cur_rd_pointer(gbuf_content64);
 
             json_t *kw_command = json_pack("{s:s, s:s, s:s}",
@@ -614,11 +613,12 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
 
             json_decref(gobj_command(gobj_cmd, "write-tty", kw_command, gobj));
 
-            GBUFFER_DECREF(gbuf_content64);
+            GBUFFER_DECREF(gbuf_content64)
+            GBUFFER_DECREF(gbuf2)
             break;
         }
 
-        struct keytable_s *kt = event_by_key(b);
+        struct keytable_s *kt = event_by_key(keytable, b);
         if(kt) {
             const char *dst = kt->dst_gobj;
             const char *event = kt->event;
