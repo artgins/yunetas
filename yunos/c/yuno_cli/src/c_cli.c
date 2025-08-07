@@ -17,7 +17,6 @@
 #include <g_ev_console.h>
 #include <c_editline.h>
 #include "c_wn_box.h"
-#include "c_wn_editline.h"
 #include "c_wn_stsline.h"
 #include "c_wn_toolbar.h"
 #include "c_wn_layout.h"

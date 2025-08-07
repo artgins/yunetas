@@ -13,8 +13,8 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "yuneta"
-#define APP_DOC         "Yuneta Command Line Interface"
+#define APP_NAME        "ycli"
+#define APP_DOC         "Yuneta Command Line Interface V7"
 
 #define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
