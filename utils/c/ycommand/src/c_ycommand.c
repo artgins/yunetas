@@ -224,7 +224,8 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Editline
      */
-    json_t *kw_editline = json_pack("{s:s, s:i, s:i}",
+    json_t *kw_editline = json_pack("{s:s, s:s, s:i, s:i}",
+        "prompt", "ycommand> ",
         "history_file", history_file,
         "cx", winsz.ws_col,
         "cy", winsz.ws_row
