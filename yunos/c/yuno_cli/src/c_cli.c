@@ -2635,7 +2635,7 @@ PRIVATE int ac_quit(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int timeout = kw_get_int(gobj, kw, "timeout", 0, 0);
+    int timeout = (int)kw_get_int(gobj, kw, "timeout", 0, 0);
     if(timeout) {
         set_timeout(priv->timer, timeout * 1000);
         KW_DECREF(kw);

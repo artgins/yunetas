@@ -7,8 +7,8 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <yunetas.h>
+#include <c_editline.h>
 #include "c_cli.h"
-#include "c_wn_stdscr.h"
 
 /***************************************************************************
  *                      Names
@@ -106,6 +106,7 @@ static int register_yuno_and_more(void)
      *  Register gclass
      *--------------------*/
     register_c_cli();
+    register_c_editline();
 
     /*------------------------------------------------*
      *          Traces
