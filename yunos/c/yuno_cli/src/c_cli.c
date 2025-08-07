@@ -478,11 +478,9 @@ PRIVATE void mt_destroy(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    /*
-     *  Free data
-     */
-    // growbf_reset(&priv->bfinput); TODO
     JSON_DECREF(priv->jn_window_counters);
+    JSON_DECREF(priv->jn_shortkeys);
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
 }
 
 /***************************************************************************
@@ -2145,12 +2143,20 @@ PRIVATE int msg2statusline(hgobj gobj, BOOL error, const char *fmt, ...)
 
     va_start(ap, fmt);
     vsnprintf(temp, sizeof(temp), fmt, ap);
-    if(error) {
-        SetTextColor(priv->gobj_stsline, "red");
+    if(priv->gobj_stsline) {
+        if(error) {
+            SetTextColor(priv->gobj_stsline, "red");
+        } else {
+            SetTextColor(priv->gobj_stsline, "black");
+        }
+        DrawText(priv->gobj_stsline, 0, 0, temp);
     } else {
-        SetTextColor(priv->gobj_stsline, "black");
+        if(error) {
+            printf("%s%s%s\n", On_Red BWhite, temp, Color_Off);
+        } else {
+            printf("%s\n", temp);
+        }
     }
-    DrawText(priv->gobj_stsline, 0, 0, temp);
     va_end(ap);
 
     return 0;
@@ -3367,34 +3373,46 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     /*------------------------*
      *      States
      *------------------------*/
+    ev_action_t st_stopped[] = {
+        {EV_ON_CLOSE,               ac_on_close,            0},
+        {0,0,0}
+    };
+
+    ev_action_t st_wait_stopped[] = {
+        {EV_ON_CLOSE,               ac_on_close,            0},
+        {0,0,0}
+    };
+
     ev_action_t st_idle[] = {
-        {EV_COMMAND,              ac_command,             0},
-        {EV_QUIT,                 ac_quit,                0},
-        {EV_SCREEN_SIZE_CHANGE,   ac_screen_size_change,  0},
-        {EV_PREVIOUS_WINDOW,      ac_previous_window,     0},
-        {EV_NEXT_WINDOW,          ac_next_window,         0},
-        {EV_ON_OPEN,              ac_on_open,             0},
-        {EV_ON_CLOSE,             ac_on_close,            0},
-        {EV_MT_STATS_ANSWER,      ac_mt_command_answer,   0},
-        {EV_MT_COMMAND_ANSWER,    ac_mt_command_answer,   0},
-        {EV_EDIT_CONFIG,          ac_edit_config,         0},
-        {EV_VIEW_CONFIG,          ac_view_config,         0},
-        {EV_EDIT_YUNO_CONFIG,     ac_edit_config,         0},
-        {EV_VIEW_YUNO_CONFIG,     ac_view_config,         0},
-        {EV_READ_JSON,            ac_read_json,           0},
-        {EV_READ_FILE,            ac_read_file,           0},
-        {EV_READ_BINARY_FILE,     ac_read_binary_file,    0},
-        {EV_TTY_OPEN,             ac_tty_mirror_open,     0},
-        {EV_TTY_CLOSE,            ac_tty_mirror_close,    0},
-        {EV_TTY_DATA,             ac_tty_mirror_data,     0},
-        {EV_ON_TOKEN,             ac_on_token,            0},
-        {EV_TIMEOUT,              ac_timeout,             0},
-        {EV_STOPPED,              0,                      0},
+        {EV_COMMAND,                ac_command,             0},
+        {EV_QUIT,                   ac_quit,                0},
+        {EV_SCREEN_SIZE_CHANGE,     ac_screen_size_change,  0},
+        {EV_PREVIOUS_WINDOW,        ac_previous_window,     0},
+        {EV_NEXT_WINDOW,            ac_next_window,         0},
+        {EV_ON_OPEN,                ac_on_open,             0},
+        {EV_ON_CLOSE,               ac_on_close,            0},
+        {EV_MT_STATS_ANSWER,        ac_mt_command_answer,   0},
+        {EV_MT_COMMAND_ANSWER,      ac_mt_command_answer,   0},
+        {EV_EDIT_CONFIG,            ac_edit_config,         0},
+        {EV_VIEW_CONFIG,            ac_view_config,         0},
+        {EV_EDIT_YUNO_CONFIG,       ac_edit_config,         0},
+        {EV_VIEW_YUNO_CONFIG,       ac_view_config,         0},
+        {EV_READ_JSON,              ac_read_json,           0},
+        {EV_READ_FILE,              ac_read_file,           0},
+        {EV_READ_BINARY_FILE,       ac_read_binary_file,    0},
+        {EV_TTY_OPEN,               ac_tty_mirror_open,     0},
+        {EV_TTY_CLOSE,              ac_tty_mirror_close,    0},
+        {EV_TTY_DATA,               ac_tty_mirror_data,     0},
+        {EV_ON_TOKEN,               ac_on_token,            0},
+        {EV_TIMEOUT,                ac_timeout,             0},
+        {EV_STOPPED,                0,                      0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_IDLE, st_idle},
+        {ST_IDLE,               st_idle},
+        {ST_WAIT_STOPPED,       st_wait_stopped},
+        {ST_STOPPED,            st_stopped},
         {0, 0}
     };
 

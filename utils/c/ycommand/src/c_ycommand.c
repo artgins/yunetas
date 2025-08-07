@@ -259,10 +259,6 @@ PRIVATE void mt_destroy(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
-    /*
-     *  Free data
-     */
-    // TODO growbf_reset(&priv->bfinput);
 }
 
 /***************************************************************************
