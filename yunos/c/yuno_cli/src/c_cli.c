@@ -1608,7 +1608,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
                 "gbuffer", (json_int_t)(uintptr_t)gbuf2
             );
 
-            gobj_send_event(GetFocus(), EV_KEYCHAR, kw_keychar, gobj);
+            gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_keychar, gobj);
         }
 
     } while(0);
