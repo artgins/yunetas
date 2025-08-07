@@ -1458,19 +1458,19 @@ PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int process_key(hgobj gobj, uint8_t kb)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(kb >= 0x20 && kb <= 0x7f) {
-        json_t *kw_char = json_pack("{s:i}",
-            "char", kb
-        );
-        gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
-    }
-
-    return 0;
-}
+// PRIVATE int process_key(hgobj gobj, uint8_t kb) TODO ???
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     if(kb >= 0x20 && kb <= 0x7f) {
+//         json_t *kw_char = json_pack("{s:i}",
+//             "char", kb
+//         );
+//         gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_char, gobj);
+//     }
+//
+//     return 0;
+// }
 
 /***************************************************************************
  *  on read callback
@@ -1535,185 +1535,84 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
             break;
         }
 
-        struct keytable_s *kt = event_by_key(b);
+        /*
+         *  Level 1, window management functions
+         */
+        struct keytable_s *kt = event_by_key(keytable1, b);
         if(kt) {
             const char *dst = kt->dst_gobj;
             const char *event = kt->event;
 
-            if(strcmp(dst, "editline")==0) {
-                gobj_send_event(priv->gobj_editline, event, 0, gobj);
+            hgobj dst_gobj = gobj_find_service(dst, FALSE);
+            if(!dst_gobj) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "service gobj NOT FOUND",
+                    "service",      "%s", dst,
+                    NULL
+                );
             } else {
-                gobj_send_event(gobj, event, 0, gobj);
+                gobj_send_event(dst_gobj, event, 0, gobj);
             }
-        } else {
-            for(int i=0; i<nread; i++) {
-                process_key(gobj, base[i]);
+            return 0;
+        }
+
+        /*
+         *  Level 2, top window or editline functions
+         */
+        kt = event_by_key(keytable2, b);
+        if(kt) {
+            const char *dst = kt->dst_gobj;
+            const char *event = kt->event;
+
+            hgobj dst_gobj;
+            if(!empty_string(dst)) {
+                if(strcmp(dst, "__top_display_window__")==0) {
+                    dst_gobj = __top_display_window__;
+                } else {
+                    dst_gobj = gobj_find_service(dst, FALSE);
+                }
+            } else {
+                dst_gobj = GetFocus();
             }
+            if(!dst_gobj) {
+                gobj_log_error(gobj, 0,
+                    "function",     "%s", __FUNCTION__,
+                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                    "msg",          "%s", "service gobj NOT FOUND",
+                    "service",       "%s", dst,
+                    NULL
+                );
+            } else {
+                if(gobj_has_event(dst_gobj, event, 0)) {
+                    gobj_send_event(dst_gobj, event, 0, gobj);
+                    if(strcmp(event, "EV_EDITLINE_DEL_LINE")==0) {
+                        msg2statusline(gobj, 0, "%s", "");
+                    }
+                }
+            }
+            return 0;
+        }
+
+        /*
+         *  Level 3, chars to window with focus
+         */
+        if(base[0] >= 0x20 && base[0] <= 0x7f) {
+            // No pases escapes ni utf8
+            gbuffer_t *gbuf2 = gbuffer_create(nread, nread);
+            gbuffer_append(gbuf, base, nread);
+
+            json_t *kw_keychar = json_pack("{s:I}",
+                "gbuffer", (json_int_t)(uintptr_t)gbuf2
+            );
+            gobj_send_event(GetFocus(), EV_KEYCHAR, kw_keychar, gobj);
         }
 
     } while(0);
 
     return 0;
 }
-
-/***************************************************************************
- *  on read callback
- ***************************************************************************/
-// PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
-// {
-//     hgobj gobj = stream->data;
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     if(gobj_trace_level(gobj) & TRACE_UV) {
-//         gobj_trace_msg(gobj, "<<< on_read_cb %d tty p=%p",
-//             (int)nread,
-//             &priv->uv_tty
-//         );
-//     }
-//
-//     if(nread < 0) {
-//         if(nread == UV_ECONNRESET) {
-//             gobj_log_info(gobj, 0,
-//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//                 "msg",          "%s", "Connection Reset",
-//                 NULL
-//             );
-//         } else if(nread == UV_EOF) {
-//             gobj_log_info(gobj, 0,
-//                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
-//                 "msg",          "%s", "EOF",
-//                 NULL
-//             );
-//         } else {
-//             gobj_log_error(gobj, 0,
-//                 "function",     "%s", __FUNCTION__,
-//                 "msgset",       "%s", MSGSET_LIBUV_ERROR,
-//                 "msg",          "%s", "read FAILED",
-//                 "uv_error",     "%s", uv_err_name(nread),
-//                 NULL
-//             );
-//         }
-//         if(gobj_is_running(gobj)) {
-//             gobj_stop(gobj); // auto-stop
-//         }
-//         return;
-//     }
-//
-//     if(nread == 0) {
-//         // Yes, sometimes arrive with nread 0.
-//         return;
-//     }
-//
-//     if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
-//         gobj_trace_dump(gobj,
-//             0,
-//             buf->base,
-//             nread,
-//             "on_read_cb"
-//         );
-//     }
-//
-//     if(buf->base[0] == 3) {
-//         gobj_shutdown();
-//         return;
-//     }
-//     if(nread > 8) {
-//         // It must be the mouse cursor
-//         char *p = strchr(buf->base+1, 0x1B);
-//         if(p) {
-//             *p = 0;
-//             nread = (int)(p - buf->base);
-//             if(gobj_trace_level(gobj) & (TRACE_UV|TRACE_KB)) {
-//                 gobj_trace_dump(gobj,
-//                     0,
-//                     buf->base,
-//                     nread,
-//                     "REDUCE!"
-//                 );
-//             }
-//         }
-//     }
-//     uint8_t b[8];
-//     memset(b, 0, sizeof(b));
-//     memmove(b, buf->base, MIN(8, nread));
-//
-//     do {
-//         /*
-//          *  Level 1, window management functions
-//          */
-//         keytable_t *kt = event_by_key(keytable1, b);
-//         if(kt) {
-//             const char *dst = kt->dst_gobj;
-//             const char *event = kt->event;
-//
-//             hgobj dst_gobj = gobj_find_unique_gobj(dst, FALSE);
-//             if(!dst_gobj) {
-//                 gobj_log_error(gobj, 0,
-//                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                     "msg",          "%s", "unique gobj NOT FOUND",
-//                     "unique",       "%s", dst,
-//                     NULL
-//                 );
-//             } else {
-//                 gobj_send_event(dst_gobj, event, 0, gobj);
-//             }
-//             return;
-//         }
-//
-//         /*
-//          *  Level 2, top window or editline functions
-//          */
-//         kt = event_by_key(keytable2, b);
-//         if(kt) {
-//             const char *dst = kt->dst_gobj;
-//             const char *event = kt->event;
-//
-//             hgobj dst_gobj;
-//             if(!empty_string(dst)) {
-//                 if(strcmp(dst, "__top_display_window__")==0) {
-//                     dst_gobj = __top_display_window__;
-//                 } else {
-//                     dst_gobj = gobj_find_unique_gobj(dst, FALSE);
-//                 }
-//             } else {
-//                 dst_gobj = GetFocus();
-//             }
-//             if(!dst_gobj) {
-//                 gobj_log_error(gobj, 0,
-//                     "function",     "%s", __FUNCTION__,
-//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-//                     "msg",          "%s", "unique gobj NOT FOUND",
-//                     "unique",       "%s", dst,
-//                     NULL
-//                 );
-//             } else {
-//                 if(gobj_event_in_input_event_list(dst_gobj, event, 0)) {
-//                     gobj_send_event(dst_gobj, event, 0, gobj);
-//                     if(strcmp(event, "EV_EDITLINE_DEL_LINE")==0) {
-//                         msg2statusline(gobj, 0, "%s", "");
-//                     }
-//                 }
-//             }
-//             return;
-//         }
-//
-//         /*
-//          *  Level 3, chars to window with focus
-//          */
-//         if(buf->base[0] >= 0x20 && buf->base[0] <= 0x7f) {
-//             // No pases escapes ni utf8
-//             gbuffer_t *gbuf = gbuffer_create(nread, nread, 0, 0);
-//             gbuffer_append(gbuf, buf->base, nread);
-//
-//             json_t *kw_keychar = json_pack("{s:I}",
-//                 "gbuffer", (json_int_t)(uintptr_t)gbuf
-//             );
-//             gobj_send_event(GetFocus(), EV_KEYCHAR, kw_keychar, gobj);
-//         }
-//
-//     } while(0);
-// }
 
 /***************************************************************************
  *
