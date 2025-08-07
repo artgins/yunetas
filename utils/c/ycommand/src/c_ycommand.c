@@ -230,7 +230,12 @@ PRIVATE void mt_create(hgobj gobj)
         "cy", winsz.ws_row
     );
 
-    priv->gobj_editline = gobj_create_pure_child("", C_EDITLINE, kw_editline, gobj);
+    priv->gobj_editline = gobj_create_pure_child(
+        gobj_name(gobj),
+        C_EDITLINE,
+        kw_editline,
+        gobj
+    );
     priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
 
     /*
