@@ -102,7 +102,6 @@ PRIVATE int do_authenticate_task(hgobj gobj);
 PRIVATE int orig_termios_fd = -1;
 PRIVATE struct termios orig_termios;
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
-PRIVATE volatile struct winsize winsz;
 #define MAX_KEYS 40
 typedef struct keytable_s {
     const char *dst_gobj;
@@ -198,6 +197,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  Input screen size
      */
+    struct winsize winsz;
     if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,

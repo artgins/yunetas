@@ -13,6 +13,8 @@
 #include <sys/types.h>
 #include <pwd.h>
 #include <limits.h>
+#include <errno.h>
+#include <sys/ioctl.h>
 
 #include <g_ev_console.h>
 #include <c_editline.h>
@@ -1291,6 +1293,27 @@ PRIVATE int create_display_framework(hgobj gobj)
         kw_editbox,
         gobj_layout
     );
+
+    /*
+     *  Input screen size
+     */
+    struct winsize winsz;
+    if(ioctl(STDIN_FILENO, TIOCGWINSZ, &winsz)<0) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "ioctl() FAILED",
+            "errno",        "%d", errno,
+            "serrno",       "%s", strerror(errno),
+            NULL
+        );
+    }
+    if(winsz.ws_row <= 0) {
+        winsz.ws_row = 1;
+    }
+    if(winsz.ws_col <= 0) {
+        winsz.ws_col = 80;
+    }
 
     /*
      *  History filename, for editline
