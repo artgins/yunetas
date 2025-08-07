@@ -125,6 +125,9 @@
 #include <ncurses/ncurses.h>
 #include <ncurses/panel.h>
 
+#include <g_ev_console.h>
+#include <g_st_console.h>
+
 #include "c_editline.h"
 
 /***************************************************************************

@@ -117,6 +117,8 @@ else()
     link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 endif()
 
+include_directories("${YUNETAS_BASE}/common/c")
+
 #----------------------------------------#
 #   Add system prefix and install prefix
 #   In `outputs` of parent
