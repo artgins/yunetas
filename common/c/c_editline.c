@@ -5,10 +5,8 @@
  *  Part of this code is copied of linenoise.c
  *  You can find the latest source code at:
  *
- * linenoise.c -- VERSION 1.0
- *
- * Guerrilla line editing library against the idea that a line editing lib
- * needs to be 20,000 lines of C code.
+ * linenoise.c -- guerrilla line editing library against the idea that a
+ * line editing lib needs to be 20,000 lines of C code.
  *
  * You can find the latest source code at:
  *
@@ -52,9 +50,6 @@
  * References:
  * - http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
  * - http://www.3waylabs.com/nw/WWW/products/wizcon/vt220.html
- *
- * - https://en.wikipedia.org/wiki/ANSI_escape_code
- * - https://www.systutorials.com/docs/linux/man/4-console_codes/
  *
  * Todo list:
  * - Filter bogus Ctrl+<char> combinations.
