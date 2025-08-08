@@ -8,7 +8,7 @@
  *              - detect changes in stdscr size and inform to all his children
  *              - centralize the background/foreground colors
  *              - centralize what window has the focus
- *              - centralize the writing in the window with focus
+ *              - generic write function
  *
  *          Copyright (c) 2015-2016 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
