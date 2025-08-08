@@ -5,6 +5,22 @@
  *          UI Box. To manage position, dimension and colors, it seems a virtual window.
  *          Well, it manages a WINDOW and PANE ncurses objects.
  *
+ *          It has the mt_child_added:
+ *              - when a child is added it sends a EV_SIZE message.
+ *          It has the mt_play/mt_pause,  to disable or not the box,
+ *              - changing the state ST_DISABLED,ST_IDLE
+ *          It supports the events:
+ *              EV_PAINT
+ *                  - clear the WINDOW
+ *                  - it it has color set the color in WINDOW (back/fore)???
+ *                  - update PANE or WINDOW
+ *              EV_MOVE
+ *                  - update PANE or WINDOW and send EV_MOVE to children.
+ *              EV_SIZE
+ *                  - update PANE or WINDOW and send EV_PAINT (ncurses not does) and EV_SIZE to children.
+ *
+ *          HACK: the PANE always exists, it's not an option.
+ *
  *          Copyright (c) 2016 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
@@ -208,8 +224,8 @@ PRIVATE int mt_pause(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_child_added(hgobj gobj, hgobj child)
 {
-    int x = gobj_read_integer_attr(gobj, "x");
-    int y = gobj_read_integer_attr(gobj, "y");
+    int x = (int)gobj_read_integer_attr(gobj, "x");
+    int y = (int)gobj_read_integer_attr(gobj, "y");
 
     json_t *kw_move  = json_pack("{s:i, s:i}",
         "x", x,
@@ -217,8 +233,8 @@ PRIVATE int mt_child_added(hgobj gobj, hgobj child)
     );
     gobj_send_event(child, EV_MOVE, kw_move, gobj);
 
-    int cx = gobj_read_integer_attr(gobj, "cx");
-    int cy = gobj_read_integer_attr(gobj, "cy");
+    int cx = (int)gobj_read_integer_attr(gobj, "cx");
+    int cy = (int)gobj_read_integer_attr(gobj, "cy");
 
     json_t *kw_size  = json_pack("{s:i, s:i}",
         "cx", cx,
@@ -304,8 +320,8 @@ PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int x = kw_get_int(gobj, kw, "x", 0, KW_REQUIRED);
-    int y = kw_get_int(gobj, kw, "y", 0, KW_REQUIRED);
+    int x = (int)kw_get_int(gobj, kw, "x", 0, KW_REQUIRED);
+    int y = (int)kw_get_int(gobj, kw, "y", 0, KW_REQUIRED);
     gobj_write_integer_attr(gobj, "x", x);
     gobj_write_integer_attr(gobj, "y", y);
 
