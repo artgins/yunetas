@@ -2,11 +2,13 @@
  *          C_WN_BOX.C
  *          Wn_box GClass.
  *
- *          UI Box
+ *          UI Box. To manage position, dimension and colors, it seems a virtual window.
+ *          Well, it manages a WINDOW and PANE ncurses objects.
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
-***********************************************************************/
+ ***********************************************************************/
 #include <string.h>
 #include <ncurses/ncurses.h>
 #include <ncurses/panel.h>
@@ -27,7 +29,6 @@
  *              Prototypes
  ***************************************************************************/
 
-
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
@@ -36,11 +37,11 @@
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-SDATA (DTP_INTEGER,     "w",                    0,  0, "logical witdh window size"),
+SDATA (DTP_INTEGER,     "w",                    0,  0, "logical width window size"),
 SDATA (DTP_INTEGER,     "h",                    0,  0, "logical height window size"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
-SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical witdh window size"),
+SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical width window size"),
 SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
 SDATA (DTP_STRING,      "bg_color",             0,  "blue", "Background color"),
 SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
@@ -105,10 +106,10 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(fg_color,                  gobj_read_str_attr)
     SET_PRIV(bg_color,                  gobj_read_str_attr)
 
-    int x = gobj_read_integer_attr(gobj, "x");
-    int y = gobj_read_integer_attr(gobj, "y");
-    int cx = gobj_read_integer_attr(gobj, "cx");
-    int cy = gobj_read_integer_attr(gobj, "cy");
+    int x = (int)gobj_read_integer_attr(gobj, "x");
+    int y = (int)gobj_read_integer_attr(gobj, "y");
+    int cx = (int)gobj_read_integer_attr(gobj, "cx");
+    int cy = (int)gobj_read_integer_attr(gobj, "cy");
 
     priv->wn = newwin(cy, cx, y, x);
     if(!priv->wn) {
@@ -197,7 +198,7 @@ PRIVATE int mt_play(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_pause(hgobj gobj)
 {
-    gobj_change_state(gobj, "ST_DISABLED");
+    gobj_change_state(gobj, ST_DISABLED);
     // TODO re PAINT in disabled colors
     return 0;
 }
