@@ -35,7 +35,7 @@ GOBJ_DECLARE_GCLASS(C_EDITLINE);
  ***************************************************************/
 PUBLIC int register_c_editline(void);
 
-PUBLIC int tty_init(void); /* Create and return a 'stdin' fd, to read input keyboard, without echo */
+PUBLIC int tty_init(void); /* Create and return a 'stdin' fd, to read input keyboard, without echo, then you can feed the editline with EV_KEYCHAR event */
 
 #ifdef __cplusplus
 }
