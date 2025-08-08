@@ -304,13 +304,13 @@ PRIVATE void setcolor(hgobj gobj, line_t *line)
         if(!empty_string(line->fg_color)) {
             wbkgd(
                 priv->wn,
-                get_curses_color(priv->fg_color, line->bg_color)
+                get_paint_color(priv->fg_color, line->bg_color)
             );
         } else
         if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
             wbkgd(
                 priv->wn,
-                get_curses_color(priv->fg_color, priv->bg_color)
+                get_paint_color(priv->fg_color, priv->bg_color)
             );
         }
     }

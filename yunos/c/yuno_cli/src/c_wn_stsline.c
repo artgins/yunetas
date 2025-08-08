@@ -239,7 +239,7 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
         if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
             wbkgd(
                 priv->wn,
-                get_curses_color(priv->fg_color, priv->bg_color)
+                get_paint_color(priv->fg_color, priv->bg_color)
             );
         }
     }

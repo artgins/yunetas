@@ -427,7 +427,7 @@ PRIVATE int get_color_id(const char *color) // Code repeated
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_curses_color(const char *fg_color, const char *bg_color) // Code repeated
+PRIVATE int get_paint_color(const char *fg_color, const char *bg_color) // Code repeated
 {
     return get_color_pair(
         get_color_id(fg_color),
@@ -1579,7 +1579,7 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!empty_string(fg_color) && !empty_string(bg_color)) {
                 wbkgd(
                     priv->wn,
-                    get_curses_color(priv->fg_color, priv->bg_color)
+                    get_paint_color(priv->fg_color, priv->bg_color)
                 );
             }
         }

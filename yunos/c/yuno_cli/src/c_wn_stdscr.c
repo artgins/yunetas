@@ -458,7 +458,7 @@ PUBLIC int register_c_wn_stdscr(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int get_curses_color(const char *fg_color, const char *bg_color) // Code repeated
+PUBLIC int get_paint_color(const char *fg_color, const char *bg_color) // Code repeated
 {
     return get_color_pair(
         get_color_id(fg_color),
@@ -542,8 +542,8 @@ PUBLIC int DrawText(hgobj gobj, int x, int y, const char *s)
         "y", y
     );
     gobj_send_event(gobj, EV_SETTEXT, kw, gobj);
-    if(__gobj_with_focus__) {
-        gobj_send_event(__gobj_with_focus__, EV_SETFOCUS, 0, 0);
-    }
+    // if(__gobj_with_focus__) {
+    //     gobj_send_event(__gobj_with_focus__, EV_SETFOCUS, 0, 0);
+    // }
     return 0;
 }

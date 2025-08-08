@@ -54,21 +54,19 @@ PUBLIC int get_stdscr_size(int *w, int *h);
 
 
 /**rst**
-   Allocate a ncurses color pair.
-    color_id        name
-    =============   =========
-    COLOR_BLACK     "black"
-    COLOR_RED       "red"
-    COLOR_GREEN     "green"
-    COLOR_YELLOW    "yellow"
-    COLOR_BLUE      "blue"
-    COLOR_MAGENTA   "magenta"
-    COLOR_CYAN      "cyan"
-    COLOR_WHITE     "white"
+   Available colors for bg_color and fg_color:
+      "black"
+      "red"
+      "green"
+      "yellow"
+      "blue"
+      "magenta"
+      "cyan"
+      "white"
 
 **rst**/
 
-PUBLIC int get_curses_color(const char *fg_color, const char *bg_color);
+PUBLIC int get_paint_color(const char *fg_color, const char *bg_color);
 
 PUBLIC int SetDefaultFocus(hgobj gobj);
 PUBLIC int SetFocus(hgobj gobj);
