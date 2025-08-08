@@ -2,6 +2,10 @@
  *          C_WN_TOOLBAR.H
  *          Wn_toolbar GClass.
  *
+ *          - It has layout vertical and horizontal (sure?)
+ *          - Manages dimension (position and size), color and selected color.
+ *          - It creates a new WINDOW and PANE (sorry?)
+ *
  *          Copyright (c) 2016 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.

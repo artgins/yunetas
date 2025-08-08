@@ -19,7 +19,7 @@
  *              EV_SIZE
  *                  - update PANE or WINDOW and send EV_PAINT (ncurses not does) and EV_SIZE to children.
  *
- *          HACK: the PANE always exists, it's not an option.
+ *          HACK: the PANE exists in Toolbar and Stsline, in WorkArea and Editline not.
  *
  *          Copyright (c) 2016 Niyamaka.
  *          Copyright (c) 2025, ArtGins.

@@ -120,8 +120,8 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(cx,                        gobj_read_integer_attr)
     SET_PRIV(cy,                        gobj_read_integer_attr)
 
-    int x = gobj_read_integer_attr(gobj, "x");
-    int y = gobj_read_integer_attr(gobj, "y");
+    int x = (int)gobj_read_integer_attr(gobj, "x");
+    int y = (int)gobj_read_integer_attr(gobj, "y");
 
     priv->wn = newwin(priv->cy, priv->cx, y, x);
     if(!priv->wn) {
@@ -261,10 +261,10 @@ PRIVATE int mt_child_removed(hgobj gobj, hgobj child)
 PRIVATE int fix_child_sizes(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    int parent_width = gobj_read_integer_attr(gobj, "cx");
-    int parent_height = gobj_read_integer_attr(gobj, "cy");
-    int abs_x = gobj_read_integer_attr(gobj, "x");
-    int abs_y = gobj_read_integer_attr(gobj, "y");
+    int parent_width = (int)gobj_read_integer_attr(gobj, "cx");
+    int parent_height = (int)gobj_read_integer_attr(gobj, "cy");
+    int abs_x = (int)gobj_read_integer_attr(gobj, "x");
+    int abs_y = (int)gobj_read_integer_attr(gobj, "y");
 
     int ln = gobj_child_size(gobj);
     if(!ln) {
