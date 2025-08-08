@@ -970,7 +970,7 @@ PUBLIC int gclass_add_event_type(
 }
 
 /***************************************************************************
- *  Find an event in any gclass
+ *  Find a **string event** in any gclass
  ***************************************************************************/
 PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_flag, BOOL verbose)
 {
@@ -1000,7 +1000,7 @@ PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_fla
 }
 
 /***************************************************************************
- *  Find a public event in any gclass
+ *  Find a public HACK string event in any gclass
  ***************************************************************************/
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
 {
@@ -7781,7 +7781,7 @@ PUBLIC event_type_t *gobj_event_type( // silent function
 }
 
 /***************************************************************************
- *
+ *  Get event_type by HACK string event, silent function
  ***************************************************************************/
 PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name)
 {
@@ -7808,17 +7808,6 @@ PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name
     }
 
     event_t *event_ = dl_first(&gobj->gclass->dl_events);
-    while(event_) {
-        if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event_name)==0) {
-            return &event_->event_type;
-        }
-        event_ = dl_next(event_);
-    }
-
-    /*
-     *  Check global (gobj) output events
-     */
-    event_ = dl_first(&dl_global_event_types);
     while(event_) {
         if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event_name)==0) {
             return &event_->event_type;

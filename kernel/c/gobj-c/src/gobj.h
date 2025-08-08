@@ -858,8 +858,10 @@ PUBLIC int gclass_add_event_type(
     event_flag_t event_flag
 );
 
-PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_flag, BOOL verbose); // Find an event in any gclass
-PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); // Find a public event in any gclass
+PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_flag, BOOL verbose); // Find a HACK string event in any gclass
+
+PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); // Find a public HACK string event in any gclass
+
 PUBLIC void gclass_unregister(hgclass hgclass);
 PUBLIC gclass_name_t gclass_gclass_name(hgclass gclass);
 PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
@@ -1396,7 +1398,7 @@ PUBLIC event_type_t *gobj_event_type( // silent function
     gobj_event_t event,
     BOOL include_system_events
 );
-PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj, const char *event_name);
+PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj, const char *event_name); // Get event_type by HACK string event, silent function
 
 /*--------------------------------------------*
  *          Publication/Subscriptions

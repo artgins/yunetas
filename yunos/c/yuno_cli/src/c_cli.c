@@ -1488,6 +1488,18 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         return 0;
     }
 
+if(base[0]==0x0A) base[0]=0x0D; // TODO remove
+
+    if(gobj_trace_level(gobj) & (TRACE_KB)) {
+        gobj_trace_dump(
+            gobj,
+            base,
+            nread,
+            "on_read_cb"
+        );
+    }
+
+
     if(base[0] == 3) {
         if(!priv->on_mirror_tty) {
             gobj_shutdown();
@@ -1554,7 +1566,10 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
                     NULL
                 );
             } else {
-                gobj_send_event(dst_gobj, event, 0, gobj);
+                event_type_t *event_type = gobj_event_type_by_name(dst_gobj, event);
+                if(event_type) {
+                    gobj_send_event(dst_gobj, event_type->event_name, 0, gobj);
+                }
             }
             return 0;
         }
@@ -1586,9 +1601,10 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
                     NULL
                 );
             } else {
-                if(gobj_has_event(dst_gobj, event, 0)) {
-                    gobj_send_event(dst_gobj, event, 0, gobj);
-                    if(strcmp(event, "EV_EDITLINE_DEL_LINE")==0) {
+                event_type_t *event_type = gobj_event_type_by_name(dst_gobj, event);
+                if(event_type) {
+                    gobj_send_event(dst_gobj, event_type->event_name, 0, gobj);
+                    if(event_type->event_name == EV_EDITLINE_DEL_LINE) {
                         msg2statusline(gobj, 0, "%s", "");
                     }
                 }
@@ -1602,12 +1618,13 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         if(base[0] >= 0x20 && base[0] <= 0x7f) {
             // No pases escapes ni utf8
             gbuffer_t *gbuf2 = gbuffer_create(nread, nread);
-            gbuffer_append(gbuf, base, nread);
+            gbuffer_append(gbuf2, base, nread);
 
             json_t *kw_keychar = json_pack("{s:I}",
                 "gbuffer", (json_int_t)(uintptr_t)gbuf2
             );
 
+            // Only one editline, SetFocus has no sense by now
             gobj_send_event(priv->gobj_editline, EV_KEYCHAR, kw_keychar, gobj);
         }
 
