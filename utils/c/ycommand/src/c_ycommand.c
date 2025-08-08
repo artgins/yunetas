@@ -2071,8 +2071,3 @@ PUBLIC int register_c_ycommand(void)
 {
     return create_gclass(C_YCOMMAND);
 }
-
-PUBLIC int get_curses_color(const char *fg_color, const char *bg_color)
-{
-    return 0;
-}

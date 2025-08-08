@@ -30,7 +30,7 @@ PRIVATE void catch_signals(void);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-PRIVATE struct {
+PRIVATE struct { // Code repeated
     int id;
     const char *name;
 } table_id[] = {
@@ -222,7 +222,7 @@ PRIVATE void mt_destroy(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_color_pair(int fg, int bg)
+PRIVATE int get_color_pair(int fg, int bg) // Code repeated
 {
     static int next_pair = 1;
     int pair;
@@ -247,7 +247,7 @@ PRIVATE int get_color_pair(int fg, int bg)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_color_id(const char *color)
+PRIVATE int get_color_id(const char *color) // Code repeated
 {
     int i;
     int len = ARRAY_SIZE(table_id);
@@ -449,7 +449,7 @@ PUBLIC int register_c_wn_stdscr(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int get_curses_color(const char *fg_color, const char *bg_color)
+PUBLIC int get_curses_color(const char *fg_color, const char *bg_color) // Code repeated
 {
     return get_color_pair(
         get_color_id(fg_color),

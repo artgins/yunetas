@@ -14,9 +14,6 @@
 extern "C"{
 #endif
 
-extern int get_curses_color(const char *fg_color, const char *bg_color);
-extern int tty_init(void);
-
 /***************************************************************
  *              FSM
  ***************************************************************/
@@ -37,6 +34,8 @@ GOBJ_DECLARE_GCLASS(C_EDITLINE);
  *              Prototypes
  ***************************************************************/
 PUBLIC int register_c_editline(void);
+
+PUBLIC int tty_init(void); /* Create and return a 'stdin' fd, to read input keyboard, without echo */
 
 #ifdef __cplusplus
 }

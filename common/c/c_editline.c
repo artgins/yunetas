@@ -150,6 +150,20 @@ PRIVATE int orig_termios_fd = -1;
 PRIVATE struct termios orig_termios;
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 
+PRIVATE struct { // Code repeated
+    int id;
+    const char *name;
+} table_id[] = {
+    {COLOR_BLACK,   "black"},
+    {COLOR_RED,     "red"},
+    {COLOR_GREEN,   "green"},
+    {COLOR_YELLOW,  "yellow"},
+    {COLOR_BLUE,    "blue"},
+    {COLOR_MAGENTA, "magenta"},
+    {COLOR_CYAN,    "cyan"},
+    {COLOR_WHITE,   "white"}
+};
+
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
@@ -370,6 +384,57 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 
 
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int get_color_pair(int fg, int bg) // Code repeated
+{
+    static int next_pair = 1;
+    int pair;
+    static int cp[8][8];
+
+    if(fg < 0 || fg >= 8 || bg < 0 || bg >= 8) {
+        return 0;
+    }
+    if ((pair = cp[fg][bg])) {
+        return COLOR_PAIR(pair);
+    }
+    if (next_pair >= COLOR_PAIRS) {
+        return 0;
+    }
+    if (init_pair(next_pair, fg, bg) != OK){
+        return 0;
+    }
+    pair = cp[fg][bg] = next_pair++;
+    return COLOR_PAIR(pair);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int get_color_id(const char *color) // Code repeated
+{
+    int i;
+    int len = ARRAY_SIZE(table_id);
+    for(i=0; i<len; i++) {
+        if(strcasecmp(table_id[i].name, color)==0) {
+            return table_id[i].id;
+        }
+    }
+    return COLOR_WHITE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int get_curses_color(const char *fg_color, const char *bg_color) // Code repeated
+{
+    return get_color_pair(
+        get_color_id(fg_color),
+        get_color_id(bg_color)
+    );
+}
+
 /*****************************************************************
  *
  *****************************************************************/
@@ -470,7 +535,7 @@ PRIVATE int nonblock(int fd, int set) {
  *  Code copied from libuv
  *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
  ***************************************************************************/
-PUBLIC int tty_init(void)
+PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keyboard, without echo */
 {
 #define UV_HANDLE_BLOCKING_WRITES 0x00100000
 
@@ -1491,25 +1556,27 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *
+ *    Colors available for fg_color, bg_color:
+        "black"
+        "red"
+        "green"
+        "yellow"
+        "blue"
+        "magenta"
+        "cyan"
+        "white"
  ***************************************************************************/
 PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->use_ncurses) {
-        if(!priv->wn) {
-            // Debugging in kdevelop or batch mode has no wn
-            printf("\n%s%s", priv->prompt, priv->buf);
-            fflush(stdout);
-            KW_DECREF(kw);
-            return 0;
-        }
-
         wclear(priv->wn);
 
         if(has_colors()) {
-            if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
+            const char *fg_color = kw_get_str(gobj, kw, "fg_color", priv->fg_color, 0);
+            const char *bg_color = kw_get_str(gobj, kw, "bg_color", priv->bg_color, 0);
+            if(!empty_string(fg_color) && !empty_string(bg_color)) {
                 wbkgd(
                     priv->wn,
                     get_curses_color(priv->fg_color, priv->bg_color)
@@ -1517,6 +1584,7 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
             }
         }
     }
+
     refreshLine(priv);
 
     KW_DECREF(kw);
