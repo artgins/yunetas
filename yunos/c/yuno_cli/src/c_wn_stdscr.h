@@ -4,31 +4,11 @@
  *
  *          Windows Framework with ncurses
  *
- *          - El framework mantiene el arbol de ventanas.
- *          - El framework recibe los input de los interfaces externos (teclado, raton, ...):
- *              - se queda con los eventos propios del framework:
- *                  - posicionar delante, cambiar de size o posicion, etc
- *                  - como tiene la estrutura de ventanas, sabe en qué ventana han "pinchado"
- *                  - reenviar los eventos que no se quede a la ventana con cursor.
- *                  - mantiene la ventana con cursor.
- *
- *          - Las ventanas que tienen que decir algo lo publican con un evento.
- *
- *          - El creador del framework es el subscriber de los eventos publicados por sus ventanas.
- *          - Podrían haber varios arboles de ventanas en el framework, y cada uno con un subscritor diferente.
- *          - En una ventana modal se "pausan" todos los arboles menos el modal.
- *              Los eventos a ventanas en "pausa" se ignoran, y sólo se procesan los de la ventana modal.
- *              Esto se puede conseguir con el "play" "pause", o quizá mejor con estados,
- *              así el ignorar eventos en el estado "DISABLED" es automático.
- *              Con estados tampoco se procesarían los propios del framework (EV_SIZE, EV_MOVE,...)
- *              que es el funcionamiento que se persigue.
- *              Al final un hibrido: uso play/pause y estos metodos cambian al estado IDLE/DISABLED
- *              Este api lo tienen que implemetar todas los gobj win.
- *
- *          La subcripción de eventos es el equivalente al WinProc de Windows.
- *
- *          The goal of wn_stdscr is detect changes in stdscr size
- *          and inform of them to all his childs
+ *          The goal of wn_stdscr is :
+ *              - detect changes in stdscr size and inform to all his children
+ *              - centralize the background/foreground colors
+ *              - centralize what window has the focus
+ *              - centralize the writing in the window with focus
  *
  *          Copyright (c) 2015-2016 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
@@ -66,22 +46,6 @@ PUBLIC int register_c_wn_stdscr(void);
 /***************************************************************************
  *              Structures
  ***************************************************************************/
-// typedef struct _GRECT {
-//     int x;
-//     int y;
-//     int cx;
-//     int cy;
-// } GRECT;
-//
-// typedef struct _GPOINT {
-//     int x;
-//     int y;
-// } GPOINT;
-//
-// typedef struct _GLINE {
-//     GPOINT p1;  /* punto inicial de la l¡nea */
-//     GPOINT p2;  /* punto final (incluido) de la l¡nea */
-// } GLINE;
 
 /***************************************************************************
  *              Prototypes
@@ -112,15 +76,6 @@ PUBLIC hgobj GetFocus(void);
 PUBLIC int SetTextColor(hgobj gobj, const char *color);
 PUBLIC int SetBkColor(hgobj gobj, const char *color);
 PUBLIC int DrawText(hgobj gobj, int x, int y, const char *s);
-
-/*
- *  Se pueden habilitar/deshabilitar ventanas hijo (button, edit, etc)
- *  Y también ventanas padre (las hijas directas de wn_stdscr).
- *  El manejo de las ventas modales se consigue creando una nueva ventana padre,
- *  y deshabilitando el resto de ventanas padre de wn_stdscr.
- *  La habilitación se expande por todos los hijos.
- */
-PUBLIC int EnableWindow(hgobj gobj, BOOL enable);
 
 #ifdef __cplusplus
 }

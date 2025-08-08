@@ -2,7 +2,16 @@
  *          C_WN_STDSCR.C
  *          Wn_stdscr GClass.
  *
+ *          Windows Framework with ncurses
+ *
+ *          The goal of wn_stdscr is :
+ *              - detect changes in stdscr size and inform to all his children
+ *              - centralize the background/foreground colors
+ *              - centralize what window has the focus
+ *              - centralize the writing in the window with focus
+ *
  *          Copyright (c) 2015-2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
 #include <signal.h>
@@ -535,30 +544,6 @@ PUBLIC int DrawText(hgobj gobj, int x, int y, const char *s)
     gobj_send_event(gobj, EV_SETTEXT, kw, gobj);
     if(__gobj_with_focus__) {
         gobj_send_event(__gobj_with_focus__, EV_SETFOCUS, 0, 0);
-    }
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int cb_play(hgobj gobj, void *user_data, void *user_data2, void *user_data3)
-{
-    gobj_play(gobj);
-    return 0;
-}
-PRIVATE int cb_pause(hgobj gobj, void *user_data, void *user_data2, void *user_data3)
-{
-    gobj_pause(gobj);
-    return 0;
-}
-PUBLIC int EnableWindow(hgobj gobj, BOOL enable)
-{
-    if(enable) {
-        gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_play, 0, 0, 0);
-        // TODO send EV_ACTIVATE si es una window padre
-    } else {
-        gobj_walk_gobj_children_tree(gobj, WALK_TOP2BOTTOM, cb_pause, 0, 0, 0);
     }
     return 0;
 }
