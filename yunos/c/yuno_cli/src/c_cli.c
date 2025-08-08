@@ -1661,7 +1661,7 @@ PRIVATE int create_display_framework(hgobj gobj)
      *---------------------------------*/
     json_t *kw_toptoolbarbox  = json_pack(
         "{s:s, s:s, s:i, s:i}",
-        "bg_color", "read",
+        "bg_color", "cyan",
         "fg_color", "white",
         "w", 0,
         "h", 1
@@ -1703,7 +1703,7 @@ PRIVATE int create_display_framework(hgobj gobj)
     );
 
     /*---------------------------------*
-     *  Edit line
+     *  Edit line box
      *---------------------------------*/
     json_t *kw_editbox = json_pack(
         "{s:s, s:s, s:i, s:i}",
@@ -2493,7 +2493,7 @@ PRIVATE BOOL filter_by_shortkeys(hgobj gobj, char *bf, int bfsize, const char *k
 
 
 /***************************************************************************
- *  HACK Este evento solo puede venir de GCLASS_WN_EDITLINE
+ *  HACK Event from C_EDITLINE
  ***************************************************************************/
 PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
