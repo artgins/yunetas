@@ -1005,7 +1005,7 @@ PUBLIC hgobj gobj_create_tree(
 PUBLIC void gobj_destroy(hgobj gobj);
 
 PUBLIC void gobj_destroy_children(hgobj gobj);
-PUBLIC int gobj_destroy_named_childs(hgobj gobj, const char *name); // with auto pause/stop
+PUBLIC int gobj_destroy_named_children(hgobj gobj, const char *name); // with auto pause/stop
 
 
 /*---------------------------------*

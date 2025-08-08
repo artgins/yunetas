@@ -2462,7 +2462,7 @@ PUBLIC void gobj_destroy_children(hgobj gobj_)
 /***************************************************************************
  *  Destroy named childs, with auto pause/stop
  ***************************************************************************/
-PRIVATE int cb_destroy_named_childs(
+PRIVATE int cb_destroy_named_children(
     hgobj child, void *user_data, void *user_data2, void *user_data3
 )
 {
@@ -2482,7 +2482,7 @@ PRIVATE int cb_destroy_named_childs(
     }
     return 0;
 }
-PUBLIC int gobj_destroy_named_childs(hgobj gobj_, const char *name)
+PUBLIC int gobj_destroy_named_children(hgobj gobj_, const char *name)
 {
     gobj_t * gobj = gobj_;
     if(!gobj) {
@@ -2502,7 +2502,7 @@ PUBLIC int gobj_destroy_named_childs(hgobj gobj_, const char *name)
     }
 
     gobj_walk_gobj_children(
-        gobj, WALK_FIRST2LAST, cb_destroy_named_childs, (void *)name, 0, 0
+        gobj, WALK_FIRST2LAST, cb_destroy_named_children, (void *)name, 0, 0
     );
     return 0;
 }

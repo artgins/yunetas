@@ -1489,7 +1489,7 @@ PRIVATE int ac_setfocus(hgobj gobj, const char *event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->wn) {
-        wmove(priv->wn, 0, priv->plen + priv->pos);
+        wmove(priv->wn, 0, (int)(priv->plen + priv->pos));
         wrefresh(priv->wn);
     }
 

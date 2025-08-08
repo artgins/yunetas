@@ -1793,10 +1793,12 @@ PRIVATE int destroy_display_window(hgobj gobj, const char *name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_destroy_named_childs(
-        priv->gobj_workareabox,
-        name
-    );
+    if(priv->gobj_workareabox) {
+        gobj_destroy_named_children(
+            priv->gobj_workareabox,
+            name
+        );
+    }
 
     return 0;
 }
@@ -1839,10 +1841,12 @@ PRIVATE int destroy_static(hgobj gobj, const char *name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_destroy_named_childs(
-        priv->gobj_toptoolbar,
-        name
-    );
+    if(priv->gobj_toptoolbar) {
+        gobj_destroy_named_children(
+            priv->gobj_toptoolbar,
+            name
+        );
+    }
 
     return 0;
 }
