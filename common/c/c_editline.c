@@ -325,7 +325,6 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(fg_color,              gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(prompt,                gobj_read_str_attr)
         priv->plen = strlen(priv->prompt);
-        gobj_send_event(gobj, EV_PAINT, json_object(), gobj);
     ELIF_EQ_SET_PRIV(cx,                    gobj_read_integer_attr)
         priv->cols = priv->cx;
         //TODO igual hay que refrescar
@@ -829,12 +828,12 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
 
     if(l->use_ncurses) {
         /* Cursor to left edge */
-        wmove(l->wn, 0, 0); // move to begining of line
+        wmove(l->wn, 0, 0); // move to beginning of line
         wclrtoeol(l->wn);   // erase to end of line
 
         /* Write the prompt and the current buffer content */
-        waddnstr(l->wn, l->prompt, plen);
-        waddnstr(l->wn, buf, len);
+        waddnstr(l->wn, l->prompt, (int)plen);
+        waddnstr(l->wn, buf, (int)len);
 
         /* Move cursor to original position. */
         wmove(l->wn, 0, (int)(pos+plen));
@@ -842,7 +841,7 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
         wrefresh(l->wn);
     } else {
         printf(Erase_Whole_Line);           // Erase line
-        printf(Move_Horizontal, 1);         // Move to begining of line
+        printf(Move_Horizontal, 1);         // Move to beginning of line
         /* Write the prompt and the current buffer content */
         printf("%s%*.*s", l->prompt, (int)len, (int)len, buf);
         printf(Move_Horizontal, (int)(pos+plen+1));   // Move cursor to original position

@@ -330,7 +330,7 @@ SDATA (DTP_STRING,      "display_mode",     SDF_WR|SDF_PERSIST, "table",    "Dis
 SDATA (DTP_STRING,      "editor",           SDF_WR|SDF_PERSIST, "vim",      "Editor"),
 SDATA (DTP_JSON,        "shortkeys",        SDF_WR|SDF_PERSIST, 0,          "Shortkeys. A dict {key: command}."),
 // TODO set to "1"
-SDATA (DTP_BOOLEAN,     "use_ncurses",      0,                  "",        "True to use ncurses, set False for easy testing"),
+SDATA (DTP_BOOLEAN,     "use_ncurses",      0,                  "1",        "True to use ncurses, set False for easy testing"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -545,7 +545,6 @@ PRIVATE int mt_start(hgobj gobj)
 
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
     SetDefaultFocus(priv->gobj_editline);
-    SetFocus(priv->gobj_editline);
 
     if(priv->use_ncurses && priv->gobj_workareabox) {
         /*
@@ -563,8 +562,9 @@ PRIVATE int mt_start(hgobj gobj)
          *  Create button window of console (right now implemented as static window)
          */
         create_static(gobj, "console", 0);
-        set_top_window(gobj, "console");
     }
+
+    set_top_window(gobj, "console");
 
     return 0;
 }
@@ -1916,6 +1916,7 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
     if(!priv->gobj_workareabox) {
         snprintf(prompt, sizeof(prompt), "%s> ", name);
         gobj_write_str_attr(priv->gobj_editline, "prompt", prompt);
+        SetFocus(priv->gobj_editline);
         return 0;
     }
 
@@ -1928,10 +1929,6 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
             "selected", name
         );
         gobj_send_event(priv->gobj_toptoolbar, EV_SET_SELECTED_BUTTON, kw_sel, gobj);
-
-        snprintf(prompt, sizeof(prompt), "%s> ", name);
-        gobj_write_str_attr(priv->gobj_editline, "prompt", prompt);
-
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1941,6 +1938,10 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
             NULL
         );
     }
+
+    snprintf(prompt, sizeof(prompt), "%s> ", name);
+    gobj_write_str_attr(priv->gobj_editline, "prompt", prompt);
+    SetFocus(priv->gobj_editline);
 
     return 0;
 }
@@ -2834,6 +2835,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_write_pointer_attr(src, "user_data", wn_disp);
     } else {
         priv->last_connection = src;
+        gobj_write_pointer_attr(src, "user_data", 0);
     }
 
     hgobj wn_display_console = get_display_window(gobj, "console");
