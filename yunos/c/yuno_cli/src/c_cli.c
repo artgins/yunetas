@@ -614,13 +614,13 @@ PRIVATE int mt_inject_event(hgobj gobj, const char *event, json_t *kw, hgobj src
 
 PRIVATE char agent_config[]= "\
 {                                               \n\
-    'name': '(^^__url__^^)',                    \n\
+    'name': '(^^__service_name__^^)',           \n\
     'gclass': 'IEvent_cli',                     \n\
-    'as_service': true,                          \n\
+    'as_service': true,                         \n\
     'kw': {                                     \n\
-        'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
-        'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
-        'remote_yuno_service': '(^^__yuno_service__^^)' \n\
+        'remote_yuno_name': '(^^__remote_yuno_name__^^)',      \n\
+        'remote_yuno_role': '(^^__remote_yuno_role__^^)',      \n\
+        'remote_yuno_service': '(^^__remote_yuno_service__^^)' \n\
     },                                          \n\
     'children': [                                 \n\
         {                                               \n\
@@ -657,22 +657,33 @@ PRIVATE char agent_config[]= "\
  ***************************************************************************/
 PRIVATE json_t *cmd_connect(hgobj gobj, const char *command, json_t *kw, hgobj src)
 {
+    static int n_agent = 0;
     const char *url = kw_get_str(gobj, kw, "url", "", 0);
     const char *jwt = gobj_read_str_attr(gobj, "jwt");
     const char *yuno_name = kw_get_str(gobj, kw, "yuno_name", "", 0);
     const char *yuno_role = kw_get_str(gobj, kw, "yuno_role", "", 0);
     const char *yuno_service = kw_get_str(gobj, kw, "service", "", 0);
+    const char *service_name = url;
+
+    hgobj gobj_agent = gobj_find_service(url, 0);
+    if(gobj_agent) {
+        n_agent++;
+        static char url_[NAME_MAX];
+        snprintf(url_, sizeof(url_), "%s-%d", url, n_agent);
+        service_name = url_;
+    }
 
     /*
      *  Each display window has a gobj to send the commands (saved in user_data).
      *  For external agents create a filter-chain of gobjs
      */
-    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s}",
+    json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s}",
+        "__service_name__", service_name,
         "__jwt__", jwt,
         "__url__", url,
-        "__yuno_name__", yuno_name,
-        "__yuno_role__", yuno_role,
-        "__yuno_service__", yuno_service
+        "__remote_yuno_name__", yuno_name,         // remote
+        "__remote_yuno_role__", yuno_role,         // remote
+        "__remote_yuno_service__", yuno_service    // remote
     );
 
     /*
@@ -2781,7 +2792,7 @@ PRIVATE int ac_previous_window(hgobj gobj, const char *event, json_t *kw, hgobj 
     json_t *kw_sel = json_pack("{s:s}",
         "selected", ""
     );
-    gobj_send_event(priv->gobj_toptoolbar, EV_GET_PREV_SELECTED_BUTTON, kw_sel, gobj);
+    gobj_send_event(priv->gobj_toptoolbar, EV_GET_PREV_SELECTED_BUTTON, kw_incref(kw_sel), gobj);
     set_top_window(gobj, kw_get_str(gobj, kw_sel, "selected", "", 0));
     KW_DECREF(kw_sel);
 
@@ -2799,7 +2810,7 @@ PRIVATE int ac_next_window(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *kw_sel = json_pack("{s:s}",
         "selected", ""
     );
-    gobj_send_event(priv->gobj_toptoolbar, EV_GET_NEXT_SELECTED_BUTTON, kw_sel, gobj);
+    gobj_send_event(priv->gobj_toptoolbar, EV_GET_NEXT_SELECTED_BUTTON, kw_incref(kw_sel), gobj);
     set_top_window(gobj, kw_get_str(gobj, kw_sel, "selected", "", 0));
     KW_DECREF(kw_sel);
 

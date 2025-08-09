@@ -97,7 +97,7 @@ PRIVATE char variable_config[]= "\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
-                'use_ncurses': 1                                    \n\
+                'use_ncurses': 0                                    \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\

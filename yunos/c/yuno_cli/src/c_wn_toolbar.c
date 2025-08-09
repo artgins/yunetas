@@ -692,8 +692,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     event_type_t event_types[] = {
         {EV_SET_SELECTED_BUTTON,       0},
-        {EV_GET_PREV_SELECTED_BUTTON,  0},
-        {EV_GET_NEXT_SELECTED_BUTTON,  0},
+        {EV_GET_PREV_SELECTED_BUTTON,  0}, // EVF_KW_WRITING
+        {EV_GET_NEXT_SELECTED_BUTTON,  0}, // EVF_KW_WRITING
         {EV_MOVE,                      0},
         {EV_SIZE,                      0},
         {EV_PAINT,                     0},
