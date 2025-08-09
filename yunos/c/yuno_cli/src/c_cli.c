@@ -374,6 +374,8 @@ typedef struct _PRIVATE_DATA {
     json_t *jn_shortkeys;
 
     json_t *jn_window_counters;
+
+    hgobj last_connection; // To use in not use_ncurses, work with the last agent connection
 } PRIVATE_DATA;
 
 
@@ -2589,7 +2591,7 @@ PRIVATE BOOL filter_by_shortkeys(hgobj gobj, char *bf, int bfsize, const char *k
  ***************************************************************************/
 PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     json_t *kw_input_command = json_object();
     gobj_send_event(src, EV_GETTEXT, json_incref(kw_input_command), gobj); // EV_GETTEXT is EVF_KW_WRITING
@@ -2697,6 +2699,8 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *webix;
     if(gobj_cmd) {
         webix = gobj_command(gobj_cmd, xcmd, kw_command, gobj);
+    } else if(priv->last_connection) {
+        webix = gobj_command(priv->last_connection, xcmd, kw_command, gobj);
     } else {
         json_decref(kw_command);
         webix = msg_iev_build_response(
@@ -2828,6 +2832,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(wn_disp) {
         gobj_write_pointer_attr(wn_disp, "user_data", src);
         gobj_write_pointer_attr(src, "user_data", wn_disp);
+    } else {
+        priv->last_connection = src;
     }
 
     hgobj wn_display_console = get_display_window(gobj, "console");

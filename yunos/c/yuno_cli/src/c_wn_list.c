@@ -388,7 +388,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     while((s=gbuffer_getline(gbuf, '\n'))) {
         add_line(gobj, s, bg_color, fg_color);
 
-        int n_lines = dl_size(&priv->dl_lines);
+        int n_lines = (int)dl_size(&priv->dl_lines);
         if(n_lines > n_win && priv->base > n_win) {
             priv->base++;
         }
@@ -480,7 +480,7 @@ PRIVATE int ac_scroll_line_up(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int n_lines = dl_size(&priv->dl_lines);
+    int n_lines = (int)dl_size(&priv->dl_lines);
     int n_win = priv->cy;
 
     if(n_lines > n_win) {
@@ -517,7 +517,7 @@ PRIVATE int ac_scroll_page_up(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int n_lines = dl_size(&priv->dl_lines);
+    int n_lines = (int)dl_size(&priv->dl_lines);
     int n_win = priv->cy;
 
     if(n_lines > n_win) {
@@ -562,7 +562,7 @@ PRIVATE int ac_scroll_top(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    int n_lines = dl_size(&priv->dl_lines);
+    int n_lines = (int)dl_size(&priv->dl_lines);
     int n_win = priv->cy;
 
     priv->base = n_lines - n_win;
