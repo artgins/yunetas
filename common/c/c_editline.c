@@ -948,8 +948,8 @@ PRIVATE void linenoiseEditHistoryNext(PRIVATE_DATA *l, int dir)
         strncpy(l->buf, l->history[l->history_len - 1 - l->history_index],l->buflen);
         l->buf[l->buflen-1] = '\0';
         l->len = l->pos = strlen(l->buf);
-        refreshLine(l);
     }
+    refreshLine(l);
 }
 
 /***************************************************************************

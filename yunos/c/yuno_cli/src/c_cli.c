@@ -2774,10 +2774,11 @@ PRIVATE int ac_quit(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_screen_size_change(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    //PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     //int y = gobj_read_integer_attr(priv->gobj_editbox, "y");
     // TODO set pos editline
+    // gobj_send_event(priv->gobj_editline, EV_PAINT, json_object(), gobj);
 
     KW_DECREF(kw);
     return 0;

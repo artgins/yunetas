@@ -97,7 +97,7 @@ PRIVATE char variable_config[]= "\
             'autostart': true,                                      \n\
             'autoplay': false,                                      \n\
             'kw': {                                                 \n\
-                'use_ncurses': 0                                    \n\
+                'use_ncurses': 1                                    \n\
             }                                                       \n\
         }                                                           \n\
     ]                                                               \n\
@@ -144,11 +144,11 @@ static int register_yuno_and_more(void)
 
     // Global traces
     // gobj_set_global_trace("create_delete", TRUE);
-    // gobj_set_global_trace("machine", TRUE);
+    gobj_set_global_trace("machine", TRUE);
     // gobj_set_global_trace("create_delete", TRUE);
     // gobj_set_global_trace("create_delete2", TRUE);
     // gobj_set_global_trace("subscriptions", TRUE);
-    // gobj_set_global_trace("start_stop", TRUE);
+    gobj_set_global_trace("start_stop", TRUE);
     // gobj_set_global_trace("monitor", TRUE);
     // gobj_set_global_trace("event_monitor", TRUE);
     // gobj_set_global_trace("liburing", TRUE);

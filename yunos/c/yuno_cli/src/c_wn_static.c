@@ -228,7 +228,7 @@ PRIVATE int mt_play(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_pause(hgobj gobj)
 {
-    gobj_change_state(gobj, "ST_DISABLED");
+    gobj_change_state(gobj, ST_DISABLED);
     // TODO re PAINT in disabled colors
     return 0;
 }
