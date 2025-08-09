@@ -59,9 +59,6 @@ PRIVATE char variable_config[]= "\
 #^^            'to_stdout': {                                       \n\
 #^^                'handler_type': 'stdout'                         \n\
 #^^            },                                                   \n\
-            'to_stdout': {                                       \n\
-                'handler_type': 'stdout'                         \n\
-            },                                                   \n\
             'to_udp': {                                             \n\
                 'handler_type': 'udp',                              \n\
                 'url': 'udp://127.0.0.1:1992',                      \n\
@@ -145,6 +142,7 @@ static int register_yuno_and_more(void)
     // Global traces
     // gobj_set_global_trace("create_delete", TRUE);
     // gobj_set_global_trace("machine", TRUE);
+    // gobj_set_trace_machine_format(0);
     // gobj_set_global_trace("create_delete", TRUE);
     // gobj_set_global_trace("create_delete2", TRUE);
     // gobj_set_global_trace("subscriptions", TRUE);

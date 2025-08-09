@@ -177,8 +177,8 @@ SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
 SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical width window size"),
 SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
-SDATA (DTP_STRING,      "bg_color",             0,  "cyan", "Background color, avaiabled: black,red,green,yellow,blue,magenta,cyan,white"),
-SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color, availabled: black,red,green,yellow,blue,magenta,cyan,white"),
+SDATA (DTP_STRING,      "bg_color",             0,  "cyan", "Background color, available: black,red,green,yellow,blue,magenta,cyan,white"),
+SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color, available: black,red,green,yellow,blue,magenta,cyan,white"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,  0, "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,  0, "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -839,6 +839,7 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
         wmove(l->wn, 0, (int)(pos+plen));
 
         wrefresh(l->wn);
+
     } else {
         printf(Erase_Whole_Line);           // Erase line
         printf(Move_Horizontal, 1);         // Move to beginning of line

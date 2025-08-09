@@ -496,7 +496,6 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_start(priv->timer);
     if(priv->gwin_stdscr) {
-        create_display_framework(gobj);
         gobj_start(priv->gwin_stdscr);
     }
 
