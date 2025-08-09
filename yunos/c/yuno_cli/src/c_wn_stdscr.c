@@ -146,7 +146,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  stdscr timer to detect window size change
      */
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
 
 #ifndef TEST_KDEVELOP
     priv->wn = initscr();               /* Start curses mode            */
@@ -410,8 +410,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      States
      *------------------------*/
     ev_action_t st_idle[] = {
-        {EV_TIMEOUT,               ac_timeout,      0},
-        {EV_STOPPED,               0,               0},
+        {EV_TIMEOUT_PERIODIC,       ac_timeout,      0},
+        {EV_STOPPED,                0,               0},
         {0,0,0}
     };
 
@@ -424,9 +424,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_SCREEN_SIZE_CHANGE,    EVF_OUTPUT_EVENT},
-        {EV_TIMEOUT,               0},
-        {EV_STOPPED,               0},
+        {EV_SCREEN_SIZE_CHANGE,     EVF_OUTPUT_EVENT},
+        {EV_TIMEOUT_PERIODIC,       0},
+        {EV_STOPPED,                0},
         {NULL, 0}
     };
 

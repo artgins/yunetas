@@ -325,7 +325,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(fg_color,              gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(prompt,                gobj_read_str_attr)
         priv->plen = strlen(priv->prompt);
-        gobj_send_event(gobj, EV_PAINT, 0, gobj);
+        gobj_send_event(gobj, EV_PAINT, json_object(), gobj);
     ELIF_EQ_SET_PRIV(cx,                    gobj_read_integer_attr)
         priv->cols = priv->cx;
         //TODO igual hay que refrescar
@@ -340,7 +340,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    gobj_send_event(gobj, EV_PAINT, 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, json_object(), gobj);
     return 0;
 }
 
@@ -1475,7 +1475,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
         linenoiseHistoryAdd(l, "");
     }
 
-    gobj_send_event(gobj, EV_PAINT, 0, gobj);
+    gobj_send_event(gobj, EV_PAINT, kw_incref(kw), gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -1549,7 +1549,7 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
         }
     }
 
-    gobj_send_event(gobj, EV_PAINT, 0, gobj);  // repaint, ncurses doesn't do it
+    gobj_send_event(gobj, EV_PAINT, kw_incref(kw), gobj);  // repaint, ncurses doesn't do it
 
     KW_DECREF(kw);
     return 0;

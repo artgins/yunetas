@@ -8,6 +8,13 @@
  ****************************************************************************/
 #include <yunetas.h>
 #include <c_editline.h>
+#include "c_wn_box.h"
+#include "c_wn_layout.h"
+#include "c_wn_list.h"
+#include "c_wn_static.h"
+#include "c_wn_stsline.h"
+#include "c_wn_toolbar.h"
+#include "c_wn_stdscr.h"
 #include "c_cli.h"
 
 /***************************************************************************
@@ -107,6 +114,13 @@ static int register_yuno_and_more(void)
      *--------------------*/
     register_c_cli();
     register_c_editline();
+    register_c_wn_list();
+    register_c_wn_box();
+    register_c_wn_layout();
+    register_c_wn_static();
+    register_c_wn_stsline();
+    register_c_wn_toolbar();
+    register_c_wn_stdscr();
 
     /*------------------------------------------------*
      *          Traces

@@ -330,7 +330,7 @@ SDATA (DTP_STRING,      "display_mode",     SDF_WR|SDF_PERSIST, "table",    "Dis
 SDATA (DTP_STRING,      "editor",           SDF_WR|SDF_PERSIST, "vim",      "Editor"),
 SDATA (DTP_JSON,        "shortkeys",        SDF_WR|SDF_PERSIST, 0,          "Shortkeys. A dict {key: command}."),
 // TODO set to "1"
-SDATA (DTP_BOOLEAN,     "use_ncurses",      0,                  "0",        "True to use ncurses, set False for easy testing"),
+SDATA (DTP_BOOLEAN,     "use_ncurses",      0,                  "1",        "True to use ncurses, set False for easy testing"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -404,6 +404,12 @@ PRIVATE void mt_create(hgobj gobj)
     }
     priv->jn_window_counters = json_object();
 
+    /*
+     *  Do copy of heavy used parameters, for quick access.
+     *  HACK The writable attributes must be repeated in mt_writing method.
+     */
+    SET_PRIV(use_ncurses,      gobj_read_bool_attr)
+
     if(priv->use_ncurses) {
         create_display_framework(gobj);
     }
@@ -434,12 +440,6 @@ PRIVATE void mt_create(hgobj gobj)
      */
     char history_file[PATH_MAX];
     get_history_file(history_file, sizeof(history_file));
-
-    /*
-     *  Do copy of heavy used parameters, for quick access.
-     *  HACK The writable attributes must be repeated in mt_writing method.
-     */
-    SET_PRIV(use_ncurses,      gobj_read_bool_attr)
 
     /*
      *  Editline
@@ -544,7 +544,7 @@ PRIVATE int mt_start(hgobj gobj)
     SetDefaultFocus(priv->gobj_editline);
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
 
-    if(priv->use_ncurses) {
+    if(priv->use_ncurses && priv->gobj_workareabox) {
         /*
          *  Create display window of console
          */
@@ -923,7 +923,7 @@ PRIVATE json_t *cmd_refresh(hgobj gobj, const char *command, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_send_event_to_children_tree(priv->gwin_stdscr, EV_PAINT, 0, gobj);
+    gobj_send_event_to_children_tree(priv->gwin_stdscr, EV_PAINT, kw_incref(kw), gobj);
 
     return msg_iev_build_response(
         gobj,
@@ -1677,6 +1677,9 @@ PRIVATE int create_display_framework(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     priv->gwin_stdscr = gobj_create("cli", C_WN_STDSCR, 0, gobj);
+    if(!priv->gwin_stdscr) {
+        return -1;
+    }
 
     /*---------------------------------*
      *  Layout stdscr
@@ -1909,8 +1912,6 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
         char prompt[32];
         snprintf(prompt, sizeof(prompt), "%s> ", name);
         gobj_write_str_attr(priv->gobj_editline, "prompt", prompt);
-
-        SetFocus(gobj_display);
 
     } else {
         gobj_log_error(gobj, 0,
