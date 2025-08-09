@@ -1492,6 +1492,7 @@ PRIVATE int ac_setfocus(hgobj gobj, const char *event, json_t *kw, hgobj src)
         wmove(priv->wn, 0, (int)(priv->plen + priv->pos));
         wrefresh(priv->wn);
     }
+    refreshLine(priv);
 
     KW_DECREF(kw);
     return 0;

@@ -541,8 +541,9 @@ PRIVATE int mt_start(hgobj gobj)
         gobj_start(priv->gobj_editline);
     }
 
-    SetDefaultFocus(priv->gobj_editline);
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
+    SetDefaultFocus(priv->gobj_editline);
+    SetFocus(priv->gobj_editline);
 
     if(priv->use_ncurses && priv->gobj_workareabox) {
         /*
@@ -1908,6 +1909,13 @@ PRIVATE int destroy_static(hgobj gobj, const char *name)
 PRIVATE int set_top_window(hgobj gobj, const char *name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    char prompt[32];
+
+    if(!priv->gobj_workareabox) {
+        snprintf(prompt, sizeof(prompt), "%s> ", name);
+        gobj_write_str_attr(priv->gobj_editline, "prompt", prompt);
+        return 0;
+    }
 
     hgobj gobj_display = gobj_child_by_name(priv->gobj_workareabox, name);
     if(gobj_display) {
@@ -1919,7 +1927,6 @@ PRIVATE int set_top_window(hgobj gobj, const char *name)
         );
         gobj_send_event(priv->gobj_toptoolbar, EV_SET_SELECTED_BUTTON, kw_sel, gobj);
 
-        char prompt[32];
         snprintf(prompt, sizeof(prompt), "%s> ", name);
         gobj_write_str_attr(priv->gobj_editline, "prompt", prompt);
 
@@ -2818,15 +2825,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     wn_disp = create_display_window(gobj, agent_name, 0);
-
-    /*
-     *  Create button window of console (right now implemented as static window)
-     */
-    create_static(gobj, agent_name, 0);
-    set_top_window(gobj, agent_name);
-
-    gobj_write_pointer_attr(wn_disp, "user_data", src);
-    gobj_write_pointer_attr(src, "user_data", wn_disp);
+    if(wn_disp) {
+        gobj_write_pointer_attr(wn_disp, "user_data", src);
+        gobj_write_pointer_attr(src, "user_data", wn_disp);
+    }
 
     hgobj wn_display_console = get_display_window(gobj, "console");
     display_webix_result(
@@ -2838,9 +2840,15 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             json_sprintf("Connected to '%s'.\n\n", agent_name),
             0,
             0,
-            0
+            kw_incref(kw)
         )
     );
+
+    /*
+     *  Create button window of console (right now implemented as static window)
+     */
+    create_static(gobj, agent_name, 0);
+    set_top_window(gobj, agent_name);
 
     KW_DECREF(kw);
     return 0;
@@ -2876,7 +2884,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             json_sprintf("Disconnected from '%s'.\n\n", agent_name),
             0,
             0,
-            0
+            kw_incref(kw)
         )
     );
 
