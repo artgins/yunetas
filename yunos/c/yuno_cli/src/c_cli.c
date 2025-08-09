@@ -330,7 +330,7 @@ SDATA (DTP_STRING,      "display_mode",     SDF_WR|SDF_PERSIST, "table",    "Dis
 SDATA (DTP_STRING,      "editor",           SDF_WR|SDF_PERSIST, "vim",      "Editor"),
 SDATA (DTP_JSON,        "shortkeys",        SDF_WR|SDF_PERSIST, 0,          "Shortkeys. A dict {key: command}."),
 // TODO set to "1"
-SDATA (DTP_BOOLEAN,     "use_ncurses",      0,                  "1",        "True to use ncurses, set False for easy testing"),
+SDATA (DTP_BOOLEAN,     "use_ncurses",      0,                  "",        "True to use ncurses, set False for easy testing"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,          "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,          "more user data"),
@@ -1798,6 +1798,9 @@ PRIVATE hgobj create_display_window(hgobj gobj, const char *name, json_t *kw_dis
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(priv->gobj_workareabox) {
+        return NULL;
+    }
     if(!kw_display_window) {
         kw_display_window = json_pack(
             "{s:s, s:s}",
@@ -1823,6 +1826,9 @@ PRIVATE hgobj get_display_window(hgobj gobj, const char* name)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    if(!priv->gobj_workareabox) {
+        return NULL;
+    }
     hgobj gobj_display = gobj_child_by_name(priv->gobj_workareabox, name);
     return gobj_display;
 }
