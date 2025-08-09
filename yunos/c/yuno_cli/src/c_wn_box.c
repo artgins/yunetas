@@ -2,22 +2,30 @@
  *          C_WN_BOX.C
  *          Wn_box GClass.
  *
- *          UI Box. To manage position, dimension and colors, it seems a virtual window.
+ *          UI Box. Manage position, size and colors, it seems a virtual window.
  *          Well, it manages a WINDOW and PANE ncurses objects.
  *
- *          It has the mt_child_added:
- *              - when a child is added it sends a EV_SIZE message.
  *          It has the mt_play/mt_pause,  to disable or not the box,
  *              - changing the state ST_DISABLED,ST_IDLE
+ *
+ *          It has the mt_child_added, mt_child_removed:
+ *              - mt_child_added: when a child is added it sends:
+ *                  - a EV_MOVE message with the position (x,y) of the box.
+ *                  - a EV_SIZE message with the size (cx, cy) of the box.
+ *              - mt_child_removed: nothing
+ *
  *          It supports the events:
  *              EV_PAINT
  *                  - clear the WINDOW
  *                  - it it has color set the color in WINDOW (back/fore)???
  *                  - update PANE or WINDOW
  *              EV_MOVE
- *                  - update PANE or WINDOW and send EV_MOVE to children.
+ *                  - update PANE or WINDOW
+                    - send EV_MOVE to children
  *              EV_SIZE
- *                  - update PANE or WINDOW and send EV_PAINT (ncurses not does) and EV_SIZE to children.
+ *                  - update PANE or WINDOW
+ *                  - auto-send EV_PAINT (ncurses not does refresh)
+ *                  - send EV_SIZE to children.
  *
  *          HACK: the PANE exists in Toolbar and Stsline, in WorkArea and Editline not.
  *
