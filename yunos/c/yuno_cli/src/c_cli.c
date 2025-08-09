@@ -1798,7 +1798,7 @@ PRIVATE hgobj create_display_window(hgobj gobj, const char *name, json_t *kw_dis
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    if(priv->gobj_workareabox) {
+    if(!priv->gobj_workareabox) {
         return NULL;
     }
     if(!kw_display_window) {
@@ -1856,6 +1856,10 @@ PRIVATE int destroy_display_window(hgobj gobj, const char *name)
 PRIVATE hgobj create_static(hgobj gobj, const char *name, json_t *kw_static)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->gobj_toptoolbar) {
+        return NULL;
+    }
 
     char sname[32];
     snprintf(sname, sizeof(sname), " %s ", name);
