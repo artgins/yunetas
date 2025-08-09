@@ -2028,7 +2028,7 @@ PRIVATE int display_webix_result(
     json_t *webix)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    int result = kw_get_int(gobj, webix, "result", -1, 0);
+    int result = (int)kw_get_int(gobj, webix, "result", -1, 0);
     const char *comment = kw_get_str(gobj, webix, "comment", "", 0);
     json_t *jn_schema = kw_get_dict_value(gobj, webix, "schema", 0, 0);
     json_t *jn_data = kw_get_dict_value(gobj, webix, "data", 0, 0);
@@ -2057,7 +2057,11 @@ PRIVATE int display_webix_result(
             "text", jn_error,
             "bg_color", "red"
         );
-        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+        if(display_window) {
+            gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+        } else {
+            printf("ERROR %d: %s\n", result, comment);
+        }
         // Pinta error en statusline, ya que no puedo pintar colores en la ventana-lista.
         msg2statusline(gobj, result, "Be careful! Response with ERROR.");
         if(priv->file_saving_output) {
@@ -2075,7 +2079,11 @@ PRIVATE int display_webix_result(
                 json_t *jn_text = json_pack("{s:s}",
                     "text", data
                 );
-                gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+                if(display_window) {
+                    gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+                } else {
+                    printf("%s\n", data);
+                }
                 if(priv->file_saving_output) {
                     fprintf(priv->file_saving_output, "%s\n", data);
                 }
@@ -2092,7 +2100,11 @@ PRIVATE int display_webix_result(
                     json_t *jn_text = json_pack("{s:s}",
                         "text", p
                     );
-                    gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+                    if(display_window) {
+                        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+                    } else {
+                        printf("%s\n", p);
+                    }
                     if(priv->file_saving_output) {
                         fprintf(priv->file_saving_output, "%s\n", p);
                     }
@@ -2105,7 +2117,11 @@ PRIVATE int display_webix_result(
                         json_t *jn_text = json_pack("{s:s}",
                             "text", text
                         );
-                        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+                        if(display_window) {
+                            gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+                        } else {
+                            printf("%s\n", text);
+                        }
                         if(priv->file_saving_output) {
                             fprintf(priv->file_saving_output, "%s\n", text);
                         }
@@ -2119,7 +2135,11 @@ PRIVATE int display_webix_result(
         json_t *jn_text = json_pack("{s:s}",
             "text", data
         );
-        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+        if(display_window) {
+            gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+        } else {
+            printf("%s\n", data);
+        }
         if(priv->file_saving_output) {
             fprintf(priv->file_saving_output, "%s\n", data);
         }
@@ -2129,7 +2149,11 @@ PRIVATE int display_webix_result(
         json_t *jn_text = json_pack("{s:s}",
             "text", data
         );
-        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+        if(display_window) {
+            gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+        } else {
+            printf("%s\n", data);
+        }
         if(priv->file_saving_output) {
             fprintf(priv->file_saving_output, "%s\n", data);
         }
@@ -2139,7 +2163,11 @@ PRIVATE int display_webix_result(
         json_t *jn_text = json_pack("{s:s}",
             "text", comment
         );
-        gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+        if(display_window) {
+            gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
+        } else {
+            printf("%s\n", comment);
+        }
         if(priv->file_saving_output) {
             fprintf(priv->file_saving_output, "%s\n", comment);
         }
@@ -2571,101 +2599,103 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Select the destination of command: what output window is active?
      */
     hgobj wn_display = get_top_display_window(gobj);
-    if(wn_display) {
-        if(empty_string(command)) {
-            display_webix_result(
-                gobj,
-                wn_display,
-                msg_iev_build_response(
-                    gobj,
-                    0,
-                    json_sprintf("\n"),
-                    0,
-                    0,
-                    0
-                )
-            );
-            KW_DECREF(kw_input_command);
-            KW_DECREF(kw);
-            return 0;
-
-        }
+    if(empty_string(command)) {
         display_webix_result(
             gobj,
             wn_display,
             msg_iev_build_response(
                 gobj,
                 0,
-                json_sprintf("> %s", command),
+                json_sprintf("\n"),
                 0,
                 0,
-                0
+                kw_incref(kw)
             )
         );
+        KW_DECREF(kw_input_command);
+        KW_DECREF(kw);
+        return 0;
 
-        char *comment;
-        gbuffer_t *gbuf_parsed_command = 0;
-        gbuf_parsed_command = replace_cli_vars_for_yuneta(gobj, command, &comment);
+    }
+    display_webix_result(
+        gobj,
+        wn_display,
+        msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("> %s", command),
+            0,
+            0,
+            kw_incref(kw)
+        )
+    );
 
-        if(!gbuf_parsed_command) {
-            display_webix_result(
-                gobj,
-                wn_display,
-                msg_iev_build_response(
-                    gobj,
-                    -1,
-                    json_sprintf("%s", comment),
-                    0,
-                    0,
-                    0
-                )
-            );
-            KW_DECREF(kw_input_command);
-            KW_DECREF(kw);
-            return 0;
-        }
-        hgobj gobj_cmd;
-        char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
-        json_t *kw_command = json_object();
-        if(*xcmd == '!') {
-            xcmd++;
-            gobj_cmd = gobj;
-        } else if(*xcmd == '*') {
-            xcmd++;
-            kw_set_subdict_value(gobj, kw_command, "__md_iev__", "display_mode", json_string("form"));
-            gobj_cmd = gobj_read_pointer_attr(wn_display, "user_data");
-        } else {
-            gobj_cmd = gobj_read_pointer_attr(wn_display, "user_data");
-        }
-        json_t *webix;
-        if(gobj_cmd) {
-            webix = gobj_command(gobj_cmd, xcmd, kw_command, gobj);
-        } else {
-            json_decref(kw_command);
-            webix = msg_iev_build_response(
+    char *comment;
+    gbuffer_t *gbuf_parsed_command = 0;
+    gbuf_parsed_command = replace_cli_vars_for_yuneta(gobj, command, &comment);
+
+    if(!gbuf_parsed_command) {
+        display_webix_result(
+            gobj,
+            wn_display,
+            msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Window without connection"),
+                json_sprintf("%s", comment),
                 0,
                 0,
-                0
-            );
+                kw_incref(kw)
+            )
+        );
+        KW_DECREF(kw_input_command);
+        KW_DECREF(kw);
+        return 0;
+    }
+    hgobj gobj_cmd = NULL;
+    char *xcmd = gbuffer_cur_rd_pointer(gbuf_parsed_command);
+    json_t *kw_command = json_object();
+    if(*xcmd == '!') {
+        xcmd++;
+        gobj_cmd = gobj;
+    } else if(*xcmd == '*') {
+        xcmd++;
+        kw_set_subdict_value(gobj, kw_command, "__md_iev__", "display_mode", json_string("form"));
+        if(wn_display) {
+            gobj_cmd = gobj_read_pointer_attr(wn_display, "user_data");
         }
-        gbuffer_decref(gbuf_parsed_command);
+    } else {
+        if(wn_display) {
+            gobj_cmd = gobj_read_pointer_attr(wn_display, "user_data");
+        }
+    }
+    json_t *webix;
+    if(gobj_cmd) {
+        webix = gobj_command(gobj_cmd, xcmd, kw_command, gobj);
+    } else {
+        json_decref(kw_command);
+        webix = msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Window without connection"),
+            0,
+            0,
+            kw_incref(kw)
+        );
+    }
+    gbuffer_decref(gbuf_parsed_command);
 
-        /*
-         *  Print json response in display window
-         */
-        if(webix) {
-            display_webix_result(
-                gobj,
-                wn_display,
-                webix
-            );
-        } else {
-            /* asynchronous responses return 0 */
-            msg2statusline(gobj, 0, "Waiting response...");
-        }
+    /*
+     *  Print json response in display window
+     */
+    if(webix) {
+        display_webix_result(
+            gobj,
+            wn_display,
+            webix
+        );
+    } else {
+        /* asynchronous responses return 0 */
+        msg2statusline(gobj, 0, "Waiting response...");
     }
 
     /*
