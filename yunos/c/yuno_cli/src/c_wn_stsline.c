@@ -2,9 +2,38 @@
  *          C_WN_STSLINE.C
  *          Wn_stsline GClass.
  *
- *          Status Line
+ *          - It has "text" attribute
+ *          - Manages position, size and color.
+ *          - It creates a new WINDOW and PANE (sorry?)
+ *
+ *          It has the mt_play/mt_pause,  to disable or not the box,
+ *              - changing the state ST_DISABLED,ST_IDLE
+ *
+ *          It has the mt_child_added, mt_child_removed:
+ *              - mt_child_added:
+ *                  - fix_child_sizes()
+ *                  - send EV_PAINT to children
+ *              - mt_child_removed:
+ *                  - fix_child_sizes()
+ *                  - send EV_PAINT to children
+ *
+ *          It supports the events:
+ *              EV_SETTEXT
+ *                  - write "text" attribute
+ *                  - auto-send EV_PAINT
+ *              EV_PAINT
+ *                  - clear the WINDOW
+ *                  - it it has color set the color in WINDOW (back/fore)???
+ *                  - write "text" value in WINDOW!
+ *                  - update PANE or WINDOW
+ *              EV_MOVE
+ *                  - update PANE or WINDOW
+ *              EV_SIZE
+ *                  - update PANE or WINDOW
+ *                  - auto-send EV_PAINT
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
@@ -223,6 +252,19 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    const char *text = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
+    gobj_write_str_attr(gobj, "text", text);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -254,19 +296,6 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else if(priv->wn) {
         wrefresh(priv->wn);
     }
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    const char *text = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
-    gobj_write_str_attr(gobj, "text", text);
-    gobj_send_event(gobj, EV_PAINT, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
@@ -379,9 +408,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     ev_action_t st_idle[] = {
         {EV_SETTEXT,       ac_settext,   0},
+        {EV_PAINT,         ac_paint,     0},
         {EV_MOVE,          ac_move,      0},
         {EV_SIZE,          ac_size,      0},
-        {EV_PAINT,         ac_paint,     0},
         {0,0,0}
     };
 
@@ -400,9 +429,9 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *------------------------*/
     event_type_t event_types[] = {
         {EV_SETTEXT,       0},
+        {EV_PAINT,         0},
         {EV_MOVE,          0},
         {EV_SIZE,          0},
-        {EV_PAINT,         0},
         {NULL, 0}
     };
 
