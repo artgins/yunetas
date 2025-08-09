@@ -3,7 +3,7 @@
  *          Wn_static GClass.
  *
  *          - Manages LOGICAL size, text, position, size and color.
- *          - It creates a new WINDOW and PANE (sorry?)
+ *          - It creates a new WINDOW and PANEL (sorry?)
  *
  *          It has the mt_play/mt_pause,  to disable or not the box,
  *              - changing the state ST_DISABLED,ST_IDLE
@@ -24,11 +24,11 @@
  *                  - clear the WINDOW
  *                  - it it has color set the color in WINDOW (back/fore)???
  *                  - write "text" value in WINDOW!
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
  *              EV_MOVE
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
  *              EV_SIZE
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
  *                  - auto-send EV_PAINT
  *
  *          Copyright (c) 2016 Niyamaka.

@@ -4,7 +4,7 @@
  *
  *          - It has layout vertical and horizontal (sure?)
  *          - Manages layout, position, size, color and selected color.
- *          - It creates a new WINDOW and PANE (sorry?)
+ *          - It creates a new WINDOW and PANEL (sorry?)
  *
  *          It has the mt_play/mt_pause,  to disable or not the box,
  *              - changing the state ST_DISABLED,ST_IDLE
@@ -21,11 +21,11 @@
  *              EV_PAINT
  *                  - clear the WINDOW
  *                  - it it has color set the color in WINDOW (back/fore)???
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
  *              EV_MOVE
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
  *              EV_SIZE
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
  *                  - auto-send EV_PAINT (ncurses not does refresh)
  *                  - fix_child_sizes()
  *

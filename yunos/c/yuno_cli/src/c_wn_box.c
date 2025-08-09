@@ -3,7 +3,7 @@
  *          Wn_box GClass.
  *
  *          UI Box. Manage position, size and colors, it seems a virtual window.
- *          Well, it manages a WINDOW and PANE ncurses objects.
+ *          Well, it manages a WINDOW and PANEL ncurses objects.
  *
  *          It has the mt_play/mt_pause,  to disable or not the box,
  *              - changing the state ST_DISABLED,ST_IDLE
@@ -18,16 +18,16 @@
  *              EV_PAINT
  *                  - clear the WINDOW
  *                  - it it has color set the color in WINDOW (back/fore)???
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
  *              EV_MOVE
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
                     - send EV_MOVE to children
  *              EV_SIZE
- *                  - update PANE or WINDOW
+ *                  - update PANEL or WINDOW
  *                  - auto-send EV_PAINT (ncurses not does refresh)
  *                  - send EV_SIZE to children.
  *
- *          HACK: the PANE exists in Toolbar and Stsline, in WorkArea and Editline not.
+ *          HACK: the PANEL exists in Toolbar and Stsline, in WorkArea and Editline not.
  *
  *          Copyright (c) 2016 Niyamaka.
  *          Copyright (c) 2025, ArtGins.

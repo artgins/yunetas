@@ -45,13 +45,13 @@ PRIVATE int clrscr(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 SDATA (DTP_STRING,      "layout_type",          0,  0, "Layout inherit from parent"),
+SDATA (DTP_INTEGER,     "scroll_size",          0,  "1000000", "scroll size. 0 is unlimited (until out of memory)"),
 SDATA (DTP_INTEGER,     "w",                    0,  0, "logical witdh window size"),
 SDATA (DTP_INTEGER,     "h",                    0,  0, "logical height window size"),
 SDATA (DTP_INTEGER,     "x",                    0,  0, "x window coord"),
 SDATA (DTP_INTEGER,     "y",                    0,  0, "y window coord"),
 SDATA (DTP_INTEGER,     "cx",                   0,  "80", "physical witdh window size"),
 SDATA (DTP_INTEGER,     "cy",                   0,  "1", "physical height window size"),
-SDATA (DTP_INTEGER,     "scroll_size",          0,  "1000000", "scroll size. 0 is unlimited (until out of memory)"),
 SDATA (DTP_STRING,      "bg_color",             0,  "blue", "Background color"),
 SDATA (DTP_STRING,      "fg_color",             0,  "white", "Foreground color"),
 SDATA (DTP_POINTER,     "user_data",            0,  0, "user data"),
@@ -126,10 +126,10 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(cy,                        gobj_read_integer_attr)
     SET_PRIV(scroll_size,               gobj_read_integer_attr)
 
-    int x = gobj_read_integer_attr(gobj, "x");
-    int y = gobj_read_integer_attr(gobj, "y");
-    int cx = gobj_read_integer_attr(gobj, "cx");
-    int cy = gobj_read_integer_attr(gobj, "cy");
+    int x = (int)gobj_read_integer_attr(gobj, "x");
+    int y = (int)gobj_read_integer_attr(gobj, "y");
+    int cx = (int)gobj_read_integer_attr(gobj, "cx");
+    int cy = (int)gobj_read_integer_attr(gobj, "cy");
 
     priv->wn = newwin(cy, cx, y, x);
     if(!priv->wn) {
@@ -329,76 +329,6 @@ PRIVATE void setcolor(hgobj gobj, line_t *line)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(!priv->wn) {
-        // Debugging in kdevelop or batch mode has no wn
-        KW_DECREF(kw);
-        return 0;
-    }
-    wclear(priv->wn);
-
-    int n_lines = dl_size(&priv->dl_lines);
-    int n_win = priv->cy;
-    if(n_lines <= n_win) {
-        int y = n_win - n_lines;
-        line_t *line = dl_first(&priv->dl_lines);
-        for(int i=0; i < n_lines; i++) {
-            int ll = strlen(line->text);
-            if(ll > priv->cx) {
-                ll = priv->cx;
-            }
-            wmove(priv->wn, y+i, 0);
-            setcolor(gobj, line);
-            waddnstr(priv->wn, line->text, ll);
-            line = dl_next(line);
-        }
-    } else {
-        int y = 0;
-        int b = n_lines - priv->base - n_win + 1;
-        if(b < 1) {
-            b = 1;
-        }
-        //log_debug_printf(0, "n_lines %d, n_win %d, b %d, base %d", n_lines, n_win, b, priv->base);
-        line_t *line = dl_nfind(&priv->dl_lines, b);
-        if(!line) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "no line",
-                "line",         "%d", b,
-                NULL
-            );
-        } else {
-            for(int i=0; i < n_win && line; i++) {
-                int ll = strlen(line->text);
-                if(ll > priv->cx) {
-                    ll = priv->cx;
-                }
-                wmove(priv->wn, y+i, 0);
-                setcolor(gobj, line);
-                waddnstr(priv->wn, line->text, ll);
-                line = dl_next(line);
-            }
-        }
-    }
-
-    if(priv->panel) {
-        update_panels();
-        doupdate();
-    } else if(priv->wn) {
-        wrefresh(priv->wn);
-    }
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -409,7 +339,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
     int n_win = priv->cy;
 
     if(strchr(text, '\n')) {
-        int len = strlen(text);
+        int len = (int)strlen(text);
         gbuffer_t *gbuf = gbuffer_create(len, len);
         gbuffer_append(gbuf, (void *)text, len);
         if(gbuf) {
@@ -417,7 +347,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
             while((s=gbuffer_getline(gbuf, '\n'))) {
                 add_line(gobj, s, bg_color, fg_color);
 
-                int n_lines = dl_size(&priv->dl_lines);
+                int n_lines = (int)dl_size(&priv->dl_lines);
                 if(n_lines > n_win && priv->base > n_win) {
                     priv->base++;
                 }
@@ -427,7 +357,7 @@ PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         add_line(gobj, text, bg_color, fg_color);
 
-        int n_lines = dl_size(&priv->dl_lines);
+        int n_lines = (int)dl_size(&priv->dl_lines);
         if(n_lines > n_win && priv->base > n_win) {
             priv->base++;
         }
@@ -468,6 +398,76 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         delete_line(gobj, 1);
     }
     gobj_send_event(gobj, EV_PAINT, 0, gobj);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(!priv->wn) {
+        // Debugging in kdevelop or batch mode has no wn
+        KW_DECREF(kw);
+        return 0;
+    }
+    wclear(priv->wn);
+
+    int n_lines = (int)dl_size(&priv->dl_lines);
+    int n_win = priv->cy;
+    if(n_lines <= n_win) {
+        int y = n_win - n_lines;
+        line_t *line = dl_first(&priv->dl_lines);
+        for(int i=0; i < n_lines; i++) {
+            int ll = (int)strlen(line->text);
+            if(ll > priv->cx) {
+                ll = priv->cx;
+            }
+            wmove(priv->wn, y+i, 0);
+            setcolor(gobj, line);
+            waddnstr(priv->wn, line->text, ll);
+            line = dl_next(line);
+        }
+    } else {
+        int y = 0;
+        int b = n_lines - priv->base - n_win + 1;
+        if(b < 1) {
+            b = 1;
+        }
+        //log_debug_printf(0, "n_lines %d, n_win %d, b %d, base %d", n_lines, n_win, b, priv->base);
+        line_t *line = dl_nfind(&priv->dl_lines, b);
+        if(!line) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "no line",
+                "line",         "%d", b,
+                NULL
+            );
+        } else {
+            for(int i=0; i < n_win && line; i++) {
+                int ll = (int)strlen(line->text);
+                if(ll > priv->cx) {
+                    ll = priv->cx;
+                }
+                wmove(priv->wn, y+i, 0);
+                setcolor(gobj, line);
+                waddnstr(priv->wn, line->text, ll);
+                line = dl_next(line);
+            }
+        }
+    }
+
+    if(priv->panel) {
+        update_panels();
+        doupdate();
+    } else if(priv->wn) {
+        wrefresh(priv->wn);
+    }
 
     KW_DECREF(kw);
     return 0;
@@ -606,15 +606,6 @@ PRIVATE int ac_clrscr(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_setfocus(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    KW_DECREF(kw);
-    return -1;  // Don't want focus
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PRIVATE int ac_move(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -670,7 +661,7 @@ PRIVATE int ac_size(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_top(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_set_top_window(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -737,12 +728,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_ON_MESSAGE,         ac_on_message,          0},
         {EV_SETTEXT,            ac_settext,             0},
-        {EV_SETFOCUS,           ac_setfocus,            0},
-        {EV_KILLFOCUS,          0,                      0},
+        {EV_PAINT,              ac_paint,               0},
         {EV_MOVE,               ac_move,                0},
         {EV_SIZE,               ac_size,                0},
-        {EV_PAINT,              ac_paint,               0},
-        {EV_SET_TOP_WINDOW,     ac_top,                 0},
+        {EV_SET_TOP_WINDOW,     ac_set_top_window,      0},
         {EV_SCROLL_LINE_UP,     ac_scroll_line_up,      0},
         {EV_SCROLL_LINE_DOWN,   ac_scroll_line_down,    0},
         {EV_SCROLL_PAGE_UP,     ac_scroll_page_up,      0},
@@ -768,8 +757,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_ON_MESSAGE,         0},
         {EV_SETTEXT,            0},
-        {EV_KILLFOCUS,          0},
-        {EV_SETFOCUS,           0},
         {EV_PAINT,              0},
         {EV_MOVE,               0},
         {EV_SIZE,               0},
