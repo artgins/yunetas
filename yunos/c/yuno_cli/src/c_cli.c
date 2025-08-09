@@ -2052,12 +2052,12 @@ PRIVATE int display_webix_result(
     }
 
     if(result < 0) {
-        json_t *jn_error = json_sprintf("ERROR %d: %s", result, comment);
-        json_t *jn_text = json_pack("{s:o, s:s}",
-            "text", jn_error,
-            "bg_color", "red"
-        );
         if(display_window) {
+            json_t *jn_error = json_sprintf("ERROR %d: %s", result, comment);
+            json_t *jn_text = json_pack("{s:o, s:s}",
+                "text", jn_error,
+                "bg_color", "red"
+            );
             gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
         } else {
             printf("ERROR %d: %s\n", result, comment);
@@ -2076,10 +2076,10 @@ PRIVATE int display_webix_result(
         if (mode_form) {
             { // XXX if(json_array_size(jn_data)>0) {
                 char *data = json2str(jn_data);
-                json_t *jn_text = json_pack("{s:s}",
-                    "text", data
-                );
                 if(display_window) {
+                    json_t *jn_text = json_pack("{s:s}",
+                        "text", data
+                    );
                     gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
                 } else {
                     printf("%s\n", data);
@@ -2097,10 +2097,10 @@ PRIVATE int display_webix_result(
                 gbuffer_t *gbuf = jsontable2str(jn_schema, jn_data);
                 if(gbuf) {
                     char *p = gbuffer_cur_rd_pointer(gbuf);
-                    json_t *jn_text = json_pack("{s:s}",
-                        "text", p
-                    );
                     if(display_window) {
+                        json_t *jn_text = json_pack("{s:s}",
+                            "text", p
+                        );
                         gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
                     } else {
                         printf("%s\n", p);
@@ -2114,10 +2114,10 @@ PRIVATE int display_webix_result(
                 { // XXX Display [] if empty array if(json_array_size(jn_data)>0) {
                     char *text = json2str(jn_data);
                     if(text) {
-                        json_t *jn_text = json_pack("{s:s}",
-                            "text", text
-                        );
                         if(display_window) {
+                            json_t *jn_text = json_pack("{s:s}",
+                                "text", text
+                            );
                             gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
                         } else {
                             printf("%s\n", text);
@@ -2132,10 +2132,10 @@ PRIVATE int display_webix_result(
         }
     } else if(json_is_object(jn_data)) {
         char *data = json2str(jn_data);
-        json_t *jn_text = json_pack("{s:s}",
-            "text", data
-        );
         if(display_window) {
+            json_t *jn_text = json_pack("{s:s}",
+                "text", data
+            );
             gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
         } else {
             printf("%s\n", data);
@@ -2146,10 +2146,10 @@ PRIVATE int display_webix_result(
         gbmem_free(data);
     } else if(json_is_string(jn_data)) {
         const char *data = json_string_value(jn_data);
-        json_t *jn_text = json_pack("{s:s}",
-            "text", data
-        );
         if(display_window) {
+            json_t *jn_text = json_pack("{s:s}",
+                "text", data
+            );
             gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
         } else {
             printf("%s\n", data);
@@ -2160,10 +2160,10 @@ PRIVATE int display_webix_result(
     }
 
     if(!empty_string(comment)) {
-        json_t *jn_text = json_pack("{s:s}",
-            "text", comment
-        );
         if(display_window) {
+            json_t *jn_text = json_pack("{s:s}",
+                "text", comment
+            );
             gobj_send_event(display_window, EV_SETTEXT, jn_text, gobj);
         } else {
             printf("%s\n", comment);
@@ -2193,11 +2193,15 @@ PUBLIC int msg2display(hgobj gobj, const char *fmt, ...)
     va_start(ap, fmt);
     vsnprintf(temp, sizeof(temp), fmt, ap);
 
-    json_t *jn_text = json_pack("{s:s}",
-        "text", temp
-    );
     hgobj wn_display = get_top_display_window(gobj);
-    gobj_send_event(wn_display, EV_SETTEXT, jn_text, gobj);
+    if(wn_display) {
+        json_t *jn_text = json_pack("{s:s}",
+            "text", temp
+        );
+        gobj_send_event(wn_display, EV_SETTEXT, jn_text, gobj);
+    } else {
+        printf("%s\n", temp);
+    }
 
     va_end(ap);
 
@@ -2266,10 +2270,14 @@ PRIVATE void do_close(hgobj gobj)
  ***************************************************************************/
 PRIVATE void new_line(hgobj gobj, hgobj wn_display)
 {
-    json_t *jn_text = json_pack("{s:s}",
-        "text", ""
-    );
-    gobj_send_event(wn_display, EV_SETTEXT, jn_text, gobj);
+    if(wn_display) {
+        json_t *jn_text = json_pack("{s:s}",
+            "text", ""
+        );
+        gobj_send_event(wn_display, EV_SETTEXT, jn_text, gobj);
+    } else {
+        printf("\n");
+    }
 }
 
 /***************************************************************************
