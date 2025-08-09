@@ -225,6 +225,19 @@ PRIVATE int mt_pause(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
+PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    const char *text = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
+    gobj_write_str_attr(gobj, "text", text);
+    gobj_send_event(gobj, EV_PAINT, 0, gobj);
+
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -256,19 +269,6 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else if(priv->wn) {
         wrefresh(priv->wn);
     }
-
-    KW_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int ac_settext(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    const char *text = kw_get_str(gobj, kw, "text", "", KW_REQUIRED);
-    gobj_write_str_attr(gobj, "text", text);
-    gobj_send_event(gobj, EV_PAINT, 0, gobj);
 
     KW_DECREF(kw);
     return 0;
