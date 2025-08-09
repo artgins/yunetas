@@ -1474,31 +1474,11 @@ PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
 // }
 
 /***************************************************************************
- *  on read callback
+ *  process read
  ***************************************************************************/
-PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    size_t nread = gbuffer_leftbytes(gbuf);
-    char *base = gbuffer_cur_rd_pointer(gbuf);
-
-    if(nread == 0) {
-        // Yes, sometimes arrive with nread 0.
-        return 0;
-    }
-
-if(base[0]==0x0A) base[0]=0x0D; // TODO remove
-
-    if(gobj_trace_level(gobj) & (TRACE_KB)) {
-        gobj_trace_dump(
-            gobj,
-            base,
-            nread,
-            "on_read_cb"
-        );
-    }
-
 
     if(base[0] == 3) {
         if(!priv->on_mirror_tty) {
@@ -1615,7 +1595,7 @@ if(base[0]==0x0A) base[0]=0x0D; // TODO remove
         /*
          *  Level 3, chars to window with focus
          */
-        if(base[0] >= 0x20 && base[0] <= 0x7f) {
+        if(base[0] >= 0x20 && base[0] < 0x7f) {
             // No pases escapes ni utf8
             gbuffer_t *gbuf2 = gbuffer_create(nread, nread);
             gbuffer_append(gbuf2, base, nread);
@@ -1629,6 +1609,47 @@ if(base[0]==0x0A) base[0]=0x0D; // TODO remove
         }
 
     } while(0);
+
+    return 0;
+}
+
+/***************************************************************************
+ *  on read callback
+ ***************************************************************************/
+PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    size_t nread = gbuffer_leftbytes(gbuf);
+    char *base = gbuffer_cur_rd_pointer(gbuf);
+
+    if(nread == 0) {
+        // Yes, sometimes arrive with nread 0.
+        return 0;
+    }
+
+    if(gobj_trace_level(gobj) & (TRACE_KB)) {
+        gobj_trace_dump(
+            gobj,
+            base,
+            nread,
+            "on_read_cb"
+        );
+    }
+
+    if(!priv->use_ncurses) {
+        /*
+         *  Testing mode using CLion
+         */
+        for(int i=0; i<nread; i++) {
+            if(base[i]==0x0A) {
+                base[i]=0x0D;
+            }
+            process_read(gobj, base+i, 1);
+        }
+    } else {
+        process_read(gobj, base, nread);
+    }
 
     return 0;
 }
