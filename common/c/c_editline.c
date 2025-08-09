@@ -858,7 +858,7 @@ PRIVATE int linenoiseEditInsert(PRIVATE_DATA *l, int c)
     /*
      *  WARNING By the moment ONLY ascii
      */
-    if(c>127) {
+    if(c<0x20 || c>=0x7F) {
         return -1;
     }
 

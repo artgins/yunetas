@@ -2526,7 +2526,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     char *key = get_parameter(params_, &save_ptr);
 
     /*
-     *  Using variables $1 $2 .. like bash, only for shortkeys
+     *  Using variables $1 $2 ... like bash, only for shortkeys
      */
     char command_[4*1024];
     if(filter_by_shortkeys(gobj, command_, sizeof(command_), key)) {
