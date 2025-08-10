@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(ycommon C)
+project(yunetas-c_postgres C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
@@ -21,21 +21,11 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 
 set (SRCS
-    c_editline.c
-    c_pepon.c
     c_postgres.c
-    c_teston.c
-    g_ev_console.c
-    g_st_console.c
 )
 
 set (HDRS
-    c_editline.h
-    c_pepon.h
     c_postgres.h
-    c_teston.h
-    g_ev_console.h
-    g_st_console.h
 )
 
 

@@ -79,6 +79,8 @@ GOBJ_DECLARE_GCLASS(C_POSTGRES);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_SEND_QUERY);
+GOBJ_DECLARE_EVENT(EV_CLEAR_QUEUE);
 
 /***************************************************************
  *              Prototypes
