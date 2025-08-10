@@ -138,6 +138,8 @@ GOBJ_DECLARE_GCLASS(C_COUNTER);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DECLARE_EVENT(EV_COUNT);
+GOBJ_DECLARE_EVENT(EV_FINAL_COUNT);
 
 /***************************************************************
  *              Prototypes
