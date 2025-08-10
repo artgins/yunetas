@@ -50,6 +50,7 @@ extern "C"{
 #include <c_prot_http_cl.h>
 #include <c_prot_http_sr.h>
 #include <c_prot_mqtt.h>
+#include <c_prot_raw.h>
 #include <c_prot_tcp4h.h>
 #include <c_task.h>
 #include <c_task_authenticate.h>

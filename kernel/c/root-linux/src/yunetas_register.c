@@ -20,6 +20,7 @@
 #include "c_node.h"
 #include "c_prot_http_cl.h"
 #include "c_prot_http_sr.h"
+#include "c_prot_raw.h"
 #include "c_prot_tcp4h.h"
 #include "c_prot_mqtt.h"
 #include "c_task.h"
@@ -68,6 +69,7 @@ PUBLIC int yunetas_register_c_core(void)
     result += register_c_prot_http_cl();
     result += register_c_prot_http_sr();
     result += register_c_prot_mqtt();
+    result += register_c_prot_raw();
     result += register_c_prot_tcp4h();
     result += register_c_task();
     result += register_c_task_authenticate();
