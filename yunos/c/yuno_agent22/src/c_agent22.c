@@ -19,12 +19,12 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define SDATA_GET_ID(hs)  kw_get_str((hs), "id", "", KW_REQUIRED)
-#define SDATA_GET_STR(hs, field)  kw_get_str((hs), (field), "", KW_REQUIRED)
-#define SDATA_GET_INT(hs, field)  kw_get_int((hs), (field), 0, KW_REQUIRED)
-#define SDATA_GET_BOOL(hs, field)  kw_get_bool((hs), (field), 0, KW_REQUIRED)
-#define SDATA_GET_ITER(hs, field)  kw_get_list((hs), (field), 0, KW_REQUIRED)
-#define SDATA_GET_JSON(hs, field)  kw_get_dict_value((hs), (field), 0, KW_REQUIRED)
+#define SDATA_GET_ID(hs)  kw_get_str(gobj, (hs), "id", "", KW_REQUIRED)
+#define SDATA_GET_STR(hs, field)  kw_get_str(gobj, (hs), (field), "", KW_REQUIRED)
+#define SDATA_GET_INT(hs, field)  kw_get_int(gobj, (hs), (field), 0, KW_REQUIRED)
+#define SDATA_GET_BOOL(hs, field)  kw_get_bool(gobj, (hs), (field), 0, KW_REQUIRED)
+#define SDATA_GET_ITER(hs, field)  kw_get_list(gobj, (hs), (field), 0, KW_REQUIRED)
+#define SDATA_GET_JSON(hs, field)  kw_get_dict_value(gobj, (hs), (field), 0, KW_REQUIRED)
 
 #define SDATA_SET_STR(hs, key, value) json_object_set_new((hs), (key), json_string(value))
 #define SDATA_SET_INT(hs, key, value) json_object_set_new((hs), (key), json_integer(value))
@@ -73,31 +73,31 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 PRIVATE sdata_desc_t pm_help[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "cmd",          0,              0,          "command about you want help"),
-SDATAPM (ASN_UNSIGNED,  "level",        0,              0,          "command search level in childs"),
+SDATAPM (DTP_STRING,    "cmd",          0,              0,          "command about you want help"),
+SDATAPM (DTP_INTEGER,   "level",        0,              0,          "command search level in childs"),
 SDATA_END()
 };
 
 PRIVATE sdata_desc_t pm_open_console[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "name",         0,              "",         "Name of console"),
-SDATAPM (ASN_OCTET_STR, "process",      0,              "bash",     "Process to execute"),
-SDATAPM (ASN_OCTET_STR, "cwd",          0,              0,          "Current work directory"),
-SDATAPM (ASN_BOOLEAN,   "hold_open",    0,              0,          "True to not close pty on client disconnection"),
-SDATAPM (ASN_UNSIGNED,  "cx",           0,              "80",       "Columns"),
-SDATAPM (ASN_UNSIGNED,  "cy",           0,              "24",       "Rows"),
+SDATAPM (DTP_STRING,    "name",         0,              "",         "Name of console"),
+SDATAPM (DTP_STRING,    "process",      0,              "bash",     "Process to execute"),
+SDATAPM (DTP_STRING,    "cwd",          0,              0,          "Current work directory"),
+SDATAPM (DTP_BOOLEAN,   "hold_open",    0,              0,          "True to not close pty on client disconnection"),
+SDATAPM (DTP_INTEGER,   "cx",           0,              "80",       "Columns"),
+SDATAPM (DTP_INTEGER,   "cy",           0,              "24",       "Rows"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_close_console[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-SDATAPM (ASN_OCTET_STR, "name",         0,              "",         "Name of console"),
-SDATAPM (ASN_BOOLEAN,   "force",        0,              0,          "Force to close although hold_open TRUE"),
+SDATAPM (DTP_STRING,    "name",         0,              "",         "Name of console"),
+SDATAPM (DTP_BOOLEAN,   "force",        0,              0,          "Force to close although hold_open TRUE"),
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_write_tty[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
-    SDATAPM (ASN_OCTET_STR, "name",         0,              0,          "Name of console"),
-    SDATAPM (ASN_OCTET_STR, "content64",    0,              0,          "Content64 data to write to tty"),
+    SDATAPM (DTP_STRING,    "name",         0,              0,          "Name of console"),
+    SDATAPM (DTP_STRING,    "content64",    0,              0,          "Content64 data to write to tty"),
     SDATA_END()
 };
 
@@ -106,12 +106,12 @@ PRIVATE const char *a_write_tty[] = {EV_WRITE_TTY, 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD2--type-----------name----------------flag----------------alias---------------items-----------json_fn---------description---------- */
-SDATACM2 (ASN_SCHEMA,   "help",             0,                  a_help,             pm_help,        cmd_help,       "Command's help"),
-SDATACM2 (ASN_SCHEMA,   "write-tty",        0,                  a_write_tty,        pm_write_tty,   0,              "Write data to tty"),
+SDATACM2 (DTP_SCHEMA,   "help",             0,                  a_help,             pm_help,        cmd_help,       "Command's help"),
+SDATACM2 (DTP_SCHEMA,   "write-tty",        0,                  a_write_tty,        pm_write_tty,   0,              "Write data to tty"),
 // HACK DANGER backdoor, use Yuneta only in private networks, or public but encrypted and assured connections.
-SDATACM2 (ASN_SCHEMA,    "list-consoles",   0,                  0,                  0,              cmd_list_consoles, "List consoles"),
-SDATACM2 (ASN_SCHEMA,    "open-console",    0,                  0,                  pm_open_console,cmd_open_console, "Open console"),
-SDATACM2 (ASN_SCHEMA,    "close-console",   0,                  0,                  pm_close_console,cmd_close_console,"Close console"),
+SDATACM2 (DTP_SCHEMA,    "list-consoles",   0,                  0,                  0,              cmd_list_consoles, "List consoles"),
+SDATACM2 (DTP_SCHEMA,    "open-console",    0,                  0,                  pm_open_console,cmd_open_console, "Open console"),
+SDATACM2 (DTP_SCHEMA,    "close-console",   0,                  0,                  pm_close_console,cmd_close_console,"Close console"),
 
 SDATA_END()
 };
@@ -121,21 +121,21 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
-SDATA (ASN_OCTET_STR,   "__username__",     SDF_RD,             "",             "Username"),
-SDATA (ASN_OCTET_STR,   "tranger_path",     SDF_RD,             "/yuneta/store/agent2/yuneta_agent2.trdb", "tranger path"),
-SDATA (ASN_OCTET_STR,   "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
-SDATA (ASN_JSON,        "agent22_environment",SDF_RD,             0,              "Agent22 environment. Override the yuno environment"),
-SDATA (ASN_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
-SDATA (ASN_INTEGER,     "timerStBoot",      SDF_RD,             6*1000,         "Timer to run yunos on boot"),
-SDATA (ASN_INTEGER,     "signal2kill",      SDF_RD,             SIGQUIT,        "Signal to kill yunos"),
+SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username"),
+SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "/yuneta/store/agent2/yuneta_agent2.trdb", "tranger path"),
+SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
+SDATA (DTP_JSON,        "agent22_environment",SDF_RD,             0,              "Agent22 environment. Override the yuno environment"),
+SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
+SDATA (DTP_INTEGER,     "timerStBoot",      SDF_RD,             6*1000,         "Timer to run yunos on boot"),
+SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             SIGQUIT,        "Signal to kill yunos"),
 
-SDATA (ASN_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports"),
-SDATA (ASN_UNSIGNED,    "last_port",        SDF_WR,             0,              "Last port assigned"),
-SDATA (ASN_UNSIGNED,    "max_consoles",     SDF_WR,             10,             "Maximum consoles opened"),
+SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports"),
+SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
+SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             10,             "Maximum consoles opened"),
 
-SDATA (ASN_POINTER,     "user_data",        0,                  0,              "User data"),
-SDATA (ASN_POINTER,     "user_data2",       0,                  0,              "More user data"),
-SDATA (ASN_POINTER,     "subscriber",       0,                  0,              "Subscriber of output-events. Not a child gobj"),
+SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
+SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "Subscriber of output-events. Not a child gobj"),
 SDATA_END()
 };
 
@@ -156,9 +156,9 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 
 PRIVATE sdata_desc_t authz_table[] = {
 /*-AUTHZ-- type---------name----------------flag----alias---items---description--*/
-SDATAAUTHZ (ASN_SCHEMA, "open-console",     0,      0,      0,      "Permission to open console"),
-SDATAAUTHZ (ASN_SCHEMA, "close-console",    0,      0,      0,      "Permission to close console"),
-SDATAAUTHZ (ASN_SCHEMA, "list-consoles",    0,      0,      0,      "Permission to list consoles"),
+SDATAAUTHZ (DTP_SCHEMA, "open-console",     0,      0,      0,      "Permission to open console"),
+SDATAAUTHZ (DTP_SCHEMA, "close-console",    0,      0,      0,      "Permission to close console"),
+SDATAAUTHZ (DTP_SCHEMA, "list-consoles",    0,      0,      0,      "Permission to list consoles"),
 SDATA_END()
 };
 
@@ -231,13 +231,12 @@ PRIVATE void mt_create(hgobj gobj)
     /*----------------------------------------*
      *  Check node_owner
      *----------------------------------------*/
-    const char *node_owner = gobj_node_owner();
+    const char *node_owner = gobj_yuno_node_owner();
     if(empty_string(node_owner)) {
         node_owner = "none";
         gobj_set_node_owner(node_owner);
 
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "node_owner EMPTY, setting none",
@@ -268,12 +267,12 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
     if(!is_yuneta) {
-        trace_msg("User or group 'yuneta' is needed to run %s", gobj_yuno_role());
+        gobj_trace_msg(gobj, "User or group 'yuneta' is needed to run %s", gobj_yuno_role());
         printf("User or group 'yuneta' is needed to run %s\n", gobj_yuno_role());
         exit(0);
     }
 
-    priv->timer = gobj_create("", GCLASS_TIMER, 0, gobj);
+    priv->timer = gobj_create("", C_TIMER, 0, gobj);
 
     /*---------------------------------------*
      *      Check if already running
@@ -288,8 +287,7 @@ PRIVATE void mt_create(hgobj gobj)
 
             int ret = is_yuneta_agent22(pid);
             if(ret == 0) {
-                log_warning(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INFO,
                     "msg",          "%s", "yuneta_agent22 already running, exiting",
@@ -300,8 +298,7 @@ PRIVATE void mt_create(hgobj gobj)
             } else if(errno == ESRCH) {
                 unlink(pidfile);
             } else {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                     "msg",          "%s", "cannot check pid",
@@ -335,7 +332,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timerStBoot,             gobj_read_int32_attr)
+    SET_PRIV(timerStBoot,             gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -345,7 +342,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
 //     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 //
-//     IF_EQ_SET_PRIV(timeout,             gobj_read_int32_attr)
+//     IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
 //     END_EQ_SET_PRIV()
 }
 
@@ -426,7 +423,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     KW_INCREF(kw);
     json_t *jn_resp = gobj_build_cmds_doc(gobj, kw);
 
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         jn_resp,
@@ -448,7 +445,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *----------------------------------------*/
     const char *permission = "list-consoles";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("No permission to '%s'", permission),
@@ -469,19 +466,18 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
         json_t *jn_dup_console = json_deep_copy(jn_console);
         json_object_set_new(jn_data, name, jn_dup_console);
 
-        json_t *jn_routes = kw_get_dict(jn_dup_console, "routes", 0, KW_REQUIRED);
-        json_t *jn_gobjs = kw_get_dict(jn_dup_console, "gobjs", json_object(), KW_CREATE);
+        json_t *jn_routes = kw_get_dict(gobj, jn_dup_console, "routes", 0, KW_REQUIRED);
+        json_t *jn_gobjs = kw_get_dict(gobj, jn_dup_console, "gobjs", json_object(), KW_CREATE);
 
         const char *route_name; json_t *jn_route;
         json_object_foreach(jn_routes, route_name, jn_route) {
-            const char *route_service = kw_get_str(jn_route, "route_service", "", KW_REQUIRED);
-            const char *route_child = kw_get_str(jn_route,  "route_child", "", KW_REQUIRED);
+            const char *route_service = kw_get_str(gobj, jn_route, "route_service", "", KW_REQUIRED);
+            const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
             hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
             if(gobj_route_service) {
                 hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
                 if(!gobj_input_gate) {
-                    log_error(0,
-                        "gobj",         "%s", gobj_full_name(gobj),
+                    gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                         "msg",          "%s", "no route child found",
@@ -505,7 +501,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Inform
      */
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         result,
         json_sprintf("==> List consoles of agent22: '%s'", node_uuid()),
@@ -527,7 +523,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
      *----------------------------------------*/
     const char *permission = "open-console";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("No permission to '%s'", permission),
@@ -540,15 +536,15 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     /*----------------------------------------*
      *  Open console
      *----------------------------------------*/
-    const char *name = kw_get_str(kw, "name", "", 0);
-    const char *process = kw_get_str(kw, "process", "bash", 0);
-    const char *cwd = kw_get_str(kw, "cwd", "/home/yuneta", 0);
-    BOOL hold_open = kw_get_bool(kw, "hold_open", 0, KW_WILD_NUMBER);
-    int cx = kw_get_int(kw, "cx", 80, KW_WILD_NUMBER);
-    int cy = kw_get_int(kw, "cy", 24, KW_WILD_NUMBER);
+    const char *name = kw_get_str(gobj, kw, "name", "", 0);
+    const char *process = kw_get_str(gobj, kw, "process", "bash", 0);
+    const char *cwd = kw_get_str(gobj, kw, "cwd", "/home/yuneta", 0);
+    BOOL hold_open = kw_get_bool(gobj, kw, "hold_open", 0, KW_WILD_NUMBER);
+    int cx = kw_get_int(gobj, kw, "cx", 80, KW_WILD_NUMBER);
+    int cy = kw_get_int(gobj, kw, "cy", 24, KW_WILD_NUMBER);
 
     if(empty_string(name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What console name?"),
@@ -558,7 +554,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
     if(empty_string(process)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What process?"),
@@ -577,8 +573,8 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  New console
          */
-        if(kw_size(priv->list_consoles) > gobj_read_uint32_attr(gobj, "max_consoles")) {
-            return msg_iev_build_webix(
+        if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
@@ -599,7 +595,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
         gobj_console = gobj_create_unique(name, GCLASS_PTY, kw_pty, gobj);
         if(!gobj_console) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("Cannot open console: '%s'", name),
@@ -631,10 +627,10 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  Console already exists
          */
-        json_t *jn_console = kw_get_dict(priv->list_consoles, name, 0, KW_REQUIRED);
+        json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, KW_REQUIRED);
         gobj_console = gobj_find_unique_gobj(name, FALSE);
         if(!gobj_console) {
-            return msg_iev_build_webix(
+            return msg_iev_build_response(
                 gobj,
                 -1,
                 json_sprintf("Console gobj not found: '%s'", name),
@@ -646,7 +642,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         int ret = add_console_route(gobj, name, jn_console, src, kw);
         if(ret < 0) {
             if(ret == -2) {
-                return msg_iev_build_webix(
+                return msg_iev_build_response(
                     gobj,
                     -1,
                     json_sprintf("Console already open: '%s'", name),
@@ -655,7 +651,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
                     kw  // owned
                 );
             } else {
-                return msg_iev_build_webix(
+                return msg_iev_build_response(
                     gobj,
                     -1,
                     json_sprintf("Error opening console: '%s'", name),
@@ -670,7 +666,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     /*
      *  Inform
      */
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         0,
         0,
@@ -692,7 +688,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
      *----------------------------------------*/
     const char *permission = "close-console";
     if(!gobj_user_has_authz(gobj, permission, kw_incref(kw), src)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("No permission to '%s'", permission),
@@ -706,11 +702,11 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*----------------------------------------*
      *  Close console
      *----------------------------------------*/
-    const char *name = kw_get_str(kw, "name", "", 0);
-    BOOL force = kw_get_bool(kw, "force", 0, KW_WILD_NUMBER);
+    const char *name = kw_get_str(gobj, kw, "name", "", 0);
+    BOOL force = kw_get_bool(gobj, kw, "force", 0, KW_WILD_NUMBER);
 
     if(empty_string(name)) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("What console name?"),
@@ -720,9 +716,9 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    json_t *jn_console = kw_get_dict(priv->list_consoles, name, 0, 0);
+    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, 0);
     if(!jn_console) {
-        return msg_iev_build_webix(
+        return msg_iev_build_response(
             gobj,
             -1,
             json_sprintf("Console not found: '%s'", name),
@@ -732,7 +728,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         );
     }
 
-    BOOL hold_open = kw_get_bool(jn_console, "hold_open", 0, KW_REQUIRED);
+    BOOL hold_open = kw_get_bool(gobj, jn_console, "hold_open", 0, KW_REQUIRED);
     if(force) {
         hold_open = FALSE;
     }
@@ -753,7 +749,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Inform
      */
-    return msg_iev_build_webix(
+    return msg_iev_build_response(
         gobj,
         ret,
         json_sprintf("Console closed: '%s'", name),
@@ -784,7 +780,7 @@ PRIVATE int add_console_route(
     json_t *kw
 )
 {
-    json_t *jn_routes = kw_get_dict(jn_console_, "routes", 0, KW_REQUIRED);
+    json_t *jn_routes = kw_get_dict(gobj, jn_console_, "routes", 0, KW_REQUIRED);
 
     const char *route_service = gobj_name(gobj_nearest_top_unique(src));
     const char *route_child = gobj_name(src);
@@ -802,11 +798,10 @@ PRIVATE int add_console_route(
     json_t *jn_route = json_pack("{s:s, s:s, s:O}",
         "route_service", route_service,
         "route_child", route_child,
-        "__md_iev__", kw_get_dict(kw, "__md_iev__", 0, KW_REQUIRED)
+        "__md_iev__", kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED)
     );
     if(!jn_route) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "cannot create route",
@@ -839,8 +834,8 @@ PRIVATE int remove_console_route(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_console_ = kw_get_dict(priv->list_consoles, name, 0, 0);
-    json_t *jn_routes = kw_get_dict(jn_console_, "routes", 0, KW_REQUIRED);
+    json_t *jn_console_ = kw_get_dict(gobj, priv->list_consoles, name, 0, 0);
+    json_t *jn_routes = kw_get_dict(gobj, jn_console_, "routes", 0, KW_REQUIRED);
 
     char route_name[NAME_MAX];
     snprintf(route_name, sizeof(route_name), "%s.%s", route_service, route_child);
@@ -851,8 +846,7 @@ PRIVATE int remove_console_route(
     if(kw_has_key(jn_routes, route_name)) {
         json_object_del(jn_routes, route_name);
     } else {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "route not exist in local list",
@@ -872,8 +866,7 @@ PRIVATE int remove_console_route(
             if(consoles) {
                 json_object_del(consoles, route_name);
             } else {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "no route found in child gobj",
@@ -884,8 +877,7 @@ PRIVATE int remove_console_route(
                 );
             }
         } else {
-            log_error(0,
-                "gobj",         "%s", gobj_full_name(gobj),
+            gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                 "msg",          "%s", "no route child gobj found",
@@ -926,13 +918,12 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
     /*
      *  delete in local list
      */
-    json_t *jn_console = kw_get_dict(priv->list_consoles, name, 0, KW_EXTRACT);
+    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, KW_EXTRACT);
 
     hgobj gobj_console = gobj_find_unique_gobj(name, FALSE);
 
     if(!jn_console) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "no console conf found",
@@ -948,18 +939,17 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
     /*
      *  delete routes in input gates
      */
-    json_t *jn_routes = kw_get_dict(jn_console, "routes", 0, KW_REQUIRED);
+    json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
 
     const char *route; json_t *jn_route; void *n;
     json_object_foreach_safe(jn_routes, n, route, jn_route) {
-        const char *route_service = kw_get_str(jn_route, "route_service", "", KW_REQUIRED);
-        const char *route_child = kw_get_str(jn_route,  "route_child", "", KW_REQUIRED);
+        const char *route_service = kw_get_str(gobj, jn_route, "route_service", "", KW_REQUIRED);
+        const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
         hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
         if(gobj_route_service) {
             hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
             if(!gobj_input_gate) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "no route child found",
@@ -992,7 +982,7 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    hgobj gobj_channel = (hgobj)(size_t)kw_get_int(kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
+    hgobj gobj_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     json_t *consoles = gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
     if(!consoles) {
         return 0;
@@ -1003,9 +993,9 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
 
     const char *name; json_t *jn_; void *n;
     json_object_foreach_safe(consoles, n, name, jn_) {
-        json_t *jn_console = kw_get_dict(priv->list_consoles, name, 0, 0);
+        json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, 0);
 
-        BOOL hold_open = kw_get_bool(jn_console, "hold_open", 0, 0);
+        BOOL hold_open = kw_get_bool(gobj, jn_console, "hold_open", 0, 0);
         if(hold_open) {
             remove_console_route(gobj, name, route_service, route_child);
         } else {
@@ -1053,22 +1043,21 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_console = kw_get_dict(priv->list_consoles, gobj_name(src), 0, KW_REQUIRED);
+    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, gobj_name(src), 0, KW_REQUIRED);
     if(jn_console) {
-        json_t *jn_routes = kw_get_dict(jn_console, "routes", 0, KW_REQUIRED);
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
 
         const char *route_name; json_t *jn_route;
         json_object_foreach(jn_routes, route_name, jn_route) {
-            const char *route_service = kw_get_str(jn_route, "route_service", "", KW_REQUIRED);
-            const char *route_child = kw_get_str(jn_route,  "route_child", "", KW_REQUIRED);
+            const char *route_service = kw_get_str(gobj, jn_route, "route_service", "", KW_REQUIRED);
+            const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
             hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
             if(!gobj_route_service) {
                 continue;
             }
             hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
             if(!gobj_input_gate) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "no route child found",
@@ -1082,7 +1071,7 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_send_event(
                 gobj_input_gate,
                 "EV_TTY_OPEN",
-                msg_iev_build_webix2(gobj,
+                msg_iev_build_response2(gobj,
                     0,  // result
                     0,  // comment
                     0,  // schema
@@ -1111,22 +1100,21 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
-    json_t *jn_console = kw_get_dict(priv->list_consoles, gobj_name(src), 0, KW_EXTRACT);
+    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, gobj_name(src), 0, KW_EXTRACT);
     if(jn_console) {
-        json_t *jn_routes = kw_get_dict(jn_console, "routes", 0, KW_REQUIRED);
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
 
         const char *route_name; json_t *jn_route; void *n;
         json_object_foreach_safe(jn_routes, n, route_name, jn_route) {
-            const char *route_service = kw_get_str(jn_route, "route_service", "", KW_REQUIRED);
-            const char *route_child = kw_get_str(jn_route,  "route_child", "", KW_REQUIRED);
+            const char *route_service = kw_get_str(gobj, jn_route, "route_service", "", KW_REQUIRED);
+            const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
             hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
             if(!gobj_route_service) {
                 continue;
             }
             hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
             if(!gobj_input_gate) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "no route child found",
@@ -1146,7 +1134,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_send_event(
                 gobj_input_gate,
                 "EV_TTY_CLOSE",
-                msg_iev_build_webix2(gobj,
+                msg_iev_build_response2(gobj,
                     0,  // result
                     0,  // comment
                     0,  // schema
@@ -1172,22 +1160,21 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    json_t *jn_console = kw_get_dict(priv->list_consoles, gobj_name(src), 0, KW_REQUIRED);
+    json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, gobj_name(src), 0, KW_REQUIRED);
     if(jn_console) {
-        json_t *jn_routes = kw_get_dict(jn_console, "routes", 0, KW_REQUIRED);
+        json_t *jn_routes = kw_get_dict(gobj, jn_console, "routes", 0, KW_REQUIRED);
 
         const char *route_name; json_t *jn_route;
         json_object_foreach(jn_routes, route_name, jn_route) {
-            const char *route_service = kw_get_str(jn_route, "route_service", "", KW_REQUIRED);
-            const char *route_child = kw_get_str(jn_route,  "route_child", "", KW_REQUIRED);
+            const char *route_service = kw_get_str(gobj, jn_route, "route_service", "", KW_REQUIRED);
+            const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
             hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
             if(!gobj_route_service) {
                 continue;
             }
             hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
             if(!gobj_input_gate) {
-                log_error(0,
-                    "gobj",         "%s", gobj_full_name(gobj),
+                gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
                     "msg",          "%s", "no route child found",
@@ -1201,7 +1188,7 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_send_event(
                 gobj_input_gate,
                 "EV_TTY_DATA",
-                msg_iev_build_webix2(gobj,
+                msg_iev_build_response2(gobj,
                     0,  // result
                     0,  // comment
                     0,  // schema
@@ -1223,11 +1210,10 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    const char *name= kw_get_str(kw, "name", 0, 0);
-    const char *content64 = kw_get_str(kw, "content64", 0, 0);
+    const char *name= kw_get_str(gobj, kw, "name", 0, 0);
+    const char *content64 = kw_get_str(gobj, kw, "content64", 0, 0);
     if(empty_string(content64)) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "content64 required",
@@ -1241,8 +1227,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     hgobj gobj_console = gobj_find_unique_gobj(name, FALSE);
     if(!gobj_console) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "console not found",
@@ -1254,10 +1239,9 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
-    GBUFFER *gbuf = gbuf_decodebase64string(content64);
+    gbuffer_t *gbuf = gbuf_decodebase64string(content64);
     if(!gbuf) {
-        log_error(0,
-            "gobj",         "%s", gobj_full_name(gobj),
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "Bad data",

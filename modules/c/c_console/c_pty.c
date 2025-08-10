@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <pty.h>
+#include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include "c_pty.h"
@@ -134,9 +135,9 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(rows,          gobj_read_uint32_attr)
-    SET_PRIV(cols,          gobj_read_uint32_attr)
-    SET_PRIV(max_tx_queue,  gobj_read_uint32_attr)
+    SET_PRIV(rows,          gobj_read_integer_attr)
+    SET_PRIV(cols,          gobj_read_integer_attr)
+    SET_PRIV(max_tx_queue,  gobj_read_integer_attr)
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber)
@@ -167,7 +168,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
      PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-     IF_EQ_SET_PRIV(max_tx_queue,   gobj_read_uint32_attr)
+     IF_EQ_SET_PRIV(max_tx_queue,   gobj_read_integer_attr)
      END_EQ_SET_PRIV()
 }
 
@@ -189,7 +190,7 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-    uv_disable_stdio_inheritance(); // like ttyd
+    // TODO uv_disable_stdio_inheritance(); // like ttyd
 
     BOOL tty_empty = (empty_string(priv->argv[0]))?TRUE:FALSE;
     BOOL no_output = gobj_read_bool_attr(gobj, "no_output");
@@ -282,7 +283,7 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         close(master);
-        uv_kill(pid, SIGKILL);
+        kill(pid, SIGKILL);
         waitpid(pid, NULL, 0);
         return -1;
     }
@@ -297,7 +298,7 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         close(master);
-        uv_kill(pid, SIGKILL);
+        kill(pid, SIGKILL);
         waitpid(pid, NULL, 0);
         return -1;
     }
@@ -311,58 +312,53 @@ PRIVATE int mt_start(hgobj gobj)
             NULL
         );
         close(master);
-        uv_kill(pid, SIGKILL);
+        kill(pid, SIGKILL);
         waitpid(pid, NULL, 0);
         return -1;
     }
 
     if(1) {
-        uv_pipe_init(yuno_uv_event_loop(), &priv->uv_in, 0);
-        priv->uv_in.data = gobj;
-
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, ">>> uv_pipe_init pty in p=%p", &priv->uv_in);
-        }
-
-        if(!fd_duplicate(master, &priv->uv_in)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "fd_duplicate() FAILED",
-                "errno",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
-                NULL
-            );
-            close(master);
-            uv_kill(pid, SIGKILL);
-            waitpid(pid, NULL, 0);
-            return -1;
-        }
+// TODO       uv_pipe_init(yuno_uv_event_loop(), &priv->uv_in, 0);
+//        priv->uv_in.data = gobj;
+//        if(!fd_duplicate(master, &priv->uv_in)) {
+//            gobj_log_error(gobj, 0,
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//                "msg",          "%s", "fd_duplicate() FAILED",
+//                "errno",        "%d", errno,
+//                "strerror",     "%s", strerror(errno),
+//                NULL
+//            );
+//            close(master);
+//            kill(pid, SIGKILL);
+//            waitpid(pid, NULL, 0);
+//            return -1;
+//        }
         priv->uv_handler_in_active = TRUE;
     }
 
     if(!no_output) {
-        uv_pipe_init(yuno_uv_event_loop(), &priv->uv_out, 0);
-        priv->uv_out.data = gobj;
-
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, ">>> uv_pipe_init pty out p=%p", &priv->uv_out);
-        }
-
-        if(!fd_duplicate(master, &priv->uv_out)) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                "msg",          "%s", "fd_duplicate() FAILED",
-                "errno",        "%d", errno,
-                "strerror",     "%s", strerror(errno),
-                NULL
-            );
-            close(master);
-            uv_kill(pid, SIGKILL);
-            waitpid(pid, NULL, 0);
-            return -1;
-        }
+// TODO       uv_pipe_init(yuno_uv_event_loop(), &priv->uv_out, 0);
+//        priv->uv_out.data = gobj;
+//
+//        if(gobj_trace_level(gobj) & TRACE_UV) {
+//            gobj_trace_msg(gobj, ">>> uv_pipe_init pty out p=%p", &priv->uv_out);
+//        }
+//
+//        if(!fd_duplicate(master, &priv->uv_out)) {
+//            gobj_log_error(gobj, 0,
+//                "function",     "%s", __FUNCTION__,
+//                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//                "msg",          "%s", "fd_duplicate() FAILED",
+//                "errno",        "%d", errno,
+//                "strerror",     "%s", strerror(errno),
+//                NULL
+//            );
+//            close(master);
+//            kill(pid, SIGKILL);
+//            waitpid(pid, NULL, 0);
+//            return -1;
+//        }
         priv->uv_handler_out_active = TRUE;
     }
 
@@ -370,11 +366,8 @@ PRIVATE int mt_start(hgobj gobj)
     priv->pid = pid;        // child pid
 
     if(priv->uv_handler_out_active) {
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, ">>> uv_read_start pty out p=%p", &priv->uv_out);
-        }
         priv->uv_read_active = 1;
-        uv_read_start((uv_stream_t*)&priv->uv_out, on_alloc_cb, on_read_cb);
+        // TODO uv_read_start((uv_stream_t*)&priv->uv_out, on_alloc_cb, on_read_cb);
     }
 
     json_t *kw_on_open = json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:i, s:i}",
@@ -400,32 +393,32 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(priv->uv_read_active) {
-        uv_read_stop((uv_stream_t *)&priv->uv_out);
+        // TODO uv_read_stop((uv_stream_t *)&priv->uv_out);
         priv->uv_read_active = 0;
     }
 
     if(priv->uv_handler_in_active) {
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, ">>> uv_close(cb %d) pty in p=%p",
-                !gobj_is_imminent_destroy(gobj),
-                &priv->uv_in
-            );
-        }
-        uv_close((uv_handle_t *)&priv->uv_in,
-            gobj_is_imminent_destroy(gobj)?0:on_close_cb
-        );
+// TODO //        if(gobj_trace_level(gobj) & TRACE_UV) {
+//            gobj_trace_msg(gobj, ">>> uv_close(cb %d) pty in p=%p",
+//                !gobj_is_imminent_destroy(gobj),
+//                &priv->uv_in
+//            );
+//        }
+//        uv_close((uv_handle_t *)&priv->uv_in,
+//            gobj_is_imminent_destroy(gobj)?0:on_close_cb
+//        );
     }
-    if(priv->uv_handler_out_active) {
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, ">>> uv_close(cb %d) pty out p=%p",
-                !gobj_is_imminent_destroy(gobj),
-                &priv->uv_out
-            );
-        }
-        uv_close((uv_handle_t *)&priv->uv_out,
-            gobj_is_imminent_destroy(gobj)?0:on_close_cb
-        );
-    }
+// TODO //    if(priv->uv_handler_out_active) {
+//        if(gobj_trace_level(gobj) & TRACE_UV) {
+//            gobj_trace_msg(gobj, ">>> uv_close(cb %d) pty out p=%p",
+//                !gobj_is_imminent_destroy(gobj),
+//                &priv->uv_out
+//            );
+//        }
+//        uv_close((uv_handle_t *)&priv->uv_out,
+//            gobj_is_imminent_destroy(gobj)?0:on_close_cb
+//        );
+//    }
 
     if(priv->pty != -1) {
         close(priv->pty);
@@ -433,8 +426,8 @@ PRIVATE int mt_stop(hgobj gobj)
     }
 
     if(priv->pid > 0) {
-        if(uv_kill(priv->pid, 0) == 0) {
-            uv_kill(priv->pid, SIGKILL);
+        if(kill(priv->pid, 0) == 0) {
+            kill(priv->pid, SIGKILL);
             waitpid(priv->pid, NULL, 0);
         }
         priv->pid = -1;
@@ -471,50 +464,50 @@ PRIVATE void catcher(int signum)
  *  Only NOW you can destroy this gobj,
  *  when uv has released the handler.
  ***************************************************************************/
-PRIVATE void on_close_cb(uv_handle_t* handle)
-{
-    hgobj gobj = handle->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if((uv_handle_t *)handle == (uv_handle_t *)&priv->uv_in) {
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, "<<< on_close_cb pty in p=%p", &priv->uv_in);
-        }
-        priv->uv_handler_in_active = 0;
-
-    } else if((uv_handle_t *)handle == (uv_handle_t *)&priv->uv_out) {
-        if(gobj_trace_level(gobj) & TRACE_UV) {
-            gobj_trace_msg(gobj, "<<< on_close_cb pty out p=%p", &priv->uv_out);
-        }
-        priv->uv_handler_out_active = 0;
-
-    } else {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "handler UNKNOWN",
-            "pty",          "%p", handle,
-            NULL
-        );
-        return;
-    }
-
-    if(!priv->uv_handler_in_active && !priv->uv_handler_out_active) {
-        json_t *kw_on_close = json_pack("{s:s, s:s, s:s, s:s}}",
-            "name", gobj_name(gobj),
-            "process", priv->argv[0],
-            "uuid", node_uuid(),
-            "slave_name", priv->slave_name
-        );
-        gobj_publish_event(gobj, EV_TTY_CLOSE, kw_on_close);
-
-        if(gobj_is_volatil(gobj)) {
-            gobj_destroy(gobj);
-        } else {
-            gobj_publish_event(gobj, EV_STOPPED, 0);
-        }
-    }
-}
+// TODO //PRIVATE void on_close_cb(uv_handle_t* handle)
+//{
+//    hgobj gobj = handle->data;
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    if((uv_handle_t *)handle == (uv_handle_t *)&priv->uv_in) {
+//        if(gobj_trace_level(gobj) & TRACE_UV) {
+//            gobj_trace_msg(gobj, "<<< on_close_cb pty in p=%p", &priv->uv_in);
+//        }
+//        priv->uv_handler_in_active = 0;
+//
+//    } else if((uv_handle_t *)handle == (uv_handle_t *)&priv->uv_out) {
+//        if(gobj_trace_level(gobj) & TRACE_UV) {
+//            gobj_trace_msg(gobj, "<<< on_close_cb pty out p=%p", &priv->uv_out);
+//        }
+//        priv->uv_handler_out_active = 0;
+//
+//    } else {
+//        gobj_log_error(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//            "msg",          "%s", "handler UNKNOWN",
+//            "pty",          "%p", handle,
+//            NULL
+//        );
+//        return;
+//    }
+//
+//    if(!priv->uv_handler_in_active && !priv->uv_handler_out_active) {
+//        json_t *kw_on_close = json_pack("{s:s, s:s, s:s, s:s}}",
+//            "name", gobj_name(gobj),
+//            "process", priv->argv[0],
+//            "uuid", node_uuid(),
+//            "slave_name", priv->slave_name
+//        );
+//        gobj_publish_event(gobj, EV_TTY_CLOSE, kw_on_close);
+//
+//        if(gobj_is_volatil(gobj)) {
+//            gobj_destroy(gobj);
+//        } else {
+//            gobj_publish_event(gobj, EV_STOPPED, 0);
+//        }
+//    }
+//}
 
 /***************************************************************************
  *
@@ -531,140 +524,127 @@ PRIVATE BOOL fd_set_cloexec(const int fd)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL fd_duplicate(int fd, uv_pipe_t *pipe)
-{
-    int fd_dup = dup(fd);
-    if (fd_dup < 0) {
-        return FALSE;
-    }
-
-    if (!fd_set_cloexec(fd_dup)) {
-        return FALSE;
-    }
-
-    int status = uv_pipe_open(pipe, fd_dup);
-    if (status) {
-        close(fd_dup);
-    }
-    return status == 0;
-}
-
-/***************************************************************************
- *  on alloc callback
- ***************************************************************************/
-PRIVATE void on_alloc_cb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf)
-{
-    hgobj gobj = handle->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    // TODO: OPTIMIZE to use few memory
-    buf->base = priv->bfinput;
-    buf->len = sizeof(priv->bfinput);
-}
+// TODO //PRIVATE BOOL fd_duplicate(int fd, uv_pipe_t *pipe)
+//{
+//    int fd_dup = dup(fd);
+//    if (fd_dup < 0) {
+//        return FALSE;
+//    }
+//
+//    if (!fd_set_cloexec(fd_dup)) {
+//        return FALSE;
+//    }
+//
+//    int status = uv_pipe_open(pipe, fd_dup);
+//    if (status) {
+//        close(fd_dup);
+//    }
+//    return status == 0;
+//}
 
 /***************************************************************************
  *  on read callback
  ***************************************************************************/
-PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
-{
-    hgobj gobj = stream->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, "<<< on_read_cb %d pty out p=%p",
-            (int)nread,
-            &priv->uv_out
-        );
-    }
-
-    if(nread < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "read FAILED",
-            "error",        "%d", nread,
-            "uv_error",     "%s", uv_err_name(nread),
-            NULL
-        );
-        if(gobj_is_running(gobj)) {
-            gobj_stop(gobj); // auto-stop
-        }
-        return;
-    }
-
-    if(nread == 0) {
-        // Yes, sometimes arrive with nread 0.
-        return;
-    }
-
-    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-        gobj_trace_dump(gobj,
-            0,
-            buf->base,
-            nread,
-            "READ from PTY %s",
-            gobj_short_name(gobj)
-        );
-    }
-
-    gbuffer_t *gbuf = gbuf_string2base64(buf->base, nread);
-    if(!gbuf) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "gbuf_string2base64() FAILED",
-            NULL
-        );
-        return;
-    }
-
-    json_t *kw = json_pack("{s:s, s:s, s:s, s:s}",
-        "name", gobj_name(gobj),
-        "process", priv->argv[0],
-        "slave_name", priv->slave_name,
-        "content64", gbuffer_cur_rd_pointer(gbuf)
-    );
-    gobj_publish_event(gobj, EV_TTY_DATA, kw);
-    gbuffer_decref(gbuf);
-}
+// TODO //PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf)
+//{
+//    hgobj gobj = stream->data;
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    if(gobj_trace_level(gobj) & TRACE_UV) {
+//        gobj_trace_msg(gobj, "<<< on_read_cb %d pty out p=%p",
+//            (int)nread,
+//            &priv->uv_out
+//        );
+//    }
+//
+//    if(nread < 0) {
+//        gobj_log_error(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//            "msg",          "%s", "read FAILED",
+//            "error",        "%d", nread,
+//            "uv_error",     "%s", uv_err_name(nread),
+//            NULL
+//        );
+//        if(gobj_is_running(gobj)) {
+//            gobj_stop(gobj); // auto-stop
+//        }
+//        return;
+//    }
+//
+//    if(nread == 0) {
+//        // Yes, sometimes arrive with nread 0.
+//        return;
+//    }
+//
+//    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+//        gobj_trace_dump(gobj,
+//            0,
+//            buf->base,
+//            nread,
+//            "READ from PTY %s",
+//            gobj_short_name(gobj)
+//        );
+//    }
+//
+//    gbuffer_t *gbuf = gbuf_string2base64(buf->base, nread);
+//    if(!gbuf) {
+//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_MEMORY_ERROR,
+//            "msg",          "%s", "gbuf_string2base64() FAILED",
+//            NULL
+//        );
+//        return;
+//    }
+//
+//    json_t *kw = json_pack("{s:s, s:s, s:s, s:s}",
+//        "name", gobj_name(gobj),
+//        "process", priv->argv[0],
+//        "slave_name", priv->slave_name,
+//        "content64", gbuffer_cur_rd_pointer(gbuf)
+//    );
+//    gobj_publish_event(gobj, EV_TTY_DATA, kw);
+//    gbuffer_decref(gbuf);
+//}
 
 /***************************************************************************
  *  on write callback
  ***************************************************************************/
-PRIVATE void on_write_cb(uv_write_t* req, int status)
-{
-    hgobj gobj = req->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    priv->uv_req_write_active = 0;
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        gobj_trace_msg(gobj, ">>> on_write_cb pty in p=%p",
-            &priv->uv_in
-        );
-    }
-
-    if(status != 0) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-            "msg",          "%s", "on_write_cb FAILED",
-            "status",       "%d", status,
-            NULL
-        );
-        if(gobj_is_running(gobj)) {
-            gobj_stop(gobj); // auto-stop
-        }
-        return;
-    }
-
-    gbuffer_t *gbuf = dl_first(&priv->dl_tx);
-    if(gbuf) {
-        dl_delete(&priv->dl_tx, gbuf, 0);
-        write_data_to_pty(gobj, gbuf);
-        GBUFFER_DECREF(gbuf);
-    }
-}
+// TODO //PRIVATE void on_write_cb(uv_write_t* req, int status)
+//{
+//    hgobj gobj = req->data;
+//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//    priv->uv_req_write_active = 0;
+//
+//    if(gobj_trace_level(gobj) & TRACE_UV) {
+//        gobj_trace_msg(gobj, ">>> on_write_cb pty in p=%p",
+//            &priv->uv_in
+//        );
+//    }
+//
+//    if(status != 0) {
+//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
+//            "msg",          "%s", "on_write_cb FAILED",
+//            "status",       "%d", status,
+//            NULL
+//        );
+//        if(gobj_is_running(gobj)) {
+//            gobj_stop(gobj); // auto-stop
+//        }
+//        return;
+//    }
+//
+//    gbuffer_t *gbuf = dl_first(&priv->dl_tx);
+//    if(gbuf) {
+//        dl_delete(&priv->dl_tx, gbuf, 0);
+//        write_data_to_pty(gobj, gbuf);
+//        GBUFFER_DECREF(gbuf);
+//    }
+//}
 
 /***************************************************************************
  *  Write data to pseudo terminal
@@ -684,58 +664,58 @@ PRIVATE int write_data_to_pty(hgobj gobj, gbuffer_t *gbuf)
         return -1;
     }
 
-    priv->uv_req_write_active = 1;
-    priv->uv_req_write.data = gobj;
-
-    size_t ln = gbuffer_chunk(gbuf); // TODO y si ln es 0??????????
-
-    char *bf = gbuffer_get(gbuf, ln);
-    const char *bracket_paste_mode = "\e[200~";
-    int xl = strlen(bracket_paste_mode);
-    if(ln >= xl) {
-        if(memcmp(bf, bracket_paste_mode, xl)==0) {
-            bf += xl;
-            ln -= xl;
-        }
-    }
-    uv_buf_t b[] = {
-        {.base = bf, .len = ln}
-    };
-    uint32_t trace = gobj_trace_level(gobj);
-    if((trace & TRACE_UV)) {
-        gobj_trace_msg(gobj, ">>> uv_write pty in p=%p, send %d\n", (uv_stream_t *)&priv->uv_in, (int)ln);
-    }
-    int ret = uv_write(
-        &priv->uv_req_write,
-        (uv_stream_t*)&priv->uv_in,
-        b,
-        1,
-        on_write_cb
-    );
-    if(ret < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "uv_write FAILED",
-            "uv_error",     "%s", uv_err_name(ret),
-            "ln",           "%d", ln,
-            NULL
-        );
-        priv->uv_req_write_active = 0;
-        if(gobj_is_running(gobj)) {
-            gobj_stop(gobj); // auto-stop
-        }
-        return -1;
-    }
-    if((trace & TRACE_TRAFFIC)) {
-        gobj_trace_dump(gobj,
-            0,
-            bf,
-            ln,
-            "WRITE to PTY %s",
-            gobj_short_name(gobj)
-        );
-    }
+// TODO //    priv->uv_req_write_active = 1;
+//    priv->uv_req_write.data = gobj;
+//
+//    size_t ln = gbuffer_chunk(gbuf); // TODO y si ln es 0??????????
+//
+//    char *bf = gbuffer_get(gbuf, ln);
+//    const char *bracket_paste_mode = "\e[200~";
+//    int xl = strlen(bracket_paste_mode);
+//    if(ln >= xl) {
+//        if(memcmp(bf, bracket_paste_mode, xl)==0) {
+//            bf += xl;
+//            ln -= xl;
+//        }
+//    }
+//    uv_buf_t b[] = {
+//        {.base = bf, .len = ln}
+//    };
+//    uint32_t trace = gobj_trace_level(gobj);
+//    if((trace & TRACE_UV)) {
+//        gobj_trace_msg(gobj, ">>> uv_write pty in p=%p, send %d\n", (uv_stream_t *)&priv->uv_in, (int)ln);
+//    }
+//    int ret = uv_write(
+//        &priv->uv_req_write,
+//        (uv_stream_t*)&priv->uv_in,
+//        b,
+//        1,
+//        on_write_cb
+//    );
+//    if(ret < 0) {
+//        gobj_log_error(gobj, 0,
+//            "function",     "%s", __FUNCTION__,
+//            "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//            "msg",          "%s", "uv_write FAILED",
+//            "uv_error",     "%s", uv_err_name(ret),
+//            "ln",           "%d", ln,
+//            NULL
+//        );
+//        priv->uv_req_write_active = 0;
+//        if(gobj_is_running(gobj)) {
+//            gobj_stop(gobj); // auto-stop
+//        }
+//        return -1;
+//    }
+//    if((trace & TRACE_TRAFFIC)) {
+//        gobj_trace_dump(gobj,
+//            0,
+//            bf,
+//            ln,
+//            "WRITE to PTY %s",
+//            gobj_short_name(gobj)
+//        );
+//    }
 
     return 0;
 }

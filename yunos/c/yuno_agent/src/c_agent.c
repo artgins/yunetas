@@ -1014,7 +1014,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*----------------------------------------*
      *  Check node_owner
      *----------------------------------------*/
-    const char *node_owner = gobj_node_owner();
+    const char *node_owner = gobj_yuno_node_owner();
     if(empty_string(node_owner)) {
         node_owner = "none";
         gobj_set_node_owner(node_owner);
@@ -1593,7 +1593,7 @@ PRIVATE json_t *cmd_dir_local_data(hgobj gobj, const char *cmd, json_t *kw, hgob
     build_yuno_private_domain(gobj, node, private_domain, sizeof(private_domain));
 
     char yuno_data_path[NAME_MAX];
-    const char *work_dir = yuneta_work_dir();
+    const char *work_dir = yuneta_root_dir();
     build_path2(yuno_data_path, sizeof(yuno_data_path), work_dir, private_domain);
 
     int size;
@@ -6314,7 +6314,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  New console
          */
-        if(kw_size(priv->list_consoles) > gobj_read_uint32_attr(gobj, "max_consoles")) {
+        if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
             return msg_iev_build_response(
                 gobj,
                 -1,
@@ -6871,7 +6871,7 @@ PRIVATE char *yuneta_repos_yuno_dir(
     const char *yuno_version,
     BOOL create)
 {
-    const char *work_dir = yuneta_work_dir();
+    const char *work_dir = yuneta_root_dir();
     char tags[NAME_MAX];
     multiple_dir(tags, sizeof(tags), jn_tags);
 
@@ -6954,7 +6954,7 @@ PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsiz
     char private_domain[PATH_MAX];
     build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain));
 
-    const char *work_dir = yuneta_work_dir();
+    const char *work_dir = yuneta_root_dir();
     build_path3(bf, bfsize, work_dir, private_domain, "bin");
 
     if(create_dir) {
@@ -6981,7 +6981,7 @@ PRIVATE char * build_yuno_log_path(hgobj gobj, json_t *yuno, char *bf, int bfsiz
     char private_domain[PATH_MAX];
     build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain));
 
-    const char *work_dir = yuneta_work_dir();
+    const char *work_dir = yuneta_root_dir();
     build_path3(bf, bfsize, work_dir, private_domain, "logs");
 
     if(create_dir) {
@@ -7477,7 +7477,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     BOOL only_double_quotes
 )
 {
-    const char *work_dir = yuneta_work_dir();
+    const char *work_dir = yuneta_root_dir();
     const char *yuno_id = SDATA_GET_ID(yuno);
 
     /*
@@ -7548,7 +7548,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             json_object_update(jn_global, jn_node_variables);
         }
 
-        const char *node_owner = gobj_node_owner();
+        const char *node_owner = gobj_yuno_node_owner();
         if(empty_string(node_owner)) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -8342,7 +8342,7 @@ PRIVATE int get_last_public_port(hgobj gobj)
         }
     }
 
-    gobj_write_uint32_attr(gobj, "last_port", last_port);
+    gobj_write_integer_attr(gobj, "last_port", last_port);
 
     JSON_DECREF(iter)
     return last_port;
@@ -8391,7 +8391,7 @@ PRIVATE int get_new_service_port(
         new_port = json_list_int(jn_port_list, idx);
     }
 
-    gobj_write_uint32_attr(gobj, "last_port", new_port);
+    gobj_write_integer_attr(gobj, "last_port", new_port);
 
     JSON_DECREF(jn_port_list);
     return new_port;
