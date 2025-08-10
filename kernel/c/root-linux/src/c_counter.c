@@ -417,7 +417,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(GCLASS_COUNTER);
+GOBJ_DEFINE_GCLASS(C_COUNTER);
 
 /*------------------------*
  *      States
@@ -498,5 +498,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_counter(void)
 {
-    return create_gclass(GCLASS_COUNTER);
+    return create_gclass(C_COUNTER);
 }
