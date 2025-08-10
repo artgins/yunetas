@@ -20,11 +20,11 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 #   Source
 ##############################################
 add_subdirectory(controlcenter)
-#add_subdirectory(dba_postgres)
+add_subdirectory(dba_postgres)
 add_subdirectory(emailsender)
 #add_subdirectory(emu_device)
 add_subdirectory(logcenter)
-#add_subdirectory(sgateway)
+# add_subdirectory(sgateway)
 add_subdirectory(watchfs)
 #add_subdirectory(yuno_agent)
 #add_subdirectory(yuno_agent22)

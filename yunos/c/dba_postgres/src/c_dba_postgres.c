@@ -8,10 +8,13 @@
  *          All Rights Reserved.
  ***********************************************************************/
 #include <grp.h>
+#include <pwd.h>
 #include <unistd.h>
 #include <string.h>
+#include <limits.h>
 #include <stdio.h>
 #include "c_dba_postgres.h"
+
 
 /***************************************************************************
  *              Constants
@@ -351,7 +354,7 @@ PRIVATE json_t *result_create_table_if_not_exists(
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_DATABASE_ERROR,
+            "msgset",       "%s", MSGSET_APP_ERROR,
             "msg",          "%s", "Cannot create table",
             NULL
         );
@@ -433,7 +436,7 @@ PRIVATE json_t *result_add_row(
             left_justify(temp);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_DATABASE_ERROR,
+                "msgset",       "%s", MSGSET_APP_ERROR,
                 "msg",          "%s", temp,
                 NULL
             );
@@ -505,7 +508,7 @@ PRIVATE int send_ack(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        log_debug_json(LOG_DUMP_OUTPUT, kw_ack,
+        gobj_trace_json(gobj, kw_ack,
             "🔄🔄🔄🔄Dba_postgres 👈👈 %"JSON_INTEGER_FORMAT" %s ==> %s",
             kw_get_int(gobj, kw_ack, __MD_TRQ__"`__msg_key__", 0, KW_REQUIRED),
             gobj_short_name(gobj),
@@ -540,7 +543,7 @@ PRIVATE json_t *record2createtable(
     //const char *pkey2s = kw_get_str(gobj, schema, "pkey2s", "", KW_REQUIRED);
     BOOL use_header = kw_get_bool(gobj, schema, "use_header", 0, KW_REQUIRED);
 
-    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(8*1024, 8*1024);
 
     gbuffer_printf(gbuf,
         "CREATE TABLE IF NOT EXISTS %s (",
@@ -598,7 +601,7 @@ PRIVATE json_t *record2createtable(
             DEFAULTS
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_DATABASE_ERROR,
+                    "msgset",       "%s", MSGSET_APP_ERROR,
                     "msg",          "%s", "Type header UNKNOWN",
                     "type",         "%s", type,
                     NULL
@@ -644,7 +647,7 @@ PRIVATE json_t *record2insertsql(
     const char *topic_name = kw_get_str(gobj, schema, "id", "", KW_REQUIRED);
     BOOL use_header = kw_get_bool(gobj, schema, "use_header", 0, KW_REQUIRED);
 
-    gbuffer_t *gbuf = gbuffer_create(32*1024, 32*1024, 0, 0);
+    gbuffer_t *gbuf = gbuffer_create(32*1024, 32*1024);
 
     gbuffer_printf(gbuf, "INSERT INTO %s (", topic_name);
 
@@ -724,7 +727,7 @@ PRIVATE json_t *record2insertsql(
             DEFAULTS
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_DATABASE_ERROR,
+                    "msgset",       "%s", MSGSET_APP_ERROR,
                     "msg",          "%s", "Type header UNKNOWN",
                     "type",         "%s", type,
                     NULL
@@ -777,7 +780,7 @@ PRIVATE int process_msg(
     /*-----------------------------*
      *      Check if exists task
      *-----------------------------*/
-    if(gobj_find_unique_gobj(task_name, FALSE)) {
+    if(gobj_find_service(task_name, FALSE)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -804,7 +807,7 @@ PRIVATE int process_msg(
             "exec_timeout", 20*1000
     );
 
-    hgobj gobj_task = gobj_create_unique(task_name, GCLASS_TASK, kw_task, gobj);
+    hgobj gobj_task = gobj_create_service(task_name, C_TASK, kw_task, gobj);
     gobj_subscribe_event(gobj_task, "EV_END_TASK", 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
