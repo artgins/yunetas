@@ -22,12 +22,9 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 SET (YUNO_SRCS
     src/main.c
     src/c_ycommand.c
-    src/common/c_editline.c
-    src/common/g_ev_console.c
 )
 SET (YUNO_HDRS
     src/c_ycommand.h
-    src/common/c_editline.h
 )
 
 ##############################################
@@ -42,6 +39,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
+    libyunetas-c_console.a
     panel.a
     ncurses.a
 )

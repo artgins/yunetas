@@ -13,6 +13,7 @@
 #include <string.h>
 #include <limits.h>
 #include <stdio.h>
+#include <c_postgres.h>
 #include "c_dba_postgres.h"
 
 

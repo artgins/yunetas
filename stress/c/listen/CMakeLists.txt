@@ -23,15 +23,12 @@ SET(SRCS
     listen
 )
 
-SET(COMMON
-)
-
 ##############################################
 #   Tests
 ##############################################
 foreach(test ${SRCS})
     set(binary "stress_${test}")
-    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
+    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
 
     target_link_libraries(${binary}
         ${YUNETAS_KERNEL_LIBS}

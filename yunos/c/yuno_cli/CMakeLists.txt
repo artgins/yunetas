@@ -36,8 +36,6 @@ SET (YUNO_SRCS
     src/c_wn_list.c
     src/c_wn_toolbar.c
     src/c_wn_static.c
-    src/common/c_editline.c
-    src/common/g_ev_console.c
 )
 SET (YUNO_HDRS
     src/c_cli.h
@@ -62,6 +60,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
+    libyunetas-c_console.a
     panel.a
     ncurses.a
 )

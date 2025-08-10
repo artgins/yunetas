@@ -427,7 +427,7 @@ int main(int argc, char *argv[])
         exit(0);
     }
     if(arguments.print_yuneta_version) {
-        printf("%s\n", __yuneta_long_version__);
+        printf("%s\n", YUNETA_VERSION);
         exit(0);
     }
 
@@ -443,7 +443,7 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack("{s:{}}",
             "global"
         );
-        json_t *kw_emu_device = kw_get_dict_value(kw_utility, "global", 0, 0);
+        json_t *kw_emu_device = kw_get_dict_value(0, kw_utility, "global", 0, 0);
 
         if(arguments.url) {
             json_object_set_new(kw_emu_device, "Emu_device.url", json_string(arguments.url));
@@ -563,14 +563,14 @@ int main(int argc, char *argv[])
 #endif
 
     if(arguments.verbose > 0) {
-        gobj_set_gclass_trace(GCLASS_EMU_DEVICE, "info", TRUE);
+        gobj_set_gclass_trace(C_EMU_DEVICE, "info", TRUE);
     }
     if(arguments.verbose > 1) {
         gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents", TRUE);
         gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "kw", TRUE);
     }
     if(arguments.verbose > 2) {
-        gobj_set_gclass_trace(GCLASS_TCP0, "traffic", TRUE);
+        gobj_set_gclass_trace(C_TCP, "traffic", TRUE);
     }
     if(arguments.verbose > 3) {
         gobj_set_gobj_trace(0, "machine", TRUE, 0);

@@ -409,25 +409,6 @@ PRIVATE void set_connected(hgobj gobj)
 }
 
 /***************************************************************************
-  *
-  ***************************************************************************/
-PRIVATE void on_close_cb(uv_handle_t* handle)
-{
-    hgobj gobj = handle->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, "<<<< on_close_cb poll p=%p", handle);
-    }
-    if(priv->conn) {
-        PQfinish(priv->conn);
-        priv->conn = 0;
-    }
-    gobj_write_bool_attr(gobj, "connected", FALSE);
-    gobj_send_event(gobj, EV_STOPPED, 0, gobj);
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE void set_disconnected(hgobj gobj)
@@ -439,8 +420,8 @@ PRIVATE void set_disconnected(hgobj gobj)
         priv->conn = 0;
     }
     if(priv->pg_socket != -1) {
-        uv_poll_stop(&priv->uv_poll);
-        uv_close((uv_handle_t*)&priv->uv_poll, on_close_cb);
+        // uv_poll_stop(&priv->uv_poll);
+        // uv_close((uv_handle_t*)&priv->uv_poll, on_close_cb);
         priv->pg_socket = -1;
     }
 
@@ -452,186 +433,186 @@ PRIVATE void set_disconnected(hgobj gobj)
 /***************************************************************************
  *  on poll callback
  ***************************************************************************/
-PRIVATE void on_poll_cb(uv_poll_t *req, int status, int events)
-{
-    hgobj gobj = req->data;
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    if(gobj_trace_level(gobj) & TRACE_UV) {
-        log_debug_printf(0, "<<<< on_poll_cb status %d, events %d, fd %d",
-            status, events, priv->pg_socket
-        );
-    }
-
-    if(status < 0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_LIBUV_ERROR,
-            "msg",          "%s", "poll FAILED",
-            "uv_error",     "%s", uv_err_name(status),
-            NULL
-        );
-        set_disconnected(gobj);
-        return;
-    }
-
-    const char *state = gobj_current_state(gobj);
-    SWITCHS(state) {
-        CASES(ST_CONNECTED)
-            if(PQstatus(priv->conn) != CONNECTION_OK) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_DATABASE_ERROR,
-                    "msg",          "%s", "Postgres connection closed 1",
-                    "error",        "%s", PQerrorMessage(priv->conn),
-                    NULL
-                );
-                set_disconnected(gobj);
-                return;
-            }
-            if(events & UV_READABLE) {
-                do {
-                    if(PQconsumeInput(priv->conn)) {
-                        if(!PQisBusy(priv->conn)) {
-                            PGresult* result = PQgetResult(priv->conn);
-                            if(result) {
-                                // HACK Repeat PQgetResult, must return null
-                                // Don't use multiquery or PQsetSingleRowMode
-                                if(!PQgetResult(priv->conn)) {
-                                    process_result(gobj, result);
-                                    PQclear(result);
-                                    pull_queue(gobj);
-                                } else {
-                                    /*
-                                     *  WARNING
-                                     *  NO se puede usar multiquery
-                                     */
-                                    gobj_log_error(gobj, 0,
-                                        "function",     "%s", __FUNCTION__,
-                                        "msgset",       "%s", MSGSET_DATABASE_ERROR,
-                                        "msg",          "%s", "Postgres Multiple Results or disconnected",
-                                        NULL
-                                    );
-                                    /*
-                                     *  WARNING
-                                     *  Por aquí crash cuando se desconecta postgres
-                                     */
-                                    set_disconnected(gobj);
-                                    return;
-                                }
-                                break;
-                            } else {
-                                /*
-                                 *  WARNING
-                                 *  Por aquí se queda en bucle cuando se desconecta postgres
-                                 */
-                                gobj_log_error(gobj, 0,
-                                    "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_DATABASE_ERROR,
-                                    "msg",          "%s", "Avoid LOOP?",
-                                    NULL
-                                );
-                                set_disconnected(gobj);
-                                return;
-                            }
-                        }
-
-                        /*
-                         *  After read try to write
-                         */
-                        int ret = PQflush(priv->conn);
-                        if(ret < 0) {
-                            gobj_log_error(gobj, 0,
-                                "function",     "%s", __FUNCTION__,
-                                "msgset",       "%s", MSGSET_DATABASE_ERROR,
-                                "msg",          "%s", "PQflush() FAILED",
-                                NULL
-                            );
-                            set_disconnected(gobj);
-                        }
-                    } else {
-                        gobj_log_error(gobj, 0,
-                            "function",     "%s", __FUNCTION__,
-                            "msgset",       "%s", MSGSET_DATABASE_ERROR,
-                            "msg",          "%s", "PQconsumeInput FAILED",
-                            "error",        "%s", PQerrorMessage(priv->conn),
-                            NULL
-                        );
-                        set_disconnected(gobj);
-                        return;
-                    }
-                } while(0);
-            }
-
-            if(events & UV_WRITABLE) {
-                int ret = PQflush(priv->conn);
-                if(ret < 0) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_DATABASE_ERROR,
-                        "msg",          "%s", "PQflush() FAILED",
-                        NULL
-                    );
-                    set_disconnected(gobj);
-                } else if(ret == 0) {
-                    // No more data to send, put off UV_WRITABLE
-                    uv_poll_start(&priv->uv_poll, UV_READABLE, on_poll_cb);
-                } else {
-                    // == 1 more data to send, continue with UV_WRITABLE
-                }
-            }
-
-            break;
-
-        CASES(ST_WAIT_CONNECTED)
-            PostgresPollingStatusType st = PQconnectPoll(priv->conn);
-            if(gobj_trace_level(gobj) & TRACE_UV) {
-                log_debug_printf(0, "<<<< ST_WAIT_CONNECTED PQconnectPoll %d", st);
-            }
-            switch (st) {
-            case PGRES_POLLING_OK:
-                uv_poll_start(&priv->uv_poll, UV_READABLE|UV_WRITABLE, on_poll_cb);
-                set_connected(gobj);
-                return;
-
-            case PGRES_POLLING_READING:
-                uv_poll_start(&priv->uv_poll, UV_READABLE, on_poll_cb);
-                return;
-            case PGRES_POLLING_WRITING:
-                uv_poll_start(&priv->uv_poll, UV_WRITABLE, on_poll_cb);
-                return;
-            case PGRES_POLLING_ACTIVE:
-                return;
-            case PGRES_POLLING_FAILED:
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_LIBUV_ERROR,
-                    "msg",          "%s", "Postgres connection FAILED",
-                    "error",        "%s", PQerrorMessage(priv->conn),
-                    NULL
-                );
-                set_disconnected(gobj);
-            }
-            break;
-
-        CASES(ST_WAIT_DISCONNECTED)
-            PostgresPollingStatusType st = PQconnectPoll(priv->conn);
-            if(gobj_trace_level(gobj) & TRACE_UV) {
-                log_debug_printf(0, "<<<< ST_WAIT_DISCONNECTED PQconnectPoll %d", st);
-            }
-            break;
-
-        DEFAULTS
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "state UNKNOWN",
-                "state",        "%s", state,
-                NULL
-            );
-            break;
-    } SWITCHS_END;
-}
+// PRIVATE void on_poll_cb(uv_poll_t *req, int status, int events)
+// {
+//     hgobj gobj = req->data;
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     if(gobj_trace_level(gobj) & TRACE_UV) {
+//         log_debug_printf(0, "<<<< on_poll_cb status %d, events %d, fd %d",
+//             status, events, priv->pg_socket
+//         );
+//     }
+//
+//     if(status < 0) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//             "msg",          "%s", "poll FAILED",
+//             "uv_error",     "%s", uv_err_name(status),
+//             NULL
+//         );
+//         set_disconnected(gobj);
+//         return;
+//     }
+//
+//     const char *state = gobj_current_state(gobj);
+//     SWITCHS(state) {
+//         CASES(ST_CONNECTED)
+//             if(PQstatus(priv->conn) != CONNECTION_OK) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                     "msg",          "%s", "Postgres connection closed 1",
+//                     "error",        "%s", PQerrorMessage(priv->conn),
+//                     NULL
+//                 );
+//                 set_disconnected(gobj);
+//                 return;
+//             }
+//             if(events & UV_READABLE) {
+//                 do {
+//                     if(PQconsumeInput(priv->conn)) {
+//                         if(!PQisBusy(priv->conn)) {
+//                             PGresult* result = PQgetResult(priv->conn);
+//                             if(result) {
+//                                 // HACK Repeat PQgetResult, must return null
+//                                 // Don't use multiquery or PQsetSingleRowMode
+//                                 if(!PQgetResult(priv->conn)) {
+//                                     process_result(gobj, result);
+//                                     PQclear(result);
+//                                     pull_queue(gobj);
+//                                 } else {
+//                                     /*
+//                                      *  WARNING
+//                                      *  NO se puede usar multiquery
+//                                      */
+//                                     gobj_log_error(gobj, 0,
+//                                         "function",     "%s", __FUNCTION__,
+//                                         "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                                         "msg",          "%s", "Postgres Multiple Results or disconnected",
+//                                         NULL
+//                                     );
+//                                     /*
+//                                      *  WARNING
+//                                      *  Por aquí crash cuando se desconecta postgres
+//                                      */
+//                                     set_disconnected(gobj);
+//                                     return;
+//                                 }
+//                                 break;
+//                             } else {
+//                                 /*
+//                                  *  WARNING
+//                                  *  Por aquí se queda en bucle cuando se desconecta postgres
+//                                  */
+//                                 gobj_log_error(gobj, 0,
+//                                     "function",     "%s", __FUNCTION__,
+//                                     "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                                     "msg",          "%s", "Avoid LOOP?",
+//                                     NULL
+//                                 );
+//                                 set_disconnected(gobj);
+//                                 return;
+//                             }
+//                         }
+//
+//                         /*
+//                          *  After read try to write
+//                          */
+//                         int ret = PQflush(priv->conn);
+//                         if(ret < 0) {
+//                             gobj_log_error(gobj, 0,
+//                                 "function",     "%s", __FUNCTION__,
+//                                 "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                                 "msg",          "%s", "PQflush() FAILED",
+//                                 NULL
+//                             );
+//                             set_disconnected(gobj);
+//                         }
+//                     } else {
+//                         gobj_log_error(gobj, 0,
+//                             "function",     "%s", __FUNCTION__,
+//                             "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                             "msg",          "%s", "PQconsumeInput FAILED",
+//                             "error",        "%s", PQerrorMessage(priv->conn),
+//                             NULL
+//                         );
+//                         set_disconnected(gobj);
+//                         return;
+//                     }
+//                 } while(0);
+//             }
+//
+//             if(events & UV_WRITABLE) {
+//                 int ret = PQflush(priv->conn);
+//                 if(ret < 0) {
+//                     gobj_log_error(gobj, 0,
+//                         "function",     "%s", __FUNCTION__,
+//                         "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//                         "msg",          "%s", "PQflush() FAILED",
+//                         NULL
+//                     );
+//                     set_disconnected(gobj);
+//                 } else if(ret == 0) {
+//                     // No more data to send, put off UV_WRITABLE
+//                     uv_poll_start(&priv->uv_poll, UV_READABLE, on_poll_cb);
+//                 } else {
+//                     // == 1 more data to send, continue with UV_WRITABLE
+//                 }
+//             }
+//
+//             break;
+//
+//         CASES(ST_WAIT_CONNECTED)
+//             PostgresPollingStatusType st = PQconnectPoll(priv->conn);
+//             if(gobj_trace_level(gobj) & TRACE_UV) {
+//                 log_debug_printf(0, "<<<< ST_WAIT_CONNECTED PQconnectPoll %d", st);
+//             }
+//             switch (st) {
+//             case PGRES_POLLING_OK:
+//                 uv_poll_start(&priv->uv_poll, UV_READABLE|UV_WRITABLE, on_poll_cb);
+//                 set_connected(gobj);
+//                 return;
+//
+//             case PGRES_POLLING_READING:
+//                 uv_poll_start(&priv->uv_poll, UV_READABLE, on_poll_cb);
+//                 return;
+//             case PGRES_POLLING_WRITING:
+//                 uv_poll_start(&priv->uv_poll, UV_WRITABLE, on_poll_cb);
+//                 return;
+//             case PGRES_POLLING_ACTIVE:
+//                 return;
+//             case PGRES_POLLING_FAILED:
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_LIBUV_ERROR,
+//                     "msg",          "%s", "Postgres connection FAILED",
+//                     "error",        "%s", PQerrorMessage(priv->conn),
+//                     NULL
+//                 );
+//                 set_disconnected(gobj);
+//             }
+//             break;
+//
+//         CASES(ST_WAIT_DISCONNECTED)
+//             PostgresPollingStatusType st = PQconnectPoll(priv->conn);
+//             if(gobj_trace_level(gobj) & TRACE_UV) {
+//                 log_debug_printf(0, "<<<< ST_WAIT_DISCONNECTED PQconnectPoll %d", st);
+//             }
+//             break;
+//
+//         DEFAULTS
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msg",          "%s", "state UNKNOWN",
+//                 "state",        "%s", state,
+//                 NULL
+//             );
+//             break;
+//     } SWITCHS_END;
+// }
 
 /***************************************************************************
  *
@@ -792,14 +773,14 @@ PRIVATE int send_cur_query(hgobj gobj)
     if(!PQsendQuery(priv->conn, query)) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_DATABASE_ERROR,
+            "msgset",       "%s", MSGSET_POSTGRES_ERROR,
             "msg",          "%s", "PQsendQuery FAILED",
             "error",        "%s", PQerrorMessage(priv->conn),
             NULL
         );
     }
 
-    uv_poll_start(&priv->uv_poll, UV_READABLE|UV_WRITABLE, on_poll_cb);
+    // uv_poll_start(&priv->uv_poll, UV_READABLE|UV_WRITABLE, on_poll_cb);
     if (priv->timeout_response > 0) {
         set_timeout(priv->timer, priv->timeout_response);
     }
@@ -833,7 +814,7 @@ PRIVATE int process_result(hgobj gobj, PGresult* result)
         char *error = PQerrorMessage(priv->conn);
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_DATABASE_ERROR,
+            "msgset",       "%s", MSGSET_POSTGRES_ERROR,
             "msg",          "%s", "Postgres connection closed 3",
             "error",        "%s", error,
             NULL
@@ -994,7 +975,7 @@ PRIVATE int publish_result(hgobj gobj, json_t* kw)
 
         } else if(json_is_string(jn_dst)) {
             const char *sdst = json_string_value(jn_dst);
-            hgobj dst = gobj_find_unique_gobj(sdst, TRUE);
+            hgobj dst = gobj_find_service(sdst, TRUE);
             if(dst) {
                 return gobj_send_event(dst, EV_ON_MESSAGE, kw, gobj);
             } else {
@@ -1069,12 +1050,12 @@ PRIVATE int ac_connect(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     PQsetnonblocking(priv->conn, 1);
     priv->pg_socket = PQsocket(priv->conn);
-    uv_poll_init(yuno_uv_event_loop(), &priv->uv_poll, priv->pg_socket);
-    priv->uv_poll.data = gobj;
+    // uv_poll_init(yuno_uv_event_loop(), &priv->uv_poll, priv->pg_socket);
+    // priv->uv_poll.data = gobj;
 
     PQsetNoticeProcessor(priv->conn, noticeProcessor, gobj);
 
-    uv_poll_start(&priv->uv_poll, UV_WRITABLE, on_poll_cb);
+    // uv_poll_start(&priv->uv_poll, UV_WRITABLE, on_poll_cb);
 
     set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_waiting_connected"));
 
@@ -1171,7 +1152,7 @@ PRIVATE int ac_timeout_data(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     gobj_log_error(gobj, 0,
         "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_DATABASE_ERROR,
+        "msgset",       "%s", MSGSET_POSTGRES_ERROR,
         "msg",          "%s", "Postgres timeout, reset connection",
         NULL
     );

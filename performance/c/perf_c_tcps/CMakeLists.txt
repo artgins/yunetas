@@ -25,17 +25,12 @@ SET(SRCS
     test5
 )
 
-SET(COMMON
-    common/c_pepon.c
-    common/c_teston.c
-)
-
 ##############################################
 #   Tests
 ##############################################
 foreach(test ${SRCS})
     set(binary "perf_tcps_${test}")
-    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c" ${COMMON})
+    add_yuno_executable(${binary} "main_${test}.c" "c_${test}.c")
 
     target_link_libraries(${binary}
         ${YUNETAS_KERNEL_LIBS}
@@ -44,6 +39,7 @@ foreach(test ${SRCS})
         ${OPENSSL_LIBS}
         ${MBEDTLS_LIBS}
         ${DEBUG_LIBS}
+        libyunetas-c_test.a
     )
     add_test("${current_directory_name}/${test}" ${binary})
 
