@@ -177,7 +177,7 @@ cd build/ncurses
 
 git checkout "$TAG_NCURSES"
 
-# HACK in recents gcc ncurses will fail.
+# --prefix=/yuneta/development/outputs_ext
 
 ./configure \
     --prefix="${YUNETA_INSTALL_PREFIX}" \

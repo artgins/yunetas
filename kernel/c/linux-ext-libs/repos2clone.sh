@@ -16,10 +16,6 @@ TAG_ARGP_STANDALONE="v1.1.5"
 TAG_NCURSES="v6.4"
 TAG_NGINX="release-1.29.0"
 
-#TAG_LIBJWT="v1.17.2"
-#TAG_LIBJWT="v2.1.2"
-#TAG_LIBJWT="v3.2.1"
-
 #------------------------------------------
 #   RESPOS
 #------------------------------------------
