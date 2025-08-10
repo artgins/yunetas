@@ -272,6 +272,14 @@ static inline struct sockaddr *gbuffer_getaddr(gbuffer_t *gbuf)
     return &gbuf->addr;
 }
 
+PUBLIC gbuffer_t * gbuf_load_file(const char *path);
+PUBLIC int gbuf2file(
+    gbuffer_t *gbuf,  // WARNING own
+    const char *path,
+    int permission,
+    BOOL overwrite
+);
+
 PUBLIC json_t* gbuffer_serialize(
     hgobj gobj,
     gbuffer_t *gbuf // not owned

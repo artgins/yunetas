@@ -2641,7 +2641,7 @@ PRIVATE json_t *cmd_update_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
 
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
-        json_t *update = kw_duplicate(kw);
+        json_t *update = kw_duplicate(gobj, kw);
         json_object_set(update, "id", kw_get_dict_value(gobj, node, "id", 0, KW_REQUIRED));
 
         json_t *realm = gobj_update_node(
@@ -2865,7 +2865,7 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
             kw  // owned
         );
     }
-    gbuffer_t *gbuf_content = gbuf_decodebase64string(content64);
+    gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
     if(!gbuf_content) {
         return msg_iev_build_response(
             gobj,
@@ -3124,7 +3124,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
             kw  // owned
         );
     }
-    gbuffer_t *gbuf_content = gbuf_decodebase64string(content64);
+    gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
     if(!gbuf_content) {
         json_decref(node);
         return msg_iev_build_response(
@@ -3447,7 +3447,7 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     json_t *jn_config;
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     if(!empty_string(content64)) {
-        gbuffer_t *gbuf_content = gbuf_decodebase64string(content64);
+        gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
         jn_config = gbuf2json(
             gbuf_content,  // owned
             2
@@ -3611,7 +3611,7 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
     const char *content64 = kw_get_str(gobj, kw, "content64", "", 0);
     json_t *jn_config = 0;
     if(!empty_string(content64)) {
-        gbuffer_t *gbuf_content = gbuf_decodebase64string(content64);
+        gbuffer_t *gbuf_content = gbuffer_base64_to_string(content64, strlen(content64));
         jn_config = gbuf2json(
             gbuf_content,  // owned
             2
@@ -10406,7 +10406,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
-    gbuffer_t *gbuf = gbuf_decodebase64string(content64);
+    gbuffer_t *gbuf = gbuffer_base64_to_string(content64, strlen(content64));
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
