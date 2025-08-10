@@ -14,7 +14,12 @@
 #include <errno.h>
 #include <regex.h>
 #include <unistd.h>
+#include <limits.h>
+#include <pwd.h>
+
+#include <c_pty.h>
 #include "c_agent22.h"
+
 
 /***************************************************************************
  *              Constants
@@ -102,7 +107,7 @@ PRIVATE sdata_desc_t pm_write_tty[] = {
 };
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
-PRIVATE const char *a_write_tty[] = {EV_WRITE_TTY, 0};
+PRIVATE const char *a_write_tty[] = {0}; // TODO {EV_WRITE_TTY, 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD2--type-----------name----------------flag----------------alias---------------items-----------json_fn---------description---------- */
@@ -126,12 +131,12 @@ SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "/yuneta/store/a
 SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
 SDATA (DTP_JSON,        "agent22_environment",SDF_RD,             0,              "Agent22 environment. Override the yuno environment"),
 SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
-SDATA (DTP_INTEGER,     "timerStBoot",      SDF_RD,             6*1000,         "Timer to run yunos on boot"),
-SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             SIGQUIT,        "Signal to kill yunos"),
+SDATA (DTP_INTEGER,     "timerStBoot",      SDF_RD,             "6000",         "Timer to run yunos on boot"),
+SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",        "Signal to kill yunos: SIGQUIT"),
 
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports"),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
-SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             10,             "Maximum consoles opened"),
+SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",             "Maximum consoles opened"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
@@ -194,18 +199,19 @@ typedef struct _PRIVATE_DATA {
  *****************************************************************/
 PRIVATE int is_yuneta_agent22(unsigned int pid)
 {
-    struct pid_stats pst;
-    int ret = kill(pid, 0);
-    if(ret == 0) {
-        if(read_proc_pid_cmdline(pid, &pst, 0)==0) {
-            if(strstr(pst.cmdline, "yuneta_agent22 ")) {
-                return 0;
-            }
-        } else {
-            return -1;
-        }
-    }
-    return ret;
+    // TODO struct pid_stats pst;
+    // int ret = kill(pid, 0);
+    // if(ret == 0) {
+    //     if(read_proc_pid_cmdline(pid, &pst, 0)==0) {
+    //         if(strstr(pst.cmdline, "yuneta_agent22 ")) {
+    //             return 0;
+    //         }
+    //     } else {
+    //         return -1;
+    //     }
+    // }
+    // return ret;
+    return 0;
 }
 
 /***************************************************************************
@@ -234,7 +240,7 @@ PRIVATE void mt_create(hgobj gobj)
     const char *node_owner = gobj_yuno_node_owner();
     if(empty_string(node_owner)) {
         node_owner = "none";
-        gobj_set_node_owner(node_owner);
+        // TODO gobj_set_node_owner(node_owner);
 
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -475,7 +481,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
             const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
             hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
             if(gobj_route_service) {
-                hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+                hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
                 if(!gobj_input_gate) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -489,8 +495,8 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
                     result = -1;
                     continue;
                 }
-                json_t *jn_consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
-                json_object_set_new(jn_gobjs, route_name, json_deep_copy(jn_consoles));
+                // TODO json_t *jn_consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+                // json_object_set_new(jn_gobjs, route_name, json_deep_copy(jn_consoles));
             } else {
                 json_object_set_new(jn_gobjs, route_name, json_string("ERROR route_service not found"));
                 result = -1;
@@ -573,16 +579,16 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  New console
          */
-        if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
-                0,
-                0,
-                kw  // owned
-            );
-        }
+        // TODO // if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
+        //     return msg_iev_build_response(
+        //         gobj,
+        //         -1,
+        //         json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
+        //         0,
+        //         0,
+        //         kw  // owned
+        //     );
+        // }
 
         /*
          *  Create pseudoterminal
@@ -593,7 +599,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             "cols", cx,
             "rows", cy
         );
-        gobj_console = gobj_create_unique(name, GCLASS_PTY, kw_pty, gobj);
+        gobj_console = gobj_create_service(name, C_PTY, kw_pty, gobj);
         if(!gobj_console) {
             return msg_iev_build_response(
                 gobj,
@@ -628,7 +634,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
          *  Console already exists
          */
         json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, KW_REQUIRED);
-        gobj_console = gobj_find_unique_gobj(name, FALSE);
+        gobj_console = gobj_find_service(name, FALSE);
         if(!gobj_console) {
             return msg_iev_build_response(
                 gobj,
@@ -738,11 +744,11 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
      */
     int ret = 0;
     if(hold_open) {
-        const char *route_service = gobj_name(gobj_nearest_top_unique(src));
+        const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(src));
         const char *route_child = gobj_name(src);
         ret = remove_console_route(gobj, name, route_service, route_child);
     } else {
-        hgobj gobj_console = gobj_find_unique_gobj(name, TRUE);
+        hgobj gobj_console = gobj_find_service(name, TRUE);
         gobj_stop(gobj_console); // volatil, auto-destroy
     }
 
@@ -782,7 +788,7 @@ PRIVATE int add_console_route(
 {
     json_t *jn_routes = kw_get_dict(gobj, jn_console_, "routes", 0, KW_REQUIRED);
 
-    const char *route_service = gobj_name(gobj_nearest_top_unique(src));
+    const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(src));
     const char *route_child = gobj_name(src);
 
     char route_name[NAME_MAX];
@@ -860,9 +866,9 @@ PRIVATE int remove_console_route(
      */
     hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
     if(gobj_route_service) {
-        hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+        hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
         if(gobj_input_gate) {
-            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
             if(consoles) {
                 json_object_del(consoles, route_name);
             } else {
@@ -898,12 +904,12 @@ PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src)
 {
     char name_[NAME_MAX];
     snprintf(name_, sizeof(name_), "consoles`%s", name);
-    gobj_kw_get_user_data( // save in input gate
-        src,
-        name_,
-        json_true(), // owned
-        KW_CREATE
-    );
+// TODO     // gobj_kw_get_user_data( // save in input gate
+    //     src,
+    //     name_,
+    //     json_true(), // owned
+    //     KW_CREATE
+    // );
 
     return 0;
 }
@@ -920,7 +926,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
      */
     json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, KW_EXTRACT);
 
-    hgobj gobj_console = gobj_find_unique_gobj(name, FALSE);
+    hgobj gobj_console = gobj_find_service(name, FALSE);
 
     if(!jn_console) {
         gobj_log_error(gobj, 0,
@@ -947,7 +953,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
         const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
         hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
         if(gobj_route_service) {
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -959,7 +965,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
                 );
                 continue;
             }
-            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
             if(consoles) {
                 json_object_del(consoles, name);
             }
@@ -983,12 +989,12 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     hgobj gobj_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-    json_t *consoles = gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
+    json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
     if(!consoles) {
         return 0;
     }
 
-    const char *route_service = gobj_name(gobj_nearest_top_unique(gobj_channel));
+    const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(gobj_channel));
     const char *route_child = gobj_name(gobj_channel);
 
     const char *name; json_t *jn_; void *n;
@@ -1055,7 +1061,7 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!gobj_route_service) {
                 continue;
             }
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -1071,13 +1077,12 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_send_event(
                 gobj_input_gate,
                 "EV_TTY_OPEN",
-                msg_iev_build_response2(gobj,
+                msg_iev_build_response(gobj,
                     0,  // result
                     0,  // comment
                     0,  // schema
                     json_incref(kw), // owned
-                    json_incref(jn_route),  // owned
-                    ""
+                    json_incref(jn_route)  // owned
                 ),
                 gobj
             );
@@ -1112,7 +1117,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!gobj_route_service) {
                 continue;
             }
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -1125,7 +1130,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 continue;
             }
 
-            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
 
             if(consoles) {
                 json_object_del(consoles, gobj_name(src));
@@ -1134,13 +1139,12 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_send_event(
                 gobj_input_gate,
                 "EV_TTY_CLOSE",
-                msg_iev_build_response2(gobj,
+                msg_iev_build_response(gobj,
                     0,  // result
                     0,  // comment
                     0,  // schema
                     json_incref(kw), // owned
-                    json_incref(jn_route),  // owned
-                    ""
+                    json_incref(jn_route)  // owned
                 ),
                 gobj
             );
@@ -1172,7 +1176,7 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!gobj_route_service) {
                 continue;
             }
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -1188,13 +1192,12 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_send_event(
                 gobj_input_gate,
                 "EV_TTY_DATA",
-                msg_iev_build_response2(gobj,
+                msg_iev_build_response(gobj,
                     0,  // result
                     0,  // comment
                     0,  // schema
                     json_incref(kw), // owned
-                    json_incref(jn_route),  // owned
-                    ""
+                    json_incref(jn_route)  // owned
                 ),
                 gobj
             );
@@ -1225,7 +1228,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
-    hgobj gobj_console = gobj_find_unique_gobj(name, FALSE);
+    hgobj gobj_console = gobj_find_service(name, FALSE);
     if(!gobj_console) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -1239,7 +1242,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
-    gbuffer_t *gbuf = gbuf_decodebase64string(content64);
+    gbuffer_t *gbuf = gbuffer_base64_to_string(content64, strlen(content64));
     if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
