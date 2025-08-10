@@ -16,7 +16,7 @@ fi
 #       Disable the Merde for backends
 #----------------------------------------#
 sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
-sudo apt remove powerdevil
+sudo apt -y remove powerdevil
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e

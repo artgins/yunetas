@@ -7,14 +7,16 @@
 #       upgrade to liburing-2.11
 #   version 1.3
 #       using musl-gcc
+#   version 1.4
+#       upgrade to ncurses-6.4
 #
 
-VERSION="1.3-s"
+VERSION="1.4-s"
 
 source ./repos2clone-static.sh
 
 export CC=/usr/bin/musl-gcc
-export CFLAGS="-Wno-error=char-subscripts -O3 -DNDEBUG" # let each library to be
+export CFLAGS="-Wno-error=char-subscripts -O3 -g -DNDEBUG" # let each library to be, or not
 export LDFLAGS="-static"
 
 [ -f "./VERSION_INSTALLED_STATIC.txt" ] && rm "./VERSION_INSTALLED_STATIC.txt"
@@ -179,6 +181,28 @@ make
 make install
 cd ..
 cd ../..
+
+
+#------------------------------------------
+#   libncurses
+#------------------------------------------
+echo "===================== NCURSES ======================="
+cd build/ncurses
+
+git checkout "$TAG_NCURSES"
+
+# HACK in recents gcc ncurses will fail.
+
+./configure \
+    --prefix="${YUNETA_INSTALL_PREFIX}" \
+    --datarootdir=/yuneta/bin/ncurses \
+    --without-cxx --without-cxx-binding \
+    --without-manpages \
+    --enable-sp-funcs
+make
+make install
+cd ../..
+
 
 #------------------------------------------
 #   Save the version installed

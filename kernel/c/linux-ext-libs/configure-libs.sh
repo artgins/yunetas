@@ -5,12 +5,17 @@
 #       upgrade to liburing-2.9
 #   version 1.2
 #       upgrade to liburing-2.11
+#   version 1.3
+#       using musl-gcc
+#   version 1.4
+#       upgrade to ncurses-6.4
 #
 
-VERSION="1.3"
+VERSION="1.4"
+
 
 source ./repos2clone.sh
-export CFLAGS="-Wno-error=char-subscripts -O3 -DNDEBUG" # let each library to be
+export CFLAGS="-Wno-error=char-subscripts -O3 -g -DNDEBUG" # let each library to be, or not
 export CC=cc
 
 [ -f "./VERSION_INSTALLED.txt" ] && rm "./VERSION_INSTALLED.txt"
@@ -163,6 +168,28 @@ make install
 cd ..
 cd ../..
 
+
+#------------------------------------------
+#   libncurses
+#------------------------------------------
+echo "===================== NCURSES ======================="
+cd build/ncurses
+
+git checkout "$TAG_NCURSES"
+
+# HACK in recents gcc ncurses will fail.
+
+./configure \
+    --prefix="${YUNETA_INSTALL_PREFIX}" \
+    --datarootdir=/yuneta/bin/ncurses \
+    --without-cxx --without-cxx-binding \
+    --without-manpages \
+    --enable-sp-funcs
+make
+make install
+cd ../..
+
+
 #------------------------------------------
 #   openresty
 #------------------------------------------
@@ -193,27 +220,6 @@ cd "openresty-$TAG_OPENRESTY"
 gmake
 gmake install
 cd ..
-cd ../..
-
-
-#------------------------------------------
-#   libncurses
-#------------------------------------------
-echo "===================== NCURSES ======================="
-cd build/ncurses
-
-git checkout "$TAG_NCURSES"
-
-# HACK in recents gcc ncurses will fail.
-
-./configure \
-    --prefix="${YUNETA_INSTALL_PREFIX}" \
-    --datarootdir=/yuneta/bin/ncurses \
-    --without-cxx --without-cxx-binding \
-    --without-manpages \
-    --enable-sp-funcs
-make
-make install
 cd ../..
 
 

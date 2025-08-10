@@ -13,7 +13,7 @@ TAG_OPENSSL="openssl-3.4.1"
 TAG_PCRE2="pcre2-10.45"
 TAG_OPENRESTY="1.27.1.2"    # warning: without the initial 'v'
 TAG_ARGP_STANDALONE="v1.1.5"
-TAG_NCURSES="v6.3"
+TAG_NCURSES="v6.4"
 TAG_NGINX="release-1.29.0"
 
 #TAG_LIBJWT="v1.17.2"
