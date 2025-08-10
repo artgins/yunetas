@@ -9,7 +9,6 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp.h>
-#include <unistd.h>
 #include <yunetas.h>
 #include "c_emu_device.h"
 
@@ -132,33 +131,25 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'emu_device',                                   \n\
-            'gclass': 'Emu_device',                                 \n\
+            'gclass': 'C_EMU_DEVICE',                               \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': true                                        \n\
         },                                                          \n\
         {                                                           \n\
             'name': '__output_side__',                              \n\
-            'gclass': 'C_IOGATE',                                     \n\
+            'gclass': 'C_IOGATE',                                   \n\
             'autostart': false,                                     \n\
             'autoplay': false,                                      \n\
-            'children': [                                            \n\
+            'children': [                                           \n\
                 {                                                   \n\
                     'name': 'output',                               \n\
-                    'gclass': 'C_CHANNEL',                            \n\
-                    'children': [                                    \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'children': [                                   \n\
                         {                                           \n\
                             'name': 'output',                       \n\
-                            'gclass': 'Prot_raw',                   \n\
-                            'children': [                            \n\
-                                {                                   \n\
-                                    'name': 'output',               \n\
-                                    'gclass': 'Connex',             \n\
-                                    'kw': {                         \n\
-                                        'urls':[                    \n\
-                                        ]                           \n\
-                                    }                               \n\
-                                }                                   \n\
+                            'gclass': 'C_PROT_RAW',                 \n\
+                            'children': [                           \n\
                             ]                                       \n\
                         }                                           \n\
                     ]                                               \n\
@@ -229,7 +220,8 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,0,0
 };
 
 /***************************************************************************
@@ -435,7 +427,7 @@ int main(int argc, char *argv[])
      *  Put configuration
      */
     if(arguments.use_config_file) {
-        int l = strlen("--config-file=") + strlen(arguments.config_json_file) + 4;
+        int l = (int)strlen("--config-file=") + strlen(arguments.config_json_file) + 4;
         char *param2 = malloc(l);
         snprintf(param2, l, "--config-file=%s", arguments.config_json_file);
         argvs[idx++] = param2;
@@ -537,7 +529,7 @@ int main(int argc, char *argv[])
         }
 
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
-        int len = strlen(param1_) + 3;
+        int len = (int)strlen(param1_) + 3;
         char *param1 = malloc(len);
         if(param1) {
             memset(param1, 0, len);
@@ -555,48 +547,24 @@ int main(int argc, char *argv[])
     }
 
     /*------------------------------------------------*
-     *  To trace memory
+     *      To check memory loss
      *------------------------------------------------*/
-#ifdef CONFIG_BUILD_TYPE_RELEASE
-    static uint32_t mem_list[] = {0};
-    gbmem_trace_alloc_free(0, mem_list);
-#endif
-
-    if(arguments.verbose > 0) {
-        gobj_set_gclass_trace(C_EMU_DEVICE, "info", TRUE);
-    }
-    if(arguments.verbose > 1) {
-        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents", TRUE);
-        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "kw", TRUE);
-    }
-    if(arguments.verbose > 2) {
-        gobj_set_gclass_trace(C_TCP, "traffic", TRUE);
-    }
-    if(arguments.verbose > 3) {
-        gobj_set_gobj_trace(0, "machine", TRUE, 0);
-        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
-        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
-    }
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
-
-//     set_auto_kill_time(10);
+    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
+    set_memory_check_list(memory_check_list);
 
     /*------------------------------------------------*
      *          Start yuneta
      *------------------------------------------------*/
     helper_quote2doublequote(fixed_config);
-    helper_quote2doublequote(variable_config);
     yuneta_setup(
+        NULL,       // persistent_attrs, default internal dbsimple
+        NULL,       // command_parser, default internal command_parser
+        NULL,       // stats_parser, default internal stats_parser
+        NULL,       // authz_checker, default Monoclass C_AUTHZ
+        NULL,       // authenticate_parser, default Monoclass C_AUTHZ
         0,
         0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
+        FALSE, //USE_OWN_SYSTEM_MEMORY,
         0,
         0
     );
@@ -605,6 +573,7 @@ int main(int argc, char *argv[])
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
         variable_config,
-        register_yuno_and_more
+        register_yuno_and_more,
+        NULL
     );
 }

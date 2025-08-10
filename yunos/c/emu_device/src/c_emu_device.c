@@ -69,8 +69,8 @@ SDATA_END()
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag------------------------default---------description---------- */
-SDATA (DTP_INTEGER,     "window",           SDF_WR|SDF_PERSIST,         1,              "Number of messages to send in each interval event"),
-SDATA (DTP_INTEGER,     "interval",         SDF_WR|SDF_PERSIST,         1000,           "Interval in miliseconds to send 'window' frames"),
+SDATA (DTP_INTEGER,     "window",           SDF_WR|SDF_PERSIST,         "1",              "Number of messages to send in each interval event"),
+SDATA (DTP_INTEGER,     "interval",         SDF_WR|SDF_PERSIST,         "1000",           "Interval in miliseconds to send 'window' frames"),
 SDATA (DTP_INTEGER,     "txMsgs",           SDF_RD,                     0,              "Messages transmitted by this socket"),
 SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RD,                     0,              "Messages received by this socket"),
 
@@ -91,7 +91,7 @@ SDATA (DTP_STRING,      "use_very_first",       SDF_WR|SDF_PERSIST,         0,  
 SDATA (DTP_STRING,      "key",                  SDF_WR|SDF_PERSIST,         0,   "Key."                              ),
 SDATA (DTP_STRING,      "notkey",               SDF_WR|SDF_PERSIST,         0,   "Not key."                          ),
 
-SDATA (DTP_INTEGER,     "timeout",          SDF_RD,                     2*1000,         "Timeout"),
+SDATA (DTP_INTEGER,     "timeout",          SDF_RD,                     "2000",         "Timeout"),
 SDATA (DTP_POINTER,     "user_data",        0,                          0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                          0,              "more user data"),
 SDATA_END()
@@ -649,9 +649,9 @@ PRIVATE int list_topics(const char *path, const char *database)
 PRIVATE char bin[64*1024];
 gbuffer_t *get_next_frame(hgobj gobj, BOOL *empty_frame)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    BOOL end = FALSE;
-    BOOL first_time = FALSE;
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // BOOL end = FALSE;
+    // BOOL first_time = FALSE;
     // *empty_frame = FALSE; TODO
     // if(priv->last_id == 0) {
     //     first_time = TRUE;
@@ -770,7 +770,7 @@ PRIVATE int send_gps_msgs(hgobj gobj, hgobj channel_gobj)
  ***************************************************************************/
 PRIVATE int emulate_gps_msgs(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*
      *  Recorre la tabla de output channels y comprueba que están en una ruta
@@ -798,6 +798,7 @@ PRIVATE int emulate_gps_msgs(hgobj gobj)
     // }
     // gobj_free_iter(iter, TRUE, 0);
     // return ret;
+    return 0;
 }
 
 
