@@ -66,6 +66,7 @@ extern "C"{
 #include <c_udp.h>
 #include <c_udp_s.h>
 #include <c_gss_udp_s.h>
+#include <c_counter.h>
 #include <istream.h>
 #include <ghttp_parser.h>
 #include <dbsimple.h>
