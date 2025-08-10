@@ -572,24 +572,24 @@ PRIVATE json_t *cmd_read_parameters(hgobj gobj, const char *cmd, json_t *kw, hgo
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL list_db_cb(
-    void *user_data,
-    wd_found_type type,     // type found
-    char *fullpath,         // directory+filename found
-    const char *directory,  // directory of found filename
-    char *name,             // dname[255]
-    int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
-)
-{
-    char *p = strrchr(directory, '/');
-    if(p) {
-        printf("  %s\n", p+1);
-    } else {
-        printf("  %s\n", directory);
-    }
-    return TRUE; // to continue
-}
+// PRIVATE BOOL list_db_cb(
+//     void *user_data,
+//     wd_found_type type,     // type found
+//     char *fullpath,         // directory+filename found
+//     const char *directory,  // directory of found filename
+//     char *name,             // dname[255]
+//     int level,              // level of tree where file found
+//     int index               // index of file inside of directory, relative to 0
+// )
+// {
+//     char *p = strrchr(directory, '/');
+//     if(p) {
+//         printf("  %s\n", p+1);
+//     } else {
+//         printf("  %s\n", directory);
+//     }
+//     return TRUE; // to continue
+// }
 
 PRIVATE int list_databases(const char *path)
 {
@@ -608,24 +608,24 @@ PRIVATE int list_databases(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL list_topic_cb(
-    void *user_data,
-    wd_found_type type,     // type found
-    char *fullpath,         // directory+filename found
-    const char *directory,  // directory of found filename
-    char *name,             // dname[255]
-    int level,              // level of tree where file found
-    int index               // index of file inside of directory, relative to 0
-)
-{
-    char *p = strrchr(directory, '/');
-    if(p) {
-        printf("  %s\n", p+1);
-    } else {
-        printf("  %s\n", directory);
-    }
-    return TRUE; // to continue
-}
+// PRIVATE BOOL list_topic_cb(
+//     void *user_data,
+//     wd_found_type type,     // type found
+//     char *fullpath,         // directory+filename found
+//     const char *directory,  // directory of found filename
+//     char *name,             // dname[255]
+//     int level,              // level of tree where file found
+//     int index               // index of file inside of directory, relative to 0
+// )
+// {
+//     char *p = strrchr(directory, '/');
+//     if(p) {
+//         printf("  %s\n", p+1);
+//     } else {
+//         printf("  %s\n", directory);
+//     }
+//     return TRUE; // to continue
+// }
 
 PRIVATE int list_topics(const char *path, const char *database)
 {
@@ -646,7 +646,7 @@ PRIVATE int list_topics(const char *path, const char *database)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE char bin[64*1024];
+// PRIVATE char bin[64*1024];
 gbuffer_t *get_next_frame(hgobj gobj, BOOL *empty_frame)
 {
     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -725,45 +725,45 @@ gbuffer_t *get_next_frame(hgobj gobj, BOOL *empty_frame)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int send_gps_msgs(hgobj gobj, hgobj channel_gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    uint32_t window = gobj_read_integer_attr(gobj, "window");
-    for(int i=0; i<window; i++) {
-        /*
-         *  Envia el mensaje al destino
-         */
-        gbuffer_t *gbuf = 0;
-
-        BOOL empty_frame;
-        gbuf = get_next_frame(gobj, &empty_frame);
-        if(!gbuf) {
-            if(empty_frame) {
-                if(gobj_trace_level(gobj) & TRACE_INFO) {
-                    trace_msg0("Droping connection");
-                }
-                gobj_send_event(channel_gobj, EV_DROP, 0, gobj);
-                return 0;
-            }
-            return -1;
-        }
-
-        if(gobj_trace_level(gobj) & TRACE_INFO) {
-            char metadata[1024];
-            // print_md1_record(priv->tranger, priv->htopic, &priv->md_record, metadata, sizeof(metadata));
-            trace_msg0("Sending: %s", metadata);
-        }
-
-        json_t *kw_tx = json_pack("{s:I}",
-            "gbuffer", (json_int_t)(uintptr_t)gbuf
-        );
-        gobj_send_event(channel_gobj, EV_SEND_MESSAGE, kw_tx, gobj);
-
-        priv->txMsgs++;
-    }
-
-    return 0;
-}
+// PRIVATE int send_gps_msgs(hgobj gobj, hgobj channel_gobj)
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//     uint32_t window = gobj_read_integer_attr(gobj, "window");
+//     for(int i=0; i<window; i++) {
+//         /*
+//          *  Envia el mensaje al destino
+//          */
+//         gbuffer_t *gbuf = 0;
+//
+//         BOOL empty_frame;
+//         gbuf = get_next_frame(gobj, &empty_frame);
+//         if(!gbuf) {
+//             if(empty_frame) {
+//                 if(gobj_trace_level(gobj) & TRACE_INFO) {
+//                     trace_msg0("Droping connection");
+//                 }
+//                 gobj_send_event(channel_gobj, EV_DROP, 0, gobj);
+//                 return 0;
+//             }
+//             return -1;
+//         }
+//
+//         if(gobj_trace_level(gobj) & TRACE_INFO) {
+//             char metadata[1024];
+//             // print_md1_record(priv->tranger, priv->htopic, &priv->md_record, metadata, sizeof(metadata));
+//             trace_msg0("Sending: %s", metadata);
+//         }
+//
+//         json_t *kw_tx = json_pack("{s:I}",
+//             "gbuffer", (json_int_t)(uintptr_t)gbuf
+//         );
+//         gobj_send_event(channel_gobj, EV_SEND_MESSAGE, kw_tx, gobj);
+//
+//         priv->txMsgs++;
+//     }
+//
+//     return 0;
+// }
 
 /***************************************************************************
  *
@@ -876,12 +876,12 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_interval(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    emulate_gps_msgs(gobj);
-    KW_DECREF(kw);
-    return 0;
-}
+// PRIVATE int ac_interval(hgobj gobj, const char *event, json_t *kw, hgobj src)
+// {
+//     emulate_gps_msgs(gobj);
+//     KW_DECREF(kw);
+//     return 0;
+// }
 
 /***************************************************************************
  *  Child stopped

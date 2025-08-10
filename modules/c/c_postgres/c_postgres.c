@@ -76,7 +76,7 @@ object ...  =>  text
  *              Prototypes
  ***************************************************************************/
 //PRIVATE void on_poll_cb(uv_poll_t *req, int status, int events);
-PRIVATE int process_result(hgobj gobj, PGresult* result);
+// PRIVATE int process_result(hgobj gobj, PGresult* result);
 PRIVATE int publish_result(hgobj gobj, json_t *kw);
 PRIVATE int pull_queue(hgobj gobj);
 PRIVATE int send_cur_query(hgobj gobj);
@@ -412,7 +412,7 @@ PRIVATE void noticeProcessor(void *arg, const char *message)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void set_connected(hgobj gobj)
+ void set_connected(hgobj gobj) // TODO repon PRIVATE x
 {
     gobj_send_event(gobj, EV_CONNECTED, 0, gobj);
 }
@@ -800,7 +800,7 @@ PRIVATE int send_cur_query(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int process_result(hgobj gobj, PGresult* result)
+ int process_result(hgobj gobj, PGresult* result) // TODO repon PRIVATE
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
