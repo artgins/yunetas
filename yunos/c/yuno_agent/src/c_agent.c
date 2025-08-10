@@ -16,10 +16,11 @@
 #include <unistd.h>
 #include <limits.h>
 #include <pwd.h>
+#include <signal.h>
+#include <fcntl.h>
 
 #include <c_pty.h>
 #include "c_agent.h"
-
 #include "treedb_schema_yuneta_agent.c"
 
 /***************************************************************************
@@ -1727,7 +1728,7 @@ PRIVATE json_t *cmd_replicate_node(hgobj gobj, const char *cmd, json_t *kw, hgob
 //                 realm_id
 //             );
 //         } else {
-//             gbuffer_t *gbuf_ids = gbuffer_create((size_t)4*1024, (size_t)32*1024, 0, 0);
+//             gbuffer_t *gbuf_ids = gbuffer_create((size_t)4*1024, (size_t)32*1024);
 //
 //             hsdata hs_realm; rc_instance_t *i_hs;
 //             i_hs = rc_first_instance(iter_realms, (rc_resource_t **)&hs_realm);
@@ -2101,7 +2102,7 @@ PRIVATE json_t *cmd_replicate_binaries(hgobj gobj, const char *cmd, json_t *kw, 
 //                 role
 //             );
 //         } else {
-//             gbuffer_t *gbuf_ids = gbuffer_create(4*1024, 32*1024, 0, 0);
+//             gbuffer_t *gbuf_ids = gbuffer_create(4*1024, 32*1024);
 //
 //             hsdata hs_binary; rc_instance_t *i_hs;
 //             i_hs = rc_first_instance(iter_binaries, (rc_resource_t **)&hs_binary);
@@ -3889,7 +3890,7 @@ PRIVATE json_t *cmd_set_multiple(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         );
     }
     BOOL multiple = kw_get_bool(gobj, kw, "yuno_multiple", 0, 0);
-    kw_delete(kw, "yuno_multiple");
+    kw_delete(gobj, kw, "yuno_multiple");
 
     /*
      *  Get a iter of matched resources.
@@ -3955,6 +3956,7 @@ PRIVATE json_t *yuno2multiselect(
     json_t *node // not owned
 )
 {
+    hgobj gobj = 0; // TODO
     json_t * multiselect_element = json_object();
     json_object_set_new(
         multiselect_element,
@@ -4006,7 +4008,7 @@ PRIVATE json_t *cmd_top_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     JSON_DECREF(iter)
 
     json_t *schema = webix?
-        0:0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
+        0:0; // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
     ;
     return msg_iev_build_response(
         gobj,
@@ -4061,7 +4063,7 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     json_t *jn_data = webix?yunos2multilselect(iter):iter;
 
     json_t *schema = webix?
-        0:0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
+        0:0; // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
     ;
     return msg_iev_build_response(
         gobj,
@@ -5061,9 +5063,9 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
              *  HACK le meto un id al mensaje de petición PLAY_YUNO
              *  que lo devolverá en el mensaje respuesta PLAY_YUNO_ACK.
              */
-            json_int_t filter_ref = (json_int_t)long_reference();
+            json_int_t filter_ref = 0; // TODO (json_int_t)long_reference();
             json_t *jn_msg = json_object();
-            kw_set_subdict_value(jn_msg, "__md_iev__", "__id__", json_integer(filter_ref));
+            kw_set_subdict_value(gobj, jn_msg, "__md_iev__", "__id__", json_integer(filter_ref));
             if(play_yuno(gobj, yuno, jn_msg, src)==0) {
                 /*
                  *  HACK Guarda el filtro para el counter.
@@ -5135,7 +5137,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create("", GCLASS_COUNTER, kw_counter, gobj);
+    hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", "EV_COUNT"
     );
@@ -6230,7 +6232,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
             const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
             hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
             if(gobj_route_service) {
-                hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+                hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
                 if(!gobj_input_gate) {
                     gobj_log_error(gobj, 0,
                         "function",     "%s", __FUNCTION__,
@@ -6244,7 +6246,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
                     result = -1;
                     continue;
                 }
-                json_t *jn_consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+                json_t *jn_consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
                 json_object_set_new(jn_gobjs, route_name, json_deep_copy(jn_consoles));
             } else {
                 json_object_set_new(jn_gobjs, route_name, json_string("ERROR route_service not found"));
@@ -6383,7 +6385,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
          *  Console already exists
          */
         json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, KW_REQUIRED);
-        gobj_console = gobj_find_unique_gobj(name, FALSE);
+        gobj_console = gobj_find_service(name, FALSE);
         if(!gobj_console) {
             return msg_iev_build_response(
                 gobj,
@@ -6493,11 +6495,11 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
      */
     int ret = 0;
     if(hold_open) {
-        const char *route_service = gobj_name(gobj_nearest_top_unique(src));
+        const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(src));
         const char *route_child = gobj_name(src);
         ret = remove_console_route(gobj, name, route_service, route_child);
     } else {
-        hgobj gobj_console = gobj_find_unique_gobj(name, TRUE);
+        hgobj gobj_console = gobj_find_service(name, TRUE);
         gobj_stop(gobj_console); // volatil, auto-destroy
     }
 
@@ -6537,7 +6539,7 @@ PRIVATE int add_console_route(
 {
     json_t *jn_routes = kw_get_dict(gobj, jn_console_, "routes", 0, KW_REQUIRED);
 
-    const char *route_service = gobj_name(gobj_nearest_top_unique(src));
+    const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(src));
     const char *route_child = gobj_name(src);
 
     char route_name[NAME_MAX];
@@ -6615,9 +6617,9 @@ PRIVATE int remove_console_route(
      */
     hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
     if(gobj_route_service) {
-        hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+        hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
         if(gobj_input_gate) {
-            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
             if(consoles) {
                 json_object_del(consoles, route_name);
             } else {
@@ -6653,12 +6655,12 @@ PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src)
 {
     char name_[NAME_MAX];
     snprintf(name_, sizeof(name_), "consoles`%s", name);
-    gobj_kw_get_user_data( // save in input gate
-        src,
-        name_,
-        json_true(), // owned
-        KW_CREATE
-    );
+    NULL; // TODO gobj_kw_get_user_data( // save in input gate
+    //     src,
+    //     name_,
+    //     json_true(), // owned
+    //     KW_CREATE
+    // );
 
     return 0;
 }
@@ -6675,7 +6677,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
      */
     json_t *jn_console = kw_get_dict(gobj, priv->list_consoles, name, 0, KW_EXTRACT);
 
-    hgobj gobj_console = gobj_find_unique_gobj(name, FALSE);
+    hgobj gobj_console = gobj_find_service(name, FALSE);
 
     if(!jn_console) {
         gobj_log_error(gobj, 0,
@@ -6702,7 +6704,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
         const char *route_child = kw_get_str(gobj, jn_route,  "route_child", "", KW_REQUIRED);
         hgobj gobj_route_service = gobj_find_service(route_service, TRUE);
         if(gobj_route_service) {
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -6714,7 +6716,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
                 );
                 continue;
             }
-            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
             if(consoles) {
                 json_object_del(consoles, name);
             }
@@ -6738,12 +6740,12 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     hgobj gobj_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-    json_t *consoles = gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
+    json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
     if(!consoles) {
         return 0;
     }
 
-    const char *route_service = gobj_name(gobj_nearest_top_unique(gobj_channel));
+    const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(gobj_channel));
     const char *route_child = gobj_name(gobj_channel);
 
     const char *name; json_t *jn_; void *n;
@@ -7326,7 +7328,7 @@ PRIVATE int write_service_client_connectors(
     json_t *jn_yuno_services = json_pack("{s:o}",
         "services", jn_services
     );
-    gbuffer_t *gbuf_config = gbuffer_create((size_t)4*1024, (size_t)256*1024, 0, 0);
+    gbuffer_t *gbuf_config = gbuffer_create((size_t)4*1024, (size_t)256*1024);
     size_t index;
     json_t *jn_service;
     json_array_foreach(jn_required_services, index, jn_service) {
@@ -7549,7 +7551,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
         );
         snprintf(config_path, sizeof(config_path), "%s/%s.json", yuno_bin_path, config_file_name);
 
-        gbuffer_t *gbuf_config = gbuffer_create(4*1024, 256*1024, 0, 0);
+        gbuffer_t *gbuf_config = gbuffer_create(4*1024, 256*1024);
 
         json_t *jn_global = assigned_yuno_global_service_variables(
             gobj,
@@ -7633,7 +7635,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
         );
         snprintf(config_path, sizeof(config_path), "%s/%s.json", yuno_bin_path, config_file_name);
 
-        gbuffer_t *gbuf_config = gbuffer_create((size_t)4*1024, 256*1024, 0, 0);
+        gbuffer_t *gbuf_config = gbuffer_create((size_t)4*1024, 256*1024);
         char *client_agent_config = gbmem_strdup(agent_filter_chain_config);
         helper_quote2doublequote(client_agent_config);
 
@@ -7669,7 +7671,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
         json_t *jn_config_required_services = 0;
         json_t *hs_config = get_yuno_config(gobj, yuno);
         if(hs_config) {
-            gbuf_config = gbuffer_create(4*1024, 256*1024, 0, 0);
+            gbuf_config = gbuffer_create(4*1024, 256*1024);
             snprintf(config_file_name, sizeof(config_file_name), "%d-%s",
                 n_config+1,
                 role_plus_name
@@ -7771,7 +7773,7 @@ PRIVATE int run_yuno(
     json_object_set_new(yuno, "launch_id", json_integer(t));
 
     char bfbinary[NAME_MAX];
-    gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024, 0, 0);
+    gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
     build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), FALSE);
 
     const char *realm_id = kw_get_str(gobj, yuno, "realm_id`0", "", KW_REQUIRED);
@@ -8192,12 +8194,12 @@ PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data)
             "kw", kw
         );
         if(jn_cmd) {
-            char *audit = json2str(jn_cmd);
-            if(audit) {
-                rotatory_write(priv->audit_file, LOG_AUDIT, audit, strlen(audit));
-                rotatory_write(priv->audit_file, LOG_AUDIT, "\n", 1);  // double new line: the separator field
-                gbmem_free(audit);
-            }
+            // TODO char *audit = json2str(jn_cmd);
+            // if(audit) {
+            //     rotatory_write(priv->audit_file, LOG_AUDIT, audit, strlen(audit));
+            //     rotatory_write(priv->audit_file, LOG_AUDIT, "\n", 1);  // double new line: the separator field
+            //     gbmem_free(audit);
+            // }
             json_decref(jn_cmd);
         }
     }
@@ -8305,6 +8307,7 @@ PRIVATE json_t *find_configuration_version(
  ***************************************************************************/
 PRIVATE int build_release_name(char *bf, int bfsize, json_t *hs_binary, json_t *hs_config)
 {
+    hgobj gobj = 0; // TODO
     int len;
     char *p = bf;
 
@@ -8372,15 +8375,15 @@ PRIVATE int get_new_service_port(
 {
     //json_t *jn_range_ports = SDATA_GET_JSON(hs_realm, "range_ports"); DEPRECATED
     json_t *jn_range_ports = gobj_read_json_attr(gobj, "range_ports");
-    json_t *jn_port_list = json_expand_integer_list(jn_range_ports);
+    json_t *jn_port_list = 0; // TODO json_expand_integer_list(jn_range_ports);
 
     //uint32_t last_port = SDATA_GET_INT(hs_realm, "last_port"); DEPRECATED
     uint32_t new_port = 0;
     uint32_t last_port = get_last_public_port(gobj);
     if(!last_port) {
-        new_port = json_list_int(jn_port_list, 0);
+        new_port = 0; // TODO json_list_int(jn_port_list, 0);
     } else {
-        int idx = json_list_int_index(jn_port_list, last_port);
+        int idx = 0; // TODO json_list_int_index(jn_port_list, last_port);
         if(idx < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -8402,7 +8405,7 @@ PRIVATE int get_new_service_port(
             JSON_DECREF(jn_port_list);
             return 0;
         }
-        new_port = json_list_int(jn_port_list, idx);
+        new_port = 0; // TODO json_list_int(jn_port_list, idx);
     }
 
     gobj_write_integer_attr(gobj, "last_port", new_port);
@@ -9081,7 +9084,7 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         p++;
     }
-    json_t *jn_s = nonlegalstring2json(s, TRUE);
+    json_t *jn_s = 0; // TODO nonlegalstring2json(s, TRUE);
     json_t *jn_data = json_pack("{s:s, s:o}",
         "name", p,
         "zcontent", jn_s?jn_s:json_string("Invalid json in filename")
@@ -9337,7 +9340,7 @@ PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj
         p++;
     }
 
-    gbuffer_t *gbuf_base64 = gbuf_string2base64(s, size);
+    gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(s, size);
 
     json_t *jn_s = json_string(gbuffer_cur_rd_pointer(gbuf_base64));
     json_t *jn_data = json_pack("{s:s, s:o}",
@@ -9421,7 +9424,7 @@ PRIVATE int ac_read_running_keys(hgobj gobj, const char *event, json_t *kw, hgob
      *  Walk over yunos iter
      *------------------------------------------------*/
     char bfbinary[NAME_MAX];
-    gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024, 0, 0);
+    gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
     build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), TRUE);
     char *s = gbuffer_cur_rd_pointer(gbuf_sh);
 
@@ -9509,7 +9512,7 @@ PRIVATE int ac_read_running_bin(hgobj gobj, const char *event, json_t *kw, hgobj
      *  Walk over yunos iter
      *------------------------------------------------*/
     char bfbinary[NAME_MAX];
-    gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024, 0, 0);
+    gbuffer_t *gbuf_sh = gbuffer_create(4*1024, 32*1024);
     build_yuno_running_script(gobj, gbuf_sh, yuno, bfbinary, sizeof(bfbinary), FALSE);
 
     json_t *jn_s = json_string(bfbinary);
@@ -9676,14 +9679,13 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_AREA_ID);
+    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
         gobj_find_service("__input_side__", TRUE),
-        dst_service,
-        0
+        dst_service
     );
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
@@ -9700,7 +9702,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_answer(gobj, kw, kw, 0);
+    json_t *kw_redirect = 0; // TODO msg_iev_answer(gobj, kw, kw, 0);
 
     return gobj_send_event(
         gobj_requester,
@@ -9715,7 +9717,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    json_t *jn_ievent_id = msg_iev_pop_stack(kw, IEVENT_MESSAGE_AREA_ID);
+    json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
     if(strcmp(dst_service, gobj_name(gobj))==0) {
@@ -9727,8 +9729,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
 
     hgobj gobj_requester = gobj_child_by_name(
         gobj_find_service("__input_side__", TRUE),
-        dst_service,
-        0
+        dst_service
     );
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
@@ -9745,7 +9746,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_answer(gobj, kw, kw, 0);
+    json_t *kw_redirect = NULL; // TODO msg_iev_answer(gobj, kw, kw, 0);
 
     return gobj_send_event(
         gobj_requester,
@@ -9992,8 +9993,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!empty_string(solicitante)) {
                 gobj_requester = gobj_child_by_name(
                     gobj_find_service("__input_side__", TRUE),
-                    solicitante,
-                    0
+                    solicitante
                 );
             }
             if(!gobj_requester) {
@@ -10123,10 +10123,10 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
 // KKK
 
-    json_t *iter_yunos = gobj_kw_get_user_data(src, "iter", 0, KW_EXTRACT);
-    json_t *kw_answer = gobj_kw_get_user_data(src, "kw_answer", 0, KW_EXTRACT);
+    json_t *iter_yunos = NULL;  // TODO gobj_kw_get_user_data(src, "iter", 0, KW_EXTRACT);
+    json_t *kw_answer = NULL;  // TODO gobj_kw_get_user_data(src, "kw_answer", 0, KW_EXTRACT);
 
-    json_t *jn_request = msg_iev_pop_stack(kw, "requester_stack");
+    json_t *jn_request = msg_iev_pop_stack(gobj, kw, "requester_stack");
     if(!jn_request) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -10144,8 +10144,7 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *requester = kw_get_str(gobj, jn_request, "requester", 0, 0);
     hgobj gobj_requester = gobj_child_by_name(
         gobj_find_service("__input_side__", TRUE),
-        requester,
-        0
+        requester
     );
     if(!gobj_requester) {
         gobj_log_error(gobj, 0,
@@ -10188,9 +10187,9 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
         ok?0:-1,
         jn_comment, // owned
         0, // TODO tranger_list_topic_desc(
-            gobj_read_pointer_attr(priv->resource, "tranger"),
-            "yunos"
-        ),
+        //     gobj_read_pointer_attr(priv->resource, "tranger"),
+        //     "yunos"
+        // ),
         jn_data,
         kw_answer  // owned
     );
@@ -10225,7 +10224,7 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!gobj_route_service) {
                 continue;
             }
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -10281,7 +10280,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!gobj_route_service) {
                 continue;
             }
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -10294,7 +10293,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 continue;
             }
 
-            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
 
             if(consoles) {
                 json_object_del(consoles, gobj_name(src));
@@ -10340,7 +10339,7 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(!gobj_route_service) {
                 continue;
             }
-            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child, 0);
+            hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
             if(!gobj_input_gate) {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
@@ -10392,7 +10391,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
-    hgobj gobj_console = gobj_find_unique_gobj(name, FALSE);
+    hgobj gobj_console = gobj_find_service(name, FALSE);
     if(!gobj_console) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
