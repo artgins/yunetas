@@ -10445,27 +10445,26 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     return 0;
 }
 
-/***************************************************************************
+/***********************************************************************
  *                          FSM
- ***************************************************************************/
-
+ ***********************************************************************/
 /*---------------------------------------------*
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create      = mt_create,
-    .mt_destroy     = mt_destroy,
-    .mt_start       = mt_start,
-    .mt_stop        = mt_stop,
-    .mt_writing     = mt_writing,
-    .mt_trace_on    = mt_trace_on,
-    .mt_trace_off   = mt_trace_off,
+    .mt_create   = mt_create,
+    .mt_destroy  = mt_destroy,
+    .mt_start    = mt_start,
+    .mt_stop     = mt_stop,
+    .mt_writing  = mt_writing,
+    .mt_trace_on = mt_trace_on,
+    .mt_trace_off= mt_trace_off,
 };
 
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_AGENT);
+GOBJ_DEFINE_GCLASS(GCLASS_AGENT);
 
 /*------------------------*
  *      States
@@ -10474,110 +10473,136 @@ GOBJ_DEFINE_GCLASS(C_AGENT);
 /*------------------------*
  *      Events
  *------------------------*/
+GOBJ_DEFINE_EVENT(EV_EDIT_CONFIG);
+GOBJ_DEFINE_EVENT(EV_VIEW_CONFIG);
+GOBJ_DEFINE_EVENT(EV_EDIT_YUNO_CONFIG);
+GOBJ_DEFINE_EVENT(EV_VIEW_YUNO_CONFIG);
+GOBJ_DEFINE_EVENT(EV_READ_JSON);
+GOBJ_DEFINE_EVENT(EV_READ_FILE);
+GOBJ_DEFINE_EVENT(EV_READ_BINARY_FILE);
+GOBJ_DEFINE_EVENT(EV_READ_RUNNING_KEYS);
+GOBJ_DEFINE_EVENT(EV_READ_RUNNING_BIN);
+
+GOBJ_DEFINE_EVENT(EV_PLAY_YUNO_ACK);
+GOBJ_DEFINE_EVENT(EV_PAUSE_YUNO_ACK);
+GOBJ_DEFINE_EVENT(EV_MT_STATS_ANSWER);
+GOBJ_DEFINE_EVENT(EV_MT_COMMAND_ANSWER);
+
+GOBJ_DEFINE_EVENT(EV_TTY_DATA);
+GOBJ_DEFINE_EVENT(EV_TTY_OPEN);
+GOBJ_DEFINE_EVENT(EV_TTY_CLOSE);
+GOBJ_DEFINE_EVENT(EV_WRITE_TTY);
+
+GOBJ_DEFINE_EVENT(EV_FINAL_COUNT);
 
 /***************************************************************************
- *          Create the GClass
+ *
  ***************************************************************************/
 PRIVATE int create_gclass(gclass_name_t gclass_name)
 {
     static hgclass __gclass__ = 0;
     if(__gclass__) {
         gobj_log_error(0, 0,
-            "function", "%s", __FUNCTION__,
-            "msgset",   "%s", MSGSET_INTERNAL_ERROR,
-            "msg",      "%s", "GClass ALREADY created",
-            "gclass",   "%s", gclass_name,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "GClass ALREADY created",
+            "gclass",       "%s", gclass_name,
             NULL
         );
         return -1;
     }
 
-    /*------------------------*
-     *      States
-     *------------------------*/
+    /*----------------------------------------*
+     *          Define States
+     *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_EDIT_CONFIG,         ac_edit_config,         0},
-        {EV_VIEW_CONFIG,         ac_view_config,         0},
-        {EV_EDIT_YUNO_CONFIG,    ac_edit_yuno_config,    0},
-        {EV_VIEW_YUNO_CONFIG,    ac_view_yuno_config,    0},
-        {EV_READ_JSON,           ac_read_json,           0},
-        {EV_READ_FILE,           ac_read_file,           0},
-        {EV_READ_BINARY_FILE,    ac_read_binary_file,    0},
-        {EV_READ_RUNNING_KEYS,   ac_read_running_keys,   0},
-        {EV_READ_RUNNING_BIN,    ac_read_running_bin,    0},
+        {EV_EDIT_CONFIG,          ac_edit_config,         0},
+        {EV_VIEW_CONFIG,          ac_view_config,         0},
+        {EV_EDIT_YUNO_CONFIG,     ac_edit_yuno_config,    0},
+        {EV_VIEW_YUNO_CONFIG,     ac_view_yuno_config,    0},
+        {EV_READ_JSON,            ac_read_json,           0},
+        {EV_READ_FILE,            ac_read_file,           0},
+        {EV_READ_BINARY_FILE,     ac_read_binary_file,    0},
+        {EV_READ_RUNNING_KEYS,    ac_read_running_keys,   0},
+        {EV_READ_RUNNING_BIN,     ac_read_running_bin,    0},
 
-        {EV_PLAY_YUNO_ACK,       ac_play_yuno_ack,       0},
-        {EV_PAUSE_YUNO_ACK,      ac_pause_yuno_ack,      0},
-        {EV_MT_STATS_ANSWER,     ac_stats_yuno_answer,   0},
-        {EV_MT_COMMAND_ANSWER,   ac_command_yuno_answer, 0},
-        {EV_ON_COMMAND,          ac_command_yuno_answer, 0},
+        {EV_PLAY_YUNO_ACK,        ac_play_yuno_ack,       0},
+        {EV_PAUSE_YUNO_ACK,       ac_pause_yuno_ack,      0},
+        {EV_MT_STATS_ANSWER,      ac_stats_yuno_answer,   0},
+        {EV_MT_COMMAND_ANSWER,    ac_command_yuno_answer, 0},
+        {EV_ON_COMMAND,           ac_command_yuno_answer, 0},
 
-        {EV_ON_OPEN,             ac_on_open,             0},
-        {EV_ON_CLOSE,            ac_on_close,            0},
-        {EV_FINAL_COUNT,         ac_final_count,         0},
-        {EV_TTY_DATA,            ac_tty_data,            0},
-        {EV_TTY_OPEN,            ac_tty_open,            0},
-        {EV_TTY_CLOSE,           ac_tty_close,           0},
-        {EV_WRITE_TTY,           ac_write_tty,           0},
-        {EV_TIMEOUT,             ac_timeout,             0},
-        {EV_STOPPED,             0,                      0},
+        {EV_ON_OPEN,              ac_on_open,             0},
+        {EV_ON_CLOSE,             ac_on_close,            0},
+        {EV_FINAL_COUNT,          ac_final_count,         0},
+        {EV_TTY_DATA,             ac_tty_data,            0},
+        {EV_TTY_OPEN,             ac_tty_open,            0},
+        {EV_TTY_CLOSE,            ac_tty_close,           0},
+        {EV_WRITE_TTY,            ac_write_tty,           0},
+        {EV_TIMEOUT,              ac_timeout,             0},
+        {EV_STOPPED,              0,                      0},
         {0,0,0}
     };
 
     states_t states[] = {
-        {ST_IDLE, st_idle},
+        {ST_IDLE,                 st_idle},
         {0, 0}
     };
 
     /*------------------------*
-     *      Events
+     *      Events table
      *------------------------*/
     event_type_t event_types[] = {
-        {EV_PLAY_YUNO_ACK,       EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_PAUSE_YUNO_ACK,      EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_MT_STATS_ANSWER,     EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
-        {EV_MT_COMMAND_ANSWER,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        /* Public input (requests) */
+        {EV_EDIT_CONFIG,          EVF_PUBLIC_EVENT},
+        {EV_VIEW_CONFIG,          EVF_PUBLIC_EVENT},
+        {EV_EDIT_YUNO_CONFIG,     EVF_PUBLIC_EVENT},
+        {EV_VIEW_YUNO_CONFIG,     EVF_PUBLIC_EVENT},
+        {EV_READ_JSON,            EVF_PUBLIC_EVENT},
+        {EV_READ_FILE,            EVF_PUBLIC_EVENT},
+        {EV_READ_BINARY_FILE,     EVF_PUBLIC_EVENT},
+        {EV_READ_RUNNING_KEYS,    EVF_PUBLIC_EVENT},
+        {EV_READ_RUNNING_BIN,     EVF_PUBLIC_EVENT},
+        {EV_ON_COMMAND,           EVF_PUBLIC_EVENT},
 
-        {EV_EDIT_CONFIG,         EVF_PUBLIC_EVENT},
-        {EV_VIEW_CONFIG,         EVF_PUBLIC_EVENT},
-        {EV_EDIT_YUNO_CONFIG,    EVF_PUBLIC_EVENT},
-        {EV_VIEW_YUNO_CONFIG,    EVF_PUBLIC_EVENT},
-        {EV_READ_JSON,           EVF_PUBLIC_EVENT},
-        {EV_READ_FILE,           EVF_PUBLIC_EVENT},
-        {EV_READ_BINARY_FILE,    EVF_PUBLIC_EVENT},
-        {EV_READ_RUNNING_KEYS,   EVF_PUBLIC_EVENT},
-        {EV_READ_RUNNING_BIN,    EVF_PUBLIC_EVENT},
-        {EV_ON_COMMAND,          EVF_PUBLIC_EVENT},
+        /* Non-public inputs */
+        {EV_TTY_DATA,             0},
+        {EV_TTY_OPEN,             0},
+        {EV_TTY_CLOSE,            0},
+        {EV_WRITE_TTY,            0},
+        {EV_ON_OPEN,              0},
+        {EV_ON_CLOSE,             0},
+        {EV_FINAL_COUNT,          0},
+        {EV_TIMEOUT,              0},
+        {EV_STOPPED,              0},
 
-        {EV_ON_OPEN,             0},
-        {EV_ON_CLOSE,            0},
-        {EV_TTY_DATA,            0},
-        {EV_TTY_OPEN,            0},
-        {EV_TTY_CLOSE,           0},
-        {EV_WRITE_TTY,           0},
-        {EV_TIMEOUT,             0},
-        {EV_FINAL_COUNT,         0},
-        {EV_STOPPED,             0},
-        {NULL, 0}
+        /* Publications (outputs) */
+        {EV_PLAY_YUNO_ACK,        EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_PAUSE_YUNO_ACK,       EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_MT_STATS_ANSWER,      EVF_OUTPUT_EVENT},
+        {EV_MT_COMMAND_ANSWER,    EVF_OUTPUT_EVENT},
+
+        {0, 0}
     };
 
     /*----------------------------------------*
-     *          Register GClass
+     *          Create the gclass
      *----------------------------------------*/
     __gclass__ = gclass_create(
         gclass_name,
         event_types,
         states,
         &gmt,
-        0,                  // Local method table
+        0,              /* lmt (none) */
         tattr_desc,
         sizeof(PRIVATE_DATA),
-        authz_table,
-        command_table,
+        authz_table,    /* acl */
+        command_table,  /* command table */
         s_user_trace_level,
-        0                   // GClass flags
+        0               /* gcflag */
     );
     if(!__gclass__) {
+        // Error already logged
         return -1;
     }
 
@@ -10589,5 +10614,5 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
  ***************************************************************************/
 PUBLIC int register_c_agent(void)
 {
-    return create_gclass(C_AGENT);
+    return create_gclass(GCLASS_AGENT);
 }
