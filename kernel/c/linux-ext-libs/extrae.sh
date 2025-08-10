@@ -15,8 +15,11 @@ fi
 #----------------------------------------#
 #       Disable the Merde for backends
 #----------------------------------------#
-sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
-sudo apt -y remove powerdevil
+# WARNING only in backend hosts, to delete sleep of machine:
+#sudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target
+
+# To restore
+#sudo systemctl unmask sleep.target suspend.target hibernate.target hybrid-sleep.target
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e
