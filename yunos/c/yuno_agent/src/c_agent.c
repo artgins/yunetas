@@ -949,7 +949,7 @@ typedef struct _PRIVATE_DATA {
 
     hgobj resource;
     hgobj timer;
-    // TODO hrotatory_t audit_file;
+    hrotatory_h audit_file;
 } PRIVATE_DATA;
 
 
@@ -2986,29 +2986,29 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
     /*
      *  Overwrite, the overwrite filter was above.
      */
-    if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "copyfile() FAILED",
-            "path",         "%s", path,
-            "destination",  "%s", destination,
-            NULL
-        );
-        JSON_DECREF(jn_basic_info);
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf(
-                "Cannot copy '%s' to '%s'",
-                path,
-                destination
-            ),
-            0,
-            0,
-            kw  // owned
-        );
-    }
+    //TODO if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",     "%s", __FUNCTION__,
+    //         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+    //         "msg",          "%s", "copyfile() FAILED",
+    //         "path",         "%s", path,
+    //         "destination",  "%s", destination,
+    //         NULL
+    //     );
+    //     JSON_DECREF(jn_basic_info);
+    //     return msg_iev_build_response(
+    //         gobj,
+    //         -1,
+    //         json_sprintf(
+    //             "Cannot copy '%s' to '%s'",
+    //             path,
+    //             destination
+    //         ),
+    //         0,
+    //         0,
+    //         kw  // owned
+    //     );
+    // }
 
     /*------------------------------------------------*
      *      Store in db
@@ -3211,30 +3211,30 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Overwrite, the overwrite filter was above.
      */
-    if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "copyfile() FAILED",
-            "path",         "%s", path,
-            "destination",  "%s", destination,
-            NULL
-        );
-        JSON_DECREF(jn_basic_info);
-        json_decref(node);
-        return msg_iev_build_response(
-            gobj,
-            -1,
-            json_sprintf(
-                "Cannot copy '%s' to '%s'",
-                path,
-                destination
-            ),
-            0,
-            0,
-            kw  // owned
-        );
-    }
+    // TODO if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
+    //     gobj_log_error(gobj, 0,
+    //         "function",     "%s", __FUNCTION__,
+    //         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+    //         "msg",          "%s", "copyfile() FAILED",
+    //         "path",         "%s", path,
+    //         "destination",  "%s", destination,
+    //         NULL
+    //     );
+    //     JSON_DECREF(jn_basic_info);
+    //     json_decref(node);
+    //     return msg_iev_build_response(
+    //         gobj,
+    //         -1,
+    //         json_sprintf(
+    //             "Cannot copy '%s' to '%s'",
+    //             path,
+    //             destination
+    //         ),
+    //         0,
+    //         0,
+    //         kw  // owned
+    //     );
+    // }
 
     /*------------------------------------------------*
      *  Update the resource
@@ -4007,14 +4007,14 @@ PRIVATE json_t *cmd_top_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
     JSON_DECREF(iter)
 
-    json_t *schema = webix?
-        0:0; // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
-    ;
+    // json_t *schema = webix?
+    //     0:0; // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
+    // ;
     return msg_iev_build_response(
         gobj,
         0,
         0,
-        schema,
+        0, // TODO schema,
         jn_data, // owned
         kw  // owned
     );
@@ -4062,14 +4062,14 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      */
     json_t *jn_data = webix?yunos2multilselect(iter):iter;
 
-    json_t *schema = webix?
-        0:0; // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
-    ;
+    // TODO json_t *schema = webix?
+    //     0:0; // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
+    // ;
     return msg_iev_build_response(
         gobj,
         0,
         0,
-        schema,
+        0, // TODO schema,
         jn_data, // owned
         kw  // owned
     );
@@ -4243,10 +4243,10 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
             json_decref(jn_data);
             jn_data = new_jn_data;
             if(ret == 0) {
-                schema = 0, // TODO tranger_list_topic_desc(
-                    gobj_read_pointer_attr(priv->resource, "tranger"),
-                    "yunos"
-                );
+                schema = 0; // TODO tranger_list_topic_desc(
+                //     gobj_read_pointer_attr(priv->resource, "tranger"),
+                //     "yunos"
+                // );
             }
         }
     }
@@ -4771,7 +4771,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create("", GCLASS_COUNTER, kw_counter, gobj);
+    hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
 
     /*
      *  Subcribe al objeto counter a los eventos del router
@@ -4808,6 +4808,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             "requester", gobj_name(src)
         );
         msg_iev_push_stack(
+            gobj,
             global,
             "requester_stack",
             jn_msg_id
@@ -4903,7 +4904,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 return msg_iev_build_response(gobj,
                     -1,
                     json_sprintf(
-                        "Can't kill yuno: %s", gobj_get_message_error(gobj)
+                        "" // TODO "Can't kill yuno: %s", gobj_get_message_error(gobj)
                     ),
                     0,
                     0,
@@ -4951,7 +4952,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create("", GCLASS_COUNTER, kw_counter, gobj);
+    hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
 
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", "EV_COUNT"
@@ -4981,6 +4982,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             "requester", gobj_name(src)
         );
         msg_iev_push_stack(
+            gobj,
             global,
             "requester_stack",
             jn_msg_id
@@ -5166,6 +5168,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             "requester", gobj_name(src)
         );
         msg_iev_push_stack(
+            gobj,
             global,
             "requester_stack",
             jn_msg_id
@@ -5306,7 +5309,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create("", GCLASS_COUNTER, kw_counter, gobj);
+    hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", "EV_COUNT"
     );
@@ -5335,6 +5338,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             "requester", gobj_name(src)
         );
         msg_iev_push_stack(
+            gobj,
             global,
             "requester_stack",
             jn_msg_id
@@ -5554,7 +5558,7 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
          *  Trace on yuno
          */
         json_object_set_new(yuno, "traced", json_true());
-        json_t *kw_clone = msg_iev_pure_clone(kw);
+        json_t *kw_clone = 0; // TODO msg_iev_pure_clone(kw);
         trace_on_yuno(gobj, yuno, kw_clone, src);
 
         json_array_append_new(
@@ -5626,7 +5630,7 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
          *  Trace off yuno
          */
         json_object_set_new(yuno, "traced", json_false());
-        json_t *kw_clone = msg_iev_pure_clone(kw);
+        json_t *kw_clone = 0; // TODO msg_iev_pure_clone(kw);
         trace_off_yuno(gobj, yuno, kw_clone, src);
 
         json_array_append_new(
@@ -6330,16 +6334,16 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  New console
          */
-        if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
-            return msg_iev_build_response(
-                gobj,
-                -1,
-                json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
-                0,
-                0,
-                kw  // owned
-            );
-        }
+        // TODO if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
+        //     return msg_iev_build_response(
+        //         gobj,
+        //         -1,
+        //         json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
+        //         0,
+        //         0,
+        //         kw  // owned
+        //     );
+        // }
 
         /*
          *  Create pseudoterminal
@@ -6350,7 +6354,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             "cols", cx,
             "rows", cy
         );
-        gobj_console = gobj_create_unique(name, GCLASS_PTY, kw_pty, gobj);
+        gobj_console = gobj_create_service(name, C_PTY, kw_pty, gobj);
         if(!gobj_console) {
             return msg_iev_build_response(
                 gobj,
@@ -6797,6 +6801,7 @@ PRIVATE int exec_startup_command(hgobj gobj)
  ***************************************************************************/
 PRIVATE int build_role_plus_name(char *bf, int bf_len, json_t *yuno)
 {
+    hgobj gobj = 0; // TODO
     const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED);
     const char *yuno_name = kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED);
 
@@ -6818,6 +6823,7 @@ PRIVATE int build_role_plus_name(char *bf, int bf_len, json_t *yuno)
  ***************************************************************************/
 PRIVATE int build_role_plus_id(char *bf, int bf_len, json_t *yuno)
 {
+    hgobj gobj = 0; // TODO
     const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED);
     const char *yuno_name = kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED);
     const char *yuno_id = kw_get_str(gobj, yuno, "id", yuno_name, KW_REQUIRED);
@@ -6891,11 +6897,11 @@ PRIVATE char *yuneta_repos_yuno_dir(
     char tags[NAME_MAX];
     multiple_dir(tags, sizeof(tags), jn_tags);
 
-    build_path5(bf, bfsize, work_dir, "repos", tags, yuno_role, yuno_version);
+    build_path(bf, bfsize, work_dir, "repos", tags, yuno_role, yuno_version, NULL);
 
     if(create) {
         if(access(bf, 0)!=0) {
-            mkrdir(bf, 0, yuneta_xpermission());
+            mkrdir(bf, yuneta_xpermission());
             if(access(bf, 0)!=0) {
                 *bf = 0;
                 return 0;
@@ -6959,7 +6965,7 @@ PRIVATE char * build_yuno_private_domain(
 
     json_decref(realm);
 
-    return build_path4(bf, bfsize, "realms", realm_owner, url, role_plus_id);
+    return build_path(bf, bfsize, "realms", realm_owner, url, role_plus_id, NULL);
 }
 
 /***************************************************************************
@@ -6971,10 +6977,10 @@ PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsiz
     build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain));
 
     const char *work_dir = yuneta_root_dir();
-    build_path3(bf, bfsize, work_dir, private_domain, "bin");
+    build_path(bf, bfsize, work_dir, private_domain, "bin", NULL);
 
     if(create_dir) {
-        if(mkrdir(bf, 0, yuneta_xpermission())<0) {
+        if(mkrdir(bf, yuneta_xpermission())<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -6998,10 +7004,10 @@ PRIVATE char * build_yuno_log_path(hgobj gobj, json_t *yuno, char *bf, int bfsiz
     build_yuno_private_domain(gobj, yuno, private_domain, sizeof(private_domain));
 
     const char *work_dir = yuneta_root_dir();
-    build_path3(bf, bfsize, work_dir, private_domain, "logs");
+    build_path(bf, bfsize, work_dir, private_domain, "logs", NULL);
 
     if(create_dir) {
-        if(mkrdir(bf, 0, yuneta_xpermission())<0) {
+        if(mkrdir(bf, yuneta_xpermission())<0) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -7052,7 +7058,7 @@ PRIVATE json_t *find_required_services_size(
     int idx; json_t *jn_service;
     json_array_foreach(jn_config_required_services, idx, jn_service) {
         const char *service = json_string_value(jn_service);
-        if(!json_str_in_list(jn_required_services, service, FALSE)) {
+        if(!json_str_in_list(gobj, jn_required_services, service, FALSE)) {
             json_array_append_new(jn_required_services, json_string(service));
         }
     }
@@ -7387,16 +7393,16 @@ PRIVATE int write_service_client_connectors(
                 "__url__", url
         );
 
-        json_t *kw_connector = kw_apply_json_config_variables(jn_connector, jn_config_variables);
+        json_t *kw_connector = 0; // TODO kw_apply_json_config_variables(jn_connector, jn_config_variables);
         json_decref(jn_config_variables);
         json_array_append_new(jn_services, kw_connector);
         json_decref(hs_service);
     }
 
-    json_append2gbuf(
-        gbuf_config,
-        jn_yuno_services // owned
-    );
+    // TODO json_append2gbuf(
+    //     gbuf_config,
+    //     jn_yuno_services // owned
+    // );
 
     gbuf2file( // save: service connectors
         gbuf_config, // owned
@@ -7486,7 +7492,7 @@ PRIVATE json_t *assigned_yuno_global_service_variables(
  ***************************************************************************/
 PRIVATE gbuffer_t *build_yuno_running_script(
     hgobj gobj,
-    GBUFFER* gbuf_script,
+    gbuffer_t *gbuf_script,
     json_t *yuno,
     char *bfbinary,
     int bfbinary_size,
@@ -7603,10 +7609,10 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             json_object_update(jn_environment, jn_agent_environment);
         }
 
-        json_append2gbuf(
-            gbuf_config,
-            jn_content  //owned
-        );
+        // TODO json_append2gbuf(
+        //     gbuf_config,
+        //     jn_content  //owned
+        // );
 
         gbuf2file( // save: environment and yuno variables
             gbuf_config, // owned
@@ -7910,7 +7916,7 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
                 "strerror",     "%s", strerror(last_errno),
                 NULL
             );
-            gobj_set_message_error(gobj, strerror(last_errno));
+            // TODO gobj_set_message_error(gobj, strerror(last_errno));
             ret = -1;
         }
     }
@@ -7934,7 +7940,7 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
                         "strerror",     "%s", strerror(last_errno),
                         NULL
                     );
-                    gobj_set_message_error(gobj, strerror(last_errno));
+                    // TODO gobj_set_message_error(gobj, strerror(last_errno));
                     ret = -1;
                 }
             }
@@ -8111,6 +8117,7 @@ PRIVATE int authzs_to_yuno(
     hgobj src
 )
 {
+    hgobj gobj = 0; // TODO
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
     if(!channel_gobj) {
         KW_DECREF(kw);

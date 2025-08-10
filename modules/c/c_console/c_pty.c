@@ -19,6 +19,8 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
+
+#include "g_ev_console.h"
 #include "c_pty.h"
 
 /***************************************************************************
@@ -807,10 +809,10 @@ GOBJ_DEFINE_GCLASS(C_PTY);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_WRITE_TTY);
-GOBJ_DEFINE_EVENT(EV_TTY_DATA);
-GOBJ_DEFINE_EVENT(EV_TTY_OPEN);
-GOBJ_DEFINE_EVENT(EV_TTY_CLOSE);
+// GOBJ_DEFINE_EVENT(EV_WRITE_TTY);
+// GOBJ_DEFINE_EVENT(EV_TTY_DATA);
+// GOBJ_DEFINE_EVENT(EV_TTY_OPEN);
+// GOBJ_DEFINE_EVENT(EV_TTY_CLOSE);
 
 /***************************************************************************
  *          Create the GClass
