@@ -2880,6 +2880,7 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
     char path[NAME_MAX];
     yuneta_realm_file(path, sizeof(path), "temp", id, TRUE);
     gbuf2file(
+        gobj,
         gbuf_content, // owned
         path,
         yuneta_xpermission(),
@@ -3140,6 +3141,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     char path[NAME_MAX];
     yuneta_realm_file(path, sizeof(path), "temp", role, TRUE);
     gbuf2file(
+        gobj,
         gbuf_content, // owned
         path,
         yuneta_xpermission(),
@@ -7405,6 +7407,7 @@ PRIVATE int write_service_client_connectors(
     // );
 
     gbuf2file( // save: service connectors
+        gobj,
         gbuf_config, // owned
         config_path,
         yuneta_rpermission(),
@@ -7615,6 +7618,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
         // );
 
         gbuf2file( // save: environment and yuno variables
+            gobj,
             gbuf_config, // owned
             config_path,
             yuneta_rpermission(),
@@ -7653,6 +7657,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
         );
 
         gbuf2file( // save: agent connector
+            gobj,
             gbuf_config, // owned
             config_path,
             yuneta_rpermission(),
@@ -7701,6 +7706,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             }
 
             gbuf2file( // save: user configurations
+                gobj,
                 gbuf_config, // owned
                 config_path,
                 yuneta_rpermission(),
@@ -10479,27 +10485,8 @@ GOBJ_DEFINE_GCLASS(GCLASS_AGENT);
 /*------------------------*
  *      Events
  *------------------------*/
-GOBJ_DEFINE_EVENT(EV_EDIT_CONFIG);
-GOBJ_DEFINE_EVENT(EV_VIEW_CONFIG);
-GOBJ_DEFINE_EVENT(EV_EDIT_YUNO_CONFIG);
-GOBJ_DEFINE_EVENT(EV_VIEW_YUNO_CONFIG);
-GOBJ_DEFINE_EVENT(EV_READ_JSON);
-GOBJ_DEFINE_EVENT(EV_READ_FILE);
-GOBJ_DEFINE_EVENT(EV_READ_BINARY_FILE);
 GOBJ_DEFINE_EVENT(EV_READ_RUNNING_KEYS);
 GOBJ_DEFINE_EVENT(EV_READ_RUNNING_BIN);
-
-GOBJ_DEFINE_EVENT(EV_PLAY_YUNO_ACK);
-GOBJ_DEFINE_EVENT(EV_PAUSE_YUNO_ACK);
-GOBJ_DEFINE_EVENT(EV_MT_STATS_ANSWER);
-GOBJ_DEFINE_EVENT(EV_MT_COMMAND_ANSWER);
-
-GOBJ_DEFINE_EVENT(EV_TTY_DATA);
-GOBJ_DEFINE_EVENT(EV_TTY_OPEN);
-GOBJ_DEFINE_EVENT(EV_TTY_CLOSE);
-GOBJ_DEFINE_EVENT(EV_WRITE_TTY);
-
-GOBJ_DEFINE_EVENT(EV_FINAL_COUNT);
 
 /***************************************************************************
  *

@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "gobj.h"
 
@@ -482,6 +483,60 @@ PUBLIC int gbuffer_setlabel(gbuffer_t *gbuf, const char *label)
         gbuf->label = gbmem_strdup(label);
     }
     return 0;
+}
+
+/***************************************************************************
+ *  Save gbuffer to file
+ *  gbuf own
+ ***************************************************************************/
+PUBLIC int gbuf2file(
+    hgobj gobj,
+    gbuffer_t *gbuf,
+    const char *path,
+    int permission,
+    BOOL overwrite
+) {
+    /*----------------------------*
+     *  Create the file
+     *----------------------------*/
+    int fd = newfile(path, permission, overwrite);
+    if(fd<0) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "newfile() FAILED",
+            "path",         "%s", path,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        gbuffer_decref(gbuf);
+        return -1;
+    }
+
+    /*----------------------------*
+     *  Write the data
+     *----------------------------*/
+    int ret = 0;
+    size_t len;
+    while((len=gbuffer_chunk(gbuf))>0) {
+        char *p = gbuffer_get(gbuf, len);
+        if(write(fd, p, len)!=len) {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+                "msg",          "%s", "write() FAILED",
+                "errno",        "%d", errno,
+                "strerror",     "%s", strerror(errno),
+                NULL
+            );
+            ret = -1;
+            break;
+        }
+    }
+    close(fd);
+    gbuffer_decref(gbuf);
+    return ret;
 }
 
 /***************************************************************************

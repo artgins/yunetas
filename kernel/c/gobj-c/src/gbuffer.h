@@ -272,8 +272,8 @@ static inline struct sockaddr *gbuffer_getaddr(gbuffer_t *gbuf)
     return &gbuf->addr;
 }
 
-PUBLIC gbuffer_t * gbuf_load_file(const char *path);
 PUBLIC int gbuf2file(
+    hgobj gobj,
     gbuffer_t *gbuf,  // WARNING own
     const char *path,
     int permission,
