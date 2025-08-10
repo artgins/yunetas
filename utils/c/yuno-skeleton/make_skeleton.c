@@ -169,11 +169,11 @@ int input_value(char *bf, int bfsize, const char *default_value, int testing)
 {
     bf[0] = 0;
     if(!testing) {
-        fgets(bf, bfsize, stdin);
+        (void)fgets(bf, bfsize, stdin);
     } else{
         strncpy(bf, "aa", bfsize-1);
     }
-    int len = strlen(bf);
+    int len = (int)strlen(bf);
     if(len > 0 && bf[len-1]=='\n') {
         bf[len-1] = 0;
         len--;
@@ -553,7 +553,7 @@ int make_skeleton(const char* base, const char* file, const char* skeleton)
         strncpy(dst_dir, yunorole, sizeof(dst_dir)-1);
         if(access(dst_dir, 0)==0) {
             char temp[PATH_MAX]={0};
-            realpath(".", temp);
+            (void)realpath(".", temp);
             fprintf(stderr, "Directory of file '%s/%s' already exists\n",
                 temp,
                 yunorole
@@ -574,7 +574,7 @@ int make_skeleton(const char* base, const char* file, const char* skeleton)
         strncpy(dst_dir, utility, sizeof(dst_dir)-1);
         if(access(dst_dir, 0)==0) {
             char temp[PATH_MAX]={0};
-            realpath(".", temp);
+            (void)realpath(".", temp);
             fprintf(stderr, "Directory of file '%s/%s' already exists\n",
                 temp,
                 utility

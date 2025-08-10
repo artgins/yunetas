@@ -136,7 +136,7 @@ int kill_yuno(const char *directory, const char *pidfile, int verbose)
     if(!file) {
         return -1;
     }
-    fscanf(file, "%d", &pid);
+    (void)fscanf(file, "%d", &pid);
     fclose(file);
 
     int ret = kill(pid, SIGKILL);

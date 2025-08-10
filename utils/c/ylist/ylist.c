@@ -122,7 +122,7 @@ int list_yuno(const char *directory, const char *pidfile, struct arguments *argu
     if(!file) {
         return -1;
     }
-    fscanf(file, "%d", &pid);
+    (void)fscanf(file, "%d", &pid);
     fclose(file);
 
     int ret = kill(pid, 0);

@@ -283,7 +283,7 @@ PRIVATE void mt_create(hgobj gobj)
 
         FILE *file = fopen(pidfile, "r");
         if(file) {
-            fscanf(file, "%d", &pid);
+            (void)fscanf(file, "%d", &pid);
             fclose(file);
 
             int ret = is_yuneta_agent22(pid);

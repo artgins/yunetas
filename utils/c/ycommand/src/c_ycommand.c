@@ -1230,7 +1230,7 @@ PRIVATE int save_local_base64(
         if(gbuf_bin) {
             int fp = newfile(path, 0700, TRUE);
             if(fp) {
-                write(fp, gbuffer_cur_rd_pointer(gbuf_bin), gbuffer_leftbytes(gbuf_bin));
+                (void)write(fp, gbuffer_cur_rd_pointer(gbuf_bin), gbuffer_leftbytes(gbuf_bin));
                 close(fp);
             }
         }

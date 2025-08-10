@@ -51,7 +51,7 @@ PUBLIC int run_command(const char *command, char *bf, size_t bfsize)
     /* Read the output a line at a time - output it. */
     char *p = bf;
     while(bfsize>0 && fgets(temp, sizeof(temp), fp) != NULL) {
-        int ln = strlen(temp);
+        int ln = (int)strlen(temp);
         ln = MIN(ln, bfsize-1);
         if(ln>0) {
             strncpy(p, temp, ln);
@@ -220,15 +220,15 @@ PUBLIC int pty_sync_spawn(
 
             if (FD_ISSET(master, &read_fd)) {
                 if (read(master, &output, 1) != -1) {   // read from program
-                    write(STDOUT_FILENO, &output, 1);   // write to tty
+                    (void)write(STDOUT_FILENO, &output, 1);   // write to tty
                 } else {
                     break;
                 }
             }
 
             if (FD_ISSET(STDIN_FILENO, &read_fd)) {
-                read(STDIN_FILENO, &input, 1);  // read from tty
-                write(master, &input, 1);       // write to program
+                (void)read(STDIN_FILENO, &input, 1);  // read from tty
+                (void)write(master, &input, 1);       // write to program
             }
 
             int status;
