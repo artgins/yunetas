@@ -75,8 +75,7 @@ object ...  =>  text
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE void on_poll_cb(uv_poll_t *req, int status, int events);
-PRIVATE void on_close_cb(uv_handle_t* handle);
+//PRIVATE void on_poll_cb(uv_poll_t *req, int status, int events);
 PRIVATE int process_result(hgobj gobj, PGresult* result);
 PRIVATE int publish_result(hgobj gobj, json_t *kw);
 PRIVATE int pull_queue(hgobj gobj);
@@ -126,9 +125,9 @@ SDATA (DTP_JSON,        "schema",                       SDF_RD,         0,      
 SDATA (DTP_STRING,      "url",                          SDF_PERSIST|SDF_WR,0,           "Url"),
 SDATA (DTP_BOOLEAN,     "connected",                    SDF_RD|SDF_STATS,0,             "Connection state. Important filter!"),
 SDATA (DTP_BOOLEAN,     "manual",                       SDF_RD,         0,              "Set true if you want connect manually"),
-SDATA (DTP_INTEGER,     "timeout_waiting_connected",    SDF_RD,         10*1000,        ""),
-SDATA (DTP_INTEGER,     "timeout_between_connections",  SDF_RD,         5*1000,         "Idle timeout to wait between attempts of connection"),
-SDATA (DTP_INTEGER,     "timeout_response",             SDF_WR,         10*1000,        "Timeout response"),
+SDATA (DTP_INTEGER,     "timeout_waiting_connected",    SDF_RD,         "10000",        ""),
+SDATA (DTP_INTEGER,     "timeout_between_connections",  SDF_RD,         "5000",         "Idle timeout to wait between attempts of connection"),
+SDATA (DTP_INTEGER,     "timeout_response",             SDF_WR,         "10000",        "Timeout response"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                          0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                          0,              "more user data"),
@@ -167,7 +166,7 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
 
     PGconn *conn;
-    uv_poll_t uv_poll;
+    // uv_poll_t uv_poll;
     int pg_socket;
     BOOL inform_disconnected;
 
@@ -269,8 +268,8 @@ PRIVATE int mt_stop(hgobj gobj)
         PQfinish(priv->conn);
         priv->conn = 0;
         if(priv->pg_socket != -1) {
-            uv_poll_stop(&priv->uv_poll);
-            uv_close((uv_handle_t*)&priv->uv_poll, on_close_cb);
+            // uv_poll_stop(&priv->uv_poll);
+            // uv_close((uv_handle_t*)&priv->uv_poll, on_close_cb);
             priv->pg_socket = -1;
         }
     }
@@ -311,7 +310,7 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    return gobj_build_authzs_doc(gobj, cmd, kw, src);
+    // return gobj_build_authzs_doc(gobj, cmd, kw, src);
 }
 
 /***************************************************************************
@@ -394,7 +393,7 @@ PRIVATE void noticeProcessor(void *arg, const char *message)
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_DATABASE_ERROR,
+            "msgset",       "%s", MSGSET_POSTGRES_ERROR,
             "msg",          "%s", message,
             NULL
         );

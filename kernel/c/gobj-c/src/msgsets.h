@@ -37,6 +37,7 @@ extern "C"{
 #define MSGSET_CONFIGURATION_ERROR      "Configuration error"
 #define MSGSET_RUNTIME_ERROR            "Runtime error"
 #define MSGSET_MQTT_ERROR               "Mqtt error"
+#define MSGSET_POSTGRES_ERROR           "Postgres error"
 
 // Info/Debug MSGSETs
 #define MSGSET_STATISTICS               "Statistics"

@@ -354,7 +354,7 @@ PRIVATE json_t *result_create_table_if_not_exists(
     } else {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msgset",       "%s", MSGSET_POSTGRES_ERROR,
             "msg",          "%s", "Cannot create table",
             NULL
         );
@@ -436,7 +436,7 @@ PRIVATE json_t *result_add_row(
             left_justify(temp);
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_POSTGRES_ERROR,
                 "msg",          "%s", temp,
                 NULL
             );
@@ -601,7 +601,7 @@ PRIVATE json_t *record2createtable(
             DEFAULTS
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_APP_ERROR,
+                    "msgset",       "%s", MSGSET_POSTGRES_ERROR,
                     "msg",          "%s", "Type header UNKNOWN",
                     "type",         "%s", type,
                     NULL
@@ -727,7 +727,7 @@ PRIVATE json_t *record2insertsql(
             DEFAULTS
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_APP_ERROR,
+                    "msgset",       "%s", MSGSET_POSTGRES_ERROR,
                     "msg",          "%s", "Type header UNKNOWN",
                     "type",         "%s", type,
                     NULL
@@ -950,7 +950,7 @@ PRIVATE int ac_end_task(
             // Error from some task action
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_POSTGRES_ERROR,
                 "msg",          "%s", "Task End with error",
                 "comment",      "%s", comment,
                 "last_job",     "%d", last_job,
@@ -963,7 +963,7 @@ PRIVATE int ac_end_task(
             // Error from task manager: timeout, incomplete task
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_APP_ERROR,
+                "msgset",       "%s", MSGSET_POSTGRES_ERROR,
                 "msg",          "%s", "Task End by timeout",
                 "comment",      "%s", comment,
                 "last_job",     "%d", last_job,
