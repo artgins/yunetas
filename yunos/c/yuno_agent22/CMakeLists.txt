@@ -22,7 +22,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 SET (YUNO_SRCS
     src/main.c
     src/c_agent22.c
-    src/c_pty.c
 )
 SET (YUNO_HDRS
     src/c_agent22.h
@@ -40,6 +39,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
+    libyunetas-c_console.a
 )
 
 ##############################################
