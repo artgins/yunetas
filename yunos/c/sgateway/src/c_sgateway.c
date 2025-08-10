@@ -362,9 +362,9 @@ PRIVATE int create_output_side(hgobj gobj)
         "urls", gobj_read_str_attr(gobj, "output_url")
     );
 
-    hgobj gobj_connex = gobj_create_unique(
+    hgobj gobj_connex = gobj_create_service(
         "output",
-        C_CONNEX,
+        C_TCP,
         kw,
         gobj_prot_raw
     );

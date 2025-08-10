@@ -7,7 +7,7 @@
 #include <string.h>
 #include <limits.h>
 
-#include "common/c_pepon.h"
+#include <c_pepon.h>
 #include "c_test5.h"
 
 /***************************************************************************

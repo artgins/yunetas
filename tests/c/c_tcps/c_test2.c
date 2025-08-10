@@ -17,7 +17,7 @@
  *          Copyright (c) 2024 by ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
-#include "common/c_teston.h"
+#include <c_teston.h>
 #include "c_test2.h"
 
 /***************************************************************************

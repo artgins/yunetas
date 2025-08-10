@@ -39,6 +39,7 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
+    libyunetas-c_postgres.a
     pq          # postgres, WARNING this library use openssl of distribution
 )
 
