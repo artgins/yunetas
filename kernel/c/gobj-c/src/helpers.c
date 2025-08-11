@@ -5845,47 +5845,49 @@ PUBLIC unsigned long total_ram_in_kb(void)
 }
 
 /***************************************************************
- *  Return the command line of the process
+ * Read the command line of a process into a caller-provided buffer.
+ *
+ * @param bf        Buffer to store the command line
+ * @param bfsize    Size of the buffer in bytes
+ * @param pid       Process ID (use 0 for current process)
+ * @return          0 on success, -1 on error (errno set)
  ***************************************************************/
-PUBLIC char *read_process_cmdline(pid_t pid)
+PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)
 {
+    if(!bf || bfsize == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    bf[0] = 0;
+
     char path[64];
-    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    if(pid == 0) {
+        snprintf(path, sizeof(path), "/proc/self/cmdline");
+    } else {
+        snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+    }
 
     FILE *fp = fopen(path, "rb");
     if(!fp) {
-        return NULL;
+        return -1;
     }
 
-    // Read the whole file
-    char *cmdline = NULL;
-    size_t size = 0;
-    char buf[1024];
-    size_t n;
-
-    while((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
-        char *new_cmdline = realloc(cmdline, size + n + 1);
-        if(!new_cmdline) {
-            free(cmdline);
-            fclose(fp);
-            return NULL;
-        }
-        cmdline = new_cmdline;
-        memcpy(cmdline + size, buf, n);
-        size += n;
-    }
-
+    size_t n = fread(bf, 1, bfsize - 1, fp);
+    int err = ferror(fp);  // check error before closing
     fclose(fp);
 
-    if(cmdline) {
-        // Replace '\0' separators with spaces
-        for(size_t i = 0; i < size; i++) {
-            if(cmdline[i] == '\0') {
-                cmdline[i] = ' ';
-            }
-        }
-        cmdline[size] = '\0';
+    if(n == 0 && err) {
+        return -1;
     }
 
-    return cmdline;
+    // Replace '\0' separators with spaces
+    for(size_t i = 0; i < n; i++) {
+        if(bf[i] == '\0') {
+            bf[i] = ' ';
+        }
+    }
+    bf[n] = '\0';
+
+    return 0;
 }

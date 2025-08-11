@@ -6522,6 +6522,8 @@ PRIVATE int is_yuneta_agent(unsigned int pid)
 {
     int ret = kill(pid, 0);
     if(ret == 0) {
+        char *cmd_line = read_process_cmdline(pid);
+
         if(read_proc_pid_cmdline(pid, &pst, 0)==0) {
             if(strstr(pst.cmdline, "yuneta_agent22 ")) {
                 return 0;
