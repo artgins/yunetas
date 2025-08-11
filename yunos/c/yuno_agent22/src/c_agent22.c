@@ -16,10 +16,10 @@
 #include <unistd.h>
 #include <limits.h>
 #include <pwd.h>
+#include <signal.h>
 
 #include <c_pty.h>
 #include "c_agent22.h"
-
 
 /***************************************************************************
  *              Constants
@@ -45,6 +45,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int is_yuneta_agent22(pid_t pid);
+PRIVATE void remove_pid_file(void);
 PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src);
 PRIVATE int add_console_route(
     hgobj gobj,
@@ -193,34 +195,6 @@ typedef struct _PRIVATE_DATA {
 
 
 
-
-/*****************************************************************
- *
- *****************************************************************/
-PRIVATE int is_yuneta_agent22(unsigned int pid)
-{
-    // TODO struct pid_stats pst;
-    // int ret = kill(pid, 0);
-    // if(ret == 0) {
-    //     if(read_proc_pid_cmdline(pid, &pst, 0)==0) {
-    //         if(strstr(pst.cmdline, "yuneta_agent22 ")) {
-    //             return 0;
-    //         }
-    //     } else {
-    //         return -1;
-    //     }
-    // }
-    // return ret;
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void remove_pid_file(void)
-{
-    unlink(pidfile);
-}
 
 /***************************************************************************
  *      Framework Method create
@@ -774,6 +748,30 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 
 
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE int is_yuneta_agent22(pid_t pid)
+{
+    int ret = kill(pid, 0);
+    if(ret == 0) {
+        char cmdline[1024];
+        read_process_cmdline(cmdline, sizeof(cmdline), pid);
+        if(strstr(cmdline, " yagent22 ")) {
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void remove_pid_file(void)
+{
+    unlink(pidfile);
+}
 
 /***************************************************************************
  *

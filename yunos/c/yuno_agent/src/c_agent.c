@@ -47,7 +47,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int is_yuneta_agent(unsigned int pid);
+PRIVATE int is_yuneta_agent(pid_t pid);
 PRIVATE void remove_pid_file(void);
 PRIVATE uint64_t long_reference(void);
 
@@ -6518,22 +6518,17 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
 /*****************************************************************
  *
  *****************************************************************/
-PRIVATE int is_yuneta_agent(unsigned int pid)
+PRIVATE BOOL is_yuneta_agent(pid_t pid)
 {
     int ret = kill(pid, 0);
     if(ret == 0) {
-        char *cmd_line = read_process_cmdline(pid);
-
-        if(read_proc_pid_cmdline(pid, &pst, 0)==0) {
-            if(strstr(pst.cmdline, "yuneta_agent22 ")) {
-                return 0;
-            }
-        } else {
-            return -1;
+        char cmdline[1024];
+        read_process_cmdline(cmdline, sizeof(cmdline), pid);
+        if(strstr(cmdline, " yagent ")) {
+            return TRUE;
         }
     }
-    return ret;
-    return 0;
+    return FALSE;
 }
 
 /***************************************************************************
