@@ -387,7 +387,6 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-
     // publish the output event and die!
     publish_finalcount(gobj);
     clear_timeout(priv->timer);
@@ -468,10 +467,10 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     };
 
     event_type_t event_types[] = {
+        {EV_FINAL_COUNT,    EVF_OUTPUT_EVENT},
         {EV_COUNT,          0},
         {EV_TIMEOUT,        0},
         {EV_STOPPED,        0},
-        {EV_FINAL_COUNT,    EVF_OUTPUT_EVENT},
         {0, 0}
     };
 
