@@ -12,7 +12,7 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "yuneta_agent22"
+#define APP_NAME        "yagent22"
 #define APP_DOC         "Yuneta Agent22"
 
 #define APP_VERSION     YUNETA_VERSION

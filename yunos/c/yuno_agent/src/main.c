@@ -12,11 +12,11 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "yuneta_agent"
+#define APP_NAME        "yagent"
 #define APP_DOC         \
-"Yuneta Realm Agent."\
-"Si quieres vivir en mi reino tienes que cumplir unas reglas."\
-"De lo contrario, vive como un standalone." \
+"Yuneta Agent."\
+"If you want to live in my kingdom, you have to play by the rules." \
+"Otherwise, live as a standalone."
 
 #define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
