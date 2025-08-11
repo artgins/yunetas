@@ -95,6 +95,11 @@ PRIVATE void mt_create(hgobj gobj)
 
     SET_PRIV(final_event_name,          gobj_read_str_attr)
 
+    event_type_t *event_type = gclass_find_event(priv->final_event_name, 0, TRUE);
+    if(event_type) {
+        priv->final_event_name = event_type->event_name;
+    }
+
     /*
      *  SERVICE subscription model
      */
@@ -149,7 +154,11 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    // TODO gobj_unsubscribe_list(gobj_find_subscriptions(gobj, 0, 0, 0), TRUE, FALSE);
+    gobj_unsubscribe_list(
+        gobj,
+        gobj_find_subscriptions(gobj, 0, 0, 0),
+        TRUE
+    );
 
     clear_timeout(priv->timer);
     if(gobj_is_running(priv->timer))
@@ -346,9 +355,6 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 gobj_trace_json(gobj, kw, "kw");
             }
 
-            //if(match_kw(gobj, event2count, jn_filters, kw)) {
-            // TODO quito match_kw, al incorporar realm_id que tiene ^ el match falla
-            // por usar expresión regular. Pongo kw_match_simple V4.0.0
             JSON_INCREF(jn_filters);
             if(kw_match_simple(kw, jn_filters)) {
                 priv->cur_count++;
