@@ -1165,6 +1165,15 @@ PUBLIC json_t *gobj_command( // With AUTHZ
     hgobj src
 );
 
+PUBLIC int gobj_audit_commands( // Only one can audit. New calls will overwrite the callback audit_command_cb.
+    int (*audit_command_cb)(
+        const char *command,
+        json_t *kw, // NOT owned
+        void *user_data
+    ),
+    void *user_data
+);
+
 /*
  *  Return a dict with attrs marked with SDF_STATS and stats_metadata
  */

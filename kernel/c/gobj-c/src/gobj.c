@@ -350,6 +350,13 @@ PRIVATE volatile uint32_t __deep_trace__ = 0;
 PRIVATE gobj_t * __yuno__ = 0;
 PRIVATE gobj_t * __default_service__ = 0;
 
+PRIVATE int (*__audit_command_cb__)(
+    const char *audit_command,
+    json_t *kw,
+    void *user_data
+) = 0;
+PRIVATE void *__audit_command_user_data__ = 0;
+
 /*---------------------------------------------*
  *      Global authz levels TODO review all authz
  *---------------------------------------------*/
@@ -4877,6 +4884,9 @@ PUBLIC json_t *gobj_command( // With AUTHZ
      *  The local mt_command_parser has preference
      *-----------------------------------------------*/
     if(gobj->gclass->gmt->mt_command_parser) {
+        if(__audit_command_cb__) {
+            __audit_command_cb__(command, kw, __audit_command_user_data__);
+        }
         return gobj->gclass->gmt->mt_command_parser(gobj, command, kw, src);
     }
 
@@ -4885,6 +4895,9 @@ PUBLIC json_t *gobj_command( // With AUTHZ
      *  then use the global command parser
      *-----------------------------------------------*/
     if(gobj->gclass->command_table) {
+        if(__audit_command_cb__) {
+            __audit_command_cb__(command, kw, __audit_command_user_data__);
+        }
         if(__global_command_parser_fn__) {
             return __global_command_parser_fn__(gobj, command, kw, src);
         } else {
@@ -4913,6 +4926,19 @@ PUBLIC json_t *gobj_command( // With AUTHZ
         KW_DECREF(kw)
         return kw_response;
     }
+}
+
+/***************************************************************************
+ *  Audit commands
+ *  Only one can audit. New calls will overwrite audit_command_cb.
+ ***************************************************************************/
+PUBLIC int gobj_audit_commands(
+    int (*audit_command_cb)(const char *command, json_t *kw, void *user_data),
+    void *user_data
+){
+    __audit_command_cb__ = audit_command_cb;
+    __audit_command_user_data__ = user_data;
+    return 0;
 }
 
 /***************************************************************************
