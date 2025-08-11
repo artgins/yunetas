@@ -1767,12 +1767,13 @@ PRIVATE int json_list_find(json_t *list, json_t *value)
 
 /***************************************************************************
  *  Check if a list is a integer range:
- *      - must be a list of two integers (first < second)
+ *      - must be a list of two integers (first <= second)
  ***************************************************************************/
 PRIVATE BOOL json_is_range(json_t *list)
 {
-    if(json_array_size(list) != 2)
+    if(json_array_size(list) != 2) {
         return FALSE;
+    }
 
     json_int_t first = json_integer_value(json_array_get(list, 0));
     json_int_t second = json_integer_value(json_array_get(list, 1));
@@ -1788,8 +1789,9 @@ PRIVATE BOOL json_is_range(json_t *list)
  ***************************************************************************/
 PRIVATE json_t *json_range_list(json_t *list)
 {
-    if(!json_is_range(list))
+    if(!json_is_range(list)) {
         return 0;
+    }
     json_int_t first = json_integer_value(json_array_get(list, 0));
     json_int_t second = json_integer_value(json_array_get(list, 1));
     json_t *range = json_array();
@@ -2481,10 +2483,12 @@ PRIVATE int cb_destroy_named_children(
                 gobj_short_name(child)
             );
         }
-        if(gobj_is_playing(child))
+        if(gobj_is_playing(child)) {
             gobj_pause(child);
-        if(gobj_is_running(child))
+        }
+        if(gobj_is_running(child)) {
             gobj_stop(child);
+        }
         gobj_destroy(child);
     }
     return 0;
@@ -2620,7 +2624,7 @@ PRIVATE const char *is_for_me(
         if (ln >= sizeof(temp)) {
             return 0; // ... very intelligent!
         }
-        strncpy(temp, key, ln);
+        strncpy(temp, key, ln); // Copy the first segment of splitting by '.'
         temp[ln]=0;
 
         if(gobj_name && strcasecmp(gobj_name, temp)==0) {
@@ -3026,7 +3030,7 @@ PUBLIC json_t *gobj_sdata_create(hgobj gobj, const sdata_desc_t* schema)
     json_t *sdata = json_object();
     const sdata_desc_t *it = schema;
     while(it->name != 0) {
-        set_default(gobj, sdata, it);
+        set_default(gobj, sdata, it); // Ignore the error returned, already logged
         it++;
     }
 
@@ -3048,13 +3052,9 @@ PRIVATE int set_default(gobj_t *gobj, json_t *sdata, const sdata_desc_t *it)
             jn_value = json_string(svalue);
             break;
         case DTP_BOOLEAN:
-            jn_value = json_boolean(svalue);
-            if(strcasecmp(svalue, "TRUE")==0) {
-                jn_value = json_true();
-            } else if(strcasecmp(svalue, "FALSE")==0) {
-                jn_value = json_false();
-            } else {
-                jn_value = atoi(svalue)? json_true(): json_false();
+            {
+                BOOL is_true = strcasecmp(svalue,"TRUE")==0 || atoi(svalue)!=0;
+                jn_value = json_boolean(is_true);
             }
             break;
         case DTP_INTEGER:
@@ -6091,10 +6091,11 @@ PUBLIC const char * gobj_full_name(hgobj gobj_)
             while(parent) {
                 char pp[256];
                 const char *format;
-                if(strlen(bf))
+                if(strlen(bf)) {
                     format = "%s`";
-                else
+                } else {
                     format = "%s";
+                }
                 snprintf(pp, sizeof(pp), format, gobj_short_name(parent));
                 ln = strlen(pp);
                 if(ln + strlen(bf) < SIZEBUFTEMP) {
@@ -6672,134 +6673,198 @@ PRIVATE json_t *yunetamethods2json(const GMETHODS *gmt)
 {
     json_t *jn_methods = json_array();
 
-    if(gmt->mt_create)
+    if(gmt->mt_create) {
         json_array_append_new(jn_methods, json_string("mt_create"));
-    if(gmt->mt_create2)
+    }
+    if(gmt->mt_create2) {
         json_array_append_new(jn_methods, json_string("mt_create2"));
-    if(gmt->mt_destroy)
+    }
+    if(gmt->mt_destroy) {
         json_array_append_new(jn_methods, json_string("mt_destroy"));
-    if(gmt->mt_start)
+    }
+    if(gmt->mt_start) {
         json_array_append_new(jn_methods, json_string("mt_start"));
-    if(gmt->mt_stop)
+    }
+    if(gmt->mt_stop) {
         json_array_append_new(jn_methods, json_string("mt_stop"));
-    if(gmt->mt_play)
+    }
+    if(gmt->mt_play) {
         json_array_append_new(jn_methods, json_string("mt_play"));
-    if(gmt->mt_pause)
+    }
+    if(gmt->mt_pause) {
         json_array_append_new(jn_methods, json_string("mt_pause"));
-    if(gmt->mt_writing)
+    }
+    if(gmt->mt_writing) {
         json_array_append_new(jn_methods, json_string("mt_writing"));
-    if(gmt->mt_reading)
+    }
+    if(gmt->mt_reading) {
         json_array_append_new(jn_methods, json_string("mt_reading"));
-    if(gmt->mt_subscription_added)
+    }
+    if(gmt->mt_subscription_added) {
         json_array_append_new(jn_methods, json_string("mt_subscription_added"));
-    if(gmt->mt_subscription_deleted)
+    }
+    if(gmt->mt_subscription_deleted) {
         json_array_append_new(jn_methods, json_string("mt_subscription_deleted"));
-    if(gmt->mt_child_added)
+    }
+    if(gmt->mt_child_added) {
         json_array_append_new(jn_methods, json_string("mt_child_added"));
-    if(gmt->mt_child_removed)
+    }
+    if(gmt->mt_child_removed) {
         json_array_append_new(jn_methods, json_string("mt_child_removed"));
-    if(gmt->mt_stats)
+    }
+    if(gmt->mt_stats) {
         json_array_append_new(jn_methods, json_string("mt_stats"));
-    if(gmt->mt_command_parser)
+    }
+    if(gmt->mt_command_parser) {
         json_array_append_new(jn_methods, json_string("mt_command_parser"));
-    if(gmt->mt_inject_event)
+    }
+    if(gmt->mt_inject_event) {
         json_array_append_new(jn_methods, json_string("mt_inject_event"));
-    if(gmt->mt_create_resource)
+    }
+    if(gmt->mt_create_resource) {
         json_array_append_new(jn_methods, json_string("mt_create_resource"));
-    if(gmt->mt_list_resource)
+    }
+    if(gmt->mt_list_resource) {
         json_array_append_new(jn_methods, json_string("mt_list_resource"));
-    if(gmt->mt_save_resource)
+    }
+    if(gmt->mt_save_resource) {
         json_array_append_new(jn_methods, json_string("mt_save_resource"));
-    if(gmt->mt_delete_resource)
+    }
+    if(gmt->mt_delete_resource) {
         json_array_append_new(jn_methods, json_string("mt_delete_resource"));
-    if(gmt->mt_future21)
+    }
+    if(gmt->mt_future21) {
         json_array_append_new(jn_methods, json_string("mt_future21"));
-    if(gmt->mt_future22)
+    }
+    if(gmt->mt_future22) {
         json_array_append_new(jn_methods, json_string("mt_future22"));
-    if(gmt->mt_get_resource)
+    }
+    if(gmt->mt_get_resource) {
         json_array_append_new(jn_methods, json_string("mt_get_resource"));
-    if(gmt->mt_state_changed)
+    }
+    if(gmt->mt_state_changed) {
         json_array_append_new(jn_methods, json_string("mt_state_changed"));
-    if(gmt->mt_authenticate)
+    }
+    if(gmt->mt_authenticate) {
         json_array_append_new(jn_methods, json_string("mt_authenticate"));
-    if(gmt->mt_list_children)
+    }
+    if(gmt->mt_list_children) {
         json_array_append_new(jn_methods, json_string("mt_list_children"));
-    if(gmt->mt_stats_updated)
+    }
+    if(gmt->mt_stats_updated) {
         json_array_append_new(jn_methods, json_string("mt_stats_updated"));
-    if(gmt->mt_disable)
+    }
+    if(gmt->mt_disable) {
         json_array_append_new(jn_methods, json_string("mt_disable"));
-    if(gmt->mt_enable)
+    }
+    if(gmt->mt_enable) {
         json_array_append_new(jn_methods, json_string("mt_enable"));
-    if(gmt->mt_trace_on)
+    }
+    if(gmt->mt_trace_on) {
         json_array_append_new(jn_methods, json_string("mt_trace_on"));
-    if(gmt->mt_trace_off)
+    }
+    if(gmt->mt_trace_off) {
         json_array_append_new(jn_methods, json_string("mt_trace_off"));
-    if(gmt->mt_gobj_created)
+    }
+    if(gmt->mt_gobj_created) {
         json_array_append_new(jn_methods, json_string("mt_gobj_created"));
-    if(gmt->mt_set_bottom_gobj)
+    }
+    if(gmt->mt_set_bottom_gobj) {
         json_array_append_new(jn_methods, json_string("mt_set_bottom_gobj"));
-    if(gmt->mt_future34)
+    }
+    if(gmt->mt_future34) {
         json_array_append_new(jn_methods, json_string("mt_future34"));
-    if(gmt->mt_publish_event)
+    }
+    if(gmt->mt_publish_event) {
         json_array_append_new(jn_methods, json_string("mt_publish_event"));
-    if(gmt->mt_publication_pre_filter)
+    }
+    if(gmt->mt_publication_pre_filter) {
         json_array_append_new(jn_methods, json_string("mt_publication_pre_filter"));
-    if(gmt->mt_publication_filter)
+    }
+    if(gmt->mt_publication_filter) {
         json_array_append_new(jn_methods, json_string("mt_publication_filter"));
-    if(gmt->mt_authz_checker)
+    }
+    if(gmt->mt_authz_checker) {
         json_array_append_new(jn_methods, json_string("mt_authz_checker"));
-    if(gmt->mt_future39)
+    }
+    if(gmt->mt_future39) {
         json_array_append_new(jn_methods, json_string("mt_future39"));
-    if(gmt->mt_create_node)
+    }
+    if(gmt->mt_create_node) {
         json_array_append_new(jn_methods, json_string("mt_create_node"));
-    if(gmt->mt_update_node)
+    }
+    if(gmt->mt_update_node) {
         json_array_append_new(jn_methods, json_string("mt_update_node"));
-    if(gmt->mt_delete_node)
+    }
+    if(gmt->mt_delete_node) {
         json_array_append_new(jn_methods, json_string("mt_delete_node"));
-    if(gmt->mt_link_nodes)
+    }
+    if(gmt->mt_link_nodes) {
         json_array_append_new(jn_methods, json_string("mt_link_nodes"));
-    if(gmt->mt_future44)
+    }
+    if(gmt->mt_future44) {
         json_array_append_new(jn_methods, json_string("mt_future44"));
-    if(gmt->mt_unlink_nodes)
+    }
+    if(gmt->mt_unlink_nodes) {
         json_array_append_new(jn_methods, json_string("mt_unlink_nodes"));
-    if(gmt->mt_topic_jtree)
+    }
+    if(gmt->mt_topic_jtree) {
         json_array_append_new(jn_methods, json_string("mt_topic_jtree"));
-    if(gmt->mt_get_node)
+    }
+    if(gmt->mt_get_node) {
         json_array_append_new(jn_methods, json_string("mt_get_node"));
-    if(gmt->mt_list_nodes)
+    }
+    if(gmt->mt_list_nodes) {
         json_array_append_new(jn_methods, json_string("mt_list_nodes"));
-    if(gmt->mt_shoot_snap)
+    }
+    if(gmt->mt_shoot_snap) {
         json_array_append_new(jn_methods, json_string("mt_shoot_snap"));
-    if(gmt->mt_activate_snap)
+    }
+    if(gmt->mt_activate_snap) {
         json_array_append_new(jn_methods, json_string("mt_activate_snap"));
-    if(gmt->mt_list_snaps)
+    }
+    if(gmt->mt_list_snaps) {
         json_array_append_new(jn_methods, json_string("mt_list_snaps"));
-    if(gmt->mt_treedbs)
+    }
+    if(gmt->mt_treedbs) {
         json_array_append_new(jn_methods, json_string("mt_treedbs"));
-    if(gmt->mt_treedb_topics)
+    }
+    if(gmt->mt_treedb_topics) {
         json_array_append_new(jn_methods, json_string("mt_treedb_topics"));
-    if(gmt->mt_topic_desc)
+    }
+    if(gmt->mt_topic_desc) {
         json_array_append_new(jn_methods, json_string("mt_topic_desc"));
-    if(gmt->mt_topic_links)
+    }
+    if(gmt->mt_topic_links) {
         json_array_append_new(jn_methods, json_string("mt_topic_links"));
-    if(gmt->mt_topic_hooks)
+    }
+    if(gmt->mt_topic_hooks) {
         json_array_append_new(jn_methods, json_string("mt_topic_hooks"));
-    if(gmt->mt_node_parents)
+    }
+    if(gmt->mt_node_parents) {
         json_array_append_new(jn_methods, json_string("mt_node_parents"));
-    if(gmt->mt_node_children)
+    }
+    if(gmt->mt_node_children) {
         json_array_append_new(jn_methods, json_string("mt_node_children"));
-    if(gmt->mt_list_instances)
+    }
+    if(gmt->mt_list_instances) {
         json_array_append_new(jn_methods, json_string("mt_list_instances"));
-    if(gmt->mt_node_tree)
+    }
+    if(gmt->mt_node_tree) {
         json_array_append_new(jn_methods, json_string("mt_node_tree"));
-    if(gmt->mt_topic_size)
+    }
+    if(gmt->mt_topic_size) {
         json_array_append_new(jn_methods, json_string("mt_topic_size"));
-    if(gmt->mt_future62)
+    }
+    if(gmt->mt_future62) {
         json_array_append_new(jn_methods, json_string("mt_future62"));
-    if(gmt->mt_future63)
+    }
+    if(gmt->mt_future63) {
         json_array_append_new(jn_methods, json_string("mt_future63"));
-    if(gmt->mt_future64)
+    }
+    if(gmt->mt_future64) {
         json_array_append_new(jn_methods, json_string("mt_future64"));
+    }
 
     return jn_methods;
 }
@@ -10571,8 +10636,9 @@ PUBLIC json_t *gobj_repr_global_trace_levels(void)
     );
 
     for(int i=0; i<16; i++) {
-        if(!s_global_trace_level[i].name)
+        if(!s_global_trace_level[i].name) {
             break;
+        }
         json_object_set_new(
             jn_trace_levels,
             s_global_trace_level[i].name,
@@ -10643,8 +10709,9 @@ PUBLIC json_t *gobj_trace_level_list(hgclass gclass_)
     json_t *jn_dict = json_object();
     if(gclass->s_user_trace_level) {
         for(int i=0; i<16; i++) {
-            if(!gclass->s_user_trace_level[i].name)
+            if(!gclass->s_user_trace_level[i].name) {
                 break;
+            }
             json_object_set_new(
                 jn_dict,
                 gclass->s_user_trace_level[i].name,

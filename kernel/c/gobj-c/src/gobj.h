@@ -697,8 +697,8 @@ typedef struct { // GClass methods (Yuneta framework methods)
     mt_get_resource_fn mt_get_resource;
     mt_state_changed_fn mt_state_changed; // If this method is defined then the EV_STATE_CHANGED will not published
     mt_authenticate_fn mt_authenticate; // Return webix
-    mt_list_children_fn mt_list_children;
-    mt_stats_updated_fn mt_stats_updated;       // Return 0 if own the stats, or -1 if not.
+    mt_list_children_fn mt_list_children;       // Not used
+    mt_stats_updated_fn mt_stats_updated;       // Not used. Return 0 if own the stats, or -1 if not.
     mt_disable_fn mt_disable;
     mt_enable_fn mt_enable;
     mt_trace_on_fn mt_trace_on;                 // Return webix
