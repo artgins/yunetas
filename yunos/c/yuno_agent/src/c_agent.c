@@ -26,8 +26,6 @@
 /***************************************************************************
  *              Constants
  ***************************************************************************/
-#define EXPIRATION_TIMEOUT (30*1000) /* TODO add to config */
-
 #define SDATA_GET_ID(hs)  kw_get_str(gobj, (hs), "id", "", KW_REQUIRED)
 #define SDATA_GET_STR(hs, field)  kw_get_str(gobj, (hs), (field), "", KW_REQUIRED)
 #define SDATA_GET_INT(hs, field)  kw_get_int(gobj, (hs), (field), 0, KW_REQUIRED)
@@ -906,7 +904,8 @@ SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",        "Sig
 
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports"),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
-SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",             "Maximum consoles opened"),
+SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",           "Maximum consoles opened"),
+SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "60000",        "Expiration timeout for commands"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
@@ -952,6 +951,8 @@ typedef struct _PRIVATE_DATA {
     hgobj resource;
     hgobj timer;
     hrotatory_h audit_file;
+
+    json_int_t timeout_expiration;
 } PRIVATE_DATA;
 
 
@@ -1205,6 +1206,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(timerStBoot,             gobj_read_integer_attr)
+    SET_PRIV(timeout_expiration,      gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -1212,10 +1214,10 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
-//     END_EQ_SET_PRIV()
+     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+     IF_EQ_SET_PRIV(timeout_expiration,         gobj_read_integer_attr)
+     END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -4765,10 +4767,10 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     char info[80];
     snprintf(info, sizeof(info), "%d yunos found to run", total_run);
-    json_t *kw_counter = json_pack("{s:s, s:i, s:i, s:o, s:{s:o, s:o}}",
+    json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
         "info", info,
         "max_count", total_run,
-        "expiration_timeout", EXPIRATION_TIMEOUT,
+        "expiration_timeout", priv->timeout_expiration,
         "input_schema", filterlist, // owned
         "__user_data__",
             "iter", iter,                   // HACK free en diferido, en ac_final_count()
@@ -4946,10 +4948,10 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     char info[80];
     snprintf(info, sizeof(info), "%d yunos found to kill", total_killed);
-    json_t *kw_counter = json_pack("{s:s, s:i, s:i, s:o, s:{s:o, s:o}}",
+    json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
         "info", info,
         "max_count", total_killed,
-        "expiration_timeout", EXPIRATION_TIMEOUT,
+        "expiration_timeout", priv->timeout_expiration,
         "input_schema", filterlist, // owned
         "__user_data__",
             "iter", iter,                   // HACK free en diferido, en ac_final_count()
@@ -5133,10 +5135,10 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         total_to_played
     );
 
-    json_t *kw_counter = json_pack("{s:s, s:i, s:i, s:o, s:{s:o, s:o}}",
+    json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
         "info", info,
         "max_count", total_to_played,
-        "expiration_timeout", EXPIRATION_TIMEOUT,
+        "expiration_timeout", priv->timeout_expiration,
         "input_schema", filterlist, // owned
         "__user_data__",
             "iter", iter,                   // HACK free en diferido, en ac_final_count()
@@ -5303,10 +5305,10 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         total_to_prepaused,
         total_to_paused
     );
-    json_t *kw_counter = json_pack("{s:s, s:i, s:i, s:o, s:{s:o, s:o}}",
+    json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
         "info", info,
         "max_count", total_to_paused,
-        "expiration_timeout", EXPIRATION_TIMEOUT,
+        "expiration_timeout", priv->timeout_expiration,
         "input_schema", filterlist, // owned
         "__user_data__",
             "iter", iter,                   // HACK free en diferido, en ac_final_count()
