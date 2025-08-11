@@ -47,6 +47,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int is_yuneta_agent(unsigned int pid);
+PRIVATE void remove_pid_file(void);
 PRIVATE uint64_t long_reference(void);
 
 PRIVATE char *yuneta_repos_yuno_dir(
@@ -174,8 +176,8 @@ PRIVATE char agent_filter_chain_config[]= "\
     'services': [                           \n\
         {                                   \n\
             'name': 'agent_client',         \n\
-            'gclass': 'IEvent_cli',         \n\
-            'as_service': true,              \n\
+            'gclass': 'C_IEVENT_CLI',       \n\
+            'as_service': true,             \n\
             'autostart': true,              \n\
             'kw': {                         \n\
                 'remote_yuno_name': '',                 \n\
@@ -186,25 +188,31 @@ PRIVATE char agent_filter_chain_config[]= "\
                     'yuno_id': '%s'                         \n\
                 }                                           \n\
             },                                          \n\
-            'children': [                                 \n\
+            'children': [                               \n\
                 {                                       \n\
                     'name': 'agent_client',             \n\
-                    'gclass': 'C_IOGATE',                 \n\
+                    'gclass': 'C_IOGATE',               \n\
                     'kw': {                             \n\
                     },                                  \n\
-                    'children': [                         \n\
+                    'children': [                           \n\
                         {                                   \n\
                             'name': 'agent_client',         \n\
-                            'gclass': 'C_CHANNEL',            \n\
+                            'gclass': 'C_CHANNEL',          \n\
                             'kw': {                         \n\
                             },                              \n\
-                            'children': [                         \n\
-                                {                               \n\
-                                    'name': 'agent_client',         \n\
-                                    'gclass': 'C_WEBSOCKET',         \n\
-                                    'kw': {                         \n\
+                            'children': [                   \n\
+                                {                           \n\
+                                    'name': 'agent_client',     \n\
+                                    'gclass': 'C_WEBSOCKET',    \n\
+                                    'kw': {                     \n\
                                         'url':'(^^__url__^^)'   \n\
-                                    }    \n\
+                                    },                          \n\
+                                    'children': [                   \n\
+                                        {                           \n\
+                                            'name': 'agent_client', \n\
+                                            'gclass': 'C_TCP'       \n\
+                                        }                           \n\
+                                    ]    \n\
                                 }    \n\
                             ]    \n\
                         }    \n\
@@ -530,7 +538,7 @@ SDATA_END()
 PRIVATE sdata_desc_t pm_set_tag[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id of yuno"),
-SDATAPM (DTP_STRING,    "tag",        0,              0,          "New Yuno Tag"),
+SDATAPM (DTP_STRING,    "tag",          0,              0,          "New Yuno Tag"),
 SDATAPM (DTP_STRING,    "realm_id",     0,              0,          "Realm Id"),
 SDATAPM (DTP_STRING,    "yuno_role",    0,              0,          "Yuno Role"),
 SDATAPM (DTP_STRING,    "yuno_name",    0,              0,          "Yuno Name"),
@@ -966,38 +974,9 @@ typedef struct _PRIVATE_DATA {
 
 
 
-/*****************************************************************
- *
- *****************************************************************/
-PRIVATE int is_yuneta_agent(unsigned int pid)
-{
-    // TODO // struct pid_stats pst;
-    // int ret = kill(pid, 0);
-    // if(ret == 0) {
-    //     if(read_proc_pid_cmdline(pid, &pst, 0)==0) {
-    //         if(strstr(pst.cmdline, "yuneta_agent ")) {
-    //             return 0;
-    //         }
-    //     } else {
-    //         return -1;
-    //     }
-    // }
-    // return ret;
-    return 0;
-}
-
 /***************************************************************************
  *      Framework Method create
  ***************************************************************************/
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void remove_pid_file(void)
-{
-    unlink(pidfile);
-}
-
 PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -6535,6 +6514,22 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 
 
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE int is_yuneta_agent(unsigned int pid)
+{
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void remove_pid_file(void)
+{
+    unlink(pidfile);
+}
 
 /***************************************************************************
  *      long age reference

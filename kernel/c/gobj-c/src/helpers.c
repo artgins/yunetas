@@ -62,150 +62,6 @@
  **************************************************/
 #define _
 
-#ifdef __linux__
-
-#define MAX_COMM_LEN    128
-#define MAX_CMDLINE_LEN 128
-
-#define F_NO_PID_IO 0x01
-#define F_NO_PID_FD 0x02
-
-#define STAT            "/proc/stat"
-#define UPTIME          "/proc/uptime"
-#define DISKSTATS       "/proc/diskstats"
-#define INTERRUPTS      "/proc/interrupts"
-#define MEMINFO         "/proc/meminfo"
-
-#define PID_STAT    "/proc/%u/stat"
-#define PID_STATUS  "/proc/%u/status"
-#define PID_IO      "/proc/%u/io"
-#define PID_CMDLINE "/proc/%u/cmdline"
-#define PID_SMAP    "/proc/%u/smaps"
-#define PID_FD      "/proc/%u/fd"
-
-#define PROC_TASK   "/proc/%u/task"
-#define TASK_STAT   "/proc/%u/task/%u/stat"
-#define TASK_STATUS "/proc/%u/task/%u/status"
-#define TASK_IO     "/proc/%u/task/%u/io"
-#define TASK_CMDLINE    "/proc/%u/task/%u/cmdline"
-#define TASK_SMAP   "/proc/%u/task/%u/smaps"
-#define TASK_FD     "/proc/%u/task/%u/fd"
-
-/*
- * kB <-> number of pages.
- * Page size depends on machine architecture (4 kB, 8 kB, 16 kB, 64 kB...)
- */
-// #define KB_TO_PG(k) ((k) >> kb_shift)
-#define PG_TO_KB(k) ((k) << get_kb_shift())
-
-/* Structure for memory and swap space utilization statistics */
-struct stats_memory {
-    unsigned long frmkb __attribute__ ((aligned (8)));
-    unsigned long bufkb __attribute__ ((aligned (8)));
-    unsigned long camkb __attribute__ ((aligned (8)));
-    unsigned long tlmkb __attribute__ ((aligned (8)));
-    unsigned long frskb __attribute__ ((aligned (8)));
-    unsigned long tlskb __attribute__ ((aligned (8)));
-    unsigned long caskb __attribute__ ((aligned (8)));
-    unsigned long comkb __attribute__ ((aligned (8)));
-    unsigned long activekb  __attribute__ ((aligned (8)));
-    unsigned long inactkb   __attribute__ ((aligned (8)));
-    unsigned long dirtykb   __attribute__ ((aligned (8)));
-    unsigned long anonpgkb  __attribute__ ((aligned (8)));
-    unsigned long slabkb    __attribute__ ((aligned (8)));
-    unsigned long kstackkb  __attribute__ ((aligned (8)));
-    unsigned long pgtblkb   __attribute__ ((aligned (8)));
-    unsigned long vmusedkb  __attribute__ ((aligned (8)));
-};
-
-#define STATS_MEMORY_SIZE   (sizeof(struct stats_memory))
-
-struct pid_stats {
-    unsigned long long read_bytes           __attribute__ ((aligned (16)));
-    unsigned long long write_bytes          __attribute__ ((packed));
-    unsigned long long cancelled_write_bytes    __attribute__ ((packed));
-    unsigned long long total_vsz            __attribute__ ((packed));
-    unsigned long long total_rss            __attribute__ ((packed));
-    unsigned long long total_stack_size     __attribute__ ((packed));
-    unsigned long long total_stack_ref      __attribute__ ((packed));
-    unsigned long long total_threads        __attribute__ ((packed));
-    unsigned long long total_fd_nr          __attribute__ ((packed));
-    unsigned long long blkio_swapin_delays      __attribute__ ((packed));
-    unsigned long long minflt           __attribute__ ((packed));
-    unsigned long long cminflt          __attribute__ ((packed));
-    unsigned long long majflt           __attribute__ ((packed));
-    unsigned long long cmajflt          __attribute__ ((packed));
-    unsigned long long utime            __attribute__ ((packed));
-    long long          cutime           __attribute__ ((packed));
-    unsigned long long stime            __attribute__ ((packed));
-    long long          cstime           __attribute__ ((packed));
-    unsigned long long gtime            __attribute__ ((packed));
-    long long          cgtime           __attribute__ ((packed));
-    unsigned long long vsz              __attribute__ ((packed));
-    unsigned long long rss              __attribute__ ((packed));
-    unsigned long      nvcsw            __attribute__ ((packed));
-    unsigned long      nivcsw           __attribute__ ((packed));
-    unsigned long      stack_size           __attribute__ ((packed));
-    unsigned long      stack_ref            __attribute__ ((packed));
-    /* If pid is null, the process has terminated */
-    unsigned int       pid              __attribute__ ((packed));
-    /* If tgid is not null, then this PID is in fact a TID */
-    unsigned int       tgid             __attribute__ ((packed));
-    unsigned int       rt_asum_count        __attribute__ ((packed));
-    unsigned int       rc_asum_count        __attribute__ ((packed));
-    unsigned int       uc_asum_count        __attribute__ ((packed));
-    unsigned int       tf_asum_count        __attribute__ ((packed));
-    unsigned int       sk_asum_count        __attribute__ ((packed));
-    unsigned int       delay_asum_count     __attribute__ ((packed));
-    unsigned int       processor            __attribute__ ((packed));
-    unsigned int       priority         __attribute__ ((packed));
-    unsigned int       policy           __attribute__ ((packed));
-    unsigned int       flags            __attribute__ ((packed));
-    unsigned int       uid              __attribute__ ((packed));
-    unsigned int       threads          __attribute__ ((packed));
-    unsigned int       fd_nr            __attribute__ ((packed));
-    char               comm[MAX_COMM_LEN];
-    char               cmdline[MAX_CMDLINE_LEN];
-};
-
-#define PID_STATS_SIZE  (sizeof(struct pid_stats))
-
-/*
- * Structure for CPU statistics.
- * In activity buffer: First structure is for global CPU utilisation ("all").
- * Following structures are for each individual CPU (0, 1, etc.)
- */
-struct stats_cpu {
-    unsigned long long cpu_user     __attribute__ ((aligned (16)));
-    unsigned long long cpu_nice     __attribute__ ((aligned (16)));
-    unsigned long long cpu_sys      __attribute__ ((aligned (16)));
-    unsigned long long cpu_idle     __attribute__ ((aligned (16)));
-    unsigned long long cpu_iowait       __attribute__ ((aligned (16)));
-    unsigned long long cpu_steal        __attribute__ ((aligned (16)));
-    unsigned long long cpu_hardirq      __attribute__ ((aligned (16)));
-    unsigned long long cpu_softirq      __attribute__ ((aligned (16)));
-    unsigned long long cpu_guest        __attribute__ ((aligned (16)));
-    unsigned long long cpu_guest_nice   __attribute__ ((aligned (16)));
-};
-
-#define STATS_CPU_SIZE  (sizeof(struct stats_cpu))
-
-/*
- * Structure for interrupts statistics.
- * In activity buffer: First structure is for total number of interrupts ("SUM").
- * Following structures are for each individual interrupt (0, 1, etc.)
- *
- * NOTE: The total number of interrupts is saved as a %llu by the kernel,
- * whereas individual interrupts are saved as %u.
- */
-struct stats_irq {
-    unsigned long long irq_nr   __attribute__ ((aligned (16)));
-};
-
-#define STATS_IRQ_SIZE  (sizeof(struct stats_irq))
-
-#endif
-
 /*****************************************************************
  *     Prototypes
  *****************************************************************/
@@ -222,8 +78,8 @@ PRIVATE int _walk_tree(
 /*****************************************************************
  *     Data
  *****************************************************************/
-static BOOL umask_cleared = FALSE;
-static char _node_uuid[64] = {0}; // uuid of the node
+PRIVATE BOOL umask_cleared = FALSE;
+PRIVATE char node_uuid_[64] = {0}; // uuid of the node
 
 
 
@@ -5213,7 +5069,7 @@ PRIVATE void save_node_uuid(void)
 {
     char *directory = "/yuneta/store/agent/uuid";
     json_t *jn_uuid = json_object();
-    json_object_set_new(jn_uuid, "uuid", json_string(_node_uuid));
+    json_object_set_new(jn_uuid, "uuid", json_string(node_uuid_));
 
     save_json_to_file(
         NULL,
@@ -5244,7 +5100,7 @@ PRIVATE int read_node_uuid(void)
 
     if(jn_uuid) {
         const char *uuid_ = kw_get_str(0, jn_uuid, "uuid", "", KW_REQUIRED);
-        snprintf(_node_uuid, sizeof(_node_uuid), "%s", uuid_);
+        snprintf(node_uuid_, sizeof(node_uuid_), "%s", uuid_);
         json_decref(jn_uuid);
         return 0;
     }
@@ -5258,13 +5114,13 @@ PRIVATE int read_node_uuid(void)
 #ifdef __linux__
 PRIVATE int create_node_uuid(void)
 {
-    read_node_uuid(); // get node uuid in _node_uuid
-    if(!empty_string(_node_uuid)) {
+    read_node_uuid(); // get node uuid in node_uuid_
+    if(!empty_string(node_uuid_)) {
         return 0;
     }
 
     // TODO improve, I use node_uuid to identify the machine, be depending of machine
-    create_uuid(_node_uuid, sizeof(_node_uuid));
+    create_uuid(node_uuid_, sizeof(node_uuid_));
     save_node_uuid();
     return 0;
 }
@@ -5275,7 +5131,7 @@ PRIVATE int create_node_uuid(void)
  ***************************************************************************/
 PUBLIC const char *node_uuid(void)
 {
-    if(!_node_uuid[0]) {
+    if(!node_uuid_[0]) {
 #ifdef ESP_PLATFORM
         uint8_t mac_addr[6] = {0};
         esp_efuse_mac_get_default(mac_addr);
@@ -5300,7 +5156,7 @@ PUBLIC const char *node_uuid(void)
     #error "What S.O.?"
 #endif
     }
-    return _node_uuid;
+    return node_uuid_;
 }
 
 /***************************************************************************
@@ -5986,4 +5842,45 @@ PUBLIC unsigned long total_ram_in_kb(void)
     }
 
     return 0;  // Unable to determine total RAM
+}
+
+/***************************************************************
+ *  Return the command line of current process
+ ***************************************************************/
+PUBLIC char *read_self_cmdline(void)
+{
+    FILE *fp = fopen("/proc/self/cmdline", "rb");
+    if(!fp) {
+        return NULL;
+    }
+
+    char *cmdline = NULL;
+    size_t size = 0;
+    char buf[256];
+    size_t n;
+
+    while((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
+        char *new_cmdline = realloc(cmdline, size + n + 1);
+        if(!new_cmdline) {
+            free(cmdline);
+            fclose(fp);
+            return NULL;
+        }
+        cmdline = new_cmdline;
+        memcpy(cmdline + size, buf, n);
+        size += n;
+    }
+
+    fclose(fp);
+
+    if(cmdline) {
+        for(size_t i = 0; i < size; i++) {
+            if(cmdline[i] == '\0') {
+                cmdline[i] = ' ';
+            }
+        }
+        cmdline[size] = '\0';
+    }
+
+    return cmdline;
 }
