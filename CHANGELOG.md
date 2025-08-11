@@ -126,6 +126,7 @@ New API
     dl_nfind
     dl_delete_item
     replace_string
+    gbuffer_append_json
 
 Delete API
 

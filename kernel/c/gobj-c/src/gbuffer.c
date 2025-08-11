@@ -373,6 +373,12 @@ PUBLIC size_t gbuffer_append_json( // Old json_append2gbuf
 {
     char *str = json2str(jn);
     if(!str) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "json2str() FAILED",
+            NULL
+        );
         JSON_DECREF(jn);
         return -1;
     }
