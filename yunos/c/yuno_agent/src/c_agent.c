@@ -1605,19 +1605,22 @@ PRIVATE json_t *cmd_dir_local_data(hgobj gobj, const char *cmd, json_t *kw, hgob
     const char *work_dir = yuneta_root_dir();
     build_path(yuno_data_path, sizeof(yuno_data_path), work_dir, private_domain, NULL);
 
-    int size;
-    char **tree = get_ordered_filename_array(gobj,
+    dir_array_t da;
+    get_ordered_filename_array(gobj,
         yuno_data_path,
         ".*",
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
-        &size
+        &da
     );
+
     json_t *jn_array = json_array();
-    for(int i=0; i<size; i++) {
-        char *fullpath = tree[i];
+    for(int i=0; i<da.count; i++) {
+        char *fullpath = da.items[i];
         json_array_append_new(jn_array, json_string(fullpath));
     }
-    // TODO free_ordered_filename_array(tree, size);
+
+    dir_array_free(&da);
+
     json_decref(node);
 
     return msg_iev_build_response(
@@ -4900,7 +4903,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 return msg_iev_build_response(gobj,
                     -1,
                     json_sprintf(
-                        "" // TODO "Can't kill yuno: %s", gobj_get_message_error(gobj)
+                        "Can't kill yuno: %s", gobj_log_last_message()
                     ),
                     0,
                     0,
@@ -7049,24 +7052,6 @@ PRIVATE char * build_yuno_log_path(hgobj gobj, json_t *yuno, char *bf, int bfsiz
         }
     }
     return bf;
-}
-
- /***************************************************************************
-  *
-  ***************************************************************************/
-PRIVATE int save_pid_in_file(hgobj gobj, json_t *yuno, uint32_t pid)
-{
-    char yuno_bin_path[NAME_MAX];
-    char filename_pid_path[NAME_MAX*2];
-    /*
-     *  Let it create the bin_path. Can exist some zombi yuno.
-     */
-    build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), TRUE);
-    snprintf(filename_pid_path, sizeof(filename_pid_path), "%s/yuno.pid", yuno_bin_path);
-    FILE *file = fopen(filename_pid_path, "w");
-    fprintf(file, "%d\n", pid);
-    fclose(file);
-    return 0;
 }
 
 /***************************************************************************
@@ -9890,8 +9875,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         JSON_DECREF(iter_yunos);
         return -1;
     }
-
-    // save_pid_in_file(gobj, yuno, pid); // TODO remove cuando pases los yunos a version 5.11.4
 
     if(strcmp(yuno_role, SDATA_GET_STR(yuno, "yuno_role"))!=0) {
         gobj_log_error(gobj, 0,
