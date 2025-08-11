@@ -1,6 +1,7 @@
 /****************************************************************************
- *          MAIN_YUNETA_AGENT22.C
- *          yuneta_agent22 main
+ *          Yuneta Agent22 Main
+ *
+ *          A backdoor for yuneta agents being controlled by controlcenter
  *
  *          Copyright (c) 2022 Niyamaka.
  *          Copyright (c) 2025, ArtGins.

@@ -1,6 +1,5 @@
 /****************************************************************************
- *          MAIN_YUNETA_AGENT.C
- *          yuneta_agent main
+ *          Yuneta Agent Main
  *
  *          Copyright (c) 2014,2018 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
