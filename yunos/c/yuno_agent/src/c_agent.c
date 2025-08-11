@@ -342,7 +342,6 @@ SDATAPM (DTP_STRING,    "realm_owner",  0,              0,          "Realm Owner
 SDATAPM (DTP_STRING,    "realm_role",   0,              0,          "Realm Role"),
 SDATAPM (DTP_STRING,    "realm_name",   0,              0,          "Realm Name"),
 SDATAPM (DTP_STRING,    "realm_env",    0,              0,          "Environment"),
-SDATAPM (DTP_JSON,      "range_ports",  0,              0,          "Range Ports"), // DEPRECATED
 SDATAPM (DTP_STRING,    "bind_ip",      0,              0,          "Ip to be bind by the Realm services"),
 SDATA_END()
 };
@@ -350,7 +349,6 @@ PRIVATE sdata_desc_t pm_update_realm[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "id",           0,              0,          "Id"),
 SDATAPM (DTP_STRING,    "bind_ip",      0,              0,          "Ip to be bind by the Realm"),
-SDATAPM (DTP_INTEGER,   "last_port",    0,              0,          "Last port assigned"), // DEPRECATED
 SDATA_END()
 };
 PRIVATE sdata_desc_t pm_del_realm[] = {
@@ -2472,7 +2470,6 @@ PRIVATE json_t *cmd_create_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
     const char *realm_role = kw_get_str(gobj, kw, "realm_role", "", 0);
     const char *realm_name = kw_get_str(gobj, kw, "realm_name", "", 0);
     const char *realm_env = kw_get_str(gobj, kw, "realm_env", "", 0);
-    json_t *range_ports = kw_get_list(gobj, kw, "range_ports", 0, KW_EXTRACT); // DEPRECATED
 
     if(empty_string(realm_owner)) {
         return msg_iev_build_response(
@@ -2513,17 +2510,6 @@ PRIVATE json_t *cmd_create_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             0,
             kw  // owned
         );
-    }
-    if(!range_ports) {
-        json_decref(range_ports); // DEPRECATED
-        //return msg_iev_build_response(
-        //    gobj,
-        //    -1,
-        //    json_sprintf("What realm range ports?"),
-        //    0,
-        //    0,
-        //    kw  // owned
-        //);
     }
 
     /*------------------------------------------------*
@@ -8398,22 +8384,20 @@ PRIVATE int get_last_public_port(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_new_service_port(
+PRIVATE unsigned get_new_service_port(
     hgobj gobj,
     json_t *hs_realm // NOT owned
 )
 {
-    //json_t *jn_range_ports = SDATA_GET_JSON(hs_realm, "range_ports"); DEPRECATED
-    json_t *jn_range_ports = gobj_read_json_attr(gobj, "range_ports");
-    json_t *jn_port_list = 0; // TODO json_expand_integer_list(jn_range_ports);
+    json_t *jn_range_ports = kw_get_dict_value(gobj, hs_realm, "range_ports", 0, KW_REQUIRED);
+    json_t *jn_port_list = json_expand_integer_list(jn_range_ports);
 
-    //uint32_t last_port = SDATA_GET_INT(hs_realm, "last_port"); DEPRECATED
-    uint32_t new_port = 0;
-    uint32_t last_port = get_last_public_port(gobj);
+    unsigned new_port = 0;
+    unsigned last_port = get_last_public_port(gobj);
     if(!last_port) {
-        new_port = 0; // TODO json_list_int(jn_port_list, 0);
+        new_port = json_list_int(jn_port_list, 0);
     } else {
-        int idx = 0; // TODO json_list_int_index(jn_port_list, last_port);
+        int idx = json_list_int_index(jn_port_list, last_port);
         if(idx < 0) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
@@ -8435,7 +8419,7 @@ PRIVATE int get_new_service_port(
             JSON_DECREF(jn_port_list);
             return 0;
         }
-        new_port = 0; // TODO json_list_int(jn_port_list, idx);
+        new_port = json_list_int(jn_port_list, idx);
     }
 
     gobj_write_integer_attr(gobj, "last_port", new_port);
