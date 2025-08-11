@@ -1351,19 +1351,21 @@ PRIVATE json_t *cmd_dir_yuneta(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     char directory[PATH_MAX];
     build_path(directory, sizeof(directory), "/yuneta", subdirectory, NULL);
 
-    int size;
-    char **tree = get_ordered_filename_array(gobj,
+    dir_array_t da;
+    get_ordered_filename_array(gobj,
         directory,
         match,
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
-        &size
+        &da
     );
+
     json_t *jn_array = json_array();
-    for(int i=0; i<size; i++) {
-        char *fullpath = tree[i];
+    for(int i=0; i<da.count; i++) {
+        char *fullpath = da.items[i];
         json_array_append_new(jn_array, json_string(fullpath));
     }
-// TODO     free_ordered_filename_array(tree, size);
+
+    dir_array_free(&da);
 
     return msg_iev_build_response(
         gobj,
@@ -1388,19 +1390,21 @@ PRIVATE json_t *cmd_dir_realms(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     char directory[PATH_MAX];
     build_path(directory, sizeof(directory), "/yuneta/realms", subdirectory, NULL);
 
-    int size;
-    char **tree = get_ordered_filename_array(gobj,
+    dir_array_t da;
+    get_ordered_filename_array(gobj,
         directory,
         match,
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
-        &size
+        &da
     );
+
     json_t *jn_array = json_array();
-    for(int i=0; i<size; i++) {
-        char *fullpath = tree[i];
+    for(int i=0; i<da.count; i++) {
+        char *fullpath = da.items[i];
         json_array_append_new(jn_array, json_string(fullpath));
     }
-    // TODO free_ordered_filename_array(tree, size);
+
+    dir_array_free(&da);
 
     return msg_iev_build_response(
         gobj,
@@ -1425,19 +1429,21 @@ PRIVATE json_t *cmd_dir_repos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     char directory[PATH_MAX];
     build_path(directory, sizeof(directory), "/yuneta/repos", subdirectory, NULL);
 
-    int size;
-    char **tree = get_ordered_filename_array(gobj,
+    dir_array_t da;
+    get_ordered_filename_array(gobj,
         directory,
         match,
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
-        &size
+        &da
     );
+
     json_t *jn_array = json_array();
-    for(int i=0; i<size; i++) {
-        char *fullpath = tree[i];
+    for(int i=0; i<da.count; i++) {
+        char *fullpath = da.items[i];
         json_array_append_new(jn_array, json_string(fullpath));
     }
-    // TODO free_ordered_filename_array(tree, size);
+
+    dir_array_free(&da);
 
     return msg_iev_build_response(
         gobj,
@@ -1463,19 +1469,21 @@ PRIVATE json_t *cmd_dir_store(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     char directory[PATH_MAX];
     build_path(directory, sizeof(directory), "/yuneta/store", subdirectory, NULL);
 
-    int size;
-    char **tree = get_ordered_filename_array(gobj,
+    dir_array_t da;
+    get_ordered_filename_array(gobj,
         directory,
         match,
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
-        &size
+        &da
     );
+
     json_t *jn_array = json_array();
-    for(int i=0; i<size; i++) {
-        char *fullpath = tree[i];
+    for(int i=0; i<da.count; i++) {
+        char *fullpath = da.items[i];
         json_array_append_new(jn_array, json_string(fullpath));
     }
-    // TODO free_ordered_filename_array(tree, size);
+
+    dir_array_free(&da);
 
     return msg_iev_build_response(
         gobj,
@@ -1526,19 +1534,22 @@ PRIVATE json_t *cmd_dir_logs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     char yuno_log_path[NAME_MAX];
     build_yuno_log_path(gobj, node, yuno_log_path, sizeof(yuno_log_path), FALSE);
 
-    int size;
-    char **tree = get_ordered_filename_array(gobj,
+    dir_array_t da;
+    get_ordered_filename_array(gobj,
         yuno_log_path,
         ".*",
         WD_RECURSIVE|WD_MATCH_DIRECTORY|WD_MATCH_REGULAR_FILE|WD_MATCH_SYMBOLIC_LINK|WD_HIDDENFILES,
-        &size
+        &da
     );
+
     json_t *jn_array = json_array();
-    for(int i=0; i<size; i++) {
-        char *fullpath = tree[i];
+    for(int i=0; i<da.count; i++) {
+        char *fullpath = da.items[i];
         json_array_append_new(jn_array, json_string(fullpath));
     }
-    // TODO free_ordered_filename_array(tree, size);
+
+    dir_array_free(&da);
+
     json_decref(node);
 
     return msg_iev_build_response(

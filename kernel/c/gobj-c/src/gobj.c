@@ -10104,7 +10104,7 @@ PUBLIC int gobj_unlink_nodes(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_get_node(
+PUBLIC json_t *gobj_get_node( // Return is YOURS
     hgobj gobj_,
     const char *topic_name,
     json_t *kw,         // 'id' and pkey2s fields are used to find the node
@@ -10143,7 +10143,7 @@ PUBLIC json_t *gobj_get_node(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *gobj_list_nodes(
+PUBLIC json_t *gobj_list_nodes( // Return MUST be decref
     hgobj gobj_,
     const char *topic_name,
     json_t *jn_filter,
