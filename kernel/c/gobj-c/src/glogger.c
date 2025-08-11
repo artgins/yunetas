@@ -71,8 +71,8 @@ PRIVATE const char *log_handler_opt_names[]={
     "LOG_HND_OPT_WARNING",
     "LOG_HND_OPT_INFO",
     "LOG_HND_OPT_DEBUG",
-    "LOG_HND_OPT_XXXX",
-    "LOG_HND_OPT_XXXXX",
+    "LOG_HND_OPT_AUDIT",
+    "LOG_HND_OPT_MONITOR",
     "LOG_HND_OPT_NODISCOVER",
     "LOG_HND_OPT_NOTIME",
     "LOG_HND_OPT_TRACE_STACK",
@@ -478,14 +478,14 @@ PRIVATE BOOL must_ignore(log_handler_t *lh, int priority)
             ignore = FALSE;
         break;
 
-//    case LOG_AUDIT:
-//        if(handler_options & LOG_HND_OPT_XXXX)
-//            ignore = FALSE;
-//        break;
-//    case LOG_MONITOR:
-//        if(handler_options & LOG_HND_OPT_XXXXX)
-//            ignore = FALSE;
-//        break;
+    case LOG_AUDIT:
+        if(handler_options & LOG_HND_OPT_AUDIT)
+            ignore = FALSE;
+        break;
+    case LOG_MONITOR:
+        if(handler_options & LOG_HND_OPT_MONITOR)
+            ignore = FALSE;
+        break;
 
     default:
         break;

@@ -900,6 +900,10 @@ SDATA_END()
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
+
+/*---------------------------------------------*
+ *      GClass trace levels
+ *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username"),
@@ -915,15 +919,16 @@ SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",           "Maximum consoles opened"),
 SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "60000",        "Expiration timeout for commands"),
 
+SDATA (DTP_BOOLEAN,     "use_audit_command_file",SDF_WR,        "1",            "Use audit file commands"),
+SDATA (DTP_INTEGER,     "max_megas_audit_file",SDF_WR,          "500",          "max megas rotatory file size"),
+SDATA (DTP_INTEGER,     "min_free_disk_percentage",SDF_WR,      "20",           "min free disk percentage using audit file"),
+
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "Subscriber of output-events. Not a child gobj"),
 SDATA_END()
 };
 
-/*---------------------------------------------*
- *      GClass trace levels
- *---------------------------------------------*/
 enum {
     TRACE_MESSAGES = 0x0001,
 };
@@ -1150,7 +1155,7 @@ PRIVATE void mt_create(hgobj gobj)
         gobj
     );
 
-    if(1) {
+    if(gobj_read_bool_attr(gobj, "use_audit_command_file")) {
         /*-----------------------------*
          *      Audit
          *-----------------------------*/
@@ -1159,8 +1164,8 @@ PRIVATE void mt_create(hgobj gobj)
         priv->audit_file = rotatory_open(
             audit_path,
             0,                      // 0 = default 64K
-            0,                      // 0 = default 8
-            0,                      // 0 = default 10
+            gobj_read_integer_attr(gobj, "max_megas_audit_file"), // 0 = default 8
+            gobj_read_integer_attr(gobj, "min_free_disk_percentage"), // 0 = default 10
             yuneta_xpermission(),   // permission for directories and executable files. 0 = default 02775
             0660,                   // permission for regular files. 0 = default 0664
             TRUE
