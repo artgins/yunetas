@@ -5845,18 +5845,22 @@ PUBLIC unsigned long total_ram_in_kb(void)
 }
 
 /***************************************************************
- *  Return the command line of current process
+ *  Return the command line of the process
  ***************************************************************/
-PUBLIC char *read_self_cmdline(void)
+PUBLIC char *read_process_cmdline(pid_t pid)
 {
-    FILE *fp = fopen("/proc/self/cmdline", "rb");
+    char path[64];
+    snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
+
+    FILE *fp = fopen(path, "rb");
     if(!fp) {
         return NULL;
     }
 
+    // Read the whole file
     char *cmdline = NULL;
     size_t size = 0;
-    char buf[256];
+    char buf[1024];
     size_t n;
 
     while((n = fread(buf, 1, sizeof(buf), fp)) > 0) {
@@ -5874,6 +5878,7 @@ PUBLIC char *read_self_cmdline(void)
     fclose(fp);
 
     if(cmdline) {
+        // Replace '\0' separators with spaces
         for(size_t i = 0; i < size; i++) {
             if(cmdline[i] == '\0') {
                 cmdline[i] = ' ';

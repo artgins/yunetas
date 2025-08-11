@@ -127,7 +127,7 @@ New API
     dl_delete_item
     replace_string
     gbuffer_append_json
-    read_self_cmdline
+    read_process_cmdline
 
 Delete API
 

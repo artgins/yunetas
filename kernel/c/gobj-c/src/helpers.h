@@ -971,7 +971,7 @@ void show_backtrace_with_backtrace(
 
 PUBLIC unsigned long free_ram_in_kb(void);
 PUBLIC unsigned long total_ram_in_kb(void);
-PUBLIC char *read_self_cmdline(void);
+PUBLIC char *read_process_cmdline(pid_t pid);
 
 /***************************************************************
  *  inline functions

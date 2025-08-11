@@ -6520,6 +6520,17 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
  *****************************************************************/
 PRIVATE int is_yuneta_agent(unsigned int pid)
 {
+    int ret = kill(pid, 0);
+    if(ret == 0) {
+        if(read_proc_pid_cmdline(pid, &pst, 0)==0) {
+            if(strstr(pst.cmdline, "yuneta_agent22 ")) {
+                return 0;
+            }
+        } else {
+            return -1;
+        }
+    }
+    return ret;
     return 0;
 }
 
