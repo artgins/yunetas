@@ -81,10 +81,8 @@ PRIVATE char variable_config[]= "\
     'yuno': {                                                       \n\
         'yuno_name': '(^^__hostname__^^)',                          \n\
         'trace_levels': {                                           \n\
-            'Tcp0': ['connections'],                                \n\
-            'TcpS0': ['listen', 'not-accepted', 'accepted'],        \n\
-            'Tcp1': ['connections'],                                \n\
-            'TcpS1': ['listen', 'not-accepted', 'accepted']         \n\
+            'C_TCP': ['connections'],                               \n\
+            'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
@@ -160,42 +158,32 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                               \n\
             'name': 'agent',                            \n\
-            'gclass': 'Agent',                          \n\
+            'gclass': 'C_AGENT',                        \n\
             'default_service': true,                    \n\
             'autostart': true,                          \n\
             'autoplay': false,                          \n\
             'kw': {                                     \n\
             },                                          \n\
-            'children': [                                \n\
+            'children': [                               \n\
                 {                                               \n\
                     'name': '__input_side__',                   \n\
-                    'gclass': 'C_IOGATE',                         \n\
+                    'gclass': 'C_IOGATE',                       \n\
                     'as_service': true,                         \n\
                     'kw': {                                     \n\
-                        'persistent_channels': false            \n\
                     },                                          \n\
-                    'children': [                                        \n\
+                    'children': [                                       \n\
                         {                                               \n\
-                            'name': 'server_port',                      \n\
-                            'gclass': 'TcpS0',                          \n\
-                            'as_unique': true,                          \n\
+                            'name': 'agent_server_port',                \n\
+                            'gclass': 'C_TCP_S',                        \n\
+                            'as_service': true,                         \n\
                             'kw': {                                     \n\
-                                'url': '(^^__input_url__^^)',           \n\
-                                'child_tree_filter': {                  \n\
-                                    'op': 'find',                       \n\
-                                    'kw': {                                 \n\
-                                        '__prefix_gobj_name__': 'wss',      \n\
-                                        '__gclass_name__': 'IEvent_srv',    \n\
-                                        '__disabled__': false,              \n\
-                                        'connected': false                  \n\
-                                    }                                       \n\
-                                }                                           \n\
+                                'url': '(^^__input_url__^^)'            \n\
                             }                                               \n\
                         },                                                  \n\
                         {                                                   \n\
-                            'name': 'secure_port',                          \n\
-                            'gclass': 'TcpS1',                              \n\
-                            'as_unique': true,                              \n\
+                            'name': 'agent_secure_port',                    \n\
+                            'gclass': 'C_TCP_S',                            \n\
+                            'as_service': true,                             \n\
                             'kw': {                                         \n\
                                 'crypto': {                                 \n\
                                     'library': 'openssl',                   \n\
@@ -203,45 +191,42 @@ PRIVATE char variable_config[]= "\
             'ssl_certificate_key': '/yuneta/agent/certs/yuneta_agent.key',  \n\
                                     'trace': false                          \n\
                                 },                                          \n\
-                                'url': '(^^__input_secure_url__^^)',        \n\
-                                'child_tree_filter': {                      \n\
-                                    'op': 'find',                           \n\
-                                    'kw': {                                 \n\
-                                        '__prefix_gobj_name__': 'wss',      \n\
-                                        '__gclass_name__': 'IEvent_srv',    \n\
-                                        '__disabled__': false,              \n\
-                                        'connected': false                  \n\
-                                    }                                       \n\
-                                }                                           \n\
+                                'url': '(^^__input_secure_url__^^)'         \n\
                             }                                               \n\
                         }                                                   \n\
                     ],                                                  \n\
-                    '[^^children^^]': {                                  \n\
-                        '__range__': [[0,300]], #^^ max 300 users     \n\
+                    '[^^children^^]': {                                 \n\
+                        '__range__': [[0,300]], #^^ max 300 users       \n\
                         '__vars__': {                                   \n\
                         },                                              \n\
                         '__content__': {                                \n\
-                            'name': 'wss-(^^__range__^^)',                  \n\
-                            'gclass': 'IEvent_srv',                         \n\
+                            'name': 'input-(^^__range__^^)',                \n\
+                            'gclass': 'C_CHANNEL',                          \n\
                             'kw': {                                         \n\
                             },                                              \n\
                             'children': [                                     \n\
                                 {                                               \n\
-                                    'name': 'wss-(^^__range__^^)',              \n\
-                                    'gclass': 'C_CHANNEL',                        \n\
-                                    'kw': {                                         \n\
-                                    },                                              \n\
-                                    'children': [                                     \n\
-                                        {                                               \n\
-                                            'name': 'wss-(^^__range__^^)',              \n\
-                                            'gclass': 'C_WEBSOCKET',                     \n\
-                                            'kw': {                                     \n\
-                                                'iamServer': true                       \n\
-                                            }                                           \n\
-                                        }                                               \n\
-                                    ]                                               \n\
-                                }                                               \n\
-                            ]                                               \n\
+                                    'name': 'input-(^^__range__^^)',            \n\
+                                    'gclass': 'C_IEVENT_SRV',                   \n\
+                                    'kw': {                                     \n\
+                                    },                                          \n\
+                                    'children': [                               \n\
+                                        {                                       \n\
+                                            'name': 'input-(^^__range__^^)',    \n\
+                                            'gclass': 'C_WEBSOCKET',            \n\
+                                            'kw': {                             \n\
+                                                'iamServer': true               \n\
+                                            }                                   \n\
+                                            'children': [                               \n\
+                                                {                                       \n\
+                                                    'name': 'input-(^^__range__^^)',    \n\
+                                                    'gclass': 'C_TCP'                   \n\
+                                                }                                       \n\
+                                            ]                                           \n\
+                                        }                               \n\
+                                    ]                                   \n\
+                                }                                       \n\
+                            ]                                           \n\
                         }                                               \n\
                     }                                                   \n\
                 }                                               \n\
@@ -249,7 +234,7 @@ PRIVATE char variable_config[]= "\
         },                                              \n\
         {                                               \n\
             'name': 'controlcenter',                    \n\
-            'gclass': 'IEvent_cli',                     \n\
+            'gclass': 'C_IEVENT_CLI',                   \n\
             'autostart': true,                          \n\
             'autoplay': true,                           \n\
             'kw': {                                     \n\
@@ -259,55 +244,47 @@ PRIVATE char variable_config[]= "\
             },                                          \n\
             'children': [                                \n\
                 {                                               \n\
-                    'name': '__controlcenter__',                \n\
-                    'gclass': 'C_IOGATE',                         \n\
+                    'name': 'controlcenter_cli',                \n\
+                    'gclass': 'C_IOGATE',                       \n\
                     'as_service': true,                         \n\
                     'kw': {                                     \n\
-                        'persistent_channels': false            \n\
                     },                                          \n\
-                    'children': [                                \n\
+                    'children': [                               \n\
                         {                                               \n\
-                            'name': '__controlcenter__',                \n\
-                            'gclass': 'C_CHANNEL',                        \n\
+                            'name': 'controlcenter_cli',                \n\
+                            'gclass': 'C_CHANNEL',                      \n\
                             'kw': {                                     \n\
                             },                                          \n\
-                            'children': [                                \n\
+                            'children': [                               \n\
                                 {                                       \n\
-                                    'name': '__controlcenter__',        \n\
+                                    'name': 'controlcenter_cli',        \n\
                                     'gclass': 'C_PROT_TCP4H',           \n\
-                                    'children': [                                \n\
+                                    'children': [                               \n\
                                         {                                       \n\
-                                            'name': '__connex_controlcenter__', \n\
-                                            'gclass': 'Connexs',                \n\
+                                            'name': 'controlcenter_cli',        \n\
+                                            'gclass': 'C_TCP',                  \n\
                                             'kw': {                             \n\
                                                 'timeout_between_connections': 10000, \n\
                                                 'crypto': {                     \n\
                                                     'library': 'openssl',       \n\
                                                     'trace': false              \n\
                                                 },                              \n\
-                                                'urls':[                        \n\
-        'tcps://(^^__sys_machine__^^).(^^__node_owner__^^).(^^__output_url__^^)'    \n\
-                                                ]                               \n\
+'url': 'tcps://(^^__sys_machine__^^).(^^__node_owner__^^).(^^__output_url__^^)' \n\
                                             }                                   \n\
                                         }                                       \n\
                                     ]                                           \n\
                                 }                                       \n\
                             ]                                           \n\
                         }                                               \n\
-                    ]                                           \n\
-                }                                              \n\
+                    ]                                   \n\
+                }                                       \n\
             ]                                           \n\
         },                                              \n\
         {                                                           \n\
             'name': 'authz',                                        \n\
-            'gclass': 'C_AUTHZ',                                      \n\
-            'default_service': false,                               \n\
+            'gclass': 'C_AUTHZ',                                    \n\
             'autostart': true,                                      \n\
-            'autoplay': true,                                       \n\
-            'kw': {                                                 \n\
-            },                                                      \n\
-            'children': [                                            \n\
-            ]                                                       \n\
+            'autoplay': true                                        \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
