@@ -205,7 +205,13 @@ static inline size_t gbuffer_append_char(gbuffer_t *gbuf, char c) /* return byte
     return gbuffer_append(gbuf, &c, 1);
 }
 
+PUBLIC size_t gbuffer_append_json( // Old json_append2gbuf
+    gbuffer_t *gbuf,
+    json_t *jn  // owned
+);
+
 PUBLIC int gbuffer_append_gbuf(gbuffer_t *dst, gbuffer_t *src);
+
 PUBLIC int gbuffer_printf(gbuffer_t *gbuf, const char *format, ...) JANSSON_ATTRS((format(printf, 2, 3)));
 PUBLIC int gbuffer_vprintf(gbuffer_t *gbuf, const char *format, va_list ap) JANSSON_ATTRS((format(printf, 2, 0)));;
 

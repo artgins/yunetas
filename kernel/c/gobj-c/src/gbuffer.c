@@ -363,6 +363,26 @@ PUBLIC int gbuffer_append_gbuf(gbuffer_t *dst, gbuffer_t *src)
     return 0;
 }
 
+/*****************************************************************
+ *
+ *****************************************************************/
+PUBLIC size_t gbuffer_append_json( // Old json_append2gbuf
+    gbuffer_t *gbuf,
+    json_t *jn  // owned
+)
+{
+    char *str = json2str(jn);
+    if(!str) {
+        JSON_DECREF(jn);
+        return -1;
+    }
+    size_t ret = gbuffer_append(gbuf, str, strlen(str));
+    gbuffer_append(gbuf, "\n", 1);
+    gbmem_free(str);
+    JSON_DECREF(jn);
+    return ret;
+}
+
 /***************************************************************************
  *    ESCRITURA del mensaje.
  *    Añade message with format al final del mensaje

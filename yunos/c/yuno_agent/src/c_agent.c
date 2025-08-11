@@ -49,6 +49,8 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE uint64_t long_reference(void);
+
 PRIVATE char *yuneta_repos_yuno_dir(
     char *bf,
     int bfsize,
@@ -6533,6 +6535,15 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 
 /***************************************************************************
+ *      long age reference
+ ***************************************************************************/
+PRIVATE uint64_t long_reference(void)
+{
+    static uint64_t __long_reference__ = 0;
+    return ++__long_reference__;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PRIVATE int add_console_route(
@@ -7401,10 +7412,10 @@ PRIVATE int write_service_client_connectors(
         json_decref(hs_service);
     }
 
-    // TODO json_append2gbuf(
-    //     gbuf_config,
-    //     jn_yuno_services // owned
-    // );
+    gbuffer_append_json(
+        gbuf_config,
+        jn_yuno_services // owned
+    );
 
     gbuf2file( // save: service connectors
         gobj,
@@ -7612,10 +7623,10 @@ PRIVATE gbuffer_t *build_yuno_running_script(
             json_object_update(jn_environment, jn_agent_environment);
         }
 
-        // TODO json_append2gbuf(
-        //     gbuf_config,
-        //     jn_content  //owned
-        // );
+        gbuffer_append_json(
+            gbuf_config,
+            jn_content  //owned
+        );
 
         gbuf2file( // save: environment and yuno variables
             gobj,
@@ -7695,7 +7706,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
 
             json_t *content = SDATA_GET_JSON(hs_config, "zcontent");
             JSON_INCREF(content);
-            json_append2gbuf(
+            gbuffer_append_json(
                 gbuf_config,
                 content // owned
             );
