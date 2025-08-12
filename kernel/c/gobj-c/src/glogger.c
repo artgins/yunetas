@@ -1283,161 +1283,343 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
     }
 }
 
+// /*****************************************************************
+//  *  Add key/values from va_list argument
+//  *****************************************************************/
+// PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
+// {
+//     char *key;
+//     char *fmt;
+//     size_t i;
+//     char value[256];
+//
+//     while ((key = (char *)va_arg (ap, char *)) != NULL) {
+//         fmt = (char *)va_arg (ap, char *);
+//         for (i = 0; i < strlen (fmt); i++) {
+//             int eof = 0;
+//
+//             if (fmt[i] != '%')
+//                 continue;
+//             i++;
+//             while (eof != 1) {
+//                 switch (fmt[i]) {
+//                     case 'd':
+//                     case 'i':
+//                     case 'o':
+//                     case 'u':
+//                     case 'x':
+//                     case 'X':
+//                         if (fmt[i - 1] == 'l') {
+//                             if (i - 2 > 0 && fmt[i - 2] == 'l') {
+//                                 long long int v;
+//                                 v = va_arg(ap, long long int);
+//                                 json_add_integer(hgen, key, v);
+//
+//                             } else {
+//                                 long int v;
+//                                 v = va_arg(ap, long int);
+//                                 json_add_integer(hgen, key, v);
+//                             }
+//                         } else {
+//                             int v;
+//                             v = va_arg(ap, int);
+//                             json_add_integer(hgen, key, v);
+//                         }
+//                         eof = 1;
+//                         break;
+//                     case 'e':
+//                     case 'E':
+//                     case 'f':
+//                     case 'F':
+//                     case 'g':
+//                     case 'G':
+//                     case 'a':
+//                     case 'A':
+//                         if (fmt[i - 1] == 'L') {
+//                             long double v;
+//                             v = va_arg (ap, long double);
+//                             json_add_double(hgen, key, v);
+//                         } else {
+//                             double v;
+//                             v = va_arg (ap, double);
+//                             json_add_double(hgen, key, v);
+//                         }
+//                         eof = 1;
+//                         break;
+//                     case 'c':
+//                         if (fmt [i - 1] == 'l') {
+//                             wint_t v = va_arg (ap, wint_t);
+//                             json_add_integer(hgen, key, v);
+//                         } else {
+//                             int v = va_arg (ap, int);
+//                             json_add_integer(hgen, key, v);
+//                         }
+//                         eof = 1;
+//                         break;
+//                     case 's':
+//                         if (fmt [i - 1] == 'l') {
+//                             wchar_t *p;
+//                             int len;
+//
+//                             p = va_arg (ap, wchar_t *);
+//                             if(p && (len = snprintf(value, sizeof(value), "%ls", p))>=0) {
+//                                 if(strcmp(key, "msg")==0) {
+//                                     if(priority <= LOG_ERR) {
+//                                         gobj_log_set_last_message("%s", value);
+//                                     }
+//                                 }
+//                                 json_add_string(hgen, key, value);
+//                             } else {
+//                                 json_add_null(hgen, key);
+//                             }
+//
+//                         } else {
+//                             char *p;
+//                             int len;
+//
+//                             p = va_arg (ap, char *);
+//                             if(p && (len = snprintf(value, sizeof(value), "%s", p))>=0) {
+//                                 if(strcmp(key, "msg")==0) {
+//                                     if(priority <= LOG_ERR) {
+//                                         gobj_log_set_last_message("%s", value);
+//                                     }
+//                                 }
+//                                 json_add_string(hgen, key, value);
+//                             } else {
+//                                 json_add_null(hgen, key);
+//                             }
+//                         }
+//                         eof = 1;
+//                         break;
+//                     case 'p':
+//                         {
+//                             void *p;
+//                             int len;
+//
+//                             p = va_arg (ap, void *);
+//                             eof = 1;
+//                             if(p && (len = snprintf(value, sizeof(value), "%p", (char *)p))>0) {
+//                                 json_add_string(hgen, key, value);
+//                             } else {
+//                                 json_add_null(hgen, key);
+//                             }
+//                         }
+//                         break;
+//                     case 'j':
+//                         {
+//                             json_t *jn;
+//
+//                             jn = va_arg (ap, void *);
+//                             eof = 1;
+//
+//                             if(jn) {
+//                                 size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
+//                                                JSON_INDENT(0) |
+//                                                JSON_REAL_PRECISION(12);
+//                                 char *bf = json_dumps(jn, flags);
+//                                 if(bf) {
+//                                     helper_doublequote2quote(bf);
+//                                     json_add_string(0, key, bf);
+//                                     jsonp_free(bf) ;
+//                                 } else {
+//                                     json_add_null(hgen, key);
+//                                 }
+//                             } else {
+//                                 json_add_null(hgen, key);
+//                             }
+//                         }
+//                         break;
+//                     case '%':
+//                         eof = 1;
+//                         break;
+//                     default:
+//                         i++;
+//                 }
+//             }
+//         }
+//     }
+// }
+
 /*****************************************************************
  *  Add key/values from va_list argument
+ *  Improved by ChatGPT
  *****************************************************************/
 PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
 {
-    char *key;
-    char *fmt;
-    size_t i;
-    char value[256];
+    (void)priority; /* currently unused */
 
-    while ((key = (char *)va_arg (ap, char *)) != NULL) {
-        fmt = (char *)va_arg (ap, char *);
-        for (i = 0; i < strlen (fmt); i++) {
-            int eof = 0;
+    for(;;) {
+        const char *key = (const char *)va_arg(ap, const char *);
+        if(!key) {
+            break;
+        }
+        const char *fmt = (const char *)va_arg(ap, const char *);
+        if(!fmt) {
+            /* No format: treat as null */
+            json_add_null(hgen, key);
+            continue;
+        }
 
-            if (fmt[i] != '%')
+        size_t len = strlen(fmt);
+        for(size_t i = 0; i < len; i++) {
+            if(fmt[i] != '%') {
                 continue;
+            }
             i++;
-            while (eof != 1) {
-                switch (fmt[i]) {
-                    case 'd':
-                    case 'i':
-                    case 'o':
-                    case 'u':
-                    case 'x':
-                    case 'X':
-                        if (fmt[i - 1] == 'l') {
-                            if (i - 2 > 0 && fmt[i - 2] == 'l') {
-                                long long int v;
-                                v = va_arg(ap, long long int);
-                                json_add_integer(hgen, key, v);
 
-                            } else {
-                                long int v;
-                                v = va_arg(ap, long int);
-                                json_add_integer(hgen, key, v);
-                            }
-                        } else {
-                            int v;
-                            v = va_arg(ap, int);
-                            json_add_integer(hgen, key, v);
-                        }
-                        eof = 1;
-                        break;
-                    case 'e':
-                    case 'E':
-                    case 'f':
-                    case 'F':
-                    case 'g':
-                    case 'G':
-                    case 'a':
-                    case 'A':
-                        if (fmt[i - 1] == 'L') {
-                            long double v;
-                            v = va_arg (ap, long double);
-                            json_add_double(hgen, key, v);
-                        } else {
-                            double v;
-                            v = va_arg (ap, double);
-                            json_add_double(hgen, key, v);
-                        }
-                        eof = 1;
-                        break;
-                    case 'c':
-                        if (fmt [i - 1] == 'l') {
-                            wint_t v = va_arg (ap, wint_t);
-                            json_add_integer(hgen, key, v);
-                        } else {
-                            int v = va_arg (ap, int);
-                            json_add_integer(hgen, key, v);
-                        }
-                        eof = 1;
-                        break;
-                    case 's':
-                        if (fmt [i - 1] == 'l') {
-                            wchar_t *p;
-                            int len;
+            /* Parse flags we care about: only 'L' for long double here */
+            BOOL long_double_flag = FALSE;
 
-                            p = va_arg (ap, wchar_t *);
-                            if(p && (len = snprintf(value, sizeof(value), "%ls", p))>=0) {
-                                if(strcmp(key, "msg")==0) {
-                                    if(priority <= LOG_ERR) {
-                                        gobj_log_set_last_message("%s", value);
-                                    }
-                                }
-                                json_add_string(hgen, key, value);
-                            } else {
-                                json_add_null(hgen, key);
-                            }
+            /* Parse length modifiers (order matters for hh/ll) */
+            enum {
+                LEN_NONE, LEN_HH, LEN_H, LEN_L, LEN_LL, LEN_Z, LEN_T, LEN_J
+            } lmod = LEN_NONE;
 
-                        } else {
-                            char *p;
-                            int len;
-
-                            p = va_arg (ap, char *);
-                            if(p && (len = snprintf(value, sizeof(value), "%s", p))>=0) {
-                                if(strcmp(key, "msg")==0) {
-                                    if(priority <= LOG_ERR) {
-                                        gobj_log_set_last_message("%s", value);
-                                    }
-                                }
-                                json_add_string(hgen, key, value);
-                            } else {
-                                json_add_null(hgen, key);
-                            }
-                        }
-                        eof = 1;
-                        break;
-                    case 'p':
-                        {
-                            void *p;
-                            int len;
-
-                            p = va_arg (ap, void *);
-                            eof = 1;
-                            if(p && (len = snprintf(value, sizeof(value), "%p", (char *)p))>0) {
-                                json_add_string(hgen, key, value);
-                            } else {
-                                json_add_null(hgen, key);
-                            }
-                        }
-                        break;
-                    case 'j':
-                        {
-                            json_t *jn;
-
-                            jn = va_arg (ap, void *);
-                            eof = 1;
-
-                            if(jn) {
-                                size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
-                                               JSON_INDENT(0) |
-                                               JSON_REAL_PRECISION(12);
-                                char *bf = json_dumps(jn, flags);
-                                if(bf) {
-                                    helper_doublequote2quote(bf);
-                                    json_add_string(0, key, bf);
-                                    jsonp_free(bf) ;
-                                } else {
-                                    json_add_null(hgen, key);
-                                }
-                            } else {
-                                json_add_null(hgen, key);
-                            }
-                        }
-                        break;
-                    case '%':
-                        eof = 1;
-                        break;
-                    default:
-                        i++;
+            /* Consume optional length/flags before the conversion specifier */
+            BOOL done = FALSE;
+            while(!done && i < len) {
+                if(fmt[i] == 'h') {
+                    if(i + 1 < len && fmt[i+1] == 'h') { lmod = LEN_HH; i += 2; }
+                    else { lmod = LEN_H; i += 1; }
+                } else if(fmt[i] == 'l') {
+                    if(i + 1 < len && fmt[i+1] == 'l') { lmod = LEN_LL; i += 2; }
+                    else { lmod = LEN_L; i += 1; }
+                } else if(fmt[i] == 'z') {
+                    lmod = LEN_Z; i += 1;
+                } else if(fmt[i] == 't') {
+                    lmod = LEN_T; i += 1;
+                } else if(fmt[i] == 'j') {
+                    lmod = LEN_J; i += 1;
+                } else if(fmt[i] == 'L') {
+                    long_double_flag = TRUE; i += 1;
+                } else {
+                    done = TRUE;
                 }
             }
-        }
-    }
+            if(i >= len) {
+                break;
+            }
+
+            char conv = fmt[i];
+
+            switch(conv) {
+                /*--------------------*
+                 *   SIGNED INTEGERS
+                 *--------------------*/
+                case 'd':
+                case 'i': {
+                    long long v = 0;
+                    switch(lmod) {
+                        case LEN_HH: v = (signed char)va_arg(ap, int); break;
+                        case LEN_H:  v = (short)va_arg(ap, int); break;
+                        case LEN_L:  v = va_arg(ap, long); break;
+                        case LEN_LL: v = va_arg(ap, long long); break;
+                        case LEN_Z:  v = (long long) (ssize_t)va_arg(ap, ssize_t); break;
+                        case LEN_T:  v = (long long) va_arg(ap, ptrdiff_t); break;
+                        case LEN_J:  v = (long long) va_arg(ap, intmax_t); break;
+                        default:     v = va_arg(ap, int); break;
+                    }
+                    json_add_integer(hgen, key, v);
+                    break;
+                }
+
+                /*--------------------*
+                 *   UNSIGNED INTS
+                 *--------------------*/
+                case 'u':
+                case 'x':
+                case 'o': {
+                    unsigned long long v = 0;
+                    switch(lmod) {
+                        case LEN_HH: v = (unsigned char)va_arg(ap, unsigned int); break;
+                        case LEN_H:  v = (unsigned short)va_arg(ap, unsigned int); break;
+                        case LEN_L:  v = va_arg(ap, unsigned long); break;
+                        case LEN_LL: v = va_arg(ap, unsigned long long); break;
+                        case LEN_Z:  v = (unsigned long long)va_arg(ap, size_t); break;
+                        case LEN_T:  v = (unsigned long long)(ptrdiff_t)va_arg(ap, ptrdiff_t); break;
+                        case LEN_J:  v = (unsigned long long)va_arg(ap, uintmax_t); break;
+                        default:     v = va_arg(ap, unsigned int); break;
+                    }
+                    /* Store numerically; if you prefer hex/oct string for x/o, stringify: */
+                    json_add_integer(hgen, key, (long long)v);
+                    break;
+                }
+
+                /*--------------------*
+                 *        FLOATS
+                 *--------------------*/
+                case 'f': case 'F':
+                case 'g': case 'G':
+                case 'e': case 'E':
+                case 'a': case 'A': {
+                    if(long_double_flag) {
+                        long double v = va_arg(ap, long double);
+                        json_add_double(hgen, key, (double)v);
+                    } else {
+                        double v = va_arg(ap, double);
+                        json_add_double(hgen, key, v);
+                    }
+                    break;
+                }
+
+                /*--------------------*
+                 *    STRING / CHAR
+                 *--------------------*/
+                case 's': {
+                    const char *s = va_arg(ap, const char *);
+                    if(s) {
+                        json_add_string(hgen, key, s);
+                    } else {
+                        json_add_null(hgen, key);
+                    }
+                    break;
+                }
+                case 'c': {
+                    /* promoted to int in varargs */
+                    int ch = va_arg(ap, int);
+                    char buf[2];
+                    buf[0] = (char)ch;
+                    buf[1] = 0;
+                    json_add_string(hgen, key, buf);
+                    break;
+                }
+
+                /*--------------------*
+                 *       POINTER
+                 *--------------------*/
+                case 'p': {
+                    void *p = va_arg(ap, void *);
+                    char buf[2+2*sizeof(void*)+1]; /* "0x" + hex digits + NUL */
+                    /* No %p printing here; we normalize as hex string */
+                    unsigned long long u = (unsigned long long)(uintptr_t)p;
+                    /* Minimal hex without leading zeros */
+                    char *w = &buf[sizeof(buf)-1];
+                    *w-- = 0;
+                    if(u == 0) {
+                        *w-- = '0';
+                    } else {
+                        const char *hex = "0123456789abcdef";
+                        while(u) { *w-- = hex[u & 0xF]; u >>= 4; }
+                    }
+                    *w-- = 'x'; *w = '0';
+                    json_add_string(hgen, key, w);
+                    break;
+                }
+
+                /* literal % */
+                case '%': {
+                    /* nothing to add */
+                    break;
+                }
+
+                default: {
+                    /* Unknown specifier: keep behavior predictable */
+                    json_add_null(hgen, key);
+                    break;
+                }
+            } /* switch */
+        } /* for fmt */
+    } /* for key/fmt pairs */
 }
 
 
