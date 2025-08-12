@@ -8329,12 +8329,12 @@ PRIVATE int build_release_name(char *bf, int bfsize, json_t *hs_binary, json_t *
 
     const char *binary_version = SDATA_GET_STR(hs_binary, "version");
     snprintf(p, bfsize, "%s", binary_version);
-    len = strlen(p); p += len; bfsize -= len;
+    len = (int)strlen(p); p += len; bfsize -= len;
 
     const char *version_ = SDATA_GET_STR(hs_config, "version");
 
     snprintf(p, bfsize, "-%s", version_);
-    len = strlen(p); p += len; bfsize -= len;
+    len = (int)strlen(p); p += len; bfsize -= len;
     return 0;
 }
 
@@ -8365,11 +8365,11 @@ PRIVATE int get_last_public_port(hgobj gobj)
     /*
      *  Delete
      */
-    uint32_t last_port = 0;
+    int last_port = 0;
 
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
-        uint32_t port = kw_get_int(gobj, node, "port", 0, KW_REQUIRED);
+        int port = (int)kw_get_int(gobj, node, "port", 0, KW_REQUIRED);
         if(port > last_port) {
             last_port = port;
         }
