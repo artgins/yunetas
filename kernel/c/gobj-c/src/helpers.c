@@ -57,6 +57,8 @@
 #include "kwid.h"
 #include "helpers.h"
 
+extern void jsonp_free(void *ptr);
+
 /***************************************************
  *              Structures
  **************************************************/
@@ -1867,6 +1869,96 @@ PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_cas
     }
 
     return -1;
+}
+
+/***************************************************************************
+    Get a integer value from an json list search by idx
+ ***************************************************************************/
+PUBLIC json_int_t json_list_int(json_t *jn_list, size_t idx)
+{
+    json_t *jn_int;
+    json_int_t i;
+
+    if(!json_is_array(jn_list)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "list MUST BE a json array",
+            NULL
+        );
+        return 0;
+    }
+
+    jn_int = json_array_get(jn_list, idx);
+    if(jn_int && !json_is_integer(jn_int)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "value MUST BE a json integer",
+            NULL);
+        return 0;
+    }
+
+    i = json_integer_value(jn_int);
+    return i;
+}
+
+/***************************************************************************
+    Get the idx of integer value in a integers json list.
+ ***************************************************************************/
+PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value)
+{
+    if(!json_is_array(jn_list)) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "list MUST BE a json array",
+            NULL
+        );
+        return -1;
+    }
+
+    size_t idx = 0;
+    json_t *jn_value;
+    json_array_foreach(jn_list, idx, jn_value) {
+        if(json_is_integer(jn_value)) {
+            json_int_t value_ = json_integer_value(jn_value);
+            if(value_ == value) {
+                return (int)idx;
+            }
+        }
+    }
+
+    return -1;
+}
+
+/***************************************************************************
+ *  Find a json value in the list.
+ *  Return index or -1 if not found or the index relative to 0.
+ ***************************************************************************/
+PUBLIC int json_list_find(json_t *list, json_t *value)
+{
+    int idx_found = -1;
+    size_t flags = JSON_COMPACT|JSON_ENCODE_ANY;
+    int index;
+    json_t *_value;
+    char *s_found_value = json_dumps(value, flags);
+    if(s_found_value) {
+        json_array_foreach(list, index, _value) {
+            char *s_value = json_dumps(_value, flags);
+            if(s_value) {
+                if(strcmp(s_value, s_found_value)==0) {
+                    idx_found = index;
+                    jsonp_free(s_value);
+                    break;
+                } else {
+                    jsonp_free(s_value);
+                }
+            }
+        }
+        jsonp_free(s_found_value);
+    }
+    return idx_found;
 }
 
 /***************************************************************************

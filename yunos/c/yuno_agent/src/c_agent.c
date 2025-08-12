@@ -8390,7 +8390,7 @@ PRIVATE unsigned get_new_service_port(
 )
 {
     json_t *jn_range_ports = kw_get_dict_value(gobj, hs_realm, "range_ports", 0, KW_REQUIRED);
-    json_t *jn_port_list = json_expand_integer_list(jn_range_ports);
+    json_t *jn_port_list = json_listsrange2set(jn_range_ports); // is json_listsrange2set
 
     unsigned new_port = 0;
     unsigned last_port = get_last_public_port(gobj);

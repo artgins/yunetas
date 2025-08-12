@@ -430,6 +430,23 @@ PUBLIC uint64_t strings2bits(
 PUBLIC int json_list_str_index(json_t *jn_list, const char *str, BOOL ignore_case);
 
 /**rst**
+    Get a integer value from an integers json list search by idx
+**rst**/
+PUBLIC json_int_t json_list_int(json_t *jn_list, size_t idx);
+
+/**rst**
+    Get the idx of integer value in a integers json list.
+    Return -1 if not exist
+**rst**/
+PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value);
+
+/**rst**
+    Find a json value in the list.
+    Return index or -1 if not found or the index relative to 0.
+**rst**/
+PUBLIC int json_list_find(json_t *list, json_t *value);
+
+/**rst**
     Simple json to real
 **rst**/
 PUBLIC double jn2real(

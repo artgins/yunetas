@@ -1737,35 +1737,6 @@ PUBLIC hgobj gobj_create(
 }
 
 /***************************************************************************
- *  Find a json value in the list.
- *  Return index or -1 if not found or the index relative to 0.
- ***************************************************************************/
-PRIVATE int json_list_find(json_t *list, json_t *value)
-{
-    size_t idx_found = -1;
-    size_t flags = JSON_COMPACT|JSON_ENCODE_ANY;;
-    size_t index;
-    json_t *_value;
-    char *s_found_value = json_dumps(value, flags);
-    if(s_found_value) {
-        json_array_foreach(list, index, _value) {
-            char *s_value = json_dumps(_value, flags);
-            if(s_value) {
-                if(strcmp(s_value, s_found_value)==0) {
-                    idx_found = index;
-                    jsonp_free(s_value);
-                    break;
-                } else {
-                    jsonp_free(s_value);
-                }
-            }
-        }
-        jsonp_free(s_found_value);
-    }
-    return idx_found;
-}
-
-/***************************************************************************
  *  Check if a list is a integer range:
  *      - must be a list of two integers (first <= second)
  ***************************************************************************/

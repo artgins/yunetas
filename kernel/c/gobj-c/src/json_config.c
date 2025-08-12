@@ -42,7 +42,6 @@ PRIVATE json_t *x_legalstring2json(char *reference, const char *bf, pe_flag_t qu
 PRIVATE json_t *load_json_file(const char *path, pe_flag_t quit);
 PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit);
 PRIVATE int json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite, pe_flag_t quit);
-PRIVATE int json_list_find(json_t *list, json_t *value);
 PRIVATE int json_list_update(json_t* list, json_t* other, BOOL as_set, pe_flag_t quit);
 
 
@@ -358,35 +357,6 @@ PRIVATE int json_dict_recursive_update(
         }
     }
     return 0;
-}
-
-/***************************************************************************
- *  Find a json value in the list.
- *  Return index or -1 if not found or the index relative to 0.
- ***************************************************************************/
-PRIVATE int json_list_find(json_t *list, json_t *value)
-{
-    size_t idx_found = -1;
-    size_t flags = JSON_COMPACT|JSON_ENCODE_ANY;
-    size_t index;
-    json_t *_value;
-    char *s_found_value = json_dumps(value, flags);
-    if(s_found_value) {
-        json_array_foreach(list, index, _value) {
-            char *s_value = json_dumps(_value, flags);
-            if(s_value) {
-                if(strcmp(s_value, s_found_value)==0) {
-                    idx_found = index;
-                    jsonp_free(s_value);
-                    break;
-                } else {
-                    jsonp_free(s_value);
-                }
-            }
-        }
-        jsonp_free(s_found_value);
-    }
-    return idx_found;
 }
 
 /***************************************************************************
