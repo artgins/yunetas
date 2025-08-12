@@ -447,6 +447,12 @@ PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value);
 PUBLIC int json_list_find(json_t *list, json_t *value);
 
 /**rst**
+ *  Extend array values.
+ *  If as_set is TRUE then not repeated values
+**rst**/
+PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set);
+
+/**rst**
     Simple json to real
 **rst**/
 PUBLIC double jn2real(

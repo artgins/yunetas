@@ -42,7 +42,6 @@ PRIVATE json_t *x_legalstring2json(char *reference, const char *bf, pe_flag_t qu
 PRIVATE json_t *load_json_file(const char *path, pe_flag_t quit);
 PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit);
 PRIVATE int json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite, pe_flag_t quit);
-PRIVATE int json_list_update(json_t* list, json_t* other, BOOL as_set, pe_flag_t quit);
 
 
 /***************************************************************************
@@ -344,7 +343,7 @@ PRIVATE int json_dict_recursive_update(
                  *  WARNING
                  *  In configuration consider the lists as set (no repeated items).
                  */
-                json_list_update(dvalue, value, TRUE, quit);
+                json_list_update(dvalue, value, TRUE);
             }
         } else {
             if(overwrite) {
@@ -354,34 +353,6 @@ PRIVATE int json_dict_recursive_update(
                     json_object_set_nocheck(object, key, value);
                 }
             }
-        }
-    }
-    return 0;
-}
-
-/***************************************************************************
- *  Extend array values.
- *  If as_set is TRUE then not repeated values
- ***************************************************************************/
-PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set, pe_flag_t quit)
-{
-    if(!json_is_array(list) || !json_is_array(other)) {
-        print_error(
-            quit,
-            "json_list_update(): parameters must be lists\n"
-        );
-        return -1;
-    }
-    size_t index;
-    json_t *value;
-    json_array_foreach(other, index, value) {
-        if(as_set) {
-            int idx = json_list_find(list, value);
-            if(idx < 0) {
-                json_array_append(list, value);
-            }
-        } else {
-            json_array_append(list, value);
         }
     }
     return 0;

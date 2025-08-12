@@ -1774,30 +1774,6 @@ PRIVATE json_t *json_range_list(json_t *list)
 }
 
 /***************************************************************************
- *  Extend array values.
- *  If as_set is TRUE then not repeated values
- ***************************************************************************/
-PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set)
-{
-    if(!json_is_array(list) || !json_is_array(other)) {
-        return -1;
-    }
-    size_t index;
-    json_t *value;
-    json_array_foreach(other, index, value) {
-        if(as_set) {
-            int idx = json_list_find(list, value);
-            if(idx < 0) {
-                json_array_append(list, value);
-            }
-        } else {
-            json_array_append(list, value);
-        }
-    }
-    return 0;
-}
-
-/***************************************************************************
  *  Build a list (set) with lists of integer ranges.
  *  [[#from, #to], [#from, #to], #integer, #integer, ...] -> list
  *  WARNING: Arrays of two integers are considered range of integers.
