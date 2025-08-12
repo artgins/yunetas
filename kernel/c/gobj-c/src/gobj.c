@@ -1769,7 +1769,7 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
                 );
             }
         }
-    } else {
+    } else { int x;
         json_t *jn_set = json_listsrange2set(__range__); // TODO TOO SLOW, review, leave as legacy
         json_t *value;
         int index;
