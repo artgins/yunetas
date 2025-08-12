@@ -912,7 +912,7 @@ SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              
 SDATA (DTP_INTEGER,     "timerStBoot",      SDF_RD,             "6000",         "Timer to run yunos on boot"),
 SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",        "Signal to kill yunos:SIGQUIT"),
 
-SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports"),
+SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[[11100,11199]]", "Range Ports. List of ports to be assigned to public services of yunos."),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",           "Maximum consoles opened"),
 SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "60000",        "Expiration timeout for commands"),

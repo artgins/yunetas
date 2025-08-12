@@ -1795,7 +1795,7 @@ PRIVATE json_t *json_range_list(json_t *list)
     json_int_t first = json_integer_value(json_array_get(list, 0));
     json_int_t second = json_integer_value(json_array_get(list, 1));
     json_t *range = json_array();
-    for(int i=first; i<=second; i++) {
+    for(json_int_t i=first; i<=second; i++) {
         json_t *jn_int = json_integer(i);
         json_array_append_new(range, jn_int);
     }
@@ -1834,7 +1834,7 @@ PRIVATE int json_list_update(json_t *list, json_t *other, BOOL as_set)
  *
  *  Return the json list
  ***************************************************************************/
-PRIVATE json_t *json_listsrange2set(json_t *listsrange)
+PRIVATE json_t *json_listsrange2set(json_t *listsrange) // TODO TOO SLOW, review, leave as legacy
 {
     if(!json_is_array(listsrange)) {
         return 0;
