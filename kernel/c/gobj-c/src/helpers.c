@@ -1986,6 +1986,86 @@ PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set)
 }
 
 /***************************************************************************
+ *  Check if a list is a integer range:
+ *      - must be a list of two integers (first <= second)
+ ***************************************************************************/
+PUBLIC BOOL json_is_range(json_t *list)
+{
+    if(json_array_size(list) != 2) {
+        return FALSE;
+    }
+
+    json_int_t first = json_integer_value(json_array_get(list, 0));
+    json_int_t second = json_integer_value(json_array_get(list, 1));
+    if(first <= second) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
+/***************************************************************************
+ *  Return a expanded integer range
+ ***************************************************************************/
+PUBLIC json_t *json_range_list(json_t *list)
+{
+    if(!json_is_range(list)) {
+        return 0;
+    }
+    json_int_t first = json_integer_value(json_array_get(list, 0));
+    json_int_t second = json_integer_value(json_array_get(list, 1));
+    json_t *range = json_array();
+    for(json_int_t i=first; i<=second; i++) {
+        json_t *jn_int = json_integer(i);
+        json_array_append_new(range, jn_int);
+    }
+    return range;
+}
+
+/***************************************************************************
+ *  Build a list (set) with lists of integer ranges.
+ *  [[#from, #to], [#from, #to], #integer, #integer, ...] -> list
+ *  WARNING: Arrays of two integers are considered range of integers.
+ *  Arrays of one or more of two integers are considered individual integers.
+ *
+ *  Return the json list
+ ***************************************************************************/
+PUBLIC json_t *json_listsrange2set(json_t *listsrange) // WARNING function TOO SLOW, use for short ranges
+{
+    if(!json_is_array(listsrange)) {
+        return 0;
+    }
+    json_t *ln_list = json_array();
+
+    size_t index;
+    json_t *value;
+    json_array_foreach(listsrange, index, value) {
+        if(json_is_integer(value)) {
+            // add new integer item
+            if(json_list_find(ln_list, value)<0) {
+                json_array_append(ln_list, value);
+            }
+        } else if(json_is_array(value)) {
+            // add new integer list or integer range
+            if(json_is_range(value)) {
+                json_t *range = json_range_list(value);
+                if(range) {
+                    json_list_update(ln_list, range, TRUE);
+                    json_decref(range);
+                }
+            } else {
+                json_list_update(ln_list, value, TRUE);
+            }
+        } else {
+            // ignore the rest
+            continue;
+        }
+    }
+
+    return ln_list;
+}
+
+/***************************************************************************
  *  Simple json to real
  ***************************************************************************/
 PUBLIC double jn2real(json_t *jn_var)

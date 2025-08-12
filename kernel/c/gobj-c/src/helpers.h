@@ -453,6 +453,25 @@ PUBLIC int json_list_find(json_t *list, json_t *value);
 PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set);
 
 /**rst**
+ *  Check if a list is a integer range:
+ *      - must be a list of two integers (first <= second)
+**rst**/
+PUBLIC BOOL json_is_range(json_t *list);
+/**rst**
+ *  Return a expanded integer range
+**rst**/
+PUBLIC json_t *json_range_list(json_t *list);
+/**rst**
+ *  Build a list (set) with lists of integer ranges.
+ *  [[#from, #to], [#from, #to], #integer, #integer, ...] -> list
+ *  WARNING: Arrays of two integers are considered range of integers.
+ *  Arrays of one or more of two integers are considered individual integers.
+ *
+ *  Return the json list
+**rst**/
+PUBLIC json_t *json_listsrange2set(json_t *listsrange); // WARNING function TOO SLOW, use for short ranges
+
+/**rst**
     Simple json to real
 **rst**/
 PUBLIC double jn2real(
