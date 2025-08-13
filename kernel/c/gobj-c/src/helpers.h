@@ -951,9 +951,9 @@ PUBLIC int count_char(const char *s, char c);
 
 PUBLIC const char *get_hostname(void);
 
-PUBLIC int create_random_uuid(char *bf, int bfsize);   // Create a new random uuid (used by treedb)
+PUBLIC int create_random_uuid(char *bf, int bfsize); // Create a new random uuid (used by treedb)
 
-PUBLIC const char *node_uuid(void);             // Get the uuid of the machine
+PUBLIC const char *node_uuid(void); // Get the uuid of the machine
 
 PUBLIC BOOL is_metadata_key(const char *key); // Metadata key (variable) has a prefix of 2 underscore
 PUBLIC BOOL is_private_key(const char *key); // Private key (variable) has a prefix of 1 underscore
