@@ -2974,29 +2974,29 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
     /*
      *  Overwrite, the overwrite filter was above.
      */
-    //TODO if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-    //         "msg",          "%s", "copyfile() FAILED",
-    //         "path",         "%s", path,
-    //         "destination",  "%s", destination,
-    //         NULL
-    //     );
-    //     JSON_DECREF(jn_basic_info);
-    //     return msg_iev_build_response(
-    //         gobj,
-    //         -1,
-    //         json_sprintf(
-    //             "Cannot copy '%s' to '%s'",
-    //             path,
-    //             destination
-    //         ),
-    //         0,
-    //         0,
-    //         kw  // owned
-    //     );
-    // }
+    if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
+         gobj_log_error(gobj, 0,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msg",          "%s", "copyfile() FAILED",
+             "path",         "%s", path,
+             "destination",  "%s", destination,
+             NULL
+         );
+         JSON_DECREF(jn_basic_info);
+         return msg_iev_build_response(
+             gobj,
+             -1,
+             json_sprintf(
+                 "Cannot copy '%s' to '%s'",
+                 path,
+                 destination
+             ),
+             0,
+             0,
+             kw  // owned
+         );
+     }
 
     /*------------------------------------------------*
      *      Store in db

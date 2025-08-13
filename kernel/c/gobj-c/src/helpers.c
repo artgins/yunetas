@@ -47,6 +47,12 @@
 #endif
 #endif
 
+#if defined(__APPLE__) || defined(__FreeBSD__)
+  #include <copyfile.h>
+#elif defined(__linux__)
+  #include <sys/sendfile.h>
+#endif
+
 #ifdef ESP_PLATFORM
     #include <esp_log.h>
     #define fstat64 fstat
@@ -6157,4 +6163,69 @@ PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)
     bf[n] = '\0';
 
     return 0;
+}
+
+/***************************************************************************
+ *  Copy file in kernel mode.
+ *  http://stackoverflow.com/questions/2180079/how-can-i-copy-a-file-on-unix-using-c
+ ***************************************************************************/
+PUBLIC int copyfile(
+    const char* source,
+    const char* destination,
+    int permission,
+    BOOL overwrite
+) {
+    int input, output;
+    if ((input = open(source, O_RDONLY)) == -1) {
+        return -1;
+    }
+    if ((output = newfile(destination, permission, overwrite)) == -1) {
+        // error already logged
+        close(input);
+        return -1;
+    }
+
+    //Here we use kernel-space copying for performance reasons
+#if defined(__APPLE__) || defined(__FreeBSD__)
+    //fcopyfile works on FreeBSD and OS X 10.5+
+    int result = fcopyfile(input, output, 0, COPYFILE_ALL);
+#elif defined(__linux__)
+    //sendfile will work with non-socket output (i.e. regular file) on Linux 2.6.33+
+    off_t bytesCopied = 0;
+    struct stat fileinfo = {0};
+    fstat(input, &fileinfo);
+    int result = sendfile(output, input, &bytesCopied, fileinfo.st_size);
+#else
+    size_t nread;
+    int result = 0;
+    int error = 0;
+    char buf[4096];
+
+    while (nread = read(input, buf, sizeof buf), nread > 0 && !error) {
+        char *out_ptr = buf;
+        size_t nwritten;
+
+        do {
+            nwritten = write(output, out_ptr, nread);
+
+            if (nwritten >= 0)
+            {
+                nread -= nwritten;
+                out_ptr += nwritten;
+            }
+            else if (errno != EINTR)
+            {
+                error = 1;
+                result = -1;
+                break;
+            }
+        } while (nread > 0);
+    }
+
+#endif
+
+    close(input);
+    close(output);
+
+    return result;
 }

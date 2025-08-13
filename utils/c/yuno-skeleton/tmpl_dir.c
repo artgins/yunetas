@@ -20,11 +20,6 @@
 #include <stddef.h>
 #include <errno.h>
 #include <fcntl.h>
-#if defined(__APPLE__) || defined(__FreeBSD__)
-  #include <copyfile.h>
-#elif defined(__linux__)
-  #include <sys/sendfile.h>
-#endif
 #include <dirent.h>
 #include <jansson.h>
 #define PCRE2_STATIC
@@ -298,53 +293,11 @@ int render_file(char *dst_path, char *src_path, json_t *jn_values)
 /***************************************************************************
  *
  ***************************************************************************/
-int is_regular_file(const char *path)
-{
-    struct stat path_stat;
-    stat(path, &path_stat);
-    return S_ISREG(path_stat.st_mode);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-int is_directory(const char *path)
-{
-    struct stat path_stat;
-    stat(path, &path_stat);
-    return S_ISDIR(path_stat.st_mode);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 int is_link(const char *path)
 {
     struct stat path_stat;
     lstat(path, &path_stat);
     return S_ISLNK(path_stat.st_mode);
-}
-
-/***************************************************************************
- *  Create a new file (only to write)
- *  The use of this functions implies the use of 00_security.h's permission system:
- *  umask will be set to 0 and we control all permission mode.
- ***************************************************************************/
-static int umask_cleared = 0;
-int newfile(const char *path, int permission, int overwrite)
-{
-    int flags = O_CREAT|O_WRONLY|O_LARGEFILE;
-
-    if(!umask_cleared) {
-        umask(0);
-        umask_cleared = 1;
-    }
-
-    if(overwrite)
-        flags |= O_TRUNC;
-    else
-        flags |= O_EXCL;
-    return open(path, flags, permission);
 }
 
 /***************************************************************************
@@ -366,71 +319,6 @@ int copy_link(
         return -1;
     }
     return 0;
-}
-
-/***************************************************************************
- *  Copy file in kernel mode.
- *  http://stackoverflow.com/questions/2180079/how-can-i-copy-a-file-on-unix-using-c
- ***************************************************************************/
-int copyfile(
-    const char* source,
-    const char* destination,
-    int permission,
-    int overwrite)
-{
-    int input, output;
-    if ((input = open(source, O_RDONLY)) == -1) {
-        return -1;
-    }
-    if ((output = newfile(destination, permission, overwrite)) == -1) {
-        // error already logged
-        close(input);
-        return -1;
-    }
-
-    //Here we use kernel-space copying for performance reasons
-#if defined(__APPLE__) || defined(__FreeBSD__)
-    //fcopyfile works on FreeBSD and OS X 10.5+
-    int result = fcopyfile(input, output, 0, COPYFILE_ALL);
-#elif defined(__linux__)
-    //sendfile will work with non-socket output (i.e. regular file) on Linux 2.6.33+
-    off_t bytesCopied = 0;
-    struct stat fileinfo = {0};
-    fstat(input, &fileinfo);
-    int result = sendfile(output, input, &bytesCopied, fileinfo.st_size);
-#else
-    ssize_t nread;
-    int result = 0;
-    int error = 0;
-    char buf[4096];
-
-    while (nread = read(input, buf, sizeof buf), nread > 0 && !error) {
-        char *out_ptr = buf;
-        ssize_t nwritten;
-
-        do {
-            nwritten = write(output, out_ptr, nread);
-
-            if (nwritten >= 0)
-            {
-                nread -= nwritten;
-                out_ptr += nwritten;
-            }
-            else if (errno != EINTR)
-            {
-                error = 1;
-                result = -1;
-                break;
-            }
-        } while (nread > 0);
-    }
-
-#endif
-
-    close(input);
-    close(output);
-
-    return result;
 }
 
 /***************************************************************************

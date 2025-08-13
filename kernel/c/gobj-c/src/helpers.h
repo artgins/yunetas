@@ -1026,15 +1026,22 @@ void show_backtrace_with_backtrace(
 PUBLIC unsigned long free_ram_in_kb(void);
 PUBLIC unsigned long total_ram_in_kb(void);
 
-/***************************************************************
+/*
  * Read the command line of a process into a caller-provided buffer.
  *
  * @param bf        Buffer to store the command line
  * @param bfsize    Size of the buffer in bytes (maximum cmd line is ARG_MAX)
  * @param pid       Process ID (use 0 for current process)
  * @return          0 on success, -1 on error (errno set)
- ***************************************************************/
+ */
 PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid);
+
+PUBLIC int copyfile(
+    const char* source,
+    const char* destination,
+    int permission,
+    BOOL overwrite
+);
 
 /***************************************************************
  *  inline functions
