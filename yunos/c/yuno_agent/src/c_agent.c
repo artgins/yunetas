@@ -779,7 +779,7 @@ PRIVATE const char *a_read_file[] = {"EV_READ_FILE", 0};
 PRIVATE const char *a_read_binary_file[] = {"EV_READ_BINARY_FILE", 0};
 PRIVATE const char *a_read_running_keys[] = {"EV_READ_RUNNING_KEYS", 0};
 PRIVATE const char *a_read_running_bin[] = {"EV_READ_RUNNING_BIN", 0};
-PRIVATE const char *a_write_tty[] = {0}; // TODO {EV_WRITE_TTY, 0};
+PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
 
 PRIVATE const char *a_top_yunos[] = {"t", 0};
 
@@ -3070,7 +3070,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     char *resource = "binaries";
 
-    // TODO permite hacer update solo al binario activo!, con las config igual creo.
+    // TODO legacy permite hacer update solo al binario activo!, con las config igual creo.
     const char *id = kw_get_str(gobj, kw, "id", "", 0);
     if(!id) {
         return msg_iev_build_response(
@@ -4484,7 +4484,7 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
 
     /*-----------------------------*
      *  Register public services
-     *  TODO bug:
+     *  TODO legacy bug:
      *  en find-new-yunos create=1 podemos crear yunos que todavía no están activos
      *  (hasta deactivate-snap) y sin embargo se actualizan sus datos de public-service
      *-----------------------------*/
@@ -4703,7 +4703,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 }
 
                 // Volatil if you don't want historic data
-                // TODO force volatil, sino no aparece el yuno con mas release el primero
+                // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
                 // y falla el deactivate-snap
                 json_decref(
                     gobj_update_node(
@@ -7290,7 +7290,7 @@ PRIVATE json_t *find_service_for_client(
     char *resource = "public_services";
 
     char *service = gbmem_strdup(service_);
-    char *service_yuno_name = strchr(service, '.');     // TODO add alternative parameter: dict (jn_filter)
+    char *service_yuno_name = strchr(service, '.'); // TODO legacy add alternative parameter: dict (jn_filter)
     if(service_yuno_name) {
         *service_yuno_name = 0;
         service_yuno_name++; // yuno_name of service required
@@ -7382,7 +7382,7 @@ PRIVATE int write_service_client_connectors(
         const char *yuno_role = SDATA_GET_STR(hs_service, "yuno_role");
         const char *yuno_name = SDATA_GET_STR(hs_service, "yuno_name");
         const char *schema = SDATA_GET_STR(hs_service, "schema");
-        const char *ip =  SDATA_GET_STR(hs_service, "ip"); // TODO sácalo de la url
+        const char *ip =  SDATA_GET_STR(hs_service, "ip"); // TODO legacy sácalo de la url
         uint32_t port_ =  SDATA_GET_INT(hs_service, "port");
         char port[32];
         snprintf(port, sizeof(port), "%d", port_);
@@ -7777,7 +7777,7 @@ PRIVATE int run_yuno(
 {
     /*
      *  Launch id
-     *  TODO cuando un yuno no arranca y no encuentra una .so, aparece como running al agente
+     *  TODO legacy cuando un yuno no arranca y no encuentra una .so, aparece como running al agente
      */
 
     static uint16_t counter = 0;
@@ -8429,7 +8429,7 @@ PRIVATE unsigned get_new_service_port(
 }
 
 /***************************************************************************
- *  TODO bug: si registramos un servicio con cambios en el conector
+ *  TODO legacy bug: si registramos un servicio con cambios en el conector
  *  afectará al snap shoot actual
  ***************************************************************************/
 PRIVATE int register_public_services(
@@ -9053,7 +9053,7 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    // TODO optimiza preguntando el tamaño del fichero
+    // TODO legacy optimiza preguntando el tamaño del fichero
     size_t len = gbmem_get_maximum_block();
     char *s = gbmem_malloc(len);
     if(!s) {
@@ -9172,7 +9172,7 @@ PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj
         );
     }
-    // TODO optimiza preguntando el tamaño del fichero
+    // TODO legacy optimiza preguntando el tamaño del fichero
     size_t len = gbmem_get_maximum_block();
     char *s = gbmem_malloc(len);
     if(!s) {
@@ -9595,7 +9595,7 @@ PRIVATE int ac_play_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj sr
         json_object_set_new(yuno, "yuno_playing", json_true());
 
         // Volatil if you don't want historic data
-        // TODO force volatil, sino no aparece el yuno con mas release el primero
+        // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
         // y falla el deactivate-snap
         json_decref(
             gobj_update_node(
@@ -9626,7 +9626,7 @@ PRIVATE int ac_play_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj sr
             )
         );
 
-        // TODO no publique pues sale como ok, que dé error por timeout
+        // TODO legacy no publique pues sale como ok, que dé error por timeout
         KW_DECREF(kw);
     }
     return 0;
@@ -9665,7 +9665,7 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj s
         }
         json_object_set_new(yuno, "yuno_playing", json_false());
         // Volatil if you don't want historic data
-        // TODO force volatil, sino no aparece el yuno con mas release el primero
+        // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
         // y falla el deactivate-snap
         json_decref(
             gobj_update_node(
@@ -9970,7 +9970,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     // Volatil if you don't want historic data
-    // TODO force volatil, sino no aparece el yuno con mas release el primero
+    // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
     // y falla el deactivate-snap
     json_decref(
         gobj_update_node(
@@ -10018,10 +10018,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 cmd_play_yuno(gobj, "play-yuno", kw_play, gobj_requester);
             }
         }
-        // se pierde, no existe el campo solicitante, change your mind! TODO
+        // se pierde, no existe el campo solicitante, change your mind! TODO legacy
         json_object_set_new(yuno, "solicitante", json_string(""));
         // Volatil if you don't want historic data
-        // TODO force volatil, sino no aparece el yuno con mas release el primero
+        // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
         // y falla el deactivate-snap
         json_decref(
             gobj_update_node(
@@ -10107,7 +10107,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_object_set_new(yuno, "_channel_gobj", json_integer(0));
 
     // Volatil if you don't want historic data
-    // TODO force volatil, sino no aparece el yuno con mas release el primero
+    // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
     // y falla el deactivate-snap
     json_decref(
         gobj_update_node(
