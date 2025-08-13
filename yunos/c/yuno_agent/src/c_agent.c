@@ -992,7 +992,6 @@ PRIVATE void mt_create(hgobj gobj)
     /*----------------------------------------*
      *  Get node uuid
      *----------------------------------------*/
-    // TODO generate_node_uuid();
     const char *uuid = node_uuid();
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,

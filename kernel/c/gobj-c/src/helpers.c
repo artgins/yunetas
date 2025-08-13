@@ -59,10 +59,12 @@
 
 extern void jsonp_free(void *ptr);
 
-/***************************************************
- *              Structures
- **************************************************/
+/*****************************************************************
+ *     Constants
+ *****************************************************************/
 #define _
+
+#define PATH_UUID "/yuneta/store/agent/uuid"
 
 /*****************************************************************
  *     Prototypes
@@ -5330,7 +5332,7 @@ PUBLIC int create_uuid(char *bf, int bfsize) {
 #ifdef __linux__
 PRIVATE void save_node_uuid(void)
 {
-    char *directory = "/yuneta/store/agent/uuid";
+    char *directory = PATH_UUID;
     json_t *jn_uuid = json_object();
     json_object_set_new(jn_uuid, "uuid", json_string(node_uuid_));
 
@@ -5356,7 +5358,7 @@ PRIVATE int read_node_uuid(void)
 {
    json_t *jn_uuid = load_json_from_file(
        NULL,
-        "/yuneta/store/agent/uuid",
+        PATH_UUID,
         "uuid.json",
         0
     );
@@ -5373,6 +5375,8 @@ PRIVATE int read_node_uuid(void)
 
 /***************************************************************************
  *  Node uuid
+ *  Read uuid: get node uuid in node_uuid_
+ *  Create if it doesn't exist.
  ***************************************************************************/
 #ifdef __linux__
 PRIVATE int create_node_uuid(void)
@@ -5398,7 +5402,7 @@ PUBLIC const char *node_uuid(void)
 #ifdef ESP_PLATFORM
         uint8_t mac_addr[6] = {0};
         esp_efuse_mac_get_default(mac_addr);
-        snprintf(uuid, sizeof(uuid), "ESP32-%02X-%02X-%02X-%02X-%02X-%02X",
+        snprintf(node_uuid_, sizeof(node_uuid_), "ESP32-%02X-%02X-%02X-%02X-%02X-%02X",
             mac_addr[0],
             mac_addr[1],
             mac_addr[2],
@@ -5409,8 +5413,8 @@ PUBLIC const char *node_uuid(void)
         gobj_log_info(0, 0,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "Mac address",
-            "efuse_mac",    "%s", uuid,
-            "uuid",         "%s", uuid,
+            "efuse_mac",    "%s", node_uuid_,
+            "uuid",         "%s", node_uuid_,
             NULL
         );
 #elif defined(__linux__)
