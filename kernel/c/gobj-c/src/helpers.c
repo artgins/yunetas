@@ -1988,9 +1988,16 @@ PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type) // WA
 /***************************************************************************
  *  Check if a list is a integer range:
  *      - must be a list of two integers (first <= second)
+ *  Set first and second values in pfirst or psecond are not null
  ***************************************************************************/
-PUBLIC BOOL json_is_range(json_t *list)
+PUBLIC BOOL json_is_range(json_t *list, json_int_t *pfirst, json_int_t *psecond)
 {
+    if(*pfirst) {
+        *pfirst = 0;
+    }
+    if(*psecond) {
+        *psecond = 0;
+    }
     if(json_array_size(list) != 2) {
         return FALSE;
     }
@@ -1998,6 +2005,12 @@ PUBLIC BOOL json_is_range(json_t *list)
     json_int_t first = json_integer_value(json_array_get(list, 0));
     json_int_t second = json_integer_value(json_array_get(list, 1));
     if(first <= second) {
+        if(*pfirst) {
+            *pfirst = first;
+        }
+        if(*psecond) {
+            *psecond = second;
+        }
         return TRUE;
     } else {
         return FALSE;
@@ -2010,7 +2023,9 @@ PUBLIC BOOL json_is_range(json_t *list)
  ***************************************************************************/
 PUBLIC json_t *json_range_list(json_t *list) // WARNING slow function, don't use in large ranges
 {
-    if(!json_is_range(list)) {
+    json_int_t first;
+    json_int_t second;
+    if(!json_is_range(list, &first, &second)) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -2019,8 +2034,6 @@ PUBLIC json_t *json_range_list(json_t *list) // WARNING slow function, don't use
         );
         return 0;
     }
-    json_int_t first = json_integer_value(json_array_get(list, 0));
-    json_int_t second = json_integer_value(json_array_get(list, 1));
     json_t *range = json_array();
     for(json_int_t i=first; i<=second; i++) {
         json_t *jn_int = json_integer(i);
@@ -2054,7 +2067,7 @@ PUBLIC json_t *json_listsrange2set(json_t *listsrange) // WARNING function TOO S
             }
         } else if(json_is_array(value)) {
             // add new integer list or integer range
-            if(json_is_range(value)) {
+            if(json_is_range(value, NULL, NULL)) {
                 json_t *range = json_range_list(value);
                 if(range) {
                     json_list_update(ln_list, range, TRUE);

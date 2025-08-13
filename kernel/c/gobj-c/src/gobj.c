@@ -1754,6 +1754,8 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
         return -1;
     }
 
+    json_int_t first;
+    json_int_t second;
     if(json_is_integer(__range__)) {
         json_int_t max_range = json_integer_value(__range__);
         for(json_int_t range=1; range<=max_range; range++) {
@@ -1769,13 +1771,9 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
                 );
             }
         }
-    } else { int x;
-        json_t *jn_set = json_listsrange2set(__range__); // TODO TOO SLOW, review, leave as legacy
-        json_t *value;
-        int index;
-        json_array_foreach(jn_set, index, value) {
+    } else if(json_is_range(__range__, &first, &second)) {
+        for(json_int_t range = first; range<= second; range++) {
             char temp[64];
-            json_int_t range = json_integer_value(value);
             snprintf(temp, sizeof(temp), "%" JSON_INTEGER_FORMAT , range);
             json_object_set_new(__vars__, "__range__", json_string(temp));
             json_t *jn_new_content = json_deep_copy(__content__);
@@ -1787,7 +1785,13 @@ PRIVATE int expand_children_list(hgobj gobj, json_t *kw)
                 );
             }
         }
-        json_decref(jn_set);
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Bad __range__",
+            NULL
+        );
     }
 
     return 0;

@@ -456,8 +456,9 @@ PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type); // W
 /**rst**
  *  Check if a list is a integer range:
  *      - must be a list of two integers (first <= second)
+ *  Set first and second values in pfirst or psecond are not null
 **rst**/
-PUBLIC BOOL json_is_range(json_t *list);
+PUBLIC BOOL json_is_range(json_t *list, json_int_t *pfirst, json_int_t *psecond);
 
 /**rst**
  *  Return a expanded integer range
