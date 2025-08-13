@@ -1936,7 +1936,7 @@ PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value)
  *  Find a json value in the list.
  *  Return index or -1 if not found or the index relative to 0.
  ***************************************************************************/
-PUBLIC int json_list_find(json_t *list, json_t *value)
+PUBLIC int json_list_find(json_t *list, json_t *value) // WARNING slow function
 {
     int idx_found = -1;
     size_t flags = JSON_COMPACT|JSON_ENCODE_ANY;
@@ -1963,7 +1963,7 @@ PUBLIC int json_list_find(json_t *list, json_t *value)
 
 /***************************************************************************
  *  Extend array values.
- *  If as_set_type is TRUE then not repeated values
+ *  If as_set_type is TRUE then not repeated values (WARNING slow function)
  ***************************************************************************/
 PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type)
 {

@@ -444,11 +444,11 @@ PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value);
     Find a json value in the list.
     Return index or -1 if not found or the index relative to 0.
 **rst**/
-PUBLIC int json_list_find(json_t *list, json_t *value);
+PUBLIC int json_list_find(json_t *list, json_t *value); // WARNING slow function
 
 /**rst**
  *  Extend array values.
- *  If as_set_type is TRUE then not repeated values
+ *  If as_set_type is TRUE then not repeated values (WARNING slow function)
 **rst**/
 PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type);
 
