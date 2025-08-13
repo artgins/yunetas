@@ -1035,7 +1035,7 @@ PUBLIC json_t *msg2db_append_message( // Return is NOT YOURS
                 topic_name
         );
         if(kw_has_word(gobj, id_col_flag, "uuid", 0)) {
-            create_uuid(uuid, sizeof(uuid));
+            create_random_uuid(uuid, sizeof(uuid));
             id = uuid;
             json_object_set_new(kw, "id", json_string(id));
         } else {

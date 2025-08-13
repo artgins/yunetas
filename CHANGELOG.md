@@ -85,6 +85,7 @@ Change API
     is_level_tracing -> gobj_is_level_tracing
     is_level_not_tracing-> gobj_is_level_not_tracing
     get_cursor_color->get_paint_color
+    create_uuid -> create_random_uuid
 
 New API
 

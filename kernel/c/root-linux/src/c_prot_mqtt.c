@@ -5992,7 +5992,7 @@ PRIVATE int handle_connect(hgobj gobj, gbuffer_t *gbuf)
                 }
                 return -1;
             } else {
-                create_uuid(uuid, sizeof(uuid));
+                create_random_uuid(uuid, sizeof(uuid));
                 client_id = uuid;
                 if(!client_id) {
                     gobj_log_error(gobj, 0,

@@ -5272,7 +5272,7 @@ PUBLIC const char *get_hostname(void)
 /***************************************************************************
  *  Create a cryptographically secure UUID without OpenSSL or mbedTLS
  ***************************************************************************/
-PUBLIC int create_uuid(char *bf, int bfsize) {
+PUBLIC int create_random_uuid(char *bf, int bfsize) {
     if (bfsize > 0) {
         *bf = 0;
     }
@@ -5386,8 +5386,8 @@ PRIVATE int create_node_uuid(void)
         return 0;
     }
 
-    // TODO improve, I use node_uuid to identify the machine, be depending of machine
-    create_uuid(node_uuid_, sizeof(node_uuid_));
+    // TODO improve, I use node_uuid to identify the machine, be more depending of machine instead random
+    create_random_uuid(node_uuid_, sizeof(node_uuid_));
     save_node_uuid();
     return 0;
 }

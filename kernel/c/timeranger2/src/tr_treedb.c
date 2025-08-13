@@ -4377,7 +4377,7 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
         );
         if(kw_has_word(gobj, id_col_flag, "uuid", 0)) {
             char uuid[RECORD_KEY_VALUE_MAX];
-            create_uuid(uuid, sizeof(uuid));
+            create_random_uuid(uuid, sizeof(uuid));
             id = uuid;
             json_object_set_new(kw, "id", json_string(id));
         } else {

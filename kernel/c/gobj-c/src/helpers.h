@@ -951,7 +951,7 @@ PUBLIC int count_char(const char *s, char c);
 
 PUBLIC const char *get_hostname(void);
 
-PUBLIC int create_uuid(char *bf, int bfsize);   // Create a new random uuid (used by treedb)
+PUBLIC int create_random_uuid(char *bf, int bfsize);   // Create a new random uuid (used by treedb)
 
 PUBLIC const char *node_uuid(void);             // Get the uuid of the machine
 
