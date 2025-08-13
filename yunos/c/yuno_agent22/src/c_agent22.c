@@ -214,7 +214,7 @@ PRIVATE void mt_create(hgobj gobj)
     const char *node_owner = gobj_yuno_node_owner();
     if(empty_string(node_owner)) {
         node_owner = "none";
-        // TODO gobj_set_node_owner(node_owner);
+        gobj_write_str_attr(gobj_yuno(), "node_owner", node_owner);
 
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
