@@ -41,8 +41,6 @@ PRIVATE int load_files(
 PRIVATE json_t *x_legalstring2json(char *reference, const char *bf, pe_flag_t quit);
 PRIVATE json_t *load_json_file(const char *path, pe_flag_t quit);
 PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit);
-PRIVATE int json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite, pe_flag_t quit);
-
 
 /***************************************************************************
  *  Load json config from a file '' or from files ['','']
@@ -83,7 +81,7 @@ PRIVATE int load_files(
             json_dumpf(jn_file, stdout, flags);
             printf("\n");
         }
-        json_dict_recursive_update(jn_variable_config, jn_file, TRUE, quit);
+        json_dict_recursive_update(jn_variable_config, jn_file, TRUE);
         json_decref(jn_file);
 
     } else if(json_is_array(jn_files)) {
@@ -103,7 +101,7 @@ PRIVATE int load_files(
                     json_dumpf(jn_file, stdout, flags);
                     printf("\n");
                 }
-                json_dict_recursive_update(jn_variable_config, jn_file, TRUE, quit);
+                json_dict_recursive_update(jn_variable_config, jn_file, TRUE);
                 json_decref(jn_file);
             }
         }
@@ -313,52 +311,6 @@ PRIVATE json_t *load_json_file(const char* path, pe_flag_t quit)
 }
 
 /***************************************************************************
- *  Update keys and values, recursive through all objects
- *  If overwrite is FALSE then not update existing keys (protected write)
- ***************************************************************************/
-PRIVATE int json_dict_recursive_update(
-    json_t *object,
-    json_t *other,
-    BOOL overwrite,
-    pe_flag_t quit
-)
-{
-    const char *key;
-    json_t *value;
-
-    if(!json_is_object(object) || !json_is_object(other)) {
-        print_error(
-            quit,
-            "json_dict_recursive_update(): parameters must be objects\n"
-        );
-        return -1;
-    }
-    json_object_foreach(other, key, value) {
-        json_t *dvalue = json_object_get(object, key);
-        if(json_is_object(dvalue) && json_is_object(value)) {
-            json_dict_recursive_update(dvalue, value, overwrite, quit);
-        } else if(json_is_array(dvalue) && json_is_array(value)) {
-            if(overwrite) {
-                /*
-                 *  WARNING
-                 *  In configuration consider the lists as set (no repeated items).
-                 */
-                json_list_update(dvalue, value, TRUE);
-            }
-        } else {
-            if(overwrite) {
-                json_object_set_nocheck(object, key, value);
-            } else {
-                if(!json_object_get(object, key)) {
-                    json_object_set_nocheck(object, key, value);
-                }
-            }
-        }
-    }
-    return 0;
-}
-
-/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC json_t *json_config(
@@ -439,14 +391,14 @@ PUBLIC json_t *json_config(
             json_dumpf(jn_parameter_config, stdout, flags);
             printf("\n");
         }
-        json_dict_recursive_update(jn_variable_config, jn_parameter_config, TRUE, quit);
+        json_dict_recursive_update(jn_variable_config, jn_parameter_config, TRUE);
         json_decref(jn_parameter_config);
     }
 
     /*------------------------------*
      *      Merge the config
      *------------------------------*/
-    json_dict_recursive_update(jn_config, jn_variable_config, FALSE, quit);
+    json_dict_recursive_update(jn_config, jn_variable_config, FALSE);
     json_decref(jn_variable_config);
     if(print_verbose_config) {
         printf("Merged configuration ===>\n");

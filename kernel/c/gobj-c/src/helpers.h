@@ -472,6 +472,12 @@ PUBLIC json_t *json_range_list(json_t *list);
 PUBLIC json_t *json_listsrange2set(json_t *listsrange); // WARNING function TOO SLOW, use for short ranges
 
 /**rst**
+ *  Update keys and values, recursive through all objects
+ *  If overwrite is FALSE then not update existing keys (protected write)
+**rst**/
+PUBLIC int json_dict_recursive_update(json_t *object, json_t *other, BOOL overwrite);
+
+/**rst**
     Simple json to real
 **rst**/
 PUBLIC double jn2real(

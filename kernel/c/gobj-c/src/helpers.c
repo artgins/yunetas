@@ -2066,6 +2066,53 @@ PUBLIC json_t *json_listsrange2set(json_t *listsrange) // WARNING function TOO S
 }
 
 /***************************************************************************
+ *  Update keys and values, recursive through all objects
+ *  If overwrite is FALSE then not update existing keys (protected write)
+ ***************************************************************************/
+PUBLIC int json_dict_recursive_update(
+    json_t *object,
+    json_t *other,
+    BOOL overwrite
+)
+{
+    const char *key;
+    json_t *value;
+
+    if(!json_is_object(object) || !json_is_object(other)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "json_dict_recursive_update(): parameters must be objects",
+            NULL
+        );
+        return -1;
+    }
+    json_object_foreach(other, key, value) {
+        json_t *dvalue = json_object_get(object, key);
+        if(json_is_object(dvalue) && json_is_object(value)) {
+            json_dict_recursive_update(dvalue, value, overwrite);
+        } else if(json_is_array(dvalue) && json_is_array(value)) {
+            if(overwrite) {
+                /*
+                 *  WARNING
+                 *  In configuration consider the lists as set (no repeated items).
+                 */
+                json_list_update(dvalue, value, TRUE);
+            }
+        } else {
+            if(overwrite) {
+                json_object_set_nocheck(object, key, value);
+            } else {
+                if(!json_object_get(object, key)) {
+                    json_object_set_nocheck(object, key, value);
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+/***************************************************************************
  *  Simple json to real
  ***************************************************************************/
 PUBLIC double jn2real(json_t *jn_var)
