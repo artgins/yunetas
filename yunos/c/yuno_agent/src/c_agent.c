@@ -2238,7 +2238,7 @@ PRIVATE json_t *cmd_list_public_services(hgobj gobj, const char *cmd, json_t *kw
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO 0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -2314,7 +2314,7 @@ PRIVATE json_t *cmd_update_public_service(hgobj gobj, const char *cmd, json_t *k
         result<0?
             json_sprintf("%s", gobj_log_last_message()):
             json_sprintf("Updated"),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -2409,7 +2409,7 @@ PRIVATE json_t *cmd_list_realms(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -2451,7 +2451,7 @@ PRIVATE json_t *cmd_check_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj s
         gobj,
         ret,
         ret<0?json_sprintf("Not found!"):json_sprintf("Exists!"),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         json_pack("[o]", node), // owned
         kw  // owned
     );
@@ -2538,7 +2538,7 @@ PRIVATE json_t *cmd_create_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             json_sprintf(
                 "Realm already exists"
             ),
-            0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+            tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
             iter,
             kw  // owned
         );
@@ -2580,7 +2580,7 @@ PRIVATE json_t *cmd_create_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -2657,7 +2657,7 @@ PRIVATE json_t *cmd_update_realm(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         result<0?
             json_sprintf("%s", gobj_log_last_message()):
             json_sprintf("Updated"),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -2776,7 +2776,7 @@ PRIVATE json_t *cmd_list_binaries(hgobj gobj, const char *cmd, json_t *kw, hgobj
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -2923,7 +2923,7 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
             gobj,
             -1,
             comment,
-            0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+            tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
             iter,
             kw  // owned
         );
@@ -3055,7 +3055,7 @@ PRIVATE json_t *cmd_install_binary(hgobj gobj, const char *cmd, json_t *kw, hgob
         gobj,
         0,
         json_sprintf("version: %s", kw_get_str(gobj, node, "version", "", KW_REQUIRED)),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -3265,7 +3265,7 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
         gobj,
         0,
         json_sprintf("version: %s", kw_get_str(gobj, node, "version", "", KW_REQUIRED)),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -3405,7 +3405,7 @@ PRIVATE json_t *cmd_list_configs(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -3498,7 +3498,7 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
             json_sprintf(
                 "Configuration already exists"
             ),
-            0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+            tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
             iter,
             kw  // owned
         );
@@ -3565,7 +3565,7 @@ PRIVATE json_t *cmd_create_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
         gobj,
         0,
         json_sprintf("version: %s", kw_get_str(gobj, node, "version", "", KW_REQUIRED)),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -3640,7 +3640,7 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
             json_sprintf(
                 "Configuration not found"
             ),
-            0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+            tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
             iter,
             kw  // owned
         );
@@ -3679,7 +3679,7 @@ PRIVATE json_t *cmd_update_config(hgobj gobj, const char *cmd, json_t *kw, hgobj
         gobj,
         0,
         json_sprintf("version: %s", kw_get_str(gobj, node, "version", "", KW_REQUIRED)),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -3855,7 +3855,7 @@ PRIVATE json_t *cmd_set_tag(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -3932,7 +3932,7 @@ PRIVATE json_t *cmd_set_multiple(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -3996,14 +3996,14 @@ PRIVATE json_t *cmd_top_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     }
     JSON_DECREF(iter)
 
-    // json_t *schema = webix?
-    //     0:0; // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
-    // ;
+    json_t *schema = webix?
+        0:tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
+    ;
     return msg_iev_build_response(
         gobj,
         0,
         0,
-        0, // TODO schema,
+        schema,
         jn_data, // owned
         kw  // owned
     );
@@ -4051,9 +4051,9 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      */
     json_t *jn_data = webix?yunos2multilselect(iter):iter;
 
-    // TODO json_t *schema = webix?
-    //     0:0; // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
-    // ;
+    json_t *schema = webix?
+        0:tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
+    ;
     return msg_iev_build_response(
         gobj,
         0,
@@ -4232,10 +4232,10 @@ PRIVATE json_t *cmd_find_new_yunos(hgobj gobj, const char *cmd, json_t *kw, hgob
             json_decref(jn_data);
             jn_data = new_jn_data;
             if(ret == 0) {
-                schema = 0; // TODO tranger_list_topic_desc(
-                //     gobj_read_pointer_attr(priv->resource, "tranger"),
-                //     "yunos"
-                // );
+                schema = tranger2_list_topic_desc_cols(
+                    gobj_read_pointer_attr(priv->resource, "tranger"),
+                    "yunos"
+                );
             }
         }
     }
@@ -4395,7 +4395,7 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
                 json_sprintf(
                     "Yuno already exists"
                 ),
-                0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+                tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
                 jn_data,
                 kw  // owned
             );
@@ -4504,7 +4504,7 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
         result<0?
             json_sprintf("%s", gobj_log_last_message()):
             json_sprintf("Created"),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -4624,7 +4624,7 @@ json_t* cmd_delete_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
         result<0?
             json_sprintf("%s", gobj_log_last_message()):
             json_sprintf("%d yunos deleted", deleted),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data,
         kw  // owned
     );
@@ -5407,7 +5407,7 @@ PRIVATE json_t* cmd_enable_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj s
         gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -5497,7 +5497,7 @@ PRIVATE json_t* cmd_disable_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj 
         gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -5569,7 +5569,7 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
         gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -5641,7 +5641,7 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
         gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -6045,7 +6045,7 @@ PRIVATE json_t *cmd_realms_instances(hgobj gobj, const char *cmd, json_t *kw, hg
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -6078,7 +6078,7 @@ PRIVATE json_t *cmd_yunos_instances(hgobj gobj, const char *cmd, json_t *kw, hgo
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -6111,7 +6111,7 @@ PRIVATE json_t *cmd_binaries_instances(hgobj gobj, const char *cmd, json_t *kw, 
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -6144,7 +6144,7 @@ PRIVATE json_t *cmd_configs_instances(hgobj gobj, const char *cmd, json_t *kw, h
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -6177,7 +6177,7 @@ PRIVATE json_t *cmd_public_services_instances(hgobj gobj, const char *cmd, json_
         gobj,
         0,
         json_sprintf("%s", cmd),
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -8682,7 +8682,7 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *webix = msg_iev_build_response(gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -8874,7 +8874,7 @@ PRIVATE int ac_edit_yuno_config(hgobj gobj, const char *event, json_t *kw, hgobj
     json_t *webix = msg_iev_build_response(gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -8989,7 +8989,7 @@ PRIVATE int ac_view_yuno_config(hgobj gobj, const char *event, json_t *kw, hgobj
     json_t *webix = msg_iev_build_response(gobj,
         0,
         0,
-        0, // TODO tranger_list_topic_desc(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
+        tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource),
         jn_data, // owned
         kw  // owned
     );
@@ -10197,10 +10197,10 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *webix = msg_iev_build_response(gobj,
         ok?0:-1,
         jn_comment, // owned
-        0, // TODO tranger_list_topic_desc(
-        //     gobj_read_pointer_attr(priv->resource, "tranger"),
-        //     "yunos"
-        // ),
+        tranger2_list_topic_desc_cols(
+            gobj_read_pointer_attr(priv->resource, "tranger"),
+            "yunos"
+        ),
         jn_data,
         kw_answer  // owned
     );
