@@ -166,7 +166,7 @@ PRIVATE char variable_config[]= "\
                         }                                               \n\
                     ],                                                  \n\
                     '[^^children^^]': {                                 \n\
-                        '__range__': [[0,30]], #^^ max 30 users         \n\
+                        '__range__': [0,30], #^^ max 30 users           \n\
                         '__vars__': {                                   \n\
                         },                                              \n\
                         '__content__': {                                \n\
