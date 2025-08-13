@@ -1965,7 +1965,7 @@ PUBLIC int json_list_find(json_t *list, json_t *value) // WARNING slow function
  *  Extend array values.
  *  If as_set_type is TRUE then not repeated values (WARNING slow function)
  ***************************************************************************/
-PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type)
+PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type) // WARNING slow function
 {
     if(!json_is_array(list) || !json_is_array(other)) {
         return -1;
@@ -2006,10 +2006,17 @@ PUBLIC BOOL json_is_range(json_t *list)
 
 /***************************************************************************
  *  Return a expanded integer range
+ *  WARNING slow function, don't use in large ranges
  ***************************************************************************/
-PUBLIC json_t *json_range_list(json_t *list)
+PUBLIC json_t *json_range_list(json_t *list) // WARNING slow function, don't use in large ranges
 {
     if(!json_is_range(list)) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Not a range",
+            NULL
+        );
         return 0;
     }
     json_int_t first = json_integer_value(json_array_get(list, 0));

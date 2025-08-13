@@ -443,6 +443,7 @@ PUBLIC int json_list_int_index(json_t *jn_list, json_int_t value);
 /**rst**
     Find a json value in the list.
     Return index or -1 if not found or the index relative to 0.
+    WARNING slow function
 **rst**/
 PUBLIC int json_list_find(json_t *list, json_t *value); // WARNING slow function
 
@@ -450,17 +451,20 @@ PUBLIC int json_list_find(json_t *list, json_t *value); // WARNING slow function
  *  Extend array values.
  *  If as_set_type is TRUE then not repeated values (WARNING slow function)
 **rst**/
-PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type);
+PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type); // WARNING slow function
 
 /**rst**
  *  Check if a list is a integer range:
  *      - must be a list of two integers (first <= second)
 **rst**/
 PUBLIC BOOL json_is_range(json_t *list);
+
 /**rst**
  *  Return a expanded integer range
+ *  WARNING slow function, don't use in large ranges
 **rst**/
-PUBLIC json_t *json_range_list(json_t *list);
+PUBLIC json_t *json_range_list(json_t *list); // WARNING slow function, don't use in large ranges
+
 /**rst**
  *  Build a list (set) with lists of integer ranges.
  *  [[#from, #to], [#from, #to], #integer, #integer, ...] -> list
