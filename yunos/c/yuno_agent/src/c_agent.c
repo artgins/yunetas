@@ -4058,7 +4058,7 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         gobj,
         0,
         0,
-        0, // TODO schema,
+        schema,
         jn_data, // owned
         kw  // owned
     );
