@@ -1963,9 +1963,9 @@ PUBLIC int json_list_find(json_t *list, json_t *value)
 
 /***************************************************************************
  *  Extend array values.
- *  If as_set is TRUE then not repeated values
+ *  If as_set_type is TRUE then not repeated values
  ***************************************************************************/
-PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set)
+PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type)
 {
     if(!json_is_array(list) || !json_is_array(other)) {
         return -1;
@@ -1973,7 +1973,7 @@ PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set)
     size_t index;
     json_t *value;
     json_array_foreach(other, index, value) {
-        if(as_set) {
+        if(as_set_type) {
             int idx = json_list_find(list, value);
             if(idx < 0) {
                 json_array_append(list, value);
