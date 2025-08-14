@@ -9721,7 +9721,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = 0; // TODO msg_iev_answer(gobj, kw, kw, 0);
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
 
     return gobj_send_event(
         gobj_requester,
@@ -9765,7 +9765,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = NULL; // TODO msg_iev_answer(gobj, kw, kw, 0);
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
 
     return gobj_send_event(
         gobj_requester,

@@ -109,7 +109,7 @@ PRIVATE sdata_desc_t pm_write_tty[] = {
 };
 
 PRIVATE const char *a_help[] = {"h", "?", 0};
-PRIVATE const char *a_write_tty[] = {0}; // TODO {EV_WRITE_TTY, 0};
+PRIVATE const char *a_write_tty[] = {"EV_WRITE_TTY", 0};
 
 PRIVATE sdata_desc_t command_table[] = {
 /*-CMD2--type-----------name----------------flag----------------alias---------------items-----------json_fn---------description---------- */
@@ -469,8 +469,8 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
                     result = -1;
                     continue;
                 }
-                // TODO json_t *jn_consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
-                // json_object_set_new(jn_gobjs, route_name, json_deep_copy(jn_consoles));
+                json_t *jn_consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+                json_object_set_new(jn_gobjs, route_name, json_deep_copy(jn_consoles));
             } else {
                 json_object_set_new(jn_gobjs, route_name, json_string("ERROR route_service not found"));
                 result = -1;
@@ -553,16 +553,19 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  New console
          */
-        // TODO // if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
-        //     return msg_iev_build_response(
-        //         gobj,
-        //         -1,
-        //         json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
-        //         0,
-        //         0,
-        //         kw  // owned
-        //     );
-        // }
+        if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf(
+                    "Too much opened consoles: %d",
+                    (int)kw_size(priv->list_consoles)
+                ),
+                0,
+                0,
+                kw  // owned
+            );
+        }
 
         /*
          *  Create pseudoterminal
@@ -718,7 +721,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
      */
     int ret = 0;
     if(hold_open) {
-        const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(src));
+        const char *route_service = gobj_name(gobj_nearest_top_service(src));
         const char *route_child = gobj_name(src);
         ret = remove_console_route(gobj, name, route_service, route_child);
     } else {
@@ -786,7 +789,7 @@ PRIVATE int add_console_route(
 {
     json_t *jn_routes = kw_get_dict(gobj, jn_console_, "routes", 0, KW_REQUIRED);
 
-    const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(src));
+    const char *route_service = gobj_name(gobj_nearest_top_service(src));
     const char *route_child = gobj_name(src);
 
     char route_name[NAME_MAX];
@@ -866,7 +869,7 @@ PRIVATE int remove_console_route(
     if(gobj_route_service) {
         hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
         if(gobj_input_gate) {
-            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
             if(consoles) {
                 json_object_del(consoles, route_name);
             } else {
@@ -902,12 +905,12 @@ PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src)
 {
     char name_[NAME_MAX];
     snprintf(name_, sizeof(name_), "consoles`%s", name);
-// TODO     // gobj_kw_get_user_data( // save in input gate
-    //     src,
-    //     name_,
-    //     json_true(), // owned
-    //     KW_CREATE
-    // );
+    gobj_kw_get_user_data( // save in input gate
+        src,
+        name_,
+        json_true(), // owned
+        KW_CREATE
+    );
 
     return 0;
 }
@@ -963,7 +966,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
                 );
                 continue;
             }
-            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
             if(consoles) {
                 json_object_del(consoles, name);
             }
@@ -987,12 +990,12 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     hgobj gobj_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-    json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
+    json_t *consoles = gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
     if(!consoles) {
         return 0;
     }
 
-    const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(gobj_channel));
+    const char *route_service = gobj_name(gobj_nearest_top_service(gobj_channel));
     const char *route_child = gobj_name(gobj_channel);
 
     const char *name; json_t *jn_; void *n;
@@ -1128,7 +1131,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 continue;
             }
 
-            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
 
             if(consoles) {
                 json_object_del(consoles, gobj_name(src));
