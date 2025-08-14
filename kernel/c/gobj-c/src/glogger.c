@@ -1293,8 +1293,11 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
 //     size_t i;
 //     char value[256];
 //
-//     while ((key = (char *)va_arg (ap, char *)) != NULL) {
+//     while((key = (char *)va_arg (ap, char *)) != NULL) {
 //         fmt = (char *)va_arg (ap, char *);
+//         if(fmt == NULL) {
+//             break;
+//         }
 //         for (i = 0; i < strlen (fmt); i++) {
 //             int eof = 0;
 //
@@ -1434,77 +1437,58 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
 //                         break;
 //                     default:
 //                         i++;
+//                         if(i >= strlen (fmt)) {
+//                             (void)va_arg (ap, char *);
+//                             eof = 1;
+//                         }
+//                         break;
 //                 }
 //             }
 //         }
 //     }
 // }
 
-/***************************************************************************
+/*****************************************************************
  *  json_vappend() by ChatGPT
  *
  *  Consumes var-args as (key, fmt, args...) pairs until key == NULL.
- *  For each pair, ONLY the first conversion of `fmt` is consumed and
- *  appended to the JSON being generated (original behavior preserved).
+ *  For each pair, ONLY the first conversion in `fmt` is consumed
+ *  (original behavior preserved via `eof`).
  *
- *  Supported specifiers (documented mapping):
+ *  Supported specifiers:
+ *    Integers:
+ *      %d, %i      → JSON number (signed)
+ *      %u          → JSON number (unsigned)
+ *      %x, %X      → hex STRING (lower/upper). %#x/%#X add 0x/0X if value != 0
+ *      %o          → octal STRING. %#o adds leading '0' if value != 0
+ *      Length modifiers recognized by single/two-char look-back:
+ *          ll, l, z(size_t/ssize_t), t(ptrdiff_t), j(intmax_t/uintmax_t)
  *
- *  INTEGERS
- *  --------
- *    %d, %i     Signed integer.
- *               Length modifiers supported (by single-char look-back):
- *                 hh,h,(none),l,ll,z,t,j
- *               Stored as JSON number (xjson_add_integer).
+ *    Floats:
+ *      %f %F %g %G %e %E %a %A → JSON number (double)
+ *      If 'L' immediately before the specifier, reads long double and downcasts
  *
- *    %u         Unsigned integer.
- *               Length modifiers supported: (none),l,ll,z,t,j
- *               Stored as JSON number (xjson_add_integer).
+ *    Strings / Char:
+ *      %s      → JSON string (NULL → JSON null). If key=="msg" and priority<=LOG_ERR,
+ *                calls gobj_log_set_last_message("%s", value)
+ *      %ls     → wide string accepted when 'l' precedes 's' (fmt[i-1]=='l')
+ *      %c/%lc  → char / wide char. Stored as 1-char string (narrow) or codepoint (wide)
  *
- *    %x, %X     Unsigned integer printed as hexadecimal STRING.
- *               Length modifiers supported: (none),l,ll,z,t,j
- *               Alternate form (%#x / %#X): prefix "0x"/"0X" when value != 0.
- *               Stored as JSON string (xjson_add_string).
+ *    Pointer:
+ *      %p      → pointer printed with "%p" and stored as JSON string
  *
- *    %o         Unsigned integer printed as octal STRING.
- *               Length modifiers supported: (none),l,ll,z,t,j
- *               Alternate form (%#o): leading '0' when value != 0.
- *               Stored as JSON string (xjson_add_string).
+ *    JSON value:
+ *      %j      → expects `json_t *`; dumps with JSON_ENCODE_ANY|JSON_COMPACT|
+ *                JSON_INDENT(0)|JSON_REAL_PRECISION(12), runs helper_doublequote2quote(),
+ *                then stores as string. NULL → JSON null
  *
- *  FLOATS
- *  ------
- *    %f %F %g %G %e %E %a %A
- *               Uses double; if 'L' (long double) present immediately before
- *               the specifier, it is accepted and down-cast to double.
- *               Stored as JSON number (xjson_add_double).
+ *    Literal:
+ *      %%      → literal percent; no value consumed
  *
- *  STRINGS
- *  -------
- *    %s         `char *` (NULL -> JSON null).
- *               If key == "msg" and priority <= LOG_ERR, calls
- *               gobj_log_set_last_message("%s", value).
- *
- *    %ls        `wchar_t *` is accepted when an 'l' is present immediately
- *               before 's' (i.e., fmt[i-1] == 'l'). Converted with "%ls".
- *
- *  CHAR
- *  ----
- *    %c         Single character (int in varargs). Stored as a 1-length string.
- *
- *  POINTER
- *  -------
- *    %p         Printed using "%p" into a temporary buffer. Stored as string.
- *
- *  LITERAL
- *  -------
- *    %%         Literal percent. No value consumed; continues scanning.
- *
- *  Notes:
- *    - We keep the original outer `while` + inner `%` scanning loop intact.
- *    - We only look one/two positions back from `i` to detect length
- *      modifiers ('l','ll','L') and single-char modifiers ('z','t','j').
- *    - For '#' (alternate form), we scan backward to the matching '%' and
- *      detect a '#' flag without changing the outer loop structure.
- ***************************************************************************/
+ *  Unknown/unsupported specifier:
+ *      Advance `i`; if we ran past end of `fmt`, consume ONE vararg as (char *)
+ *      to keep va_list aligned, set eof=1, break.
+ *****************************************************************/
 PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
 {
     char *key;
@@ -1514,9 +1498,8 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
 
     while((key = (char *)va_arg(ap, char *)) != NULL) {
         fmt = (char *)va_arg(ap, char *);
-        if(!fmt) {
-            xjson_add_null(hgen, key);
-            continue;
+        if(fmt == NULL) {
+            break;
         }
 
         for(i = 0; i < strlen(fmt); i++) {
@@ -1537,7 +1520,8 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                     case 'o':
                     case 'u':
                     case 'x':
-                    case 'X': {
+                    case 'X':
+                    {
                         /* Detect alternate form '#' by scanning back to '%' */
                         int alt_form = 0;
                         if(i > 0) {
@@ -1599,7 +1583,7 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                                  * %#x/%#X: prefix 0x/0X if uv != 0
                                  * %#o:     leading '0'   if uv != 0
                                  */
-                                char buf[2 + 2 + 64]; /* "0x" + digits + NUL */
+                                char buf[2 + 2 + 64];
                                 char *w = &buf[sizeof(buf) - 1];
                                 *w-- = 0;
 
@@ -1616,12 +1600,10 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                                         }
                                     }
                                 } else {
-                                    /* hex */
                                     const int upper = (fmt[i] == 'X');
                                     const char *hex = upper
                                         ? "0123456789ABCDEF"
                                         : "0123456789abcdef";
-
                                     if(uv == 0) {
                                         *w-- = '0';
                                     } else {
@@ -1635,7 +1617,6 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                                         }
                                     }
                                 }
-
                                 xjson_add_string(hgen, key, w + 1);
                             }
                         }
@@ -1652,8 +1633,10 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                     case 'F':
                     case 'g':
                     case 'G':
+                    case 'e':
                     case 'a':
-                    case 'A': {
+                    case 'A':
+                    {
                         if(fmt[i - 1] == 'L') {
                             long double v = va_arg(ap, long double);
                             xjson_add_double(hgen, key, (double)v);
@@ -1668,11 +1651,11 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                     /*------------------------------*
                      * Character
                      *------------------------------*/
-                    case 'c': {
+                    case 'c':
+                    {
                         if(fmt[i - 1] == 'l') {
                             /* wide char promoted to wint_t */
                             wint_t v = va_arg(ap, wint_t);
-                            /* store as numeric code point */
                             xjson_add_integer(hgen, key, (long long)v);
                         } else {
                             int v = va_arg(ap, int);
@@ -1688,7 +1671,8 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                     /*------------------------------*
                      * String
                      *------------------------------*/
-                    case 's': {
+                    case 's':
+                    {
                         if(fmt[i - 1] == 'l') {
                             /* wide string */
                             wchar_t *p = va_arg(ap, wchar_t *);
@@ -1720,9 +1704,38 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                     }
 
                     /*------------------------------*
+                     * JSON value (jansson)
+                     *------------------------------*/
+                    case 'j':
+                    {
+                        json_t *jn;
+
+                        jn = va_arg(ap, void *);
+                        eof = 1;
+
+                        if(jn) {
+                            size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
+                                           JSON_INDENT(0) |
+                                           JSON_REAL_PRECISION(12);
+                            char *bf = json_dumps(jn, flags);
+                            if(bf) {
+                                helper_doublequote2quote(bf);
+                                xjson_add_string(0, key, bf);
+                                jsonp_free(bf);
+                            } else {
+                                xjson_add_null(hgen, key);
+                            }
+                        } else {
+                            xjson_add_null(hgen, key);
+                        }
+                        break;
+                    }
+
+                    /*------------------------------*
                      * Pointer -> string
                      *------------------------------*/
-                    case 'p': {
+                    case 'p':
+                    {
                         void *p = va_arg(ap, void *);
                         if(p && snprintf(value, sizeof(value), "%p", p) > 0) {
                             xjson_add_string(hgen, key, value);
@@ -1734,14 +1747,20 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                     }
 
                     /* literal % */
-                    case '%': {
+                    case '%':
+                    {
                         eof = 1;
                         break;
                     }
 
-                    /* keep scanning within this fmt until a real spec or end */
-                    default: {
+                    /* Unknown/unsupported specifier */
+                    default:
+                    {
                         i++;
+                        if(i >= strlen(fmt)) {
+                            (void)va_arg(ap, char *);
+                            eof = 1;
+                        }
                         break;
                     }
                 } /* switch */
