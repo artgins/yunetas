@@ -7402,8 +7402,11 @@ PRIVATE int write_service_client_connectors(
                 "__url__", url
         );
 
-        json_t *kw_connector = 0; // TODO kw_apply_json_config_variables(jn_connector, jn_config_variables);
-        json_decref(jn_config_variables);
+        json_t *kw_connector = json_replace_var( // old kw_apply_json_config_variables
+            json_incref(jn_connector), // owned
+            jn_config_variables // owned
+        );
+
         json_array_append_new(jn_services, kw_connector);
         json_decref(hs_service);
     }

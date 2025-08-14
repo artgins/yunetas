@@ -2071,7 +2071,7 @@ PUBLIC hgobj gobj_service_factory(
     /*
      *  Replace attribute vars
      */
-    json_t * new_kw = json_replace_var(
+    json_t *new_kw = json_replace_var(
         kw,          // owned
         __json_config_variables__   // owned
     );
