@@ -216,7 +216,7 @@ PRIVATE char variable_config[]= "\
                                             'gclass': 'C_WEBSOCKET',            \n\
                                             'kw': {                             \n\
                                                 'iamServer': true               \n\
-                                            }                                   \n\
+                                            },                                  \n\
                                             'children': [                               \n\
                                                 {                                       \n\
                                                     'name': 'input-(^^__range__^^)',    \n\

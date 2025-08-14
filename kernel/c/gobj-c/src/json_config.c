@@ -163,7 +163,6 @@ PRIVATE size_t on_load_file_callback(void *bf, size_t bfsize, void *data)
      *      Operation in file
      *-----------------------------------*/
     while(fgets(line, (int)sizeof(line), file)) {
-        left_justify(line);
         if(!empty_string(line)) {
             char *f = strstr(line, INLINE_COMMENT);
             if(f) {
