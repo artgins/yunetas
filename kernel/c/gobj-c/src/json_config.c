@@ -157,35 +157,20 @@ PRIVATE json_t * nonx_legalstring2json(const char *reference, const char *bf, pe
 PRIVATE size_t on_load_file_callback(void *bf, size_t bfsize, void *data)
 {
     FILE *file = data;
-    char line[2*1024];
 
     /*-----------------------------------*
      *      Operation in file
      *-----------------------------------*/
-    while(fgets(line, (int)sizeof(line), file)) {
-        if(!empty_string(line)) {
-            char *f = strstr(line, INLINE_COMMENT);
-            if(f) {
-                /*
-                 *  Remove comments
-                 */
-                *f = 0;
-            }
+    while(fgets(bf, (int)bfsize, file)) {
+        // TODO WARNING bad algorithm: bf is 1024, with longer lines it will fail.
+        char *f = strstr(bf, INLINE_COMMENT);
+        if(f) {
+            /*
+             *  Remove comments
+             */
+            *f = 0;
         }
-        if(!empty_string(line)) {
-            int len = (int)strlen(line);
-            if(len > bfsize) {
-                gobj_log_error(0, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "Line too long to parse json",
-                    NULL
-                );
-                len = (int)bfsize;
-            }
-            memmove(bf, line, len);
-            return len;
-        }
+        return strlen(bf);
     }
 
     return 0; /* end of file */
