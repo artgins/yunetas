@@ -6325,16 +6325,16 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         /*
          *  New console
          */
-        // TODO if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
-        //     return msg_iev_build_response(
-        //         gobj,
-        //         -1,
-        //         json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
-        //         0,
-        //         0,
-        //         kw  // owned
-        //     );
-        // }
+        if(kw_size(priv->list_consoles) > gobj_read_integer_attr(gobj, "max_consoles")) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
+                0,
+                0,
+                kw  // owned
+            );
+        }
 
         /*
          *  Create pseudoterminal

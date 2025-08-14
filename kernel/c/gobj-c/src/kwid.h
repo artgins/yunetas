@@ -595,6 +595,8 @@ PUBLIC json_t *kw_filter_metadata(
     json_t *kw  // owned
 );
 
+PUBLIC size_t kw_size(json_t *kw); // size of dict or size of list, remains return 1
+
 /***************************************************************************
     Utility for databases of json records.
     Get a json list or dict, get the **first** record that match `id`

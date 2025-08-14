@@ -3124,6 +3124,26 @@ PUBLIC json_t *kw_filter_metadata(
 }
 
 /***************************************************************************
+ *  size of dict or size of list, remains return 1
+ ***************************************************************************/
+PUBLIC size_t kw_size(json_t *kw)
+{
+    size_t size = 0;
+
+    if(json_is_object(kw)) {
+        size = json_object_size(kw);
+
+    } else if(json_is_array(kw)) {
+        size = json_array_size(kw);
+
+    } else {
+        size = 1;
+    }
+
+    return size;
+}
+
+/***************************************************************************
     Utility for databases of json records.
     Get a json list or dict, get the **first** record that match `id`
     WARNING `id` is the first key of json_desc

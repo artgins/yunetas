@@ -130,6 +130,7 @@ New API
     gbuffer_append_json
     read_process_cmdline
     gobj_kw_get_user_data
+    kw_size
 
 Delete API
 
