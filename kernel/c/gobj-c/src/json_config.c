@@ -254,6 +254,8 @@ PRIVATE json_t * x_legalstring2json(char* reference, const char* bf, pe_flag_t q
 
 /***************************************************************************
  *  Load a extended json file
+ *  TODO solution to 1024 line limit: convert the file to a temp file without comments,
+ *  TODO then call json_load_file()
  ***************************************************************************/
 PRIVATE json_t *load_json_file(const char* path, pe_flag_t quit)
 {
