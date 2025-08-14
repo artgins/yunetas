@@ -228,53 +228,11 @@ static int render_file(char *dst_path, char *src_path, json_t *jn_values)
 /***************************************************************************
  *
  ***************************************************************************/
-static int is_regular_file(const char *path)
-{
-    struct stat path_stat;
-    stat(path, &path_stat);
-    return S_ISREG(path_stat.st_mode);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-static int is_directory(const char *path)
-{
-    struct stat path_stat;
-    stat(path, &path_stat);
-    return S_ISDIR(path_stat.st_mode);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 static int is_link(const char *path)
 {
     struct stat path_stat;
     lstat(path, &path_stat);
     return S_ISLNK(path_stat.st_mode);
-}
-
-/***************************************************************************
- *  Create a new file (only to write)
- *  The use of this functions implies the use of 00_security.h's permission system:
- *  umask will be set to 0 and we control all permission mode.
- ***************************************************************************/
-static int umask_cleared = 0;
-static int newfile(const char *path, int permission, int overwrite)
-{
-    int flags = O_CREAT|O_WRONLY|O_LARGEFILE;
-
-    if(!umask_cleared) {
-        umask(0);
-        umask_cleared = 1;
-    }
-
-    if(overwrite)
-        flags |= O_TRUNC;
-    else
-        flags |= O_EXCL;
-    return open(path, flags, permission);
 }
 
 /***************************************************************************
@@ -296,57 +254,6 @@ static int copy_link(
         return -1;
     }
     return 0;
-}
-
-/***************************************************************************
- *    Elimina el caracter 'x' a la derecha.
- ***************************************************************************/
-static char *delete_right_char(char *s, char x)
-{
-    int l;
-
-    l = strlen(s);
-    if(l==0) {
-        return s;
-    }
-    while(--l>=0) {
-        if(*(s+l)==x) {
-            *(s+l)='\0';
-        } else {
-            break;
-        }
-    }
-    return s;
-}
-
-/***************************************************************************
- *    Elimina el caracter 'x' a la izquierda.
- ***************************************************************************/
-static char *delete_left_char(char *s, char x)
-{
-    int l;
-    char c;
-
-    if(strlen(s)==0) {
-        return s;
-    }
-
-    l=0;
-    while(1) {
-        c= *(s+l);
-        if(c=='\0'){
-            break;
-        }
-        if(c==x) {
-            l++;
-        } else {
-            break;
-        }
-    }
-    if(l>0) {
-        memmove(s,s+l,strlen(s)-l+1);
-    }
-    return s;
 }
 
 /***************************************************************************
