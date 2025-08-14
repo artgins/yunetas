@@ -149,34 +149,6 @@ PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_
 }
 
 /***************************************************************************
- *  Read file line removing comments
- *  Return 0 end of file
- *         < 0 error
- *         > 0 process json string
- ***************************************************************************/
-PRIVATE size_t on_load_file_callback(void *bf, size_t bfsize, void *data)
-{
-    FILE *file = data;
-
-    /*-----------------------------------*
-     *      Operation in file
-     *-----------------------------------*/
-    while(fgets(bf, (int)bfsize, file)) {
-        // TODO WARNING bad algorithm: bf is 1024, with longer lines it will fail.
-        char *f = strstr(bf, INLINE_COMMENT);
-        if(f) {
-            /*
-             *  Remove comments
-             */
-            *f = 0;
-        }
-        return strlen(bf);
-    }
-
-    return 0; /* end of file */
-}
-
-/***************************************************************************
  *  Convert a legal json string to json binary.
  *  legal json string: MUST BE an array [] or object {}
  ***************************************************************************/
@@ -249,10 +221,8 @@ PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_fl
 
 /***************************************************************************
  *  Load a extended json file
- *  TODO solution to 1024 line limit: convert the file to a temp file without comments,
- *  TODO then call json_load_file()
  ***************************************************************************/
-PRIVATE json_t *load_json_file(const char* path, pe_flag_t quit)
+PRIVATE json_t *load_json_file(const char *path, pe_flag_t quit)
 {
     if(access(path, 0)!=0) {
         print_error(
@@ -268,26 +238,42 @@ PRIVATE json_t *load_json_file(const char* path, pe_flag_t quit)
             "Cannot open '%s' file.\n",
             path
         );
-        return 0;
+        return NULL;
     }
 
-    size_t flags=0;
-    json_error_t error;
-    json_t *jn_msg = json_load_callback(on_load_file_callback, file, flags, &error);
-    if(!jn_msg) {
+    fseek(file, 0, SEEK_END);
+    size_t len = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *buf = malloc(len + 1);
+    if(!buf) {
         print_error(
             quit,
-            "json_load_file_callback() failed.\n"
-            "File: '%s'\n"
-            "Error: '%s'\n in line %d, column %d, position %d.\n",
-            path,
-            error.text,
-            error.line,
-            error.column,
-            error.position
+            "No memory for: %lu bytes\n",
+            len
         );
+        fclose(file);
+        return NULL;
     }
+
+    size_t ret = fread(buf, 1, len, file);
+    if (ret != len) {
+        print_error(
+            quit,
+            "Cannot read '%s' file.\n",
+            path
+        );
+        free(buf);
+        fclose(file);
+        return NULL;
+    }
+    buf[len] = '\0';
+
+    json_t *jn_msg = x_legalstring2json(path, buf, quit);
+
+    free(buf);
     fclose(file);
+
     return jn_msg;
 }
 
