@@ -176,7 +176,7 @@ static inline size_t gbuffer_chunk(gbuffer_t *gbuf) /* return the chunk of data 
     return chunk_size;
 }
 
-PUBLIC char *gbuffer_getline(gbuffer_t *gbuf, char separator);
+PUBLIC char *gbuffer_getline(gbuffer_t *gbuf, char separator); /* Separator is not included */
 
 /*
  *  WRITING

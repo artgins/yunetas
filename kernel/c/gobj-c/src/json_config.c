@@ -38,7 +38,7 @@ PRIVATE int load_files(
     int print_final_config,
     pe_flag_t quit
 );
-PRIVATE json_t *x_legalstring2json(char *reference, const char *bf, pe_flag_t quit);
+PRIVATE json_t *x_legalstring2json(const char *reference, const char *bf, pe_flag_t quit);
 PRIVATE json_t *load_json_file(const char *path, pe_flag_t quit);
 PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit);
 
@@ -124,7 +124,7 @@ PRIVATE int load_files(
 /***************************************************************************
  *  Convert any json string to json binary.
  ***************************************************************************/
-PRIVATE json_t * nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit)
+PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_flag_t quit)
 {
     size_t flags = JSON_DECODE_ANY;
     json_error_t error;
@@ -177,78 +177,73 @@ PRIVATE size_t on_load_file_callback(void *bf, size_t bfsize, void *data)
 }
 
 /***************************************************************************
- *  Return 0 end of file
- *         < 0 error
- *         > 0 process json string
- ***************************************************************************/
-PRIVATE size_t on_load_string_callback(void *bf, size_t bfsize, void *data)
-{
-    gbuffer_t *gbuf = data;
-
-    /*-----------------------------------*
-     *      Operation in string
-     *-----------------------------------*/
-    char *line;
-    while((line=gbuffer_getline(gbuf, '\n'))) {
-        left_justify(line);
-        if(!empty_string(line)) {
-            char *f = strstr(line, INLINE_COMMENT);
-            if(f) {
-                /*
-                 *  Remove comments
-                 */
-                *f = 0;
-            }
-        }
-        if(!empty_string(line)) {
-            int len = (int)strlen(line);
-            if(len > bfsize) {
-                gobj_log_error(0, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "Line too long to parse json",
-                    NULL
-                );
-                len = (int)bfsize;
-            }
-            memmove(bf, line, len);
-            return len;
-        }
-    }
-
-    return 0;
-}
-
-/***************************************************************************
  *  Convert a legal json string to json binary.
  *  legal json string: MUST BE an array [] or object {}
  ***************************************************************************/
-PRIVATE json_t * x_legalstring2json(char* reference, const char* bf, pe_flag_t quit)
+PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_flag_t quit)
 {
-    size_t flags = 0;
-    json_error_t error;
+    /*
+     *  Memory needed, double for src,dst
+     */
+    size_t len = strlen(bf);
 
-    gbuffer_t *gbuf = gbuffer_create(strlen(bf), strlen(bf));
-    gbuffer_append_string(gbuf, bf);
-
-    json_t *jn_msg = json_load_callback(on_load_string_callback, gbuf, flags, &error);
-    if(!jn_msg) {
+    /*
+     *  Create source and load the string
+     */
+    gbuffer_t *gbuf_src = gbuffer_create(len, len);
+    if(!gbuf_src) {
         print_error(
             quit,
-            "Cannot convert legal json string to json binary.\n"
-            "Reference: '%s'\n"
-            "Error: '%s'\n in line %d, column %d, position %d.\n"
-            "Json string: \n%s\n",
-            reference,
-            error.text,
-            error.line,
-            error.column,
-            error.position,
-            bf
+            "No memory for %s: %lu bytes\n",
+            reference?reference:"",
+            len
         );
+        return NULL;
+    }
+    gbuffer_append_string(gbuf_src, bf);
+
+    /*
+     *  Create destination
+     */
+    gbuffer_t *gbuf_dst = gbuffer_create(len, len);
+    if(!gbuf_dst) {
+        print_error(
+            quit,
+            "No memory for %s: %lu bytes\n",
+            reference?reference:"",
+            len
+        );
+        gbuffer_decref(gbuf_src);
+        return NULL;
     }
 
-    GBUFFER_DECREF(gbuf)
+    /*
+     *  Filter the comments and save to destination
+     */
+    char *s;
+    while((s=gbuffer_getline(gbuf_src, '\n'))) {
+        char *f = strstr(s, INLINE_COMMENT);
+        if(f) {
+            /*
+             *  Remove comments
+             */
+            *f = 0;
+        }
+        gbuffer_append_string(gbuf_dst, s);
+    }
+
+    /*
+     *  Convert to jansson
+     */
+    s = gbuffer_cur_rd_pointer(gbuf_dst);
+    json_t *jn_msg = string2json(s, TRUE);
+
+    /*
+     *  Free
+     */
+    gbuffer_decref(gbuf_src);
+    gbuffer_decref(gbuf_dst);
+
     return jn_msg;
 }
 

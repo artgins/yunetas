@@ -217,7 +217,7 @@ PUBLIC char *gbuffer_getline(gbuffer_t *gbuf, char separator)
     register char *p;
     while((p=gbuffer_get(gbuf,1))) {
         if(*p == separator) {
-            *p = 0;
+            *p = 0; /* Separator is not included, used to set NULL */
             return begin;
         }
     }
