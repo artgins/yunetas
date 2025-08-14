@@ -129,6 +129,7 @@ New API
     replace_string
     gbuffer_append_json
     read_process_cmdline
+    gobj_kw_get_user_data
 
 Delete API
 

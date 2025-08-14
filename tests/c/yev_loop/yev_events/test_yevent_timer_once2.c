@@ -127,6 +127,7 @@ PRIVATE int yev_callback_periodic(yev_event_h yev_event)
         "p",            "%p", yev_event,
         "flag",         "%j", jn_flags,
         "periodic",     "%d", (yev_get_flag(yev_event) & YEV_FLAG_TIMER_PERIODIC)?1:0,
+        "times_counter_periodic", "%d", times_counter_periodic,
         NULL
     );
     json_decref(jn_flags);

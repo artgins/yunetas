@@ -3200,30 +3200,30 @@ PRIVATE json_t *cmd_update_binary(hgobj gobj, const char *cmd, json_t *kw, hgobj
     /*
      *  Overwrite, the overwrite filter was above.
      */
-    // TODO if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-    //         "msg",          "%s", "copyfile() FAILED",
-    //         "path",         "%s", path,
-    //         "destination",  "%s", destination,
-    //         NULL
-    //     );
-    //     JSON_DECREF(jn_basic_info);
-    //     json_decref(node);
-    //     return msg_iev_build_response(
-    //         gobj,
-    //         -1,
-    //         json_sprintf(
-    //             "Cannot copy '%s' to '%s'",
-    //             path,
-    //             destination
-    //         ),
-    //         0,
-    //         0,
-    //         kw  // owned
-    //     );
-    // }
+    if(copyfile(path, destination, yuneta_xpermission(), TRUE)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "copyfile() FAILED",
+            "path",         "%s", path,
+            "destination",  "%s", destination,
+            NULL
+        );
+        JSON_DECREF(jn_basic_info);
+        json_decref(node);
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf(
+                "Cannot copy '%s' to '%s'",
+                path,
+                destination
+            ),
+            0,
+            0,
+            kw  // owned
+        );
+    }
 
     /*------------------------------------------------*
      *  Update the resource
@@ -5054,7 +5054,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
              *  HACK le meto un id al mensaje de petición PLAY_YUNO
              *  que lo devolverá en el mensaje respuesta PLAY_YUNO_ACK.
              */
-            json_int_t filter_ref = 0; // TODO (json_int_t)long_reference();
+            json_int_t filter_ref = (json_int_t)long_reference();
             json_t *jn_msg = json_object();
             kw_set_subdict_value(gobj, jn_msg, "__md_iev__", "__id__", json_integer(filter_ref));
             if(play_yuno(gobj, yuno, jn_msg, src)==0) {
@@ -5547,7 +5547,8 @@ PRIVATE json_t *cmd_trace_on_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj
          *  Trace on yuno
          */
         json_object_set_new(yuno, "traced", json_true());
-        json_t *kw_clone = 0; // TODO msg_iev_pure_clone(kw);
+        json_t *kw_clone = json_deep_copy(kw);
+        (void)msg_iev_clean_metadata(kw_clone);
         trace_on_yuno(gobj, yuno, kw_clone, src);
 
         json_array_append_new(
@@ -5619,7 +5620,8 @@ PRIVATE json_t* cmd_trace_off_yuno(hgobj gobj, const char* cmd, json_t* kw, hgob
          *  Trace off yuno
          */
         json_object_set_new(yuno, "traced", json_false());
-        json_t *kw_clone = 0; // TODO msg_iev_pure_clone(kw);
+        json_t *kw_clone = json_deep_copy(kw);
+        (void)msg_iev_clean_metadata(kw_clone);
         trace_off_yuno(gobj, yuno, kw_clone, src);
 
         json_array_append_new(
@@ -6239,7 +6241,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
                     result = -1;
                     continue;
                 }
-                json_t *jn_consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+                json_t *jn_consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
                 json_object_set_new(jn_gobjs, route_name, json_deep_copy(jn_consoles));
             } else {
                 json_object_set_new(jn_gobjs, route_name, json_string("ERROR route_service not found"));
@@ -6645,7 +6647,7 @@ PRIVATE int remove_console_route(
     if(gobj_route_service) {
         hgobj gobj_input_gate = gobj_child_by_name(gobj_route_service, route_child);
         if(gobj_input_gate) {
-            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
             if(consoles) {
                 json_object_del(consoles, route_name);
             } else {
@@ -6681,12 +6683,12 @@ PRIVATE int add_console_in_input_gate(hgobj gobj, const char *name, hgobj src)
 {
     char name_[NAME_MAX];
     snprintf(name_, sizeof(name_), "consoles`%s", name);
-    NULL; // TODO gobj_kw_get_user_data( // save in input gate
-    //     src,
-    //     name_,
-    //     json_true(), // owned
-    //     KW_CREATE
-    // );
+    gobj_kw_get_user_data( // save in input gate
+        src,
+        name_,
+        json_true(), // owned
+        KW_CREATE
+    );
 
     return 0;
 }
@@ -6742,7 +6744,7 @@ PRIVATE int delete_console(hgobj gobj, const char *name)
                 );
                 continue;
             }
-            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
             if(consoles) {
                 json_object_del(consoles, name);
             }
@@ -6766,7 +6768,7 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     hgobj gobj_channel = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
-    json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
+    json_t *consoles = gobj_kw_get_user_data(gobj_channel, "consoles", 0, 0);
     if(!consoles) {
         return 0;
     }
@@ -10134,8 +10136,8 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
 // KKK
 
-    json_t *iter_yunos = NULL;  // TODO gobj_kw_get_user_data(src, "iter", 0, KW_EXTRACT);
-    json_t *kw_answer = NULL;  // TODO gobj_kw_get_user_data(src, "kw_answer", 0, KW_EXTRACT);
+    json_t *iter_yunos = gobj_kw_get_user_data(src, "iter", 0, KW_EXTRACT);
+    json_t *kw_answer = gobj_kw_get_user_data(src, "kw_answer", 0, KW_EXTRACT);
 
     json_t *jn_request = msg_iev_pop_stack(gobj, kw, "requester_stack");
     if(!jn_request) {
@@ -10304,7 +10306,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 continue;
             }
 
-            json_t *consoles = NULL; // TODO gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
+            json_t *consoles = gobj_kw_get_user_data(gobj_input_gate, "consoles", 0, 0);
 
             if(consoles) {
                 json_object_del(consoles, gobj_name(src));

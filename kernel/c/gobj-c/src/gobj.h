@@ -1107,6 +1107,12 @@ PUBLIC int gobj_write_user_data(
 PUBLIC json_t *gobj_hsdata2(hgobj gobj, const char *name, BOOL verbose); // Return is NOT YOURS
 PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name);
 
+PUBLIC json_t *gobj_kw_get_user_data( // Return is NOT yours except using KW_EXTRACT
+    hgobj gobj,
+    const char *path,
+    json_t *default_value,
+    kw_flag_t flag
+);
 PUBLIC const char *gobj_read_str_attr(hgobj gobj, const char *name);
 PUBLIC BOOL gobj_read_bool_attr(hgobj gobj, const char *name);
 PUBLIC json_int_t gobj_read_integer_attr(hgobj gobj, const char *name);

@@ -3532,6 +3532,23 @@ PUBLIC BOOL gobj_has_bottom_attr(hgobj gobj_, const char *name)
 }
 
 /***************************************************************************
+ *  ATTR: read
+ ***************************************************************************/
+PUBLIC json_t *gobj_kw_get_user_data(
+    hgobj gobj,
+    const char *path,
+    json_t *default_value,
+    kw_flag_t flag
+)
+{
+    if(gobj) {
+        return kw_get_dict_value(gobj, ((gobj_t *)gobj)->jn_user_data, path, default_value, flag);
+    } else {
+        return 0;
+    }
+}
+
+/***************************************************************************
  *  ATTR: read str
  ***************************************************************************/
 PUBLIC const char *gobj_read_str_attr(hgobj gobj_, const char *name)
