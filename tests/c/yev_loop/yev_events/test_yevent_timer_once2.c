@@ -134,7 +134,7 @@ PRIVATE int yev_callback_periodic(yev_event_h yev_event)
 
     if(times_counter_periodic == 1) {
         gobj_trace_msg(0, "re-start timer once");
-        yev_start_timer_event(yev_event_once, 1*1000, FALSE);
+        yev_start_timer_event(yev_event_once, 1500, FALSE);
     }
 
     if(times_counter_periodic < 3) {
@@ -288,8 +288,8 @@ int main(int argc, char *argv[])
     MT_PRINT_TIME(time_measure, test)
 
     double tm = mt_get_time(&time_measure);
-    if(!(tm >= 1.9 && tm < 2.1)) {
-        printf("%sERROR --> %s time %f (must be tm >= 1.9 && tm < 2.1)\n", On_Red BWhite, Color_Off, tm);
+    if(!(tm >= 2.4 && tm <= 2.6)) {
+        printf("%sERROR --> %s time %f (must be tm >= 2.4 && tm <= 2.6)\n", On_Red BWhite, Color_Off, tm);
         result += -1;
     }
 
