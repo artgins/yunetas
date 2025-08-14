@@ -7886,8 +7886,8 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
     const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED);
     const char *yuno_name = kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED);
     const char *yuno_release = kw_get_str(gobj, yuno, "yuno_release", "", KW_REQUIRED);
-    uint32_t pid = kw_get_int(gobj, yuno, "yuno_pid", 0, KW_REQUIRED);
-    uint32_t watcher_pid = kw_get_int(gobj, yuno, "watcher_pid", 0, KW_REQUIRED);
+    pid_t pid = (pid_t)kw_get_int(gobj, yuno, "yuno_pid", 0, KW_REQUIRED);
+    pid_t watcher_pid = (pid_t)kw_get_int(gobj, yuno, "watcher_pid", 0, KW_REQUIRED);
     if(!pid) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -7932,7 +7932,6 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
                 "strerror",     "%s", strerror(last_errno),
                 NULL
             );
-            // TODO gobj_set_message_error(gobj, strerror(last_errno));
             ret = -1;
         }
     }
@@ -7956,7 +7955,6 @@ PRIVATE int kill_yuno(hgobj gobj, json_t *yuno)
                         "strerror",     "%s", strerror(last_errno),
                         NULL
                     );
-                    // TODO gobj_set_message_error(gobj, strerror(last_errno));
                     ret = -1;
                 }
             }
@@ -9105,7 +9103,7 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
     } else {
         p++;
     }
-    json_t *jn_s = 0; // TODO nonlegalstring2json(s, TRUE);
+    json_t *jn_s = anystring2json(s, strlen(s), TRUE); // nonlegalstring2json
     json_t *jn_data = json_pack("{s:s, s:o}",
         "name", p,
         "zcontent", jn_s?jn_s:json_string("Invalid json in filename")

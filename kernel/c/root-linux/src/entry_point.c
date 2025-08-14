@@ -451,7 +451,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(!__jn_config__) {
         print_error(
             PEF_EXIT,
-            "legalstring2json() of '%s' failed",
+            "json_config() of '%s' failed",
             APP_NAME
         );
     }
