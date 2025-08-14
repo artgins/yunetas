@@ -131,6 +131,7 @@ New API
     read_process_cmdline
     gobj_kw_get_user_data
     kw_size
+    gobj_nearest_top_service
 
 Delete API
 

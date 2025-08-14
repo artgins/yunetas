@@ -6329,7 +6329,10 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
             return msg_iev_build_response(
                 gobj,
                 -1,
-                json_sprintf("Too much opened consoles: %d", kw_size(priv->list_consoles)),
+                json_sprintf(
+                    "Too much opened consoles: %d",
+                    (int)kw_size(priv->list_consoles)
+                ),
                 0,
                 0,
                 kw  // owned
@@ -6490,7 +6493,7 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
      */
     int ret = 0;
     if(hold_open) {
-        const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(src));
+        const char *route_service = gobj_name(gobj_nearest_top_service(src));
         const char *route_child = gobj_name(src);
         ret = remove_console_route(gobj, name, route_service, route_child);
     } else {
@@ -6567,7 +6570,7 @@ PRIVATE int add_console_route(
 {
     json_t *jn_routes = kw_get_dict(gobj, jn_console_, "routes", 0, KW_REQUIRED);
 
-    const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(src));
+    const char *route_service = gobj_name(gobj_nearest_top_service(src));
     const char *route_child = gobj_name(src);
 
     char route_name[NAME_MAX];
@@ -6773,7 +6776,7 @@ PRIVATE int delete_consoles_on_disconnection(hgobj gobj, json_t *kw, hgobj src_)
         return 0;
     }
 
-    const char *route_service = ""; // TODO gobj_name(gobj_nearest_top_unique(gobj_channel));
+    const char *route_service = gobj_name(gobj_nearest_top_service(gobj_channel));
     const char *route_child = gobj_name(gobj_channel);
 
     const char *name; json_t *jn_; void *n;

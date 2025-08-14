@@ -1198,6 +1198,7 @@ PUBLIC json_t *gobj_services(void); // return list of strings, must be owned
 PUBLIC hgobj gobj_default_service(void);
 PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose);
 PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose); // OLD gobj_find_gclass_service
+PUBLIC hgobj gobj_nearest_top_service(hgobj gobj); // Return nearest (parent) top service (service or __yuno__) gobj
 PUBLIC hgobj gobj_find_gobj(const char *gobj_path); // find gobj by path (full path)
 
 PUBLIC hgobj gobj_first_child(hgobj gobj);

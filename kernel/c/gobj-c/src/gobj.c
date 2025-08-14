@@ -5066,6 +5066,32 @@ PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose) 
 }
 
 /***************************************************************************
+ *  Return nearest (parent) top service (service or __yuno__) gobj
+ ***************************************************************************/
+PUBLIC hgobj gobj_nearest_top_service(hgobj gobj_)
+{
+    gobj_t *gobj = gobj_;
+
+    if(!gobj || gobj->obflag & obflag_destroyed) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "hgobj NULL or DESTROYED",
+            NULL
+        );
+        return 0;
+    }
+    gobj = gobj->parent;
+    while(gobj) {
+        if(gobj->gobj_flag & (gobj_flag_service|gobj_flag_yuno)) {
+            break;
+        }
+        gobj = gobj->parent;
+    }
+    return gobj;
+}
+
+/***************************************************************************
  *  Find a gobj by path
  ***************************************************************************/
 PUBLIC hgobj gobj_find_gobj(const char *path)
