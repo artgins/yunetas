@@ -122,7 +122,7 @@ PUBLIC int newdir(const char *path, int xpermission)
  ***************************************************************************/
 PUBLIC int newfile(const char *path, int rpermission, BOOL overwrite)
 {
-    int flags = O_CREAT|O_RDWR;
+    int flags = O_CREAT|O_RDWR|O_LARGEFILE;
 
     if(!umask_cleared) {
         umask(0);

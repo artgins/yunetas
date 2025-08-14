@@ -67,8 +67,8 @@
  *  Busca en str las claves y sustituye la clave con el valor
  *  de dicha clave en el dict jn_values
  ***************************************************************************/
-// version with pcre, changed to pcre2
-// int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
+// version with pcre, changed to pcre2 by chatgpt
+// static int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 // {
 //     pcre *re;
 //     const char *error;
@@ -121,7 +121,8 @@
 //     return 0;
 // }
 
-int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
+// version with pcre2 by chatgpt
+static int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
     snprintf(rendered_str, rendered_str_size, "%s", str);
 
@@ -196,7 +197,7 @@ int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *
 char old_line[64*1024];
 char new_line[64*1024];
 
-int render_file(char *dst_path, char *src_path, json_t *jn_values)
+static int render_file(char *dst_path, char *src_path, json_t *jn_values)
 {
     FILE *f = fopen(src_path, "r");
     if(!f) {
@@ -227,7 +228,7 @@ int render_file(char *dst_path, char *src_path, json_t *jn_values)
 /***************************************************************************
  *
  ***************************************************************************/
-int is_regular_file(const char *path)
+static int is_regular_file(const char *path)
 {
     struct stat path_stat;
     stat(path, &path_stat);
@@ -237,7 +238,7 @@ int is_regular_file(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-int is_directory(const char *path)
+static int is_directory(const char *path)
 {
     struct stat path_stat;
     stat(path, &path_stat);
@@ -247,7 +248,7 @@ int is_directory(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-int is_link(const char *path)
+static int is_link(const char *path)
 {
     struct stat path_stat;
     lstat(path, &path_stat);
@@ -260,7 +261,7 @@ int is_link(const char *path)
  *  umask will be set to 0 and we control all permission mode.
  ***************************************************************************/
 static int umask_cleared = 0;
-int newfile(const char *path, int permission, int overwrite)
+static int newfile(const char *path, int permission, int overwrite)
 {
     int flags = O_CREAT|O_WRONLY|O_LARGEFILE;
 
@@ -279,7 +280,7 @@ int newfile(const char *path, int permission, int overwrite)
 /***************************************************************************
  *
  ***************************************************************************/
-int copy_link(
+static int copy_link(
     const char* source,
     const char* destination
 )
@@ -300,7 +301,7 @@ int copy_link(
 /***************************************************************************
  *    Elimina el caracter 'x' a la derecha.
  ***************************************************************************/
-char *delete_right_char(char *s, char x)
+static char *delete_right_char(char *s, char x)
 {
     int l;
 
@@ -321,7 +322,7 @@ char *delete_right_char(char *s, char x)
 /***************************************************************************
  *    Elimina el caracter 'x' a la izquierda.
  ***************************************************************************/
-char *delete_left_char(char *s, char x)
+static char *delete_left_char(char *s, char x)
 {
     int l;
     char c;
@@ -351,7 +352,7 @@ char *delete_left_char(char *s, char x)
 /***************************************************************************
  *
  ***************************************************************************/
-char *build_path2(
+static char *build_path2(
     char *path,
     int pathsize,
     const char *dir1,
