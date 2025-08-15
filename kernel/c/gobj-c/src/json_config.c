@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <jansson.h>
 #include "helpers.h"
+#include "kwid.h"
 
 // From jansson_private.h
 extern void jsonp_free(void *ptr);
@@ -211,12 +212,30 @@ PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_fl
     json_t *jn_msg = string2json(s, TRUE);
 
     /*
+     *  Extract special __json_config_variables__ if exits
+     */
+    json_t *__json_config_variables__ = kw_get_dict(0,
+        jn_msg,
+        "__json_config_variables__",
+        json_object(),
+        KW_EXTRACT
+    );
+
+    /*
+     *  Replace attribute vars
+     */
+    json_t *new_kw = json_replace_var(
+        jn_msg,          // owned
+        __json_config_variables__   // owned
+    );
+
+    /*
      *  Free
      */
     gbuffer_decref(gbuf_src);
     gbuffer_decref(gbuf_dst);
 
-    return jn_msg;
+    return new_kw;
 }
 
 /***************************************************************************
