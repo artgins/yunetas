@@ -6,7 +6,9 @@ Name: keycloak_pkey_to_jwks
 Description
 ===========
 
-Convert a pkey (raw base64url-encoded modulus) public key from keycloak to JWKS
+Convert a pkey (raw base64url-encoded modulus) public key from keycloak to JWKS.
+Useful for convert legacy `Authz.jwt_public_keys` to `Authz.jwks`.
+
 
 License
 -------

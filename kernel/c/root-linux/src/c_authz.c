@@ -226,7 +226,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag----------------default-----description---------- */
 SDATA (DTP_INTEGER,     "max_sessions_per_user",SDF_PERSIST,    "1",        "Max sessions per user"),
-SDATA (DTP_JSON,        "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys"),
+SDATA (DTP_JSON,        "jwks",                 SDF_WR|SDF_PERSIST, "[]",   "JWKS public keys, OLD jwt_public_keys, use the utility keycloak_pkey_to_jwks to create."),
 SDATA (DTP_JSON,        "initial_load",         SDF_RD,         "{}",       "Initial data for treedb"),
 /*
  *  HACK WARNING 2024-Nov-13: use of "tranger_path" to determine if this instance is master or not.
