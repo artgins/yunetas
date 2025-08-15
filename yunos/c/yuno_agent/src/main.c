@@ -33,7 +33,7 @@
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
-        'realm_owner': 'agent',                                     \n\
+        'realm_owner': 'controlcenter',                             \n\
         'work_dir': '/yuneta',                                      \n\
         'domain_dir': 'realms/agent/agent'                          \n\
     },                                                              \n\
