@@ -8064,14 +8064,18 @@ PUBLIC int tranger2_close_all_lists(
         );
         return -1;
     }
+
+    json_t *topic = json_object_get(json_object_get(tranger, "topics"), topic_name);
+    if(!topic) {
+        return 0;
+    }
+
     if(!creator) {
         creator = "";
     }
     if(!rt_id) {
         rt_id = "";
     }
-
-    json_t *topic = tranger2_topic(tranger, topic_name);
 
     json_t *list_to_remove = json_array();
     int idx; json_t *rt;
