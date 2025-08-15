@@ -182,7 +182,7 @@ PRIVATE char agent_filter_chain_config[]= "\
             'autostart': true,              \n\
             'kw': {                         \n\
                 'remote_yuno_name': '',                 \n\
-                'remote_yuno_role': 'yuneta_agent',     \n\
+                'remote_yuno_role': 'yagent',           \n\
                 'remote_yuno_service': 'agent',         \n\
                 'extra_info': {                             \n\
                     'realm_id': '%s',                       \n\
@@ -906,7 +906,6 @@ SDATA_END()
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username"),
-SDATA (DTP_STRING,      "tranger_path",     SDF_RD,             "/yuneta/store/agentdb", "tranger path"),
 SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
 SDATA (DTP_JSON,        "agent_environment",SDF_RD,             0,              "Agent environment. Override the yuno environment"),
 SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
@@ -997,7 +996,7 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "yuneta_agent starting: node uuid",
+        "msg",          "%s", "yagent starting: node uuid",
         "uuid",         "%s", uuid,
         NULL
     );
@@ -1083,7 +1082,7 @@ PRIVATE void mt_create(hgobj gobj)
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INFO,
-                    "msg",          "%s", "yuneta_agent already running, exiting",
+                    "msg",          "%s", "yagent already running, exiting",
                     "pid",          "%d", pid,
                     NULL
                 );
@@ -9786,6 +9785,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *client_yuno_role = kw_get_str(gobj, kw, "client_yuno_role", "", 0);
     if(strcasecmp(client_yuno_role, "yuneta_cli")==0 ||
             strcasecmp(client_yuno_role, "yuneta_agent")==0 ||
+            strcasecmp(client_yuno_role, "yagent")==0 ||
+            strcasecmp(client_yuno_role, "ycli")==0 ||
             strcasecmp(client_yuno_role, "ybatch")==0 ||
             strcasecmp(client_yuno_role, "ystats")==0 ||
             strcasecmp(client_yuno_role, "ycommand")==0 ||

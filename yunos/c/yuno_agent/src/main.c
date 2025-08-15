@@ -69,7 +69,7 @@ PRIVATE char variable_config[]= "\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
                 'handler_options': 255,                             \n\
-                'filename_mask': 'yuneta_agent-W.log'               \n\
+                'filename_mask': 'yagent-W.log'                     \n\
             },                                                      \n\
             'to_udp': {                                             \n\
                 'handler_type': 'udp',                              \n\

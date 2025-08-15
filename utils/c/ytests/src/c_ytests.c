@@ -65,7 +65,7 @@ SDATA (DTP_STRING,      "user_passw",       0,          "",             "OAuth2 
 SDATA (DTP_STRING,      "jwt",              0,          "",             "Jwt"),
 SDATA (DTP_STRING,      "url",              0,          "ws://127.0.0.1:1991",  "Agent's url to connect. Can be a ip/hostname or a full url"),
 SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),
-SDATA (DTP_STRING,      "yuno_role",        0,          "yuneta_agent", "Yuno role"),
+SDATA (DTP_STRING,      "yuno_role",        0,          "yagent",       "Yuno role"),
 SDATA (DTP_STRING,      "yuno_service",     0,          "agent",        "Yuno service"),
 SDATA (DTP_STRING,      "display_mode",     0,          "form",         "Display mode: table or form"),
 

@@ -326,7 +326,7 @@ int main(int argc, char *argv[])
     memset(&arguments, 0, sizeof(arguments));
     arguments.url = "ws://127.0.0.1:1991";
     arguments.azp="";
-    arguments.yuno_role = "yuneta_agent";
+    arguments.yuno_role = "yagent";
     arguments.yuno_name = "";
     arguments.yuno_service = "__default_service__";
     arguments.auth_system = "keycloak";
