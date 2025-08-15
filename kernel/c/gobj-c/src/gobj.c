@@ -769,7 +769,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
      *----------------------------------------*/
     event_type_t *event_type = event_types;
     while(event_type->event_name) {
-        if(gclass_find_event_type(gclass, event_type->event_name)) {
+        if(gclass_event_type(gclass, event_type->event_name)) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
@@ -979,7 +979,7 @@ PUBLIC int gclass_add_event_type(
 /***************************************************************************
  *  Find a **string event** in any gclass
  ***************************************************************************/
-PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_flag, BOOL verbose)
+PUBLIC event_type_t *gobj_find_event_type(const char *event, event_flag_t event_flag, BOOL verbose)
 {
     gclass_t *gclass = dl_first(&dl_gclass);
     while(gclass) {
@@ -1011,7 +1011,7 @@ PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_fla
  ***************************************************************************/
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose)
 {
-    event_type_t *event_type = gclass_find_event(event, EVF_PUBLIC_EVENT, verbose);
+    event_type_t *event_type = gobj_find_event_type(event, EVF_PUBLIC_EVENT, verbose);
     if(event_type) {
         return event_type->event_name;
     }
@@ -1182,7 +1182,7 @@ PRIVATE int _add_event_type(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC event_type_t *gclass_find_event_type(hgclass gclass_, gobj_event_t event)
+PUBLIC event_type_t *gclass_event_type(hgclass gclass_, gobj_event_t event)
 {
     gclass_t *gclass = gclass_;
     event_t *event_ = dl_first(&gclass->dl_events);
@@ -1230,7 +1230,7 @@ PUBLIC int gclass_check_fsm(hgclass gclass_)
             // gobj_event_t event;
             // gobj_action_fn action;
             // gobj_state_t next_state;
-            event_type_t *event_type = gclass_find_event_type(
+            event_type_t *event_type = gclass_event_type(
                 gclass, event_action->event_name
             );
             if(!event_type) {
@@ -7763,7 +7763,7 @@ PUBLIC event_type_t *gobj_event_type( // silent function
         return NULL;
     }
 
-    event_type_t *event_type = gclass_find_event_type(gobj->gclass, event);
+    event_type_t *event_type = gclass_event_type(gobj->gclass, event);
     if(event_type) {
         return event_type;
     }

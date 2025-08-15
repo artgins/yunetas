@@ -123,6 +123,7 @@ PUBLIC json_t * command_parser(
             event = *cnf_cmd->alias;
         else
             event = cnf_cmd->name;
+        event_type_t *event_type =
         gobj_send_event(gobj, event, kw_cmd, src);
         KW_DECREF(kw)
         return 0;   /* asynchronous response */

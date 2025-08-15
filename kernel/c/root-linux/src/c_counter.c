@@ -95,7 +95,7 @@ PRIVATE void mt_create(hgobj gobj)
 
     SET_PRIV(final_event_name,          gobj_read_str_attr)
 
-    event_type_t *event_type = gclass_find_event(priv->final_event_name, 0, TRUE);
+    event_type_t *event_type = gobj_find_event_type(priv->final_event_name, 0, TRUE);
     if(event_type) {
         priv->final_event_name = event_type->event_name;
     }

@@ -18,7 +18,7 @@ gclass/gclass_check_fsm.md
 gclass/gclass_command_desc.md
 gclass/gclass_create.md
 gclass/gclass_find_by_name.md
-gclass/gclass_find_event_type.md
+gclass/gclass_event_type.md
 gclass/gclass_find_public_event.md
 gclass/gclass_gclass_name.md
 gclass/gclass_gclass_register.md

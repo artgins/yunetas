@@ -858,7 +858,7 @@ PUBLIC int gclass_add_event_type(
     event_flag_t event_flag
 );
 
-PUBLIC event_type_t *gclass_find_event(const char *event, event_flag_t event_flag, BOOL verbose); // Find a HACK string event in any gclass
+PUBLIC event_type_t *gobj_find_event_type(const char *event, event_flag_t event_flag, BOOL verbose); // Find a HACK string event in any gclass
 
 PUBLIC gobj_event_t gclass_find_public_event(const char *event, BOOL verbose); // Find a public HACK string event in any gclass
 
@@ -868,7 +868,7 @@ PUBLIC BOOL gclass_has_attr(hgclass gclass, const char* name);
 
 PUBLIC json_t *gclass_gclass_register(void); /* Get registered gclasses: Return [gclass:s}] */
 PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name); // gclass_name can be 'char *' or gclass_name_t
-PUBLIC event_type_t *gclass_find_event_type(hgclass gclass, gobj_event_t event);
+PUBLIC event_type_t *gclass_event_type(hgclass gclass, gobj_event_t event);
 
 PUBLIC int gclass_check_fsm(hgclass gclass);
 PUBLIC json_t *gclass2json(hgclass gclass); // Return a dict with gclass's description.

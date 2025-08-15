@@ -3720,7 +3720,7 @@ PRIVATE json_t* cmd_list_subscriptions(hgobj gobj, const char* cmd, json_t* kw, 
 
     const char *event_name = kw_get_str(gobj, kw, "event", 0, 0);
     if(!empty_string(event_name)) {
-        event_type_t *event_type = gclass_find_event(event_name, 0, FALSE);
+        event_type_t *event_type = gobj_find_event_type(event_name, 0, FALSE);
         if(event_type) {
             event = event_type->event_name;
         } else {
@@ -3810,7 +3810,7 @@ PRIVATE json_t* cmd_list_subscribings(hgobj gobj, const char* cmd, json_t* kw, h
 
     const char *event_name = kw_get_str(gobj, kw, "event", 0, 0);
     if(!empty_string(event_name)) {
-        event_type_t *event_type = gclass_find_event(event_name, 0, FALSE);
+        event_type_t *event_type = gobj_find_event_type(event_name, 0, FALSE);
         if(event_type) {
             event = event_type->event_name;
         } else {

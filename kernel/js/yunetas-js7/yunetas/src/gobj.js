@@ -817,7 +817,7 @@ function gclass_create(
         if(empty_string(event_name)) {
             continue;
         }
-        if(gclass_find_event_type(gclass, event_name)) {
+        if(gclass_event_type(gclass, event_name)) {
             log_error(`SMachine: event repeated in input_events: ${event_name}`);
             gclass_unregister(gclass);
             return null;
@@ -986,7 +986,7 @@ function gclass_add_event_type(gclass, event_name, event_flag)
 /************************************************************
  *
  ************************************************************/
-function gclass_find_event_type(gclass, event_name)
+function gclass_event_type(gclass, event_name)
 {
     if(!(gclass instanceof GClass)) {
         log_error(`Cannot add state, typeof not GClass`);
@@ -1045,7 +1045,7 @@ function gclass_check_fsm(gclass)
             // gobj_event_t event_name;
             // gobj_action_fn action;
             // gobj_state_t next_state;
-            let event_type = gclass_find_event_type(gclass, event_action.event_name);
+            let event_type = gclass_event_type(gclass, event_action.event_name);
             if(!event_type) {
                 log_error(`SMachine: state's event NOT in input_events: gclass ${gclass.gclass_name}, state ${state.state_name}, event ${event_action.event_name}`);
                 ret += -1;
@@ -3169,7 +3169,7 @@ function gobj_event_type( // silent function
         return null;
     }
 
-    let event_type = gclass_find_event_type(gobj.gclass, event);
+    let event_type = gclass_event_type(gobj.gclass, event);
     if(event_type) {
         return event_type;
     }
@@ -4419,7 +4419,7 @@ export {
     gclass_unregister,
     gclass_add_state,
     gclass_add_ev_action,
-    gclass_find_event_type,
+    gclass_event_type,
     gclass_add_event_type,
     gclass_check_fsm,
     gclass_find_by_name,

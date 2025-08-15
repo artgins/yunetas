@@ -86,6 +86,7 @@ Change API
     is_level_not_tracing-> gobj_is_level_not_tracing
     get_cursor_color->get_paint_color
     create_uuid -> create_random_uuid
+    gclass_find_event_type -> gclass_event_type
 
 New API
 
@@ -104,7 +105,7 @@ New API
     str2gbuf
     gobj_set_trace_machine_format
     get_net_core_somaxconn(void)
-    gclass_find_event
+    gobj_find_event_type
     mt_get_time
     set_measure_times
     get_measure_times
