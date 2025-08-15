@@ -220,6 +220,11 @@ PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_fl
         json_object(),
         KW_EXTRACT
     );
+    json_object_set_new(
+        __json_config_variables__,
+        "__hostname__",
+        json_string(get_hostname())
+    );
 
     /*
      *  Replace attribute vars
