@@ -119,11 +119,17 @@ PUBLIC json_t * command_parser(
          *  Redirect command to event
          */
         const char *event;
-        if(*cnf_cmd->alias)
+        if(*cnf_cmd->alias) {
             event = *cnf_cmd->alias;
-        else
+        } else {
             event = cnf_cmd->name;
-        event_type_t *event_type =
+        }
+
+        event_type_t *event_type = gobj_find_event_type(event, 0, TRUE);
+        if(event_type) {
+            event = event_type->event_name;
+        }
+
         gobj_send_event(gobj, event, kw_cmd, src);
         KW_DECREF(kw)
         return 0;   /* asynchronous response */
