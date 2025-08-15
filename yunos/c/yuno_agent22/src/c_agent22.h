@@ -2,7 +2,7 @@
  *          C_AGENT22.H
  *          Agent22 GClass.
  *
- *          Yuneta Agent22, the first authority of realms and yunos in a host
+ *          Yuneta Agent22, a second remote entry point for controlcenter
  *
  *          Copyright (c) 2022 Niyamaka.
  *          Copyright (c) 2025, ArtGins.

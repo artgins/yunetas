@@ -5,6 +5,7 @@
  *          Yuneta Agent, the first authority of realms and yunos in a host
  *
  *          Copyright (c) 2016 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
 ***********************************************************************/
 #include <time.h>
