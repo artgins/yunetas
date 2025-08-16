@@ -956,6 +956,7 @@ typedef struct _PRIVATE_DATA {
     BOOL enabled_yunos_running;
 
     hgobj gobj_authz;
+    hgobj gobj_input_side;
 
     hgobj gobj_treedbs;             // manager of multiple treedbs
     hgobj gobj_treedb_agentdb;      // service of treedb_agentdb (create in gobj_treedbs)
@@ -1299,6 +1300,9 @@ PRIVATE int mt_play(hgobj gobj)
 
     // Get timeranger of treedb_agentdb, will be used for alarms too
     // priv->tranger_treedb_agentdb = gobj_read_pointer_attr(priv->gobj_treedb_agentdb, "tranger");
+
+    priv->gobj_input_side = gobj_find_service("__input_side__", TRUE);
+    gobj_subscribe_event(priv->gobj_input_side, NULL, 0, gobj);
 
     set_timeout(priv->timer, priv->timerStBoot);
 
@@ -9879,13 +9883,11 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     const char *client_yuno_role = kw_get_str(gobj, kw, "client_yuno_role", "", 0);
     if(strcasecmp(client_yuno_role, "yuneta_cli")==0 ||
             strcasecmp(client_yuno_role, "yuneta_agent")==0 ||
-            strcasecmp(client_yuno_role, "yagent")==0 ||
             strcasecmp(client_yuno_role, "ycli")==0 ||
             strcasecmp(client_yuno_role, "ybatch")==0 ||
             strcasecmp(client_yuno_role, "ystats")==0 ||
             strcasecmp(client_yuno_role, "ycommand")==0 ||
             strcasecmp(client_yuno_role, "ytests")==0 ||
-            strcasecmp(client_yuno_role, "GUI")==0 ||
             strcasecmp(client_yuno_role, "yuneta_gui")==0) {
         // let it.
 

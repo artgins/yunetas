@@ -173,72 +173,75 @@ PRIVATE char variable_config[]= "\
             'kw': {                                     \n\
             },                                          \n\
             'children': [                               \n\
+            ]                                           \n\
+        },                                              \n\
+        {                                               \n\
+            'name': '__input_side__',                   \n\
+            'gclass': 'C_IOGATE',                       \n\
+            'as_service': true,                         \n\
+            'autostart': true,                          \n\
+            'autoplay': false,                          \n\
+            'kw': {                                     \n\
+            },                                          \n\
+            'children': [                                       \n\
                 {                                               \n\
-                    'name': '__input_side__',                   \n\
-                    'gclass': 'C_IOGATE',                       \n\
+                    'name': 'agent_server_port',                \n\
+                    'gclass': 'C_TCP_S',                        \n\
                     'as_service': true,                         \n\
                     'kw': {                                     \n\
-                    },                                          \n\
-                    'children': [                                       \n\
+                        'url': '(^^__input_url__^^)'            \n\
+                    }                                               \n\
+                },                                                  \n\
+                {                                                   \n\
+                    'name': 'agent_secure_port',                    \n\
+                    'gclass': 'C_TCP_S',                            \n\
+                    'as_service': true,                             \n\
+                    'disabled': true,    #^^ TODO falla!                         \n\
+                    'kw': {                                         \n\
+                        'crypto': {                                 \n\
+                            'library': 'openssl',                   \n\
+    'ssl_certificate': '/yuneta/agent/certs/yuneta_agent.crt',      \n\
+    'ssl_certificate_key': '/yuneta/agent/certs/yuneta_agent.key',  \n\
+                            'trace': false                          \n\
+                        },                                          \n\
+                        'url': '(^^__input_secure_url__^^)'         \n\
+                    }                                               \n\
+                }                                                   \n\
+            ],                                                  \n\
+            '[^^children^^]': {                                 \n\
+                '__range__': [0,300], #^^ max 300 users         \n\
+                '__vars__': {                                   \n\
+                },                                              \n\
+                '__content__': {                                \n\
+                    'name': 'input-(^^__range__^^)',                \n\
+                    'gclass': 'C_CHANNEL',                          \n\
+                    'kw': {                                         \n\
+                    },                                              \n\
+                    'children': [                                     \n\
                         {                                               \n\
-                            'name': 'agent_server_port',                \n\
-                            'gclass': 'C_TCP_S',                        \n\
-                            'as_service': true,                         \n\
+                            'name': 'input-(^^__range__^^)',            \n\
+                            'gclass': 'C_IEVENT_SRV',                   \n\
                             'kw': {                                     \n\
-                                'url': '(^^__input_url__^^)'            \n\
-                            }                                               \n\
-                        },                                                  \n\
-                        {                                                   \n\
-                            'name': 'agent_secure_port',                    \n\
-                            'gclass': 'C_TCP_S',                            \n\
-                            'as_service': true,                             \n\
-                            'kw': {                                         \n\
-                                'crypto': {                                 \n\
-                                    'library': 'openssl',                   \n\
-            'ssl_certificate': '/yuneta/agent/certs/yuneta_agent.crt',      \n\
-            'ssl_certificate_key': '/yuneta/agent/certs/yuneta_agent.key',  \n\
-                                    'trace': false                          \n\
-                                },                                          \n\
-                                'url': '(^^__input_secure_url__^^)'         \n\
-                            }                                               \n\
-                        }                                                   \n\
-                    ],                                                  \n\
-                    '[^^children^^]': {                                 \n\
-                        '__range__': [0,300], #^^ max 300 users         \n\
-                        '__vars__': {                                   \n\
-                        },                                              \n\
-                        '__content__': {                                \n\
-                            'name': 'input-(^^__range__^^)',                \n\
-                            'gclass': 'C_CHANNEL',                          \n\
-                            'kw': {                                         \n\
-                            },                                              \n\
-                            'children': [                                     \n\
-                                {                                               \n\
-                                    'name': 'input-(^^__range__^^)',            \n\
-                                    'gclass': 'C_IEVENT_SRV',                   \n\
-                                    'kw': {                                     \n\
-                                    },                                          \n\
+                            },                                          \n\
+                            'children': [                               \n\
+                                {                                       \n\
+                                    'name': 'input-(^^__range__^^)',    \n\
+                                    'gclass': 'C_WEBSOCKET',            \n\
+                                    'kw': {                             \n\
+                                        'iamServer': true               \n\
+                                    },                                  \n\
                                     'children': [                               \n\
                                         {                                       \n\
                                             'name': 'input-(^^__range__^^)',    \n\
-                                            'gclass': 'C_WEBSOCKET',            \n\
-                                            'kw': {                             \n\
-                                                'iamServer': true               \n\
-                                            },                                  \n\
-                                            'children': [                               \n\
-                                                {                                       \n\
-                                                    'name': 'input-(^^__range__^^)',    \n\
-                                                    'gclass': 'C_TCP'                   \n\
-                                                }                                       \n\
-                                            ]                                           \n\
-                                        }                               \n\
-                                    ]                                   \n\
-                                }                                       \n\
-                            ]                                           \n\
-                        }                                               \n\
-                    }                                                   \n\
+                                            'gclass': 'C_TCP'                   \n\
+                                        }                                       \n\
+                                    ]                                           \n\
+                                }                               \n\
+                            ]                                   \n\
+                        }                                       \n\
+                    ]                                           \n\
                 }                                               \n\
-            ]                                           \n\
+            }                                                   \n\
         },                                              \n\
         {                                               \n\
             'name': 'controlcenter',                    \n\
@@ -312,8 +315,8 @@ static int register_yuno_and_more(void)
     gobj_set_global_no_trace("timer_periodic", TRUE);
 
     // Samples of traces
-    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
-    // gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "identity-card", TRUE);
+    gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "identity-card", TRUE);
 
     // gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
 

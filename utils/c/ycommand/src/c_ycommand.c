@@ -117,7 +117,7 @@ SDATA (DTP_INTEGER,     "wait",             0,          "2",            "Wait n 
 SDATA (DTP_STRING,      "command",          0,          "",             "Command."),
 SDATA (DTP_STRING,      "url",              0,          "ws://127.0.0.1:1991",  "Url to get Statistics. Can be a ip/hostname or a full url"),
 SDATA (DTP_STRING,      "yuno_name",        0,          "",             "Yuno name"),
-SDATA (DTP_STRING,      "yuno_role",        0,          "yagent",       "Yuno role"),
+SDATA (DTP_STRING,      "yuno_role",        0,          "yuneta_agent", "Yuno role"),
 SDATA (DTP_STRING,      "yuno_service",     0,          "agent",        "Yuno service"),
 SDATA (DTP_STRING,      "auth_system",      0,          "",             "OpenID System(interactive jwt)"),
 SDATA (DTP_STRING,      "auth_url",         0,          "",             "OpenID Endpoint(interactive jwt)"),

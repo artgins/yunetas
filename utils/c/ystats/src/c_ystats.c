@@ -262,7 +262,7 @@ PRIVATE int cmd_connect(hgobj gobj)
         "__jwt__", jwt,
         "__url__", url,
         "__yuno_name__", "",
-        "__yuno_role__", "yagent",
+        "__yuno_role__", "yuneta_agent",
         "__yuno_service__", "__default_service__"
     );
 

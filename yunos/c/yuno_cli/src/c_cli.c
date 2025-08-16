@@ -216,7 +216,7 @@ PRIVATE sdata_desc_t pm_connect[] = {
 /*-PM----type-----------name------------flag------------default-----description---------- */
 SDATAPM (DTP_STRING,    "url",          0,              "ws://127.0.0.1:1991",  "Agent's url to connect. Can be a ip/hostname or a full url"),
 SDATAPM (DTP_STRING,    "yuno_name",    0,              "",                     "Yuno name"),
-SDATAPM (DTP_STRING,    "yuno_role",    0,              "yagent",               "Yuno role"),
+SDATAPM (DTP_STRING,    "yuno_role",    0,              "yuneta_agent",         "Yuno role"),
 SDATAPM (DTP_STRING,    "service",      0,              "agent",                "Yuno service"),
 SDATA_END()
 };
