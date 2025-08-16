@@ -1054,7 +1054,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*---------------------------------------*
      *      Create timer to start yunos
      *---------------------------------------*/
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
+    priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
 
     /*---------------------------------------*
      *      Check if already running
@@ -1295,8 +1295,8 @@ PRIVATE int mt_play(hgobj gobj)
     }
     json_decref(jn_resp);
 
-    priv->gobj_treedb_agentdb = gobj_find_service(priv->treedb_agentdb_name, TRUE);
-    gobj_subscribe_event(priv->gobj_treedb_agentdb, 0, 0, gobj);
+    priv->resource = gobj_find_service(priv->treedb_agentdb_name, TRUE);
+    gobj_subscribe_event(priv->resource, 0, 0, gobj);
 
     // Get timeranger of treedb_agentdb, will be used for alarms too
     // priv->tranger_treedb_agentdb = gobj_read_pointer_attr(priv->gobj_treedb_agentdb, "tranger");
