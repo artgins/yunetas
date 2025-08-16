@@ -1215,7 +1215,7 @@ PRIVATE int mt_play(hgobj gobj)
     yuneta_realm_store_dir(
         path,
         sizeof(path),
-        "yuneta_agent",
+        "agent",
         gobj_yuno_realm_owner(),
         gobj_yuno_realm_id(),
         "",  // gclass-treedb controls the directories

@@ -70,7 +70,7 @@ extern void jsonp_free(void *ptr);
  *****************************************************************/
 #define _
 
-#define PATH_UUID "/yuneta/store/yuneta_agent/uuid"
+#define PATH_UUID "/yuneta/store/agent/uuid"
 
 /*****************************************************************
  *     Prototypes

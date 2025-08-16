@@ -33,7 +33,7 @@
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
-        'realm_owner': 'controlcenter',                             \n\
+        'realm_owner': '',                             \n\
         'work_dir': '/yuneta',                                      \n\
         'domain_dir': 'realms/agent/agent'                          \n\
     },                                                              \n\
@@ -47,7 +47,7 @@ PRIVATE char fixed_config[]= "\
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     '__json_config_variables__': {                                  \n\
-        '__realm_id__': 'agent.yunetacontrol.com',                  \n\
+        '__realm_id__': '/yuneta_agent.trdb',                  \n\
         '__input_url__': 'ws://127.0.0.1:1991',                     \n\
         '__input_secure_url__': 'wss://0.0.0.0:1993',               \n\
         '__output_url__': 'yunetacontrol.com:1994'                  \n\
