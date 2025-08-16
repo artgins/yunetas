@@ -293,6 +293,9 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
 
+    /*-----------------------------*
+     *      Consoles
+     *-----------------------------*/
     priv->list_consoles = json_object();
 
     /*

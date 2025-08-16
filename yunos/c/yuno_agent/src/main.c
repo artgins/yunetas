@@ -156,12 +156,18 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
+        {                                                           \n\
+            'name': 'authz',                                        \n\
+            'gclass': 'C_AUTHZ',                                    \n\
+            'autostart': true,                                      \n\
+            'autoplay': true                                        \n\
+        },                                                          \n\
         {                                               \n\
             'name': 'agent',                            \n\
             'gclass': 'C_AGENT',                        \n\
             'default_service': true,                    \n\
             'autostart': true,                          \n\
-            'autoplay': false,                          \n\
+            'autoplay': true,                           \n\
             'kw': {                                     \n\
             },                                          \n\
             'children': [                               \n\
@@ -279,13 +285,7 @@ PRIVATE char variable_config[]= "\
                     ]                                   \n\
                 }                                       \n\
             ]                                           \n\
-        },                                              \n\
-        {                                                           \n\
-            'name': 'authz',                                        \n\
-            'gclass': 'C_AUTHZ',                                    \n\
-            'autostart': true,                                      \n\
-            'autoplay': true                                        \n\
-        }                                                           \n\
+        }                                              \n\
     ]                                                               \n\
 }                                                                   \n\
 ";

@@ -916,6 +916,7 @@ SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[11100,11199]",
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",           "Maximum consoles opened"),
 SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "60000",        "Expiration timeout for commands"),
+SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_RD,           "1",            "Use internal (hardcoded) schema (TODO don't set to 0, out schema not working)"),
 
 SDATA (DTP_BOOLEAN,     "use_audit_command_file",SDF_WR,        "1",            "Use audit file commands"),
 SDATA (DTP_INTEGER,     "max_megas_audit_file",SDF_WR,          "500",          "max megas rotatory file size"),
@@ -954,8 +955,12 @@ typedef struct _PRIVATE_DATA {
     int32_t timerStBoot;
     BOOL enabled_yunos_running;
 
-    hgobj gobj_tranger;
-    json_t *tranger;
+    hgobj gobj_authz;
+
+    hgobj gobj_treedbs;             // manager of multiple treedbs
+    hgobj gobj_treedb_agentdb;      // service of treedb_agentdb (create in gobj_treedbs)
+    // json_t *tranger_treedb_agentdb;
+    char treedb_agentdb_name[80];
 
     json_t *list_consoles; // Dictionary of console names
 
@@ -1045,25 +1050,9 @@ PRIVATE void mt_create(hgobj gobj)
         exit(0);
     }
 
-    /*
-     *  Chequea schema, exit si falla.
-     */
-    helper_quote2doublequote(treedb_schema_yuneta_agent);
-    json_t *jn_treedb_schema_yuneta_agent;
-    jn_treedb_schema_yuneta_agent = legalstring2json(treedb_schema_yuneta_agent, TRUE);
-    if(parse_schema(jn_treedb_schema_yuneta_agent)<0) {
-        /*
-         *  Exit if schema fails
-         */
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_APP_ERROR,
-            "msg",          "%s", "Parse schema fails",
-            NULL
-        );
-        exit(-1);
-    }
-
+    /*---------------------------------------*
+     *      Create timer to start yunos
+     *---------------------------------------*/
     priv->timer = gobj_create("", C_TIMER, 0, gobj);
 
     /*---------------------------------------*
@@ -1110,52 +1099,10 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
 
-    /*---------------------------*
-     *      Timeranger
-     *---------------------------*/
-    const char *path = gobj_read_str_attr(gobj, "tranger_path");
-    json_t *kw_tranger = json_pack("{s:s, s:s, s:b, s:I, s:i}",
-        "path", path,
-        "filename_mask", "%Y",
-        "master", 1,
-        "subscriber", (json_int_t)(uintptr_t)gobj,
-        "on_critical_error", (int)(LOG_OPT_EXIT_ZERO)
-    );
-    priv->gobj_tranger = gobj_create_service(
-        "tranger",
-        C_TRANGER,
-        kw_tranger,
-        gobj
-    );
-    priv->tranger = gobj_read_pointer_attr(priv->gobj_tranger, "tranger");
-
     /*-----------------------------*
-     *      Open Agent Treedb
+     *      Audit
      *-----------------------------*/
-    const char *treedb_name = kw_get_str(gobj,
-        jn_treedb_schema_yuneta_agent,
-        "id",
-        "treedb_yuneta_agent",
-        KW_REQUIRED
-    );
-    json_t *kw_resource = json_pack("{s:I, s:s, s:o, s:i}",
-        "tranger", (json_int_t)(uintptr_t)priv->tranger,
-        "treedb_name", treedb_name,
-        "treedb_schema", jn_treedb_schema_yuneta_agent,
-        "exit_on_error", LOG_OPT_EXIT_ZERO
-    );
-
-    priv->resource = gobj_create_service(
-        treedb_name,
-        C_NODE,
-        kw_resource,
-        gobj
-    );
-
     if(gobj_read_bool_attr(gobj, "use_audit_command_file")) {
-        /*-----------------------------*
-         *      Audit
-         *-----------------------------*/
         char audit_path[NAME_MAX];
         yuneta_realm_file(audit_path, sizeof(audit_path), "audit", "ZZZ-DD_MM_CCYY.log", TRUE);
         priv->audit_file = rotatory_open(
@@ -1172,6 +1119,9 @@ PRIVATE void mt_create(hgobj gobj)
         }
     }
 
+    /*-----------------------------*
+     *      Consoles
+     *-----------------------------*/
     priv->list_consoles = json_object();
 
     /*
@@ -1225,8 +1175,12 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_start(priv->timer);
-    set_timeout(priv->timer, priv->timerStBoot);
+    /*-----------------------------*
+     *      Get Authzs service
+     *-----------------------------*/
+    priv->gobj_authz =  gobj_find_service("authz", TRUE);
+    gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
+
     return 0;
 }
 
@@ -1236,6 +1190,147 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    clear_timeout(priv->timer);
+    gobj_unsubscribe_event(priv->gobj_authz, 0, 0, gobj);
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method play
+ *  Yuneta rule:
+ *  If service has mt_play then start only the service gobj.
+ *      (Let mt_play be responsible to start their tree)
+ *  If service has not mt_play then start the tree with gobj_start_tree().
+ ***************************************************************************/
+PRIVATE int mt_play(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    /*-------------------------------------------*
+     *          Create Treedb System
+     *-------------------------------------------*/
+    char path[PATH_MAX];
+    yuneta_realm_store_dir(
+        path,
+        sizeof(path),
+        "agentdb",
+        gobj_yuno_realm_owner(),
+        gobj_yuno_realm_id(),
+        "",  // gclass-treedb controls the directories
+        TRUE
+    );
+    json_t *kw_treedbs = json_pack("{s:s, s:s, s:b, s:i, s:i, s:i}",
+        "path", path,
+        "filename_mask", "%Y",  // to management treedbs we don't need multi-files (per day)
+        "master", 1,
+        "xpermission", 02770,
+        "rpermission", 0660,
+        "exit_on_error", LOG_OPT_EXIT_ZERO
+    );
+    priv->gobj_treedbs = gobj_create_service(
+        "treedbs",
+        C_TREEDB,
+        kw_treedbs,
+        gobj
+    );
+
+    /*
+     *  Start treedbs
+     */
+    gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+    gobj_start_tree(priv->gobj_treedbs);
+
+    /*---------------------------------------*
+     *      Open treedb_agentdb service
+     *---------------------------------------*/
+    helper_quote2doublequote(treedb_schema_yuneta_agent);
+    json_t *jn_treedb_schema_yuneta_agent;
+    jn_treedb_schema_yuneta_agent = legalstring2json(treedb_schema_yuneta_agent, TRUE);
+    if(parse_schema(jn_treedb_schema_yuneta_agent)<0) {
+        /*
+         *  Exit if schema fails
+         */
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", "Parse schema fails",
+            NULL
+        );
+        exit(-1);
+    }
+
+    BOOL use_internal_schema = gobj_read_bool_attr(gobj, "use_internal_schema");
+
+    const char *treedb_name_ = kw_get_str(gobj,
+        jn_treedb_schema_yuneta_agent,
+        "id",
+        "treedb_agentdb",
+        KW_REQUIRED
+    );
+    snprintf(priv->treedb_agentdb_name, sizeof(priv->treedb_agentdb_name), "%s", treedb_name_);
+
+    json_t *kw_treedb = json_pack("{s:s, s:i, s:s, s:o, s:b}",
+        "filename_mask", "%Y",
+        "exit_on_error", 0,
+        "treedb_name", priv->treedb_agentdb_name,
+        "treedb_schema", jn_treedb_schema_yuneta_agent,
+        "use_internal_schema", use_internal_schema
+    );
+    json_t *jn_resp = gobj_command(priv->gobj_treedbs,
+        "open-treedb",
+        kw_treedb,
+        gobj
+    );
+    int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
+    if(result < 0) {
+        const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_APP_ERROR,
+            "msg",          "%s", comment,
+            NULL
+        );
+    }
+    json_decref(jn_resp);
+
+    priv->gobj_treedb_agentdb = gobj_find_service(priv->treedb_agentdb_name, TRUE);
+    gobj_subscribe_event(priv->gobj_treedb_agentdb, 0, 0, gobj);
+
+    // Get timeranger of treedb_agentdb, will be used for alarms too
+    // priv->tranger_treedb_agentdb = gobj_read_pointer_attr(priv->gobj_treedb_agentdb, "tranger");
+
+    set_timeout(priv->timer, priv->timerStBoot);
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method pause
+ ***************************************************************************/
+PRIVATE int mt_pause(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*---------------------------------------*
+     *      Close treedb airedb
+     *---------------------------------------*/
+    json_decref(gobj_command(priv->gobj_treedbs,
+        "close-treedb",
+        json_pack("{s:s}",
+            "treedb_name", priv->treedb_agentdb_name
+        ),
+        gobj
+    ));
+
+    /*-------------------------*
+     *      Stop treedbs
+     *-------------------------*/
+    if(priv->gobj_treedbs) {
+        gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
+        gobj_stop_tree(priv->gobj_treedbs);
+        EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
+    }
 
     clear_timeout(priv->timer);
 
@@ -10469,13 +10564,15 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create   = mt_create,
-    .mt_destroy  = mt_destroy,
-    .mt_start    = mt_start,
-    .mt_stop     = mt_stop,
-    .mt_writing  = mt_writing,
-    .mt_trace_on = mt_trace_on,
-    .mt_trace_off= mt_trace_off,
+    .mt_create      = mt_create,
+    .mt_destroy     = mt_destroy,
+    .mt_start       = mt_start,
+    .mt_stop        = mt_stop,
+    .mt_play        = mt_play,
+    .mt_pause       = mt_pause,
+    .mt_writing     = mt_writing,
+    .mt_trace_on    = mt_trace_on,
+    .mt_trace_off   = mt_trace_off,
 };
 
 /*------------------------*
