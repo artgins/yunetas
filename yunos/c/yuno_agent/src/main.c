@@ -11,7 +11,7 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "yagent"
+#define APP_NAME        "yuneta_agent"
 #define APP_DOC         \
 "Yuneta Agent."\
 "If you want to live in my kingdom, you have to play by the rules." \
@@ -160,7 +160,9 @@ PRIVATE char variable_config[]= "\
             'name': 'authz',                                        \n\
             'gclass': 'C_AUTHZ',                                    \n\
             'autostart': true,                                      \n\
-            'autoplay': true                                        \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+            }                                                       \n\
         },                                                          \n\
         {                                               \n\
             'name': 'agent',                            \n\

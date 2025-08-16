@@ -13,7 +13,7 @@
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "yagent22"
+#define APP_NAME        "yuneta_agent22"
 #define APP_DOC         "Yuneta Agent22"
 
 #define APP_VERSION     YUNETA_VERSION
@@ -153,6 +153,14 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'services': [                                                   \n\
+        {                                                           \n\
+            'name': 'authz',                                        \n\
+            'gclass': 'C_AUTHZ',                                    \n\
+            'autostart': true,                                      \n\
+            'autoplay': true,                                       \n\
+            'kw': {                                                 \n\
+            }                                                       \n\
+        },                                               \n\
         {                                               \n\
             'name': 'agent22',                          \n\
             'gclass': 'C_AGENT22',                      \n\
@@ -207,15 +215,9 @@ PRIVATE char variable_config[]= "\
                     ]                                   \n\
                 }                                       \n\
             ]                                           \n\
-        },                                              \n\
-        {                                                           \n\
-            'name': 'authz',                                        \n\
-            'gclass': 'C_AUTHZ',                                    \n\
-            'autostart': true,                                      \n\
-            'autoplay': true                                        \n\
-        }                                                           \n\
-    ]                                                               \n\
-}                                                                   \n\
+        }                                               \n\
+    ] \n\
+} \n\
 ";
 
 /***************************************************************************

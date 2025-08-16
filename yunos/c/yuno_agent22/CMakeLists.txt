@@ -2,7 +2,7 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yagent22 C)
+project(yuneta_agent22 C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
