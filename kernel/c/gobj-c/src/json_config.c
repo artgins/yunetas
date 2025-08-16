@@ -155,6 +155,9 @@ PRIVATE json_t *nonx_legalstring2json(const char *reference, const char *bf, pe_
  ***************************************************************************/
 PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_flag_t quit)
 {
+    size_t flags = 0;
+    json_error_t error;
+
     /*
      *  Memory needed, double for src,dst
      */
@@ -209,7 +212,29 @@ PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_fl
      *  Convert to jansson
      */
     s = gbuffer_cur_rd_pointer(gbuf_dst);
-    json_t *jn_msg = string2json(s, TRUE);
+
+    json_t *jn_msg = json_loads(s, flags, &error);
+    if(!jn_msg) {
+        /*
+         *  Free
+         */
+        gbuffer_decref(gbuf_src);
+        gbuffer_decref(gbuf_dst);
+        print_error(
+            quit,
+            "Cannot convert non-legal json string to json binary.\n"
+            "Reference: '%s'\n"
+            "Json string:\n'%s'\n"
+            "Error: '%s'\n in line %d, column %d, position %d.\n",
+            reference,
+            bf,
+            error.text,
+            error.line,
+            error.column,
+            error.position
+        );
+        return NULL;
+    }
 
     /*
      *  Extract special __json_config_variables__ if exits
