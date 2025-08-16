@@ -336,7 +336,7 @@ PUBLIC void set_timeout(hgobj gobj, json_int_t msec)
         if(gobj_is_running(gobj)) {
             priv->t_flush = start_msectimer(priv->msec);
         } else {
-            gobj_start(gobj);
+            gobj_start(gobj); // this does the above start_msectimer()
         }
 
     } else {
@@ -385,7 +385,7 @@ PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec)
         if(gobj_is_running(gobj)) {
             priv->t_flush = start_msectimer(priv->msec);
         } else {
-            gobj_start(gobj);
+            gobj_start(gobj); // this does the above start_msectimer()
         }
 
     } else {

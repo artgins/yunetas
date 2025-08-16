@@ -133,12 +133,11 @@ SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             
 SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
 SDATA (DTP_JSON,        "agent22_environment",SDF_RD,             0,              "Agent22 environment. Override the yuno environment"),
 SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
-SDATA (DTP_INTEGER,     "timerStBoot",      SDF_RD,             "6000",         "Timer to run yunos on boot"),
-SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",        "Signal to kill yunos: SIGQUIT"),
+SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            "Signal to kill yunos: SIGQUIT"),
 
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[11100,11199]", "Range Ports"),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
-SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",             "Maximum consoles opened"),
+SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",           "Maximum consoles opened"),
 
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
@@ -173,7 +172,6 @@ SDATA_END()
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    int32_t timerStBoot;
     BOOL enabled_yunos_running;
 
     hgobj gobj_tranger;
@@ -182,7 +180,6 @@ typedef struct _PRIVATE_DATA {
     json_t *list_consoles; // Dictionary of console names
 
     hgobj resource;
-    hgobj timer;
 } PRIVATE_DATA;
 
 
@@ -252,8 +249,6 @@ PRIVATE void mt_create(hgobj gobj)
         exit(0);
     }
 
-    priv->timer = gobj_create("", C_TIMER, 0, gobj);
-
     /*---------------------------------------*
      *      Check if already running
      *---------------------------------------*/
@@ -312,7 +307,6 @@ PRIVATE void mt_create(hgobj gobj)
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(timerStBoot,             gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -320,10 +314,6 @@ PRIVATE void mt_create(hgobj gobj)
  ***************************************************************************/
 PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     IF_EQ_SET_PRIV(timeout,             gobj_read_integer_attr)
-//     END_EQ_SET_PRIV()
 }
 
 /***************************************************************************
@@ -343,10 +333,6 @@ PRIVATE void mt_destroy(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_start(priv->timer);
-    set_timeout(priv->timer, priv->timerStBoot);
     return 0;
 }
 
@@ -355,11 +341,6 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
-
     return 0;
 }
 

@@ -910,7 +910,7 @@ SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              
 SDATA (DTP_JSON,        "agent_environment",SDF_RD,             0,              "Agent environment. Override the yuno environment"),
 SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
 SDATA (DTP_INTEGER,     "timerStBoot",      SDF_RD,             "6000",         "Timer to run yunos on boot"),
-SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",        "Signal to kill yunos:SIGQUIT"),
+SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            "Signal to kill yunos:SIGQUIT"),
 
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[11100,11199]", "Range Ports. List of ports to be assigned to public services of yunos."),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
@@ -1238,7 +1238,6 @@ PRIVATE int mt_stop(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
 
     return 0;
 }

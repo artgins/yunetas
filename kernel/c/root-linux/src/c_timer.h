@@ -41,9 +41,9 @@ GOBJ_DECLARE_GCLASS(C_TIMER);
  ***************************************************************/
 PUBLIC int register_c_timer(void);
 
-PUBLIC void set_timeout(hgobj gobj, json_int_t msec);
-PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec);
-PUBLIC void clear_timeout(hgobj gobj);
+PUBLIC void set_timeout(hgobj gobj, json_int_t msec);   // it does the gobj_start() if not done
+PUBLIC void set_timeout_periodic(hgobj gobj, json_int_t msec); // it does the gobj_start() if not done
+PUBLIC void clear_timeout(hgobj gobj); // it does the gobj_stop() if not done
 
 #ifdef __cplusplus
 }
