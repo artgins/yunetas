@@ -8346,7 +8346,7 @@ PRIVATE json_t *find_binary_version(
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         gobj
     );
-    int idx; json_t *hs;
+    int idx; json_t *hs=NULL;
     json_array_foreach(iter_find, idx, hs) {
         const char *version_ = SDATA_GET_STR(hs, "version");
         if(empty_string(version)) {
