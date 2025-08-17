@@ -3163,14 +3163,16 @@ PRIVATE int load_id_callback(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    json_t *deleted_records = kw_get_dict(gobj,
+    json_t *deleted_records = kw_get_dict(
+        gobj,
         list, "deleted_records", 0, KW_REQUIRED
     );
-
-    const char *treedb_name = kw_get_str(gobj,
+    const char *treedb_name = kw_get_str(
+        gobj,
         list, "treedb_name", 0, KW_REQUIRED
     );
-    const char *topic_name = kw_get_str(gobj,
+    const char *topic_name = kw_get_str(
+        gobj,
         list, "topic_name", 0, KW_REQUIRED
     );
 
@@ -3284,15 +3286,10 @@ PRIVATE int load_pkey2_callback(
 {
     hgobj gobj = (hgobj)json_integer_value(json_object_get(tranger, "gobj"));
 
-    const char *pkey2_name = kw_get_str(
-        gobj,
-        list, "pkey2_name", "", KW_REQUIRED
-    );
     json_t *deleted_records = kw_get_dict(
         gobj,
         list, "deleted_records", 0, KW_REQUIRED
     );
-
     const char *treedb_name = kw_get_str(
         gobj,
         list, "treedb_name", 0, KW_REQUIRED
@@ -3300,6 +3297,10 @@ PRIVATE int load_pkey2_callback(
     const char *topic_name = kw_get_str(
         gobj,
         list, "topic_name", 0, KW_REQUIRED
+    );
+    const char *pkey2_name = kw_get_str(
+        gobj,
+        list, "pkey2_name", "", KW_REQUIRED
     );
 
     /*---------------------------------*
@@ -3361,8 +3362,17 @@ PRIVATE int load_pkey2_callback(
                      *  Append new node
                      *-------------------------------*/
                     /*---------------------------------------------*
-                     *  Build metadata, loading node from tranger
+                     *  Build metadata, loading node from disk
                      *---------------------------------------------*/
+                    json_t *jn_record_md = md2json(
+                        treedb_name,
+                        topic_name,
+                        md_record,
+                        rowid
+                    );
+                    // json_object_set_new(jn_record_md, "pending_links", json_true());
+                    json_object_set_new(jn_record, "__md_treedb__", jn_record_md);
+                    json_object_del(jn_record, "__md_tranger__");
 
                     /*--------------------------------------------*
                      *  Set missing data
@@ -7357,7 +7367,6 @@ PUBLIC json_t *treedb_list_nodes( // Return MUST be decref
                 continue;
             }
             if(match_fn(topic_desc, node, jn_filter)) {
-                // Collapse records (hook fields)
                 json_array_append(
                     list,
                     node
@@ -7492,8 +7501,8 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
 
     int idx; json_t *jn_pkey2_name;
     json_array_foreach(iter_pkey2s, idx, jn_pkey2_name) {
-        const char *pkey2_name = json_string_value(jn_pkey2_name);
-        if(empty_string(pkey2_name)) {
+        const char *pkey2_name2 = json_string_value(jn_pkey2_name);
+        if(empty_string(pkey2_name2)) {
             continue;
         }
         /*---------------------------------*
@@ -7503,15 +7512,16 @@ PUBLIC json_t *treedb_list_instances( // Return MUST be decref
             tranger,
             treedb_name,
             topic_name,
-            pkey2_name
+            pkey2_name2
         );
+
         if(!indexy) {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_TREEDB_ERROR,
                 "msg",          "%s", "TreeDb Topic indexy NOT FOUND",
                 "topic_name",   "%s", topic_name,
-                "pkey2_name",   "%s", pkey2_name,
+                "pkey2_name",   "%s", pkey2_name2,
                 NULL
             );
             continue;

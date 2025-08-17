@@ -1392,6 +1392,7 @@ PRIVATE json_t *mt_list_instances(
         0
     );
 
+
     json_t *list = json_array();
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
