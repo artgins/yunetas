@@ -36,23 +36,6 @@
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE void *_mem_malloc(size_t size);
-PRIVATE void _mem_free(void *p);
-PRIVATE void *_mem_realloc(void *p, size_t new_size);
-PRIVATE void *_mem_calloc(size_t n, size_t size);
-
-PRIVATE sys_malloc_fn_t sys_malloc_fn = _mem_malloc;
-PRIVATE sys_realloc_fn_t sys_realloc_fn = _mem_realloc;
-PRIVATE sys_calloc_fn_t sys_calloc_fn = _mem_calloc;
-PRIVATE sys_free_fn_t sys_free_fn = _mem_free;
-
-PRIVATE size_t __max_block__ = 16*1024L*1024L;     /* largest memory block, default for no-using apps*/
-PRIVATE size_t __max_system_memory__ = 64*1024L*1024L;   /* maximum core memory, default for no-using apps */
-
-#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
-PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
-#endif
-
 #if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
     PRIVATE size_t mem_ref = 0;
     PRIVATE dl_list_t dl_busy_mem = {0};
@@ -69,6 +52,23 @@ PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
     // typedef struct {
     //     size_t size;
     // } track_mem_t;
+#endif
+
+PRIVATE void *_mem_malloc(size_t size);
+PRIVATE void _mem_free(void *p);
+PRIVATE void *_mem_realloc(void *p, size_t new_size);
+PRIVATE void *_mem_calloc(size_t n, size_t size);
+
+PRIVATE sys_malloc_fn_t sys_malloc_fn = _mem_malloc;
+PRIVATE sys_realloc_fn_t sys_realloc_fn = _mem_realloc;
+PRIVATE sys_calloc_fn_t sys_calloc_fn = _mem_calloc;
+PRIVATE sys_free_fn_t sys_free_fn = _mem_free;
+
+PRIVATE size_t __max_block__ = 16*1024L*1024L; /* largest memory block, default for no-using apps*/
+PRIVATE size_t __max_system_memory__ = 64*1024L*1024L;   /* maximum core memory, default for no-using apps */
+
+#if defined(CONFIG_DEBUG_TRACK_MEMORY) && defined(CONFIG_BUILD_TYPE_DEBUG)
+PRIVATE size_t __cur_system_memory__ = 0;   /* current system memory */
 #endif
 
 /***************************************************************************
@@ -233,7 +233,7 @@ PUBLIC char *gbmem_strdup(const char *string)
  *************************************************************************/
 PUBLIC size_t gbmem_get_maximum_block(void)
 {
-    return __max_block__;
+    return __max_block__ - TRACK_MEM;
 }
 
 /***************************************************************************

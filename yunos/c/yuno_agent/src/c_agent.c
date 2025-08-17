@@ -182,7 +182,7 @@ PRIVATE char agent_filter_chain_config[]= "\
             'autostart': true,              \n\
             'kw': {                         \n\
                 'remote_yuno_name': '',                 \n\
-                'remote_yuno_role': 'yagent',           \n\
+                'remote_yuno_role': 'yuneta_agent',           \n\
                 'remote_yuno_service': 'agent',         \n\
                 'extra_info': {                             \n\
                     'realm_id': '%s',                       \n\
@@ -1002,7 +1002,7 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_log_info(gobj, 0,
         "function",     "%s", __FUNCTION__,
         "msgset",       "%s", MSGSET_INFO,
-        "msg",          "%s", "yagent starting: node uuid",
+        "msg",          "%s", "yuneta_agent starting: node uuid",
         "uuid",         "%s", uuid,
         NULL
     );
@@ -1072,7 +1072,7 @@ PRIVATE void mt_create(hgobj gobj)
                 gobj_log_warning(gobj, 0,
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_INFO,
-                    "msg",          "%s", "yagent already running, exiting",
+                    "msg",          "%s", "yuneta_agent already running, exiting",
                     "pid",          "%d", pid,
                     NULL
                 );
@@ -2889,7 +2889,7 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
      *  Execute cmd --role
      */
     size_t size = gbmem_get_maximum_block();
-    char *cmd_output = gbmem_malloc(gbmem_get_maximum_block());
+    char *cmd_output = gbmem_malloc(size);
     if(!cmd_output) {
         // Error already logged
         return 0;
@@ -6625,17 +6625,18 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
 /*****************************************************************
  *
  *****************************************************************/
-PRIVATE BOOL is_yuneta_agent(pid_t pid)
+PRIVATE int is_yuneta_agent(pid_t pid)
 {
     int ret = kill(pid, 0);
     if(ret == 0) {
         char cmdline[1024];
         read_process_cmdline(cmdline, sizeof(cmdline), pid);
-        if(strstr(cmdline, " yagent ")) {
-            return TRUE;
+        if(strstr(cmdline, " yuneta_agent ")) {
+            return 0;
         }
+        return -1;
     }
-    return FALSE;
+    return ret;
 }
 
 /***************************************************************************
