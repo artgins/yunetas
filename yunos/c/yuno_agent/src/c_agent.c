@@ -1239,7 +1239,6 @@ PRIVATE int mt_play(hgobj gobj)
     /*
      *  Start treedbs
      */
-    gobj_subscribe_event(priv->gobj_treedbs, 0, 0, gobj);
     gobj_start_tree(priv->gobj_treedbs);
 
     /*---------------------------------------*
@@ -1296,7 +1295,6 @@ PRIVATE int mt_play(hgobj gobj)
     json_decref(jn_resp);
 
     priv->resource = gobj_find_service(priv->treedb_agentdb_name, TRUE);
-    gobj_subscribe_event(priv->resource, 0, 0, gobj);
 
     // Get timeranger of treedb_agentdb, will be used for alarms too
     // priv->tranger_treedb_agentdb = gobj_read_pointer_attr(priv->gobj_treedb_agentdb, "tranger");
