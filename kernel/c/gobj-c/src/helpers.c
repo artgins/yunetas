@@ -2000,10 +2000,10 @@ PUBLIC int json_list_update(json_t *list, json_t *other, BOOL as_set_type) // WA
  ***************************************************************************/
 PUBLIC BOOL json_is_range(json_t *list, json_int_t *pfirst, json_int_t *psecond)
 {
-    if(*pfirst) {
+    if(pfirst) {
         *pfirst = 0;
     }
-    if(*psecond) {
+    if(psecond) {
         *psecond = 0;
     }
     if(json_array_size(list) != 2) {
@@ -2013,10 +2013,10 @@ PUBLIC BOOL json_is_range(json_t *list, json_int_t *pfirst, json_int_t *psecond)
     json_int_t first = json_integer_value(json_array_get(list, 0));
     json_int_t second = json_integer_value(json_array_get(list, 1));
     if(first <= second) {
-        if(*pfirst) {
+        if(pfirst) {
             *pfirst = first;
         }
-        if(*psecond) {
+        if(psecond) {
             *psecond = second;
         }
         return TRUE;

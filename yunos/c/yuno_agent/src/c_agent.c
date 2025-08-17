@@ -8566,7 +8566,7 @@ PRIVATE int register_public_services(
             const char *schema = kw_get_str(gobj, jn_descriptor, "schema", "", 0);
             json_t *jn_connector = kw_get_dict_value(gobj, jn_descriptor, "connector", 0, 0);
 
-            int port = 0;
+            unsigned port = 0;
 
             /*
              *  Check if already exists the service
@@ -8605,7 +8605,7 @@ PRIVATE int register_public_services(
                     gobj
                 );
                 if(!hs_service) {
-                    gobj_log_error(gobj, 0,
+                    gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                         "function",     "%s", __FUNCTION__,
                         "msgset",       "%s", MSGSET_SERVICE_ERROR,
                         "msg",          "%s", "Cannot create service",
@@ -8618,14 +8618,6 @@ PRIVATE int register_public_services(
                     continue;
                 }
                 port = get_new_service_port(gobj, hs_realm);
-                //SDATA_SET_INT(hs_realm, "last_port", port); DEPRECATED
-                //hs_realm = gobj_update_node(
-                //    priv->resource,
-                //    "realms",
-                //    hs_realm,
-                //    json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-                //    gobj
-                //);
             }
 
             /*
