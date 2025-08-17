@@ -2708,6 +2708,7 @@ PRIVATE int write_json_parameters(
             );
             gobj_trace_json(gobj, new_kw, "final kw");
         }
+
         json_t *__user_data__ = kw_get_dict(gobj, new_kw, "__user_data__", 0, KW_EXTRACT);
 
         ret = json2sdata(
@@ -2728,6 +2729,8 @@ PRIVATE int write_json_parameters(
         /*
          *  Non Services
          */
+        json_t *__user_data__ = kw_get_dict(gobj, kw, "__user_data__", 0, KW_EXTRACT);
+
         ret = json2sdata(
             hs,
             kw,
@@ -2735,6 +2738,11 @@ PRIVATE int write_json_parameters(
             (gobj->gclass->gclass_flag & gcflag_ignore_unknown_attrs)?0:print_attr_not_found,
             gobj
         );
+
+        if(__user_data__) {
+            json_object_update(((gobj_t *)gobj)->jn_user_data, __user_data__);
+            json_decref(__user_data__);
+        }
     }
 
     if(__trace_gobj_create_delete2__(gobj)) {

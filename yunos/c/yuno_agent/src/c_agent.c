@@ -1329,7 +1329,6 @@ PRIVATE int mt_pause(hgobj gobj)
      *      Stop treedbs
      *-------------------------*/
     if(priv->gobj_treedbs) {
-        gobj_unsubscribe_event(priv->gobj_treedbs, 0, 0, gobj);
         gobj_stop_tree(priv->gobj_treedbs);
         EXEC_AND_RESET(gobj_destroy, priv->gobj_treedbs)
     }
@@ -10164,14 +10163,17 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         return 0;
     }
 
+    json_t *yuno = NULL;
     const char *__yuno__ = json_string_value(gobj_read_user_data(channel_gobj, "__yuno__"));
-    json_t *yuno = gobj_get_node(
-        priv->resource,
-        "yunos",
-        json_pack("{s:s}", "id", __yuno__),
-        json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
-        src
-    );
+    if(!empty_string(__yuno__)) {
+        yuno = gobj_get_node(
+            priv->resource,
+            "yunos",
+            json_pack("{s:s}", "id", __yuno__),
+            json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+            src
+        );
+    }
 
     if(!yuno) {
         // Must be yuneta_cli or a yuno refused!.

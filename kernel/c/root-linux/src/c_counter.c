@@ -95,9 +95,17 @@ PRIVATE void mt_create(hgobj gobj)
 
     SET_PRIV(final_event_name,          gobj_read_str_attr)
 
-    event_type_t *event_type = gobj_find_event_type(priv->final_event_name, 0, TRUE);
+    event_type_t *event_type = gobj_event_type_by_name(gobj, priv->final_event_name);
     if(event_type) {
         priv->final_event_name = event_type->event_name;
+    } else {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "event_type not found",
+            "event",        "%s", priv->final_event_name,
+            NULL
+        );
     }
 
     /*
