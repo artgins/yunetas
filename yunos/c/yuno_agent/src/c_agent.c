@@ -4899,7 +4899,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         );
     }
 
-    gobj_subscribe_event(gobj_counter, "EV_FINAL_COUNT", kw_final_count, gobj);
+    gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
 
     gobj_start(gobj_counter);
 
@@ -5073,7 +5073,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    gobj_subscribe_event(gobj_counter, "EV_FINAL_COUNT", kw_final_count, gobj);
+    gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
 
     gobj_start(gobj_counter);
 
