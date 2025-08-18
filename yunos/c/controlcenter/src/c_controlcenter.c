@@ -515,7 +515,7 @@ PRIVATE json_t *cmd_logout_user(hgobj gobj, const char *cmd, json_t *kw, hgobj s
 
     int result = gobj_send_event(
         priv->gobj_authz,
-        "EV_REJECT_USER",
+        EV_REJECT_USER,
         json_pack("{s:s, s:b}",
             "username", username,
             "disabled", disabled
@@ -1481,7 +1481,7 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
         if(json_array_size(kw_get_list(gobj, webix, "data", 0, KW_REQUIRED))==0) {
             gobj_send_event(
                 priv->gobj_authz,
-                "EV_ADD_USER",
+                EV_ADD_USER,
                 json_pack("{s:s, s:s, s:b}",
                     "username", username,
                     "role", "roles^user-purezadb^users",
@@ -1492,7 +1492,7 @@ PRIVATE int ac_treedb_node_updated(hgobj gobj, const char *event, json_t *kw, hg
         } else {
             gobj_send_event(
                 priv->gobj_authz,
-                "EV_ADD_USER",
+                EV_ADD_USER,
                 json_pack("{s:s, s:b}",
                     "username", username,
                     "disabled", enabled?0:1
@@ -1529,7 +1529,7 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
         const char *username = kw_get_str(gobj, node_, "id", "", KW_REQUIRED);
         gobj_send_event(
             priv->gobj_authz,
-            "EV_REJECT_USER",
+            EV_REJECT_USER,
             json_pack("{s:s, s:b}",
                 "username", username,
                 "disabled", 1

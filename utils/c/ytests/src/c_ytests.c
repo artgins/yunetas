@@ -233,7 +233,7 @@ PRIVATE int do_authenticate_task(hgobj gobj)
         kw,
         gobj
     );
-    gobj_subscribe_event(gobj_task, "EV_ON_TOKEN", 0, gobj);
+    gobj_subscribe_event(gobj_task, EV_ON_TOKEN, 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
     /*-----------------------*

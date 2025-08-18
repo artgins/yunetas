@@ -4860,6 +4860,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     /*
      *  Subcribe al objeto counter a los eventos del router
      */
+    int x;
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", "EV_COUNT"
     );
@@ -5037,7 +5038,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     );
 
     hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
-
+int x;
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", "EV_COUNT"
     );
@@ -5158,6 +5159,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                  *  Realmente solo se necesita para informar al cliente
                  *  solo después de que se hayan ejecutado sus ordenes.
                  */
+                int x;
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:I}}",
                     "event", "EV_PLAY_YUNO_ACK",
                     "filters",
@@ -5224,6 +5226,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     );
 
     hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
+int x;
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", "EV_COUNT"
     );
@@ -5233,7 +5236,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      */
     gobj_subscribe_event(
         gobj,
-        "EV_PLAY_YUNO_ACK",
+        EV_PLAY_YUNO_ACK,
         kw_sub,
         gobj_counter
     );
@@ -5259,7 +5262,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    gobj_subscribe_event(gobj_counter, "EV_FINAL_COUNT", kw_final_count, gobj);
+    gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
 
     gobj_start(gobj_counter);
 
@@ -5329,6 +5332,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_t *jn_msg = json_object();
             kw_set_dict_value(gobj, jn_msg, "__md_iev__`__id__", json_integer(filter_ref));
             if(pause_yuno(gobj, yuno, jn_msg, src)==0) {
+                int x;
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:I}}",
                     "event", "EV_PAUSE_YUNO_ACK",
                     "filters",
@@ -5394,6 +5398,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     );
 
     hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
+    int x;
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", "EV_COUNT"
     );
@@ -5403,7 +5408,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      */
     gobj_subscribe_event(
         gobj,
-        "EV_PAUSE_YUNO_ACK",
+        EV_PAUSE_YUNO_ACK,
         kw_sub,
         gobj_counter
     );
@@ -5429,7 +5434,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         );
     }
 
-    gobj_subscribe_event(gobj_counter, "EV_FINAL_COUNT", kw_final_count, gobj);
+    gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
 
     gobj_start(gobj_counter);
 
@@ -8114,7 +8119,7 @@ PRIVATE int pause_yuno(hgobj gobj, json_t *yuno, json_t *kw, hgobj src)
 
     return gobj_send_event(
         channel_gobj,
-        "EV_PAUSE_YUNO",
+        EV_PAUSE_YUNO,
         kw,
         gobj
     );
@@ -9547,7 +9552,7 @@ PRIVATE int ac_read_running_keys(hgobj gobj, const char *event, json_t *kw, hgob
      */
     return gobj_send_event(
         src,
-        "EV_READ_FILE",
+        EV_READ_FILE,
         msg_iev_build_response(gobj,
             0,
             0,
@@ -9632,7 +9637,7 @@ PRIVATE int ac_read_running_bin(hgobj gobj, const char *event, json_t *kw, hgobj
      */
     return gobj_send_event(
         src,
-        "EV_READ_FILE",
+        EV_READ_FILE,
         msg_iev_build_response(gobj,
             0,
             0,
@@ -10304,7 +10309,7 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     return gobj_send_event(
         gobj_requester,
-        "EV_MT_COMMAND_ANSWER",
+        EV_MT_COMMAND_ANSWER,
         webix,
         gobj
     );
@@ -10344,7 +10349,7 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
             gobj_send_event(
                 gobj_input_gate,
-                "EV_TTY_OPEN",
+                EV_TTY_OPEN,
                 msg_iev_build_response(gobj,
                     0,  // result
                     0,  // comment
@@ -10406,7 +10411,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
             gobj_send_event(
                 gobj_input_gate,
-                "EV_TTY_CLOSE",
+                EV_TTY_CLOSE,
                 msg_iev_build_response(gobj,
                     0,  // result
                     0,  // comment

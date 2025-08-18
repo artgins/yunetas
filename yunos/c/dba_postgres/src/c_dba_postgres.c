@@ -809,7 +809,7 @@ PRIVATE int process_msg(
     );
 
     hgobj gobj_task = gobj_create_service(task_name, C_TASK, kw_task, gobj);
-    gobj_subscribe_event(gobj_task, "EV_END_TASK", 0, gobj);
+    gobj_subscribe_event(gobj_task, EV_END_TASK, 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
     /*-----------------------*

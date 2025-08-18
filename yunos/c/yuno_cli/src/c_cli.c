@@ -1264,7 +1264,7 @@ PRIVATE json_t *cmd_do_authenticate_task(hgobj gobj, const char *cmd, json_t *kw
         gobj_write_str_attr(gobj_task, "azp", azp);
     }
     if(gobj_task) {
-        gobj_subscribe_event(gobj_task, "EV_ON_TOKEN", 0, gobj);
+        gobj_subscribe_event(gobj_task, EV_ON_TOKEN, 0, gobj);
         gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
         /*-----------------------*
@@ -1562,6 +1562,15 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
                 event_type_t *event_type = gobj_event_type_by_name(dst_gobj, event);
                 if(event_type) {
                     gobj_send_event(dst_gobj, event_type->event_name, 0, gobj);
+                } else {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "event NOT FOUND",
+                        "service",      "%s", gobj_short_name(dst_gobj),
+                        "event",        "%s", event,
+                        NULL
+                    );
                 }
             }
             return 0;
@@ -1600,6 +1609,15 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
                     if(event_type->event_name == EV_EDITLINE_DEL_LINE) {
                         msg2statusline(gobj, 0, "%s", "");
                     }
+                } else {
+                    gobj_log_error(gobj, 0,
+                        "function",     "%s", __FUNCTION__,
+                        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                        "msg",          "%s", "event NOT FOUND",
+                        "service",      "%s", gobj_short_name(dst_gobj),
+                        "event",        "%s", event,
+                        NULL
+                    );
                 }
             }
             return 0;

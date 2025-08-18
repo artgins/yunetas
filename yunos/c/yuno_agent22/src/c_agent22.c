@@ -1062,7 +1062,7 @@ PRIVATE int ac_tty_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
             gobj_send_event(
                 gobj_input_gate,
-                "EV_TTY_OPEN",
+                EV_TTY_OPEN,
                 msg_iev_build_response(gobj,
                     0,  // result
                     0,  // comment
@@ -1124,7 +1124,7 @@ PRIVATE int ac_tty_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
             gobj_send_event(
                 gobj_input_gate,
-                "EV_TTY_CLOSE",
+                EV_TTY_CLOSE,
                 msg_iev_build_response(gobj,
                     0,  // result
                     0,  // comment
@@ -1177,7 +1177,7 @@ PRIVATE int ac_tty_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
             gobj_send_event(
                 gobj_input_gate,
-                "EV_TTY_DATA",
+                EV_TTY_DATA,
                 msg_iev_build_response(gobj,
                     0,  // result
                     0,  // comment

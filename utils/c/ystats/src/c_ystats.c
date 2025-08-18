@@ -199,7 +199,7 @@ PRIVATE int do_authenticate_task(hgobj gobj)
         kw,
         gobj
     );
-    gobj_subscribe_event(gobj_task, "EV_ON_TOKEN", 0, gobj);
+    gobj_subscribe_event(gobj_task, EV_ON_TOKEN, 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
     /*-----------------------*
@@ -475,7 +475,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 //             "yuno_service",
 //             gobj_read_str_attr(gobj, "yuno_service")
 //         );
-//         gobj_subscribe_event(src, "EV_ON_STATS", kw_subscription, gobj);
+//         gobj_subscribe_event(src, EV_ON_STATS, kw_subscription, gobj);
     }
 
     KW_DECREF(kw);
