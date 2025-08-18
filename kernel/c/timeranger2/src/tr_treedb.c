@@ -4390,6 +4390,10 @@ PUBLIC json_t *treedb_create_node( // WARNING Return is NOT YOURS, pure node
             create_random_uuid(uuid, sizeof(uuid));
             id = uuid;
             json_object_set_new(kw, "id", json_string(id));
+        } else if(kw_has_word(gobj, id_col_flag, "rowid", 0)) {
+            json_int_t rowid = (json_int_t)tranger2_topic_size(tranger, topic_name) + 1;
+            json_object_set_new(kw, "id", json_sprintf("%"JSON_INTEGER_FORMAT, rowid));
+            id = kw_get_str(gobj, kw, "id", 0, 0);
         } else {
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
