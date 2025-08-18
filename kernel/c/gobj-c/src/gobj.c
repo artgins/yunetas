@@ -23,6 +23,9 @@
 #include "stats_parser.h"
 #include "testing.h"
 #include "gobj.h"
+
+#include <openssl/x509.h>
+
 #include "g_ev_kernel.h"
 #include "g_st_kernel.h"
 
@@ -7902,26 +7905,38 @@ PRIVATE json_t * _create_subscription(
             json_t *kw_clone = json_deep_copy(__config__);
             json_object_set_new(subs, "__config__", kw_clone);
 
-// TODO
-//            if(kw_has_key(kw_clone, "__rename_event_name__")) {
-//                const char *renamed_event = kw_get_str(kw_clone, "__rename_event_name__", 0, 0);
-//                sdata_write_str(subs, "renamed_event", renamed_event);
-//                json_object_del(kw_clone, "__rename_event_name__");
-//                subs_flag |= __rename_event_name__;
-//
-//                // Get/Create __global__
-//                json_t *kw_global = sdata_read_json(subs, "__global__");
-//                if(!kw_global) {
-//                    kw_global = json_object();
-//                    sdata_write_json(subs, "__global__", kw_global);
-//                    kw_decref(kw_global); // Incref above
-//                }
-//                kw_set_dict_value(
-//                    kw_global,
-//                    "__original_event_name__",
-//                    json_string(event)
-//                );
-//            }
+            const char *renamed_event = kw_get_str(
+                publisher,
+                kw_clone,
+                "__rename_event_name__",
+                0,
+                0
+            );
+            if(!empty_string(renamed_event)) {
+                event_type_t *event_type = gobj_find_event_type(renamed_event, 0, TRUE);
+                if(event_type) {
+                    json_object_set_new(
+                        subs,
+                        "renamed_event",
+                        json_string(event_type->event_name)
+                    );
+                    json_object_del(kw_clone, "__rename_event_name__");
+                    subs_flag |= __rename_event_name__;
+
+                    // Get/Create __global__
+                    json_t *kw_global = kw_get_dict(publisher, subs, "__global__", 0, 0);
+                    if(!kw_global) {
+                        kw_global = json_object();
+                        json_object_set_new(subs, "__global__", kw_global);
+                    }
+                    kw_set_dict_value(
+                        publisher,
+                        kw_global,
+                        "__original_event_name__",
+                        json_string(event)
+                    );
+                }
+            }
 
             if(kw_has_key(kw_clone, "__hard_subscription__")) {
                 BOOL hard_subscription = kw_get_bool(
@@ -7932,6 +7947,7 @@ PRIVATE json_t * _create_subscription(
                     subs_flag |= __hard_subscription__;
                 }
             }
+
             if(kw_has_key(kw_clone, "__own_event__")) {
                 BOOL own_event= kw_get_bool(publisher, kw_clone, "__own_event__", 0, 0);
                 json_object_del(kw_clone, "__own_event__");
@@ -7940,6 +7956,7 @@ PRIVATE json_t * _create_subscription(
                 }
             }
         }
+
         if(json_size(__local__)>0) {
             json_t *kw_clone = json_deep_copy(__local__);
             json_object_set_new(subs, "__local__", kw_clone);
@@ -8876,6 +8893,7 @@ PUBLIC int gobj_publish_event(
         subs_flag_t subs_flag = (subs_flag_t)kw_get_int(
             publisher, subs, "subs_flag", 0, KW_REQUIRED
         );
+
         gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(
             publisher, subs, "event", 0, KW_REQUIRED
         );
@@ -8888,10 +8906,18 @@ PUBLIC int gobj_publish_event(
             /*
              *  Check renamed_event
              */
-//   TODO review        const char *event_name = sdata_read_str(subs, "renamed_event");
-//            if(empty_string(event_name)) {
-//                event_name = event;
-//            }
+            if(subs_flag & __rename_event_name__) {
+                gobj_event_t renamed_event = kw_get_str(
+                    publisher,
+                    subs,
+                    "renamed_event",
+                    0,
+                    0
+                );
+                if(!empty_string(renamed_event)) {
+                    event = renamed_event;
+                }
+            }
 
             /*
              *  Duplicate the kw to publish if not shared

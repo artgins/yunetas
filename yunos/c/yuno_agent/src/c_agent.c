@@ -4858,11 +4858,10 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
     hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
 
     /*
-     *  Subcribe al objeto counter a los eventos del router
+     *  Subscribe al objeto counter a los eventos del router
      */
-    int x;
     json_t *kw_sub = json_pack("{s:{s:s}}",
-        "__config__", "__rename_event_name__", "EV_COUNT"
+        "__config__", "__rename_event_name__", EV_COUNT
     );
     gobj_subscribe_event(
         gobj_find_service("__input_side__", TRUE),
@@ -5038,13 +5037,13 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     );
 
     hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
-int x;
+
     json_t *kw_sub = json_pack("{s:{s:s}}",
-        "__config__", "__rename_event_name__", "EV_COUNT"
+        "__config__", "__rename_event_name__", EV_COUNT
     );
 
     /*
-     *  Subcribe al objeto counter a los eventos del router
+     *  Subscribe al objeto counter a los eventos del router
      */
     gobj_subscribe_event(
         gobj_find_service("__input_side__", TRUE),
@@ -5159,9 +5158,9 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                  *  Realmente solo se necesita para informar al cliente
                  *  solo después de que se hayan ejecutado sus ordenes.
                  */
-                int x;
+                // TODO check
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:I}}",
-                    "event", "EV_PLAY_YUNO_ACK",
+                    "event", EV_PLAY_YUNO_ACK,
                     "filters",
                         "__md_iev__`__id__", (json_int_t)filter_ref
                 );
@@ -5226,13 +5225,13 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
     );
 
     hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
-int x;
+
     json_t *kw_sub = json_pack("{s:{s:s}}",
-        "__config__", "__rename_event_name__", "EV_COUNT"
+        "__config__", "__rename_event_name__", EV_COUNT
     );
 
     /*
-     *  Subcribe al objeto counter a los eventos del router
+     *  Subscribe al objeto counter a los eventos del router
      */
     gobj_subscribe_event(
         gobj,
@@ -5332,9 +5331,9 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_t *jn_msg = json_object();
             kw_set_dict_value(gobj, jn_msg, "__md_iev__`__id__", json_integer(filter_ref));
             if(pause_yuno(gobj, yuno, jn_msg, src)==0) {
-                int x;
+                // TODO check
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:I}}",
-                    "event", "EV_PAUSE_YUNO_ACK",
+                    "event", EV_PAUSE_YUNO_ACK,
                     "filters",
                         "__md_iev__`__id__", (json_int_t)filter_ref
                 );
@@ -5398,13 +5397,12 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     );
 
     hgobj gobj_counter = gobj_create("", C_COUNTER, kw_counter, gobj);
-    int x;
     json_t *kw_sub = json_pack("{s:{s:s}}",
-        "__config__", "__rename_event_name__", "EV_COUNT"
+        "__config__", "__rename_event_name__", EV_COUNT
     );
 
     /*
-     *  Subcribe al objeto counter a los eventos del router
+     *  Subscribe al objeto counter a los eventos del router
      */
     gobj_subscribe_event(
         gobj,
