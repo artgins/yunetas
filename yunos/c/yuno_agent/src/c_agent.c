@@ -10669,8 +10669,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         /* Publications (outputs) */
         {EV_PLAY_YUNO_ACK,        EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_PAUSE_YUNO_ACK,       EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_MT_STATS_ANSWER,      EVF_OUTPUT_EVENT},
-        {EV_MT_COMMAND_ANSWER,    EVF_OUTPUT_EVENT},
+        {EV_MT_STATS_ANSWER,      EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {EV_MT_COMMAND_ANSWER,    EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
 
         {0, 0}
     };

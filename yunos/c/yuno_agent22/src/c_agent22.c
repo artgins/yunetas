@@ -1325,8 +1325,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     event_type_t event_types[] = {
         {EV_PLAY_YUNO_ACK,       EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_PAUSE_YUNO_ACK,      EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_MT_STATS_ANSWER,     EVF_OUTPUT_EVENT},
-        {EV_MT_COMMAND_ANSWER,   EVF_OUTPUT_EVENT},
+        {EV_MT_STATS_ANSWER,     EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
+        {EV_MT_COMMAND_ANSWER,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
 
         {EV_ON_OPEN,             0},
         {EV_ON_CLOSE,            0},

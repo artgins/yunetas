@@ -214,7 +214,7 @@ PRIVATE char variable_config[]= "\
                 },                                              \n\
                 '__content__': {                                \n\
                     'name': 'input-(^^__range__^^)',                \n\
-                    'gclass': 'C_IEVENT_SRV',                          \n\
+                    'gclass': 'C_IEVENT_SRV', #^^ TODO must be C_CHANNEL but inject EV_PLAY_YUNO fails, review                         \n\
                     'kw': {                                         \n\
                     },                                              \n\
                     'children': [                                     \n\
@@ -322,7 +322,7 @@ static int register_yuno_and_more(void)
 
     // Global traces
     // gobj_set_global_trace("create_delete", TRUE);
-    gobj_set_global_trace("machine", TRUE);
+    // gobj_set_global_trace("machine", TRUE);
     // gobj_set_global_trace("create_delete", TRUE);
     // gobj_set_global_trace("create_delete2", TRUE);
     // gobj_set_global_trace("subscriptions", TRUE);
