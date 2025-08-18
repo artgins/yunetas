@@ -8485,12 +8485,9 @@ PRIVATE int get_last_public_port(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE unsigned get_new_service_port(
-    hgobj gobj,
-    json_t *hs_realm // NOT owned
-)
+PRIVATE unsigned get_new_service_port(hgobj gobj)
 {
-    json_t *jn_range_ports = kw_get_dict_value(gobj, hs_realm, "range_ports", 0, KW_REQUIRED);
+    json_t *jn_range_ports = gobj_read_json_attr(gobj, "range_ports");
     json_t *jn_port_list = json_listsrange2set(jn_range_ports);
 
     unsigned new_port = 0;
@@ -8617,7 +8614,7 @@ PRIVATE int register_public_services(
                     ret += -1;
                     continue;
                 }
-                port = get_new_service_port(gobj, hs_realm);
+                port = get_new_service_port(gobj);
             }
 
             /*

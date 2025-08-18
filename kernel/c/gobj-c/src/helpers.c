@@ -2058,8 +2058,9 @@ PUBLIC json_t *json_range_list(json_t *list) // WARNING slow function, don't use
  *
  *  Return the json list
  ***************************************************************************/
-PUBLIC json_t *json_listsrange2set(json_t *listsrange) // WARNING function TOO SLOW, use for short ranges
-{
+PUBLIC json_t *json_listsrange2set( // WARNING function TOO SLOW, use for short ranges
+    json_t *listsrange // not owned
+) {
     if(!json_is_array(listsrange)) {
         return 0;
     }
