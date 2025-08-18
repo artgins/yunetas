@@ -433,8 +433,10 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     // TODO cache if EV_SEND_MESSAGE or EV_TX_DATA, use new mt_set_bottom_gobj()
     if(gobj_has_event(gobj_bottom, EV_SEND_MESSAGE, 0)) {
+        priv->txMsgs++;
         ret = gobj_send_event(gobj_bottom, EV_SEND_MESSAGE, kw, gobj);
     } else if(gobj_has_event(gobj_bottom, EV_TX_DATA, 0)) {
+        priv->txMsgs++;
         ret = gobj_send_event(gobj_bottom, EV_TX_DATA, kw, gobj);
     } else {
         kw_decref(kw);
@@ -447,8 +449,65 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
         );
         ret = -1;
     }
-    priv->txMsgs++;
 
+    KW_DECREF(kw)
+    return ret;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(!gobj_bottom) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "No bottom gobj",
+            NULL
+        );
+        KW_DECREF(kw)
+        return -1;
+    }
+
+    gobj_event_t iev_event = (gobj_event_t)(uintptr_t)kw_get_int(
+        gobj, kw, "event", 0, KW_REQUIRED
+    );
+    json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
+
+    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+        gobj_trace_json(
+            gobj,
+            iev_kw, // not own
+            "%s: %s => %s",
+            iev_event,
+            gobj_short_name(gobj),
+            gobj_short_name(gobj_bottom)
+        );
+    }
+
+    int ret = 0;
+
+    // TODO cache if EV_SEND_MESSAGE or EV_TX_DATA, use new mt_set_bottom_gobj()
+    if(gobj_has_event(gobj_bottom, iev_event, 0)) {
+        priv->txMsgs++;
+        ret = gobj_send_event(gobj_bottom, iev_event, kw_incref(iev_kw), gobj);
+    } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Bottom without iev_event",
+            "child",        "%s", gobj_short_name(gobj_bottom),
+            "iev_event",    "%s", iev_event,
+            NULL
+        );
+        ret = -1;
+    }
+
+    KW_DECREF(iev_kw)
     KW_DECREF(kw)
     return ret;
 }
@@ -499,12 +558,12 @@ PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
  *          Global methods table
  *---------------------------------------------*/
 PRIVATE const GMETHODS gmt = {
-    .mt_create = mt_create,
-    .mt_start = mt_start,
-    .mt_stop = mt_stop,
-    .mt_enable = mt_enable,
+    .mt_create  = mt_create,
+    .mt_start   = mt_start,
+    .mt_stop    = mt_stop,
+    .mt_enable  = mt_enable,
     .mt_disable = mt_disable,
-    .mt_stats = mt_stats,
+    .mt_stats   = mt_stats,
 };
 
 /*------------------------*
@@ -551,6 +610,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,         ac_on_message,      0},
         {EV_ON_IEV_MESSAGE,     ac_on_iev_message,  0},
         {EV_SEND_MESSAGE,       ac_send_message,    0},
+        {EV_SEND_IEV,           ac_send_iev,        0},
         {EV_ON_ID,              ac_on_id,           0},
         {EV_ON_ID_NAK,          ac_on_id_nak,       0},
         {EV_DROP,               ac_drop,            0},
@@ -570,6 +630,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_MESSAGE,             EVF_OUTPUT_EVENT},
         {EV_ON_IEV_MESSAGE,         EVF_OUTPUT_EVENT},
         {EV_SEND_MESSAGE,           0},
+        {EV_SEND_IEV,               0},
         {EV_ON_ID,                  EVF_OUTPUT_EVENT},
         {EV_ON_ID_NAK,              EVF_OUTPUT_EVENT},
         {EV_ON_OPEN,                EVF_OUTPUT_EVENT},

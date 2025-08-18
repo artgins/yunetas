@@ -928,7 +928,7 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
         }
 
     } else if(strcmp(msg, "Publish event WITHOUT subscribers")==0) {
-        const char *event = kw_get_str(gobj, kw, "event", 0, 0);
+        const char *event = kw_get_str(gobj, kw, "event", 0, 0); // from parameter, not a gobj_event_t
         if(!empty_string(event)) {
             json_t *jn_level1 = kw_get_dict(gobj, jn_set, msg, json_object(), KW_CREATE);
             json_int_t counter = kw_get_int(gobj, jn_level1, event, 0, KW_CREATE);

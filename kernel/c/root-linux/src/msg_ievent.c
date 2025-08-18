@@ -44,7 +44,7 @@ GOBJ_DEFINE_EVENT(EV_SEND_COMMAND_ANSWER);
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t* iev_create(
+PUBLIC json_t *iev_create(
     hgobj gobj,
     const char *event,
     json_t *kw // owned
@@ -88,18 +88,18 @@ PUBLIC json_t* iev_create(
 PUBLIC json_t *iev_create2(
     hgobj gobj,
     const char *event,
-    json_t *webix_msg, // owned
-    json_t *kw // owned
+    json_t *jn_data,    // owned
+    json_t *kw_request  // owned, used to get ONLY __temp__.
 )
 {
     json_t* iev = iev_create(
         gobj,
         event,
-        webix_msg // owned
+        jn_data // owned
     );
-    json_t *__temp__ = kw_get_dict_value(gobj, kw, "__temp__", 0, KW_REQUIRED);
+    json_t *__temp__ = kw_get_dict_value(gobj, kw_request, "__temp__", 0, KW_REQUIRED);
     json_object_set(iev, "__temp__", __temp__);  // Set the channel
-    KW_DECREF(kw);
+    KW_DECREF(kw_request);
 
     return iev;
 }

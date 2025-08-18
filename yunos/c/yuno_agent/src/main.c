@@ -214,13 +214,13 @@ PRIVATE char variable_config[]= "\
                 },                                              \n\
                 '__content__': {                                \n\
                     'name': 'input-(^^__range__^^)',                \n\
-                    'gclass': 'C_IEVENT_SRV', #^^ TODO must be C_CHANNEL but inject EV_PLAY_YUNO fails, review                         \n\
+                    'gclass': 'C_CHANNEL',                          \n\
                     'kw': {                                         \n\
                     },                                              \n\
                     'children': [                                     \n\
                         {                                               \n\
                             'name': 'input-(^^__range__^^)',            \n\
-                            'gclass': 'C_CHANNEL',                   \n\
+                            'gclass': 'C_IEVENT_SRV',                   \n\
                             'kw': {                                     \n\
                             },                                          \n\
                             'children': [                               \n\

@@ -1048,13 +1048,16 @@ PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj s
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iev_event_ = kw_get_str(gobj, kw, "event", 0, KW_REQUIRED);
+    // const char *iev_event_ = kw_get_str(gobj, kw, "event", 0, KW_REQUIRED); int x;
+    // /*
+    //  *  Need to recover the good pointer, it lost at pass as json string
+    //  *  (pass as integer is a solution, but by now, repeat
+    //  */
+    // gobj_event_t iev_event = gclass_find_public_event(iev_event_, TRUE);
 
-    /*
-     *  Need to recover the good pointer, it lost at pass as json string
-     *  (pass as integer is a solution, but by now, repeat
-     */
-    gobj_event_t iev_event = gclass_find_public_event(iev_event_, TRUE);
+    gobj_event_t iev_event = (gobj_event_t)(uintptr_t)kw_get_int(
+        gobj, kw, "event", 0, KW_REQUIRED
+    );
 
     json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
 
@@ -1064,7 +1067,8 @@ PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj s
             gobj_trace_dump_gbuf(
                 gobj,
                 gbuf, // not own
-                "gbuffer_t %s <== %s",
+                "gbuffer_t %s %s <== %s",
+                iev_event,
                 gobj_short_name(gobj),
                 gobj_short_name(src)
             );
@@ -1072,7 +1076,8 @@ PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj s
             gobj_trace_json(
                 gobj,
                 kw, // not own
-                "KW %s <== %s",
+                "KW %s %s <== %s",
+                iev_event,
                 gobj_short_name(gobj),
                 gobj_short_name(src)
             );
@@ -1120,14 +1125,14 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     int send_type = (int)kw_get_int(gobj, kw, "__send_type__", priv->send_type, 0);
 
     switch(send_type) {
-    case TYPE_SEND_ALL:
-        send_all(gobj, event, kw_incref(kw), src);
-        break;
+        case TYPE_SEND_ALL:
+            send_all(gobj, event, kw_incref(kw), src);
+            break;
 
-    case TYPE_SEND_ONE_ROTATED:
-    default:
-        send_one_rotate(gobj, event, kw_incref(kw), src);
-        break;
+        case TYPE_SEND_ONE_ROTATED:
+        default:
+            send_one_rotate(gobj, event, kw_incref(kw), src);
+            break;
     }
     KW_DECREF(kw)
     return 0;
@@ -1140,26 +1145,18 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *iev_event = kw_get_str(gobj, kw, "event", "", KW_REQUIRED);
-    json_t *iev_kw = kw_get_dict(gobj, kw, "kw", 0, KW_REQUIRED|KW_EXTRACT);
-    json_t *__temp__ = kw_get_dict(gobj, kw, "__temp__", 0, 0);
-
     int send_type = (int)kw_get_int(gobj, kw, "__send_type__", priv->send_type, 0);
 
     switch(send_type) {
-    case TYPE_SEND_ALL:
-        send_all(gobj, iev_event, iev_kw, src);
-        break;
+        case TYPE_SEND_ALL:
+            send_all(gobj, event, kw_incref(kw), src);
+            break;
 
-    case TYPE_SEND_ONE_ROTATED:
-    default:
-        if(__temp__) {
-            json_object_set(iev_kw, "__temp__", __temp__);
-        }
-        send_one_rotate(gobj, iev_event, iev_kw, src);
-        break;
+        case TYPE_SEND_ONE_ROTATED:
+        default:
+            send_one_rotate(gobj, event, kw_incref(kw), src);
+            break;
     }
-
     KW_DECREF(kw)
     return 0;
 }
