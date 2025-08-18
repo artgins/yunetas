@@ -127,7 +127,7 @@ PRIVATE int mt_start(hgobj gobj)
     /*
      *  Set timer if configured it.
      */
-    int expiration_timeout = gobj_read_integer_attr(gobj, "expiration_timeout");
+    int expiration_timeout = (int)gobj_read_integer_attr(gobj, "expiration_timeout");
     gobj_start(priv->timer);
     if(expiration_timeout > 0) {
         set_timeout(priv->timer, expiration_timeout);
@@ -169,8 +169,6 @@ PRIVATE int mt_stop(hgobj gobj)
     );
 
     clear_timeout(priv->timer);
-    if(gobj_is_running(priv->timer))
-        gobj_stop(priv->timer);
     return 0;
 }
 
@@ -398,7 +396,6 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
     // publish the output event and die!
     publish_finalcount(gobj);
     clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
 
     JSON_DECREF(kw);
     return 0;
