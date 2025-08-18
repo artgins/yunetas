@@ -349,7 +349,6 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     // publish the output event and die!
                     publish_finalcount(gobj);
                     clear_timeout(priv->timer);
-                    gobj_stop(priv->timer);
                     JSON_DECREF(kw);
                     return 0;
                 }
@@ -371,7 +370,6 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     // publish the output event and die!
                     publish_finalcount(gobj);
                     clear_timeout(priv->timer);
-                    gobj_stop(priv->timer);
                     JSON_DECREF(kw);
                     return 0;
                 }

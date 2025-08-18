@@ -10667,8 +10667,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_STOPPED,              0},
 
         /* Publications (outputs) */
-        {EV_PLAY_YUNO_ACK,        EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
-        {EV_PAUSE_YUNO_ACK,       EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_PLAY_YUNO_ACK,        EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
+        {EV_PAUSE_YUNO_ACK,       EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT|EVF_NO_WARN_SUBS},
         {EV_MT_STATS_ANSWER,      EVF_OUTPUT_EVENT},
         {EV_MT_COMMAND_ANSWER,    EVF_OUTPUT_EVENT},
 

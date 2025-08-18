@@ -7918,7 +7918,7 @@ PRIVATE json_t * _create_subscription(
                     json_object_set_new(
                         subs,
                         "renamed_event",
-                        json_string(event_type->event_name)
+                        json_integer((json_int_t)(uintptr_t)(event_type->event_name))
                     );
                     json_object_del(kw_clone, "__rename_event_name__");
                     subs_flag |= __rename_event_name__;
@@ -8004,7 +8004,7 @@ PRIVATE BOOL _match_subscription(
     }
 
     if(event) {
-        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
+        gobj_event_t event_ = (gobj_event_t)(uintptr_t)kw_get_int(0, subs, "event", 0, KW_REQUIRED);
         if(event != event_) {
             return FALSE;
         }
@@ -8125,7 +8125,7 @@ PRIVATE int _delete_subscription(
 ) {
     gobj_t *publisher = (gobj_t *)(uintptr_t)kw_get_int(gobj, subs, "publisher", 0, KW_REQUIRED);
     gobj_t *subscriber = (gobj_t *)(uintptr_t)kw_get_int(gobj, subs, "subscriber", 0, KW_REQUIRED);
-    gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
+    gobj_event_t event = (gobj_event_t)(uintptr_t)kw_get_int(gobj, subs, "event", 0, KW_REQUIRED);
     subs_flag_t subs_flag = (subs_flag_t)kw_get_int(gobj, subs, "subs_flag", 0, KW_REQUIRED);
     BOOL hard_subscription = (subs_flag & __hard_subscription__)?1:0;
 
@@ -8643,10 +8643,10 @@ PRIVATE json_t *get_subs_info(hgobj gobj, json_t *sub)
 {
     json_t *jn_sub = json_object();
 
-    hgobj publisher = (hgobj)(size_t)kw_get_int(gobj, sub, "publisher", 0, 0);
-    hgobj subscriber = (hgobj)(size_t)kw_get_int(gobj, sub, "subscriber", 0, 0);
-    gobj_event_t event = (gobj_event_t)(size_t)kw_get_int(gobj, sub, "event", 0, 0);
-    gobj_event_t renamed_event = (gobj_event_t)(size_t)kw_get_int(gobj, sub, "renamed_event", 0, 0);
+    hgobj publisher = (hgobj)(uintptr_t)kw_get_int(gobj, sub, "publisher", 0, 0);
+    hgobj subscriber = (hgobj)(uintptr_t)kw_get_int(gobj, sub, "subscriber", 0, 0);
+    gobj_event_t event = (gobj_event_t)(uintptr_t)kw_get_int(gobj, sub, "event", 0, 0);
+    gobj_event_t renamed_event = (gobj_event_t)(uintptr_t)kw_get_int(gobj, sub, "renamed_event", 0, 0);
     json_int_t subs_flag = kw_get_int(gobj, sub, "subs_flag", 0, 0);
     json_t *__config__ = kw_get_dict(gobj, sub, "__config__", 0, 0);
     json_t *__global__ = kw_get_dict(gobj, sub, "__global__", 0, 0);
@@ -8894,7 +8894,7 @@ PUBLIC int gobj_publish_event(
             publisher, subs, "subs_flag", 0, KW_REQUIRED
         );
 
-        gobj_event_t event_ = (gobj_event_t)(size_t)kw_get_int(
+        gobj_event_t event_ = (gobj_event_t)(uintptr_t)kw_get_int(
             publisher, subs, "event", 0, KW_REQUIRED
         );
         if(empty_string(event_) || strcasecmp(event_, event)==0) {
@@ -8907,16 +8907,14 @@ PUBLIC int gobj_publish_event(
              *  Check renamed_event
              */
             if(subs_flag & __rename_event_name__) {
-                gobj_event_t renamed_event = kw_get_str(
+                gobj_event_t renamed_event = (gobj_event_t)(uintptr_t)kw_get_int(
                     publisher,
                     subs,
                     "renamed_event",
                     0,
                     0
                 );
-                if(!empty_string(renamed_event)) {
-                    event = renamed_event;
-                }
+                event = renamed_event;
             }
 
             /*
