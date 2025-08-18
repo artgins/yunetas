@@ -1537,7 +1537,7 @@ PRIVATE int ac_connect(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
             priv->ytls = ytls_init(gobj, jn_crypto, FALSE);
 
-            // TODO connection with certificate
+            // TODO connection with certificate, review
             //  const char *cert_pem = gobj_read_str_attr(gobj, "cert_pem");
             //if(!empty_string(cert_pem)) {
             //    esp_transport_ssl_set_cert_data(priv->transport, cert_pem, (int)strlen(cert_pem));

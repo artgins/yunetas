@@ -171,7 +171,7 @@ PRIVATE int get_last_public_port(hgobj gobj);
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
 PRIVATE const char *pidfile = "/yuneta/realms/agent/yuneta_agent.pid";
 
-// Deja que siga con insecure connection
+// Let insecure connection
 PRIVATE char agent_filter_chain_config[]= "\
 {                                           \n\
     'services': [                           \n\
@@ -205,14 +205,14 @@ PRIVATE char agent_filter_chain_config[]= "\
                                 {                           \n\
                                     'name': 'agent_client',     \n\
                                     'gclass': 'C_WEBSOCKET',    \n\
-                                    'kw': {                     \n\
-                                        'url':'(^^__url__^^)'   \n\
-                                    },                          \n\
-                                    'children': [                   \n\
-                                        {                           \n\
-                                            'name': 'agent_client', \n\
-                                            'gclass': 'C_TCP'       \n\
-                                        }                           \n\
+                                    'children': [                           \n\
+                                        {                                   \n\
+                                            'name': 'agent_client',         \n\
+                                            'gclass': 'C_TCP',              \n\
+                                            'kw': {                         \n\
+                                                'url':'ws://127.0.0.1:1991' \n\
+                                            }                               \n\
+                                        }                                   \n\
                                     ]    \n\
                                 }    \n\
                             ]    \n\

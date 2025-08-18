@@ -319,7 +319,7 @@ PRIVATE int mt_start(hgobj gobj)
             }
 
             json_t *kw = json_pack("{s:s, s:s}",
-                "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
+                "cert_pem", gobj_read_str_attr(gobj, "cert_pem"), // TODO review
                 "url", url
             );
 
