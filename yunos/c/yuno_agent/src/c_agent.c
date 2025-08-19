@@ -8085,10 +8085,16 @@ PRIVATE int play_yuno(hgobj gobj, json_t *yuno, json_t *kw, hgobj src)
         NULL
     );
 
+    json_t *iev = iev_create(
+        gobj,
+        EV_PLAY_YUNO,
+        kw    // owned
+    );
+
     return gobj_send_event(
         channel_gobj,
-        EV_PLAY_YUNO,
-        kw,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
 }
@@ -8115,10 +8121,16 @@ PRIVATE int pause_yuno(hgobj gobj, json_t *yuno, json_t *kw, hgobj src)
         NULL
     );
 
+    json_t *iev = iev_create(
+        gobj,
+        EV_PAUSE_YUNO,
+        kw    // owned
+    );
+
     return gobj_send_event(
         channel_gobj,
-        EV_PAUSE_YUNO,
-        kw,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
 }
@@ -8667,7 +8679,7 @@ PRIVATE int restart_nodes(hgobj gobj)
     );
 
     // Force kill
-    int prev_signal2kill = gobj_read_integer_attr(gobj, "signal2kill");
+    int prev_signal2kill = (int)gobj_read_integer_attr(gobj, "signal2kill");
     gobj_write_integer_attr(gobj, "signal2kill", SIGKILL);
 
     int idx; json_t *yuno;
@@ -8744,7 +8756,7 @@ PRIVATE int ac_edit_config(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
         src
     );
-    int found = json_array_size(iter);
+    int found = (int)json_array_size(iter);
     if(found != 1) {
         JSON_DECREF(iter)
         return gobj_send_event(

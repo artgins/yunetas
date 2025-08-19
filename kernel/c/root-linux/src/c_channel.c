@@ -431,7 +431,6 @@ PRIVATE int ac_send_message(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
     KW_INCREF(kw)
 
-    // TODO cache if EV_SEND_MESSAGE or EV_TX_DATA, use new mt_set_bottom_gobj()
     if(gobj_has_event(gobj_bottom, EV_SEND_MESSAGE, 0)) {
         priv->txMsgs++;
         ret = gobj_send_event(gobj_bottom, EV_SEND_MESSAGE, kw, gobj);
@@ -491,23 +490,9 @@ PRIVATE int ac_send_iev(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     int ret = 0;
 
-    // TODO cache if EV_SEND_MESSAGE or EV_TX_DATA, use new mt_set_bottom_gobj()
-    if(gobj_has_event(gobj_bottom, iev_event, 0)) {
-        priv->txMsgs++;
-        ret = gobj_send_event(gobj_bottom, iev_event, kw_incref(iev_kw), gobj);
-    } else {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Bottom without iev_event",
-            "child",        "%s", gobj_short_name(gobj_bottom),
-            "iev_event",    "%s", iev_event,
-            NULL
-        );
-        ret = -1;
-    }
+    priv->txMsgs++;
+    ret = gobj_send_event(gobj_bottom, iev_event, iev_kw, gobj);
 
-    KW_DECREF(iev_kw)
     KW_DECREF(kw)
     return ret;
 }

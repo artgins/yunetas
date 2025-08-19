@@ -1314,25 +1314,11 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          *   Send inter-event to subscriber
          */
-        json_t *jn_iev = json_object();
-        json_object_set_new(jn_iev, "event", json_string(iev_event));
-        json_object_set_new(jn_iev, "kw", iev_kw);
-
-        /*
-         *  HACK Obligatoriamente el destinatario tiene que ser un IOGate!!! ???
-         *  Todos los mensajes (comandos, stats, subscribe/unsubscribe) van
-         *  al dst_service del mensaje en curso,
-         *  y si éste no existe van dst_service del identity_card,
-         *  pero el mensaje directo va al subscriber directamente? Porqué?
-         *  porque el IOGate es quien lo publica, como gobj unico que engloba a todos sus canales.
-         *
-         *  En el agente se responde al src directamente porque los mensajes vienen de commando!
-         *  Por eso en los que no vienen de comando tienen que usar el __temp__`channel_gobj!
-         *
-         *  Es un metodo de información más directo que el comando, porque no pasa por un parser.
-         *
-         *  WARNING efectos colaterales si lo cambio? seguro que muchos
-         */
+        json_t *jn_iev = iev_create( // To use in inside of yuno
+            gobj,
+            iev_event,
+            iev_kw // owned
+        );
 
         /*
          *  ~CHILD subscription model, send to subscriber

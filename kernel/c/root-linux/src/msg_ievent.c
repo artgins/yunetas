@@ -44,9 +44,9 @@ GOBJ_DEFINE_EVENT(EV_SEND_COMMAND_ANSWER);
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *iev_create(
+PUBLIC json_t *iev_create( // To use in inside of yuno
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *kw // owned
 )
 {
@@ -63,12 +63,8 @@ PUBLIC json_t *iev_create(
     if(!kw) {
         kw = json_object();
     }
-    kw = kw_serialize(
-        gobj,
-        kw  // owned
-    );
-    json_t *jn_iev = json_pack("{s:s, s:o}",
-        "event", event,
+    json_t *jn_iev = json_pack("{s:I, s:o}",
+        "event", (json_int_t)(uintptr_t)event,
         "kw", kw
     );
     if(!jn_iev) {
@@ -85,9 +81,9 @@ PUBLIC json_t *iev_create(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC json_t *iev_create2(
+PUBLIC json_t *iev_create2( // To use in inside of yuno
     hgobj gobj,
-    const char *event,
+    gobj_event_t event,
     json_t *jn_data,    // owned
     json_t *kw_request  // owned, used to get ONLY __temp__.
 )
@@ -146,7 +142,7 @@ PUBLIC gbuffer_t *iev_create_to_gbuffer( // old iev_create()
 }
 
 /***************************************************************************
- *  Incorporate event's messages from outside world.
+ *  Incorporate event's messages FROM outside world.
  *  gbuf decref
  ***************************************************************************/
 PUBLIC json_t *iev_create_from_gbuffer(
