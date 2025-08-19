@@ -175,7 +175,9 @@ PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             }
 
             if(!priv->periodic && priv->t_flush == 0) {
-                gobj_stop(gobj);
+                if(gobj_is_running(gobj)) {
+                    gobj_stop(gobj);
+                }
             }
         }
     }

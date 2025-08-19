@@ -10238,8 +10238,8 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *info = kw_get_str(gobj, kw, "info", "", 0);
-    int max_count = kw_get_int(gobj, kw, "max_count", 0, 0);
-    int cur_count = kw_get_int(gobj, kw, "cur_count", 0, 0);
+    int max_count = (int)kw_get_int(gobj, kw, "max_count", 0, 0);
+    int cur_count = (int)kw_get_int(gobj, kw, "cur_count", 0, 0);
 
 // KKK
 
@@ -10270,7 +10270,7 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "child not found",
+            "msg",          "%s", "requester child not found",
             "child",        "%s", requester,
             NULL
         );
@@ -10317,12 +10317,26 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
     JSON_DECREF(jn_request);
     KW_DECREF(kw);
 
+
+    json_t *iev = iev_create(
+        gobj,
+        EV_MT_COMMAND_ANSWER,
+        webix    // owned
+    );
+
     return gobj_send_event(
         gobj_requester,
-        EV_MT_COMMAND_ANSWER,
-        webix,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
+
+    // return gobj_send_event(
+    //     gobj_requester,
+    //     EV_MT_COMMAND_ANSWER,
+    //     webix,
+    //     gobj
+    // );
 }
 
 /***************************************************************************
