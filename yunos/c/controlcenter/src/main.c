@@ -69,10 +69,8 @@ PRIVATE char variable_config[]= "\
         'service_descriptor': {                                     \n\
         },                                                          \n\
         'trace_levels': {                                           \n\
-            'Tcp0': ['connections'],                                \n\
-            'TcpS0': ['listen', 'not-accepted', 'accepted'],        \n\
-            'Tcp1': ['connections'],                                \n\
-            'TcpS1': ['listen', 'not-accepted', 'accepted']         \n\
+            'C_TCP': ['connections'],                               \n\
+            'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\

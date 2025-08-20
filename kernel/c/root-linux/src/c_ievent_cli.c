@@ -970,10 +970,14 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
      *------------------------------------*/
     const char *msg_type = msg_iev_get_msg_type(gobj, iev_kw);
 
-    /*----------------------------------------*
+    /*-----------------------------------------------------------*
      *  Get inter-event routing information.
-     *----------------------------------------*/
-    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, TRUE);
+     *  Version >= 7.0.0
+     *  Changed msg_iev_get_stack(, , TRUE->FALSE)
+     *  because a run->(auto)play change it comes without a stack,
+     *  because it is not a request that comes from the client.
+     *-----------------------------------------------------------*/
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, TRUE); // TODO check
 
     /*----------------------------------------*
      *  Check dst role^name

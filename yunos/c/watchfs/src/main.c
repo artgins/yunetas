@@ -61,7 +61,8 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'yuno': {                                                       \n\
         'trace_levels': {                                           \n\
-            'Tcp0': ['connections']                                 \n\
+            'C_TCP': ['connections'],                               \n\
+            'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\

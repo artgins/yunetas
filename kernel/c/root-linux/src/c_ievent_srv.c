@@ -1002,12 +1002,12 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*-----------------------------------------------------------*
      *  Get inter-event routing information.
      *  Version > 2.4.0
-     *  Cambio msg_iev_get_stack(, , TRUE->FALSE)
-     *  porque el yuno puede informar autónomamente
-     *  de un cambio de play->pause, y entonces viene sin stack,
-     *  porque no es una petición que salga del agente.
+     *  Changed msg_iev_get_stack(, , TRUE->FALSE)
+     *  because the yuno can autonomously report
+     *  a play->pause change, and then it comes without a stack,
+     *  because it is not a request that comes from the agent.
      *-----------------------------------------------------------*/
-    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, FALSE);
+    json_t *jn_ievent_id = msg_iev_get_stack(gobj, iev_kw, IEVENT_STACK_ID, TRUE); // TODO check
 
     /*----------------------------------------*
      *  Check dst role^name

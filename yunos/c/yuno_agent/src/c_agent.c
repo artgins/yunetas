@@ -4872,20 +4872,20 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 // KKK
     /*
-     *  Subcribeme a mí al evento final del counter, con msg_id
-     *  msg_id: con que me diga quien es el requester de este comando me vale
-     *  HACK: Meto un msg_id en la subscripción al counter.
-     *  Así en la publicación recibida recuperamos el msg_id que contiene el 'requester'
-     *  que pusimos.
-     *  Además le decimos al counter que se suscriba al evento EV_ON_OPEN del router,
-     *  pero diciendo que reciba un rename, EV_COUNT, que es el que está definido en la máquina.
-     *  Con los filtros le decimos que cuente los eventos recibidos que además
-     *  cumplan con los filtros pasados. Es decir, identificamos, entre los posible multiples
-     *  eventos recibidos en la publicación, justo al evento que queremos.
+     * Subscribe me to the counter's final event, with msg_id
+     * msg_id: Just telling me who the requester of this command is enough.
+     * HACK: I put a msg_id in the counter subscription.
+     * So, in the received publication, we retrieve the msg_id containing the 'requester'
+     * that we entered.
+     * We also tell the counter to subscribe to the router's EV_ON_OPEN event,
+     * but telling it to receive a rename, EV_COUNT, which is the one defined on the machine.
+     * With the filters, we tell it to count the received events that also
+     * meet the passed filters. That is, we identify, among the possible multiple
+     * events received in the publication, exactly the event we want.
      */
     json_t *kw_final_count = json_object();
     if(src != gobj) {
-        // Si la petición no viene del propio agente, guarda al requester
+        // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
         json_t *jn_msg_id = json_pack("{s:s}",
