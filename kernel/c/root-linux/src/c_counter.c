@@ -279,6 +279,8 @@ PRIVATE void publish_finalcount(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    clear_timeout(priv->timer);
+
     json_t *kw = json_pack("{s:s, s:i, s:i}",
         "info", gobj_read_str_attr(gobj, "info"),
         "max_count", priv->max_count,
@@ -286,6 +288,11 @@ PRIVATE void publish_finalcount(hgobj gobj)
     );
 
     gobj_publish_event(gobj, priv->final_event_name, kw);
+
+    gobj_stop(gobj);
+    if(gobj_is_volatil(gobj)) {
+        gobj_destroy(gobj);
+    }
 }
 
 
@@ -305,7 +312,7 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     const char *event2count = kw_get_str(gobj, kw, "__original_event_name__", "", 0);
-    BOOL trace = gobj_trace_level(gobj) & TRACE_DEBUG;
+    BOOL trace = (int)gobj_trace_level(gobj) & TRACE_DEBUG;
 
     if(json_array_size(priv->jn_input_schema)==0) {
         gobj_log_error(gobj, 0,
@@ -331,7 +338,7 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
         const char *EvChkItem_event = kw_get_str(gobj, jn_EvChkItem, "event", 0, 0);
         if(strcmp(EvChkItem_event, event2count)==0) {
             if(trace) {
-                trace_msg0("YES match event: search:%s, recvd:%s ", EvChkItem_event, event2count);
+                trace_msg0("YES match event: search:%s, received:%s ", EvChkItem_event, event2count);
             }
             // event matchs
             json_t *jn_filters = kw_get_dict(gobj,
@@ -346,13 +353,12 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
                  */
                 priv->cur_count++;
                 if(priv->cur_count >= priv->max_count) {
+                    KW_DECREF(kw);
                     // publish the output event and die!
                     publish_finalcount(gobj);
-                    clear_timeout(priv->timer);
-                    JSON_DECREF(kw);
                     return 0;
                 }
-                JSON_DECREF(kw);
+                KW_DECREF(kw);
                 return 0;
             }
             if(trace) {
@@ -367,20 +373,23 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     trace_msg0("match kw: count %d", priv->cur_count);
                 }
                 if(priv->cur_count >= priv->max_count) {
+                    KW_DECREF(kw);
                     // publish the output event and die!
                     publish_finalcount(gobj);
-                    clear_timeout(priv->timer);
-                    JSON_DECREF(kw);
                     return 0;
+                }
+            } else {
+                if(trace) {
+                    trace_msg0("match kw: NOT count %d", priv->cur_count);
                 }
             }
         } else {
             if(trace) {
-                trace_msg0("NO match event: search:%s, recvd:%s ", EvChkItem_event, event2count);
+                trace_msg0("NO match event: search:%s, received:%s ", EvChkItem_event, event2count);
             }
         }
     }
-    JSON_DECREF(kw);
+    KW_DECREF(kw);
     return 0;
 }
 
@@ -391,22 +400,11 @@ PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    clear_timeout(priv->timer);
+    KW_DECREF(kw);
+
     // publish the output event and die!
     publish_finalcount(gobj);
-    clear_timeout(priv->timer);
-
-    JSON_DECREF(kw);
-    return 0;
-}
-
-/***************************************************************************
- *  If die timer, die self
- ***************************************************************************/
-PRIVATE int ac_stopped(hgobj gobj, const char *event, json_t *kw, hgobj src)
-{
-    gobj_stop(gobj);
-    gobj_destroy(gobj);
-    JSON_DECREF(kw);
     return 0;
 }
 
@@ -460,7 +458,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
     ev_action_t st_idle[] = {
         {EV_COUNT,      ac_count,   0},
         {EV_TIMEOUT,    ac_timeout, 0},
-        {EV_STOPPED,    ac_stopped, 0},
         {0,0,0}
     };
 
@@ -473,7 +470,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_FINAL_COUNT,    EVF_OUTPUT_EVENT},
         {EV_COUNT,          0},
         {EV_TIMEOUT,        0},
-        {EV_STOPPED,        0},
         {0, 0}
     };
 
