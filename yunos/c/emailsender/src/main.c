@@ -99,9 +99,15 @@ PRIVATE char variable_config[]= "\
                                         {                               \n\
                                             'name': 'emailsender',      \n\
                                             'gclass': 'C_WEBSOCKET',    \n\
-                                            'kw': {                     \n\
-                                                'url':'(^^__url__^^)'   \n\
-                                            }                           \n\
+                                            'children': [                           \n\
+                                                {                                   \n\
+                                                    'name': 'emailsender',          \n\
+                                                    'gclass': 'C_TCP',              \n\
+                                                    'kw': {                         \n\
+                                                        'url':'(^^__url__^^)'       \n\
+                                                    }                               \n\
+                                                }                                   \n\
+                                            ]                                       \n\
                                         }                               \n\
                                     ]                                   \n\
                                 }                                       \n\
@@ -156,7 +162,7 @@ PRIVATE char variable_config[]= "\
                                 'child_tree_filter': {                  \n\
                                     'op': 'find',                       \n\
                                     'kw': {                                 \n\
-                                        '__prefix_gobj_name__': 'wss',      \n\
+                                        '__prefix_gobj_name__': 'input-',   \n\
                                         '__gclass_name__': 'C_CHANNEL',     \n\
                                         '__disabled__': false,              \n\
                                         'connected': false                  \n\
@@ -170,19 +176,19 @@ PRIVATE char variable_config[]= "\
                         '__vars__': {                                   \n\
                         },                                              \n\
                         '__content__': {                                \n\
-                            'name': 'wss-(^^__range__^^)',              \n\
+                            'name': 'input-(^^__range__^^)',              \n\
                             'gclass': 'C_CHANNEL',                      \n\
                             'kw': {                                         \n\
                             },                                              \n\
                             'children': [                                     \n\
                                 {                                               \n\
-                                    'name': 'wss-(^^__range__^^)',              \n\
+                                    'name': 'input-(^^__range__^^)',              \n\
                                     'gclass': 'C_IEVENT_SRV',                      \n\
                                     'kw': {                                         \n\
                                     },                                              \n\
                                     'children': [                                     \n\
                                         {                                               \n\
-                                            'name': 'wss-(^^__range__^^)',              \n\
+                                            'name': 'input-(^^__range__^^)',              \n\
                                             'gclass': 'C_WEBSOCKET',                    \n\
                                             'kw': {                                     \n\
                                                 'iamServer': true                       \n\
@@ -231,7 +237,7 @@ static int register_yuno_and_more(void)
 
     // Global traces
     // gobj_set_global_trace("create_delete", TRUE);
-    // gobj_set_global_trace("machine", TRUE);
+    gobj_set_global_trace("machine", TRUE);
     // gobj_set_global_trace("create_delete", TRUE);
     // gobj_set_global_trace("create_delete2", TRUE);
     // gobj_set_global_trace("subscriptions", TRUE);
@@ -239,10 +245,10 @@ static int register_yuno_and_more(void)
     // gobj_set_global_trace("monitor", TRUE);
     // gobj_set_global_trace("event_monitor", TRUE);
     // gobj_set_global_trace("liburing", TRUE);
-    // gobj_set_global_trace("ev_kw", TRUE);
+    gobj_set_global_trace("ev_kw", TRUE);
     // gobj_set_global_trace("authzs", TRUE);
     // gobj_set_global_trace("states", TRUE);
-    // gobj_set_global_trace("gbuffers", TRUE);
+    gobj_set_global_trace("gbuffers", TRUE);
     // gobj_set_global_trace("timer_periodic", TRUE);
     // gobj_set_global_trace("timer", TRUE);
     // gobj_set_global_trace("liburing_timer", TRUE);

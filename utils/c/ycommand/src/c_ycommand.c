@@ -690,11 +690,15 @@ PRIVATE char agent_config[]= "\
                         {                                               \n\
                             'name': 'agent_client',                    \n\
                             'gclass': 'C_WEBSOCKET',                     \n\
-                            'kw': {                                     \n\
-                                'kw_connex': {                              \n\
-                                    'url':'(^^__url__^^)'   \n\
+                            'children': [                           \n\
+                                {                                   \n\
+                                    'name': 'agent_client',         \n\
+                                    'gclass': 'C_TCP',              \n\
+                                    'kw': {                         \n\
+                                        'url':'(^^__url__^^)'       \n\
+                                    }                               \n\
                                 }                                   \n\
-                            }                                   \n\
+                            ]                                       \n\
                         }                                       \n\
                     ]                                           \n\
                 }                                               \n\

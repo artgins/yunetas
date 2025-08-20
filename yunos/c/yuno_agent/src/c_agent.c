@@ -213,7 +213,7 @@ PRIVATE char agent_filter_chain_config[]= "\
                                                 'url':'ws://127.0.0.1:1991' \n\
                                             }                               \n\
                                         }                                   \n\
-                                    ]    \n\
+                                    ]                                       \n\
                                 }    \n\
                             ]    \n\
                         }    \n\
@@ -915,7 +915,7 @@ SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            
 SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[11100,11199]", "Range Ports. List of ports to be assigned to public services of yunos."),
 SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",           "Maximum consoles opened"),
-SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "60000",        "Expiration timeout for commands"),
+SDATA (DTP_INTEGER,     "timeout_expiration",SDF_WR,            "30000",        "Expiration timeout for commands"),
 SDATA (DTP_BOOLEAN,     "use_internal_schema",SDF_RD,           "1",            "Use internal (hardcoded) schema (TODO don't set to 0, out schema not working)"),
 
 SDATA (DTP_BOOLEAN,     "use_audit_command_file",SDF_WR,        "1",            "Use audit file commands"),
@@ -9823,12 +9823,25 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
 
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
+
     return gobj_send_event(
         gobj_requester,
-        event,
-        kw_redirect,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
+
+    // return gobj_send_event(
+    //     gobj_requester,
+    //     event,
+    //     kw_redirect,
+    //     gobj
+    // );
 }
 
 /***************************************************************************
@@ -9867,12 +9880,25 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
 
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
+
     return gobj_send_event(
         gobj_requester,
-        event,
-        kw_redirect,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
+
+    // return gobj_send_event(
+    //     gobj_requester,
+    //     event,
+    //     kw_redirect,
+    //     gobj
+    // );
 }
 
 /***************************************************************************

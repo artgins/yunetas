@@ -1065,7 +1065,7 @@ PUBLIC void trace_vjson(
     va_list ap
 ) {
     log_opt_t opt = 0;
-    char timestamp[90];
+    // char timestamp[90];
     char msg[256];
 
     if(!__initialized__) {
@@ -1083,47 +1083,49 @@ PUBLIC void trace_vjson(
         fmt = "";
     }
 
-    current_timestamp(timestamp, sizeof(timestamp));
     json_t *jn_log = json_object();
-    json_object_set_new(jn_log, "timestamp", json_string(timestamp));
 
-    if(gobj_has_attr(gobj, "id")) {
-        const char *value = gobj_read_str_attr(gobj, "id");
-        if(!empty_string(value)) {
-            json_object_set_new(jn_log, "id", json_string(value));
-        }
-    }
-
-    json_object_set(jn_log, "node_uuid", gobj_read_attr(gobj_yuno(), "node_uuid", gobj));
-    json_object_set(jn_log, "process", gobj_read_attr(gobj_yuno(), "process", gobj));
-    json_object_set(jn_log, "hostname", gobj_read_attr(gobj_yuno(), "hostname", gobj));
-
-    if(gobj) {
-        json_object_set_new(jn_log, "gclass", json_string(gobj_gclass_name(gobj)));
-        json_object_set_new(jn_log, "gobj_name", json_string(gobj_name(gobj)));
-        json_object_set_new(jn_log, "state", json_string(gobj_current_state(gobj)));
-        if(trace_with_full_name) {
-            json_object_set_new(jn_log,
-                "gobj_full_name",
-                json_string(gobj_full_name(gobj))
-            );
-        }
-    }
+    // HACK too much information, comment!
+    // current_timestamp(timestamp, sizeof(timestamp));
+    // json_object_set_new(jn_log, "timestamp", json_string(timestamp));
+    //
+    // if(gobj_has_attr(gobj, "id")) {
+    //     const char *value = gobj_read_str_attr(gobj, "id");
+    //     if(!empty_string(value)) {
+    //         json_object_set_new(jn_log, "id", json_string(value));
+    //     }
+    // }
+    //
+    // json_object_set(jn_log, "node_uuid", gobj_read_attr(gobj_yuno(), "node_uuid", gobj));
+    // json_object_set(jn_log, "process", gobj_read_attr(gobj_yuno(), "process", gobj));
+    // json_object_set(jn_log, "hostname", gobj_read_attr(gobj_yuno(), "hostname", gobj));
+    //
+    // if(gobj) {
+    //     json_object_set_new(jn_log, "gclass", json_string(gobj_gclass_name(gobj)));
+    //     json_object_set_new(jn_log, "gobj_name", json_string(gobj_name(gobj)));
+    //     json_object_set_new(jn_log, "state", json_string(gobj_current_state(gobj)));
+    //     if(trace_with_full_name) {
+    //         json_object_set_new(jn_log,
+    //             "gobj_full_name",
+    //             json_string(gobj_full_name(gobj))
+    //         );
+    //     }
+    // }
 
 #ifdef ESP_PLATFORM
-    size_t size = esp_get_free_heap_size();
-    json_object_set_new(jn_log, "HEAP free", json_integer(size));
+    // size_t size = esp_get_free_heap_size();
+    // json_object_set_new(jn_log, "HEAP free", json_integer(size));
 #endif
-    json_object_set_new(jn_log, "max_system_memory", json_integer(get_max_system_memory()));
-    json_object_set_new(jn_log, "cur_system_memory", json_integer(get_cur_system_memory()));
+    // json_object_set_new(jn_log, "max_system_memory", json_integer(get_max_system_memory()));
+    // json_object_set_new(jn_log, "cur_system_memory", json_integer(get_cur_system_memory()));
 
     vsnprintf(msg, sizeof(msg), fmt, ap);
     json_object_set_new(jn_log, "msgset", json_string(msgset));
     json_object_set_new(jn_log, "msg", json_string(msg));
     if(jn_data) {
         json_object_set(jn_log, "data", jn_data);
-        json_object_set_new(jn_log, "refcount", json_integer((json_int_t)jn_data->refcount));
-        json_object_set_new(jn_log, "type", json_integer(jn_data->type));
+        // json_object_set_new(jn_log, "refcount", json_integer((json_int_t)jn_data->refcount));
+        // json_object_set_new(jn_log, "type", json_integer(jn_data->type));
     }
     char *s = json_dumps(jn_log, JSON_INDENT(4)|JSON_ENCODE_ANY);
     if(s) {
@@ -1225,6 +1227,10 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
         "pid"
     };
 
+    if(gobj_is_shutdowning()) {
+        // NO discover in shutdown
+        return;
+    }
     for(size_t i=0; i<ARRAY_SIZE(yuno_attrs); i++) {
         const char *attr = yuno_attrs[i];
         if(gobj_has_attr(gobj_yuno(), attr)) { // WARNING Check that attr exists: avoid recursive loop

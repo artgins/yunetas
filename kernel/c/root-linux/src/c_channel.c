@@ -147,6 +147,27 @@ PRIVATE int mt_stop(hgobj gobj)
 }
 
 /***************************************************************************
+ *      Framework Method command
+ ***************************************************************************/
+PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj src)
+{
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(!gobj_bottom) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "No bottom gobj",
+            NULL
+        );
+        KW_DECREF(kw)
+        return NULL;
+    }
+
+    // HACK channel is a proxy
+    return gobj_command(gobj_bottom, command, kw, src);
+}
+
+/***************************************************************************
  *      Framework Method stats
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
@@ -548,6 +569,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_stop    = mt_stop,
     .mt_enable  = mt_enable,
     .mt_disable = mt_disable,
+    .mt_command_parser = mt_command,
     .mt_stats   = mt_stats,
 };
 

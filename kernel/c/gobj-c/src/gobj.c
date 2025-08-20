@@ -4799,6 +4799,12 @@ PUBLIC json_t *gobj_command( // With AUTHZ
         if(__global_command_parser_fn__) {
             return __global_command_parser_fn__(gobj, command, kw, src);
         } else {
+            gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "global command parser function not available",
+                NULL
+            );
             json_t *kw_response = build_command_response(
                 gobj,
                 -1,     // result
@@ -4812,6 +4818,12 @@ PUBLIC json_t *gobj_command( // With AUTHZ
             return kw_response;
         }
     } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "command table not available",
+            NULL
+        );
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
@@ -4871,6 +4883,12 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
     if(__global_stats_parser_fn__) {
         return __global_stats_parser_fn__(gobj, stats, kw, src);
     } else {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "stats parser not available",
+            NULL
+        );
         json_t *kw_response = build_stats_response(
             gobj,
             -1,     // result
