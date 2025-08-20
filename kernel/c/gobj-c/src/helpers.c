@@ -122,7 +122,7 @@ PUBLIC int newdir(const char *path, int xpermission)
  ***************************************************************************/
 PUBLIC int newfile(const char *path, int rpermission, BOOL overwrite)
 {
-    int flags = O_CREAT|O_RDWR|O_LARGEFILE;
+    int flags = O_CREAT|O_RDWR|O_LARGEFILE|O_CLOEXEC;
 
     if(!umask_cleared) {
         umask(0);
@@ -145,6 +145,7 @@ PUBLIC int open_exclusive(const char *path, int flags, int rpermission)
     if(!flags) {
         flags = O_RDWR|O_NOFOLLOW;
     }
+    flags |= O_CLOEXEC;
 
     int fp = open(path, flags, rpermission);
     if(flock(fp, LOCK_EX|LOCK_NB)<0) {
@@ -1407,7 +1408,7 @@ PUBLIC json_t *load_persistent_json(
         }
 #endif
     } else {
-        fd = open(full_path, O_RDONLY|O_NOFOLLOW);
+        fd = open(full_path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
     }
     if(fd<0) {
         if(!(silence && on_critical_error == LOG_NONE)) {
@@ -1468,7 +1469,7 @@ PUBLIC json_t *load_json_from_file(
         return 0;
     }
 
-    int fd = open(full_path, O_RDONLY|O_NOFOLLOW);
+    int fd = open(full_path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
     if(fd<0) {
         gobj_log_critical(gobj, on_critical_error,
             "function",     "%s", __FUNCTION__,
@@ -5655,7 +5656,7 @@ pid_t launch_daemon(BOOL redirect_stdio_to_null, const char *program, ...)
 
     // Redirect standard file descriptors to /dev/null
     if(redirect_stdio_to_null) {
-        int fd = open("/dev/null", O_RDWR);
+        int fd = open("/dev/null", O_RDWR|O_CLOEXEC);
         if (fd == -1) {
             print_error(0, "launch_program() Failed to open /dev/null '%s'", program);
             exit(EXIT_FAILURE);

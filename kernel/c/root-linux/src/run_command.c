@@ -77,7 +77,6 @@ PUBLIC int run_command(const char *command, char *bf, size_t bfsize)
 \*************************************************************************/
 PUBLIC int run_process2(const char *path, char *const argv[])
 {
-#ifdef __linux__
     sigset_t blockMask, origMask;
     struct sigaction saIgnore, saOrigQuit, saOrigInt, saDefault;
     pid_t childPid;
@@ -153,9 +152,6 @@ PUBLIC int run_process2(const char *path, char *const argv[])
     errno = savedErrno;
 
     return status;
-#else
-    return -1;
-#endif
 }
 
 /***************************************************************************
@@ -165,7 +161,6 @@ PUBLIC int pty_sync_spawn(
     const char *command
 )
 {
-#ifdef __linux__
     int master, pid;
 
     struct winsize size = {24, 80, 0, 0 };
@@ -239,8 +234,5 @@ PUBLIC int pty_sync_spawn(
         return -1;
     }
 
-#else
-    return -1;
-#endif
     return -1;
 }

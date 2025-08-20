@@ -1964,7 +1964,7 @@ PRIVATE int get_topic_wr_fd( // optimized
         snprintf(full_path, sizeof(full_path), "%s/keys/%s/%s", topic_dir, key, filename);
 
         if(master) {
-            fd = open(full_path, O_RDWR|O_NOFOLLOW, 0);
+            fd = open(full_path, O_RDWR|O_NOFOLLOW|O_CLOEXEC, 0);
             if(fd < 0) {
                 if(errno == EMFILE) {
                     struct rlimit rl = {0};
@@ -1981,14 +1981,14 @@ PRIVATE int get_topic_wr_fd( // optimized
                     );
 
                     close_fd_wr_files(gobj, topic, "");
-                    fd = open(full_path, O_RDWR|O_NOFOLLOW, 0);
+                    fd = open(full_path, O_RDWR|O_NOFOLLOW|O_CLOEXEC, 0);
                 }
                 if(fd < 0) {
                     fd = create_file(gobj, tranger, topic, key, full_path);
                 }
             }
         } else {
-            fd = open(full_path, O_RDONLY, 0);
+            fd = open(full_path, O_RDONLY|O_CLOEXEC, 0);
         }
 
         if(fd<0) {
@@ -2066,7 +2066,7 @@ PRIVATE int get_topic_rd_fd(
         /*-----------------------------*
          *      Open content file
          *-----------------------------*/
-        fd = open(full_path, O_RDONLY, 0);
+        fd = open(full_path, O_RDONLY|O_CLOEXEC, 0);
         if(fd < 0) {
             if(errno == EMFILE) {
                 struct rlimit rl = {0};
@@ -2083,7 +2083,7 @@ PRIVATE int get_topic_rd_fd(
                 );
 
                 close_fd_rd_files(gobj, topic, "");
-                fd = open(full_path, O_RDONLY, 0);
+                fd = open(full_path, O_RDONLY|O_CLOEXEC, 0);
             }
         }
         if(fd<0) {
@@ -4929,7 +4929,7 @@ PRIVATE uint64_t load_first_and_last_record_md(
      *----------------------------------*/
     char full_path[PATH_MAX];
     build_path(full_path, sizeof(full_path), topic_directory, "keys", key, filename, NULL);
-    int fd = open(full_path, O_RDONLY, 0);
+    int fd = open(full_path, O_RDONLY|O_CLOEXEC, 0);
     if(fd<0) {
         gobj_log_critical(gobj, 0,
             "function",     "%s", __FUNCTION__,
