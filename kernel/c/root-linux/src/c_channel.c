@@ -172,7 +172,24 @@ PRIVATE json_t *mt_command(hgobj gobj, const char *command, json_t *kw, hgobj sr
  ***************************************************************************/
 PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
 {
-    return local_stats(gobj, stats, kw, src);
+    hgobj gobj_bottom = gobj_bottom_gobj(gobj);
+    if(!gobj_bottom) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "No bottom gobj",
+            NULL
+        );
+        KW_DECREF(kw)
+        return NULL;
+    }
+
+    if(src == gobj_parent(gobj)) {
+        return local_stats(gobj, stats, kw, src);
+    } else {
+        // HACK channel is a proxy
+        return gobj_stats(gobj_bottom, stats, kw, src);
+    }
 }
 
 

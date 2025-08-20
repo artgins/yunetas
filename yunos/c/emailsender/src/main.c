@@ -237,7 +237,7 @@ static int register_yuno_and_more(void)
 
     // Global traces
     // gobj_set_global_trace("create_delete", TRUE);
-    gobj_set_global_trace("machine", TRUE);
+    // gobj_set_global_trace("machine", TRUE);
     // gobj_set_global_trace("create_delete", TRUE);
     // gobj_set_global_trace("create_delete2", TRUE);
     // gobj_set_global_trace("subscriptions", TRUE);
@@ -245,10 +245,10 @@ static int register_yuno_and_more(void)
     // gobj_set_global_trace("monitor", TRUE);
     // gobj_set_global_trace("event_monitor", TRUE);
     // gobj_set_global_trace("liburing", TRUE);
-    gobj_set_global_trace("ev_kw", TRUE);
+    // gobj_set_global_trace("ev_kw", TRUE);
     // gobj_set_global_trace("authzs", TRUE);
     // gobj_set_global_trace("states", TRUE);
-    gobj_set_global_trace("gbuffers", TRUE);
+    // gobj_set_global_trace("gbuffers", TRUE);
     // gobj_set_global_trace("timer_periodic", TRUE);
     // gobj_set_global_trace("timer", TRUE);
     // gobj_set_global_trace("liburing_timer", TRUE);

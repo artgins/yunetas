@@ -4870,6 +4870,22 @@ PUBLIC json_t *gobj_stats(hgobj gobj_, const char *stats, json_t *kw, hgobj src)
         return 0;
     }
 
+    /*-----------------------------------------------*
+     *  Trace
+     *-----------------------------------------------*/
+    BOOL tracea = is_machine_tracing(gobj, 0) && !is_machine_not_tracing(src, 0);
+    if(tracea) {
+        trace_machine("🗳🗳 mach(%s%s), stats: %s, src: %s",
+            (!gobj->running)?"!!":"",
+            gobj_short_name(gobj),
+            stats,
+            gobj_short_name(src)
+        );
+        if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
+            gobj_trace_json(gobj, kw, "stats kw");
+        }
+    }
+
     /*--------------------------------------*
      *  The local mt_stats has preference
      *--------------------------------------*/
