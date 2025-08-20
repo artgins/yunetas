@@ -9924,8 +9924,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     const char *yuno_id = kw_get_str(gobj, kw, "identity_card`yuno_id", 0, KW_REQUIRED);
-    json_int_t pid = kw_get_int(gobj, kw, "identity_card`pid", 0, KW_REQUIRED);
-    json_int_t watcher_pid = kw_get_int(gobj, kw, "identity_card`watcher_pid", 0, 0);
+    pid_t pid = (pid_t)kw_get_int(gobj, kw, "identity_card`pid", 0, KW_REQUIRED);
+    pid_t watcher_pid = (pid_t)kw_get_int(gobj, kw, "identity_card`watcher_pid", 0, 0);
     BOOL playing = kw_get_bool(gobj, kw, "identity_card`playing", 0, KW_REQUIRED);
     const char *realm_id = kw_get_str(gobj, kw, "identity_card`realm_id", "", KW_REQUIRED);
     const char *yuno_role = kw_get_str(gobj, kw, "identity_card`yuno_role", "", KW_REQUIRED);
@@ -9952,7 +9952,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
 
 
-    int found = json_array_size(iter_yunos);
+    int found = (int)json_array_size(iter_yunos);
     if(found==0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -9974,7 +9974,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*
      *  Check if it's already live.
      */
-    uint32_t _pid = SDATA_GET_INT(yuno, "yuno_pid");
+    pid_t _pid = SDATA_GET_INT(yuno, "yuno_pid");
     if(_pid && getpgid(_pid) >= 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
