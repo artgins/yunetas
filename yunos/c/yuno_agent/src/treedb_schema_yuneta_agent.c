@@ -60,7 +60,7 @@
             │* date                     │
             │  yuno_startdate           │
             │  _channel_gobj            │
-            │  solicitante              │
+            │  requester                │
             │  launch_id                │
             │                           │
             │         configurations {} │ ◀─────────┐N
@@ -147,7 +147,7 @@
 static char treedb_schema_yuneta_agent[]= "\
 {                                                                   \n\
     'id': 'treedb_yuneta_agent',                                    \n\
-    'schema_version': '13',                                         \n\
+    'schema_version': '14',                                         \n\
     'topics': [                                                     \n\
         {                                                           \n\
             'id': 'realms',                                         \n\
@@ -275,7 +275,7 @@ static char treedb_schema_yuneta_agent[]= "\
             'id': 'yunos',                                          \n\
             'pkey': 'id',                                           \n\
             'system_flag': 'sf_string_key',                         \n\
-            'topic_version': '10',                                   \n\
+            'topic_version': '11',                                  \n\
             'tkey': '',                                             \n\
             'pkey2s': 'yuno_release',                               \n\
             'cols': {                                               \n\
@@ -445,10 +445,10 @@ static char treedb_schema_yuneta_agent[]= "\
                     'flag': [                                       \n\
                     ]                                               \n\
                 },                                                  \n\
-                'solicitante': {                                    \n\
-                    'header': 'solicitante',                        \n\
-                    'fillspace': 6,                                 \n\
-                    'type': 'string',                               \n\
+                'requester': {                                      \n\
+                    'header': 'requester',                          \n\
+                    'fillspace': 10,                                \n\
+                    'type': 'blob',                                 \n\
                     'flag': [                                       \n\
                     ]                                               \n\
                 },                                                  \n\
