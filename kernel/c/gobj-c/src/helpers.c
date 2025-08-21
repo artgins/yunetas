@@ -1402,11 +1402,7 @@ PUBLIC json_t *load_persistent_json(
     int fd;
     if(exclusive) {
         fd = open_exclusive(full_path, O_RDONLY|O_NOFOLLOW, 0);
-#ifdef __linux__
-        if(fd>0) {
-            fcntl(fd, F_SETFD, FD_CLOEXEC); // Que no vaya a los child
-        }
-#endif
+        set_cloexec(fd); // Que no vaya a los child
     } else {
         fd = open(full_path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
     }
@@ -6230,4 +6226,75 @@ PUBLIC int copyfile(
     close(output);
 
     return result;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int set_nonblocking(int fd)
+{
+    int flags = fcntl(fd, F_GETFL, 0);
+    if(flags < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msg",          "%s", "fcntl() FAILED",
+             "serrno",       "%s", strerror(flags),
+             NULL
+         );
+
+        return -1;
+    }
+    flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    if(flags < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msg",          "%s", "fcntl() FAILED",
+             "serrno",       "%s", strerror(flags),
+             NULL
+        );
+    }
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int set_cloexec(int fd) // children must not inherit
+{
+    if(fd < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msg",          "%s", "fd negative",
+             NULL
+         );
+        return -1;
+    }
+
+    int flags = fcntl(fd, F_GETFD, 0);
+    if(flags < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msg",          "%s", "fcntl() FAILED",
+             "serrno",       "%s", strerror(flags),
+             NULL
+         );
+        return -1;
+    }
+    flags = fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+    if(flags < 0) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+             "function",     "%s", __FUNCTION__,
+             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+             "msg",          "%s", "fcntl() FAILED",
+             "serrno",       "%s", strerror(flags),
+             NULL
+        );
+    }
+
+    return 0;
 }

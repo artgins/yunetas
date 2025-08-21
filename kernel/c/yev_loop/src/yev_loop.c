@@ -38,6 +38,8 @@
 
 #include <string.h>
 
+#include "../../gobj-c/src/helpers.h"
+
 /***************************************************************
  *              Constants
  ***************************************************************/
@@ -2424,7 +2426,8 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             );
             continue;
         }
-        fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
+
+        set_cloexec(fd);
 
         if(hints.ai_protocol == IPPROTO_TCP || hints.ai_protocol == IPPROTO_UDP) {
             // TODO review for UDP
@@ -3064,66 +3067,4 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)
 PUBLIC const char **yev_flag_strings(void)
 {
     return yev_flag_s;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int set_nonblocking(int fd)
-{
-    int flags = fcntl(fd, F_GETFL, 0);
-    if(flags < 0) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-             "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-             "msg",          "%s", "fcntl() FAILED",
-             "serrno",       "%s", strerror(flags),
-             NULL
-         );
-
-        return -1;
-    }
-    flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-    if(flags < 0) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-             "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-             "msg",          "%s", "fcntl() FAILED",
-             "serrno",       "%s", strerror(flags),
-             NULL
-        );
-    }
-
-    return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int set_cloexec(int fd)
-{
-    int flags = fcntl(fd, F_GETFD, 0);
-    if(flags < 0) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-             "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-             "msg",          "%s", "fcntl() FAILED",
-             "serrno",       "%s", strerror(flags),
-             NULL
-         );
-
-        return -1;
-    }
-    flags = fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
-    if(flags < 0) {
-        gobj_log_error(0, LOG_OPT_TRACE_STACK,
-             "function",     "%s", __FUNCTION__,
-             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-             "msg",          "%s", "fcntl() FAILED",
-             "serrno",       "%s", strerror(flags),
-             NULL
-        );
-    }
-
-    return 0;
 }

@@ -35,7 +35,6 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE void catcher(int signum);
-PRIVATE BOOL fd_set_cloexec(const int fd);
 // PRIVATE BOOL fd_duplicate(int fd, uv_pipe_t *pipe);
 // PRIVATE void on_read_cb(uv_stream_t* stream, ssize_t nread, const uv_buf_t* buf);
 PRIVATE int write_data_to_pty(hgobj gobj, gbuffer_t *gbuf);
@@ -304,20 +303,8 @@ PRIVATE int mt_start(hgobj gobj)
         waitpid(pid, NULL, 0);
         return -1;
     }
-    if(!fd_set_cloexec(master)) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "fd_set_cloexec() FAILED",
-            "errno",        "%d", errno,
-            "strerror",     "%s", strerror(errno),
-            NULL
-        );
-        close(master);
-        kill(pid, SIGKILL);
-        waitpid(pid, NULL, 0);
-        return -1;
-    }
+
+    set_cloexec(master);
 
     if(1) {
 // TODO       uv_pipe_init(yuno_uv_event_loop(), &priv->uv_in, 0);
@@ -514,18 +501,6 @@ PRIVATE void catcher(int signum)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL fd_set_cloexec(const int fd)
-{
-    int flags = fcntl(fd, F_GETFD);
-    if (flags < 0) {
-        return FALSE;
-    }
-    return (flags & FD_CLOEXEC) == 0 || fcntl(fd, F_SETFD, flags | FD_CLOEXEC) != -1;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 // TODO //PRIVATE BOOL fd_duplicate(int fd, uv_pipe_t *pipe)
 //{
 //    int fd_dup = dup(fd);
@@ -533,9 +508,7 @@ PRIVATE BOOL fd_set_cloexec(const int fd)
 //        return FALSE;
 //    }
 //
-//    if (!fd_set_cloexec(fd_dup)) {
-//        return FALSE;
-//    }
+//    set_cloexec(fd_dup);
 //
 //    int status = uv_pipe_open(pipe, fd_dup);
 //    if (status) {

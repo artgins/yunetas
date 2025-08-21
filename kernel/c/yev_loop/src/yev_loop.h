@@ -442,8 +442,6 @@ PUBLIC BOOL is_udp_socket(int fd);
 PUBLIC int get_peername(char *bf, size_t bfsize, int fd);
 PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
 PUBLIC const char **yev_flag_strings(void);
-PUBLIC int set_nonblocking(int fd);
-PUBLIC int set_cloexec(int fd);
 PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
 PUBLIC int get_measure_times(void); // return yevent types measuring
 

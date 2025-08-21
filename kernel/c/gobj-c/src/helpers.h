@@ -1046,6 +1046,9 @@ PUBLIC int copyfile(
     BOOL overwrite
 );
 
+PUBLIC int set_nonblocking(int fd);
+PUBLIC int set_cloexec(int fd); // children must not inherit
+
 /***************************************************************
  *  inline functions
  ***************************************************************/
