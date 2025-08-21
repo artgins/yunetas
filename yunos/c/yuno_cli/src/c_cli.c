@@ -539,7 +539,9 @@ PRIVATE int mt_start(hgobj gobj)
             yev_start_event(priv->yev_reading);
         }
 
-        gobj_start(priv->gobj_editline);
+        if(!gobj_is_running(priv->gobj_editline)) {
+            gobj_start(priv->gobj_editline);
+        }
     }
 
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
