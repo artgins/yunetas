@@ -7465,16 +7465,15 @@ PRIVATE int write_service_client_connectors(
         uint32_t port_ =  SDATA_GET_INT(hs_service, "port");
         char port[32];
         snprintf(port, sizeof(port), "%d", port_);
-        json_t * jn_config_variables = json_pack("{s:{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
-            "__json_config_variables__",
-                "__realm_id__", realm_id,
-                "__yuno_name__", yuno_name,
-                "__yuno_role__", yuno_role,
-                "__yuno_service__", yuno_service,
-                "__ip__", ip,
-                "__port__", port,
-                "__schema__", schema,
-                "__url__", url
+        json_t * jn_config_variables = json_pack("{s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}",
+            "__realm_id__", realm_id,
+            "__yuno_name__", yuno_name,
+            "__yuno_role__", yuno_role,
+            "__yuno_service__", yuno_service,
+            "__ip__", ip,
+            "__port__", port,
+            "__schema__", schema,
+            "__url__", url
         );
 
         json_t *kw_connector = json_replace_var( // old kw_apply_json_config_variables
