@@ -10121,7 +10121,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 );
                 json_object_update_new(kw_play, kw_ext);
             }
-print_json2("KKK2", kw_play); // TODO
             cmd_play_yuno(gobj, "play-yuno", kw_play, gobj);
         }
         // Volatil if you don't want historic data
