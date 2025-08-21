@@ -1466,7 +1466,6 @@ PRIVATE int ac_command_answer(hgobj gobj, const char *event, json_t *kw, hgobj s
         gobj_set_exit_code(result);
 
         set_timeout(priv->timer, priv->wait * 1000);
-        //gobj_shutdown();
     }
     return 0;
 }

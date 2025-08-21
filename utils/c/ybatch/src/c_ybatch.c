@@ -783,8 +783,9 @@ PRIVATE int tira_dela_cola(hgobj gobj)
     if(priv->verbose) {
         printf("\n==> All done!\n\n");
     }
-    gobj_set_exit_code(0);
-    gobj_shutdown();
+
+    gobj_change_state(gobj, ST_CONNECTED);
+    set_timeout(priv->timer, 2*1000);
 
     return 0;
 }
@@ -880,6 +881,8 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
+    clear_timeout(priv->timer);
+
     const char *command = kw_get_str(gobj, priv->hs, "command", "", KW_REQUIRED);
     json_t *jn_response_filter = kw_get_dict(gobj, priv->hs, "response_filter", 0, 0);
 
@@ -932,7 +935,6 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
         kw  // owned
     );
 
-    clear_timeout(priv->timer);
     tira_dela_cola(gobj);
 
     return 0;
@@ -943,13 +945,17 @@ PRIVATE int ac_mt_command_answer(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
-    gobj_log_error(gobj, 0,
-        "function",     "%s", __FUNCTION__,
-        "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-        "msg",          "%s", "Timeout",
-        NULL
-    );
-    gobj_set_exit_code(-1);
+    if(gobj_current_state(gobj) == ST_WAIT_RESPONSE) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "Timeout",
+            NULL
+        );
+        gobj_set_exit_code(-1);
+    } else {
+        gobj_set_exit_code(0);
+    }
     gobj_shutdown();
 
     KW_DECREF(kw);
@@ -1014,14 +1020,15 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 
     ev_action_t st_connected[] = {
         {EV_ON_CLOSE,           ac_on_close,                ST_DISCONNECTED},
+        {EV_TIMEOUT,            ac_timeout,                 0},
         {EV_STOPPED,            0,                          0},
         {0,0,0}
     };
 
     ev_action_t st_wait_response[] = {
         {EV_ON_CLOSE,           ac_on_close,                ST_DISCONNECTED},
-        {EV_MT_STATS_ANSWER,    ac_mt_command_answer,       0},
-        {EV_MT_COMMAND_ANSWER,  ac_mt_command_answer,       0},
+        {EV_MT_STATS_ANSWER,    ac_mt_command_answer,       ST_CONNECTED},
+        {EV_MT_COMMAND_ANSWER,  ac_mt_command_answer,       ST_CONNECTED},
         {EV_TIMEOUT,            ac_timeout,                 0},
         {EV_STOPPED,            0,                          0},
         {0,0,0}
