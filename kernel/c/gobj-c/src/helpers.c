@@ -6239,10 +6239,11 @@ PUBLIC int set_nonblocking(int fd)
              "function",     "%s", __FUNCTION__,
              "msgset",       "%s", MSGSET_SYSTEM_ERROR,
              "msg",          "%s", "fcntl() FAILED",
-             "serrno",       "%s", strerror(flags),
+             "serrno",       "%s", strerror(errno),
              NULL
          );
 
+        print_error(0, "fcntl() FAILED: %s\n", strerror(errno));
         return -1;
     }
     flags = fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -6251,9 +6252,10 @@ PUBLIC int set_nonblocking(int fd)
              "function",     "%s", __FUNCTION__,
              "msgset",       "%s", MSGSET_SYSTEM_ERROR,
              "msg",          "%s", "fcntl() FAILED",
-             "serrno",       "%s", strerror(flags),
+             "serrno",       "%s", strerror(errno),
              NULL
         );
+        print_error(0, "fcntl() FAILED: %s\n", strerror(errno));
     }
 
     return 0;
@@ -6280,9 +6282,10 @@ PUBLIC int set_cloexec(int fd) // children must not inherit
              "function",     "%s", __FUNCTION__,
              "msgset",       "%s", MSGSET_SYSTEM_ERROR,
              "msg",          "%s", "fcntl() FAILED",
-             "serrno",       "%s", strerror(flags),
+             "serrno",       "%s", strerror(errno),
              NULL
          );
+        print_error(0, "fcntl() FAILED: %s\n", strerror(errno));
         return -1;
     }
     flags = fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
@@ -6291,9 +6294,10 @@ PUBLIC int set_cloexec(int fd) // children must not inherit
              "function",     "%s", __FUNCTION__,
              "msgset",       "%s", MSGSET_SYSTEM_ERROR,
              "msg",          "%s", "fcntl() FAILED",
-             "serrno",       "%s", strerror(flags),
+             "serrno",       "%s", strerror(errno),
              NULL
         );
+        print_error(0, "fcntl() FAILED: %s\n", strerror(errno));
     }
 
     return 0;

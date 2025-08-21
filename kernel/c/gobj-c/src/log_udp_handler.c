@@ -530,12 +530,8 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
     int opt = 1;
     setsockopt(uc->_s, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-#ifdef __linux__
-    int flags = fcntl(uc->_s, F_GETFL, 0);
-    if(fcntl(uc->_s, F_SETFL, flags | O_NONBLOCK)<0) {
-        syslog(LOG_ERR, "YUNETA: " "fcntl() FAILED, errno %d, serrno %s", errno, strerror(errno));
-    }
-#endif
+    set_nonblocking(uc->_s);
+    set_cloexec(uc->_s);
 
     memset((char *) &uc->si_other, 0, sizeof(uc->si_other));
     uc->si_other.sin_family = AF_INET;
