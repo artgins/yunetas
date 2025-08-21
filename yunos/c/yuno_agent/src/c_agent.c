@@ -4764,7 +4764,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *      Get the requester
      *---------------------------------------*/
 // KKK
-    const char *requester = gobj_name(src);
+    const char *requester = kw_get_str(gobj, kw, "__temp__`channel", 0, KW_REQUIRED);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -4798,9 +4798,9 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 json_array_append_new(filterlist, jn_EvChkItem);
 
 // KKK for ac_on_open to do the play
-                json_object_set_new(yuno, "requester", json_string(requester));
-                json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED);
-                json_object_set(yuno, "kw_answer", md_iev);
+                // json_object_set_new(yuno, "requester", json_string(requester));
+                // json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED);
+                // json_object_set(yuno, "kw_answer", md_iev);
 
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -4953,7 +4953,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *      Get the requester
      *---------------------------------------*/
 // KKK
-    const char *requester = gobj_name(src);
+    const char *requester = kw_get_str(gobj, kw, "__temp__`channel", 0, KW_REQUIRED);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -5112,7 +5112,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *      Get the requester
      *---------------------------------------*/
 // KKK
-    const char *requester = gobj_name(src);
+    const char *requester = kw_get_str(gobj, kw, "__temp__`channel", 0, KW_REQUIRED);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -5295,7 +5295,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *      Get the requester
      *---------------------------------------*/
 // KKK
-    const char *requester = gobj_name(src);
+    const char *requester = kw_get_str(gobj, kw, "__temp__`channel", 0, KW_REQUIRED);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -8281,8 +8281,8 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
                 run_yuno(gobj, yuno, 0);
 
 // KKK
-                json_object_set_new(yuno, "requester", json_string(""));
-                json_object_set_new(yuno, "kw_answer", json_null());
+                // json_object_set_new(yuno, "requester", json_string(""));
+                // json_object_set_new(yuno, "kw_answer", json_null());
 
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -10119,31 +10119,20 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *---------------*/
     if(!playing) {
 // KKK
-        const char *requester = kw_get_str(gobj, yuno, "requester", "", 0);
-        json_t *md_iev = kw_get_dict(gobj, yuno, "kw_requester", 0, 0);
-
         BOOL must_play = SDATA_GET_BOOL(yuno, "must_play");
         if(must_play) {
-            hgobj gobj_requester = 0;
-            if(!empty_string(requester)) {
-                gobj_requester = gobj_child_by_name(
-                    gobj_find_service("__input_side__", TRUE),
-                    requester
-                );
-            }
-            if(!gobj_requester) {
-                play_yuno(gobj, yuno, 0, src);
-            } else {
-                json_t *kw_play = json_pack("{s:s, s:s}",
-                    "realm_id", realm_id,
-                    "id", yuno_id
-                );
-                json_object_set(kw_play, "__md_iev__", md_iev);
-                cmd_play_yuno(gobj, "play-yuno", kw_play, gobj_requester);
-            }
+            json_t *kw_play = json_pack("{s:s, s:s}",
+                "realm_id", realm_id,
+                "id", yuno_id
+            );
+            json_t *md_iev = kw_get_dict(gobj, kw, "identity_card`__md_iev__", 0, KW_REQUIRED);
+            json_t *temp__ = kw_get_dict(gobj, kw, "__temp__", 0, KW_REQUIRED);
+            json_object_set(kw_play, "__md_iev__", md_iev);
+            json_object_set(kw_play, "__temp__", temp__);
+            cmd_play_yuno(gobj, "play-yuno", kw_play, src);
         }
         // se pierde, no existe el campo requester, change your mind! TODO legacy
-        json_object_set_new(yuno, "requester", json_string(""));
+        // json_object_set_new(yuno, "requester", json_string(""));
         // Volatil if you don't want historic data
         // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
         // y falla el deactivate-snap
