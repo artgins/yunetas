@@ -4764,7 +4764,9 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *      Get the requester
      *---------------------------------------*/
 // KKK
-    const char *requester = kw_get_str(gobj, kw, "__temp__`channel", 0, KW_REQUIRED);
+    const char *requester = kw_get_str(
+        gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
+    );
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -4953,7 +4955,9 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *      Get the requester
      *---------------------------------------*/
 // KKK
-    const char *requester = kw_get_str(gobj, kw, "__temp__`channel", 0, KW_REQUIRED);
+    const char *requester = kw_get_str(
+        gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
+    );
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -5075,7 +5079,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 }
 
 /***************************************************************************
- *
+ *  HACK this command could come from internal auto-play
  ***************************************************************************/
 PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
@@ -5112,7 +5116,14 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *      Get the requester
      *---------------------------------------*/
 // KKK
-    const char *requester = kw_get_str(gobj, kw, "__temp__`channel", 0, KW_REQUIRED);
+    const char *requester = kw_get_str(
+        gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, 0
+    );
+    if(empty_string(requester)) {
+        requester = kw_get_str(
+            gobj, kw, "__temp__`channel", 0, 0
+        );
+    }
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -5295,7 +5306,9 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *      Get the requester
      *---------------------------------------*/
 // KKK
-    const char *requester = kw_get_str(gobj, kw, "__temp__`channel", 0, KW_REQUIRED);
+    const char *requester = kw_get_str(
+        gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, KW_REQUIRED
+    );
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
