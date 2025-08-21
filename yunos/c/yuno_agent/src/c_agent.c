@@ -71,8 +71,8 @@ PRIVATE char *yuneta_repos_yuno_file(
 );
 PRIVATE json_t *get_yuno_realm(hgobj gobj, json_t *yuno);
 PRIVATE char * build_yuno_private_domain(hgobj gobj, json_t *yuno, char *bf, int bfsize);
-PRIVATE int build_role_plus_name(char *bf, int bf_len, json_t *yuno);
-PRIVATE int build_role_plus_id(char *bf, int bf_len, json_t *yuno);
+PRIVATE int build_role_plus_name(hgobj gobj, char *bf, int bf_len, json_t *yuno);
+PRIVATE int build_role_plus_id(hgobj gobj, char *bf, int bf_len, json_t *yuno);
 PRIVATE char * build_yuno_bin_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir);
 PRIVATE char * build_yuno_log_path(hgobj gobj, json_t *yuno, char *bf, int bfsize, BOOL create_dir);
 PRIVATE int run_yuno(
@@ -119,7 +119,7 @@ PRIVATE int stats_to_yuno(
     hgobj gobj, json_t *yuno, const char* stats, json_t* kw, hgobj src
 );
 PRIVATE int authzs_to_yuno(
-    json_t *yuno, json_t* kw, hgobj src
+    hgobj gobj, json_t *yuno, json_t* kw, hgobj src
 );
 PRIVATE int audit_command_cb(const char *command, json_t *kw, void *user_data);
 
@@ -134,7 +134,9 @@ PRIVATE json_t *find_configuration_version(
     const char *name,
     const char *version
 );
-PRIVATE int build_release_name(char *bf, int bfsize, json_t *hs_binary, json_t *hs_config);
+PRIVATE int build_release_name(
+    hgobj gobj, char *bf, int bfsize, json_t *hs_binary, json_t *hs_config
+);
 
 PRIVATE int register_public_services(
     hgobj gobj,
@@ -4037,10 +4039,10 @@ PRIVATE json_t *cmd_set_multiple(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  *
  ***************************************************************************/
 PRIVATE json_t *yuno2multiselect(
+    hgobj gobj,
     json_t *node // not owned
 )
 {
-    hgobj gobj = 0; // TODO
     json_t * multiselect_element = json_object();
     json_object_set_new(
         multiselect_element,
@@ -4086,7 +4088,7 @@ PRIVATE json_t *cmd_top_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         BOOL disabled = kw_get_bool(gobj, node, "yuno_disabled", 0, KW_REQUIRED);
         const char *yuno_tag = kw_get_str(gobj, node, "yuno_tag", 0, KW_REQUIRED);
         if(!disabled || !empty_string(yuno_tag)) {
-            json_array_append(jn_data, webix?yuno2multiselect(node):node);
+            json_array_append(jn_data, webix?yuno2multiselect(gobj, node):node);
         }
     }
     JSON_DECREF(iter)
@@ -4108,13 +4110,14 @@ PRIVATE json_t *cmd_top_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj src
  *
  ***************************************************************************/
 PRIVATE json_t *yunos2multilselect(
+    hgobj gobj,
     json_t *iter  // owned
 )
 {
     json_t *jn_data = json_array();
     int idx; json_t *node;
     json_array_foreach(iter, idx, node) {
-        json_array_append(jn_data, yuno2multiselect(node));
+        json_array_append(jn_data, yuno2multiselect(gobj, node));
     }
     JSON_DECREF(iter)
 
@@ -4144,7 +4147,7 @@ PRIVATE json_t *cmd_list_yunos(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
     /*
      *  Inform
      */
-    json_t *jn_data = webix?yunos2multilselect(iter):iter;
+    json_t *jn_data = webix?yunos2multilselect(gobj, iter):iter;
 
     json_t *schema = webix?
         0:tranger2_list_topic_desc_cols(gobj_read_pointer_attr(priv->resource, "tranger"), resource)
@@ -4440,7 +4443,7 @@ json_t* cmd_create_yuno(hgobj gobj, const char* cmd, json_t* kw, hgobj src)
      *      Release
      *---------------------------------------------*/
     char yuno_release[120];
-    build_release_name(yuno_release, sizeof(yuno_release), hs_binary, hs_configuration);
+    build_release_name(gobj, yuno_release, sizeof(yuno_release), hs_binary, hs_configuration);
     json_object_set_new(kw, "yuno_release", json_string(yuno_release));
 
     if(empty_string(role_version)) {
@@ -5152,7 +5155,6 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                  *  Realmente solo se necesita para informar al cliente
                  *  solo después de que se hayan ejecutado sus ordenes.
                  */
-                // TODO check
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:I}}",
                     "event", EV_PLAY_YUNO_ACK,
                     "filters",
@@ -5320,7 +5322,6 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             json_t *jn_msg = json_object();
             kw_set_dict_value(gobj, jn_msg, "__md_iev__`__id__", json_integer(filter_ref));
             if(pause_yuno(gobj, yuno, jn_msg, src)==0) {
-                // TODO check
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:I}}",
                     "event", EV_PAUSE_YUNO_ACK,
                     "filters",
@@ -5886,7 +5887,7 @@ PRIVATE json_t *cmd_authzs_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj s
          *  Command to yuno
          */
         json_t *kw_yuno = json_deep_copy(kw);
-        authzs_to_yuno(yuno, kw_yuno, src);
+        authzs_to_yuno(gobj, yuno, kw_yuno, src);
     }
     JSON_DECREF(iter)
 
@@ -6901,9 +6902,8 @@ PRIVATE int exec_startup_command(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int build_role_plus_name(char *bf, int bf_len, json_t *yuno)
+PRIVATE int build_role_plus_name(hgobj gobj, char *bf, int bf_len, json_t *yuno)
 {
-    hgobj gobj = 0; // TODO
     const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED);
     const char *yuno_name = kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED);
 
@@ -6923,9 +6923,8 @@ PRIVATE int build_role_plus_name(char *bf, int bf_len, json_t *yuno)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int build_role_plus_id(char *bf, int bf_len, json_t *yuno)
+PRIVATE int build_role_plus_id(hgobj gobj, char *bf, int bf_len, json_t *yuno)
 {
-    hgobj gobj = 0; // TODO
     const char *yuno_role = kw_get_str(gobj, yuno, "yuno_role", "", KW_REQUIRED);
     const char *yuno_name = kw_get_str(gobj, yuno, "yuno_name", "", KW_REQUIRED);
     const char *yuno_id = kw_get_str(gobj, yuno, "id", yuno_name, KW_REQUIRED);
@@ -7063,7 +7062,7 @@ PRIVATE char * build_yuno_private_domain(
     snprintf(url, sizeof(url), "%s.%s.%s", realm_name, realm_role, realm_env);
 
     char role_plus_id[NAME_MAX];
-    build_role_plus_id(role_plus_id, sizeof(role_plus_id), yuno);
+    build_role_plus_id(gobj, role_plus_id, sizeof(role_plus_id), yuno);
 
     json_decref(realm);
 
@@ -7461,7 +7460,7 @@ PRIVATE int write_service_client_connectors(
         const char *yuno_role = SDATA_GET_STR(hs_service, "yuno_role");
         const char *yuno_name = SDATA_GET_STR(hs_service, "yuno_name");
         const char *schema = SDATA_GET_STR(hs_service, "schema");
-        const char *ip =  SDATA_GET_STR(hs_service, "ip"); // TODO legacy sácalo de la url
+        const char *ip =  SDATA_GET_STR(hs_service, "ip");
         uint32_t port_ =  SDATA_GET_INT(hs_service, "port");
         char port[32];
         snprintf(port, sizeof(port), "%d", port_);
@@ -7622,7 +7621,7 @@ PRIVATE gbuffer_t *build_yuno_running_script(
     }
     const char *binary_path = kw_get_str(gobj, binary, "binary", "", KW_REQUIRED);
     char role_plus_name[NAME_MAX];
-    build_role_plus_name(role_plus_name, sizeof(role_plus_name), yuno);
+    build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
 
     /*
      *  Build the run script
@@ -7858,9 +7857,7 @@ PRIVATE int run_yuno(
 {
     /*
      *  Launch id
-     *  TODO legacy cuando un yuno no arranca y no encuentra una .so, aparece como running al agente
      */
-
     static uint16_t counter = 0;
     uint64_t t;
     time((time_t*)&t);
@@ -7883,7 +7880,7 @@ PRIVATE int run_yuno(
     build_yuno_bin_path(gobj, yuno, yuno_bin_path, sizeof(yuno_bin_path), TRUE);
 
     char role_plus_name[NAME_MAX];
-    build_role_plus_name(role_plus_name, sizeof(role_plus_name), yuno);
+    build_role_plus_name(gobj, role_plus_name, sizeof(role_plus_name), yuno);
 
     char script_path[NAME_MAX*2 + 10];
     snprintf(script_path, sizeof(script_path), "%s/%s.sh", yuno_bin_path, role_plus_name);
@@ -8212,12 +8209,12 @@ PRIVATE int stats_to_yuno(hgobj gobj, json_t *yuno, const char* stats, json_t* k
  *
  ***************************************************************************/
 PRIVATE int authzs_to_yuno(
+    hgobj gobj,
     json_t *yuno,
     json_t* kw,
     hgobj src
 )
 {
-    hgobj gobj = 0; // TODO
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, yuno, "_channel_gobj", 0, KW_REQUIRED);
     if(!channel_gobj) {
         KW_DECREF(kw);
@@ -8425,9 +8422,9 @@ PRIVATE json_t *find_configuration_version(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int build_release_name(char *bf, int bfsize, json_t *hs_binary, json_t *hs_config)
-{
-    hgobj gobj = 0; // TODO
+PRIVATE int build_release_name(
+    hgobj gobj, char *bf, int bfsize, json_t *hs_binary, json_t *hs_config
+) {
     int len;
     char *p = bf;
 
