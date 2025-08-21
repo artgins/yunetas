@@ -4762,38 +4762,9 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
     /*---------------------------------------*
      *      Get the requester
-     *  If not null then came from outside
-     *
-     *  Example
-
-        "__md_iev__": {
-            "command_stack": [
-                {
-                    "command": "run-yuno",
-                    "kw": {}
-                }
-            ],
-            "ievent_gate_stack": [
-                {
-                    "dst_yuno": "",
-                    "dst_role": "yuneta_agent",
-                    "dst_service": "agent",
-                    "src_yuno": "__root__",
-                    "src_role": "ycli",
-                    "src_service": "cli",
-                    "user": "yuneta",
-                    "host": "gines-Nitro-AN517-53",
-                    "input_service": "input-0",
-                    "input_channel": "input-0",
-                    "__username__": "yuneta"
-                }
-            ],
-            "__msg_type__": "__command__"
-        },
-     *
      *---------------------------------------*/
 // KKK
-    json_t *requester_md_iev = kw_get_dict_value(gobj, kw, "__md_iev__", 0, 0);
+    const char *requester = gobj_name(src);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -4826,12 +4797,10 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 );
                 json_array_append_new(filterlist, jn_EvChkItem);
 
-// KKK
-                if(requester_md_iev) {
-                    json_object_set(yuno, "requester", requester_md_iev);
-                } else {
-                    json_object_set_new(yuno, "requester", json_null());
-                }
+// KKK for ac_on_open to do the play
+                json_object_set_new(yuno, "requester", json_string(requester));
+                json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED);
+                json_object_set(yuno, "kw_answer", md_iev);
 
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
@@ -4920,11 +4889,11 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      * events received in the publication, exactly the event we want.
      */
     json_t *kw_final_count = json_object();
-    if(requester_md_iev) {
+    if(requester) {
         // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
-        json_object_set(global, "requester_md_iev", requester_md_iev);
+        json_object_set_new(global, "requester", json_string(requester));
     }
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
@@ -4982,10 +4951,9 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     /*---------------------------------------*
      *      Get the requester
-     *  If not null then came from outside
      *---------------------------------------*/
 // KKK
-    json_t *requester_md_iev = kw_get_dict_value(gobj, kw, "__md_iev__", 0, 0);
+    const char *requester = gobj_name(src);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -5056,8 +5024,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  que nos indique cuando han arrancado
      *  all yunos arrancados.
      *--------------------------------------*/
-    KW_INCREF(kw);
-    json_t *kw_answer = kw;
+    json_t *kw_answer = kw_incref(kw);
 
     char info[80];
     snprintf(info, sizeof(info), "%d yunos found to kill", total_killed);
@@ -5092,11 +5059,11 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  Subscribe me to the counter's final event, with the __md_iev__ of requester
      */
     json_t *kw_final_count = json_object();
-    if(requester_md_iev) {
+    if(requester) {
         // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
-        json_object_set(global, "requester_md_iev", requester_md_iev);
+        json_object_set_new(global, "requester", json_string(requester));
     }
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
@@ -5143,10 +5110,9 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
     /*---------------------------------------*
      *      Get the requester
-     *  If not null then came from outside
      *---------------------------------------*/
 // KKK
-    json_t *requester_md_iev = kw_get_dict_value(gobj, kw, "__md_iev__", 0, 0);
+    const char *requester = gobj_name(src);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -5238,8 +5204,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  que nos indique cuando han arrancado
      *  all yunos arrancados.
      *--------------------------------------*/
-    KW_INCREF(kw);
-    json_t *kw_answer = kw;
+    json_t *kw_answer = kw_incref(kw);
 
     char info[80];
     snprintf(info, sizeof(info), "%d to preplay, %d to play",
@@ -5278,11 +5243,11 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  Subscribe me to the counter's final event, with the __md_iev__ of requester
      */
     json_t *kw_final_count = json_object();
-    if(requester_md_iev) {
+    if(requester) {
         // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
-        json_object_set(global, "requester_md_iev", requester_md_iev);
+        json_object_set_new(global, "requester", json_string(requester));
     }
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
@@ -5328,10 +5293,9 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     /*---------------------------------------*
      *      Get the requester
-     *  If not null then came from outside
      *---------------------------------------*/
 // KKK
-    json_t *requester_md_iev = kw_get_dict_value(gobj, kw, "__md_iev__", 0, 0);
+    const char *requester = gobj_name(src);
 
     /*------------------------------------------------*
      *  Walk over yunos iter:
@@ -5409,8 +5373,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  que nos indique cuando han arrancado
      *  all yunos arrancados.
      *--------------------------------------*/
-    KW_INCREF(kw);
-    json_t *kw_answer = kw;
+    json_t *kw_answer = kw_incref(kw);
 
     char info[80];
     snprintf(info, sizeof(info), "%d to prepause, %d to pause",
@@ -5447,11 +5410,11 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *  Subscribe me to the counter's final event, with the __md_iev__ of requester
      */
     json_t *kw_final_count = json_object();
-    if(requester_md_iev) {
+    if(requester) {
         // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
-        json_object_set(global, "requester_md_iev", requester_md_iev);
+        json_object_set_new(global, "requester", json_string(requester));
     }
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
@@ -8316,6 +8279,24 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
             BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
             if(!running) {
                 run_yuno(gobj, yuno, 0);
+
+// KKK
+                json_object_set_new(yuno, "requester", json_string(""));
+                json_object_set_new(yuno, "kw_answer", json_null());
+
+                // Volatil if you don't want historic data
+                // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
+                // y falla el deactivate-snap
+                json_decref(
+                    gobj_update_node(
+                        priv->resource,
+                        resource,
+                        json_incref(yuno),
+                        json_pack("{s:b}", "volatil", 1),
+                        gobj
+                    )
+                );
+
             }
         }
     }
@@ -10137,7 +10118,10 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Check play
      *---------------*/
     if(!playing) {
+// KKK
         const char *requester = kw_get_str(gobj, yuno, "requester", "", 0);
+        json_t *md_iev = kw_get_dict(gobj, yuno, "kw_requester", 0, 0);
+
         BOOL must_play = SDATA_GET_BOOL(yuno, "must_play");
         if(must_play) {
             hgobj gobj_requester = 0;
@@ -10154,6 +10138,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     "realm_id", realm_id,
                     "id", yuno_id
                 );
+                json_object_set(kw_play, "__md_iev__", md_iev);
                 cmd_play_yuno(gobj, "play-yuno", kw_play, gobj_requester);
             }
         }
@@ -10276,72 +10261,35 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
     int cur_count = (int)kw_get_int(gobj, kw, "cur_count", 0, 0);
 
 // KKK
-    /*---------------------------------------*
-     *  Example
 
-        "requester_md_iev": { // __md_iev__
-            "command_stack": [
-                {
-                    "command": "run-yuno",
-                    "kw": {}
-                }
-            ],
-            "ievent_gate_stack": [
-                {
-                    "dst_yuno": "",
-                    "dst_role": "yuneta_agent",
-                    "dst_service": "agent",
-                    "src_yuno": "__root__",
-                    "src_role": "ycli",
-                    "src_service": "cli",
-                    "user": "yuneta",
-                    "host": "gines-Nitro-AN517-53",
-                    "input_service": "input-0",
-                    "input_channel": "input-0",
-                    "__username__": "yuneta"
-                }
-            ],
-            "__msg_type__": "__command__"
-        },
-     *
-     *---------------------------------------*/
-    // KKK
+    json_t *iter_yunos = gobj_kw_get_user_data(src, "iter", 0, KW_EXTRACT|KW_REQUIRED);
+    json_t *kw_answer = gobj_kw_get_user_data(src, "kw_answer", 0, KW_EXTRACT|KW_REQUIRED);
 
-    json_t *iter_yunos = gobj_kw_get_user_data(src, "iter", 0, KW_EXTRACT);
-    json_t *kw_answer = gobj_kw_get_user_data(src, "kw_answer", 0, KW_EXTRACT);
-
-    json_t *requester_md_iev = kw_get_dict_value(gobj, kw, "requester_md_iev", 0, KW_REQUIRED);
-    if(!requester_md_iev) {
+    const char *requester = kw_get_str(gobj, kw, "requester", 0, 0);
+    if(!requester) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no requester __md_iev__",
+            "msg",          "%s", "no requester",
             NULL
         );
-        gobj_trace_json(gobj, iter_yunos, "no requester __md_iev__");
+        gobj_trace_json(gobj, iter_yunos, "no requester");
         JSON_DECREF(iter_yunos);
         KW_DECREF(kw_answer);
         KW_DECREF(kw);
         return -1;
     }
 
-    const char *requester_channel = kw_get_str(
-        gobj,
-        requester_md_iev,
-        "ievent_gate_stack`input_channel",
-        0,
-        0
-    );
     hgobj gobj_requester_channel = gobj_child_by_name(
         gobj_find_service("__input_side__", TRUE),
-        requester_channel
+        requester
     );
     if(!gobj_requester_channel) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "requester channel child not found",
-            "chanel child", "%s", requester_channel,
+            "chanel child", "%s", requester,
             NULL
         );
         JSON_DECREF(iter_yunos);
@@ -10382,8 +10330,6 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
         jn_data,
         kw_answer  // owned
     );
-
-    json_object_set(webix, "__md_iev__", requester_md_iev);
 
     KW_DECREF(kw);
 
