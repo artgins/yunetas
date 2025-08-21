@@ -1367,6 +1367,12 @@ PUBLIC json_t *gobj_service_register(void)
             "service",
             json_string(key)
         );
+        BOOL with_cmds = gobj->gclass->command_table?TRUE:FALSE;
+        json_object_set_new(
+            jn_srv,
+            "cmds",
+            json_boolean(with_cmds)
+        );
         json_array_append_new(jn_register, jn_srv);
     }
 
