@@ -4799,11 +4799,6 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                 );
                 json_array_append_new(filterlist, jn_EvChkItem);
 
-// KKK for ac_on_open to do the play
-                // json_object_set_new(yuno, "requester", json_string(requester));
-                // json_t *md_iev = kw_get_dict(gobj, kw, "__md_iev__", 0, KW_REQUIRED);
-                // json_object_set(yuno, "kw_answer", md_iev);
-
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
                 // y falla el deactivate-snap
@@ -4880,23 +4875,12 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 
 // KKK
     /*
-     * Subscribe me to the counter's final event, with the __md_iev__ of requester
-     * HACK: I put a __md_iev__ in the counter subscription.
-     * So, in the received publication, we retrieve the __md_iev__ containing the 'requester'
-     * that we entered.
-     * We also tell the counter to subscribe to the router's EV_ON_OPEN event,
-     * but telling it to receive a rename, EV_COUNT, which is the one defined on the machine.
-     * With the filters, we tell it to count the received events that also
-     * meet the passed filters. That is, we identify, among the possible multiple
-     * events received in the publication, exactly the event we want.
+     *  Subscribe me to the counter's final event, with the requester
      */
     json_t *kw_final_count = json_object();
-    if(requester) {
-        // If the request does not come from the agent himself, save the requester
-        json_t *global = json_object();
-        json_object_set_new(kw_final_count, "__global__", global);
-        json_object_set_new(global, "requester", json_string(requester));
-    }
+    json_t *global = json_object();
+    json_object_set_new(kw_final_count, "__global__", global);
+    json_object_set_new(global, "requester", json_string(requester));
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
 
@@ -5060,15 +5044,12 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
 // KKK
     /*
-     *  Subscribe me to the counter's final event, with the __md_iev__ of requester
+     *  Subscribe me to the counter's final event, with the requester
      */
     json_t *kw_final_count = json_object();
-    if(requester) {
-        // If the request does not come from the agent himself, save the requester
-        json_t *global = json_object();
-        json_object_set_new(kw_final_count, "__global__", global);
-        json_object_set_new(global, "requester", json_string(requester));
-    }
+    json_t *global = json_object();
+    json_object_set_new(kw_final_count, "__global__", global);
+    json_object_set_new(global, "requester", json_string(requester));
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
 
@@ -5112,9 +5093,11 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         );
     }
 
-    /*---------------------------------------*
+    /*-----------------------------------------------*
      *      Get the requester
-     *---------------------------------------*/
+     *  If it comes from event it has __temp__,
+     *  if it comes from command it has __md_iev__
+     *-----------------------------------------------*/
 // KKK
     const char *requester = kw_get_str(
         gobj, kw, "__md_iev__`ievent_gate_stack`0`input_channel", 0, 0
@@ -5251,15 +5234,12 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
 
 // KKK
     /*
-     *  Subscribe me to the counter's final event, with the __md_iev__ of requester
+     *  Subscribe me to the counter's final event, with the requester
      */
     json_t *kw_final_count = json_object();
-    if(requester) {
-        // If the request does not come from the agent himself, save the requester
-        json_t *global = json_object();
-        json_object_set_new(kw_final_count, "__global__", global);
-        json_object_set_new(global, "requester", json_string(requester));
-    }
+    json_t *global = json_object();
+    json_object_set_new(kw_final_count, "__global__", global);
+    json_object_set_new(global, "requester", json_string(requester));
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
 
@@ -5420,15 +5400,12 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
 // KKK
     /*
-     *  Subscribe me to the counter's final event, with the __md_iev__ of requester
+     *  Subscribe me to the counter's final event, with the requester
      */
     json_t *kw_final_count = json_object();
-    if(requester) {
-        // If the request does not come from the agent himself, save the requester
-        json_t *global = json_object();
-        json_object_set_new(kw_final_count, "__global__", global);
-        json_object_set_new(global, "requester", json_string(requester));
-    }
+    json_t *global = json_object();
+    json_object_set_new(kw_final_count, "__global__", global);
+    json_object_set_new(global, "requester", json_string(requester));
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
 
@@ -8292,11 +8269,6 @@ PRIVATE int run_enabled_yunos(hgobj gobj)
             BOOL running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
             if(!running) {
                 run_yuno(gobj, yuno, 0);
-
-// KKK
-                // json_object_set_new(yuno, "requester", json_string(""));
-                // json_object_set_new(yuno, "kw_answer", json_null());
-
                 // Volatil if you don't want historic data
                 // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
                 // y falla el deactivate-snap
@@ -10144,8 +10116,6 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
             json_object_set(kw_play, "__temp__", temp__);
             cmd_play_yuno(gobj, "play-yuno", kw_play, src);
         }
-        // se pierde, no existe el campo requester, change your mind! TODO legacy
-        // json_object_set_new(yuno, "requester", json_string(""));
         // Volatil if you don't want historic data
         // TODO legacy force volatil, sino no aparece el yuno con mas release el primero
         // y falla el deactivate-snap
