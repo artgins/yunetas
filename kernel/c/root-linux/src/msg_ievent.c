@@ -211,6 +211,114 @@ PUBLIC json_t *iev_create_from_gbuffer(
 
 /***************************************************************************
  *
+    Examples:
+
+    ###############################################
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        STATS_STACK_ID,
+        json_pack("{s:s, s:o}",   // owned
+            "stats", stats,
+            "kw", __md_stats__
+        )
+    );
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_STACK_ID,
+        jn_ievent_id   // owned
+    );
+
+    json_object_set_new(kw, "__stats__", json_string(stats));
+    msg_iev_set_msg_type(gobj, kw, "__stats__");
+
+    ###############################################
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        COMMAND_STACK_ID,
+        json_pack("{s:s, s:o}",   // owned
+            "command", command,
+            "kw", __md_command__
+        )
+    );
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_STACK_ID,
+        jn_ievent_id   // owned
+    );
+
+    json_object_set_new(kw, "__command__", json_string(command));
+    msg_iev_set_msg_type(gobj, kw, "__command__");
+
+    ###############################################
+
+     //    __MESSAGE__
+     //  Put the ievent if it doesn't come with it,
+     //  if it does come with it, it's because it will be a response
+     //
+
+    json_t *jn_request = msg_iev_get_stack(gobj, kw, IEVENT_STACK_ID, FALSE);
+    if(jn_request) {
+         // __RESPONSE__
+    } else {
+        // __REQUEST__
+        json_t *jn_ievent_id = build_cli_ievent_request(
+            gobj,
+            gobj_name(src),
+            kw_get_str(gobj, kw, "__service__", 0, 0)
+        );
+        json_object_del(kw, "__service__");
+
+        msg_iev_push_stack(
+            gobj,
+            kw,         // not owned
+            IEVENT_STACK_ID,
+            jn_ievent_id   // owned
+        );
+
+        msg_iev_push_stack(
+            gobj,
+            kw,         // not owned
+            "__message__",
+            json_string(event)   // owned
+        );
+    }
+
+    msg_iev_set_msg_type(gobj, kw, "__message__");
+
+
+    ###############################################
+
+    msg_iev_push_stack(
+        gobj,
+        kw,         // not owned
+        IEVENT_STACK_ID,
+        jn_ievent_id   // owned
+    );
+
+    msg_iev_set_msg_type(gobj, kw, "__unsubscribing__");
+
+
+    ###############################################
+
+    msg_iev_push_stack(
+        gobj,
+        kw_identity_card,         // not owned
+        IEVENT_STACK_ID,
+        jn_ievent_id   // owned
+    );
+
+    msg_iev_set_msg_type(gobj, kw_identity_card, "__identity__");
+
+    ###############################################
+
  ***************************************************************************/
 PUBLIC int msg_iev_push_stack( // Push a record in the stack
     hgobj gobj,

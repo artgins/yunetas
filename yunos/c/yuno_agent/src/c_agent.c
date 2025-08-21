@@ -4924,12 +4924,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
-        msg_iev_push_stack(
-            gobj,
-            global,
-            "requester_md_iev",
-            json_incref(requester_md_iev)
-        );
+        json_object_set(global, "requester_md_iev", requester_md_iev);
     }
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
@@ -5101,12 +5096,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
-        msg_iev_push_stack(
-            gobj,
-            global,
-            "requester_md_iev",
-            json_incref(requester_md_iev)
-        );
+        json_object_set(global, "requester_md_iev", requester_md_iev);
     }
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
@@ -5292,12 +5282,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
         // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
-        msg_iev_push_stack(
-            gobj,
-            global,
-            "requester_md_iev",
-            json_incref(requester_md_iev)
-        );
+        json_object_set(global, "requester_md_iev", requester_md_iev);
     }
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
@@ -5466,12 +5451,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
         // If the request does not come from the agent himself, save the requester
         json_t *global = json_object();
         json_object_set_new(kw_final_count, "__global__", global);
-        msg_iev_push_stack(
-            gobj,
-            global,
-            "requester_md_iev",
-            json_incref(requester_md_iev)
-        );
+        json_object_set(global, "requester_md_iev", requester_md_iev);
     }
 
     gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
@@ -10299,7 +10279,7 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
     /*---------------------------------------*
      *  Example
 
-        "__md_iev__": {
+        "requester_md_iev": { // __md_iev__
             "command_stack": [
                 {
                     "command": "run-yuno",
@@ -10330,36 +10310,41 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
     json_t *iter_yunos = gobj_kw_get_user_data(src, "iter", 0, KW_EXTRACT);
     json_t *kw_answer = gobj_kw_get_user_data(src, "kw_answer", 0, KW_EXTRACT);
 
-    json_t *jn_request = msg_iev_pop_stack(gobj, kw, "requester_md_iev");
-    if(!jn_request) {
+    json_t *requester_md_iev = kw_get_dict_value(gobj, kw, "requester_md_iev", 0, KW_REQUIRED);
+    if(!requester_md_iev) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "no requester_stack",
+            "msg",          "%s", "no requester __md_iev__",
             NULL
         );
-        gobj_trace_json(gobj, iter_yunos, "no requester_stack");
+        gobj_trace_json(gobj, iter_yunos, "no requester __md_iev__");
         JSON_DECREF(iter_yunos);
         KW_DECREF(kw_answer);
         KW_DECREF(kw);
         return -1;
     }
 
-    const char *requester = kw_get_str(gobj, jn_request, "requester", 0, 0);
-    hgobj gobj_requester = gobj_child_by_name(
-        gobj_find_service("__input_side__", TRUE),
-        requester
+    const char *requester_channel = kw_get_str(
+        gobj,
+        requester_md_iev,
+        "ievent_gate_stack`input_channel",
+        0,
+        0
     );
-    if(!gobj_requester) {
+    hgobj gobj_requester_channel = gobj_child_by_name(
+        gobj_find_service("__input_side__", TRUE),
+        requester_channel
+    );
+    if(!gobj_requester_channel) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "requester child not found",
-            "child",        "%s", requester,
+            "msg",          "%s", "requester channel child not found",
+            "chanel child", "%s", requester_channel,
             NULL
         );
         JSON_DECREF(iter_yunos);
-        JSON_DECREF(jn_request);
         KW_DECREF(kw_answer);
         KW_DECREF(kw);
         return 0;
@@ -10398,9 +10383,9 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
         kw_answer  // owned
     );
 
-    JSON_DECREF(jn_request);
-    KW_DECREF(kw);
+    json_object_set(webix, "__md_iev__", requester_md_iev);
 
+    KW_DECREF(kw);
 
     json_t *iev = iev_create(
         gobj,
@@ -10409,7 +10394,7 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
     );
 
     return gobj_send_event(
-        gobj_requester,
+        gobj_requester_channel,
         EV_SEND_IEV,
         iev,
         gobj
