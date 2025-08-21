@@ -31,14 +31,12 @@
 #include <netinet/tcp.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <string.h>
 
 #include <testing.h>
 #include <helpers.h>
 #include "yev_loop.h"
 
-#include <string.h>
-
-#include "../../gobj-c/src/helpers.h"
 
 /***************************************************************
  *              Constants
@@ -410,6 +408,8 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                 yev_event->result = cqe_res; // HACK: is the cli_srv socket
                 if(yev_event->result > 0) {
                     set_nonblocking(yev_event->result);
+                    set_cloexec(yev_event->result);
+
                     if (is_tcp_socket(yev_event->result)) {
                         set_tcp_socket_options(yev_event->result, yev_loop->keep_alive);
                     }
@@ -2427,8 +2427,6 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             continue;
         }
 
-        set_cloexec(fd);
-
         if(hints.ai_protocol == IPPROTO_TCP || hints.ai_protocol == IPPROTO_UDP) {
             // TODO review for UDP
             int on = 1;
@@ -2471,8 +2469,6 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
                 break;
             }
         }
-        set_nonblocking(fd);
-        set_cloexec(fd);
 
         if(trace_level & (TRACE_URING)) {
             gobj_log_debug(gobj, 0,
@@ -2510,6 +2506,9 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         freeaddrinfo(results);
         return NULL;
     }
+
+    set_nonblocking(fd);
+    set_cloexec(fd);
 
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
