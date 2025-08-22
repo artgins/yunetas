@@ -133,8 +133,13 @@
 //     return 0;
 // }
 
-PRIVATE int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values, BOOL is_file)
-{
+PRIVATE int render_string(
+    char *rendered_str,
+    int rendered_str_size,
+    char *str,
+    json_t *jn_values,
+    BOOL is_file
+) {
     if(is_file) {
         snprintf(rendered_str, rendered_str_size, "%s_tmpl", str);
     } else {

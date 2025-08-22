@@ -629,7 +629,7 @@ PRIVATE int list_databases(const char *path)
 
 PRIVATE int list_topics(const char *path, const char *database)
 {
-    char temp[1024];
+    char temp[5*1024];
     snprintf(temp, sizeof(temp), "%s/%s", path, database);
     printf("Topics found:\n");
     // walk_dir_tree( TODO

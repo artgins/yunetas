@@ -122,7 +122,9 @@ PRIVATE int list_yuno(const char *directory, const char *pidfile, struct argumen
     if(!file) {
         return -1;
     }
-    (void)fscanf(file, "%d", &pid);
+    int x = fscanf(file, "%d", &pid);
+    if(x) {} // avoid warning
+
     fclose(file);
 
     int ret = kill(pid, 0);

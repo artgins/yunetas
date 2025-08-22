@@ -1234,7 +1234,12 @@ PRIVATE int save_local_base64(
         if(gbuf_bin) {
             int fp = newfile(path, 0700, TRUE);
             if(fp) {
-                (void)write(fp, gbuffer_cur_rd_pointer(gbuf_bin), gbuffer_leftbytes(gbuf_bin));
+                ssize_t x = write(
+                    fp,
+                    gbuffer_cur_rd_pointer(gbuf_bin),
+                    gbuffer_leftbytes(gbuf_bin)
+                );
+                if(x) {} // avoid warning
                 close(fp);
             }
         }

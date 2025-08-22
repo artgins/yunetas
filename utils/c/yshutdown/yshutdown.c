@@ -136,7 +136,8 @@ static int kill_yuno(const char *directory, const char *pidfile, int verbose)
     if(!file) {
         return -1;
     }
-    (void)fscanf(file, "%d", &pid);
+    int x = fscanf(file, "%d", &pid);
+    if(x) {} // avoid warning
     fclose(file);
 
     int ret = kill(pid, SIGKILL);
@@ -193,7 +194,8 @@ static int shutdown_yuneta(int no_kill_agent, int verbose)
     if(!no_kill_agent) {
         kill_yuno("/yuneta/agent", "/yuneta/realms/agent/yuneta_agent.pid", verbose);
         usleep(100);
-        system("killall -9 yuneta_agent > /dev/null 2>&1"); // Sometimes the agent is not killed, be sure!
+        int x = system("killall -9 yuneta_agent > /dev/null 2>&1"); // Sometimes the agent is not killed, be sure!
+        if(x) {} // avoid warning
     }
     return 0;
 }
