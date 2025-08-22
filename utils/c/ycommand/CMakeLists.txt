@@ -28,11 +28,6 @@ SET (YUNO_HDRS
 )
 
 ##############################################
-#   Compilation condition
-##############################################
-if(!AS_STATIC)
-
-##############################################
 #   yuno
 ##############################################
 add_yuno_executable(${PROJECT_NAME} ${YUNO_SRCS} ${YUNO_HDRS})
@@ -62,12 +57,6 @@ install(
     DESTINATION "/yuneta/bin"
 )
 
-##############################################
-#   Compilation condition
-##############################################
-else()
-    install(CODE "message(STATUS \"Nothing to install\")")
-endif()
 
 # compile in Release mode :
 #
