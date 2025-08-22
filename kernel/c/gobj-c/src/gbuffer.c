@@ -985,7 +985,9 @@ PUBLIC gbuffer_t *gbuffer_file2base64(const char *path)
         );
         return 0;
     }
-    (void)fread(bf, len, 1, infile);
+    size_t x = fread(bf, len, 1, infile);
+    if(x) {} // avoid warning
+
     fclose(infile);
 
     gbuffer_t *gbuf_output = gbuffer_string_to_base64(bf, len);

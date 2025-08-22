@@ -222,7 +222,8 @@ PRIVATE int mt_start(hgobj gobj)
 
         const char *cwd = gobj_read_str_attr(gobj, "cwd");
         if(!empty_string(cwd)) {
-            chdir(cwd);
+            int x = chdir(cwd);
+            if(x) {} // avoid warning
         }
 
         if(!tty_empty) {

@@ -215,15 +215,18 @@ PUBLIC int pty_sync_spawn(
 
             if (FD_ISSET(master, &read_fd)) {
                 if (read(master, &output, 1) != -1) {   // read from program
-                    (void)write(STDOUT_FILENO, &output, 1);   // write to tty
+                    ssize_t x = write(STDOUT_FILENO, &output, 1);   // write to tty
+                    if(x) {} // avoid warning
                 } else {
                     break;
                 }
             }
 
             if (FD_ISSET(STDIN_FILENO, &read_fd)) {
-                (void)read(STDIN_FILENO, &input, 1);  // read from tty
-                (void)write(master, &input, 1);       // write to program
+                ssize_t x = read(STDIN_FILENO, &input, 1);  // read from tty
+                if(x) {} // avoid warning
+                x = write(master, &input, 1);       // write to program
+                if(x) {} // avoid warning
             }
 
             int status;
