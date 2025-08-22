@@ -3,5 +3,6 @@ config C_POSTGRES_MODULE
 
 config C_POSTGRES
     bool "C_POSTGRES support"
+    default y
     help
       This option enables the C_POSTGRES library.

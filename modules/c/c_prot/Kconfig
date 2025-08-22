@@ -3,5 +3,6 @@ config C_PROT_MODULE
 
 config C_PROT
     bool "C_PROT support"
+    default y
     help
       This option enables the C_PROT library.
