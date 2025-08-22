@@ -191,6 +191,28 @@ cd ../..
 
 
 #------------------------------------------
+#   nginx
+#------------------------------------------
+echo "===================== NGINX ======================="
+cd build/nginx
+
+git checkout "$TAG_NGINX"
+
+./auto/configure \
+    --prefix=/yuneta/bin/nginx \
+    --with-http_ssl_module \
+    --with-stream \
+    --with-stream_ssl_module \
+    --with-openssl=../openssl \
+    --with-openssl-opt=no-tests \
+    --with-pcre=../pcre2 \
+    --with-pcre-jit
+make
+make install
+cd ../..
+
+
+#------------------------------------------
 #   openresty
 #------------------------------------------
 echo "===================== OPENRESTY ======================="
@@ -220,28 +242,6 @@ cd "openresty-$TAG_OPENRESTY"
 gmake
 gmake install
 cd ..
-cd ../..
-
-
-#------------------------------------------
-#   nginx
-#------------------------------------------
-echo "===================== NGINX ======================="
-cd build/nginx
-
-git checkout "$TAG_NGINX"
-
-./auto/configure \
-    --prefix=/yuneta/bin/nginx \
-    --with-http_ssl_module \
-    --with-stream \
-    --with-stream_ssl_module \
-    --with-openssl=../openssl \
-    --with-openssl-opt=no-tests \
-    --with-pcre=../pcre2 \
-    --with-pcre-jit
-make
-make install
 cd ../..
 
 
