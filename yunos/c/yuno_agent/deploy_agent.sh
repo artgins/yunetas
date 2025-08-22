@@ -123,8 +123,8 @@
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
-BINARY_AGENT=/yuneta/development/output/agent/yuneta_agent
-CONFIG_AGENT=/yuneta/development/output/agent/yuneta_agent.json
+BINARY_AGENT="./yuneta_agent"
+CONFIG_AGENT="./yuneta_agent.json"
 cp -v $BINARY_AGENT /yuneta/agent/
 cp -v -n $CONFIG_AGENT /yuneta/agent/
 
