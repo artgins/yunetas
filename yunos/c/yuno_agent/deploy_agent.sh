@@ -134,15 +134,3 @@ cp -v -a $SERVICE_SCRIPTS /yuneta/agent/
 mkdir -p /yuneta/agent/certs
 CERTS_SCRIPTS=/yuneta/development/output/agent/certs/*
 cp -v -n -a $CERTS_SCRIPTS /yuneta/agent/certs
-
-BINARY_CLI=/yuneta/development/output/agent/yuneta
-BINARY_BATCH=/yuneta/development/output/agent/ybatch
-BINARY_YSHUTDOWN=/yuneta/development/output/agent/yshutdown
-BINARY_YSTATS=/yuneta/development/output/agent/ystats
-BINARY_YCOMMAND=/yuneta/development/output/agent/ycommand
-
-mkdir -p /yuneta/bin/
-
-cp -v $BINARY_CLI $BINARY_BATCH \
-    $BINARY_YSHUTDOWN $BINARY_YSTATS $BINARY_YCOMMAND \
-    /yuneta/bin/
