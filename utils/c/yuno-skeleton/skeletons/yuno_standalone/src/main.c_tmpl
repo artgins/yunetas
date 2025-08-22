@@ -7,7 +7,7 @@
  *          Copyright (c) {{__year__}}, {{author}}.
  *          All Rights Reserved.
  ****************************************************************************/
-#include <argp.h>
+#include <argp-standalone.h>
 #include <unistd.h>
 #include <yuneta.h>
 #include "c_{{rootname}}.h"

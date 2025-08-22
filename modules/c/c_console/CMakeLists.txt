@@ -19,7 +19,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-
 set (SRCS
     c_editline.c
     c_pty.c
@@ -34,6 +33,10 @@ set (HDRS
     g_st_console.h
 )
 
+##############################################
+#   Compilation condition
+##############################################
+if(CONFIG_C_CONSOLE)
 
 ##############################################
 #   Lib
@@ -55,3 +58,10 @@ install(
     WORLD_READ
     DESTINATION ${LIB_DEST_DIR}
 )
+
+##############################################
+#   Compilation condition
+##############################################
+else()
+    install(CODE "message(STATUS \"Nothing to install\")")
+endif()

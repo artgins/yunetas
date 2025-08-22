@@ -1,3 +1,5 @@
 comment "Available modules."
 
 source "modules/c/c_prot/Kconfig"
+source "modules/c/c_console/Kconfig"
+source "modules/c/c_postgres/Kconfig"

@@ -1,0 +1,7 @@
+config C_POSTGRES_MODULE
+    bool
+
+config C_POSTGRES
+    bool "C_POSTGRES support"
+    help
+      This option enables the C_POSTGRES library.

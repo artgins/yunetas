@@ -19,7 +19,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-
 set (SRCS
     c_postgres.c
 )
@@ -28,6 +27,10 @@ set (HDRS
     c_postgres.h
 )
 
+##############################################
+#   Compilation condition
+##############################################
+if(CONFIG_C_POSTGRES)
 
 ##############################################
 #   Lib
@@ -49,3 +52,10 @@ install(
     WORLD_READ
     DESTINATION ${LIB_DEST_DIR}
 )
+
+##############################################
+#   Compilation condition
+##############################################
+else()
+    install(CODE "message(STATUS \"Nothing to install\")")
+endif()

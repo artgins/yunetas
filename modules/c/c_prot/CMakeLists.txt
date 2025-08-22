@@ -35,6 +35,10 @@ set (HDRS
     src/c_ota.h
 )
 
+##############################################
+#   Compilation condition
+##############################################
+if(CONFIG_C_PROT)
 
 ##############################################
 #   Lib
@@ -58,5 +62,8 @@ install(
 )
 
 ##############################################
-#   sub-projects
+#   Compilation condition
 ##############################################
+else()
+    install(CODE "message(STATUS \"Nothing to install\")")
+endif()

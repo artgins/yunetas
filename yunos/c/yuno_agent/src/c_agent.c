@@ -19,8 +19,9 @@
 #include <pwd.h>
 #include <signal.h>
 #include <fcntl.h>
-
+#ifdef CONFIG_C_CONSOLE
 #include <c_pty.h>
+#endif
 #include "c_agent.h"
 #include "treedb_schema_yuneta_agent.c"
 
@@ -6350,6 +6351,7 @@ PRIVATE json_t *cmd_list_consoles(hgobj gobj, const char *cmd, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+#ifdef CONFIG_C_CONSOLE
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*----------------------------------------*
@@ -6511,6 +6513,16 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
         json_sprintf("Console opened: '%s'", name),  // owned
         kw  // owned
     );
+#else
+    return msg_iev_build_response(
+        gobj,
+        -1,
+        json_sprintf("No console module available"),
+        0,
+        0,
+        kw  // owned
+    );
+#endif
 }
 
 /***************************************************************************
@@ -6518,6 +6530,7 @@ PRIVATE json_t *cmd_open_console(hgobj gobj, const char *cmd, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
+#ifdef CONFIG_C_CONSOLE
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     /*----------------------------------------*
@@ -6594,6 +6607,16 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
         0, // owned
         kw  // owned
     );
+#else
+    return msg_iev_build_response(
+        gobj,
+        -1,
+        json_sprintf("No console module available"),
+        0,
+        0,
+        kw  // owned
+    );
+#endif
 }
 
 

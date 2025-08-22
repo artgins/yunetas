@@ -1,0 +1,7 @@
+config C_CONSOLE_MODULE
+    bool
+
+config C_CONSOLE
+    bool "C_CONSOLE support"
+    help
+      This option enables the C_CONSOLE library.
