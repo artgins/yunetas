@@ -181,14 +181,6 @@ set(YUNETAS_PCRE_LIBS
     libpcre2-8.a
 )
 
-if (CONFIG_C_PROT)
-    set(YUNETAS_C_PROT_LIBS
-        libyunetas-c_prot.a
-    )
-else()
-    set(YUNETAS_C_PROT_LIBS "")
-endif()
-
 if (CONFIG_HAVE_OPENSSL)
     set(OPENSSL_LIBS
         libjwt-y.a
@@ -218,4 +210,28 @@ if (CONFIG_DEBUG_WITH_BACKTRACE)
     )
 else()
     set(DEBUG_LIBS "")
+endif()
+
+if (CONFIG_C_PROT)
+    set(PROT_LIBS
+        libyunetas-c_prot.a
+    )
+else()
+    set(PROT_LIBS "")
+endif()
+
+if (CONFIG_C_CONSOLE)
+    set(CONSOLE_LIBS
+        libyunetas-c_console.a
+    )
+else()
+    set(CONSOLE_LIBS "")
+endif()
+
+if (CONFIG_C_POSTGRES)
+    set(POSTGRES_LIBS
+        libyunetas-c_postgres.a
+    )
+else()
+    set(POSTGRES_LIBS "")
 endif()

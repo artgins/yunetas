@@ -39,7 +39,6 @@ target_link_libraries(${PROJECT_NAME}
     ${OPENSSL_LIBS}
     ${MBEDTLS_LIBS}
     ${DEBUG_LIBS}
-    libyunetas-c_console.a
 )
 
 ##############################################

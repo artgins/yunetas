@@ -20,7 +20,6 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 
-#include "g_ev_console.h"
 #include "c_pty.h"
 
 /***************************************************************************

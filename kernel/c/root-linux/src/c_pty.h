@@ -11,7 +11,6 @@
 #pragma once
 
 #include <yunetas.h>
-#include "g_ev_console.h"
 
 #ifdef __cplusplus
 extern "C"{

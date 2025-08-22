@@ -15,7 +15,6 @@
 #include <limits.h>
 #include <pwd.h>
 
-#include <g_ev_console.h>
 #include "c_controlcenter.h"
 #include "treedb_schema_controlcenter.c"
 
