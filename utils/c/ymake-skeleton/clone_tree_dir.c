@@ -329,7 +329,7 @@ int clone_tree_dir(
 
     char dst_path[PATH_MAX];
     char src_path[PATH_MAX];
-    char rendered_str[NAME_MAX];
+    char rendered_str[2*NAME_MAX];
     do {
         build_path(src_path, sizeof(src_path), src, entry->d_name, NULL);
 

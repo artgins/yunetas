@@ -2428,7 +2428,7 @@ PRIVATE int save_local_base64(hgobj gobj, char *path, int pathsize, const char *
 PRIVATE int edit_json(hgobj gobj, const char *path)
 {
     const char *editor = gobj_read_str_attr(gobj, "editor");
-    char command[NAME_MAX];
+    char command[PATH_MAX];
     snprintf(command, sizeof(command), "%s %s", editor, path);
 
     savetty();
@@ -2698,7 +2698,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
         )
     );
 
-    char *comment;
+    char *comment="";
     gbuffer_t *gbuf_parsed_command = 0;
     gbuf_parsed_command = replace_cli_vars_for_yuneta(gobj, command, &comment);
 
