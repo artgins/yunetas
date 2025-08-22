@@ -88,6 +88,8 @@ PUBLIC char *gbmem_strdup(const char *str);
 
 PUBLIC size_t gbmem_get_maximum_block(void);
 
+PUBLIC size_t get_max_system_memory(void);
+PUBLIC size_t get_cur_system_memory(void);
 PUBLIC void set_memory_check_list(unsigned long *memory_check_list);
 PUBLIC void print_track_mem(void);
 

@@ -1744,6 +1744,9 @@ int jwt_crypto_ops_supports_jwk(void);
  * @noop jwt_advanced_grp
  */
 
+JWT_CONSTRUCTOR
+void jwt_init(void);
+
 #ifdef __cplusplus
 }
 #endif

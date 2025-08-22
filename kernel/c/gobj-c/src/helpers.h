@@ -1048,6 +1048,9 @@ PUBLIC int copyfile(
 
 PUBLIC int set_nonblocking(int fd);
 PUBLIC int set_cloexec(int fd); // children must not inherit
+PUBLIC char *upper(char *s);
+PUBLIC char *lower(char *s);
+PUBLIC char *capitalize(char *s);
 
 /***************************************************************
  *  inline functions

@@ -52,6 +52,7 @@
     // typedef struct {
     //     size_t size;
     // } track_mem_t;
+#define TRACK_MEM 0
 #endif
 
 PRIVATE void *_mem_malloc(size_t size);

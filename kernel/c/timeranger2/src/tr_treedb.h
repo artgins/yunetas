@@ -229,6 +229,16 @@ PUBLIC int parse_schema_cols( // Return 0 if ok or # of errors in negative
 PUBLIC int parse_hooks(
     json_t *schema  // not owned
 );
+PUBLIC json_t *topic_desc_hook_names(
+    json_t *topic_desc // owned
+);
+PUBLIC json_t *topic_desc_fkey_names(
+    json_t *topic_desc // owned
+);
+PUBLIC json_t *get_hook_list(
+    hgobj gobj,
+    json_t *hook_data // NOT owned
+);
 
 PUBLIC int current_snap_tag(
     json_t *tranger,

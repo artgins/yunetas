@@ -182,95 +182,95 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
-/***************************************************************************
- *
- ***************************************************************************/
-BOOL match_kw(
-    hgobj gobj,
-    const char *event,
-    json_t * jn_filters,
-    json_t *event_kw)
-{
-    const char *key;
-    json_t *value;
-    json_object_foreach(jn_filters, key, value) {
-        const char *field = key;
-        json_t *jn_field = kw_get_dict_value(gobj, event_kw, field, 0, 0);
-        if(!jn_field) {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "filter field NOT in event kw",
-                "field",        "%s", field,
-                NULL
-            );
-            gobj_trace_json(gobj, event_kw, "filter field NOT in event kw");
-            return FALSE;
-        }
-        if(json_is_string(value)) {
-            const char *regex = json_string_value(value);
-            if(!empty_string(regex)) {
-                /*
-                 * Must be a string field
-                 */
-                if(!json_is_string(jn_field)) {
-                    gobj_log_error(gobj, 0,
-                        "function",     "%s", __FUNCTION__,
-                        "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                        "msg",          "%s", "json filter is str but event kw NOT",
-                        "field",        "%s", field,
-                        NULL
-                    );
-                    gobj_trace_json(gobj, jn_filters, "jn_filters");
-                    gobj_trace_json(gobj, event_kw, "event_kw");
-                    return FALSE;
-                }
-                const char *value = json_string_value(jn_field);
-                if(!empty_string(value)) {
-                    regex_t re_filter;
-                    if(regcomp(&re_filter, regex, REG_EXTENDED | REG_NOSUB)==0) {
-                        int res = regexec(&re_filter, value, 0, 0, 0);
-                        regfree(&re_filter);
-                        if(res != 0) {
-                            return FALSE;
-                        }
-                    }
-                }
-            }
-        } else if(json_is_integer(value)) {
-            json_int_t iv = json_integer_value(value);
-            /*
-             * Must be a integer field
-             */
-            if(!json_is_integer(jn_field)) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                    "msg",          "%s", "json filter is integer but event kw NOT",
-                    "field",        "%s", field,
-                    NULL
-                );
-                gobj_trace_json(gobj, jn_filters, "jn_filters");
-                gobj_trace_json(gobj, event_kw, "event_kw");
-                return FALSE;
-            }
-            json_int_t ik = json_integer_value(jn_field);
-            if(iv != ik) {
-                return FALSE;
-            }
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-                "msg",          "%s", "json filter type NOT IMPLEMENTED",
-                NULL
-            );
-            return FALSE;
-        }
-    }
-
-    return TRUE;
-}
+// /***************************************************************************
+//  *
+//  ***************************************************************************/
+// PRIVATE BOOL match_kw(
+//     hgobj gobj,
+//     const char *event,
+//     json_t * jn_filters,
+//     json_t *event_kw)
+// {
+//     const char *key;
+//     json_t *value;
+//     json_object_foreach(jn_filters, key, value) {
+//         const char *field = key;
+//         json_t *jn_field = kw_get_dict_value(gobj, event_kw, field, 0, 0);
+//         if(!jn_field) {
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msg",          "%s", "filter field NOT in event kw",
+//                 "field",        "%s", field,
+//                 NULL
+//             );
+//             gobj_trace_json(gobj, event_kw, "filter field NOT in event kw");
+//             return FALSE;
+//         }
+//         if(json_is_string(value)) {
+//             const char *regex = json_string_value(value);
+//             if(!empty_string(regex)) {
+//                 /*
+//                  * Must be a string field
+//                  */
+//                 if(!json_is_string(jn_field)) {
+//                     gobj_log_error(gobj, 0,
+//                         "function",     "%s", __FUNCTION__,
+//                         "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                         "msg",          "%s", "json filter is str but event kw NOT",
+//                         "field",        "%s", field,
+//                         NULL
+//                     );
+//                     gobj_trace_json(gobj, jn_filters, "jn_filters");
+//                     gobj_trace_json(gobj, event_kw, "event_kw");
+//                     return FALSE;
+//                 }
+//                 const char *value = json_string_value(jn_field);
+//                 if(!empty_string(value)) {
+//                     regex_t re_filter;
+//                     if(regcomp(&re_filter, regex, REG_EXTENDED | REG_NOSUB)==0) {
+//                         int res = regexec(&re_filter, value, 0, 0, 0);
+//                         regfree(&re_filter);
+//                         if(res != 0) {
+//                             return FALSE;
+//                         }
+//                     }
+//                 }
+//             }
+//         } else if(json_is_integer(value)) {
+//             json_int_t iv = json_integer_value(value);
+//             /*
+//              * Must be a integer field
+//              */
+//             if(!json_is_integer(jn_field)) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                     "msg",          "%s", "json filter is integer but event kw NOT",
+//                     "field",        "%s", field,
+//                     NULL
+//                 );
+//                 gobj_trace_json(gobj, jn_filters, "jn_filters");
+//                 gobj_trace_json(gobj, event_kw, "event_kw");
+//                 return FALSE;
+//             }
+//             json_int_t ik = json_integer_value(jn_field);
+//             if(iv != ik) {
+//                 return FALSE;
+//             }
+//         } else {
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msg",          "%s", "json filter type NOT IMPLEMENTED",
+//                 NULL
+//             );
+//             return FALSE;
+//         }
+//     }
+//
+//     return TRUE;
+// }
 
 /***************************************************************************
  *

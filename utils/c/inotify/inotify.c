@@ -63,7 +63,7 @@ json_t *jn_tracked_paths = 0;
 
 int inotify_fd = -1;
 
-int add_watch(const char *path)
+PRIVATE int add_watch(const char *path)
 {
     json_t *watch = json_object_get(jn_tracked_paths, path);
     if(watch) {
@@ -86,7 +86,7 @@ int add_watch(const char *path)
     return wd;
 }
 
-int remove_watch(int wd)
+PRIVATE int remove_watch(int wd)
 {
     const char *path; json_t *jn_wd; void *n;
     json_object_foreach_safe(jn_tracked_paths, n, path, jn_wd) {
@@ -107,7 +107,7 @@ int remove_watch(int wd)
     return -1;
 }
 
-const char *get_path(int wd, BOOL verbose)
+PRIVATE const char *get_path(int wd, BOOL verbose)
 {
     const char *path; json_t *jn_wd; void *n;
     json_object_foreach_safe(jn_tracked_paths, n, path, jn_wd) {
@@ -123,25 +123,24 @@ const char *get_path(int wd, BOOL verbose)
     return NULL;
 }
 
-int get_wd(const char *path, BOOL verbose)
-{
-    const char *path_; json_t *jn_wd;
-    json_object_foreach(jn_tracked_paths, path_, jn_wd) {
-        if(strcmp(path, path_)==0) {
-            int wd = (int)json_integer_value(jn_wd);
-            return wd;
-        }
-
-    }
-    if(verbose) {
-        printf("%sERROR%s path not found '%s'\n", On_Red BWhite, Color_Off, path);
-    }
-    return -1;
-}
-
+// PRIVATE int get_wd(const char *path, BOOL verbose)
+// {
+//     const char *path_; json_t *jn_wd;
+//     json_object_foreach(jn_tracked_paths, path_, jn_wd) {
+//         if(strcmp(path, path_)==0) {
+//             int wd = (int)json_integer_value(jn_wd);
+//             return wd;
+//         }
+//
+//     }
+//     if(verbose) {
+//         printf("%sERROR%s path not found '%s'\n", On_Red BWhite, Color_Off, path);
+//     }
+//     return -1;
+// }
 
 // Function to handle inotify events
-void handle_inotify_event(struct inotify_event *event)
+PRIVATE void handle_inotify_event(struct inotify_event *event)
 {
     const char *path;
     char full_path[PATH_MAX];
@@ -249,7 +248,7 @@ PRIVATE BOOL search_by_paths_cb(
     return true; // to continue
 }
 
-void add_watch_recursive(const char *path)
+PRIVATE void add_watch_recursive(const char *path)
 {
     add_watch(path);
     walk_dir_tree(

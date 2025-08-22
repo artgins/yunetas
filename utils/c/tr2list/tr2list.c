@@ -723,7 +723,7 @@ PRIVATE BOOL search_by_databases_cb(
     return TRUE; // to continue
 }
 
-PRIVATE int search_by_databases()
+PRIVATE int search_by_databases(void)
 {
     walk_dir_tree(
         0,

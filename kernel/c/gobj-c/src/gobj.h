@@ -1331,8 +1331,6 @@ PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj);
 
 PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name);            /* strict same gclass */
 PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj, const char *gclass_name);  /* check inherited (bottom) gclass */
-PUBLIC size_t get_max_system_memory(void);
-PUBLIC size_t get_cur_system_memory(void);
 
 //  Return the data description of the command `command`
 //  If `command` is null returns full command's table

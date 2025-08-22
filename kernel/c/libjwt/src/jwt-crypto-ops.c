@@ -95,7 +95,7 @@ int jwt_crypto_ops_supports_jwk(void)
 }
 
 JWT_CONSTRUCTOR
-void jwt_init()
+void jwt_init(void)
 {
 	const char *opname = getenv("JWT_CRYPTO");
 

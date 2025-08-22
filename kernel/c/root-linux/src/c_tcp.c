@@ -1065,7 +1065,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 /***************************************************************************
  *
  ***************************************************************************/
-int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
+PUBLIC int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
 {
     if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
         gobj_log_error(0, 0,

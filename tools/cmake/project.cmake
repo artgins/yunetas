@@ -145,6 +145,8 @@ set(COMMON_C_FLAGS
     -Wno-type-limits
     -Wno-sign-compare
     -Wno-unused-parameter
+    -Wmissing-prototypes
+    -Wstrict-prototypes
     -funsigned-char
 )
 

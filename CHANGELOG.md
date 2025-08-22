@@ -133,6 +133,9 @@ New API
     gobj_kw_get_user_data
     kw_size
     gobj_nearest_top_service
+    PUBLIC char *upper(char *s);
+    PUBLIC char *lower(char *s);
+    PUBLIC char *capitalize(char *s);
 
 Delete API
 

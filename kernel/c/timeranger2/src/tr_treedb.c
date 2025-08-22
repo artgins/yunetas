@@ -8404,27 +8404,27 @@ PUBLIC json_t *treedb_get_topic_hooks(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int treedb_begin_transaction(
-    json_t *tranger,
-    const char *treedb_name,
-    const char *topic_name,
-    const char *options
-)
-{
-    // FUTURE?
-    return 0;
-}
-
-PUBLIC int treedb_end_transaction(
-    json_t *tranger,
-    const char *treedb_name,
-    const char *topic_name,
-    const char *options
-)
-{
-    // FUTURE?
-    return 0;
-}
+// PUBLIC int treedb_begin_transaction(
+//     json_t *tranger,
+//     const char *treedb_name,
+//     const char *topic_name,
+//     const char *options
+// )
+// {
+//     // FUTURE?
+//     return 0;
+// }
+//
+// PUBLIC int treedb_end_transaction(
+//     json_t *tranger,
+//     const char *treedb_name,
+//     const char *topic_name,
+//     const char *options
+// )
+// {
+//     // FUTURE?
+//     return 0;
+// }
 
 
 

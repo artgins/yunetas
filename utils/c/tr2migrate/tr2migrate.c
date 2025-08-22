@@ -393,7 +393,7 @@ PRIVATE int copy_files_first_level(char *source, char *destine)
 /***************************************************************************
  *
  ***************************************************************************/
-int load_record_callback1(
+PRIVATE int load_record_callback1(
     json_t *tranger,
     json_t *topic,
     json_t *list,

@@ -6602,7 +6602,7 @@ PRIVATE json_t *sdatacmd2json(
 /***************************************************************************
  *  Return a json array describing the hsdata for attrs
  ***************************************************************************/
-PUBLIC json_t *sdatadesc2json2(
+PRIVATE json_t *sdatadesc2json2(
     const sdata_desc_t *items,
     sdata_flag_t include_flag,
     sdata_flag_t exclude_flag
@@ -6907,7 +6907,7 @@ PRIVATE json_t *authdesc2json(const sdata_desc_t *it)
 /***************************************************************************
  *  Return a json object describing the hsdata for auths
  ***************************************************************************/
-PUBLIC json_t *sdataauth2json(
+PRIVATE json_t *sdataauth2json(
     const sdata_desc_t *items
 )
 {

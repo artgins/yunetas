@@ -2282,7 +2282,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
  *  Returns: the value on success, or -1 on error.
  ***************************************************************************/
 #ifdef __linux__
-PUBLIC int get_net_core_somaxconn(void)
+PRIVATE int get_net_core_somaxconn(void)
 {
     const char *path = "/proc/sys/net/core/somaxconn";
     FILE *fp = fopen(path, "r");

@@ -113,7 +113,7 @@ PUBLIC void trq_close(tr_queue_t * trq)
 /***************************************************************************
     Set first rowid to search
  ***************************************************************************/
-PUBLIC void trq_set_first_rowid(tr_queue_t * trq, uint64_t first_rowid)
+PRIVATE void trq_set_first_rowid(tr_queue_t * trq, uint64_t first_rowid)
 {
     hgobj gobj = 0;
 

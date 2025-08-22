@@ -75,9 +75,10 @@ object ...  =>  text
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+// TODO peding to migrated to V7
 //PRIVATE void on_poll_cb(uv_poll_t *req, int status, int events);
 // PRIVATE int process_result(hgobj gobj, PGresult* result);
-PRIVATE int publish_result(hgobj gobj, json_t *kw);
+// PRIVATE int publish_result(hgobj gobj, json_t *kw);
 PRIVATE int pull_queue(hgobj gobj);
 PRIVATE int send_cur_query(hgobj gobj);
 
@@ -412,10 +413,10 @@ PRIVATE void noticeProcessor(void *arg, const char *message)
 /***************************************************************************
  *
  ***************************************************************************/
- void set_connected(hgobj gobj) // TODO repon PRIVATE x
-{
-    gobj_send_event(gobj, EV_CONNECTED, 0, gobj);
-}
+// PRIVATE void set_connected(hgobj gobj)
+// {
+//     gobj_send_event(gobj, EV_CONNECTED, 0, gobj);
+// }
 
 /***************************************************************************
  *
@@ -800,216 +801,216 @@ PRIVATE int send_cur_query(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
- int process_result(hgobj gobj, PGresult* result) // TODO repon PRIVATE
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    clear_timeout(priv->timer);
-
-    if(!priv->cur_query) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "No query for result",
-            NULL
-        );
-        return 0;
-    }
-
-    json_t *kw_result = priv->cur_query;
-    priv->cur_query = 0;
-
-    if(!result) {
-        char *error = PQerrorMessage(priv->conn);
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_POSTGRES_ERROR,
-            "msg",          "%s", "Postgres connection closed 3",
-            "error",        "%s", error,
-            NULL
-        );
-        json_object_set_new(kw_result, "result", json_integer(-1));
-        json_object_set_new(kw_result, "comment", json_string(error));
-        if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-            const char *dst = kw_get_str(gobj, kw_result, "dst", "", 0);
-            gobj_trace_json(gobj, kw_result, "🗂🗂Postgres RESULT ⏪ 🔴 ERROR, dst '%s'", dst?dst:"");
-        }
-        return publish_result(gobj, kw_result);
-    }
-
-    ExecStatusType st = PQresultStatus(result);
-    BOOL with_binaries = PQbinaryTuples(result);
-    if(with_binaries) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "Postgres Binary response NOT SUPPORTED",
-            NULL
-        );
-    }
-
-    switch(st) {
-        case PGRES_TUPLES_OK:
-        case PGRES_SINGLE_TUPLE:
-            json_object_set_new(kw_result, "result", json_integer(0));
-            int rows = PQntuples(result);
-            int cols = PQnfields(result);
-            json_object_set_new(kw_result, "rows", json_integer(rows));
-            json_object_set_new(kw_result, "cols", json_integer(cols));
-            json_t *jn_data = json_array();
-            json_object_set_new(kw_result, "data", jn_data);
-            for(int r=0; r<rows; r++) {
-                json_t *row = json_object();
-                json_array_append_new(jn_data, row);
-                for(int c=0; c<cols; c++) {
-                    char *col_name = PQfname(result, c);
-                    //int format = PQfformat(result, c);
-
-                    char *v = PQgetvalue(result, r, c);
-                    if(empty_string(v)) {
-                        if(PQgetisnull(result, r, c)) {
-                            v = 0;
-                        }
-                    }
-                    if(!v) {
-                        json_object_set_new(row, col_name, json_null());
-                    } else {
-                        Oid oid = PQftype(result, c);
-                        switch(oid) {
-                            case INT4OID:       // integer
-                                json_object_set_new(row, col_name, json_integer(atoi(v)));
-                                break;
-                            case INT8OID:       // bigint
-                                json_object_set_new(row, col_name, json_integer(atol(v)));
-                                break;
-                            case TIMESTAMPOID:  // timestamp
-                                // TODO conver to time_t
-                                json_object_set_new(row, col_name, json_string(v));
-                                break;
-                            case BOOLOID:       // boolean
-                                if(strcmp(v, "t")==0) {
-                                    json_object_set_new(row, col_name, json_true());
-                                } else {
-                                    json_object_set_new(row, col_name, json_false());
-                                }
-                                break;
-                            case FLOAT4OID:     // real
-                                json_object_set_new(row, col_name, json_real(atof(v)));
-                                break;
-                            case FLOAT8OID:     // double precision
-                                json_object_set_new(row, col_name, json_real(atof(v)));
-                                break;
-                            case TEXTOID:       // text
-                                json_object_set_new(row, col_name, json_string(v));
-                                break;
-                            default:
-                                json_object_set_new(row, col_name, json_string(v));
-                                gobj_log_error(gobj, 0,
-                                    "function",     "%s", __FUNCTION__,
-                                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                                    "msg",          "%s", "Postgres type NOT IMPLEMENTED",
-                                    "oid",          "%d", oid,
-                                    NULL
-                                );
-                                break;
-
-                        }
-                    }
-                }
-            }
-            break;
-
-        case PGRES_COMMAND_OK:
-            json_object_set_new(kw_result, "result", json_integer(0));
-            json_object_set_new(kw_result, "status", json_string(PQcmdStatus(result)));
-            json_object_set_new(kw_result, "rows", json_integer(atoi(PQcmdTuples(result))));
-            break;
-
-        case PGRES_BAD_RESPONSE: /* an unexpected response was recv'd from the backend */
-        case PGRES_NONFATAL_ERROR: /* notice or warning message */
-        case PGRES_FATAL_ERROR: /* query failed */
-            json_object_set_new(kw_result, "result", json_integer(-1));
-            json_object_set_new(kw_result, "comment", json_string(PQresultErrorMessage(result)));
-            break;
-
-        default:
-            json_object_set_new(kw_result, "result", json_integer(-1));
-            json_object_set_new(kw_result, "comment", json_string("No result status supported"));
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "No result status supported",
-                "st",           "%d", st,
-                "status",       "%s", PQresStatus(st),
-                NULL
-            );
-            break;
-    }
-
-    if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
-        const char *dst = kw_get_str(gobj, kw_result, "dst", "", 0);
-        int result = kw_get_int(gobj, kw_result, "result", -1, KW_REQUIRED);
-        if(result < 0) {
-            gobj_trace_json(gobj, kw_result, "🗂🗂Postgres RESULT ⏪ 🔴 ERROR, dst '%s'", dst?dst:"");
-        } else {
-            gobj_trace_json(gobj, kw_result, "🗂🗂Postgres RESULT ⏪ 🔵 OK, dst '%s'", dst?dst:"");
-        }
-    }
-
-    return publish_result(gobj, kw_result);
-}
+// PRIVATE int process_result(hgobj gobj, PGresult* result)
+// {
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     clear_timeout(priv->timer);
+//
+//     if(!priv->cur_query) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msg",          "%s", "No query for result",
+//             NULL
+//         );
+//         return 0;
+//     }
+//
+//     json_t *kw_result = priv->cur_query;
+//     priv->cur_query = 0;
+//
+//     if(!result) {
+//         char *error = PQerrorMessage(priv->conn);
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_POSTGRES_ERROR,
+//             "msg",          "%s", "Postgres connection closed 3",
+//             "error",        "%s", error,
+//             NULL
+//         );
+//         json_object_set_new(kw_result, "result", json_integer(-1));
+//         json_object_set_new(kw_result, "comment", json_string(error));
+//         if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+//             const char *dst = kw_get_str(gobj, kw_result, "dst", "", 0);
+//             gobj_trace_json(gobj, kw_result, "🗂🗂Postgres RESULT ⏪ 🔴 ERROR, dst '%s'", dst?dst:"");
+//         }
+//         return publish_result(gobj, kw_result);
+//     }
+//
+//     ExecStatusType st = PQresultStatus(result);
+//     BOOL with_binaries = PQbinaryTuples(result);
+//     if(with_binaries) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msg",          "%s", "Postgres Binary response NOT SUPPORTED",
+//             NULL
+//         );
+//     }
+//
+//     switch(st) {
+//         case PGRES_TUPLES_OK:
+//         case PGRES_SINGLE_TUPLE:
+//             json_object_set_new(kw_result, "result", json_integer(0));
+//             int rows = PQntuples(result);
+//             int cols = PQnfields(result);
+//             json_object_set_new(kw_result, "rows", json_integer(rows));
+//             json_object_set_new(kw_result, "cols", json_integer(cols));
+//             json_t *jn_data = json_array();
+//             json_object_set_new(kw_result, "data", jn_data);
+//             for(int r=0; r<rows; r++) {
+//                 json_t *row = json_object();
+//                 json_array_append_new(jn_data, row);
+//                 for(int c=0; c<cols; c++) {
+//                     char *col_name = PQfname(result, c);
+//                     //int format = PQfformat(result, c);
+//
+//                     char *v = PQgetvalue(result, r, c);
+//                     if(empty_string(v)) {
+//                         if(PQgetisnull(result, r, c)) {
+//                             v = 0;
+//                         }
+//                     }
+//                     if(!v) {
+//                         json_object_set_new(row, col_name, json_null());
+//                     } else {
+//                         Oid oid = PQftype(result, c);
+//                         switch(oid) {
+//                             case INT4OID:       // integer
+//                                 json_object_set_new(row, col_name, json_integer(atoi(v)));
+//                                 break;
+//                             case INT8OID:       // bigint
+//                                 json_object_set_new(row, col_name, json_integer(atol(v)));
+//                                 break;
+//                             case TIMESTAMPOID:  // timestamp
+//                                 // TODO conver to time_t
+//                                 json_object_set_new(row, col_name, json_string(v));
+//                                 break;
+//                             case BOOLOID:       // boolean
+//                                 if(strcmp(v, "t")==0) {
+//                                     json_object_set_new(row, col_name, json_true());
+//                                 } else {
+//                                     json_object_set_new(row, col_name, json_false());
+//                                 }
+//                                 break;
+//                             case FLOAT4OID:     // real
+//                                 json_object_set_new(row, col_name, json_real(atof(v)));
+//                                 break;
+//                             case FLOAT8OID:     // double precision
+//                                 json_object_set_new(row, col_name, json_real(atof(v)));
+//                                 break;
+//                             case TEXTOID:       // text
+//                                 json_object_set_new(row, col_name, json_string(v));
+//                                 break;
+//                             default:
+//                                 json_object_set_new(row, col_name, json_string(v));
+//                                 gobj_log_error(gobj, 0,
+//                                     "function",     "%s", __FUNCTION__,
+//                                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                                     "msg",          "%s", "Postgres type NOT IMPLEMENTED",
+//                                     "oid",          "%d", oid,
+//                                     NULL
+//                                 );
+//                                 break;
+//
+//                         }
+//                     }
+//                 }
+//             }
+//             break;
+//
+//         case PGRES_COMMAND_OK:
+//             json_object_set_new(kw_result, "result", json_integer(0));
+//             json_object_set_new(kw_result, "status", json_string(PQcmdStatus(result)));
+//             json_object_set_new(kw_result, "rows", json_integer(atoi(PQcmdTuples(result))));
+//             break;
+//
+//         case PGRES_BAD_RESPONSE: /* an unexpected response was recv'd from the backend */
+//         case PGRES_NONFATAL_ERROR: /* notice or warning message */
+//         case PGRES_FATAL_ERROR: /* query failed */
+//             json_object_set_new(kw_result, "result", json_integer(-1));
+//             json_object_set_new(kw_result, "comment", json_string(PQresultErrorMessage(result)));
+//             break;
+//
+//         default:
+//             json_object_set_new(kw_result, "result", json_integer(-1));
+//             json_object_set_new(kw_result, "comment", json_string("No result status supported"));
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                 "msg",          "%s", "No result status supported",
+//                 "st",           "%d", st,
+//                 "status",       "%s", PQresStatus(st),
+//                 NULL
+//             );
+//             break;
+//     }
+//
+//     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
+//         const char *dst = kw_get_str(gobj, kw_result, "dst", "", 0);
+//         int result = kw_get_int(gobj, kw_result, "result", -1, KW_REQUIRED);
+//         if(result < 0) {
+//             gobj_trace_json(gobj, kw_result, "🗂🗂Postgres RESULT ⏪ 🔴 ERROR, dst '%s'", dst?dst:"");
+//         } else {
+//             gobj_trace_json(gobj, kw_result, "🗂🗂Postgres RESULT ⏪ 🔵 OK, dst '%s'", dst?dst:"");
+//         }
+//     }
+//
+//     return publish_result(gobj, kw_result);
+// }
 
 /***************************************************************************
  *  NOTE Object with __queries_in_queue__
  *  If in the query there is `dst` then use it to use gobj_send_event()
  *  else use gobj_publish_event()
  ***************************************************************************/
-PRIVATE int publish_result(hgobj gobj, json_t* kw)
-{
-    if(kw_has_key(kw, "dst")) {
-        json_t *jn_dst = kw_get_dict_value(gobj, kw, "dst", 0, 0);
-        if(json_is_integer(jn_dst)) {
-            // HACK WARNING don't use volatil gobj's
-            hgobj dst = (hgobj)(size_t)json_integer_value(jn_dst);
-            if(gobj_is_volatil(dst)) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                    "msg",          "%s", "WARNING don't use volatil gobjs",
-                    "dst",          "%s", gobj_name(dst),
-                    NULL
-                );
-            }
-            return gobj_send_event(dst, EV_ON_MESSAGE, kw, gobj);
-
-        } else if(json_is_string(jn_dst)) {
-            const char *sdst = json_string_value(jn_dst);
-            hgobj dst = gobj_find_service(sdst, TRUE);
-            if(dst) {
-                return gobj_send_event(dst, EV_ON_MESSAGE, kw, gobj);
-            } else {
-                // Error already logged
-                gobj_trace_json(gobj, kw, "Result LOST");
-                JSON_DECREF(kw);
-                return -1;
-            }
-
-        } else {
-            gobj_log_error(gobj, 0,
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "dst UNKNOWN",
-                NULL
-            );
-            gobj_trace_json(gobj, kw, "dst UNKNOWN");
-            JSON_DECREF(kw);
-            return -1;
-        }
-    } else {
-        gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
-        return 0;
-    }
-}
+// PRIVATE int publish_result(hgobj gobj, json_t* kw)
+// {
+//     if(kw_has_key(kw, "dst")) {
+//         json_t *jn_dst = kw_get_dict_value(gobj, kw, "dst", 0, 0);
+//         if(json_is_integer(jn_dst)) {
+//             // HACK WARNING don't use volatil gobj's
+//             hgobj dst = (hgobj)(size_t)json_integer_value(jn_dst);
+//             if(gobj_is_volatil(dst)) {
+//                 gobj_log_error(gobj, 0,
+//                     "function",     "%s", __FUNCTION__,
+//                     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                     "msg",          "%s", "WARNING don't use volatil gobjs",
+//                     "dst",          "%s", gobj_name(dst),
+//                     NULL
+//                 );
+//             }
+//             return gobj_send_event(dst, EV_ON_MESSAGE, kw, gobj);
+//
+//         } else if(json_is_string(jn_dst)) {
+//             const char *sdst = json_string_value(jn_dst);
+//             hgobj dst = gobj_find_service(sdst, TRUE);
+//             if(dst) {
+//                 return gobj_send_event(dst, EV_ON_MESSAGE, kw, gobj);
+//             } else {
+//                 // Error already logged
+//                 gobj_trace_json(gobj, kw, "Result LOST");
+//                 JSON_DECREF(kw);
+//                 return -1;
+//             }
+//
+//         } else {
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//                 "msg",          "%s", "dst UNKNOWN",
+//                 NULL
+//             );
+//             gobj_trace_json(gobj, kw, "dst UNKNOWN");
+//             JSON_DECREF(kw);
+//             return -1;
+//         }
+//     } else {
+//         gobj_publish_event(gobj, EV_ON_MESSAGE, kw);
+//         return 0;
+//     }
+// }
 
 
 

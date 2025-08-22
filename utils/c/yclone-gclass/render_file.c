@@ -33,7 +33,7 @@
  *  Busca en str las {{clave}} y sustituye la clave con el valor
  *  de dicha clave en el dict jn_values
  ***************************************************************************/
-int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
+PRIVATE int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
     snprintf(rendered_str, rendered_str_size, "%s", str);
 

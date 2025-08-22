@@ -2882,7 +2882,7 @@ PRIVATE int property_write_all(hgobj gobj, gbuffer_t *gbuf, json_t *props, BOOL 
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
+PRIVATE int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
 {
     uint8_t msb, lsb;
 
@@ -2908,7 +2908,7 @@ PUBLIC int mqtt_read_uint16(hgobj gobj, gbuffer_t *gbuf, uint16_t *word)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
+PRIVATE int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
 {
     uint32_t val = 0;
 
@@ -2936,7 +2936,7 @@ PUBLIC int mqtt_read_uint32(hgobj gobj, gbuffer_t *gbuf, uint32_t *word)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
+PRIVATE int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
 {
     if(gbuffer_leftbytes(gbuf) < bflen) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -2957,7 +2957,7 @@ PUBLIC int mqtt_read_bytes(hgobj gobj, gbuffer_t *gbuf, void *bf, int bflen)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
+PRIVATE int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
 {
     if(gbuffer_leftbytes(gbuf) < 1) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -2978,7 +2978,7 @@ PUBLIC int mqtt_read_byte(hgobj gobj, gbuffer_t *gbuf, uint8_t *byte)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16_t *length)
+PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16_t *length)
 {
     uint16_t slen;
 
@@ -3021,7 +3021,7 @@ PUBLIC int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16_
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int mqtt_read_string(hgobj gobj, gbuffer_t *gbuf, char **str, uint16_t *length)
+PRIVATE int mqtt_read_string(hgobj gobj, gbuffer_t *gbuf, char **str, uint16_t *length)
 {
     *str = NULL;
 
