@@ -165,7 +165,7 @@ PRIVATE int mywalk_dir_tree(
 /***************************************************************************
  *  Input values
  ***************************************************************************/
-int input_value(char *bf, int bfsize, const char *default_value, int testing)
+static int input_value(char *bf, int bfsize, const char *default_value, int testing)
 {
     bf[0] = 0;
     if(!testing) {
@@ -182,43 +182,6 @@ int input_value(char *bf, int bfsize, const char *default_value, int testing)
         strncpy(bf, default_value, bfsize-1);
     }
     return 0;
-}
-
-/***************************************************************************
- *  Upper
- ***************************************************************************/
-char *upper(char *s)
-{
-    char *p = s;
-    while(*p) {
-        *p = toupper(*p);
-        p++;
-    }
-    return s;
-}
-
-/***************************************************************************
- *  lower
- ***************************************************************************/
-char *lower(char *s)
-{
-    char *p = s;
-    while(*p) {
-        *p = tolower(*p);
-        p++;
-    }
-    return s;
-}
-
-/***************************************************************************
- *  capitalize
- ***************************************************************************/
-char *capitalize(char *s)
-{
-    lower(s);
-    if(*s)
-        *s = toupper(*s);
-    return s;
 }
 
 /***************************************************************************
@@ -243,7 +206,7 @@ Enter gclass name: dd
 Enter description (One-line description of the package) ['']: dd
 Enter author (Author name) ['']: dd
 */
-json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
+static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
 {
     json_t *jn_values = json_object();
     char bf[120];

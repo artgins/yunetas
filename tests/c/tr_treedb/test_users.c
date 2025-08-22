@@ -18,7 +18,7 @@
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int load_topic_new_data(
+PRIVATE int load_topic_new_data(
     json_t *tranger,
     const char *treedb_name,
     const char *topic_name,
@@ -224,7 +224,7 @@ PUBLIC int load_topic_new_data(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int load_treedbs(
+PRIVATE int load_treedbs(
     json_t *tranger,
     json_t *jn_treedbs, // owned
     const char *operation

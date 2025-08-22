@@ -138,7 +138,7 @@ static int test(tr_queue_t *trq_msgs, int caso)
  *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
-int do_test(void)
+PRIVATE int do_test(void)
 {
     int result = 0;
 

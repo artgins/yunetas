@@ -69,7 +69,7 @@ PRIVATE int add_value(json_t *jn_values, char *old_name, char *new_name)
 /***************************************************************************
  *  Values to replace
  ***************************************************************************/
-json_t *values2replace(char *yunorole, char *rootname)
+static json_t *values2replace(char *yunorole, char *rootname)
 {
     json_t *jn_values = json_object();
     char yunorole_[256] = "yunorole";

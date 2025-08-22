@@ -114,7 +114,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *
  ***************************************************************************/
-int list_yuno(const char *directory, const char *pidfile, struct arguments *arguments)
+PRIVATE int list_yuno(const char *directory, const char *pidfile, struct arguments *arguments)
 {
     int pid = 0;
 
@@ -143,7 +143,7 @@ int list_yuno(const char *directory, const char *pidfile, struct arguments *argu
 /***************************************************************************
  *
  ***************************************************************************/
-BOOL list_yuno_pid_cb(
+PRIVATE BOOL list_yuno_pid_cb(
     hgobj gobj,
     void *user_data,
     wd_found_type type,     // type found
@@ -159,7 +159,7 @@ BOOL list_yuno_pid_cb(
     return TRUE; // to continue
 }
 
-int ylist(struct arguments *arguments)
+PRIVATE int ylist(struct arguments *arguments)
 {
     walk_dir_tree(
         0,

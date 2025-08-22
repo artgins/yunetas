@@ -133,7 +133,7 @@
 //     return 0;
 // }
 
-int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values, BOOL is_file)
+PRIVATE int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values, BOOL is_file)
 {
     if(is_file) {
         snprintf(rendered_str, rendered_str_size, "%s_tmpl", str);
@@ -220,7 +220,7 @@ int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *
 char old_line[64*1024];
 char new_line[64*1024];
 
-int render_file(char *dst_path, char *src_path, json_t *jn_values)
+PRIVATE int render_file(char *dst_path, char *src_path, json_t *jn_values)
 {
     FILE *f = fopen(src_path, "r");
     if(!f) {
@@ -251,7 +251,7 @@ int render_file(char *dst_path, char *src_path, json_t *jn_values)
 /***************************************************************************
  *
  ***************************************************************************/
-int is_link(const char *path)
+PRIVATE int is_link(const char *path)
 {
     struct stat path_stat;
     lstat(path, &path_stat);
@@ -261,7 +261,7 @@ int is_link(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-int copy_link(
+static int copy_link(
     const char* source,
     const char* destination
 )

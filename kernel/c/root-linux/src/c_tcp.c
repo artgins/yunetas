@@ -1065,28 +1065,28 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
-{
-    if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "ytls_encrypt_data() FAILED",
-            "error",        "%s", ytls_get_last_error(ytls, sskt),
-            NULL
-        );
-        return -1;
-    }
-    if(gbuffer_leftbytes(gbuf) > 0) {
-        gobj_log_error(0, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
-            NULL
-        );
-    }
-    return 0;
-}
+// PRIVATE int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
+// {
+//     if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
+//         gobj_log_error(0, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+//             "msg",          "%s", "ytls_encrypt_data() FAILED",
+//             "error",        "%s", ytls_get_last_error(ytls, sskt),
+//             NULL
+//         );
+//         return -1;
+//     }
+//     if(gbuffer_leftbytes(gbuf) > 0) {
+//         gobj_log_error(0, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+//             "msg",          "%s", "NEED a queue, NOT ALL DATA being encrypted",
+//             NULL
+//         );
+//     }
+//     return 0;
+// }
 
 /***************************************************************************
  *  YTLS callbacks, called when handshake is done

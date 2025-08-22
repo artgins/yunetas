@@ -428,7 +428,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
 /***************************************************************************
  *              Test
  ***************************************************************************/
-int do_test(void)
+PRIVATE int do_test(void)
 {
     int result = 0;
 

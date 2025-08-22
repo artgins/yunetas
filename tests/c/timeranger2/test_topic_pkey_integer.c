@@ -62,7 +62,7 @@ PRIVATE json_int_t key2_g_rowid_90000[2]    = {0, 3600};    // i_rowid must be 3
  ***************************************************************************/
 int pinta_md = 0;
 size_t all_leidos = 0;
-int all_load_record_callback(
+PRIVATE int all_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -139,7 +139,7 @@ int all_load_record_callback(
 }
 
 size_t one_leidos = 0;
-int one_load_record_callback(
+PRIVATE int one_load_record_callback(
     json_t *tranger,
     json_t *topic,
     const char *key,
@@ -202,7 +202,7 @@ int one_load_record_callback(
     return 0;
 }
 
-int check_rowids(void)
+PRIVATE int check_rowids(void)
 {
     int result = 0;
 
@@ -313,7 +313,7 @@ int check_rowids(void)
  *  Open as master, check main files, add records, open rt lists
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
-int do_test(void)
+PRIVATE int do_test(void)
 {
     uint64_t t1;
     int result = 0;
@@ -1212,7 +1212,7 @@ int do_test(void)
  *  Open as master and change version and cols
  *  HACK: return -1 to fail, 0 to ok
  ***************************************************************************/
-int do_test2(void)
+PRIVATE int do_test2(void)
 {
     int result = 0;
     char file[PATH_MAX];

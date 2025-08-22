@@ -129,7 +129,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *
  ***************************************************************************/
-int kill_yuno(const char *directory, const char *pidfile, int verbose)
+static int kill_yuno(const char *directory, const char *pidfile, int verbose)
 {
     int pid = 0;
     FILE *file = fopen(pidfile, "r");
@@ -157,7 +157,7 @@ int kill_yuno(const char *directory, const char *pidfile, int verbose)
 /***************************************************************************
  *
  ***************************************************************************/
-BOOL find_yuno_pid_cb(
+static BOOL find_yuno_pid_cb(
     hgobj gojb,
     void *user_data,
     wd_found_type type,     // type found
@@ -180,7 +180,7 @@ BOOL find_yuno_pid_cb(
     return TRUE; // to continue
 }
 
-int shutdown_yuneta(int no_kill_agent, int verbose)
+static int shutdown_yuneta(int no_kill_agent, int verbose)
 {
     walk_dir_tree(
         0,

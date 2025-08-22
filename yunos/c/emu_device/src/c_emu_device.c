@@ -647,8 +647,8 @@ PRIVATE int list_topics(const char *path, const char *database)
  *
  ***************************************************************************/
 // PRIVATE char bin[64*1024];
-gbuffer_t *get_next_frame(hgobj gobj, BOOL *empty_frame)
-{
+// PRIVATE gbuffer_t *get_next_frame(hgobj gobj, BOOL *empty_frame)
+// {
     // PRIVATE_DATA *priv = gobj_priv_data(gobj);
     // BOOL end = FALSE;
     // BOOL first_time = FALSE;
@@ -719,8 +719,8 @@ gbuffer_t *get_next_frame(hgobj gobj, BOOL *empty_frame)
     //     }
     //     priv->last_id = priv->md_record.__rowid__;
     // }
-    return 0;
-}
+//     return 0;
+// }
 
 /***************************************************************************
  *

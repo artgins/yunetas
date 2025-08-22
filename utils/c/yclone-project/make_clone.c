@@ -159,7 +159,7 @@ struct find_sk_s {
 /***************************************************************************
  *  Values to replace
  ***************************************************************************/
-json_t *values2replace(char *old_name, char *new_name)
+PRIVATE json_t *values2replace(char *old_name, char *new_name)
 {
     json_t *jn_values = json_object();
 

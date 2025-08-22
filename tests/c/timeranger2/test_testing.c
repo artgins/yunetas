@@ -43,7 +43,7 @@ int times_periodic = 0;
  *              Test
  *  HACK: Use gobj_set_exit_code(-1) to set error
  ***************************************************************************/
-int do_test(void)
+PRIVATE int do_test(void)
 {
     int result = 0;
 

@@ -122,7 +122,7 @@
 //     return 0;
 // }
 
-int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
+static int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
     pcre2_code *re;
     PCRE2_SPTR pattern = (PCRE2_SPTR)"(\\{\\{.+?\\}\\})";
@@ -200,7 +200,7 @@ int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *
  *  de dicha clave en el dict jn_values
  *  Busca tb "_tmpl$" y elimínalo.
  ***************************************************************************/
-int render_filename(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
+static int render_filename(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
     // TODO
     // pcre *re;
@@ -260,7 +260,7 @@ int render_filename(char *rendered_str, int rendered_str_size, char *str, json_t
  *  Lee el fichero src_path línea a línea, render la línea,
  *  y sálvala en dst_path
  ***************************************************************************/
-int render_file(char *dst_path, char *src_path, json_t *jn_values)
+static int render_file(char *dst_path, char *src_path, json_t *jn_values)
 {
     FILE *f = fopen(src_path, "r");
     if(!f) {
@@ -293,7 +293,7 @@ int render_file(char *dst_path, char *src_path, json_t *jn_values)
 /***************************************************************************
  *
  ***************************************************************************/
-int is_link(const char *path)
+static int is_link(const char *path)
 {
     struct stat path_stat;
     lstat(path, &path_stat);
@@ -303,7 +303,7 @@ int is_link(const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-int copy_link(
+static int copy_link(
     const char* source,
     const char* destination
 )

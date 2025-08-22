@@ -38,7 +38,7 @@ GOBJ_DECLARE_GCLASS(C_TCP);
  ***************************************************************/
 PUBLIC int register_c_tcp(void);
 
-PUBLIC int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf);
+// PUBLIC int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf);
 
 #ifdef __cplusplus
 }

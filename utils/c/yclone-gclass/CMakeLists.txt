@@ -36,6 +36,7 @@ target_link_libraries(${PROJECT_NAME}
     libyunetas-gobj.a
     libjansson.a
     libpcre2-8.a
+    libbacktrace.a
     libargp-standalone.a
 )
 

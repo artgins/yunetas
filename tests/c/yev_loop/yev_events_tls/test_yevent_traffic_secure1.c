@@ -63,7 +63,7 @@ BOOL client_secure_connected = FALSE;
 /***************************************************************************
  *              Test
  ***************************************************************************/
-int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
+PRIVATE int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
 {
     if(ytls_encrypt_data(ytls, sskt, gbuf)<0) {
         gobj_log_error(0, 0,
@@ -89,7 +89,7 @@ int send_clear_data(hytls ytls, hsskt sskt, gbuffer_t *gbuf)
 /***************************************************************************
  *  YTLS callbacks
  ***************************************************************************/
-int ytls_server_on_handshake_done_callback(void *user_data, int error)
+PRIVATE int ytls_server_on_handshake_done_callback(void *user_data, int error)
 {
     // int fd = (int)user_data;
 
@@ -112,7 +112,7 @@ int ytls_server_on_handshake_done_callback(void *user_data, int error)
     return 0;
 }
 
-int ytls_client_on_handshake_done_callback(void *user_data, int error)
+PRIVATE int ytls_client_on_handshake_done_callback(void *user_data, int error)
 {
     // int fd = (int)user_data;
 
@@ -135,7 +135,7 @@ int ytls_client_on_handshake_done_callback(void *user_data, int error)
     return 0;
 }
 
-int ytls_server_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
+PRIVATE int ytls_server_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
 {
     // int fd = (int)user_data;
 
@@ -156,7 +156,7 @@ int ytls_server_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
     return 0;
 }
 
-int ytls_server_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
+PRIVATE int ytls_server_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
 {
     int fd = (int)(size_t)user_data;
 
@@ -177,7 +177,7 @@ int ytls_server_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
     return 0;
 }
 
-int ytls_client_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
+PRIVATE int ytls_client_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
 {
     // int fd = (int)user_data;
 
@@ -208,7 +208,7 @@ int ytls_client_on_clear_data_callback(void *user_data, gbuffer_t *gbuf)
     return 0;
 }
 
-int ytls_client_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
+PRIVATE int ytls_client_on_encrypted_data_callback(void *user_data, gbuffer_t *gbuf)
 {
     int fd = (int)(size_t)user_data;
 
@@ -530,7 +530,7 @@ PRIVATE int yev_client_callback(yev_event_h yev_event)
 /***************************************************************************
  *              Test
  ***************************************************************************/
-int do_test(void)
+PRIVATE int do_test(void)
 {
     /*--------------------------------*
      *  Create ssl SERVER

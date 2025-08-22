@@ -112,7 +112,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *
  ***************************************************************************/
-int your_utility(int verbose, const char *filename)
+static int your_utility(int verbose, const char *filename)
 {
     json_t *final_sconfig = json_config(
         verbose,    // WARNING if true will exit(0)

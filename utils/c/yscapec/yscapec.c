@@ -117,7 +117,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *
  ***************************************************************************/
-int your_utility(const char *filename, int no_conversion, int line_size)
+static int your_utility(const char *filename, int no_conversion, int line_size)
 {
     FILE *file = fopen(filename, "r");
     if(!file) {

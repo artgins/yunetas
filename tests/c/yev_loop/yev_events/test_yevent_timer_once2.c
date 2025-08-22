@@ -165,7 +165,7 @@ PRIVATE int yev_callback_periodic(yev_event_h yev_event)
 /***************************************************************************
  *              Test
  ***************************************************************************/
-int do_test(void)
+PRIVATE int do_test(void)
 {
     /*--------------------------------*
      *  Create the event loop

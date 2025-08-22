@@ -986,7 +986,7 @@ PRIVATE int do_log_stats(hgobj gobj, int priority, json_t *kw)
 /***************************************************************************
  *  Search text in some value of dict
  ***************************************************************************/
-BOOL text_in_dict(json_t *jn_dict, const char *text)
+PRIVATE BOOL text_in_dict(json_t *jn_dict, const char *text)
 {
     json_t *jn_value;
     const char *key;
