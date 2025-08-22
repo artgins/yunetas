@@ -211,6 +211,7 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
 {
     json_t *jn_values = json_object();
     char bf[220];
+    char bf2[220];
     char root_name[120];
     size_t index;
     json_t *jn_var;
@@ -242,18 +243,18 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
         json_object_set_new(jn_values, "YUNOROLE", json_string(bf));
 
         printf("Enter root gobj name ['%s']: ", root_name);
-        input_value(bf, sizeof(bf), bf, testing);
-        len = (int)strlen(bf);
+        input_value(bf2, sizeof(bf2), bf, testing);
+        len = (int)strlen(bf2);
         if(len == 0) {
-            snprintf(bf, sizeof(bf), "%s", root_name);
+            snprintf(bf2, sizeof(bf2), "%s", root_name);
         }
 
-        lower(bf);
-        json_object_set_new(jn_values, "rootname", json_string(bf));
-        capitalize(bf);
-        json_object_set_new(jn_values, "Rootname", json_string(bf));
-        upper(bf);
-        json_object_set_new(jn_values, "ROOTNAME", json_string(bf));
+        lower(bf2);
+        json_object_set_new(jn_values, "rootname", json_string(bf2));
+        capitalize(bf2);
+        json_object_set_new(jn_values, "Rootname", json_string(bf2));
+        upper(bf2);
+        json_object_set_new(jn_values, "ROOTNAME", json_string(bf2));
 
     } else if(strcasecmp(type, "utility")==0) {
         do {
