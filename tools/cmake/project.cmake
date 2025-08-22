@@ -186,8 +186,8 @@ if (CONFIG_HAVE_OPENSSL)
         libjwt-y.a
         libssl.a
         libcrypto.a
-        pthread.a
-        dl.a
+        pthread
+        dl
     )
 else()
     set(OPENSSL_LIBS "")
