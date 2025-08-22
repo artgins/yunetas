@@ -34,8 +34,8 @@ case "$1" in
   start)
     echo -n "Starting yuneta agent service: "
     su - yuneta -c "$DAEMON --start --config-file=/yuneta/agent/yuneta_agent.json"
-    # /yuneta/bin/nginx/sbin/nginx
-    /yuneta/bin/openresty/nginx/sbin/nginx
+    /yuneta/bin/nginx/sbin/nginx
+    # /yuneta/bin/openresty/nginx/sbin/nginx
     su - yuneta -c "/yuneta/agent/yuneta_agent22 --start --config-file=/yuneta/agent/yuneta_agent22.json"
     echo
     ;;
