@@ -169,7 +169,8 @@ static int input_value(char *bf, int bfsize, const char *default_value, int test
 {
     bf[0] = 0;
     if(!testing) {
-        (void)fgets(bf, bfsize, stdin);
+        char *x = fgets(bf, bfsize, stdin);
+        if(x) {} // avoid warning
     } else{
         strncpy(bf, "aa", bfsize-1);
     }
@@ -227,12 +228,13 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
         do {
             printf("Enter yuno role (maximum 15 characters): ");
             input_value(bf, sizeof(bf), "", testing);
-            if(testing)
+            if(testing) {
                 break;
-            len = strlen(bf);
+            }
+            len = (int)strlen(bf);
         } while(len < 1 || len > 15);
         lower(bf);
-        strncpy(root_name, bf, sizeof(root_name)-1);
+        snprintf(root_name, sizeof(root_name), "%s", bf);
         json_object_set_new(jn_values, "yunorole", json_string(bf));
         capitalize(bf);
         json_object_set_new(jn_values, "Yunorole", json_string(bf));
@@ -241,9 +243,9 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
 
         printf("Enter root gobj name ['%s']: ", root_name);
         input_value(bf, sizeof(bf), bf, testing);
-        len = strlen(bf);
+        len = (int)strlen(bf);
         if(len == 0) {
-            strncpy(bf, root_name, sizeof(bf)-1);
+            snprintf(bf, sizeof(bf), "%s", root_name);
         }
 
         lower(bf);
@@ -257,9 +259,10 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
         do {
             printf("Enter utility name: ");
             input_value(bf, sizeof(bf), "", testing);
-            if(testing)
+            if(testing) {
                 break;
-            len = strlen(bf);
+            }
+            len = (int)strlen(bf);
         } while(len < 1 || len > 15);
         lower(bf);
         json_object_set_new(jn_values, "utility", json_string(bf));
@@ -272,7 +275,7 @@ static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
         do {
             printf("Enter gclass name: ");
             input_value(bf, sizeof(bf), "", testing);
-            len = strlen(bf);
+            len = (int)strlen(bf);
         } while(len < 1);
         lower(bf);
         json_object_set_new(jn_values, "rootname", json_string(bf));
@@ -516,7 +519,8 @@ int make_skeleton(const char* base, const char* file, const char* skeleton)
         strncpy(dst_dir, yunorole, sizeof(dst_dir)-1);
         if(access(dst_dir, 0)==0) {
             char temp[PATH_MAX]={0};
-            (void)realpath(".", temp);
+            char *x = realpath(".", temp);
+            if(x) {} // avoid warning
             fprintf(stderr, "Directory of file '%s/%s' already exists\n",
                 temp,
                 yunorole
@@ -537,7 +541,8 @@ int make_skeleton(const char* base, const char* file, const char* skeleton)
         strncpy(dst_dir, utility, sizeof(dst_dir)-1);
         if(access(dst_dir, 0)==0) {
             char temp[PATH_MAX]={0};
-            (void)realpath(".", temp);
+            char *x = realpath(".", temp);
+            if(x) {} // avoid warning
             fprintf(stderr, "Directory of file '%s/%s' already exists\n",
                 temp,
                 utility

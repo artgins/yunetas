@@ -17,11 +17,7 @@
 extern "C"{
 #endif
 
-PUBLIC int run_command(  // use popen(), synchronous
-    const char *command,
-    char *bf,   // buffer to put the output of command
-    size_t bfsize
-);
+PUBLIC gbuffer_t *run_command(const char *command); // use popen(), synchronous
 
 PUBLIC int run_process2(  // use fork(), synchronous
     const char *path, char *const argv[]

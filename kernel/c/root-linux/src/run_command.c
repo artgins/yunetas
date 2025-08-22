@@ -25,17 +25,15 @@
 /***************************************************************************
  *  Run a command and get the output
  ***************************************************************************/
-PUBLIC int run_command(const char *command, char *bf, size_t bfsize)
+PUBLIC gbuffer_t *run_command(const char *command) // use popen(), synchronous
 {
     FILE *fp;
     char temp[4*1024];
 
-    memset(bf, 0, bfsize);
-
     /* Open the command for reading. */
     snprintf(temp, sizeof(temp), "%s 2>&1", command);
     fp = popen(temp, "r");
-    if (fp == NULL) {
+    if(fp == NULL) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
@@ -45,23 +43,28 @@ PUBLIC int run_command(const char *command, char *bf, size_t bfsize)
             "strerror",     "%s", strerror(errno),
             NULL
         );
-        return -1;
+        return NULL;
+    }
+
+    gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
+    if(!gbuf) {
+        gobj_log_error(0, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Can't create gbuffer",
+            NULL
+        );
+        return NULL;
     }
 
     /* Read the output a line at a time - output it. */
-    char *p = bf;
-    while(bfsize>0 && fgets(temp, sizeof(temp), fp) != NULL) {
-        int ln = (int)strlen(temp);
-        ln = MIN(ln, bfsize-1);
-        if(ln>0) {
-            strncpy(p, temp, ln);
-            p += ln;
-            bfsize -= ln;
-        }
+    while(fgets(temp, sizeof(temp), fp) != NULL) {
+        gbuffer_append(gbuf, temp, strlen(temp));
     }
     /* close */
     pclose(fp);
-    return 0;
+
+    return gbuf;
 }
 
 /*************************************************************************\

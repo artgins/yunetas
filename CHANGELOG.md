@@ -87,6 +87,8 @@ Change API
     get_cursor_color->get_paint_color
     create_uuid -> create_random_uuid
     gclass_find_event_type -> gclass_event_type
+    PUBLIC gbuffer_t *run_command(const char *command); // use popen(), synchronous
+
 
 New API
 

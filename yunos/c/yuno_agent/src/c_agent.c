@@ -2887,25 +2887,31 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
     /*
      *  Execute cmd --role
      */
-    size_t size = gbmem_get_maximum_block();
-    char *cmd_output = gbmem_malloc(size);
-    if(!cmd_output) {
-        // Error already logged
-        return 0;
-    }
     char command[NAME_MAX];
-    snprintf(command, sizeof(command), "%s --print-role  2>&1", cmd);
-    if(run_command(command, cmd_output, size)<0 || !*cmd_output) {
+    snprintf(command, sizeof(command), "%s --print-role", cmd);
+    gbuffer_t *gbuf = run_command(command);
+    if(!gbuf) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "Incorrect role bin path",
+            "msg",          "%s", "Incorrect binary",
             "command",      "%s", command,
-            "output",       "%s", cmd_output,
             NULL
         );
-        gbmem_free(cmd_output);
-        return 0;
+        return NULL;
+    }
+    char *cmd_output = gbuffer_cur_rd_pointer(gbuf);
+
+    if(empty_string(cmd_output)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "Incorrect binary",
+            "command",      "%s", command,
+            NULL
+        );
+        gbuffer_decref(gbuf);
+        return NULL;
     }
 
     /*
@@ -2921,11 +2927,11 @@ PRIVATE json_t *yuno_basic_information(hgobj gobj, const char *cmd)
             "output",       "%s", cmd_output,
             NULL
         );
-        gbmem_free(cmd_output);
-        return 0;
+        gbuffer_decref(gbuf);
+        return NULL;
     }
     json_t *jn_basic_info = legalstring2json(p, TRUE);
-    gbmem_free(cmd_output);
+    gbuffer_decref(gbuf);
     return jn_basic_info;
 }
 
