@@ -128,9 +128,9 @@ CONFIG_AGENT="./yuneta_agent.json"
 cp -v $BINARY_AGENT /yuneta/agent/
 cp -v -n $CONFIG_AGENT /yuneta/agent/
 
-SERVICE_SCRIPTS=/yuneta/development/output/agent/service/
+SERVICE_SCRIPTS="./service/"
 cp -v -a $SERVICE_SCRIPTS /yuneta/agent/
 
 mkdir -p /yuneta/agent/certs
-CERTS_SCRIPTS=/yuneta/development/output/agent/certs/*
+CERTS_SCRIPTS="./certs/*"
 cp -v -n -a $CERTS_SCRIPTS /yuneta/agent/certs
