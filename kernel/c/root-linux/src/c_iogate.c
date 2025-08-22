@@ -242,6 +242,22 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
     return jn_data;
 }
 
+/***************************************************************************
+ *      Framework Method
+ ***************************************************************************/
+PRIVATE int mt_child_added(hgobj gobj, hgobj child)
+{
+    if(!gobj_is_volatil(child) &&  gobj_gclass_name(child) != C_CHANNEL) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "IOGate child must be a C_CHANNEL gclass",
+            NULL
+        );
+    }
+    return 0;
+}
+
 
 
 
@@ -1256,6 +1272,7 @@ PRIVATE const GMETHODS gmt = {
     .mt_start = mt_start,
     .mt_stop = mt_stop,
     .mt_stats = mt_stats,
+    .mt_child_added = mt_child_added,
 };
 
 /*---------------------------------------------*
