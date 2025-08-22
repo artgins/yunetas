@@ -1066,7 +1066,8 @@ PRIVATE void mt_create(hgobj gobj)
 
         FILE *file = fopen(pidfile, "r");
         if(file) {
-            (void)fscanf(file, "%d", &pid);
+            int x = fscanf(file, "%d", &pid);
+            if(x) {} // avoid warning
             fclose(file);
 
             int ret = is_yuneta_agent(pid);
@@ -7936,10 +7937,13 @@ PRIVATE int run_yuno(
             NULL
         );
     } else {
-        write(fd, bfbinary, strlen(bfbinary));
-        write(fd, " --config-file='", strlen(" --config-file='"));
-        write(fd, bfarg, strlen(bfarg));
-        write(fd, "' $1\n", strlen("' $1\n"));
+        ssize_t x = write(fd, bfbinary, strlen(bfbinary));
+        x = write(fd, " --config-file='", strlen(" --config-file='"));
+        if(x) {} // avoid warning
+        x = write(fd, bfarg, strlen(bfarg));
+        if(x) {} // avoid warning
+        x = write(fd, "' $1\n", strlen("' $1\n"));
+        if(x) {} // avoid warning
         close(fd);
     }
     gbuffer_decref(gbuf_sh);
