@@ -32,8 +32,8 @@ target_link_libraries(${PROJECT_NAME}
     # force use of openssl
     libssl.a
     libcrypto.a
-    pthread.a
-    dl.a
+    pthread
+    dl
 )
 
 
