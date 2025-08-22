@@ -53,7 +53,8 @@ Install the C dependencies:
       libpcre3-dev zlib1g-dev libssl-dev \
       perl dos2unix tree curl \
       postgresql-server-dev-all libpq-dev \
-      kconfig-frontends telnet pipx patch
+      kconfig-frontends telnet pipx \
+      patch gettext
 
     pipx install kconfiglib
 
