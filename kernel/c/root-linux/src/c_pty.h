@@ -10,7 +10,7 @@
  ****************************************************************************/
 #pragma once
 
-#include <yunetas.h>
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{

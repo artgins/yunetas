@@ -20,6 +20,8 @@
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 
+#include <g_ev_kernel.h>
+#include <g_st_kernel.h>
 #include "c_pty.h"
 
 /***************************************************************************
