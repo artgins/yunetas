@@ -180,7 +180,7 @@ static int input_value(char *bf, int bfsize, const char *default_value, int test
         len--;
     }
     if(!len && default_value) {
-        strncpy(bf, default_value, bfsize-1);
+        snprintf(bf, bfsize, "%s", default_value);
     }
     return 0;
 }
