@@ -446,8 +446,8 @@ PRIVATE void tty_reset_mode(void)
     if(orig_termios_fd != -1) {
         tcsetattr(orig_termios_fd, TCSANOW, &orig_termios);
         tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
-        /* Disable xterm mouse (1002 + 1006) and show cursor */
-        write(STDOUT_FILENO, "\x1b[?1002l\x1b[?1006l\x1b[?25h", 18);
+        // /* Disable xterm mouse (1002 + 1006) and show cursor */
+        // write(STDOUT_FILENO, "\x1b[?1002l\x1b[?1006l\x1b[?25h", 18);
         orig_termios_fd = -1;
     }
 }
@@ -678,10 +678,10 @@ skip:
         );
     }
 
-        /* Enable xterm mouse: 1002 Button-Motion + 1006 SGR, hide cursor */
-    write(STDOUT_FILENO, "\x1b[?1002h\x1b[?1006h\x1b[?25l", 18);
+    // /* Enable xterm mouse: 1002 Button-Motion + 1006 SGR, hide cursor */
+    // write(STDOUT_FILENO, "\x1b[?1002h\x1b[?1006h\x1b[?25l", 18);
 
-return fd;
+    return fd;
 }
 
 /***************************************************************************
