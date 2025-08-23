@@ -101,8 +101,7 @@
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
-PRIVATE int try_parse_mouse_sgr(const char *buf, size_t len, int *b, int *x, int *y, int *is_press, size_t *used);
-
+// PRIVATE int try_parse_mouse_sgr(const char *buf, size_t len, int *b, int *x, int *y, int *is_press, size_t *used);
 
 PRIVATE int create_display_framework(hgobj gobj);
 PRIVATE void do_close(hgobj gobj);
@@ -1502,61 +1501,61 @@ PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
  *  Parse xterm SGR mouse: ESC [ < b ; x ; y (M|m)
  *  Returns 1 if parsed, 0 otherwise. Sets *used to bytes consumed.
  *--------------------------------------------------------------*/
-PRIVATE int try_parse_mouse_sgr(
-    const char *buf,
-    size_t len,
-    int *b,
-    int *x,
-    int *y,
-    int *is_press,
-    size_t *used
-)
-{
-    if(len < 6) {
-        return 0;
-    }
-    if(!(buf[0]==0x1B && buf[1]=='[' && buf[2]=='<')) {
-        return 0;
-    }
-    size_t i = 3;
-    int v[3] = {0,0,0};
-    for(int k=0; k<3; k++) {
-        int got = 0;
-        int val = 0;
-        while(i < len && buf[i]>='0' && buf[i]<='9') {
-            val = val*10 + (buf[i]-'0');
-            i++;
-            got = 1;
-        }
-        if(!got) {
-            return 0;
-        }
-        v[k] = val;
-        if(k<2) {
-            if(i>=len || buf[i]!=';') {
-                return 0;
-            }
-            i++;
-        }
-    }
-    if(i >= len) {
-        return 0;
-    }
-    char act = buf[i++];
-    if(act!='M' && act!='m') {
-        if(i < len && (buf[i]=='M' || buf[i]=='m')) {
-            act = buf[i++];
-        } else {
-            return 0;
-        }
-    }
-    *b = v[0];
-    *x = v[1];
-    *y = v[2];
-    *is_press = (act=='M');
-    *used = i;
-    return 1;
-}
+// PRIVATE int try_parse_mouse_sgr(
+//     const char *buf,
+//     size_t len,
+//     int *b,
+//     int *x,
+//     int *y,
+//     int *is_press,
+//     size_t *used
+// )
+// {
+//     if(len < 6) {
+//         return 0;
+//     }
+//     if(!(buf[0]==0x1B && buf[1]=='[' && buf[2]=='<')) {
+//         return 0;
+//     }
+//     size_t i = 3;
+//     int v[3] = {0,0,0};
+//     for(int k=0; k<3; k++) {
+//         int got = 0;
+//         int val = 0;
+//         while(i < len && buf[i]>='0' && buf[i]<='9') {
+//             val = val*10 + (buf[i]-'0');
+//             i++;
+//             got = 1;
+//         }
+//         if(!got) {
+//             return 0;
+//         }
+//         v[k] = val;
+//         if(k<2) {
+//             if(i>=len || buf[i]!=';') {
+//                 return 0;
+//             }
+//             i++;
+//         }
+//     }
+//     if(i >= len) {
+//         return 0;
+//     }
+//     char act = buf[i++];
+//     if(act!='M' && act!='m') {
+//         if(i < len && (buf[i]=='M' || buf[i]=='m')) {
+//             act = buf[i++];
+//         } else {
+//             return 0;
+//         }
+//     }
+//     *b = v[0];
+//     *x = v[1];
+//     *y = v[2];
+//     *is_press = (act=='M');
+//     *used = i;
+//     return 1;
+// }
 
 PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
 {
