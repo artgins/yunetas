@@ -15,6 +15,7 @@
 #include <command_parser.h>
 #include "msg_ievent.h"
 #include "c_channel.h"
+#include "c_tcp_s.h"
 #include "c_iogate.h"
 
 /***************************************************************************
@@ -247,11 +248,14 @@ PRIVATE json_t *mt_stats(hgobj gobj, const char *stats, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int mt_child_added(hgobj gobj, hgobj child)
 {
-    if(!gobj_is_volatil(child) &&  gobj_gclass_name(child) != C_CHANNEL) {
+    if(gobj_gclass_name(child) != C_CHANNEL &&
+            gobj_gclass_name(child) != C_TCP_S
+    ) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "IOGate child must be a C_CHANNEL gclass",
+            "child gclass", "%s", gobj_gclass_name(child),
             NULL
         );
     }
