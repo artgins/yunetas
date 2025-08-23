@@ -446,6 +446,8 @@ PRIVATE void tty_reset_mode(void)
     if(orig_termios_fd != -1) {
         tcsetattr(orig_termios_fd, TCSANOW, &orig_termios);
         tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
+        /* Disable xterm mouse (1002 + 1006) and show cursor */
+        write(STDOUT_FILENO, "\x1b[?1002l\x1b[?1006l\x1b[?25h", 18);
         orig_termios_fd = -1;
     }
 }
@@ -676,7 +678,10 @@ skip:
         );
     }
 
-    return fd;
+        /* Enable xterm mouse: 1002 Button-Motion + 1006 SGR, hide cursor */
+    write(STDOUT_FILENO, "\x1b[?1002h\x1b[?1006h\x1b[?25l", 18);
+
+return fd;
 }
 
 /***************************************************************************
@@ -1610,6 +1615,37 @@ PRIVATE int ac_clear_history(hgobj gobj, const char *event, json_t *kw, hgobj sr
     return 0;
 }
 
+/*-----------------------------------------------------------------------*
+ *  Mouse: click/move adjusts caret if inside our single-line box
+ *-----------------------------------------------------------------------*/
+PRIVATE int ac_mouse(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    //
+    // int x = (int)kw_get_int(gobj, kw, "x", 0, 0);
+    // int y = (int)kw_get_int(gobj, kw, "y", 0, 0);
+    // int button = (int)kw_get_int(gobj, kw, "button", 0, 0);
+    // const char *type = kw_get_str(gobj, kw, "type", "", 0);
+    //
+    // int left = (int)(priv->x + (int)priv->plen);
+    //
+    // if(y == (int)priv->y && x >= left) {
+    //     size_t newpos = (size_t)(x - left);
+    //     if(newpos > priv->len) {
+    //         newpos = priv->len;
+    //     }
+    //     priv->pos = newpos;
+    //     refreshLine(priv);
+    //
+    //     if(button == 0 && type && strcmp(type, "down")==0) {
+    //         gobj_send_event(gobj, EV_SETFOCUS, 0, gobj);
+    //     }
+    // }
+
+    KW_DECREF(kw);
+    return 0;
+}
+
 /***************************************************************************
  *                          FSM
  ***************************************************************************/
@@ -1674,6 +1710,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_EDITLINE_SWAP_CHAR,      ac_swap_char,       0},
         {EV_EDITLINE_DEL_LINE,       ac_del_line,        0},
         {EV_EDITLINE_DEL_PREV_WORD,  ac_del_prev_word,   0},
+        {EV_MOUSE,                   ac_mouse,           0},
         {EV_GETTEXT,                 ac_gettext,         0},
         {EV_SETTEXT,                 ac_settext,         0},
         {EV_SETFOCUS,                ac_setfocus,        0},
@@ -1717,6 +1754,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_PAINT,                      0},
         {EV_MOVE,                       0},
         {EV_SIZE,                       0},
+        {EV_MOUSE,                      0},
         {EV_CLEAR_HISTORY,              0},
         {NULL, 0}
     };

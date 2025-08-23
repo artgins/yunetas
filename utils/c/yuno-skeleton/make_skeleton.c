@@ -210,9 +210,9 @@ Enter author (Author name) ['']: dd
 static json_t *input_vars_values(const char *type, json_t *jn_vars, int testing)
 {
     json_t *jn_values = json_object();
-    char bf[220];
-    char bf2[220];
-    char root_name[120];
+    char bf[120];
+    char root_name[220];
+    char bf2[320];
     size_t index;
     json_t *jn_var;
 

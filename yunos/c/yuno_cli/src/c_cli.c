@@ -101,6 +101,8 @@
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
+PRIVATE int try_parse_mouse_sgr(const char *buf, size_t len, int *b, int *x, int *y, int *is_press, size_t *used);
+
 
 PRIVATE int create_display_framework(hgobj gobj);
 PRIVATE void do_close(hgobj gobj);
@@ -1495,6 +1497,67 @@ PRIVATE keytable_t *event_by_key(keytable_t *keytable, uint8_t kb[8])
 /***************************************************************************
  *  process read
  ***************************************************************************/
+
+/*--------------------------------------------------------------*
+ *  Parse xterm SGR mouse: ESC [ < b ; x ; y (M|m)
+ *  Returns 1 if parsed, 0 otherwise. Sets *used to bytes consumed.
+ *--------------------------------------------------------------*/
+PRIVATE int try_parse_mouse_sgr(
+    const char *buf,
+    size_t len,
+    int *b,
+    int *x,
+    int *y,
+    int *is_press,
+    size_t *used
+)
+{
+    if(len < 6) {
+        return 0;
+    }
+    if(!(buf[0]==0x1B && buf[1]=='[' && buf[2]=='<')) {
+        return 0;
+    }
+    size_t i = 3;
+    int v[3] = {0,0,0};
+    for(int k=0; k<3; k++) {
+        int got = 0;
+        int val = 0;
+        while(i < len && buf[i]>='0' && buf[i]<='9') {
+            val = val*10 + (buf[i]-'0');
+            i++;
+            got = 1;
+        }
+        if(!got) {
+            return 0;
+        }
+        v[k] = val;
+        if(k<2) {
+            if(i>=len || buf[i]!=';') {
+                return 0;
+            }
+            i++;
+        }
+    }
+    if(i >= len) {
+        return 0;
+    }
+    char act = buf[i++];
+    if(act!='M' && act!='m') {
+        if(i < len && (buf[i]=='M' || buf[i]=='m')) {
+            act = buf[i++];
+        } else {
+            return 0;
+        }
+    }
+    *b = v[0];
+    *x = v[1];
+    *y = v[2];
+    *is_press = (act=='M');
+    *used = i;
+    return 1;
+}
+
 PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
@@ -1505,6 +1568,8 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
             return -1;
         }
     }
+
+    // Original code V6
     if(nread > 8) {
         // It must be the mouse cursor
         char *p = strchr(base+1, 0x1B);
@@ -1521,6 +1586,89 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
             }
         }
     }
+
+    // /* Handle possibly multiple mouse packets in this chunk (SGR 1006).
+    //  * Wheel → send Scroll Line events to the top display window.
+    //  * Other mouse packets (click/move) are ignored here (consumed).
+    //  */
+    // while(nread >= 6 && base[0]==0x1B && base[1]=='[' && base[2]=='<') {
+    //     int b = 0;
+    //     int x = 0;
+    //     int y = 0;
+    //     int is_press = 0; /* unused for wheel */
+    //     size_t used = 0;
+    //
+    //     if(!try_parse_mouse_sgr(base, nread, &b, &x, &y, &is_press, &used)) {
+    //         break;
+    //     }
+    //
+    //     if(b & 64) {
+    //         /* Wheel: bit 0 is direction (0=up, 1=down); modifiers may be OR’ed in. */
+    //         int dir = (b & 1) ? -1 : +1;
+    //
+    //         hgobj dst = __top_display_window__; /* scroll the visible output window */
+    //         if(dst) {
+    //             const char *ev = (dir > 0) ? EV_SCROLL_LINE_UP : EV_SCROLL_LINE_DOWN;
+    //             gobj_send_event(dst, ev, 0, gobj);
+    //         }
+    //
+    //         base  += used;
+    //         nread -= used;
+    //         continue;
+    //     }
+    //
+    //     /* Not a wheel packet (click/move): consume silently and continue. */
+    //     base  += used;
+    //     nread -= used;
+    // }
+
+    // /* Handle possibly multiple mouse packets in this chunk (SGR 1006) */
+    // while(nread >= 6 && base[0]==0x1B && base[1]=='[' && base[2]=='<') {
+    //     int b = 0;
+    //     int x = 0;
+    //     int y = 0;
+    //     int is_press = 0;
+    //     size_t used = 0;
+    //     if(!try_parse_mouse_sgr(base, nread, &b, &x, &y, &is_press, &used)) {
+    //         break;
+    //     }
+    //
+    //     /* xterm button codes:
+    //      * low 2 bits: 0=L,1=M,2=R ; +32=motion ; +64=wheel (64=up,65=down common)
+    //      */
+    //     int wheel = 0;
+    //     if(b & 64) {
+    //         /* Most terminals: 64=wheel up, 65=wheel down */
+    //         wheel = (b==64) ? +1 : (b==65) ? -1 : 0;
+    //     }
+    //
+    //     hgobj dst_gobj = GetFocus(); /* route to focused widget/window manager */
+    //     if(dst_gobj) {
+    //         if(wheel != 0) {
+    //             /* Wheel → scroll line up/down (requested) */
+    //             const char *ev = (wheel > 0) ? EV_SCROLL_LINE_UP : EV_SCROLL_LINE_DOWN;
+    //             gobj_send_event(dst_gobj, ev, 0, gobj);
+    //         } else {
+    //             const char *type = is_press ? "down" : "up";
+    //             if(b & 32) {
+    //                 type = "move";
+    //             }
+    //             int button = (b & 3); /* 0=L,1=M,2=R */
+    //             json_t *kw = json_pack(
+    //                 "{s:i,s:i,s:i,s:s}",
+    //                 "x", x,
+    //                 "y", y,
+    //                 "button", button,
+    //                 "type", type
+    //             );
+    //             gobj_send_event(dst_gobj, EV_MOUSE, kw, gobj);
+    //         }
+    //     }
+    //
+    //     base  += used;
+    //     nread -= used;
+    // }
+
     uint8_t b[8];
     memset(b, 0, sizeof(b));
     memmove(b, base, MIN(8, nread));
