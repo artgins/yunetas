@@ -1289,401 +1289,90 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
     }
 }
 
-// /*****************************************************************
-//  *  Add key/values from va_list argument
-//  *****************************************************************/
-// PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
-// {
-//     char *key;
-//     char *fmt;
-//     size_t i;
-//     char value[8*1024];
-//
-//     while((key = (char *)va_arg (ap, char *)) != NULL) {
-//         fmt = (char *)va_arg (ap, char *);
-//         if(fmt == NULL) {
-//             break;
-//         }
-//         for (i = 0; i < strlen (fmt); i++) {
-//             int eof = 0;
-//
-//             if (fmt[i] != '%')
-//                 continue;
-//             i++;
-//             while (eof != 1) {
-//                 switch (fmt[i]) {
-//                     case 'd':
-//                     case 'i':
-//                     case 'o':
-//                     case 'u':
-//                     case 'x':
-//                     case 'X':
-//                         if (fmt[i - 1] == 'l') {
-//                             if (i - 2 > 0 && fmt[i - 2] == 'l') {
-//                                 long long int v;
-//                                 v = va_arg(ap, long long int);
-//                                 xjson_add_integer(hgen, key, v);
-//
-//                             } else {
-//                                 long int v;
-//                                 v = va_arg(ap, long int);
-//                                 xjson_add_integer(hgen, key, v);
-//                             }
-//                         } else {
-//                             int v;
-//                             v = va_arg(ap, int);
-//                             xjson_add_integer(hgen, key, v);
-//                         }
-//                         eof = 1;
-//                         break;
-//                     case 'e':
-//                     case 'E':
-//                     case 'f':
-//                     case 'F':
-//                     case 'g':
-//                     case 'G':
-//                     case 'a':
-//                     case 'A':
-//                         if (fmt[i - 1] == 'L') {
-//                             long double v;
-//                             v = va_arg (ap, long double);
-//                             xjson_add_double(hgen, key, v);
-//                         } else {
-//                             double v;
-//                             v = va_arg (ap, double);
-//                             xjson_add_double(hgen, key, v);
-//                         }
-//                         eof = 1;
-//                         break;
-//                     case 'c':
-//                         if (fmt [i - 1] == 'l') {
-//                             wint_t v = va_arg (ap, wint_t);
-//                             xjson_add_integer(hgen, key, v);
-//                         } else {
-//                             int v = va_arg (ap, int);
-//                             xjson_add_integer(hgen, key, v);
-//                         }
-//                         eof = 1;
-//                         break;
-//                     case 's':
-//                         if (fmt [i - 1] == 'l') {
-//                             wchar_t *p;
-//                             int len;
-//
-//                             p = va_arg (ap, wchar_t *);
-//                             if(p && (len = snprintf(value, sizeof(value), "%ls", p))>=0) {
-//                                 if(strcmp(key, "msg")==0) {
-//                                     if(priority <= LOG_ERR) {
-//                                         gobj_log_set_last_message("%s", value);
-//                                     }
-//                                 }
-//                                 xjson_add_string(hgen, key, value);
-//                             } else {
-//                                 xjson_add_null(hgen, key);
-//                             }
-//
-//                         } else {
-//                             char *p;
-//                             int len;
-//
-//                             p = va_arg (ap, char *);
-//                             if(p && (len = snprintf(value, sizeof(value), "%s", p))>=0) {
-//                                 if(strcmp(key, "msg")==0) {
-//                                     if(priority <= LOG_ERR) {
-//                                         gobj_log_set_last_message("%s", value);
-//                                     }
-//                                 }
-//                                 xjson_add_string(hgen, key, value);
-//                             } else {
-//                                 xjson_add_null(hgen, key);
-//                             }
-//                         }
-//                         eof = 1;
-//                         break;
-//                     case 'p':
-//                         {
-//                             void *p;
-//                             int len;
-//
-//                             p = va_arg (ap, void *);
-//                             eof = 1;
-//                             if(p && (len = snprintf(value, sizeof(value), "%p", (char *)p))>0) {
-//                                 xjson_add_string(hgen, key, value);
-//                             } else {
-//                                 xjson_add_null(hgen, key);
-//                             }
-//                         }
-//                         break;
-//                     case 'j':
-//                         {
-//                             json_t *jn;
-//
-//                             jn = va_arg (ap, void *);
-//                             eof = 1;
-//
-//                             if(jn) {
-//                                 size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
-//                                                JSON_INDENT(0) |
-//                                                JSON_REAL_PRECISION(12);
-//                                 char *bf = json_dumps(jn, flags);
-//                                 if(bf) {
-//                                     helper_doublequote2quote(bf);
-//                                     xjson_add_string(0, key, bf);
-//                                     jsonp_free(bf) ;
-//                                 } else {
-//                                     xjson_add_null(hgen, key);
-//                                 }
-//                             } else {
-//                                 xjson_add_null(hgen, key);
-//                             }
-//                         }
-//                         break;
-//                     case '%':
-//                         eof = 1;
-//                         break;
-//                     default:
-//                         i++;
-//                         if(i >= strlen (fmt)) {
-//                             (void)va_arg (ap, char *);
-//                             eof = 1;
-//                         }
-//                         break;
-//                 }
-//             }
-//         }
-//     }
-// }
-
 /*****************************************************************
- *  json_vappend() by ChatGPT
- *
- *  Consumes var-args as (key, fmt, args...) pairs until key == NULL.
- *  For each pair, ONLY the first conversion in `fmt` is consumed
- *  (original behavior preserved via `eof`).
- *
- *  Supported specifiers:
- *    Integers:
- *      %d, %i      → JSON number (signed)
- *      %u          → JSON number (unsigned)
- *      %x, %X      → hex STRING (lower/upper). %#x/%#X add 0x/0X if value != 0
- *      %o          → octal STRING. %#o adds leading '0' if value != 0
- *      Length modifiers recognized by single/two-char look-back:
- *          ll, l, z(size_t/ssize_t), t(ptrdiff_t), j(intmax_t/uintmax_t)
- *
- *    Floats:
- *      %f %F %g %G %e %E %a %A → JSON number (double)
- *      If 'L' immediately before the specifier, reads long double and downcasts
- *
- *    Strings / Char:
- *      %s      → JSON string (NULL → JSON null). If key=="msg" and priority<=LOG_ERR,
- *                calls gobj_log_set_last_message("%s", value)
- *      %ls     → wide string accepted when 'l' precedes 's' (fmt[i-1]=='l')
- *      %c/%lc  → char / wide char. Stored as 1-char string (narrow) or codepoint (wide)
- *
- *    Pointer:
- *      %p      → pointer printed with "%p" and stored as JSON string
- *
- *    JSON value:
- *      %j      → expects `json_t *`; dumps with JSON_ENCODE_ANY|JSON_COMPACT|
- *                JSON_INDENT(0)|JSON_REAL_PRECISION(12), runs helper_doublequote2quote(),
- *                then stores as string. NULL → JSON null
- *
- *    Literal:
- *      %%      → literal percent; no value consumed
- *
- *  Unknown/unsupported specifier:
- *      Advance `i`; if we ran past end of `fmt`, consume ONE vararg as (char *)
- *      to keep va_list aligned, set eof=1, break.
+ *  Add key/values from va_list argument
  *****************************************************************/
 PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
 {
     char *key;
     char *fmt;
     size_t i;
-    char value[8*1024];
+    char value[4*1024];
 
-    while((key = (char *)va_arg(ap, char *)) != NULL) {
-        fmt = (char *)va_arg(ap, char *);
+    while((key = (char *)va_arg (ap, char *)) != NULL) {
+        fmt = (char *)va_arg (ap, char *);
         if(fmt == NULL) {
             break;
         }
-
-        for(i = 0; i < strlen(fmt); i++) {
+        for (i = 0; i < strlen (fmt); i++) {
             int eof = 0;
 
-            if(fmt[i] != '%') {
+            if (fmt[i] != '%')
                 continue;
-            }
             i++;
-
-            while(eof != 1) {
-                switch(fmt[i]) {
-                    /*------------------------------*
-                     * Signed / Unsigned integers
-                     *------------------------------*/
+            while (eof != 1) {
+                switch (fmt[i]) {
                     case 'd':
                     case 'i':
                     case 'o':
                     case 'u':
                     case 'x':
                     case 'X':
-                    {
-                        /* Detect alternate form '#' by scanning back to '%' */
-                        int alt_form = 0;
-                        if(i > 0) {
-                            size_t k = i;
-                            while(k > 0 && fmt[k] != '%') {
-                                if(fmt[k] == '#') {
-                                    alt_form = 1;
-                                }
-                                k--;
-                            }
-                        }
+                        if (fmt[i - 1] == 'l') {
+                            if (i - 2 > 0 && fmt[i - 2] == 'l') {
+                                long long int v;
+                                v = va_arg(ap, long long int);
+                                xjson_add_integer(hgen, key, v);
 
-                        if(fmt[i] == 'd' || fmt[i] == 'i') {
-                            /* signed */
-                            if(i >= 2 && fmt[i - 1] == 'l' && fmt[i - 2] == 'l') {
-                                long long int v = va_arg(ap, long long int);
-                                xjson_add_integer(hgen, key, v);
-                            } else if(fmt[i - 1] == 'l') {
-                                long int v = va_arg(ap, long int);
-                                xjson_add_integer(hgen, key, v);
-                            } else if(fmt[i - 1] == 'z') {
-                                ssize_t v = va_arg(ap, ssize_t);
-                                xjson_add_integer(hgen, key, (long long)v);
-                            } else if(fmt[i - 1] == 't') {
-                                ptrdiff_t v = va_arg(ap, ptrdiff_t);
-                                xjson_add_integer(hgen, key, (long long)v);
-                            } else if(fmt[i - 1] == 'j') {
-                                intmax_t v = va_arg(ap, intmax_t);
-                                xjson_add_integer(hgen, key, (long long)v);
                             } else {
-                                int v = va_arg(ap, int);
+                                long int v;
+                                v = va_arg(ap, long int);
                                 xjson_add_integer(hgen, key, v);
                             }
                         } else {
-                            /* unsigned family:
-                             *   %u -> JSON number
-                             *   %x/%X/%o -> JSON string (hex/oct), honoring %# prefixes
-                             */
-                            unsigned long long uv = 0ULL;
-
-                            if(i >= 2 && fmt[i - 1] == 'l' && fmt[i - 2] == 'l') {
-                                uv = va_arg(ap, unsigned long long);
-                            } else if(fmt[i - 1] == 'l') {
-                                uv = va_arg(ap, unsigned long);
-                            } else if(fmt[i - 1] == 'z') {
-                                uv = (unsigned long long)va_arg(ap, size_t);
-                            } else if(fmt[i - 1] == 't') {
-                                uv = (unsigned long long)(ptrdiff_t)va_arg(ap, ptrdiff_t);
-                            } else if(fmt[i - 1] == 'j') {
-                                uv = (unsigned long long)va_arg(ap, uintmax_t);
-                            } else {
-                                uv = va_arg(ap, unsigned int);
-                            }
-
-                            if(fmt[i] == 'u') {
-                                xjson_add_integer(hgen, key, (long long)uv);
-                            } else {
-                                /* Build oct/hex string (no leading zeros).
-                                 * %#x/%#X: prefix 0x/0X if uv != 0
-                                 * %#o:     leading '0'   if uv != 0
-                                 */
-                                char buf[2 + 2 + 64];
-                                char *w = &buf[sizeof(buf) - 1];
-                                *w-- = 0;
-
-                                if(fmt[i] == 'o') {
-                                    if(uv == 0) {
-                                        *w-- = '0';
-                                    } else {
-                                        while(uv) {
-                                            *w-- = (char)('0' + (uv & 0x7));
-                                            uv >>= 3;
-                                        }
-                                        if(alt_form) {
-                                            *w-- = '0';
-                                        }
-                                    }
-                                } else {
-                                    const int upper = (fmt[i] == 'X');
-                                    const char *hex = upper
-                                        ? "0123456789ABCDEF"
-                                        : "0123456789abcdef";
-                                    if(uv == 0) {
-                                        *w-- = '0';
-                                    } else {
-                                        while(uv) {
-                                            *w-- = hex[uv & 0xF];
-                                            uv >>= 4;
-                                        }
-                                        if(alt_form) {
-                                            *w-- = upper ? 'X' : 'x';
-                                            *w-- = '0';
-                                        }
-                                    }
-                                }
-                                xjson_add_string(hgen, key, w + 1);
-                            }
+                            int v;
+                            v = va_arg(ap, int);
+                            xjson_add_integer(hgen, key, v);
                         }
-
                         eof = 1;
                         break;
-                    }
-
-                    /*------------------------------*
-                     * Floating point
-                     *------------------------------*/
+                    case 'e':
                     case 'E':
                     case 'f':
                     case 'F':
                     case 'g':
                     case 'G':
-                    case 'e':
                     case 'a':
                     case 'A':
-                    {
-                        if(fmt[i - 1] == 'L') {
-                            long double v = va_arg(ap, long double);
-                            xjson_add_double(hgen, key, (double)v);
+                        if (fmt[i - 1] == 'L') {
+                            long double v;
+                            v = va_arg (ap, long double);
+                            xjson_add_double(hgen, key, v);
                         } else {
-                            double v = va_arg(ap, double);
+                            double v;
+                            v = va_arg (ap, double);
                             xjson_add_double(hgen, key, v);
                         }
                         eof = 1;
                         break;
-                    }
-
-                    /*------------------------------*
-                     * Character
-                     *------------------------------*/
                     case 'c':
-                    {
-                        if(fmt[i - 1] == 'l') {
-                            /* wide char promoted to wint_t */
-                            wint_t v = va_arg(ap, wint_t);
-                            xjson_add_integer(hgen, key, (long long)v);
+                        if (fmt [i - 1] == 'l') {
+                            wint_t v = va_arg (ap, wint_t);
+                            xjson_add_integer(hgen, key, v);
                         } else {
-                            int v = va_arg(ap, int);
-                            char s[2];
-                            s[0] = (char)v;
-                            s[1] = 0;
-                            xjson_add_string(hgen, key, s);
+                            int v = va_arg (ap, int);
+                            xjson_add_integer(hgen, key, v);
                         }
                         eof = 1;
                         break;
-                    }
-
-                    /*------------------------------*
-                     * String
-                     *------------------------------*/
                     case 's':
-                    {
-                        if(fmt[i - 1] == 'l') {
-                            /* wide string */
-                            wchar_t *p = va_arg(ap, wchar_t *);
-                            if(p && snprintf(value, sizeof(value), "%ls", p) >= 0) {
-                                if(strcmp(key, "msg") == 0) {
+                        if (fmt [i - 1] == 'l') {
+                            wchar_t *p;
+                            int len;
+
+                            p = va_arg (ap, wchar_t *);
+                            if(p && (len = snprintf(value, sizeof(value), "%ls", p))>=0) {
+                                if(strcmp(key, "msg")==0) {
                                     if(priority <= LOG_ERR) {
                                         gobj_log_set_last_message("%s", value);
                                     }
@@ -1692,10 +1381,14 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                             } else {
                                 xjson_add_null(hgen, key);
                             }
+
                         } else {
-                            char *p = va_arg(ap, char *);
-                            if(p && snprintf(value, sizeof(value), "%s", p) >= 0) {
-                                if(strcmp(key, "msg") == 0) {
+                            char *p;
+                            int len;
+
+                            p = va_arg (ap, char *);
+                            if(p && (len = snprintf(value, sizeof(value), "%s", p))>=0) {
+                                if(strcmp(key, "msg")==0) {
                                     if(priority <= LOG_ERR) {
                                         gobj_log_set_last_message("%s", value);
                                     }
@@ -1707,73 +1400,380 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
                         }
                         eof = 1;
                         break;
-                    }
-
-                    /*------------------------------*
-                     * JSON value (jansson)
-                     *------------------------------*/
-                    case 'j':
-                    {
-                        json_t *jn;
-
-                        jn = va_arg(ap, void *);
-                        eof = 1;
-
-                        if(jn) {
-                            size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
-                                           JSON_INDENT(0) |
-                                           JSON_REAL_PRECISION(12);
-                            char *bf = json_dumps(jn, flags);
-                            if(bf) {
-                                helper_doublequote2quote(bf);
-                                xjson_add_string(0, key, bf);
-                                jsonp_free(bf);
-                            } else {
-                                xjson_add_null(hgen, key);
-                            }
-                        } else {
-                            xjson_add_null(hgen, key);
-                        }
-                        break;
-                    }
-
-                    /*------------------------------*
-                     * Pointer -> string
-                     *------------------------------*/
                     case 'p':
-                    {
-                        void *p = va_arg(ap, void *);
-                        if(p && snprintf(value, sizeof(value), "%p", p) > 0) {
-                            xjson_add_string(hgen, key, value);
-                        } else {
-                            xjson_add_null(hgen, key);
+                        {
+                            void *p;
+                            int len;
+
+                            p = va_arg (ap, void *);
+                            eof = 1;
+                            if(p && (len = snprintf(value, sizeof(value), "%p", (char *)p))>0) {
+                                xjson_add_string(hgen, key, value);
+                            } else {
+                                xjson_add_null(hgen, key);
+                            }
                         }
-                        eof = 1;
                         break;
-                    }
+                    case 'j':
+                        {
+                            json_t *jn;
 
-                    /* literal % */
+                            jn = va_arg (ap, void *);
+                            eof = 1;
+
+                            if(jn) {
+                                size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
+                                               JSON_INDENT(0) |
+                                               JSON_REAL_PRECISION(12);
+                                char *bf = json_dumps(jn, flags);
+                                if(bf) {
+                                    helper_doublequote2quote(bf);
+                                    xjson_add_string(0, key, bf);
+                                    jsonp_free(bf) ;
+                                } else {
+                                    xjson_add_null(hgen, key);
+                                }
+                            } else {
+                                xjson_add_null(hgen, key);
+                            }
+                        }
+                        break;
                     case '%':
-                    {
                         eof = 1;
                         break;
-                    }
-
-                    /* Unknown/unsupported specifier */
                     default:
-                    {
                         i++;
-                        if(i >= strlen(fmt)) {
-                            (void)va_arg(ap, char *);
+                        if(i >= strlen (fmt)) {
+                            (void)va_arg (ap, char *);
                             eof = 1;
                         }
                         break;
-                    }
-                } /* switch */
-            } /* while(eof != 1) */
-        } /* for(fmt) */
-    } /* while(key) */
+                }
+            }
+        }
+    }
 }
+
+// /*****************************************************************
+//  *  json_vappend() by ChatGPT
+//  *
+//  *  Consumes var-args as (key, fmt, args...) pairs until key == NULL.
+//  *  For each pair, ONLY the first conversion in `fmt` is consumed
+//  *  (original behavior preserved via `eof`).
+//  *
+//  *  Supported specifiers:
+//  *    Integers:
+//  *      %d, %i      → JSON number (signed)
+//  *      %u          → JSON number (unsigned)
+//  *      %x, %X      → hex STRING (lower/upper). %#x/%#X add 0x/0X if value != 0
+//  *      %o          → octal STRING. %#o adds leading '0' if value != 0
+//  *      Length modifiers recognized by single/two-char look-back:
+//  *          ll, l, z(size_t/ssize_t), t(ptrdiff_t), j(intmax_t/uintmax_t)
+//  *
+//  *    Floats:
+//  *      %f %F %g %G %e %E %a %A → JSON number (double)
+//  *      If 'L' immediately before the specifier, reads long double and downcasts
+//  *
+//  *    Strings / Char:
+//  *      %s      → JSON string (NULL → JSON null). If key=="msg" and priority<=LOG_ERR,
+//  *                calls gobj_log_set_last_message("%s", value)
+//  *      %ls     → wide string accepted when 'l' precedes 's' (fmt[i-1]=='l')
+//  *      %c/%lc  → char / wide char. Stored as 1-char string (narrow) or codepoint (wide)
+//  *
+//  *    Pointer:
+//  *      %p      → pointer printed with "%p" and stored as JSON string
+//  *
+//  *    JSON value:
+//  *      %j      → expects `json_t *`; dumps with JSON_ENCODE_ANY|JSON_COMPACT|
+//  *                JSON_INDENT(0)|JSON_REAL_PRECISION(12), runs helper_doublequote2quote(),
+//  *                then stores as string. NULL → JSON null
+//  *
+//  *    Literal:
+//  *      %%      → literal percent; no value consumed
+//  *
+//  *  Unknown/unsupported specifier:
+//  *      Advance `i`; if we ran past end of `fmt`, consume ONE vararg as (char *)
+//  *      to keep va_list aligned, set eof=1, break.
+//  *****************************************************************/
+// PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
+// {
+//     char *key;
+//     char *fmt;
+//     size_t i;
+//     char value[4*1024];
+//
+//     while((key = (char *)va_arg(ap, char *)) != NULL) {
+//         fmt = (char *)va_arg(ap, char *);
+//         if(fmt == NULL) {
+//             break;
+//         }
+//
+//         for(i = 0; i < strlen(fmt); i++) {
+//             int eof = 0;
+//
+//             if(fmt[i] != '%') {
+//                 continue;
+//             }
+//             i++;
+//
+//             while(eof != 1) {
+//                 switch(fmt[i]) {
+//                     /*------------------------------*
+//                      * Signed / Unsigned integers
+//                      *------------------------------*/
+//                     case 'd':
+//                     case 'i':
+//                     case 'o':
+//                     case 'u':
+//                     case 'x':
+//                     case 'X':
+//                     {
+//                         /* Detect alternate form '#' by scanning back to '%' */
+//                         int alt_form = 0;
+//                         if(i > 0) {
+//                             size_t k = i;
+//                             while(k > 0 && fmt[k] != '%') {
+//                                 if(fmt[k] == '#') {
+//                                     alt_form = 1;
+//                                 }
+//                                 k--;
+//                             }
+//                         }
+//
+//                         if(fmt[i] == 'd' || fmt[i] == 'i') {
+//                             /* signed */
+//                             if(i >= 2 && fmt[i - 1] == 'l' && fmt[i - 2] == 'l') {
+//                                 long long int v = va_arg(ap, long long int);
+//                                 xjson_add_integer(hgen, key, v);
+//                             } else if(fmt[i - 1] == 'l') {
+//                                 long int v = va_arg(ap, long int);
+//                                 xjson_add_integer(hgen, key, v);
+//                             } else if(fmt[i - 1] == 'z') {
+//                                 ssize_t v = va_arg(ap, ssize_t);
+//                                 xjson_add_integer(hgen, key, (long long)v);
+//                             } else if(fmt[i - 1] == 't') {
+//                                 ptrdiff_t v = va_arg(ap, ptrdiff_t);
+//                                 xjson_add_integer(hgen, key, (long long)v);
+//                             } else if(fmt[i - 1] == 'j') {
+//                                 intmax_t v = va_arg(ap, intmax_t);
+//                                 xjson_add_integer(hgen, key, (long long)v);
+//                             } else {
+//                                 int v = va_arg(ap, int);
+//                                 xjson_add_integer(hgen, key, v);
+//                             }
+//                         } else {
+//                             /* unsigned family:
+//                              *   %u -> JSON number
+//                              *   %x/%X/%o -> JSON string (hex/oct), honoring %# prefixes
+//                              */
+//                             unsigned long long uv = 0ULL;
+//
+//                             if(i >= 2 && fmt[i - 1] == 'l' && fmt[i - 2] == 'l') {
+//                                 uv = va_arg(ap, unsigned long long);
+//                             } else if(fmt[i - 1] == 'l') {
+//                                 uv = va_arg(ap, unsigned long);
+//                             } else if(fmt[i - 1] == 'z') {
+//                                 uv = (unsigned long long)va_arg(ap, size_t);
+//                             } else if(fmt[i - 1] == 't') {
+//                                 uv = (unsigned long long)(ptrdiff_t)va_arg(ap, ptrdiff_t);
+//                             } else if(fmt[i - 1] == 'j') {
+//                                 uv = (unsigned long long)va_arg(ap, uintmax_t);
+//                             } else {
+//                                 uv = va_arg(ap, unsigned int);
+//                             }
+//
+//                             if(fmt[i] == 'u') {
+//                                 xjson_add_integer(hgen, key, (long long)uv);
+//                             } else {
+//                                 /* Build oct/hex string (no leading zeros).
+//                                  * %#x/%#X: prefix 0x/0X if uv != 0
+//                                  * %#o:     leading '0'   if uv != 0
+//                                  */
+//                                 char buf[2 + 2 + 64];
+//                                 char *w = &buf[sizeof(buf) - 1];
+//                                 *w-- = 0;
+//
+//                                 if(fmt[i] == 'o') {
+//                                     if(uv == 0) {
+//                                         *w-- = '0';
+//                                     } else {
+//                                         while(uv) {
+//                                             *w-- = (char)('0' + (uv & 0x7));
+//                                             uv >>= 3;
+//                                         }
+//                                         if(alt_form) {
+//                                             *w-- = '0';
+//                                         }
+//                                     }
+//                                 } else {
+//                                     const int upper = (fmt[i] == 'X');
+//                                     const char *hex = upper
+//                                         ? "0123456789ABCDEF"
+//                                         : "0123456789abcdef";
+//                                     if(uv == 0) {
+//                                         *w-- = '0';
+//                                     } else {
+//                                         while(uv) {
+//                                             *w-- = hex[uv & 0xF];
+//                                             uv >>= 4;
+//                                         }
+//                                         if(alt_form) {
+//                                             *w-- = upper ? 'X' : 'x';
+//                                             *w-- = '0';
+//                                         }
+//                                     }
+//                                 }
+//                                 xjson_add_string(hgen, key, w + 1);
+//                             }
+//                         }
+//
+//                         eof = 1;
+//                         break;
+//                     }
+//
+//                     /*------------------------------*
+//                      * Floating point
+//                      *------------------------------*/
+//                     case 'E':
+//                     case 'f':
+//                     case 'F':
+//                     case 'g':
+//                     case 'G':
+//                     case 'e':
+//                     case 'a':
+//                     case 'A':
+//                     {
+//                         if(fmt[i - 1] == 'L') {
+//                             long double v = va_arg(ap, long double);
+//                             xjson_add_double(hgen, key, (double)v);
+//                         } else {
+//                             double v = va_arg(ap, double);
+//                             xjson_add_double(hgen, key, v);
+//                         }
+//                         eof = 1;
+//                         break;
+//                     }
+//
+//                     /*------------------------------*
+//                      * Character
+//                      *------------------------------*/
+//                     case 'c':
+//                     {
+//                         if(fmt[i - 1] == 'l') {
+//                             /* wide char promoted to wint_t */
+//                             wint_t v = va_arg(ap, wint_t);
+//                             xjson_add_integer(hgen, key, (long long)v);
+//                         } else {
+//                             int v = va_arg(ap, int);
+//                             char s[2];
+//                             s[0] = (char)v;
+//                             s[1] = 0;
+//                             xjson_add_string(hgen, key, s);
+//                         }
+//                         eof = 1;
+//                         break;
+//                     }
+//
+//                     /*------------------------------*
+//                      * String
+//                      *------------------------------*/
+//                     case 's':
+//                     {
+//                         if(fmt[i - 1] == 'l') {
+//                             /* wide string */
+//                             wchar_t *p = va_arg(ap, wchar_t *);
+//                             if(p && snprintf(value, sizeof(value), "%ls", p) >= 0) {
+//                                 if(strcmp(key, "msg") == 0) {
+//                                     if(priority <= LOG_ERR) {
+//                                         gobj_log_set_last_message("%s", value);
+//                                     }
+//                                 }
+//                                 xjson_add_string(hgen, key, value);
+//                             } else {
+//                                 xjson_add_null(hgen, key);
+//                             }
+//                         } else {
+//                             char *p = va_arg(ap, char *);
+//                             if(p && snprintf(value, sizeof(value), "%s", p) >= 0) {
+//                                 if(strcmp(key, "msg") == 0) {
+//                                     if(priority <= LOG_ERR) {
+//                                         gobj_log_set_last_message("%s", value);
+//                                     }
+//                                 }
+//                                 xjson_add_string(hgen, key, value);
+//                             } else {
+//                                 xjson_add_null(hgen, key);
+//                             }
+//                         }
+//                         eof = 1;
+//                         break;
+//                     }
+//
+//                     /*------------------------------*
+//                      * JSON value (jansson)
+//                      *------------------------------*/
+//                     case 'j':
+//                     {
+//                         json_t *jn;
+//
+//                         jn = va_arg(ap, void *);
+//                         eof = 1;
+//
+//                         if(jn) {
+//                             size_t flags = JSON_ENCODE_ANY | JSON_COMPACT |
+//                                            JSON_INDENT(0) |
+//                                            JSON_REAL_PRECISION(12);
+//                             char *bf = json_dumps(jn, flags);
+//                             if(bf) {
+//                                 helper_doublequote2quote(bf);
+//                                 xjson_add_string(0, key, bf);
+//                                 jsonp_free(bf);
+//                             } else {
+//                                 xjson_add_null(hgen, key);
+//                             }
+//                         } else {
+//                             xjson_add_null(hgen, key);
+//                         }
+//                         break;
+//                     }
+//
+//                     /*------------------------------*
+//                      * Pointer -> string
+//                      *------------------------------*/
+//                     case 'p':
+//                     {
+//                         void *p = va_arg(ap, void *);
+//                         if(p && snprintf(value, sizeof(value), "%p", p) > 0) {
+//                             xjson_add_string(hgen, key, value);
+//                         } else {
+//                             xjson_add_null(hgen, key);
+//                         }
+//                         eof = 1;
+//                         break;
+//                     }
+//
+//                     /* literal % */
+//                     case '%':
+//                     {
+//                         eof = 1;
+//                         break;
+//                     }
+//
+//                     /* Unknown/unsupported specifier */
+//                     default:
+//                     {
+//                         i++;
+//                         if(i >= strlen(fmt)) {
+//                             (void)va_arg(ap, char *);
+//                             eof = 1;
+//                         }
+//                         break;
+//                     }
+//                 } /* switch */
+//             } /* while(eof != 1) */
+//         } /* for(fmt) */
+//     } /* while(key) */
+// }
 
 
 
