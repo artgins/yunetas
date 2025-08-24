@@ -775,6 +775,7 @@ PRIVATE int ac_identity_card(hgobj gobj, const char *event, json_t *kw, hgobj sr
             "src_service",  "%s", iev_src_service,
             NULL
         );
+        gobj_trace_json(gobj, kw, "Authentication rejected");
 
         /*
          *      __RESPONSE__ __MESSAGE__
