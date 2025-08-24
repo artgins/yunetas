@@ -937,3 +937,11 @@ PUBLIC void set_auto_kill_time(int seconds)
 {
     __auto_kill_time__ = seconds;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC json_t *yuneta_json_config(void) // It's NOT yours
+{
+    return __jn_config__;
+}

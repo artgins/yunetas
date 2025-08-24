@@ -48,6 +48,7 @@
 #include "yunetas_environment.h"
 #include "c_timer0.h"
 #include "msg_ievent.h"
+#include "entry_point.h"
 #include "c_yuno.h"
 
 
@@ -91,6 +92,7 @@ PRIVATE json_t *cmd_view_attrs(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 PRIVATE json_t *cmd_attrs_schema(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 
 PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
+PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_info_mem(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gclass(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
 PRIVATE json_t *cmd_view_gobj(hgobj gobj, const char *cmd, json_t *kw, hgobj src);
@@ -328,6 +330,7 @@ PRIVATE const sdata_desc_t command_table[] = {
 /*-CMD---type-----------name------------------------alias---items-------json_fn---------------------description*/
 SDATACM (DTP_SCHEMA,    "help",                     a_help, pm_help,    cmd_help,                   "Command's help"),
 SDATACM (DTP_SCHEMA,    "authzs",                   0,      pm_authzs,  cmd_authzs,                 "Authorization's help"),
+SDATACM (DTP_SCHEMA,    "view-config",              0,      0,          cmd_view_config,            "View final json configuration"),
 
 /*-CMD2---type----------name------------------------flag---------alias---items-------json_fn-------------description--*/
 SDATACM2(DTP_SCHEMA,    "info-cpus",                SDF_AUTHZ_X, 0,      0,          cmd_info_cpus,              "Info of cpus"),
@@ -1356,6 +1359,25 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         json_sprintf("Not yet implemented"),   // jn_comment
         0,      // jn_schema
         0       // jn_data
+    );
+    JSON_DECREF(kw)
+    return kw_response;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE json_t *cmd_view_config(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
+{
+    json_t *jn_data = yuneta_json_config();
+    json_incref(jn_data);
+
+    json_t *kw_response = build_command_response(
+        gobj,
+        0,          // result
+        0,          // jn_comment
+        0,          // jn_schema
+        jn_data     // jn_data
     );
     JSON_DECREF(kw)
     return kw_response;

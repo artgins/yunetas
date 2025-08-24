@@ -51,6 +51,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
  */
 PUBLIC void set_auto_kill_time(int seconds);
 
+PUBLIC json_t *yuneta_json_config(void); // It's NOT yours
+
 #ifdef __cplusplus
 }
 #endif
