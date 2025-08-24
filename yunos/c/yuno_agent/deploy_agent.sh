@@ -120,7 +120,7 @@
 #
 #
 
-killall -9 yuneta_agent
+yshutdown --kill-only-agent
 
 #  Exit immediately if a command exits with a non-zero status.
 set -e

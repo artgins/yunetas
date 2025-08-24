@@ -37,6 +37,7 @@ struct arguments
     char *args[MAX_ARGS+1];     /* positional args */
     int no_kill_agent;
     int no_kill_system;
+    int kill_only_agent;
     int verbose;
 };
 
@@ -48,6 +49,8 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 /***************************************************************************
  *      Data
  ***************************************************************************/
+struct arguments arguments;
+
 const char *argp_program_version = NAME " " APP_VERSION;
 const char *argp_program_bug_address = APP_SUPPORT;
 
@@ -66,6 +69,7 @@ static struct argp_option options[] = {
 {"verbose",         'l',    0,          0,      "Verbose mode.", 0},
 {"no-kill-agent",   'n',    0,          0,      "Don't kill Yuneta agent.", 0},
 {"no-kill-system",  's',    0,          0,      "Don't kill system's yunos (logcenter).", 0},
+{"kill-only-agent", 'a',    0,          0,      "Kill only the agent.", 0},
 {0}
 };
 
@@ -99,6 +103,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     case 's':
         arguments->no_kill_system = 1;
         no_kill_system = 1;
+        break;
+
+    case 'a':
+        arguments->kill_only_agent = 1;
         break;
 
     case 'l':
@@ -181,8 +189,19 @@ static BOOL find_yuno_pid_cb(
     return TRUE; // to continue
 }
 
-static int shutdown_yuneta(int no_kill_agent, int verbose)
+static int shutdown_yuneta(void)
 {
+    int no_kill_agent = arguments.no_kill_agent;
+    int verbose = arguments.verbose;
+
+    if(arguments.kill_only_agent) {
+        kill_yuno("/yuneta/agent", "/yuneta/realms/agent/yuneta_agent.pid", verbose);
+        usleep(100);
+        int x = system("killall -9 yuneta_agent > /dev/null 2>&1"); // Sometimes the agent is not killed, be sure!
+        if(x) {} // avoid warning
+        return 0;
+    }
+
     walk_dir_tree(
         0,
         "/yuneta/realms",
@@ -191,6 +210,7 @@ static int shutdown_yuneta(int no_kill_agent, int verbose)
         find_yuno_pid_cb,
         (void *)(uintptr_t)verbose
     );
+
     if(!no_kill_agent) {
         kill_yuno("/yuneta/agent", "/yuneta/realms/agent/yuneta_agent.pid", verbose);
         usleep(100);
@@ -205,8 +225,6 @@ static int shutdown_yuneta(int no_kill_agent, int verbose)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
-    struct arguments arguments;
-
     /*
      *  Default values
      */
@@ -221,5 +239,5 @@ int main(int argc, char *argv[])
     /*
      *  Do your work
      */
-    return shutdown_yuneta(arguments.no_kill_agent, arguments.verbose);
+    return shutdown_yuneta();
 }
