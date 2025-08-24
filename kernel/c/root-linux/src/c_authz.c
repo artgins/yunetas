@@ -717,9 +717,9 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
     const char *status = NULL;
 
     if(!verify_token(gobj, jwt, &jwt_payload, &status)) {
-        char temp[256];
+        char temp[512];
         snprintf(temp, sizeof(temp), "%s", status);
-        gobj_log_info(gobj, 0,
+        gobj_log_warning(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_AUTH,
             "msg",          "%s", "NO verify_token",
