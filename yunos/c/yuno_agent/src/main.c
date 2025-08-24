@@ -189,14 +189,20 @@ PRIVATE char variable_config[]= "\
                     'gclass': 'C_TCP_S',                        \n\
                     'as_service': true,                         \n\
                     'kw': {                                     \n\
-                        'url': '(^^__input_url__^^)'            \n\
+                        'url': '(^^__input_url__^^)',           \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
                     }                                               \n\
                 },                                                  \n\
                 {                                                   \n\
                     'name': 'agent_secure_port',                    \n\
                     'gclass': 'C_TCP_S',                            \n\
                     'as_service': true,                             \n\
-                    'disabled': true,    #^^ TODO falla!                         \n\
                     'kw': {                                         \n\
                         'crypto': {                                 \n\
                             'library': 'openssl',                   \n\
@@ -204,7 +210,14 @@ PRIVATE char variable_config[]= "\
     'ssl_certificate_key': '/yuneta/agent/certs/yuneta_agent.key',  \n\
                             'trace': false                          \n\
                         },                                          \n\
-                        'url': '(^^__input_secure_url__^^)'         \n\
+                        'url': '(^^__input_secure_url__^^)',        \n\
+                        'child_tree_filter': {                      \n\
+                            'kw': {                                 \n\
+                                '__gclass_name__': 'C_CHANNEL',     \n\
+                                '__disabled__': false,              \n\
+                                'connected': false                  \n\
+                            }                                       \n\
+                        }                                           \n\
                     }                                               \n\
                 }                                                   \n\
             ],                                                  \n\
