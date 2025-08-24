@@ -120,10 +120,10 @@
 #
 #
 
-yshutdown --kill-only-agent
-
 #  Exit immediately if a command exits with a non-zero status.
 set -e
+
+yshutdown --kill-only-agent
 
 BINARY_AGENT="./yuneta_agent"
 CONFIG_AGENT="./yuneta_agent.json"
