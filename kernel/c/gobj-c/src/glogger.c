@@ -1297,7 +1297,7 @@ PRIVATE void discover(hgobj gobj, hgen_t hgen)
 //     char *key;
 //     char *fmt;
 //     size_t i;
-//     char value[256];
+//     char value[8*1024];
 //
 //     while((key = (char *)va_arg (ap, char *)) != NULL) {
 //         fmt = (char *)va_arg (ap, char *);
@@ -1500,7 +1500,7 @@ PRIVATE void json_vappend(hgen_t hgen, int priority, va_list ap)
     char *key;
     char *fmt;
     size_t i;
-    char value[256];
+    char value[8*1024];
 
     while((key = (char *)va_arg(ap, char *)) != NULL) {
         fmt = (char *)va_arg(ap, char *);
