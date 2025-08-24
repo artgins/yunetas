@@ -120,6 +120,8 @@
 #
 #
 
+killall -9 yuneta_agent
+
 #  Exit immediately if a command exits with a non-zero status.
 set -e
 
