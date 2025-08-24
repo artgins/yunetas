@@ -1288,7 +1288,12 @@ PRIVATE int mt_play(hgobj gobj)
     int result = (int)kw_get_int(gobj, jn_resp, "result", -1, KW_REQUIRED);
     if(result < 0) {
         const char *comment = kw_get_str(gobj, jn_resp, "comment", "", KW_REQUIRED);
-        gobj_log_error(gobj, 0,
+        print_error(
+            0,
+            "Cannot start agent treedb: %s",
+            comment
+        );
+        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP_ERROR,
             "msg",          "%s", comment,

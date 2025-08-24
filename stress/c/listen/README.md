@@ -117,9 +117,7 @@ Config:
                         'backlog': 32767, #^^ new-method:32767, legacy: 32767
                         'use_dups': 0,
                         'child_tree_filter': {
-                            'op': 'find',
                             'kw': {
-                                '__prefix_gobj_name__': 'input-',
                                 '__gclass_name__': 'C_CHANNEL',
                                 '__disabled__': false,
                                 'connected': false
@@ -181,9 +179,7 @@ Config:
                         'backlog': 32767, #^^ new-method:32767, legacy: 32767
                         'use_dups': 0
                     #^^    'child_tree_filter': {
-                    #^^        'op': 'find',
                     #^^        'kw': {
-                    #^^            '__prefix_gobj_name__': 'input-',
                     #^^            '__gclass_name__': 'C_CHANNEL',
                     #^^            '__disabled__': false,
                     #^^            'connected': false

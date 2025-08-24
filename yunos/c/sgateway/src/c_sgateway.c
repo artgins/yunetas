@@ -294,10 +294,8 @@ PRIVATE int create_input_side(hgobj gobj)
         "exitOnError", 0,
         "url", gobj_read_str_attr(gobj, "input_url"),
         "child_tree_filter",
-            "op", "find",
             "kw",
-                "__prefix_gobj_name__", "tcp-",
-                "__gclass_name__", "Channel",
+                "__gclass_name__", C_CHANNEL,
                 "__disabled__", 0,
                 "connected", 0
     );

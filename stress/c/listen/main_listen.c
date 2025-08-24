@@ -108,9 +108,7 @@ PRIVATE char variable_config[]= "\
                         'backlog': 32767, #^^ new-method:32767, legacy: 32767 \n\
                         'use_dups': 0                               \n\
 #^^                        'child_tree_filter': {                      \n\
-#^^                            'op': 'find',                           \n\
 #^^                            'kw': {                                 \n\
-#^^                                '__prefix_gobj_name__': 'input-',   \n\
 #^^                                '__gclass_name__': 'C_CHANNEL',     \n\
 #^^                                '__disabled__': false,              \n\
 #^^                                'connected': false                  \n\

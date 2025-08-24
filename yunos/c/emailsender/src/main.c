@@ -161,9 +161,7 @@ PRIVATE char variable_config[]= "\
                             'kw': {                                     \n\
                                 'url': '(^^__url__^^)',                 \n\
                                 'child_tree_filter': {                  \n\
-                                    'op': 'find',                       \n\
                                     'kw': {                                 \n\
-                                        '__prefix_gobj_name__': 'input-',   \n\
                                         '__gclass_name__': 'C_CHANNEL',     \n\
                                         '__disabled__': false,              \n\
                                         'connected': false                  \n\
