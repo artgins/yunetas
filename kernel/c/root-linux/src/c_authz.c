@@ -725,6 +725,7 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
             "msg",          "%s", temp,
             "user",         "%s", username,
             "service",      "%s", dst_service,
+            "jwt",          "%s", jwt,
             NULL
         );
         JSON_DECREF(jwt_payload);
