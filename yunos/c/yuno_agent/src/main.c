@@ -33,7 +33,7 @@
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
-        'realm_owner': '',                             \n\
+        'realm_owner': '',                                          \n\
         'work_dir': '/yuneta',                                      \n\
         'domain_dir': 'realms/agent/agent'                          \n\
     },                                                              \n\
@@ -47,7 +47,7 @@ PRIVATE char fixed_config[]= "\
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     '__json_config_variables__': {                                  \n\
-        '__realm_id__': '/yuneta_agent.trdb',                  \n\
+        '__realm_id__': '/yuneta_agent.trdb',                       \n\
         '__input_url__': 'ws://127.0.0.1:1991',                     \n\
         '__input_secure_url__': 'wss://0.0.0.0:1993',               \n\
         '__output_url__': 'yunetacontrol.com:1994'                  \n\
@@ -69,7 +69,7 @@ PRIVATE char variable_config[]= "\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
                 'handler_options': 255,                             \n\
-                'filename_mask': 'yuneta_agent-W.log'                     \n\
+                'filename_mask': 'yuneta_agent-W.log'               \n\
             },                                                      \n\
             'to_udp': {                                             \n\
                 'handler_type': 'udp',                              \n\

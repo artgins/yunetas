@@ -32,7 +32,7 @@
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
-        'realm_owner': '',                             \n\
+        'realm_owner': '',                                          \n\
         'work_dir': '/yuneta',                                      \n\
         'domain_dir': 'realms/agent/agent2'                         \n\
     },                                                              \n\
@@ -46,8 +46,8 @@ PRIVATE char fixed_config[]= "\
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     '__json_config_variables__': {                                  \n\
-        '__realm_id__': '/yuneta_agent.trdb',                  \n\
-        '__output_url__': 'yunetacontrol.ovh:1994'                  \n\
+        '__realm_id__': '/yuneta_agent.trdb',                       \n\
+        '__output_url__': 'yunetacontrol.ovh:1995'                  \n\
     },                                                              \n\
     'environment': {                                                \n\
         'realm_id': '(^^__realm_id__^^)',                           \n\
@@ -132,12 +132,12 @@ PRIVATE char variable_config[]= "\
                     'permission': 'read'                            \n\
                 },                                                  \n\
                 {                                                   \n\
-                    'id': 'manage-yuneta-agent22',                    \n\
+                    'id': 'manage-yuneta-agent22',                  \n\
                     'disabled': false,                              \n\
-                    'description': 'Management of Yuneta Agent22',    \n\
+                    'description': 'Management of Yuneta Agent22',  \n\
                     'realm_id': '(^^__realm_id__^^)',               \n\
                     'parent_role_id': '',                           \n\
-                    'service': 'treedb_yuneta_agent22',               \n\
+                    'service': 'treedb_yuneta_agent22',             \n\
                     'permission': '*'                               \n\
                 }                                                   \n\
             ],                                                      \n\
@@ -160,7 +160,7 @@ PRIVATE char variable_config[]= "\
             'autoplay': true,                                       \n\
             'kw': {                                                 \n\
             }                                                       \n\
-        },                                               \n\
+        },                                              \n\
         {                                               \n\
             'name': 'agent22',                          \n\
             'gclass': 'C_AGENT22',                      \n\
