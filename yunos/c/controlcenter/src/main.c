@@ -39,8 +39,6 @@ PRIVATE char fixed_config[]= "\
 }                                                                   \n\
 ";
 
-// TODO usuarios de mulesol fuera
-
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
     'environment': {                                                \n\
@@ -53,7 +51,7 @@ PRIVATE char variable_config[]= "\
         'daemon_log_handlers': {                                    \n\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
-                'filename_mask': 'controlcenter-W.log',         \n\
+                'filename_mask': 'controlcenter-W.log',             \n\
                 'handler_options': 255                              \n\
             },                                                      \n\
             'to_udp': {                                             \n\
@@ -79,14 +77,14 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': 'controlcenter',                                \n\
-            'gclass': 'Controlcenter',                              \n\
+            'gclass': 'C_CONTROLCENTER',                            \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false                                       \n\
         },                                                          \n\
         {                                                           \n\
             'name': 'authz',                                        \n\
-            'gclass': 'Authz',                                      \n\
+            'gclass': 'C_AUTHZ',                                    \n\
             'default_service': false,                               \n\
             'autostart': true,                                      \n\
             'autoplay': true                                        \n\
