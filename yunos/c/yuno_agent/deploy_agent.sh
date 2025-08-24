@@ -136,3 +136,5 @@ cp -v -a $SERVICE_SCRIPTS /yuneta/agent/
 mkdir -p /yuneta/agent/certs
 CERTS_SCRIPTS="./certs/*"
 cp -v -n -a $CERTS_SCRIPTS /yuneta/agent/certs
+
+/yuneta/agent/yuneta_agent --config-file=/yuneta/agent/yuneta_agent.json --start
