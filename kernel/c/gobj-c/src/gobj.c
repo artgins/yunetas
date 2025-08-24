@@ -1932,6 +1932,16 @@ PRIVATE hgobj gobj_create_tree0(
     if(!jn_children) {
         // TODO remove when agent is migrated to YunetaS
         jn_children = kw_get_list(parent, jn_tree, "zchilds", 0, 0);
+        if(jn_children) {
+            gobj_log_error(parent, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "DEPRECATED config with 'zchilds'",
+                "name",         "%s", name?name:"",
+                "gclass",       "%s", gclass_name,
+                NULL
+            );
+        }
     }
 
     size_t index;
@@ -1965,6 +1975,19 @@ PRIVATE hgobj gobj_create_tree0(
     if(jn_expand_children) {
         expand_children_list(gobj, jn_expand_children);
     } else {
+        jn_expand_children = kw_get_dict(parent, jn_tree, "[^^zchilds^^]", 0, 0);
+        if(jn_expand_children) {
+            gobj_log_error(parent, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                "msg",          "%s", "DEPRECATED config with '[^^zchilds^^]'",
+                "name",         "%s", name?name:"",
+                "gclass",       "%s", gclass_name,
+                NULL
+            );
+            expand_children_list(gobj, jn_expand_children);
+        }
+
         if(json_array_size(jn_children) == 1) {
             gobj_set_bottom_gobj(gobj, last_child);
         }
