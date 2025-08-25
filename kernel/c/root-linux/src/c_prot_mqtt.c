@@ -1543,7 +1543,7 @@ PRIVATE int mosquitto_validate_utf8(const char *str, int len)
     int j;
     int codelen;
     int codepoint;
-    const unsigned char *ustr = (const unsigned char *)str;
+    const uint8_t *ustr = (const unsigned char *)str;
 
     if(!str) {
         return -1;
@@ -3033,7 +3033,7 @@ PRIVATE int mqtt_read_string(hgobj gobj, gbuffer_t *gbuf, char **str, uint16_t *
         return 0;
     }
 
-    if(mosquitto_validate_utf8(*str, *length)<0) {
+    if(mosquitto_validate_utf8(*str, (int)(*length))<0) {
         *str = NULL;
         *length = 0;
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
@@ -3042,7 +3042,6 @@ PRIVATE int mqtt_read_string(hgobj gobj, gbuffer_t *gbuf, char **str, uint16_t *
             "msg",          "%s", "malformed utf8",
             NULL
         );
-        //log_debug_full_gbuf(0, gbuf, "malformed utf8");
         return MOSQ_ERR_MALFORMED_UTF8;
     }
 

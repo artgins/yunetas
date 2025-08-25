@@ -794,6 +794,11 @@ PUBLIC void gobj_trace_json(
     va_list ap;
     int priority = LOG_DEBUG;
 
+    if(!jn) {
+        print_error(0, "gobj_trace_json(): jn NULL");
+        return;
+    }
+
     if(!fmt) {
         fmt = "";
     }
@@ -821,7 +826,11 @@ PUBLIC void gobj_trace_buffer(
     va_list ap;
     int priority = LOG_DEBUG;
 
-    json_t *jn_data = json_stringn(bf, len);
+    if(!bf) {
+        print_error(0, "gobj_trace_buffer(): bf NULL");
+        return;
+    }
+    json_t *jn_data = tdump2json((uint8_t *)bf, len);
 
     if(!fmt) {
         fmt = "";
@@ -846,6 +855,11 @@ PUBLIC void gobj_trace_dump(
 ) {
     va_list ap;
     int priority = LOG_DEBUG;
+
+    if(!bf) {
+        print_error(0, "gobj_trace_dump(): bf NULL");
+        return;
+    }
 
     json_t *jn_data = tdump2json((uint8_t *)bf, len);
 
