@@ -33,7 +33,7 @@ endchoice
 #------------------------------#
 choice
     prompt "Build Type"
-    default BUILD_TYPE_RELEASE
+    default BUILD_TYPE_DEBUG
 
 config BUILD_TYPE_RELEASE
     bool "Release"

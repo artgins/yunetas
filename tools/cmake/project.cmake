@@ -132,7 +132,7 @@ set(AGENT_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/agent)
 #----------------------------------------#
 if(NOT CMAKE_BUILD_TYPE)
 #    message(FATAL_ERROR "No build type defined")
-    set(CMAKE_BUILD_TYPE "Release")
+    set(CMAKE_BUILD_TYPE "Build")
 endif()
 
 #----------------------------------------#
