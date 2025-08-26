@@ -937,7 +937,7 @@ PRIVATE int ac_curl_command(hgobj gobj, const char *event, json_t *kw, hgobj src
 
     if(gobj_trace_level(gobj) & TRACE_MESSAGES) {
         gobj_trace_json(gobj, kw_curl, "SEND EMAIL to %s", priv->url);
-        gobj_trace_buffer(gobj,
+        gobj_trace_dump(gobj,
             gbuffer_cur_rd_pointer(gbuf),
             gbuffer_leftbytes(gbuf),
             "SEND EMAIL to %s",

@@ -205,6 +205,26 @@ PUBLIC int gbuffer_set_rd_offset(gbuffer_t *gbuf, size_t position)
 }
 
 /***************************************************************************
+ * Pop 'len' bytes, return the pointer.
+ * If there is no `len` bytes of data to pop, return 0, and no data is popped.
+ ***************************************************************************/
+PUBLIC void * gbuffer_get(gbuffer_t *gbuf, size_t len)
+{
+    if(len <= 0) {
+        return NULL;
+    }
+
+    size_t rest = gbuf->tail - gbuf->curp; // gbuffer_leftbytes(gbuf);
+
+    if(len > rest) {
+        return NULL;
+    }
+    char *p = gbuf->data + gbuf->curp;
+    gbuf->curp += len;     /* remove bytes from gbuf */
+    return p;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC char *gbuffer_getline(gbuffer_t *gbuf, char separator)

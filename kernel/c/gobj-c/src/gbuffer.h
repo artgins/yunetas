@@ -137,26 +137,7 @@ static inline size_t gbuffer_get_rd_offset(gbuffer_t *gbuf) /* Get current outpu
     return gbuf->curp;
 }
 
-
-/*
- * Pop 'len' bytes, return the pointer.
- * If there is no `len` bytes of data to pop, return 0, and no data is popped.
- */
-static inline void * gbuffer_get(gbuffer_t *gbuf, size_t len)
-{
-    if(len <= 0) {
-        return NULL;
-    }
-
-    size_t rest = gbuf->tail - gbuf->curp; // gbuffer_leftbytes(gbuf);
-
-    if(len > rest) {
-        return NULL;
-    }
-    char *p = gbuf->data + gbuf->curp;
-    gbuf->curp += len;     /* remove bytes from gbuf */
-    return p;
-}
+PUBLIC void * gbuffer_get(gbuffer_t *gbuf, size_t len);
 
 static inline char gbuffer_getchar(gbuffer_t *gbuf) /* pop one byte */
 {

@@ -3023,6 +3023,7 @@ PRIVATE int mqtt_read_binary(hgobj gobj, gbuffer_t *gbuf, uint8_t **data, uint16
  ***************************************************************************/
 PRIVATE int mqtt_read_string(hgobj gobj, gbuffer_t *gbuf, char **str, uint16_t *length)
 {
+    *length = 0;
     *str = NULL;
 
     if(mqtt_read_binary(gobj, gbuf, (uint8_t **)str, length)<0) {
@@ -7489,7 +7490,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
     while(gbuffer_leftbytes(gbuf)>0) {
         char *sub_ = NULL;
         char *sub = NULL;
-        if(mqtt_read_string(gobj, gbuf, &sub_, &slen)) {
+        if(mqtt_read_string(gobj, gbuf, &sub_, &slen)<0) {
             GBMEM_FREE(payload)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;
@@ -7714,7 +7715,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
 
     while(gbuffer_leftbytes(gbuf)>0) {
         char *sub = NULL;
-        if(mqtt_read_string(gobj, gbuf, &sub, &slen)) {
+        if(mqtt_read_string(gobj, gbuf, &sub, &slen)<0) {
             GBMEM_FREE(reason_codes)
             JSON_DECREF(jn_list)
             return MOSQ_ERR_MALFORMED_PACKET;

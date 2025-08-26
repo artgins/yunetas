@@ -149,14 +149,6 @@ PUBLIC void gobj_trace_json(
     ...
 ) JANSSON_ATTRS((format(printf, 3, 4)));
 
-PUBLIC void gobj_trace_buffer(
-    hgobj gobj,
-    const char *bf,
-    size_t len,
-    const char *fmt,
-    ...
-) JANSSON_ATTRS((format(printf, 4, 5)));
-
 PUBLIC void gobj_trace_dump(
     hgobj gobj,
     const char *bf,

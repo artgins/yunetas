@@ -817,35 +817,6 @@ PUBLIC void gobj_trace_json(
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void gobj_trace_buffer(
-    hgobj gobj,
-    const char *bf,
-    size_t len,
-    const char *fmt, ...
-) {
-    va_list ap;
-    int priority = LOG_DEBUG;
-
-    if(!bf) {
-        print_error(0, "gobj_trace_buffer(): bf NULL");
-        return;
-    }
-    json_t *jn_data = tdump2json((uint8_t *)bf, len);
-
-    if(!fmt) {
-        fmt = "";
-    }
-
-    va_start(ap, fmt);
-    trace_vjson(gobj, priority, jn_data, "trace_buffer", fmt, ap);
-    va_end(ap);
-
-    json_decref(jn_data);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
 PUBLIC void gobj_trace_dump(
     hgobj gobj,
     const char *bf,
@@ -858,7 +829,7 @@ PUBLIC void gobj_trace_dump(
 
     if(!bf) {
         print_error(0, "gobj_trace_dump(): bf NULL");
-        return;
+        bf = "?"; len = 1;
     }
 
     json_t *jn_data = tdump2json((uint8_t *)bf, len);
