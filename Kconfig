@@ -1,5 +1,8 @@
 #------------------------------------------------#
 #       General configuration options
+#   default **clang** compiler and **Debug** mode,
+#   their speed is like release,
+#   same speed as gcc but better reliability
 #------------------------------------------------#
 
 mainmenu "Yunetas Kernel Configuration"
