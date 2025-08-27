@@ -538,17 +538,13 @@ PRIVATE int nonblock(int fd, int set) {
  ***************************************************************************/
 PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keyboard, without echo, then you can feed the editline with EV_KEYCHAR event */
 {
-#define UV_HANDLE_BLOCKING_WRITES 0x00100000
-
     int fd = STDIN_FILENO;
-    int flags;
     int newfd;
     int r;
     int saved_flags;
     int mode;
     char path[256];
 
-    flags = 0;
     newfd = -1;
 
     /* Save the fd flags in case we need to restore them due to an error. */
@@ -594,10 +590,6 @@ PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keybo
         }
 
         if (r < 0) {
-            /* fallback to using blocking writes */
-            if (mode != O_RDONLY) {
-                flags |= UV_HANDLE_BLOCKING_WRITES;
-            }
             goto skip;
         }
 
@@ -617,22 +609,10 @@ PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keybo
     }
 
 skip:
-    // if (!(flags & UV_HANDLE_BLOCKING_WRITES)) {
-        if(nonblock(fd, 1)<0) {
-            close(fd);
-            fd = -1;
-        }
-    // }
-
-    if (mode != O_WRONLY) {
-        // flags |= UV_HANDLE_READABLE;
+    if(nonblock(fd, 1)<0) {
+        close(fd);
+        fd = -1;
     }
-    if (mode != O_RDONLY) {
-        // flags |= UV_HANDLE_WRITABLE;
-    }
-
-    // uv__stream_open((uv_stream_t*) tty, fd, flags);
-    // tty->mode = UV_TTY_MODE_NORMAL;
 
     do
         r = tcgetattr(fd, &orig_termios);

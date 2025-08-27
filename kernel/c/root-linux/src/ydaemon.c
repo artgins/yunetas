@@ -460,8 +460,9 @@ PUBLIC BOOL daemon_get_debug_mode(void)
 /***************************************************************************
  *  Get debug mode
  ***************************************************************************/
-PUBLIC int get_watcher_pid()
+PUBLIC int get_watcher_pid(void)
 {
     return watcher_pid;
 }
+
 #endif /* __linux__ */

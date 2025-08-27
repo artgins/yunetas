@@ -5130,7 +5130,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *      add filter for future counter.
      *------------------------------------------------*/
     json_t *filterlist = json_array();
-    int total_already_playing = 0;
+    // int total_already_playing = 0;
     int total_to_played = 0;
     int total_to_preplayed = 0;
 
@@ -5176,7 +5176,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
                 total_to_played++;
             }
         } else {
-            total_already_playing++;
+            // total_already_playing++;
         }
     }
 
@@ -5311,7 +5311,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
      *      add filter for future counter.
      *------------------------------------------------*/
     json_t *filterlist = json_array();
-    int total_already_pausing = 0;
+    // int total_already_pausing = 0;
     int total_to_paused = 0;
     int total_to_prepaused = 0;
 
@@ -5343,7 +5343,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
                 total_to_paused++;
             }
         } else {
-            total_already_pausing++;
+            // total_already_pausing++;
         }
     }
 
@@ -6037,7 +6037,7 @@ PRIVATE json_t *cmd_check_json(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
 
     json_t *tranger = gobj_read_pointer_attr(priv->resource, "tranger");
     int result = 0;
-    json_check_refcounts(tranger, max_refcount, &result)?0:-1;
+    json_check_refcounts(tranger, max_refcount, &result);
     return msg_iev_build_response(gobj,
         result,
         json_sprintf("check refcounts of tranger: %s", result==0?"Ok":"Bad"),
