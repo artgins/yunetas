@@ -784,11 +784,8 @@ PRIVATE int tira_dela_cola(hgobj gobj)
         printf("\n==> All done!\n\n");
     }
 
-    // gobj_change_state(gobj, ST_CONNECTED);
-    // set_timeout(priv->timer, 2*1000);
-
-    gobj_set_exit_code(0);
-    gobj_shutdown();
+    gobj_change_state(gobj, ST_CONNECTED);
+    set_timeout(priv->timer, 2*1000);
 
     return 0;
 }
