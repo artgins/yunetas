@@ -36,7 +36,13 @@ endchoice
 #------------------------------#
 choice
     prompt "Build Type"
-    default BUILD_TYPE_DEBUG
+    default BUILD_TYPE_RELWITHDEBINFO
+
+config BUILD_TYPE_RELWITHDEBINFO
+    bool "RelWithDebInfo"
+    help
+        Use CMake Build Type 'RelWithDebInfo'.
+        Optimized with debug info.
 
 config BUILD_TYPE_RELEASE
     bool "Release"
@@ -49,12 +55,6 @@ config BUILD_TYPE_DEBUG
     help
         Use CMake Build Type 'Debug'.
         Full debug info, no optimization.
-
-config BUILD_TYPE_RELWITHDEBINFO
-    bool "RelWithDebInfo"
-    help
-        Use CMake Build Type 'RelWithDebInfo'.
-        Optimized with debug info.
 
 config BUILD_TYPE_MINSIZEREL
     bool "MinSizeRel"
