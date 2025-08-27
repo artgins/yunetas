@@ -1,1 +1,0 @@
-/usr/local/bin/musl-gcc -g CMakeFiles/yshutdown.dir/yshutdown.c.o -o yshutdown   -L/yuneta/development/outputs_ext/lib  -L/yuneta/development/outputs/lib  -Wl,-rpath,/yuneta/development/outputs_ext/lib:/yuneta/development/outputs/lib: -Wl,-Bstatic -lyunetas-gobj -largp-standalone -ljansson -lpcre2-8 -lbacktrace -Wl,-Bdynamic

@@ -11,6 +11,7 @@ cmake-build-release/
 cmake-build-debug/
 cmake-build-relwithdebinfo/
 cmake-build-minsizerel/
+cmake-build-debug-musl/
 
 build.sin-configurar/
 build_static.sin-configurar/

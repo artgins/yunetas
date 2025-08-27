@@ -1,2 +1,0 @@
-/usr/bin/ar qc libyunetas-c_console.a "CMakeFiles/yunetas-c_console.dir/c_editline.c.o" "CMakeFiles/yunetas-c_console.dir/c_pty.c.o" "CMakeFiles/yunetas-c_console.dir/g_ev_console.c.o" "CMakeFiles/yunetas-c_console.dir/g_st_console.c.o"
-/usr/bin/ranlib libyunetas-c_console.a

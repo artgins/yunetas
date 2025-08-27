@@ -1,1 +1,0 @@
-/usr/local/bin/musl-gcc -g -Wl,-Map=inotify.map CMakeFiles/inotify.dir/inotify.c.o -o inotify   -L/yuneta/development/outputs_ext/lib  -L/yuneta/development/outputs/lib  -Wl,-rpath,/yuneta/development/outputs_ext/lib:/yuneta/development/outputs/lib: -Wl,-Bstatic -lyunetas-core-linux -lyunetas-gobj -luring -ljansson -lpcre2-8 -largp-standalone -lbacktrace -Wl,-Bdynamic
