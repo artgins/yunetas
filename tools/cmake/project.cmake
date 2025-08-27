@@ -128,11 +128,11 @@ set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
 set(AGENT_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/agent)
 
 #----------------------------------------#
-#   Default to Debug if not specified
+#   Default if not specified
 #----------------------------------------#
 if(NOT CMAKE_BUILD_TYPE)
 #    message(FATAL_ERROR "No build type defined")
-    set(CMAKE_BUILD_TYPE "Build")
+    set(CMAKE_BUILD_TYPE "RelWithDebInfo")
 endif()
 
 #----------------------------------------#
