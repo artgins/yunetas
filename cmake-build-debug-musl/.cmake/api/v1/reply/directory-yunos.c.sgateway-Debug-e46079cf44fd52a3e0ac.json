@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"yunos/c/sgateway/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 47,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/yunos",
+			"paths" : 
+			[
+				"yunos/c/sgateway/sgateway"
+			],
+			"targetId" : "sgateway::@fe2269b3b832b6820949",
+			"targetIndex" : 16,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "sgateway::@fe2269b3b832b6820949",
+				"index" : 16
+			},
+			"destination" : "/yuneta/development/outputs/yunos",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "yunos/c/sgateway",
+		"source" : "yunos/c/sgateway"
+	}
+}

@@ -1,0 +1,75 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"utils/c/yuno-skeleton/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 51,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 63,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/bin",
+			"paths" : 
+			[
+				"utils/c/yuno-skeleton/yuno-skeleton"
+			],
+			"targetId" : "yuno-skeleton::@cabffa3febeb3cb7132b",
+			"targetIndex" : 93,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yuno-skeleton::@cabffa3febeb3cb7132b",
+				"index" : 93
+			},
+			"destination" : "/yuneta/bin",
+			"type" : "cxxModuleBmi"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/bin/skeletons",
+			"paths" : 
+			[
+				{
+					"from" : "utils/c/yuno-skeleton/skeletons",
+					"to" : "."
+				}
+			],
+			"type" : "directory"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "utils/c/yuno-skeleton",
+		"source" : "utils/c/yuno-skeleton"
+	}
+}

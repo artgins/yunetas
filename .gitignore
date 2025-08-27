@@ -4,11 +4,11 @@ VERSION_INSTALLED_STATIC.txt
 chatgpt/
 
 build_static/
-cmake-build-debug-clang/
-cmake-build-debug-musl/
+
+cmake-build-release/
+cmake-build-debug/
 cmake-build-relwithdebinfo/
-cmake-build-debug-static/
-cmake-build-default/
+cmake-build-minsizerel/
 
 build.sin-configurar/
 build_static.sin-configurar/
@@ -37,8 +37,6 @@ venv
 .config.old
 
 .vscode/
-cmake-build-release/
-cmake-build-debug/
 release/
 node_modules/
 debug/

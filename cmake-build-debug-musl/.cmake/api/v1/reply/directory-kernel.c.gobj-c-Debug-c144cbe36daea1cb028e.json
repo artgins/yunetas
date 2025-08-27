@@ -1,0 +1,91 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"kernel/c/gobj-c/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 77,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 79,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/include",
+			"paths" : 
+			[
+				"kernel/c/gobj-c/src/ansi_escape_codes.h",
+				"kernel/c/gobj-c/src/00_http_parser.h",
+				"kernel/c/gobj-c/src/00_security.h",
+				"kernel/c/gobj-c/src/gtypes.h",
+				"kernel/c/gobj-c/src/dl_list.h",
+				"kernel/c/gobj-c/src/gobj.h",
+				"kernel/c/gobj-c/src/gbmem.h",
+				"kernel/c/gobj-c/src/gbuffer.h",
+				"kernel/c/gobj-c/src/glogger.h",
+				"kernel/c/gobj-c/src/msgsets.h",
+				"kernel/c/gobj-c/src/log_udp_handler.h",
+				"kernel/c/gobj-c/src/helpers.h",
+				"kernel/c/gobj-c/src/kwid.h",
+				"kernel/c/gobj-c/src/command_parser.h",
+				"kernel/c/gobj-c/src/stats_parser.h",
+				"kernel/c/gobj-c/src/testing.h",
+				"kernel/c/gobj-c/src/rotatory.h",
+				"kernel/c/gobj-c/src/replace_string.h",
+				"kernel/c/gobj-c/src/g_ev_kernel.h",
+				"kernel/c/gobj-c/src/g_st_kernel.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/lib",
+			"paths" : 
+			[
+				"kernel/c/gobj-c/libyunetas-gobj.a"
+			],
+			"targetId" : "yunetas-gobj::@9f82f4bac576c8acf97b",
+			"targetIndex" : 92,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yunetas-gobj::@9f82f4bac576c8acf97b",
+				"index" : 92
+			},
+			"destination" : "/yuneta/development/outputs/lib",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "kernel/c/gobj-c",
+		"source" : "kernel/c/gobj-c"
+	}
+}

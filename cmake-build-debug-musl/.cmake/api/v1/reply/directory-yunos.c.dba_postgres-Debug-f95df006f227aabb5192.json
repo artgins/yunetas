@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"yunos/c/dba_postgres/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 49,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/yunos",
+			"paths" : 
+			[
+				"yunos/c/dba_postgres/dba_postgres"
+			],
+			"targetId" : "dba_postgres::@419dd87d515e82cb76f2",
+			"targetIndex" : 1,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "dba_postgres::@419dd87d515e82cb76f2",
+				"index" : 1
+			},
+			"destination" : "/yuneta/development/outputs/yunos",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "yunos/c/dba_postgres",
+		"source" : "yunos/c/dba_postgres"
+	}
+}

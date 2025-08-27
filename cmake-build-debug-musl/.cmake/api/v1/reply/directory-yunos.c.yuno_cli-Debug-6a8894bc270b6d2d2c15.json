@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"yunos/c/yuno_cli/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 71,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/bin",
+			"paths" : 
+			[
+				"yunos/c/yuno_cli/ycli"
+			],
+			"targetId" : "ycli::@cc8e216f0b491ed3e99b",
+			"targetIndex" : 74,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "ycli::@cc8e216f0b491ed3e99b",
+				"index" : 74
+			},
+			"destination" : "/yuneta/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "yunos/c/yuno_cli",
+		"source" : "yunos/c/yuno_cli"
+	}
+}

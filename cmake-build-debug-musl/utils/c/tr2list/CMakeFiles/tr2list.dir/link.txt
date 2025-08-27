@@ -1,0 +1,1 @@
+/usr/local/bin/musl-gcc -g -Wl,-Map=tr2list.map CMakeFiles/tr2list.dir/tr2list.c.o -o tr2list   -L/yuneta/development/outputs_ext/lib  -L/yuneta/development/outputs/lib  -Wl,-rpath,/yuneta/development/outputs_ext/lib:/yuneta/development/outputs/lib: -Wl,-Bstatic -largp-standalone -ltimeranger2 -lyev_loop -lyunetas-gobj -luring -ljansson -lpcre2-8 -lbacktrace -Wl,-Bdynamic

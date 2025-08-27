@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"yunos/c/yuno_agent22/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 48,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/agent",
+			"paths" : 
+			[
+				"yunos/c/yuno_agent22/yuneta_agent22"
+			],
+			"targetId" : "yuneta_agent22::@acdef1dadd03859b620d",
+			"targetIndex" : 88,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yuneta_agent22::@acdef1dadd03859b620d",
+				"index" : 88
+			},
+			"destination" : "/yuneta/agent",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "yunos/c/yuno_agent22",
+		"source" : "yunos/c/yuno_agent22"
+	}
+}

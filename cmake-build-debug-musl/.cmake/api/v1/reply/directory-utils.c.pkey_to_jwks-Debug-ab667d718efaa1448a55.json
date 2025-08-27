@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"utils/c/pkey_to_jwks/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 56,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/bin",
+			"paths" : 
+			[
+				"utils/c/pkey_to_jwks/keycloak_pkey_to_jwks"
+			],
+			"targetId" : "keycloak_pkey_to_jwks::@f15606a980539dde169f",
+			"targetIndex" : 7,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "keycloak_pkey_to_jwks::@f15606a980539dde169f",
+				"index" : 7
+			},
+			"destination" : "/yuneta/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "utils/c/pkey_to_jwks",
+		"source" : "utils/c/pkey_to_jwks"
+	}
+}

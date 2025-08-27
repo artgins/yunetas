@@ -1,0 +1,1 @@
+/usr/local/bin/musl-gcc -g CMakeFiles/list_queue_msgs2.dir/list_queue_msgs2.c.o -o list_queue_msgs2   -L/yuneta/development/outputs_ext/lib  -L/yuneta/development/outputs/lib  -Wl,-rpath,/yuneta/development/outputs_ext/lib:/yuneta/development/outputs/lib: -Wl,-Bstatic -largp-standalone -ltimeranger2 -lyunetas-gobj -lyev_loop -luring -ljansson -lpcre2-8 -lbacktrace -Wl,-Bdynamic

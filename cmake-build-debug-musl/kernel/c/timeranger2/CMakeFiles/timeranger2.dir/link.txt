@@ -1,0 +1,2 @@
+/usr/bin/ar qc libtimeranger2.a CMakeFiles/timeranger2.dir/src/fs_watcher.c.o CMakeFiles/timeranger2.dir/src/timeranger2.c.o CMakeFiles/timeranger2.dir/src/tr_msg.c.o CMakeFiles/timeranger2.dir/src/tr_msg2db.c.o CMakeFiles/timeranger2.dir/src/tr_queue.c.o CMakeFiles/timeranger2.dir/src/tr_treedb.c.o
+/usr/bin/ranlib libtimeranger2.a

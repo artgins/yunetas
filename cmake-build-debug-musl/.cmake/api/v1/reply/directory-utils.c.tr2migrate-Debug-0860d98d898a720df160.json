@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"utils/c/tr2migrate/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 69,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/bin",
+			"paths" : 
+			[
+				"utils/c/tr2migrate/tr2migrate"
+			],
+			"targetId" : "tr2migrate::@7ab532ae07309d46956d",
+			"targetIndex" : 71,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "tr2migrate::@7ab532ae07309d46956d",
+				"index" : 71
+			},
+			"destination" : "/yuneta/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "utils/c/tr2migrate",
+		"source" : "utils/c/tr2migrate"
+	}
+}

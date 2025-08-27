@@ -1,0 +1,72 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"kernel/c/yev_loop/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 45,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 47,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/include",
+			"paths" : 
+			[
+				"kernel/c/yev_loop/src/yev_loop.h"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/lib",
+			"paths" : 
+			[
+				"kernel/c/yev_loop/libyev_loop.a"
+			],
+			"targetId" : "yev_loop::@aee0a70304299bd7f18f",
+			"targetIndex" : 78,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yev_loop::@aee0a70304299bd7f18f",
+				"index" : 78
+			},
+			"destination" : "/yuneta/development/outputs/lib",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "kernel/c/yev_loop",
+		"source" : "kernel/c/yev_loop"
+	}
+}

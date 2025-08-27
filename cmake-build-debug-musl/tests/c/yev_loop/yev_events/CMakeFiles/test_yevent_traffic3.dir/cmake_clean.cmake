@@ -1,0 +1,11 @@
+file(REMOVE_RECURSE
+  "CMakeFiles/test_yevent_traffic3.dir/test_yevent_traffic3.c.o"
+  "CMakeFiles/test_yevent_traffic3.dir/test_yevent_traffic3.c.o.d"
+  "test_yevent_traffic3"
+  "test_yevent_traffic3.pdb"
+)
+
+# Per-language clean rules from dependency scanning.
+foreach(lang C)
+  include(CMakeFiles/test_yevent_traffic3.dir/cmake_clean_${lang}.cmake OPTIONAL)
+endforeach()

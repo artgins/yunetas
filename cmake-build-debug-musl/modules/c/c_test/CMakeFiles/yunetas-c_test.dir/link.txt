@@ -1,0 +1,2 @@
+/usr/bin/ar qc libyunetas-c_test.a "CMakeFiles/yunetas-c_test.dir/c_pepon.c.o" "CMakeFiles/yunetas-c_test.dir/c_teston.c.o"
+/usr/bin/ranlib libyunetas-c_test.a

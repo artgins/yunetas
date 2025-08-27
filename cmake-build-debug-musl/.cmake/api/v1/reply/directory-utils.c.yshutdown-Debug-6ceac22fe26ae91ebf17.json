@@ -1,0 +1,56 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"utils/c/yshutdown/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 42,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/bin",
+			"paths" : 
+			[
+				"utils/c/yshutdown/yshutdown"
+			],
+			"targetId" : "yshutdown::@6cd1aec34e999b137b14",
+			"targetIndex" : 82,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yshutdown::@6cd1aec34e999b137b14",
+				"index" : 82
+			},
+			"destination" : "/yuneta/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "utils/c/yshutdown",
+		"source" : "utils/c/yshutdown"
+	}
+}

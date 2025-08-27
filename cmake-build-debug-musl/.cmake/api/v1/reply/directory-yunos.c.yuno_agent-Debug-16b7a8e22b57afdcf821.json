@@ -1,0 +1,136 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"yunos/c/yuno_agent/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 51,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 56,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 61,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 69,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 78,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 89,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/bin",
+			"paths" : 
+			[
+				"yunos/c/yuno_agent/service"
+			],
+			"type" : "directory"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/bin",
+			"paths" : 
+			[
+				"yunos/c/yuno_agent/certs"
+			],
+			"type" : "directory"
+		},
+		{
+			"backtrace" : 3,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/bin",
+			"paths" : 
+			[
+				"yunos/c/yuno_agent/deploy_agent.sh"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 4,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/bin",
+			"paths" : 
+			[
+				"yunos/c/yuno_agent/yuneta_agent.json"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 5,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/bin",
+			"paths" : 
+			[
+				"yunos/c/yuno_agent/deploy_remote_agent.sh"
+			],
+			"type" : "file"
+		},
+		{
+			"backtrace" : 6,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/agent",
+			"paths" : 
+			[
+				"yunos/c/yuno_agent/yuneta_agent"
+			],
+			"targetId" : "yuneta_agent::@e383127c83ce158f750a",
+			"targetIndex" : 87,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 6,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "yuneta_agent::@e383127c83ce158f750a",
+				"index" : 87
+			},
+			"destination" : "/yuneta/agent",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "yunos/c/yuno_agent",
+		"source" : "yunos/c/yuno_agent"
+	}
+}

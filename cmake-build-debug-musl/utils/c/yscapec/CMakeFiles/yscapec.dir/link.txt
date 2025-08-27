@@ -1,0 +1,1 @@
+/usr/local/bin/musl-gcc -g CMakeFiles/yscapec.dir/yscapec.c.o -o yscapec   -L/yuneta/development/outputs_ext/lib  -L/yuneta/development/outputs/lib  -Wl,-rpath,/yuneta/development/outputs_ext/lib:/yuneta/development/outputs/lib: -Wl,-Bstatic -lyunetas-core-linux -largp-standalone -ltimeranger2 -lyev_loop -lytls -lyunetas-gobj -ljansson -luring -lbacktrace -Wl,-Bdynamic

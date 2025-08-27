@@ -1,0 +1,85 @@
+{
+	"backtraceGraph" : 
+	{
+		"commands" : 
+		[
+			"install"
+		],
+		"files" : 
+		[
+			"yunos/c/watchfs/CMakeLists.txt"
+		],
+		"nodes" : 
+		[
+			{
+				"file" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 47,
+				"parent" : 0
+			},
+			{
+				"command" : 0,
+				"file" : 0,
+				"line" : 56,
+				"parent" : 0
+			}
+		]
+	},
+	"installers" : 
+	[
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/development/outputs/yunos",
+			"paths" : 
+			[
+				"yunos/c/watchfs/watchfs"
+			],
+			"targetId" : "watchfs::@77976f6be8321b2645b2",
+			"targetIndex" : 72,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 1,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "watchfs::@77976f6be8321b2645b2",
+				"index" : 72
+			},
+			"destination" : "/yuneta/development/outputs/yunos",
+			"type" : "cxxModuleBmi"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"destination" : "/yuneta/bin",
+			"paths" : 
+			[
+				"yunos/c/watchfs/watchfs"
+			],
+			"targetId" : "watchfs::@77976f6be8321b2645b2",
+			"targetIndex" : 72,
+			"type" : "target"
+		},
+		{
+			"backtrace" : 2,
+			"component" : "Unspecified",
+			"cxxModuleBmiTarget" : 
+			{
+				"id" : "watchfs::@77976f6be8321b2645b2",
+				"index" : 72
+			},
+			"destination" : "/yuneta/bin",
+			"type" : "cxxModuleBmi"
+		}
+	],
+	"paths" : 
+	{
+		"build" : "yunos/c/watchfs",
+		"source" : "yunos/c/watchfs"
+	}
+}

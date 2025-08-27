@@ -1,0 +1,1 @@
+/usr/local/bin/musl-gcc -g CMakeFiles/static_musl_test.dir/hello.c.o -o static_musl_test   -L/yuneta/development/outputs_ext/lib  -L/yuneta/development/outputs/lib

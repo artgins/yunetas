@@ -1,0 +1,2 @@
+/usr/bin/ar qc libyunetas-esp32.a "CMakeFiles/yunetas-esp32.dir/components/esp_yuneta/src/c_esp_ethernet.c.o" "CMakeFiles/yunetas-esp32.dir/components/esp_yuneta/src/c_esp_transport.c.o" "CMakeFiles/yunetas-esp32.dir/components/esp_yuneta/src/c_esp_uart.c.o" "CMakeFiles/yunetas-esp32.dir/components/esp_yuneta/src/c_esp_wifi.c.o"
+/usr/bin/ranlib libyunetas-esp32.a

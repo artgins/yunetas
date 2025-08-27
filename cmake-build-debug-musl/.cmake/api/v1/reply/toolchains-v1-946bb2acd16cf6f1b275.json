@@ -1,0 +1,53 @@
+{
+	"kind" : "toolchains",
+	"toolchains" : 
+	[
+		{
+			"compiler" : 
+			{
+				"id" : "GNU",
+				"implicit" : 
+				{
+					"includeDirectories" : 
+					[
+						"/usr/local/musl/include",
+						"/usr/lib/gcc/x86_64-linux-gnu/13/include"
+					],
+					"linkDirectories" : 
+					[
+						"/usr/local/musl/lib",
+						"/usr/lib/gcc/x86_64-linux-gnu/13"
+					],
+					"linkFrameworkDirectories" : [],
+					"linkLibraries" : 
+					[
+						"/usr/lib/gcc/x86_64-linux-gnu/13/libgcc.a",
+						"c",
+						"/usr/lib/gcc/x86_64-linux-gnu/13/libgcc.a"
+					]
+				},
+				"path" : "/usr/local/bin/musl-gcc",
+				"version" : "13.3.0"
+			},
+			"language" : "C",
+			"sourceFileExtensions" : 
+			[
+				"c",
+				"m"
+			]
+		},
+		{
+			"compiler" : 
+			{
+				"implicit" : {},
+				"path" : "/usr/bin/c++"
+			},
+			"language" : "CXX"
+		}
+	],
+	"version" : 
+	{
+		"major" : 1,
+		"minor" : 0
+	}
+}

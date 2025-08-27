@@ -1,0 +1,2 @@
+/usr/bin/ar qc libyunetas-c_postgres.a "CMakeFiles/yunetas-c_postgres.dir/c_postgres.c.o"
+/usr/bin/ranlib libyunetas-c_postgres.a

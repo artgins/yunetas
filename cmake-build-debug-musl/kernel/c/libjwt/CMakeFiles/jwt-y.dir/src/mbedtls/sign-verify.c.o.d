@@ -1,0 +1,87 @@
+kernel/c/libjwt/CMakeFiles/jwt-y.dir/src/mbedtls/sign-verify.c.o: \
+ /yuneta/development/yunetas/kernel/c/libjwt/src/mbedtls/sign-verify.c \
+ /yuneta/development/outputs_ext/include/mbedtls/md.h \
+ /yuneta/development/outputs_ext/include/mbedtls/private_access.h \
+ /usr/local/musl/include/stddef.h /usr/local/musl/include/bits/alltypes.h \
+ /yuneta/development/outputs_ext/include/mbedtls/build_info.h \
+ /yuneta/development/outputs_ext/include/mbedtls/mbedtls_config.h \
+ /yuneta/development/outputs_ext/include/mbedtls/config_psa.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_legacy.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_adjust_config_synonyms.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_adjust_config_dependencies.h \
+ /yuneta/development/outputs_ext/include/mbedtls/config_adjust_psa_superset_legacy.h \
+ /yuneta/development/outputs_ext/include/mbedtls/config_adjust_psa_from_legacy.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_adjust_config_key_pair_types.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_adjust_auto_enabled.h \
+ /yuneta/development/outputs_ext/include/mbedtls/config_adjust_legacy_crypto.h \
+ /yuneta/development/outputs_ext/include/mbedtls/config_adjust_x509.h \
+ /yuneta/development/outputs_ext/include/mbedtls/config_adjust_ssl.h \
+ /yuneta/development/outputs_ext/include/mbedtls/check_config.h \
+ /usr/local/musl/include/limits.h /usr/local/musl/include/features.h \
+ /usr/local/musl/include/bits/limits.h /usr/local/musl/include/stdint.h \
+ /usr/local/musl/include/bits/stdint.h \
+ /yuneta/development/outputs_ext/include/mbedtls/platform_util.h \
+ /yuneta/development/outputs_ext/include/mbedtls/platform_time.h \
+ /usr/local/musl/include/time.h /usr/local/musl/include/inttypes.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ssl.h \
+ /yuneta/development/outputs_ext/include/mbedtls/bignum.h \
+ /usr/local/musl/include/stdio.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ecp.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ssl_ciphersuites.h \
+ /yuneta/development/outputs_ext/include/mbedtls/pk.h \
+ /yuneta/development/outputs_ext/include/mbedtls/rsa.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ecdsa.h \
+ /yuneta/development/outputs_ext/include/psa/crypto.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_platform.h \
+ /yuneta/development/outputs_ext/include/psa/build_info.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_types.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_values.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_sizes.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_struct.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_driver_contexts_primitives.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_driver_common.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_sizes.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_builtin_primitives.h \
+ /yuneta/development/outputs_ext/include/mbedtls/md5.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ripemd160.h \
+ /yuneta/development/outputs_ext/include/mbedtls/sha1.h \
+ /yuneta/development/outputs_ext/include/mbedtls/sha256.h \
+ /yuneta/development/outputs_ext/include/mbedtls/sha512.h \
+ /yuneta/development/outputs_ext/include/mbedtls/sha3.h \
+ /yuneta/development/outputs_ext/include/mbedtls/cipher.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_driver_contexts_composites.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_builtin_composites.h \
+ /yuneta/development/outputs_ext/include/mbedtls/cmac.h \
+ /yuneta/development/outputs_ext/include/mbedtls/gcm.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ccm.h \
+ /yuneta/development/outputs_ext/include/mbedtls/chachapoly.h \
+ /yuneta/development/outputs_ext/include/mbedtls/poly1305.h \
+ /yuneta/development/outputs_ext/include/mbedtls/chacha20.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ecjpake.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_driver_contexts_key_derivation.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_builtin_key_derivation.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_extra.h \
+ /yuneta/development/outputs_ext/include/psa/crypto_compat.h \
+ /yuneta/development/outputs_ext/include/mbedtls/x509_crt.h \
+ /yuneta/development/outputs_ext/include/mbedtls/x509.h \
+ /yuneta/development/outputs_ext/include/mbedtls/asn1.h \
+ /yuneta/development/outputs_ext/include/mbedtls/x509_crl.h \
+ /yuneta/development/outputs_ext/include/mbedtls/dhm.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ecdh.h \
+ /yuneta/development/outputs_ext/include/mbedtls/error.h \
+ /yuneta/development/outputs_ext/include/mbedtls/entropy.h \
+ /yuneta/development/outputs_ext/include/mbedtls/md.h \
+ /yuneta/development/outputs_ext/include/mbedtls/ctr_drbg.h \
+ /yuneta/development/outputs_ext/include/mbedtls/aes.h \
+ /yuneta/development/outputs_ext/include/mbedtls/entropy.h \
+ /usr/local/musl/include/string.h /usr/local/musl/include/strings.h \
+ /yuneta/development/yunetas/kernel/c/libjwt/src/mbedtls/../jwt.h \
+ /yuneta/development/outputs_ext/include/jansson.h \
+ /usr/local/musl/include/stdarg.h /usr/local/musl/include/stdlib.h \
+ /usr/local/musl/include/alloca.h \
+ /yuneta/development/outputs_ext/include/jansson_config.h \
+ /yuneta/development/yunetas/kernel/c/libjwt/src/mbedtls/../jwt_export.h \
+ /yuneta/development/yunetas/kernel/c/libjwt/src/mbedtls/../jwt-private.h \
+ /yuneta/development/outputs/include/yuneta_config.h \
+ /yuneta/development/yunetas/kernel/c/libjwt/src/mbedtls/../ll.h \
+ /yuneta/development/yunetas/kernel/c/libjwt/src/mbedtls/jwt-mbedtls.h

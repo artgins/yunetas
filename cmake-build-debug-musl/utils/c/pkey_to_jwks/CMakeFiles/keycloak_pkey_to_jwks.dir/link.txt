@@ -1,0 +1,1 @@
+/usr/local/bin/musl-gcc -g -Wl,-Map=keycloak_pkey_to_jwks.map CMakeFiles/keycloak_pkey_to_jwks.dir/keycloak_pkey_to_jwks.c.o -o keycloak_pkey_to_jwks   -L/yuneta/development/outputs_ext/lib  -L/yuneta/development/outputs/lib  -Wl,-rpath,/yuneta/development/outputs_ext/lib:/yuneta/development/outputs/lib: -Wl,-Bstatic -lssl -lcrypto -lpthread -ldl -Wl,-Bdynamic
