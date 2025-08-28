@@ -27,8 +27,8 @@ bits_table_t bits_table[] = {
 {IN_ACCESS,         "IN_ACCESS",        "File was accessed"},
 {IN_MODIFY,         "IN_MODIFY",        "File was modified"},
 {IN_ATTRIB,         "IN_ATTRIB",        "Metadata changed"},
-{IN_CLOSE_WRITE,    "IN_CLOSE_WRITE",   "Writtable file was closed"},
-{IN_CLOSE_NOWRITE,  "IN_CLOSE_NOWRITE", "Unwrittable file closed"},
+{IN_CLOSE_WRITE,    "IN_CLOSE_WRITE",   "Writable file was closed"},
+{IN_CLOSE_NOWRITE,  "IN_CLOSE_NOWRITE", "Non-writable file closed"},
 {IN_OPEN,           "IN_OPEN",          "File was opened"},
 {IN_MOVED_FROM,     "IN_MOVED_FROM",    "File was moved from X"},
 {IN_MOVED_TO,       "IN_MOVED_TO",      "File was moved to Y"},
@@ -71,7 +71,7 @@ PRIVATE int add_watch(const char *path)
         return -1;
     }
 
-    BOOL all = 0;
+    BOOL all = 1;
     uint32_t mask = all? IN_ALL_EVENTS:
         IN_DELETE_SELF|IN_MOVE_SELF|IN_CREATE|IN_DELETE;
     mask |= IN_DONT_FOLLOW | IN_EXCL_UNLINK;
@@ -145,7 +145,7 @@ PRIVATE void handle_inotify_event(struct inotify_event *event)
     const char *path;
     char full_path[PATH_MAX];
 
-    printf("  ev: %d '%s',", event->wd, event->len? event->name:"");
+    printf("  ev: wd %d, event '%s',", event->wd, event->len? event->name:"");
     for(int i=0; i< sizeof(bits_table)/sizeof(bits_table[0]); i++) {
         bits_table_t entry = bits_table[i];
         if(entry.bit & event->mask) {
@@ -213,6 +213,15 @@ PRIVATE void handle_inotify_event(struct inotify_event *event)
             snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
             printf("  %s-> Directory deleted:%s %s\n", On_Green BWhite, Color_Off, full_path);
         }
+        if (event->mask & (IN_MOVED_FROM)) {
+            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+            printf("  %s-> Directory move from:%s %s\n", On_Green BWhite, Color_Off, full_path);
+        }
+        if (event->mask & (IN_MOVED_TO)) {
+            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+            printf("  %s-> Directory move to:%s %s\n", On_Green BWhite, Color_Off, full_path);
+        }
+
     } else {
         /*
          *  File
@@ -227,6 +236,14 @@ PRIVATE void handle_inotify_event(struct inotify_event *event)
         }
         if (event->mask & (IN_MODIFY)) {
             printf("  %s-> File modified:%s %s\n", On_Green BWhite, Color_Off, full_path);
+        }
+        if (event->mask & (IN_MOVED_FROM)) {
+            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+            printf("  %s-> File move from:%s %s\n", On_Green BWhite, Color_Off, full_path);
+        }
+        if (event->mask & (IN_MOVED_TO)) {
+            snprintf(full_path, PATH_MAX, "%s/%s", path, event->len? event->name:"");
+            printf("  %s-> File move to:%s %s\n", On_Green BWhite, Color_Off, full_path);
         }
     }
 
@@ -317,7 +334,7 @@ int main(int argc, char *argv[]) {
         if (cqe->res > 0) {
             int len = cqe->res;
             char *ptr = buffer;
-            printf("==>\n");
+            printf("==> io_uring reading\n");
             while (ptr < buffer + len) {
                 struct inotify_event *event = (struct inotify_event *) ptr;
 

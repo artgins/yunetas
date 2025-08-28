@@ -536,16 +536,6 @@ PRIVATE void handle_inotify_event(fs_event_t *fs_event, struct inotify_event *ev
 
             fs_event->callback(fs_event);
         }
-
-        if(event->mask & ~(IN_ATTRIB|IN_MODIFY)) {
-            // TODO check, copied from libuv
-            fs_event->fs_type = FS_FILE_RENAME_TYPE;
-            fs_event->directory = (volatile char *)path;
-            fs_event->filename = filename;
-
-            fs_event->callback(fs_event);
-
-        }
     }
 }
 
