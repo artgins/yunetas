@@ -7923,7 +7923,7 @@ PRIVATE int run_yuno(
             "yuno_id",      "%s", yuno_id,
             "yuno_role",    "%s", yuno_role,
             "yuno_name",    "%s", yuno_name?yuno_name:"",
-            "yuno_tag",   "%s", yuno_name?yuno_tag:"",
+            "yuno_tag",     "%s", yuno_name?yuno_tag:"",
             "yuno_release", "%s", yuno_release?yuno_release:"",
             "ret",          "%d", ret,
             NULL
