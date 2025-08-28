@@ -1,6 +1,9 @@
-##############################################
+################################################################################
 #   project.cmake
-##############################################
+#   TODO this file has been split in two:
+#       config_prelude.cmake
+#       project_common.cmake
+################################################################################
 cmake_minimum_required(VERSION 3.11)
 
 include(CheckIncludeFiles)

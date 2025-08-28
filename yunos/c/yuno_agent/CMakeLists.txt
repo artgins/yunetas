@@ -2,19 +2,23 @@
 #   CMake
 ##############################################
 cmake_minimum_required(VERSION 3.11)
-project(yuneta_agent C)
 
 #-----------------------------------------------------#
 #   Get yunetas base path:
 #   - defined in environment variable YUNETAS_BASE
 #   - else default "/yuneta/development/yunetas"
 #-----------------------------------------------------#
-if(DEFINED ENV{YUNETAS_BASE})
-    set(YUNETAS_BASE $ENV{YUNETAS_BASE})
-else()
-    set(YUNETAS_BASE "/yuneta/development/yunetas")
+if(NOT DEFINED YUNETAS_BASE)
+    if(DEFINED ENV{YUNETAS_BASE})
+        set(YUNETAS_BASE "$ENV{YUNETAS_BASE}")
+    else()
+        set(YUNETAS_BASE "/yuneta/development/yunetas")
+    endif()
 endif()
-include("${YUNETAS_BASE}/tools/cmake/project.cmake")
+
+include("${YUNETAS_BASE}/tools/cmake/config_prelude.cmake")
+project(yuneta_agent C)
+include("${YUNETAS_BASE}/tools/cmake/project_common.cmake")
 
 ##############################################
 #   Source
