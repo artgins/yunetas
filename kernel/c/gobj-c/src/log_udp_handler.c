@@ -166,10 +166,10 @@ PUBLIC udpc_t udpc_open(
      *-------------------------------------*/
     if(!url || !*url) {
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "Url empty");
+            ESP_LOGE("YUNETAS", "Url empty");
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "Url empty");
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "Url empty");
         #endif
         return 0;
     }
@@ -189,10 +189,10 @@ PUBLIC udpc_t udpc_open(
     uc = malloc(sizeof(udp_client_t));
     if(!uc) {
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "No memory");
+            ESP_LOGE("YUNETAS", "No memory");
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "No memory");
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "No memory");
         #endif
         return 0;
     }
@@ -213,10 +213,10 @@ PUBLIC udpc_t udpc_open(
     if(!uc->buffer) {
         free(uc);
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "No memory");
+            ESP_LOGE("YUNETAS", "No memory");
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "No memory");
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "No memory");
         #endif
         return 0;
     }
@@ -239,10 +239,10 @@ PUBLIC udpc_t udpc_open(
         free(uc->buffer);
         free(uc);
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "Bad url: %s", url);
+            ESP_LOGE("YUNETAS", "Bad url: %s", url);
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "Bad url: %s", url);
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "Bad url: %s", url);
         #endif
         return 0;
     }
@@ -275,10 +275,10 @@ PUBLIC udpc_t udpc_open(
     dl_add(&dl_clients, uc);
     if(_udpc_socket(uc)<0) {
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "_udpc_socket() FAILED");
+            ESP_LOGE("YUNETAS", "_udpc_socket() FAILED");
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "_udpc_socket() FAILED");
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "_udpc_socket() FAILED");
         #endif
         // Retry open in next send
     }
@@ -322,10 +322,10 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf_, size_t len)
 
     if(!udpc || !bf) {
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "udpc or bf NULL");
+            ESP_LOGE("YUNETAS", "udpc or bf NULL");
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "udpc or bf NULL");
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "udpc or bf NULL");
         #endif
         return -1;
     }
@@ -335,10 +335,10 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf_, size_t len)
 
     if(len > buffer_size) {
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "buffer too long: %d > %d", (int)len, (int)buffer_size);
+            ESP_LOGE("YUNETAS", "buffer too long: %d > %d", (int)len, (int)buffer_size);
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "buffer too long: %d > %d", (int)len, (int)buffer_size);
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "buffer too long: %d > %d", (int)len, (int)buffer_size);
         #endif
         return -1;
     }
@@ -354,10 +354,10 @@ PUBLIC int udpc_write(udpc_t udpc, int priority, const char* bf_, size_t len)
             if(_udpc_socket(uc) < 0) {
                 // Error already logged
                 #ifdef ESP_PLATFORM
-                    ESP_LOGE("YUNETA", "_udpc_socket(2) FAILED");
+                    ESP_LOGE("YUNETAS", "_udpc_socket(2) FAILED");
                 #endif
                 #ifdef __linux__
-                    syslog(LOG_ERR, "YUNETA: " "_udpc_socket(2) FAILED");
+                    syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "_udpc_socket(2) FAILED");
                 #endif
             }
         }
@@ -520,10 +520,10 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
     uc->_s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if(uc->_s<=0) {
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "socket() FAILED, errno %d, serrno %s", errno, strerror(errno));
+            ESP_LOGE("YUNETAS", "socket() FAILED, errno %d, serrno %s", errno, strerror(errno));
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "socket() FAILED, errno %d, serrno %s", errno, strerror(errno));
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "socket() FAILED, errno %d, serrno %s", errno, strerror(errno));
         #endif
         return -1;
     }
@@ -542,10 +542,10 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
         close(uc->_s);
         uc->_s = 0;
         #ifdef ESP_PLATFORM
-            ESP_LOGE("YUNETA", "inet_pton() FAILED, errno %d, serrno %s", errno, strerror(errno));
+            ESP_LOGE("YUNETAS", "inet_pton() FAILED, errno %d, serrno %s", errno, strerror(errno));
         #endif
         #ifdef __linux__
-            syslog(LOG_ERR, "YUNETA: " "inet_pton() FAILED, errno %d, serrno %s", errno, strerror(errno));
+            syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "inet_pton() FAILED, errno %d, serrno %s", errno, strerror(errno));
         #endif
         return -1;
     }
@@ -557,17 +557,17 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
 
         if (inet_pton(AF_INET, uc->bindip , &si_bind.sin_addr) < 0) {
             #ifdef ESP_PLATFORM
-                ESP_LOGE("YUNETA", "inet_pton() FAILED, errno %d, serrno %s", errno, strerror(errno));
+                ESP_LOGE("YUNETAS", "inet_pton() FAILED, errno %d, serrno %s", errno, strerror(errno));
             #endif
             #ifdef __linux__
-                syslog(LOG_ERR, "YUNETA: " "inet_pton() FAILED, errno %d, serrno %s", errno, strerror(errno));
+                syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "inet_pton() FAILED, errno %d, serrno %s", errno, strerror(errno));
             #endif
         } else if (bind(uc->_s, (const struct sockaddr *)&si_bind, sizeof(si_bind))<0) {
             #ifdef ESP_PLATFORM
-                ESP_LOGE("YUNETA", "bind() FAILED, errno %d, serrno %s", errno, strerror(errno));
+                ESP_LOGE("YUNETAS", "bind() FAILED, errno %d, serrno %s", errno, strerror(errno));
             #endif
             #ifdef __linux__
-                syslog(LOG_ERR, "YUNETA: " "bind() FAILED, errno %d, serrno %s", errno, strerror(errno));
+                syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "bind() FAILED, errno %d, serrno %s", errno, strerror(errno));
             #endif
         }
     }
@@ -612,7 +612,7 @@ PRIVATE int _udpc_write(udp_client_t *uc, char *bf, size_t len)
             2
         );
         if (err != ESP_OK) {
-            ESP_LOGE("YUNETA", "esp_event_post_to() FAILED");
+            ESP_LOGE("YUNETAS", "esp_event_post_to() FAILED");
             free(buf);
             return -1;
         }
@@ -623,7 +623,7 @@ PRIVATE int _udpc_write(udp_client_t *uc, char *bf, size_t len)
     if(sendto(uc->_s, bf, len, 0, (struct sockaddr *)&uc->si_other, sizeof(uc->si_other))<0) {
         close(uc->_s);
         uc->_s = 0;
-        syslog(LOG_ERR, "YUNETA: " "sendto() FAILED, errno %d, serrno %s", errno, strerror(errno));
+        syslog(LOG_ERR, "YUNETAS: log_udp_handler: " "sendto() FAILED, errno %d, serrno %s", errno, strerror(errno));
         return -1;
     }
 #endif
@@ -659,7 +659,7 @@ PRIVATE void udp_tx_ev_loop_callback(
 
     if(!uc->disabled) {
         if(sendto(uc->_s, bf, len, 0, (struct sockaddr *)&uc->si_other, sizeof(uc->si_other))<0) {
-            ESP_LOGE("YUNETA", "sendto() FAILED, errno %d, serrno %s", errno, strerror(errno));
+            ESP_LOGE("YUNETAS", "sendto() FAILED, errno %d, serrno %s", errno, strerror(errno));
             if(errno != ENOMEM) {
                 close(uc->_s);
                 uc->_s = 0;
@@ -667,7 +667,7 @@ PRIVATE void udp_tx_ev_loop_callback(
             }
         }
     } else {
-        ESP_LOGE("YUNETA", "%.*s", (int)len, bf);
+        ESP_LOGE("YUNETAS", "%.*s", (int)len, bf);
     }
 
     free(bf);

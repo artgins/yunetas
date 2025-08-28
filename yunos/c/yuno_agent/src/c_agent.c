@@ -4880,7 +4880,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj);
+    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj); // run-yuno
 
     /*
      *  Subscribe al objeto counter a los eventos del router
@@ -5048,7 +5048,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj);
+    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj); // kill-yuno
 
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", EV_COUNT
@@ -5231,7 +5231,7 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj);
+    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj); // play-yuno
 
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", EV_COUNT
@@ -5397,7 +5397,7 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj);
+    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj); // pause-yuno
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", EV_COUNT
     );
