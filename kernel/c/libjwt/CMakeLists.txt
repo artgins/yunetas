@@ -19,7 +19,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-
 set (SRCS
     src/base64.c
     src/jwt-memory.c

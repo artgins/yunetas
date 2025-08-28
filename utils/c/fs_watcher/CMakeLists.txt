@@ -16,9 +16,6 @@ else()
 endif()
 include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
-include_directories(/yuneta/development/projects/^mulesol/mulesol-sistemas/projects/frigo/esp/esp_frigo/main)
-
-
 ##############################################
 #   Source
 ##############################################

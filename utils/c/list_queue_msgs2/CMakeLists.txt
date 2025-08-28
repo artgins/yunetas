@@ -16,11 +16,9 @@ else()
 endif()
 include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 
-
 ##############################################
 #   Source
 ##############################################
-
 SET (YUNO_SRCS
     list_queue_msgs2.c
 )

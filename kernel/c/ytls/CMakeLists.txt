@@ -19,7 +19,6 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 #   Source
 ##############################################
-
 set (SRCS
     src/ytls.c
     src/tls/openssl.c
