@@ -187,11 +187,17 @@ PRIVATE char variable_config[]= "\
                                     },                                              \n\
                                     'children': [                                     \n\
                                         {                                               \n\
-                                            'name': 'input-(^^__range__^^)',              \n\
+                                            'name': 'input-(^^__range__^^)',            \n\
                                             'gclass': 'C_WEBSOCKET',                    \n\
                                             'kw': {                                     \n\
                                                 'iamServer': true                       \n\
-                                            }                                           \n\
+                                            },                                          \n\
+                                            'children': [                               \n\
+                                                {                                       \n\
+                                                    'name': 'input-(^^__range__^^)',    \n\
+                                                    'gclass': 'C_TCP'                   \n\
+                                                }                                       \n\
+                                            ]                                           \n\
                                         }                                               \n\
                                     ]                                               \n\
                                 }                                               \n\
