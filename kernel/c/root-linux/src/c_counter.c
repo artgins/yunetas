@@ -128,9 +128,15 @@ PRIVATE int mt_start(hgobj gobj)
      *  Set timer if configured it.
      */
     int expiration_timeout = (int)gobj_read_integer_attr(gobj, "expiration_timeout");
-    gobj_start(priv->timer);
     if(expiration_timeout > 0) {
         set_timeout(priv->timer, expiration_timeout);
+    } else {
+        gobj_log_warning(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "C_COUNTER without expiration_timeout",
+            NULL
+        );
     }
 
     priv->max_count = gobj_read_integer_attr(gobj, "max_count");
