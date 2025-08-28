@@ -48,6 +48,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE const char *sequence_name(hgobj gobj);
 PRIVATE int is_yuneta_agent(pid_t pid);
 PRIVATE void remove_pid_file(void);
 PRIVATE uint64_t long_reference(void);
@@ -4788,7 +4789,6 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
      *      run
      *      add filter for future counter.
      *------------------------------------------------*/
-    json_t *filterlist = json_array();
     int total_run = 0;
 
     /*
@@ -4802,6 +4802,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
         BOOL yuno_running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
         if(!disabled && !yuno_running) {
+            json_t *filterlist = json_array();
             int r = run_yuno(gobj, yuno, src);
             if(r==0) {
                 const char *id = SDATA_GET_ID(yuno);
@@ -4834,6 +4835,59 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                     )
                 );
                 total_run++;
+
+                /*--------------------------------------*
+                 *  Crea con counter un futuro
+                 *  que nos indique cuando han arrancado
+                 *  all yunos arrancados.
+                 *--------------------------------------*/
+                json_t *kw_answer = kw_incref(kw);
+
+                char info[80];
+                snprintf(info, sizeof(info), "%d yunos found to run", total_run);
+                json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
+                    "info", info,
+                    "max_count", total_run,
+                    "expiration_timeout", priv->timeout_expiration,
+                    "input_schema", filterlist, // owned
+                    "__user_data__",
+                        "iter", iter,          // HACK free en diferido, en ac_final_count()
+                        "kw_answer", kw_answer // HACK free en diferido, en ac_final_count()
+                );
+
+                hgobj gobj_counter = gobj_create_volatil( // run-yuno
+                    sequence_name(gobj),
+                    C_COUNTER,
+                    kw_counter,
+                    gobj
+                );
+
+                /*
+                 *  Subscribe al objeto counter a los eventos del router
+                 */
+                json_t *kw_sub = json_pack("{s:{s:s}}",
+                    "__config__", "__rename_event_name__", EV_COUNT
+                );
+                gobj_subscribe_event(
+                    gobj_find_service("__input_side__", TRUE),
+                    EV_ON_OPEN,
+                    kw_sub,
+                    gobj_counter
+                );
+
+                // KKK
+                /*
+                 *  Subscribe me to the counter's final event, with the requester
+                 */
+                json_t *kw_final_count = json_object();
+                json_t *global = json_object();
+                json_object_set_new(kw_final_count, "__global__", global);
+                json_object_set_new(global, "requester", json_string(requester));
+
+                gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
+
+                gobj_start(gobj_counter);
+
             } else {
                 gobj_log_error(gobj, 0,
                     "function",         "%s", __FUNCTION__,
@@ -4843,12 +4897,10 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                     NULL
                 );
             }
-
         }
     }
 
     if(!total_run) {
-        JSON_DECREF(filterlist);
         JSON_DECREF(iter)
         return msg_iev_build_response(gobj,
             -1,
@@ -4860,53 +4912,6 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             kw  // owned
         );
     }
-
-    /*--------------------------------------*
-     *  Crea con counter un futuro
-     *  que nos indique cuando han arrancado
-     *  all yunos arrancados.
-     *--------------------------------------*/
-    json_t *kw_answer = kw_incref(kw);
-
-    char info[80];
-    snprintf(info, sizeof(info), "%d yunos found to run", total_run);
-    json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
-        "info", info,
-        "max_count", total_run,
-        "expiration_timeout", priv->timeout_expiration,
-        "input_schema", filterlist, // owned
-        "__user_data__",
-            "iter", iter,                   // HACK free en diferido, en ac_final_count()
-            "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
-    );
-
-    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj); // run-yuno
-
-    /*
-     *  Subscribe al objeto counter a los eventos del router
-     */
-    json_t *kw_sub = json_pack("{s:{s:s}}",
-        "__config__", "__rename_event_name__", EV_COUNT
-    );
-    gobj_subscribe_event(
-        gobj_find_service("__input_side__", TRUE),
-        EV_ON_OPEN,
-        kw_sub,
-        gobj_counter
-    );
-
-// KKK
-    /*
-     *  Subscribe me to the counter's final event, with the requester
-     */
-    json_t *kw_final_count = json_object();
-    json_t *global = json_object();
-    json_object_set_new(kw_final_count, "__global__", global);
-    json_object_set_new(global, "requester", json_string(requester));
-
-    gobj_subscribe_event(gobj_counter, EV_FINAL_COUNT, kw_final_count, gobj);
-
-    gobj_start(gobj_counter);
 
     KW_DECREF(kw);
     return 0;   // Asynchronous response
@@ -5048,7 +5053,12 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj); // kill-yuno
+    hgobj gobj_counter = gobj_create_volatil( // kill-yuno
+        sequence_name(gobj),
+        C_COUNTER,
+        kw_counter,
+        gobj
+    );
 
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", EV_COUNT
@@ -5231,7 +5241,12 @@ PRIVATE json_t *cmd_play_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj); // play-yuno
+    hgobj gobj_counter = gobj_create_volatil( // play-yuno
+        sequence_name(gobj),
+        C_COUNTER,
+        kw_counter,
+        gobj
+    );
 
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", EV_COUNT
@@ -5397,7 +5412,12 @@ PRIVATE json_t *cmd_pause_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj sr
             "kw_answer", kw_answer          // HACK free en diferido, en ac_final_count()
     );
 
-    hgobj gobj_counter = gobj_create_volatil("", C_COUNTER, kw_counter, gobj); // pause-yuno
+    hgobj gobj_counter = gobj_create_volatil( // pause-yuno
+        sequence_name(gobj),
+        C_COUNTER,
+        kw_counter,
+        gobj
+    );
     json_t *kw_sub = json_pack("{s:{s:s}}",
         "__config__", "__rename_event_name__", EV_COUNT
     );
@@ -6610,6 +6630,18 @@ PRIVATE json_t *cmd_close_console(hgobj gobj, const char *cmd, json_t *kw, hgobj
 
 
 
+
+/*****************************************************************
+ *
+ *****************************************************************/
+PRIVATE const char *sequence_name(hgobj gobj)
+{
+    static char se_name[120];
+    static int n = 0;
+    n++;
+    snprintf(se_name, sizeof(se_name), "%d", n);
+    return se_name;
+}
 
 /*****************************************************************
  *

@@ -339,7 +339,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
 };
 
 #define __trace_gobj_create_delete__(gobj)  (gobj_trace_level(gobj) & TRACE_CREATE_DELETE)
-#define __trace_gobj_create_delete2__(gobj) (gobj_trace_level(gobj) & TRACE_CREATE_DELETE2)
+#define __trace_gobj_create_delete2__(gobj) (gobj_trace_level(gobj) & (TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2))
 #define __trace_gobj_subscriptions__(gobj)  (gobj_trace_level(gobj) & TRACE_SUBSCRIPTIONS)
 #define __trace_gobj_start_stop__(gobj)     (gobj_trace_level(gobj) & TRACE_START_STOP)
 #define __trace_gobj_ev_kw__(gobj)          (gobj_trace_level(gobj) & TRACE_EV_KW)
