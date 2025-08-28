@@ -561,6 +561,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         return 0;
     }
 
+    set_cloexec(fd_clisrv);
+
     if(priv->only_allowed_ips) {
         char peername[80];
         get_peername(peername, sizeof(peername), fd_clisrv);

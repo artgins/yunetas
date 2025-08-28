@@ -4800,10 +4800,12 @@ PUBLIC json_t *gobj_command( // With AUTHZ
      *-----------------------------------------------*/
     BOOL tracea = is_machine_tracing(gobj, 0) && !is_machine_not_tracing(src, 0);
     if(tracea) {
-        trace_machine("🌀🌀 mach(%s%s), cmd: %s, src: %s",
+        trace_machine("🌀🌀 mach(%s%s), cmd: %s%s%s, src: %s",
             (!gobj->running)?"!!":"",
             gobj_short_name(gobj),
+            On_Yellow BIWhite,
             command,
+            Color_Off,
             gobj_short_name(src)
         );
         if(gobj_trace_level(gobj) & (TRACE_EV_KW)) {
