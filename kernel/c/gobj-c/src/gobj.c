@@ -2202,10 +2202,14 @@ PUBLIC void gobj_destroy(hgobj hgobj)
     }
 
     if(gobj->obflag & obflag_destroying) {
+        if(!(gobj->obflag & obflag_destroyed)) {
+
+        }
         gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gobj ALREADY DESTROYING",
+            "full-name",    "%s", gobj_full_name(gobj),
             "shutdowning",  "%d", gobj_is_shutdowning(),
             NULL
         );
