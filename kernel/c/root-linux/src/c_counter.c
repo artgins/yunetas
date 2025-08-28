@@ -293,6 +293,14 @@ PRIVATE void publish_finalcount(hgobj gobj)
         "cur_count", priv->cur_count
     );
 
+    BOOL trace = (int)gobj_trace_level(gobj) & TRACE_DEBUG;
+    if(trace) {
+        json_t *user_data = gobj_read_user_data(gobj, NULL);
+        if(user_data) {
+            gobj_trace_json(gobj, user_data, "__user_data__");
+        }
+    }
+
     gobj_publish_event(gobj, priv->final_event_name, kw);
 
     gobj_stop(gobj);

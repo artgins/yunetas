@@ -1072,7 +1072,7 @@ PUBLIC json_t *gobj_read_attrs( // Return is yours!
     hgobj src
 );
 
-PUBLIC json_t *gobj_read_user_data(
+PUBLIC json_t *gobj_read_user_data( // Return is NOT yours
     hgobj gobj,
     const char *name // If empty name return all user record
 );

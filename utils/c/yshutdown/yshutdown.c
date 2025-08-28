@@ -150,7 +150,7 @@ static int kill_yuno(const char *directory, const char *pidfile, int verbose)
 
     int ret = kill(pid, SIGKILL);
     if(ret == 0) {
-        unlink(pidfile);
+        // unlink(pidfile); // let yuno to remove his yuno.pid
         if(verbose) {
             printf("Pid %d, killed ('%s')\n", pid, pidfile);
         }
