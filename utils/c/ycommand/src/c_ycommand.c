@@ -335,7 +335,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
     try_to_stop_yevents(gobj);
     clear_timeout(priv->timer);
-    gobj_stop(priv->timer);
 
     gobj_stop_tree(gobj);
 
