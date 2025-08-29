@@ -519,8 +519,6 @@ PRIVATE int _udpc_socket(udp_client_t *uc)
 {
     uc->_s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-    print_error(0, "NEW SOCKET UDP %d", uc->_s); // TODO quita
-
     if(uc->_s<=0) {
         #ifdef ESP_PLATFORM
             ESP_LOGE("YUNETAS", "socket() FAILED, errno %d, serrno %s", errno, strerror(errno));

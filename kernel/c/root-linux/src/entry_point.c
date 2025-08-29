@@ -376,9 +376,12 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     /*------------------------------------------------*
      *  Check inherit files
      *------------------------------------------------*/
-    char temp[NAME_MAX];
-    snprintf(temp, sizeof(temp), "entry_point %s", APP_NAME);
-    print_open_fds(temp); // TODO quita
+    int opened_fds = check_open_fds();
+    if(opened_fds > 4) {
+        char temp[NAME_MAX];
+        snprintf(temp, sizeof(temp), "entry_point %s", APP_NAME);
+        print_open_fds(temp);
+    }
 
     /*------------------------------------------------*
      *  Process name = yuno role

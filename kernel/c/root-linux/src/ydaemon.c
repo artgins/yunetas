@@ -95,8 +95,6 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
         print_error(PEF_EXIT, "chdir() FAILED, errno %d %s", errno, strerror(errno));
     }
 
-    print_open_fds(process_name);
-
     /* Close out the standard file descriptors */
     // WARNING Removing this comments, --stop doesn't kill the daemon! why?
     // close(STDIN_FILENO);
@@ -211,8 +209,6 @@ PRIVATE int relauncher(
             relaunch_times,
             (int)getpid());
         gobj_trace_msg(0, "%s", temp);
-
-        print_open_fds(temp);
 
         if(relaunch_times > 0) {
             gobj_log_error(0,0,

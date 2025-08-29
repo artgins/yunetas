@@ -689,8 +689,6 @@ PRIVATE void mt_create(hgobj gobj)
         gobj_write_str_attr(gobj, "yuno_role_plus_name", role_plus_name);
     }
 
-    print_open_fds(role_plus_name);
-
     /*--------------------------*
      *  Create the event loop
      *--------------------------*/

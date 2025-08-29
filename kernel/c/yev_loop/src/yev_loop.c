@@ -407,11 +407,9 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  */
                 yev_event->result = cqe_res; // HACK: is the cli_srv socket
 
-                print_error(0, "NEW SOCKET TCP ACCEPT %d", yev_event->result); // TODO quita
-
                 if(yev_event->result > 0) {
-                    set_nonblocking(yev_event->result);
-                    set_cloexec(yev_event->result);
+                    // set_nonblocking(yev_event->result); // Already set in io_uring_prep_accept
+                    // set_cloexec(yev_event->result);
 
                     if (is_tcp_socket(yev_event->result)) {
                         set_tcp_socket_options(yev_event->result, yev_loop->keep_alive);
@@ -437,7 +435,7 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                             yev_event->fd,
                             &yev_event->sock_info->addr,
                             &yev_event->sock_info->addrlen,
-                            0
+                            SOCK_CLOEXEC | SOCK_NONBLOCK
                         );
                         io_uring_submit(&yev_loop->ring);
                         yev_set_state(yev_event, YEV_ST_RUNNING); // re-arming
@@ -2118,8 +2116,6 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
             rp->ai_protocol
         );
 
-        print_error(0, "NEW SOCKET TCP CONNECT %d", fd); // TODO quita
-
         if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -2258,7 +2254,7 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
         return ret;
     }
 
-    // set_nonblocking(fd); Already set in socket()
+    // set_nonblocking(fd); // Already set in socket()
     // set_cloexec(fd);
 
     if (is_tcp_socket(fd)) {
@@ -2428,8 +2424,6 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             rp->ai_protocol
         );
 
-        print_error(0, "NEW SOCKET TCP LISTEN %d", fd); // TODO quita
-
         if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -2452,6 +2446,9 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
                 setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on));
             }
         }
+
+        // set_nonblocking(fd); // Already set in socket()
+        // set_cloexec(fd);
 
         ret = bind(fd, rp->ai_addr, (socklen_t) rp->ai_addrlen);
         if (ret == -1) {

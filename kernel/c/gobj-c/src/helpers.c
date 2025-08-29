@@ -6470,17 +6470,49 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC int check_open_fds(void) // return # opened fd's
+{
+    DIR *dir = opendir("/proc/self/fd");
+    if(!dir) {
+        return 0;
+    }
+
+    int n = 0;
+
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.') {
+            continue;
+        }
+
+        char path[256];
+        snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
+
+        char link[256];
+        ssize_t len = readlink(path, link, sizeof(link)-1);
+        if(len != -1) {
+            n++;
+        }
+    }
+    closedir(dir);
+
+    return n;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC int print_open_fds(const char *fmt, ...)
 {
     va_list ap;
-    char temp[512];
+    char prefix[512];
 
     if(!fmt) {
         fmt = "";
     }
 
     va_start(ap, fmt);
-    vsnprintf(temp, sizeof(temp), fmt, ap);
+    vsnprintf(prefix, sizeof(prefix), fmt, ap);
     va_end(ap);
 
     DIR *dir = opendir("/proc/self/fd");
@@ -6503,17 +6535,21 @@ PUBLIC int print_open_fds(const char *fmt, ...)
         ssize_t len = readlink(path, link, sizeof(link)-1);
         if(len != -1) {
             link[len] = '\0';
-            trace_msg0("INHERIT %s: fd %s -> %s", temp, entry->d_name, link);
+            trace_msg0("INHERIT %s: fd %s -> %s", prefix, entry->d_name, link);
 
             int fd = atoi(entry->d_name);
-            if(is_tcp_socket(fd)
-)
-
-            char temp[120];
-
-            get_peername(temp, sizeof(temp), fd);
-
-            get_sockname(temp, sizeof(temp), fd);
+            if(is_tcp_socket(fd) || is_udp_socket(fd)) {
+                char peername[64];
+                char sockname[64];
+                get_peername(peername, sizeof(peername), fd);
+                get_sockname(sockname, sizeof(sockname), fd);
+                trace_msg0("INHERIT %s: fd %s -> %s %s",
+                    prefix,
+                    entry->d_name,
+                    peername,
+                    sockname
+                );
+            }
 
             n++;
         }
