@@ -293,14 +293,6 @@ PRIVATE void publish_finalcount(hgobj gobj)
         "cur_count", priv->cur_count
     );
 
-    BOOL trace = (int)gobj_trace_level(gobj) & TRACE_DEBUG;
-    if(trace) {
-        json_t *user_data = gobj_read_user_data(gobj, NULL);
-        if(user_data) {
-            gobj_trace_json(gobj, user_data, "__user_data__");
-        }
-    }
-
     gobj_publish_event(gobj, priv->final_event_name, kw);
 
     gobj_stop(gobj);
@@ -384,7 +376,7 @@ PRIVATE int ac_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
             if(kw_match_simple(kw, jn_filters)) {
                 priv->cur_count++;
                 if(trace) {
-                    trace_msg0("match kw: count %d", priv->cur_count);
+                    trace_msg0("match kw: YES count %d", priv->cur_count);
                 }
                 if(priv->cur_count >= priv->max_count) {
                     KW_DECREF(kw);

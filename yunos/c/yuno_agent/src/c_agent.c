@@ -4878,7 +4878,7 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                     "__config__", "__rename_event_name__", EV_COUNT
                 );
                 gobj_subscribe_event(
-                    gobj_find_service("__input_side__", TRUE),
+                    priv->gobj_input_side,
                     EV_ON_OPEN,
                     kw_sub,
                     gobj_counter
@@ -5079,7 +5079,7 @@ PRIVATE json_t *cmd_kill_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src
      *  Subscribe al objeto counter a los eventos del router
      */
     gobj_subscribe_event(
-        gobj_find_service("__input_side__", TRUE),
+        priv->gobj_input_side,
         EV_ON_CLOSE,
         kw_sub,
         gobj_counter
@@ -9841,12 +9841,14 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj s
  ***************************************************************************/
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
-        gobj_find_service("__input_side__", TRUE),
+        priv->gobj_input_side,
         dst_service
     );
     if(!gobj_requester) {
@@ -9885,6 +9887,8 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
 
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
@@ -9896,7 +9900,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
     }
 
     hgobj gobj_requester = gobj_child_by_name(
-        gobj_find_service("__input_side__", TRUE),
+        priv->gobj_input_side,
         dst_service
     );
     if(!gobj_requester) {
@@ -10309,7 +10313,7 @@ PRIVATE int ac_final_count(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
 
     hgobj gobj_requester_channel = gobj_child_by_name(
-        gobj_find_service("__input_side__", TRUE),
+        priv->gobj_input_side,
         requester
     );
     if(!gobj_requester_channel) {

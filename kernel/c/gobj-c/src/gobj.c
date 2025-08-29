@@ -8966,6 +8966,7 @@ PUBLIC int gobj_publish_event(
         gobj_event_t event_ = (gobj_event_t)(uintptr_t)kw_get_int(
             publisher, subs, "event", 0, KW_REQUIRED
         );
+
         if(empty_string(event_) || strcasecmp(event_, event)==0) {
             json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);
             json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
@@ -8975,15 +8976,15 @@ PUBLIC int gobj_publish_event(
             /*
              *  Check renamed_event
              */
-            if(subs_flag & __rename_event_name__) {
-                gobj_event_t renamed_event = (gobj_event_t)(uintptr_t)kw_get_int(
-                    publisher,
-                    subs,
-                    "renamed_event",
-                    0,
-                    0
-                );
-                event = renamed_event;
+            gobj_event_t event_name = (gobj_event_t)(uintptr_t)kw_get_int(
+                publisher,
+                subs,
+                "renamed_event",
+                0,
+                0
+            );
+            if(empty_string(event_name)) {
+                event_name = event;
             }
 
             /*
@@ -9011,18 +9012,20 @@ PUBLIC int gobj_publish_event(
                 topublish = kw_match_simple(kw2publish , json_incref(__filter__));
                 if(tracea) {
                     trace_machine(
-                        "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
+                        "💜💜🔄%s publishing with filter, event '%s' (%s), subscriber'%s', publisher %s",
                         topublish?"👍":"👎",
                         event?event:"",
+                        event_name?event_name:"",
                         gobj_short_name(subscriber),
                         gobj_short_name(publisher)
                     );
                     gobj_trace_json(
                         publisher,
                         __filter__,
-                        "💜💜🔄%s publishing with filter, event '%s', subscriber'%s', publisher %s",
+                        "💜💜🔄%s publishing with filter, event '%s' (%s), subscriber'%s', publisher %s",
                         topublish?"👍":"👎",
                         event?event:"",
+                        event_name?event_name:"",
                         gobj_short_name(subscriber),
                         gobj_short_name(publisher)
                     );
@@ -9088,17 +9091,19 @@ PUBLIC int gobj_publish_event(
              */
             if(tracea) {
                 if(trace_machine_format) {
-                    trace_machine("🔝🔄 %s %s%s",
+                    trace_machine("🔝🔄 %s (%s) %s%s",
                         event?event:"",
+                        event_name?event_name:"",
                         (!subscriber->running)?"!!":"",
                         gobj_short_name(subscriber)
                     );
                 } else {
-                    trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s, from(%s%s)",
+                    trace_machine("🔝🔄 mach(%s%s), st: %s, ev: %s (%s), from(%s%s)",
                         (!subscriber->running)?"!!":"",
                         gobj_short_name(subscriber),
                         gobj_current_state(subscriber),
                         event?event:"",
+                        event_name?event_name:"",
                         (publisher && !publisher->running)?"!!":"",
                         gobj_short_name(publisher)
                     );
@@ -9112,7 +9117,7 @@ PUBLIC int gobj_publish_event(
 
             int ret_ = gobj_send_event(
                 subscriber,
-                event,
+                event_name,
                 kw2publish,
                 publisher
             );
