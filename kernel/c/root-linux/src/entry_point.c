@@ -372,6 +372,7 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             );
         }
     }
+    print_open_fds("entry_point");
 
     /*------------------------------------------------*
      *  Process name = yuno role

@@ -908,6 +908,10 @@ PUBLIC void _log_bf(int priority, log_opt_t opt, const char *bf, size_t len)
         return;
     }
 
+    if(dl_size(&dl_log_handlers)==0) {
+        print_error(0, "%s", bf);
+    }
+
     log_handler_t *lh = dl_first(&dl_log_handlers);
     while(lh) {
         if(must_ignore(lh, priority)) {
