@@ -1,5 +1,8 @@
 # **Changelog**
 
+## v7.0.0-b7 -- 29/Aug/2025
+    - Fixed: avoid that yunos (fork child) inherit the socket/file descriptors from agent.
+
 ## v7.0.0 -- 2024-??-??
 
 Change API
