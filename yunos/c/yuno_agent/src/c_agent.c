@@ -4802,10 +4802,19 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         BOOL disabled = kw_get_bool(gobj, yuno, "yuno_disabled", 0, KW_REQUIRED);
         BOOL yuno_running = kw_get_bool(gobj, yuno, "yuno_running", 0, KW_REQUIRED);
         if(!disabled && !yuno_running) {
+
+            const char *id = SDATA_GET_ID(yuno);
+            json_t *iter2 = gobj_list_nodes(
+                priv->resource,
+                resource,
+                json_pack("{s:s}", "id", id), // filter
+                json_pack("{s:b, s:b}", "only_id", 1, "with_metadata", 1),
+                src
+            );
+
             json_t *filterlist = json_array();
             int r = run_yuno(gobj, yuno, src);
             if(r==0) {
-                const char *id = SDATA_GET_ID(yuno);
                 json_t *jn_EvChkItem = json_pack("{s:s, s:{s:s, s:s, s:I}}",
                     "event", EV_ON_OPEN,
                     "filters",
@@ -4841,17 +4850,17 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
                  *  que nos indique cuando han arrancado
                  *  all yunos arrancados.
                  *--------------------------------------*/
-                json_t *kw_answer = kw_incref(kw);
+                json_t *kw_answer = kw_duplicate(gobj, kw);
 
                 char info[80];
-                snprintf(info, sizeof(info), "%d yunos found to run", total_run);
+                snprintf(info, sizeof(info), "%d yunos found to run", 1);
                 json_t *kw_counter = json_pack("{s:s, s:i, s:I, s:o, s:{s:o, s:o}}",
                     "info", info,
-                    "max_count", total_run,
+                    "max_count", 1,
                     "expiration_timeout", priv->timeout_expiration,
                     "input_schema", filterlist, // owned
                     "__user_data__",
-                        "iter", iter,          // HACK free en diferido, en ac_final_count()
+                        "iter", iter2,         // HACK free en diferido, en ac_final_count()
                         "kw_answer", kw_answer // HACK free en diferido, en ac_final_count()
                 );
 
@@ -4899,6 +4908,8 @@ PRIVATE json_t *cmd_run_yuno(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
             }
         }
     }
+
+    JSON_DECREF(iter)
 
     if(!total_run) {
         JSON_DECREF(iter)
