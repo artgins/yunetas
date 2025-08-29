@@ -6339,3 +6339,33 @@ PUBLIC char *capitalize(char *s)
         *s = toupper(*s);
     return s;
 }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC void print_open_fds(const char *prefix)
+{
+    DIR *dir = opendir("/proc/self/fd");
+    if(!dir) {
+        return;
+    }
+    if(!prefix) {
+        prefix = "";
+    }
+
+    struct dirent *entry;
+    while((entry = readdir(dir)) != NULL) {
+        if(entry->d_name[0] == '.') continue;
+
+        char path[256];
+        snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
+
+        char link[256];
+        ssize_t len = readlink(path, link, sizeof(link)-1);
+        if(len != -1) {
+            link[len] = '\0';
+            trace_msg0("%s: INHERIT fd %s -> %s", prefix, entry->d_name, link);
+        }
+    }
+    closedir(dir);
+}

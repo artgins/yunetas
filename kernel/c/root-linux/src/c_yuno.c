@@ -65,7 +65,6 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PRIVATE void print_open_fds(void);
 PRIVATE json_t *get_cpus(void);
 PRIVATE void boost_process_performance(int priority, int cpu_core);
 PRIVATE unsigned int get_HZ(void);
@@ -675,8 +674,6 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    print_open_fds();
-
     char role_plus_name[NAME_MAX];
     if(empty_string(gobj_yuno_name())) {
         snprintf(role_plus_name, sizeof(role_plus_name),
@@ -691,6 +688,8 @@ PRIVATE void mt_create(hgobj gobj)
         );
         gobj_write_str_attr(gobj, "yuno_role_plus_name", role_plus_name);
     }
+
+    print_open_fds(role_plus_name);
 
     /*--------------------------*
      *  Create the event loop
@@ -4090,34 +4089,6 @@ PRIVATE json_t *cmd_list_gobj_commands(hgobj gobj, const char* cmd, json_t* kw, 
 
 
 
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void print_open_fds(void)
-{
-    DIR *dir = opendir("/proc/self/fd");
-    if(!dir) {
-        perror("opendir");
-        return;
-    }
-
-    struct dirent *entry;
-    while((entry = readdir(dir)) != NULL) {
-        if(entry->d_name[0] == '.') continue;
-
-        char path[256];
-        snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
-
-        char link[256];
-        ssize_t len = readlink(path, link, sizeof(link)-1);
-        if(len != -1) {
-            link[len] = '\0';
-            trace_msg0("INHERIT fd %s -> %s", entry->d_name, link);
-        }
-    }
-    closedir(dir);
-}
 
 /***************************************************************************
  *

@@ -16,6 +16,7 @@
 #include <glob.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <dirent.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
@@ -93,6 +94,8 @@ PRIVATE void continue_as_daemon(const char *work_dir, const char *process_name)
     if (work_dir && chdir(work_dir) < 0) {
         print_error(PEF_EXIT, "chdir() FAILED, errno %d %s", errno, strerror(errno));
     }
+
+    print_open_fds(process_name);
 
     /* Close out the standard file descriptors */
     // WARNING Removing this comments, --stop doesn't kill the daemon! why?
@@ -208,6 +211,9 @@ PRIVATE int relauncher(
             relaunch_times,
             (int)getpid());
         gobj_trace_msg(0, "%s", temp);
+
+        print_open_fds(temp);
+
         if(relaunch_times > 0) {
             gobj_log_error(0,0,
                 "gobj",             "%s", __FILE__,

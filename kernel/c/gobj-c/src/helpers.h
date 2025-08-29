@@ -98,6 +98,25 @@ int main(int argc, char **argv) {
 /** Close the switchs */
 #define SWITCHS_END } while ( 0 ); regfree(&__regex); }
 
+/***************************************************************
+ *  inline functions
+ ***************************************************************/
+static inline BOOL empty_string(const char *str)
+{
+    return (str && *str)?0:1;
+}
+
+static inline BOOL empty_json(const json_t *jn)
+{
+    if((json_is_array(jn) && json_array_size(jn)==0) ||
+        (json_is_object(jn) && json_object_size(jn)==0) ||
+        json_is_null(jn)) {
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
 /*****************************************************************
  *     Prototypes
  *****************************************************************/
@@ -1051,22 +1070,4 @@ PUBLIC int set_cloexec(int fd); // children must not inherit
 PUBLIC char *upper(char *s);
 PUBLIC char *lower(char *s);
 PUBLIC char *capitalize(char *s);
-
-/***************************************************************
- *  inline functions
- ***************************************************************/
-static inline BOOL empty_string(const char *str)
-{
-    return (str && *str)?0:1;
-}
-
-static inline BOOL empty_json(const json_t *jn)
-{
-    if((json_is_array(jn) && json_array_size(jn)==0) ||
-        (json_is_object(jn) && json_object_size(jn)==0) ||
-        json_is_null(jn)) {
-        return TRUE;
-    } else {
-        return FALSE;
-    }
-}
+PUBLIC void print_open_fds(const char *prefix);
