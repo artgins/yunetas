@@ -432,15 +432,6 @@ static inline const char *yev_event_type_name(yev_event_h yev_event)
     return "YEV_???_TYPE";
 }
 
-/*
- *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
- */
-PUBLIC int set_tcp_socket_options(int fd, int delay); // Set internally in tcp sockets (client and clisrv)
-
-PUBLIC BOOL is_tcp_socket(int fd);
-PUBLIC BOOL is_udp_socket(int fd);
-PUBLIC int get_peername(char *bf, size_t bfsize, int fd);
-PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
 PUBLIC const char **yev_flag_strings(void);
 PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
 PUBLIC int get_measure_times(void); // return yevent types measuring

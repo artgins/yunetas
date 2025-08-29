@@ -1070,4 +1070,15 @@ PUBLIC int set_cloexec(int fd); // children must not inherit
 PUBLIC char *upper(char *s);
 PUBLIC char *lower(char *s);
 PUBLIC char *capitalize(char *s);
+
+/*
+ *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
+ */
+PUBLIC int set_tcp_socket_options(int fd, int delay); // Set internally in tcp sockets (client and clisrv)
+
+PUBLIC BOOL is_tcp_socket(int fd);
+PUBLIC BOOL is_udp_socket(int fd);
+PUBLIC int get_peername(char *bf, size_t bfsize, int fd);
+PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
+
 PUBLIC int print_open_fds(const char *fmt, ...);

@@ -35,6 +35,7 @@
 #endif
 
 #include <arpa/inet.h>   // For htonl and htons
+#include <netinet/tcp.h>
 #include <endian.h>      // For __BYTE_ORDER, __LITTLE_ENDIAN, etc.
 // Fallback definitions if <endian.h> is not available
 #ifndef __BYTE_ORDER
@@ -6341,6 +6342,132 @@ PUBLIC char *capitalize(char *s)
 }
 
 /***************************************************************************
+ *  Set TCP_NODELAY, SO_KEEPALIVE and SO_LINGER options to socket
+ ***************************************************************************/
+PUBLIC int set_tcp_socket_options(int fd, int delay)
+{
+    int ret = 0;
+    int on = 1;
+
+    // Always sent as soon as possible, even if there is only a small amount of data.
+    ret += setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *)&on, sizeof(on));
+
+    ret += setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &on, sizeof(on));
+#ifdef TCP_KEEPIDLE
+    if(!delay) {
+        delay = 60; /* seconds */
+    }
+    int intvl = 1;  /*  1 second; same as default on Win32 */
+    int cnt = 10;  /* 10 retries; same as hardcoded on Win32 */
+    ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPIDLE, &delay, sizeof(delay));
+    ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPINTVL, &intvl, sizeof(intvl));
+    ret += setsockopt(fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
+#endif
+    struct linger lg;
+    lg.l_onoff = 1;        /* non-zero value enables linger option in kernel */
+    lg.l_linger = 0;    /* timeout interval in seconds 0: close immediately discarding any unsent data  */
+    ret += setsockopt( fd, SOL_SOCKET, SO_LINGER, (void *)&lg, sizeof(lg));
+    return ret;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL is_tcp_socket(int fd)
+{
+    int type;
+    socklen_t optionLen = sizeof(type);
+
+    if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &optionLen)<0) {
+        return FALSE;
+    }
+    if (type == SOCK_STREAM) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL is_udp_socket(int fd)
+{
+    int type;
+    socklen_t optionLen = sizeof(type);
+
+    if (getsockopt(fd, SOL_SOCKET, SO_TYPE, &type, &optionLen)<0) {
+        return FALSE;
+    }
+    if (type == SOCK_DGRAM) {
+        return TRUE;
+    }
+    return FALSE;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int printSocketAddress(char *bf, size_t bfsize, const struct sockaddr* sa)
+{
+    char ipAddress[INET6_ADDRSTRLEN];
+    unsigned short port;
+
+    if (sa->sa_family == AF_INET) {
+        struct sockaddr_in* sa_ipv4 = (struct sockaddr_in*)sa;
+        inet_ntop(AF_INET, &(sa_ipv4->sin_addr), ipAddress, INET6_ADDRSTRLEN);
+        port = ntohs(sa_ipv4->sin_port);
+    } else if (sa->sa_family == AF_INET6) {
+        struct sockaddr_in6* sa_ipv6 = (struct sockaddr_in6*)sa;
+        inet_ntop(AF_INET6, &(sa_ipv6->sin6_addr), ipAddress, INET6_ADDRSTRLEN);
+        port = ntohs(sa_ipv6->sin6_port);
+    } else {
+        *bf = 0;
+        return -1;
+    }
+
+    snprintf(bf, bfsize, "%s:%hu", ipAddress, port);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int get_peername(char *bf, size_t bfsize, int fd)
+{
+    struct sockaddr_storage remoteAddr;
+    socklen_t addrLen = sizeof(struct sockaddr_storage);
+
+    // Get the remote socket address
+    if (getpeername(fd, (struct sockaddr*)&remoteAddr, &addrLen) == -1) {
+        if(bf && bfsize) {
+            *bf = 0;
+        }
+        return -1;
+    }
+    printSocketAddress(bf, bfsize, (struct sockaddr*)&remoteAddr);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)
+{
+    struct sockaddr_storage localAddr;
+    socklen_t addrLen = sizeof(struct sockaddr_storage);
+
+    // Get the local socket address
+    if (getsockname(fd, (struct sockaddr*)&localAddr, &addrLen) == -1) {
+        if(bf && bfsize) {
+            *bf = 0;
+        }
+        return -1;
+    }
+    printSocketAddress(bf, bfsize, (struct sockaddr*)&localAddr);
+    return 0;
+}
+
+/***************************************************************************
  *
  ***************************************************************************/
 PUBLIC int print_open_fds(const char *fmt, ...)
@@ -6365,7 +6492,9 @@ PUBLIC int print_open_fds(const char *fmt, ...)
 
     struct dirent *entry;
     while((entry = readdir(dir)) != NULL) {
-        if(entry->d_name[0] == '.') continue;
+        if(entry->d_name[0] == '.') {
+            continue;
+        }
 
         char path[256];
         snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
@@ -6375,6 +6504,17 @@ PUBLIC int print_open_fds(const char *fmt, ...)
         if(len != -1) {
             link[len] = '\0';
             trace_msg0("INHERIT %s: fd %s -> %s", temp, entry->d_name, link);
+
+            int fd = atoi(entry->d_name);
+            if(is_tcp_socket(fd)
+)
+
+            char temp[120];
+
+            get_peername(temp, sizeof(temp), fd);
+
+            get_sockname(temp, sizeof(temp), fd);
+
             n++;
         }
     }
