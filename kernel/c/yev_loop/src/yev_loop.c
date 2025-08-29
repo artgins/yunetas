@@ -2515,8 +2515,8 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         return NULL;
     }
 
-    set_nonblocking(fd); // Already set in socket()
-    set_cloexec(fd);
+    // set_nonblocking(fd); // Already set in socket()
+    // set_cloexec(fd);
 
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
     if(!yev_event) {
