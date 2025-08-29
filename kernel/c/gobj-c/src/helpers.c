@@ -6485,7 +6485,7 @@ PUBLIC int check_open_fds(void) // return # opened fd's
             continue;
         }
 
-        char path[256];
+        char path[300];
         snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
 
         char link[256];
