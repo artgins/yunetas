@@ -6343,15 +6343,25 @@ PUBLIC char *capitalize(char *s)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC void print_open_fds(const char *prefix)
+PUBLIC int print_open_fds(const char *fmt, ...)
 {
+    va_list ap;
+    char temp[512];
+
+    if(!fmt) {
+        fmt = "";
+    }
+
+    va_start(ap, fmt);
+    vsnprintf(temp, sizeof(temp), fmt, ap);
+    va_end(ap);
+
     DIR *dir = opendir("/proc/self/fd");
     if(!dir) {
-        return;
+        return 0;
     }
-    if(!prefix) {
-        prefix = "";
-    }
+
+    int n = 0;
 
     struct dirent *entry;
     while((entry = readdir(dir)) != NULL) {
@@ -6364,8 +6374,11 @@ PUBLIC void print_open_fds(const char *prefix)
         ssize_t len = readlink(path, link, sizeof(link)-1);
         if(len != -1) {
             link[len] = '\0';
-            trace_msg0("%s: INHERIT fd %s -> %s", prefix, entry->d_name, link);
+            trace_msg0("INHERIT %s: fd %s -> %s", temp, entry->d_name, link);
+            n++;
         }
     }
     closedir(dir);
+
+    return n;
 }

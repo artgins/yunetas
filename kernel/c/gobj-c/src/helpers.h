@@ -1070,4 +1070,4 @@ PUBLIC int set_cloexec(int fd); // children must not inherit
 PUBLIC char *upper(char *s);
 PUBLIC char *lower(char *s);
 PUBLIC char *capitalize(char *s);
-PUBLIC void print_open_fds(const char *prefix);
+PUBLIC int print_open_fds(const char *fmt, ...);
