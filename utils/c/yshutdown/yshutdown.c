@@ -149,12 +149,10 @@ static int kill_yuno(const char *directory, const char *pidfile, int verbose)
     fclose(file);
 
     int ret = kill(pid, SIGKILL);
-    if(ret == 0) {
-        // unlink(pidfile); // let yuno to remove his yuno.pid
-        if(verbose) {
-            printf("Pid %d, killed ('%s')\n", pid, pidfile);
-        }
-    } else if(errno == ESRCH) {
+    if(verbose) {
+        printf("Kill ret %d, pid %d, errno %d, file '%s'\n", ret, pid, ret<0?errno:0, pidfile);
+    }
+    if(ret == 0 || errno == ESRCH) {
         unlink(pidfile);
     } else {
         printf("Pid %d, cannot kill ('%s'). Error '%s'\n", pid, pidfile, strerror(errno));
