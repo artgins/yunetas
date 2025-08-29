@@ -3597,18 +3597,6 @@ PRIVATE int export_treedb(
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    FILE *file = fopen(path, "w");
-    if(!file) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_TREEDB_ERROR,
-            "msg",          "%s", "Cannot create file",
-            "path",         "%s", path,
-            NULL
-        );
-        return -1;
-    }
-
     json_t *jn_db = json_object();
 
     json_t *topics_list = gobj_treedb_topics(

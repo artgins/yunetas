@@ -261,6 +261,9 @@ PUBLIC hrotatory_h rotatory_open(
         return 0;
     }
 
+    int fd = fileno(hr->flog);
+    set_cloexec(fd);
+
     /*-------------------------------------*
      *  Add to list and create rotatory
      *-------------------------------------*/
@@ -414,7 +417,11 @@ PRIVATE void _rotatory_trunk(rotatory_log_t *hr)
                 hr->path,
                 strerror(errno)
             );
+            return;
         }
+
+        int fd = fileno(hr->flog);
+        set_cloexec(fd);
     }
 }
 
@@ -556,6 +563,10 @@ PRIVATE int _rotatory(rotatory_log_t *hr, const char *bf, size_t len)
             );
             return -1;
         }
+
+        int fd = fileno(hr->flog);
+        set_cloexec(fd);
+
         if(hr->cb_newfile) {
             (hr->cb_newfile)(hr->user_data, lastpath, hr->path);
         }

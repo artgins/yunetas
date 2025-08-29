@@ -108,7 +108,7 @@ PUBLIC fs_event_t *fs_create_watcher_event(
         return NULL;
 
     }
-    int fd = inotify_init1(IN_NONBLOCK); // |IN_CLOEXEC
+    int fd = inotify_init1(IN_NONBLOCK|IN_CLOEXEC);
     if(fd < 0) {
         const char *serr = "";
         int err = errno;

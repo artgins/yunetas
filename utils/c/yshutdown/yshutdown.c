@@ -214,7 +214,6 @@ static int shutdown_yuneta(void)
         sleep(1);
         int x = system("killall -9 yuneta_agent > /dev/null 2>&1"); // Sometimes the agent is not killed, be sure!
         if(x) {} // avoid warning
-        sleep(1);
     }
     return 0;
 }

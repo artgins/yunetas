@@ -406,6 +406,9 @@ PRIVATE int callback_cqe(yev_loop_t *yev_loop, struct io_uring_cqe *cqe)
                  *  Call callback
                  */
                 yev_event->result = cqe_res; // HACK: is the cli_srv socket
+
+                print_error(0, "NEW SOCKET TCP ACCEPT %d", yev_event->result); // TODO quita
+
                 if(yev_event->result > 0) {
                     set_nonblocking(yev_event->result);
                     set_cloexec(yev_event->result);
@@ -2114,6 +2117,9 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
             rp->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC,
             rp->ai_protocol
         );
+
+        print_error(0, "NEW SOCKET TCP CONNECT %d", fd); // TODO quita
+
         if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -2421,6 +2427,9 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             rp->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC,
             rp->ai_protocol
         );
+
+        print_error(0, "NEW SOCKET TCP LISTEN %d", fd); // TODO quita
+
         if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
