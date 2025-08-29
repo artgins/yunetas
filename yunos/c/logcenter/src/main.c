@@ -46,7 +46,7 @@ PRIVATE char fixed_config[]= "\
             }                                                       \n\
         },                                                          \n\
         'daemon_log_handlers': {                                    \n\
-            'to_file': {                                            \n\
+            'to_file': {  #^^ deleted in play                       \n\
                 'handler_type': 'file',                             \n\
                 'handler_options': 255,                             \n\
                 'filename_mask': 'logcenter-W.log'                  \n\
