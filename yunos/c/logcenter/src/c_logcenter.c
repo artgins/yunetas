@@ -311,6 +311,7 @@ PRIVATE int mt_play(hgobj gobj)
                 gobj
             );
             gobj_log_add_handler("logcenter", "file", LOG_OPT_ALL, priv->global_rotatory);
+            gobj_log_del_handler("to_file");
         }
     }
 
