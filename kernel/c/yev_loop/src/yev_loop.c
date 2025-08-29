@@ -2109,7 +2109,11 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
                 NULL
             );
         }
-        fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        fd = socket(
+            rp->ai_family,
+            rp->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC,
+            rp->ai_protocol
+        );
         if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -2248,8 +2252,8 @@ PUBLIC int yev_rearm_connect_event( // create the socket to connect in yev_event
         return ret;
     }
 
-    set_nonblocking(fd);
-    set_cloexec(fd);
+    // set_nonblocking(fd); Already set in socket()
+    // set_cloexec(fd);
 
     if (is_tcp_socket(fd)) {
         set_tcp_socket_options(fd, yev_loop->keep_alive);
@@ -2412,7 +2416,11 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
             );
         }
 
-        fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+        fd = socket(
+            rp->ai_family,
+            rp->ai_socktype | SOCK_NONBLOCK | SOCK_CLOEXEC,
+            rp->ai_protocol
+        );
         if (fd == -1) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
                 "function",     "%s", __FUNCTION__,
@@ -2507,7 +2515,7 @@ PUBLIC yev_event_h yev_create_accept_event( // create the socket listening in ye
         return NULL;
     }
 
-    set_nonblocking(fd);
+    set_nonblocking(fd); // Already set in socket()
     set_cloexec(fd);
 
     yev_event_t *yev_event = create_event(yev_loop, callback, gobj, -1);
