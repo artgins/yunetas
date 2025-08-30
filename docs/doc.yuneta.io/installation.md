@@ -259,6 +259,12 @@ To test:
 By default, the installation directory of include files,
 libraries and binaries will be in ``/yuneta/development/outputs/``
 
+## Want the old /var/log/syslog back?
+
+    sudo apt-get update
+    sudo apt-get install rsyslog
+    sudo systemctl enable --now rsyslog
+
 [pipx]:     https://pipx.pypa.io/stable/installation/
 [yunetas]:  https://pypi.org/project/yunetas/
 
