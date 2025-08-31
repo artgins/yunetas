@@ -265,6 +265,11 @@ libraries and binaries will be in ``/yuneta/development/outputs/``
     sudo apt-get install rsyslog
     sudo systemctl enable --now rsyslog
 
+## How remove warning: Setting locale failed:
+
+    dpkg-reconfigure locales
+
+
 [pipx]:     https://pipx.pypa.io/stable/installation/
 [yunetas]:  https://pypi.org/project/yunetas/
 
