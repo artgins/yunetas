@@ -8967,7 +8967,7 @@ PUBLIC int gobj_publish_event(
             publisher, subs, "event", 0, KW_REQUIRED
         );
 
-        if(empty_string(event_) || strcasecmp(event_, event)==0) { // TODO review if == instead of strcmp, here all events must be gobj_event_
+        if(empty_string(event_) || event_ == event) { // WARNING old strcasecmp(event_, event)==0
             json_t *__config__ = kw_get_dict(publisher, subs, "__config__", 0, 0);
             json_t *__global__ = kw_get_dict(publisher, subs, "__global__", 0, 0);
             json_t *__local__ = kw_get_dict(publisher, subs, "__local__", 0, 0);
