@@ -165,8 +165,8 @@ PRIVATE volatile char __inside_log__ = 0;
 /***************************************************************
  *              Data
  ***************************************************************/
-PRIVATE char trace_with_short_name = FALSE; // TODO functions to set this variables
-PRIVATE char trace_with_full_name = TRUE;  // TODO functions to set this variables
+PRIVATE BOOL trace_with_short_name = FALSE;
+PRIVATE BOOL trace_with_full_name = TRUE;
 
 PRIVATE show_backtrace_fn_t show_backtrace_fn = 0;
 PRIVATE dl_list_t dl_log_handlers = {0};
@@ -722,6 +722,26 @@ PUBLIC int stdout_fwrite(void *v, int priority, const char *fmt, ...)
 PUBLIC void set_show_backtrace_fn(show_backtrace_fn_t show_backtrace_)
 {
     show_backtrace_fn = show_backtrace_;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL set_trace_with_short_name(BOOL trace_with_short_name_) // return previous value
+{
+    char old_value = trace_with_short_name;
+    trace_with_short_name = trace_with_short_name_;
+    return old_value;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC BOOL set_trace_with_full_name(BOOL trace_with_full_name_) // return previous value
+{
+    char old_value = trace_with_full_name;
+    trace_with_full_name = trace_with_full_name_;
+    return old_value;
 }
 
 /***************************************************************************

@@ -144,6 +144,9 @@ New API
     PUBLIC char *upper(char *s);
     PUBLIC char *lower(char *s);
     PUBLIC char *capitalize(char *s);
+    PUBLIC BOOL set_trace_with_short_name(BOOL trace_with_short_name);
+    PUBLIC BOOL set_trace_with_full_name(BOOL trace_with_full_name);
+
 
 Delete API
 
