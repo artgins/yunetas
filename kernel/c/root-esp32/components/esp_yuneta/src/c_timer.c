@@ -256,11 +256,7 @@ static void timer_callback(void* arg)
  ***************************************************************************/
 PRIVATE int ac_timeout(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), event, json_incref(kw), gobj);
-    } else {
-        gobj_publish_event(gobj, event, json_incref(kw));
-    }
+    gobj_publish_event(gobj, event, json_incref(kw));
 
     JSON_DECREF(kw)
     return 0;

@@ -760,14 +760,7 @@ PRIVATE int ac_on_close(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             "remote_yuno_service", gobj_read_str_attr(gobj, "remote_yuno_service")
         );
 
-        /*
-         *  SERVICE subscription model
-         */
-        if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw_on_close, gobj);
-        } else {
-            gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
-        }
+        gobj_publish_event(gobj, EV_ON_CLOSE, kw_on_close);
     }
 
     JSON_DECREF(kw)
@@ -822,14 +815,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
     if(result < 0) {
         gobj_send_event(gobj_bottom_gobj(gobj), EV_DROP, 0, gobj);
 
-        /*
-         *  SERVICE subscription model
-         */
-        if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), EV_ON_ID_NAK, json_incref(kw), gobj);
-        } else {
-            gobj_publish_event(gobj, EV_ON_ID_NAK, json_incref(kw));
-        }
+        gobj_publish_event(gobj, EV_ON_ID_NAK, json_incref(kw));
 
     } else {
         json_t *jn_data = kw_get_dict_value(gobj, kw, "data", 0, 0);
@@ -845,14 +831,7 @@ PRIVATE int ac_identity_card_ack(hgobj gobj, gobj_event_t event, json_t *kw, hgo
                 "data", jn_data?jn_data:json_null()
             );
 
-            /*
-             *  SERVICE subscription model
-             */
-            if(gobj_is_pure_child(gobj)) {
-                gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw_on_open, gobj);
-            } else {
-                gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
-            }
+            gobj_publish_event(gobj, EV_ON_OPEN, kw_on_open);
         }
 
         /*
@@ -1155,14 +1134,9 @@ PRIVATE int ac_on_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         }
     } else {
         /*
-         *  SERVICE subscription model
          *  TODO Shouldn't this event be rejected? It may make sense in routing task.
          */
-        if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
-        } else {
-            gobj_publish_event(gobj, iev_event, iev_kw);
-        }
+        gobj_publish_event(gobj, iev_event, iev_kw);
     }
 
     KW_DECREF(kw)

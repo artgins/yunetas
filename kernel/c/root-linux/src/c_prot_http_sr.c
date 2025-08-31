@@ -101,8 +101,9 @@ PRIVATE void mt_create(hgobj gobj)
      *  CHILD subscription model
      */
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
-    if(!subscriber)
+    if(!subscriber) {
         subscriber = gobj_parent(gobj);
+    }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
     /*
@@ -215,14 +216,7 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     ghttp_parser_reset(priv->parsing_request);
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        gobj_publish_event(gobj, EV_ON_OPEN, 0);
-    } else {
-        gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, 0, gobj);
-    }
+    gobj_publish_event(gobj, EV_ON_OPEN, 0);
 
     set_timeout(priv->timer, priv->timeout_inactivity*1000);
 
@@ -244,14 +238,7 @@ PRIVATE int ac_disconnected(hgobj gobj, const char *event, json_t *kw, hgobj src
     }
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        gobj_publish_event(gobj, EV_ON_CLOSE, 0);
-    } else {
-        gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, 0, gobj);
-    }
+    gobj_publish_event(gobj, EV_ON_CLOSE, 0);
 
     KW_DECREF(kw)
     return 0;

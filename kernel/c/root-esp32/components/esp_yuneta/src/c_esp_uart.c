@@ -247,11 +247,7 @@ PRIVATE int mt_start(hgobj gobj)
         NULL
     );
 
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, 0, gobj);
-    } else {
-        gobj_publish_event(gobj, EV_CONNECTED, 0);
-    }
+    gobj_publish_event(gobj, EV_CONNECTED, 0);
 
     return 0;
 }
@@ -290,11 +286,7 @@ PRIVATE int mt_stop(hgobj gobj)
     uart_driver_delete((int) gobj_read_integer_attr(gobj, "uart_number"));
 #endif
 
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
-    } else {
-        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
-    }
+    gobj_publish_event(gobj, EV_DISCONNECTED, 0);
 
     return 0;
 }
@@ -523,13 +515,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
             gobj_short_name(gobj)
         );
     }
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj); // use the same kw
-    } else {
-        gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
-    }
 
-    return 0;
+    return gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
 }
 
 /***************************************************************************

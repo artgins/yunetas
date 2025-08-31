@@ -297,14 +297,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     gobj_write_bool_attr(gobj, "opened", TRUE);
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, event, kw);  // reuse kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw);  // reuse kw
 }
 
 /***************************************************************************
@@ -324,14 +317,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
     gobj_change_state(gobj, ST_CLOSED);
     gobj_write_bool_attr(gobj, "opened", FALSE);
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, event, kw);  // reuse kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw);  // reuse kw
 }
 
 /***************************************************************************
@@ -350,14 +336,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     priv->rxMsgs++;
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, event, kw);  // reuse kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw);  // reuse kw
 }
 
 /***************************************************************************
@@ -376,14 +355,7 @@ PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj s
     }
     priv->rxMsgs++;
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, event, kw);  // reuse kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw);  // reuse kw
 }
 
 /***************************************************************************
@@ -402,14 +374,7 @@ PRIVATE int ac_on_id(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     priv->rxMsgs++;
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, event, kw);  // reuse kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw);  // reuse kw
 }
 
 /***************************************************************************
@@ -428,14 +393,7 @@ PRIVATE int ac_on_id_nak(hgobj gobj, const char *event, json_t *kw, hgobj src)
     }
     priv->rxMsgs++;
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, event, kw);  // reuse kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw);  // reuse kw
 }
 
 /***************************************************************************

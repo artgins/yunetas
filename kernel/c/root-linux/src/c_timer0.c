@@ -190,14 +190,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         event = EV_STOPPED;
     }
 
-    /*
-     *  SERVICE subscription model
-     */
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), event, 0, gobj);
-    } else {
-        gobj_publish_event(gobj, event, 0);
-    }
+    gobj_publish_event(gobj, event, 0);
 
     return gobj_is_running(gobj)?0:-1;
 }

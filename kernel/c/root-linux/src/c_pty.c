@@ -142,8 +142,9 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(max_tx_queue,  gobj_read_integer_attr)
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
-    if(!subscriber)
+    if(!subscriber) {
         subscriber = gobj_parent(gobj);
+    }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
 }

@@ -753,11 +753,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
             );
         }
 
-        if(gobj_is_pure_child(gobj)) {
-            gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
-        } else {
-            gobj_publish_event(gobj, EV_DISCONNECTED, 0);
-        }
+        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
     }
 
     JSON_DECREF(kw)
@@ -796,11 +792,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         "sockname",     gobj_read_str_attr(gobj, "sockname")
     );
 
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
-    } else {
-        gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
-    }
+    gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
 
     JSON_DECREF(kw)
     return 0;
@@ -825,11 +817,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 //    INCR_ATTR_INTEGER(rxMsgs)
 //    INCR_ATTR_INTEGER2(rxBytes, gbuffer_leftbytes(gbuf))
 
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj); // use the same kw
-    } else {
-        gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
-    }
+    gobj_publish_event(gobj, EV_RX_DATA, kw); // use the same kw
+
     return 0;
 }
 
@@ -932,11 +921,7 @@ PRIVATE int ac_timeout_periodic_stopped(hgobj gobj, gobj_event_t event, json_t *
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    if(gobj_is_pure_child(gobj)) {
-        gobj_send_event(gobj_parent(gobj), EV_STOPPED, 0, gobj);
-    } else {
-        gobj_publish_event(gobj, EV_STOPPED, 0);
-    }
+    gobj_publish_event(gobj, EV_STOPPED, 0);
 
     JSON_DECREF(kw)
     return 0;

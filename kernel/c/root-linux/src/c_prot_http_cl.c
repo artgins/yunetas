@@ -266,14 +266,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 
     ghttp_parser_reset(priv->parsing_response);
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
-    }
+    return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
 }
 
 /***************************************************************************
@@ -281,14 +274,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
-    }
+    return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
 }
 
 /***************************************************************************

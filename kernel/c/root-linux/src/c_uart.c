@@ -577,14 +577,8 @@ PRIVATE void set_connected(hgobj gobj, int fd)
     json_t *kw_conn = json_pack("{s:s}",
         "path",     gobj_read_str_attr(gobj, "path")
     );
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
-    } else {
-        gobj_send_event(gobj_parent(gobj), EV_CONNECTED, kw_conn, gobj);
-    }
+
+    gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
 }
 
 /***************************************************************************
@@ -654,14 +648,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
     if(priv->inform_disconnection) {
         priv->inform_disconnection = FALSE;
 
-        /*
-         *  CHILD subscription model
-         */
-        if(gobj_is_service(gobj)) {
-            gobj_publish_event(gobj, EV_DISCONNECTED, 0);
-        } else {
-            gobj_send_event(gobj_parent(gobj), EV_DISCONNECTED, 0, gobj);
-        }
+        gobj_publish_event(gobj, EV_DISCONNECTED, 0);
     }
 }
 
@@ -729,15 +716,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         "gbuffer", (json_int_t)(uintptr_t)yev_get_gbuf(yev_event)
                     );
 
-                    /*
-                     *  CHILD subscription model
-                     */
-                    int ret = 0;
-                    if(gobj_is_service(gobj)) {
-                        ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
-                    } else {
-                        ret = gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
-                    }
+                    int ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
 
                     /*
                      *  Clear buffer
@@ -777,14 +756,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
 
                 } else {
                     json_t *kw_tx_ready = json_object();
-                    /*
-                     *  CHILD subscription model
-                     */
-                    if(gobj_is_service(gobj)) {
-                        gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-                    } else {
-                        gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
-                    }
+                    gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
                 }
 
                 yev_destroy_event(yev_event);

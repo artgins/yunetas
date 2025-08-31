@@ -950,14 +950,7 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_integer((json_int_t)(uintptr_t)src)
     );
 
-    /*
-     *  SERVICE subscription model
-     */
-    if(gobj_is_pure_child(gobj)) {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    } else {
-        return gobj_publish_event(gobj, event, kw); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw); // reuse kw
 }
 
 /***************************************************************************
@@ -993,14 +986,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_integer((json_int_t)(uintptr_t)src)
     );
 
-    /*
-     *  SERVICE subscription model
-     */
-    if(gobj_is_pure_child(gobj)) {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    } else {
-        return gobj_publish_event(gobj, event, kw); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw); // reuse kw
 }
 
 /***************************************************************************
@@ -1051,14 +1037,7 @@ PRIVATE int ac_on_message(hgobj gobj, const char *event, json_t *kw, hgobj src)
         json_integer((json_int_t)(uintptr_t)src)
     );
 
-    /*
-     *  SERVICE subscription model
-     */
-    if(gobj_is_pure_child(gobj)) {
-        return gobj_send_event(gobj_parent(gobj), event, kw, gobj); // reuse kw
-    } else {
-        return gobj_publish_event(gobj, event, kw); // reuse kw
-    }
+    return gobj_publish_event(gobj, event, kw); // reuse kw
 }
 
 /***************************************************************************
@@ -1121,15 +1100,7 @@ PRIVATE int ac_on_iev_message(hgobj gobj, const char *event, json_t *kw, hgobj s
         json_integer((json_int_t)(uintptr_t)src)
     );
 
-    /*
-     *  SERVICE subscription model
-     */
-    int ret;
-    if(gobj_is_pure_child(gobj)) {
-        ret = gobj_send_event(gobj_parent(gobj), iev_event, iev_kw, gobj);
-    } else {
-        ret = gobj_publish_event(gobj, iev_event, iev_kw);
-    }
+    int ret = gobj_publish_event(gobj, iev_event, iev_kw);
 
     KW_DECREF(kw)
     return ret;

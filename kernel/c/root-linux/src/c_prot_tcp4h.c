@@ -212,14 +212,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
     gobj_write_bool_attr(gobj, "connected", TRUE);
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), EV_ON_OPEN, kw, gobj); // use the same kw
-    }
+    return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
 }
 
 /***************************************************************************
@@ -229,14 +222,7 @@ PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
 {
     gobj_write_bool_attr(gobj, "connected", FALSE);
 
-    /*
-     *  CHILD subscription model
-     */
-    if(gobj_is_service(gobj)) {
-        return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
-    } else {
-        return gobj_send_event(gobj_parent(gobj), EV_ON_CLOSE, kw, gobj); // use the same kw
-    }
+    return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
 }
 
 /***************************************************************************
@@ -279,14 +265,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 );
                 priv->last_pkt = 0;
 
-                /*
-                 *  CHILD subscription model
-                 */
-                if(gobj_is_service(gobj)) {
-                    gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
-                } else {
-                    gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
-                }
+                gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
 
             } else { /* len < pend_size */
                 /*-------------------------------------*
@@ -377,14 +356,7 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
                 json_t *kw_tx = json_pack("{s:I}",
                     "gbuffer", (json_int_t)(uintptr_t)new_pkt
                 );
-                /*
-                 *  CHILD subscription model
-                 */
-                if(gobj_is_service(gobj)) {
-                    gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
-                } else {
-                    gobj_send_event(gobj_parent(gobj), EV_ON_MESSAGE, kw_tx, gobj);
-                }
+                gobj_publish_event(gobj, EV_ON_MESSAGE, kw_tx);
 
             } else { /* len < header_erpl4.len */
                 /* PAQUETE INCOMPLETO */

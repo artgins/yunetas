@@ -123,8 +123,9 @@ PRIVATE void mt_create(hgobj gobj)
      */
 
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
-    if(!subscriber)
+    if(!subscriber) {
         subscriber = gobj_parent(gobj);
+    }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
 }
@@ -426,14 +427,7 @@ PRIVATE void try_more_writes(hgobj gobj)
          */
         if(!priv->no_tx_ready_event) {
             json_t *kw_tx_ready = json_object();
-            /*
-             *  CHILD subscription model
-             */
-            if(gobj_is_service(gobj)) {
-                gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
-            } else {
-                gobj_send_event(gobj_parent(gobj), EV_TX_READY, kw_tx_ready, gobj);
-            }
+            gobj_publish_event(gobj, EV_TX_READY, kw_tx_ready);
         }
     } else {
         priv->gbuf_txing = gbuf_txing;
@@ -744,14 +738,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         json_t *kw = json_pack("{s:I}",
                             "gbuffer", (json_int_t)(uintptr_t)yev_get_gbuf(yev_event)
                         );
-                        /*
-                         *  CHILD subscription model
-                         */
-                        if(gobj_is_service(gobj)) {
-                            ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
-                        } else {
-                            ret = gobj_send_event(gobj_parent(gobj), EV_RX_DATA, kw, gobj);
-                        }
+                        ret = gobj_publish_event(gobj, EV_RX_DATA, kw);
                     }
 
                     /*
