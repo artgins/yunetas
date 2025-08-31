@@ -226,9 +226,9 @@ PRIVATE void mt_create(hgobj gobj)
     gobj_subscribe_event(gobj_yuno(), EV_TIMEOUT_PERIODIC, NULL, gobj);
 
     /*
-     *  CHILD subscription model TODO check
+     *  CHILD subscription model
      */
-    hgobj subscriber = (hgobj)(size_t)gobj_read_integer_attr(gobj, "subscriber");
+    hgobj subscriber = (hgobj)gobj_read_integer_attr(gobj, "subscriber");
     if(!subscriber) {
         subscriber = gobj_parent(gobj);
     }

@@ -136,6 +136,9 @@ PRIVATE void mt_create(hgobj gobj)
 
     dl_init(&priv->dl_channel, gobj);
 
+    /*
+     *  CHILD subscription model
+     */
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber) {
         subscriber = gobj_parent(gobj);

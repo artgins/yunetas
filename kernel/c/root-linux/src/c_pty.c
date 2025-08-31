@@ -141,6 +141,9 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(cols,          gobj_read_integer_attr)
     SET_PRIV(max_tx_queue,  gobj_read_integer_attr)
 
+    /*
+     *  CHILD subscription model
+     */
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!subscriber) {
         subscriber = gobj_parent(gobj);
