@@ -339,7 +339,7 @@ PRIVATE const trace_level_t s_global_trace_level[16] = {
 };
 
 #define __trace_gobj_create_delete__(gobj)  (gobj_trace_level(gobj) & TRACE_CREATE_DELETE)
-#define __trace_gobj_create_delete2__(gobj) (gobj_trace_level(gobj) & (TRACE_CREATE_DELETE|TRACE_CREATE_DELETE2))
+#define __trace_gobj_create_delete2__(gobj) (gobj_trace_level(gobj) & (TRACE_CREATE_DELETE2))
 #define __trace_gobj_subscriptions__(gobj)  (gobj_trace_level(gobj) & TRACE_SUBSCRIPTIONS)
 #define __trace_gobj_start_stop__(gobj)     (gobj_trace_level(gobj) & TRACE_START_STOP)
 #define __trace_gobj_ev_kw__(gobj)          (gobj_trace_level(gobj) & TRACE_EV_KW)
@@ -8213,20 +8213,20 @@ PRIVATE int _delete_subscription(
     BOOL trace = __trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher);
     if(trace) {
         trace_machine(
-            "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
+            "💜💜👎 unsubscribing event '%s': publisher %s, subscriber %s",
             event?event:"",
-            gobj_short_name(subscriber),
-            gobj_short_name(publisher)
+            gobj_short_name(publisher),
+            gobj_short_name(subscriber)
         );
 
         if(__trace_gobj_ev_kw__(subscriber) || __trace_gobj_ev_kw__(publisher)) {
             gobj_trace_json(
                 gobj,
                 subs,
-                "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
+                "💜💜👎 unsubscribing event '%s': publisher %s, subscriber %s",
                 event?event:"",
-                gobj_short_name(subscriber),
-                gobj_short_name(publisher)
+                gobj_short_name(publisher),
+                gobj_short_name(subscriber)
             );
         }
     }
@@ -8474,10 +8474,10 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
     BOOL trace = __trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher);
     if(trace) {
         trace_machine(
-            "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
+            "💜💜👍 subscribing event '%s': publisher %s, subscriber %s",
             event?event:"",
-            gobj_short_name(subscriber),
-            gobj_short_name(publisher)
+            gobj_short_name(publisher),
+            gobj_short_name(subscriber)
         );
 
         if(kw && json_object_size(kw)) {
@@ -8485,10 +8485,10 @@ PUBLIC json_t *gobj_subscribe_event( // return not yours
                 gobj_trace_json(
                     publisher,
                     subs,
-                    "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
+                    "💜💜👍 subscribing event '%s': publisher %s, subscriber %s",
                     event?event:"",
-                    gobj_short_name(subscriber),
-                    gobj_short_name(publisher)
+                    gobj_short_name(publisher),
+                    gobj_short_name(subscriber)
                 );
             }
         }
@@ -9012,22 +9012,22 @@ PUBLIC int gobj_publish_event(
                 topublish = kw_match_simple(kw2publish , json_incref(__filter__));
                 if(tracea) {
                     trace_machine(
-                        "💜💜🔄%s publishing with filter, event '%s' (%s), subscriber'%s', publisher %s",
+                        "💜💜🔄%s publishing with filter, event '%s' (%s): publisher %s, subscriber %s",
                         topublish?"👍":"👎",
                         event?event:"",
                         event_name?event_name:"",
-                        gobj_short_name(subscriber),
-                        gobj_short_name(publisher)
+                        gobj_short_name(publisher),
+                        gobj_short_name(subscriber)
                     );
                     gobj_trace_json(
                         publisher,
                         __filter__,
-                        "💜💜🔄%s publishing with filter, event '%s' (%s), subscriber'%s', publisher %s",
+                        "💜💜🔄%s publishing with filter, event '%s' (%s): publisher %s, subscriber %s",
                         topublish?"👍":"👎",
                         event?event:"",
                         event_name?event_name:"",
-                        gobj_short_name(subscriber),
-                        gobj_short_name(publisher)
+                        gobj_short_name(publisher),
+                        gobj_short_name(subscriber)
                     );
                 }
             }

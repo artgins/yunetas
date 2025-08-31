@@ -230,9 +230,6 @@ PRIVATE void mt_create(hgobj gobj)
         !gobj_is_service(gobj) // TRUE use gobj_send_event(), FALSE: use gobj_publish_event()
     );
 
-    /*
-     *  CHILD subscription model
-     */
     priv->parsing_response = ghttp_parser_create(
         gobj,
         HTTP_RESPONSE,  // http_parser_type

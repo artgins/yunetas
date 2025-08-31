@@ -3667,10 +3667,10 @@ function _delete_subscription(
     if(tracea) {
     // if(__trace_gobj_subscriptions__(subscriber) || __trace_gobj_subscriptions__(publisher) ) {
         trace_machine(sprintf(
-            "💜💜👎 unsubscribing event '%s': subscriber'%s', publisher %s",
+            "💜💜👎 unsubscribing event '%s': publisher %s, subscriber'%s'",
             event?event:"",
-            gobj_short_name(subscriber),
-            gobj_short_name(publisher)
+            gobj_short_name(publisher),
+            gobj_short_name(subscriber)
         ));
         trace_json(subs);
     }
@@ -3820,10 +3820,10 @@ function gobj_subscribe_event(
     let tracea = __yuno__ && gobj_read_bool_attr(__yuno__, "trace_subscriptions");
     if(tracea) {
         trace_machine(sprintf(
-            "💜💜👍 subscribing event '%s', subscriber'%s', publisher %s",
+            "💜💜👍 subscribing event '%s', publisher '%s', subscriber %s",
             event?event:"",
-            gobj_short_name(subscriber),
-            gobj_short_name(publisher)
+            gobj_short_name(publisher),
+            gobj_short_name(subscriber)
         ));
         if(kw) {
             trace_json(kw);

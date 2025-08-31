@@ -13,24 +13,24 @@ Example of id_token
   "auth_time": 0,
   "jti": "868d1822-53ea-41bc-9530-4d39a4443494",
   "iss": "http://localhost:8281/auth/realms/yyyy",
-  "aud": "yunetacontrol",
+  "aud": "xxxxxx",
   "sub": "277f7140-5dde-4549-ae58-5284e5afb7db",
   "typ": "ID",
-  "azp": "yunetacontrol",
+  "azp": "xxxxxx",
   "session_state": "8d192831-cfe1-4a25-a42e-4ea71f6f555d",
   "at_hash": "vZbI642n7QbXGHK0MMqsDw",
   "acr": "1",
   "email_verified": TRUE,
-  "name": "Yuneta Admin",
-  "preferred_username": "yuneta_admin@yyyy.es",
+  "name": "User Name",
+  "preferred_username": "userrrrrr@yyyy.es",
   "locale": "es",
-  "given_name": "Yuneta Admin",
+  "given_name": "User Name",
   "family_name": "",
-  "email": "yuneta_admin@yyyy.es"
+  "email": "userrrrrr@yyyy.es"
 }
 
-Example of access_token
------------------------
+Example of access_token of keycloak
+-----------------------------------
 
 {
   "exp": 1973085502,
@@ -43,11 +43,11 @@ Example of access_token
   ],
   "sub": "277f7140-5dde-4549-ae58-5284e5afb7db",
   "typ": "Bearer",
-  "azp": "yunetacontrol",
+  "azp": "xxxxxx",
   "session_state": "8d192831-cfe1-4a25-a42e-4ea71f6f555d",
   "acr": "1",
   "allowed-origins": [
-    "https://yyyy.yunetacontrol.com"
+    "https://yyyy.xxxxxx.com"
   ],
   "realm_access": {
     "roles": [
@@ -90,12 +90,12 @@ Example of access_token
   },
   "scope": "openid profile offline_access email",
   "email_verified": TRUE,
-  "name": "Yuneta Admin",
-  "preferred_username": "yuneta_admin@yyyy.es",
+  "name": "User Name",
+  "preferred_username": "userrrrrr@yyyy.es",
   "locale": "es",
-  "given_name": "Yuneta Admin",
+  "given_name": "User Name",
   "family_name": "",
-  "email": "yuneta_admin@yyyy.es"
+  "email": "userrrrrr@yyyy.es"
 }
 
 Example of refresh_token
@@ -109,7 +109,7 @@ Example of refresh_token
   "aud": "http://localhost:8281/auth/realms/yyyy",
   "sub": "277f7140-5dde-4549-ae58-5284e5afb7db",
   "typ": "Offline",
-  "azp": "yunetacontrol",
+  "azp": "xxxxxx",
   "session_state": "8d192831-cfe1-4a25-a42e-4ea71f6f555d",
   "scope": "openid profile offline_access email"
 }
@@ -133,6 +133,8 @@ Example of refresh_token
 #include "c_prot_http_cl.h"
 #include "c_task.h"
 #include "c_task_authenticate.h"
+
+#include "c_tcp.h"
 
 /***************************************************************************
  *              Constants
@@ -173,7 +175,7 @@ SDATA_END()
 PRIVATE sdata_desc_t attrs_table[] = {
 /*-ATTR-type------------name----------------flag------------default---------description---------- */
 SDATA (DTP_BOOLEAN,     "offline_access",   SDF_RD,         0,              "Get offline token"),
-SDATA (DTP_JSON,        "crypto",           SDF_RD,         "{\"library\": \"openssl\"}", "Crypto config"),
+SDATA (DTP_JSON,        "crypto",           SDF_RD,         "{}",           "Crypto config"),
 SDATA (DTP_STRING,      "auth_system",      SDF_RD,         "keycloak",     "OpenID System(interactive jwt)"),
 SDATA (DTP_STRING,      "auth_url",         SDF_RD,         "",             "OpenID Endpoint (interactive jwt)"),
 SDATA (DTP_STRING,      "user_id",          SDF_RD,         "",             "OAuth2 User Id (interactive jwt)"),
@@ -298,20 +300,14 @@ PRIVATE int mt_start(hgobj gobj)
     if(strlen(priv->path) > 0 && priv->path[strlen(priv->path)-1]=='/') {
         priv->path[strlen(priv->path)-1] = 0;
     }
-    //BOOL secure = FALSE;
-    json_t *jn_crypto = json_null();
-    if(strcasecmp(priv->schema, "https")==0 || strcasecmp(priv->schema, "wss")==0) {
-        //secure = TRUE;
-        jn_crypto = gobj_read_json_attr(gobj, "crypto");
-    }
+    json_t *jn_crypto = gobj_read_json_attr(gobj, "crypto");
 
     priv->gobj_http = gobj_create(
         gobj_name(gobj),
         C_PROT_HTTP_CL,
-        json_pack("{s:I, s:s, s:O}",
+        json_pack("{s:I, s:s}",
             "subscriber", (json_int_t)0,
-            "url", auth_url,
-            "crypto", jn_crypto
+            "url", auth_url
         ),
         gobj
     );
@@ -320,19 +316,15 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_set_bottom_gobj(gobj, priv->gobj_http);
 
-// TODO    gobj_set_bottom_gobj(
-//        priv->gobj_http,
-//        gobj_create(
-//            gobj_name(gobj),
-//            secure?GCLASS_CONNEXS:GCLASS_CONNEX,
-//            secure?
-//                json_pack("{s:[s], s:O}", "urls", auth_url, "crypto", jn_crypto):
-//                json_pack("{s:[s]}", "urls", auth_url),
-//            priv->gobj_http
-//        )
-//    );
-
-    gobj_start_tree(priv->gobj_http);
+    gobj_set_bottom_gobj(
+       priv->gobj_http,
+       gobj_create_pure_child(
+           gobj_name(gobj),
+           C_TCP,
+           json_pack("{s:s, s:O}", "url", auth_url, "crypto", jn_crypto),
+           priv->gobj_http
+       )
+   );
 
     /*-----------------------------*
      *      Create the task
@@ -359,6 +351,7 @@ PRIVATE int mt_start(hgobj gobj)
     /*-----------------------*
      *      Start task
      *-----------------------*/
+    gobj_start_tree(priv->gobj_http);
     gobj_start(gobj_task);
 
     return 0;

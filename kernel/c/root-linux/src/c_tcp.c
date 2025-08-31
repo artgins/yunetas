@@ -90,7 +90,7 @@ SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url to conn
 SDATA (DTP_BOOLEAN, "manual",           SDF_RD,         "FALSE",    "Set TRUE if you want connect manually"),
 SDATA (DTP_BOOLEAN, "use_close_poll",   SDF_PERSIST,    "TRUE",     "Set TRUE if you want check early disconnections with POLLRDHUP | POLLHUP | POLLERR"),
 SDATA (DTP_BOOLEAN, "use_ssl",          SDF_RD,         "FALSE",    "True if schema is secure. Set internally if client, externally is clisrv"),
-SDATA (DTP_JSON,    "crypto",           SDF_RD,         0,          "Crypto config"),
+SDATA (DTP_JSON,    "crypto",           SDF_RD,         "{}",       "Crypto config"),
 SDATA (DTP_POINTER, "ytls",             0,              0,          "TLS handler"),
 SDATA (DTP_INTEGER, "fd_clisrv",        0,              0,          "socket fd of clisrv"),
 SDATA (DTP_INTEGER, "fd_listen",        0,              0,          "socket accept listen"),

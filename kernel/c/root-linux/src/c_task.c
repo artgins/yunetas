@@ -227,14 +227,14 @@ PRIVATE void mt_create(hgobj gobj)
     if(json_is_integer(jn_gobj_results)) {
         priv->gobj_results = (hgobj)(size_t)json_integer_value(jn_gobj_results);
         if(gobj_is_volatil(priv->gobj_results)) {
-            gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "WARNING don't use volatil gobjs",
-                "dst",          "%s", gobj_name(priv->gobj_results),
-                NULL
-            );
+            // gobj_log_error(gobj, 0,
+            //     "gobj",         "%s", gobj_full_name(gobj),
+            //     "function",     "%s", __FUNCTION__,
+            //     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            //     "msg",          "%s", "WARNING don't use volatil gobjs in gobj_results",
+            //     "dst",          "%s", gobj_name(priv->gobj_results),
+            //     NULL
+            // );
         }
 
     } else if(json_is_string(jn_gobj_results)) {
@@ -256,14 +256,14 @@ PRIVATE void mt_create(hgobj gobj)
     if(json_is_integer(jn_gobj_jobs)) {
         priv->gobj_jobs = (hgobj)(size_t)json_integer_value(jn_gobj_jobs);
         if(gobj_is_volatil(priv->gobj_jobs)) {
-            gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
-                "function",     "%s", __FUNCTION__,
-                "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "WARNING don't use volatil gobjs",
-                "dst",          "%s", gobj_name(priv->gobj_jobs),
-                NULL
-            );
+            // gobj_log_error(gobj, 0,
+            //     "gobj",         "%s", gobj_full_name(gobj),
+            //     "function",     "%s", __FUNCTION__,
+            //     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            //     "msg",          "%s", "WARNING don't use volatil gobjs in gobj_jobs",
+            //     "dst",          "%s", gobj_name(priv->gobj_jobs),
+            //     NULL
+            // );
         }
 
     } else if(json_is_string(jn_gobj_jobs)) {
