@@ -103,20 +103,20 @@ PRIVATE void mt_create(hgobj gobj)
     if(!raw_body_data) {
         priv->parsing_response = ghttp_parser_create(
             gobj,
-            HTTP_RESPONSE,          // http_parser_type
-            NULL,                   // on_header_event
-            NULL,                   // on_body_event
-            EV_ON_MESSAGE,          // on_message_event ==> publish the full message in a gbuffer
-            gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+            HTTP_RESPONSE,  // http_parser_type
+            NULL,           // on_header_event
+            NULL,           // on_body_event
+            EV_ON_MESSAGE,  // on_message_event ==> publish the full message in a gbuffer
+            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
         );
     } else {
         priv->parsing_response = ghttp_parser_create(
             gobj,
-            HTTP_RESPONSE,          // http_parser_type
-            EV_ON_HEADER,           // on_header_event
-            EV_ON_MESSAGE,          // on_body_event  ==> publish the partial message with original buffer pointer
-            NULL,                   // on_message_event
-            gobj_is_service(gobj)?FALSE:TRUE // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
+            HTTP_RESPONSE,  // http_parser_type
+            EV_ON_HEADER,   // on_header_event
+            EV_ON_MESSAGE,  // on_body_event  ==> publish the partial message with original buffer pointer
+            NULL,           // on_message_event
+            FALSE           // TRUE: use gobj_send_event, FALSE: use gobj_publish_event
         );
     }
 
@@ -635,6 +635,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,        EVF_OUTPUT_EVENT},
         {EV_ON_CLOSE,       EVF_OUTPUT_EVENT},
 
+        {EV_TIMEOUT,        0},
         {EV_CONNECTED,      0},
         {EV_DISCONNECTED,   0},
         {EV_STOPPED,        0},
