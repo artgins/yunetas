@@ -579,7 +579,7 @@ PRIVATE json_t *result_get_token(
     json_int_t not_before_policy = kw_get_int(gobj, jn_response_, "not-before-policy", 0, 0);
     if(not_before_policy) {} // to avoid compilation warning
 
-    const char *session_state = kw_get_str(gobj, jn_response_, "sid", "", KW_REQUIRED);
+    const char *session_state = kw_get_str(gobj, jn_response_, "session_state", "", KW_REQUIRED);
     if(session_state) {} // to avoid compilation warning
 
     const char *scope = kw_get_str(gobj, jn_response_, "scope", "", KW_REQUIRED);
