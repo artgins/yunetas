@@ -26,6 +26,7 @@
 #endif
 
 #include "ghttp_parser.h"
+#include "c_timer.h"
 #include "c_prot_http_cl.h"
 
 /***************************************************************
@@ -35,6 +36,7 @@
 /***************************************************************
  *              Prototypes
  ***************************************************************/
+PRIVATE int check_url(hgobj gobj);
 
 /***************************************************************
  *              Data
@@ -45,6 +47,7 @@
 PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url to connect"),
+SDATA (DTP_INTEGER, "timeout_inactivity",SDF_WR,        "60000",    "Timeout inactivity"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN, "raw_body_data",    SDF_RD,         "FALSE",    "Publish raw partial data of body or full body at the end"),
 SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
@@ -70,6 +73,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
     int timeout_inactivity;
+    hgobj timer;
     GHTTP_PARSER *parsing_response;
     const char *url;
     char schema[64];
@@ -116,6 +120,8 @@ PRIVATE void mt_create(hgobj gobj)
         );
     }
 
+    priv->timer = gobj_create(gobj_name(gobj), C_TIMER, 0, gobj);
+
     /*
      *  CHILD subscription model
      */
@@ -131,6 +137,96 @@ PRIVATE void mt_create(hgobj gobj)
      */
     SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(timeout_inactivity,    gobj_read_integer_attr)
+}
+
+/***************************************************************************
+ *      Framework Method writing
+ ***************************************************************************/
+PRIVATE void mt_writing(hgobj gobj, const char *path)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    IF_EQ_SET_PRIV(timeout_inactivity,          gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(url,                       gobj_read_str_attr)
+        check_url(gobj);
+    END_EQ_SET_PRIV()
+}
+
+/***************************************************************************
+ *      Framework Method
+ ***************************************************************************/
+PRIVATE int mt_start(hgobj gobj)
+{
+    check_url(gobj);
+
+    /*
+     *  The bottom must be a C_TCP (it has manual start/stop!).
+     *  If it's a client then start to begin the connection.
+     *  If it's a server, wait to give the connection done by C_TCP_S.
+     */
+    hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+    if(!bottom_gobj) {
+        /*
+         *  This gobj is always client!
+         */
+        json_t *kw = json_pack("{s:s, s:s}",
+            "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
+            "url", gobj_read_str_attr(gobj, "url")
+        );
+
+        #ifdef ESP_PLATFORM
+            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+        #endif
+        #ifdef __linux__
+            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
+        #endif
+        gobj_set_bottom_gobj(gobj, bottom_gobj);
+    }
+
+    gobj_start(bottom_gobj);
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method
+ ***************************************************************************/
+PRIVATE int mt_stop(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    ghttp_parser_reset(priv->parsing_response);
+    gobj_stop(gobj_bottom_gobj(gobj));
+    clear_timeout(priv->timer);
+
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    EXEC_AND_RESET(ghttp_parser_destroy, priv->parsing_response)
+}
+
+
+
+
+                    /***************************
+                     *      Local methods
+                     ***************************/
+
+
+
+
+/***************************************************************************
+ *  Check url
+ ***************************************************************************/
+PRIVATE int check_url(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(empty_string(priv->url)) {
         gobj_log_error(gobj, 0,
@@ -169,6 +265,7 @@ PRIVATE void mt_create(hgobj gobj)
             "msg",          "%s", "host EMPTY",
             NULL
         );
+        return -1;
     }
     if(!priv->port) {
         gobj_log_error(gobj, 0,
@@ -177,86 +274,11 @@ PRIVATE void mt_create(hgobj gobj)
             "msg",          "%s", "port EMPTY",
             NULL
         );
+        return -1;
     }
-}
-
-/***************************************************************************
- *      Framework Method writing
- ***************************************************************************/
-PRIVATE void mt_writing(hgobj gobj, const char *path)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    IF_EQ_SET_PRIV(timeout_inactivity,          gobj_read_integer_attr)
-    END_EQ_SET_PRIV()
-}
-
-/***************************************************************************
- *      Framework Method
- ***************************************************************************/
-PRIVATE int mt_start(hgobj gobj)
-{
-    /*
-     *  The bottom must be a C_TCP (it has manual start/stop!).
-     *  If it's a client then start to begin the connection.
-     *  If it's a server, wait to give the connection done by C_TCP_S.
-     */
-
-    hgobj bottom_gobj = gobj_bottom_gobj(gobj);
-    if(!bottom_gobj) {
-        /*
-         *  This gobj is always client!
-         */
-        json_t *kw = json_pack("{s:s, s:s}",
-            "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
-            "url", gobj_read_str_attr(gobj, "url")
-        );
-
-        #ifdef ESP_PLATFORM
-            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
-        #endif
-        #ifdef __linux__
-            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
-        #endif
-        gobj_set_bottom_gobj(gobj, bottom_gobj);
-    }
-
-    gobj_start(bottom_gobj);
 
     return 0;
 }
-
-/***************************************************************************
- *      Framework Method
- ***************************************************************************/
-PRIVATE int mt_stop(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    ghttp_parser_reset(priv->parsing_response);
-    gobj_stop(gobj_bottom_gobj(gobj));
-
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method destroy
- ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    EXEC_AND_RESET(ghttp_parser_destroy, priv->parsing_response)
-}
-
-
-
-
-                    /***************************
-                     *      Local methods
-                     ***************************/
-
-
-
 
 /***************************************************************************
  *  Parse a http message
@@ -312,6 +334,7 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     ghttp_parser_reset(priv->parsing_response);
+    set_timeout(priv->timer, priv->timeout_inactivity);
 
     return gobj_publish_event(gobj, EV_ON_OPEN, kw); // use the same kw
 }
@@ -321,6 +344,8 @@ PRIVATE int ac_connected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_disconnected(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    clear_timeout(priv->timer);
     return gobj_publish_event(gobj, EV_ON_CLOSE, kw); // use the same kw
 }
 
@@ -339,6 +364,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
              gobj_short_name(gobj_bottom_gobj(gobj))
         );
     }
+
+    set_timeout(priv->timer, priv->timeout_inactivity);
 
     int result = parse_message(gobj, gbuf, priv->parsing_response);
     if (result < 0) {
@@ -505,6 +532,16 @@ PRIVATE int ac_drop(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int ac_timeout_inactivity(hgobj gobj, const char *event, json_t *kw, hgobj src)
+{
+    gobj_send_event(gobj_bottom_gobj(gobj), "EV_DROP", 0, gobj);
+    KW_DECREF(kw);
+    return 0;
+}
+
+/***************************************************************************
  *  Child stopped
  ***************************************************************************/
 PRIVATE int ac_stopped(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
@@ -571,16 +608,17 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_disconnected[] = {
-        {EV_CONNECTED,          ac_connected,       ST_CONNECTED},
-        {EV_STOPPED,            ac_stopped,         0},
+        {EV_CONNECTED,          ac_connected,           ST_CONNECTED},
+        {EV_STOPPED,            ac_stopped,             0},
         {0,0,0}
     };
     ev_action_t st_connected[] = {
-        {EV_RX_DATA,            ac_rx_data,         0},
-        {EV_SEND_MESSAGE,       ac_send_message,    0},
-        {EV_TX_READY,           0,                  0},
-        {EV_DISCONNECTED,       ac_disconnected,    ST_DISCONNECTED},
-        {EV_DROP,               ac_drop,            0},
+        {EV_RX_DATA,            ac_rx_data,             0},
+        {EV_SEND_MESSAGE,       ac_send_message,        0},
+        {EV_TIMEOUT,            ac_timeout_inactivity,  0},
+        {EV_TX_READY,           0,                      0},
+        {EV_DISCONNECTED,       ac_disconnected,        ST_DISCONNECTED},
+        {EV_DROP,               ac_drop,                0},
         {0,0,0}
     };
 
