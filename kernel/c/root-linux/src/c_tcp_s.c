@@ -141,10 +141,6 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  subscription model: no send or publish events
      */
-    int x;
-    /*
-     *  CHILD subscription model
-     */
     priv->subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(!priv->subscriber) {
         priv->subscriber = gobj_parent(gobj);

@@ -798,9 +798,6 @@ PRIVATE void set_disconnected(hgobj gobj)
             /*
              *  The gobj is in stop
              */
-            /*
-             *  CHILD subscription model
-             */
             EXEC_AND_RESET(yev_destroy_event, priv->yev_connect)
 
             gobj_publish_event(gobj, EV_STOPPED, 0);

@@ -10,6 +10,7 @@
  ****************************************************************************/
 #include <string.h>
 #include <strings.h>
+#include <limits.h>
 
 #include <gobj.h>
 #include <g_ev_kernel.h>
@@ -68,9 +69,12 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
-    char p;
+    int timeout_inactivity;
     GHTTP_PARSER *parsing_response;
     const char *url;
+    char schema[64];
+    char host[NAME_MAX];
+    int port;
 } PRIVATE_DATA;
 
 
@@ -121,7 +125,59 @@ PRIVATE void mt_create(hgobj gobj)
     }
     gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 
-    SET_PRIV(url,        gobj_read_str_attr)
+    /*
+     *  Do copy of heavy-used parameters, for quick access.
+     *  HACK The writable attributes must be repeated in mt_writing method.
+     */
+    SET_PRIV(url,                   gobj_read_str_attr)
+    SET_PRIV(timeout_inactivity,    gobj_read_integer_attr)
+
+    if(empty_string(priv->url)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "url EMPTY",
+            NULL
+        );
+    } else {
+        char port[64];
+        if(parse_url(
+            gobj,
+            priv->url,
+            priv->schema, sizeof(priv->schema),
+            priv->host, sizeof(priv->host),
+            port, sizeof(port),
+            0, 0,
+            0, 0,
+            FALSE
+        )<0) {
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "parse_http_url() FAILED",
+                "url",          "%s", priv->url,
+                NULL
+            );
+        }
+        priv->port = atoi(port);
+    }
+
+    if(empty_string(priv->host)) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "host EMPTY",
+            NULL
+        );
+    }
+    if(!priv->port) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "port EMPTY",
+            NULL
+        );
+    }
 }
 
 /***************************************************************************
@@ -131,16 +187,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    IF_EQ_SET_PRIV(url,    gobj_read_str_attr)
-        if(!empty_string(priv->url)) {
-            if(gobj_bottom_gobj(gobj)) {
-                gobj_write_str_attr(
-                    gobj_bottom_gobj(gobj),
-                    "url",
-                    priv->url
-                );
-            }
-        }
+    IF_EQ_SET_PRIV(timeout_inactivity,          gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -307,6 +354,8 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     const char *method = kw_get_str(gobj, kw, "method", "GET", 0);
     char *resource = gbmem_strdup(kw_get_str(gobj, kw, "resource", "/", 0));
     const char *query = kw_get_str(gobj, kw, "query", "", 0);
@@ -328,13 +377,13 @@ PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj sr
     }
     json_object_set_new(jn_headers, "Connection", json_string("keep-alive"));
     json_object_set_new(jn_headers, "Accept", json_string("*/*"));
-    const char *host = gobj_read_str_attr(gobj_bottom_gobj(gobj), "host");
-    const char *port = gobj_read_str_attr(gobj_bottom_gobj(gobj), "port");
-    if(atoi(port) == 80 || atoi(port) == 443) {
-        json_object_set_new(jn_headers, "Host", json_string(host));
+
+    if(priv->port == 80 || priv->port == 443) {
+        json_object_set_new(jn_headers, "Host", json_string(priv->host));
     } else {
-        json_object_set_new(jn_headers, "Host", json_sprintf("%s:%d", host, atoi(port)));
+        json_object_set_new(jn_headers, "Host", json_sprintf("%s:%d", priv->host, priv->port));
     }
+
     if(jn_headers_) {
         json_object_update(jn_headers, jn_headers_);
     }

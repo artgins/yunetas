@@ -218,9 +218,6 @@ PRIVATE void mt_create(hgobj gobj)
 
     priv->timer = gobj_create_pure_child(gobj_name(gobj), C_TIMER, 0, gobj);
 
-    /*
-     *  CHILD subscription model
-     */
     priv->parsing_request = ghttp_parser_create(
         gobj,
         HTTP_REQUEST,   // http_parser_type
