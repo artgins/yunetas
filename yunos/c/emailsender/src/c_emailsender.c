@@ -173,11 +173,14 @@ PRIVATE void mt_create(hgobj gobj)
     priv->curl = gobj_create_pure_child(gobj_name(gobj), C_CURL, 0, gobj);
     //priv->persist = gobj_find_service("persist", FALSE);
 
+    /*
+     *  SERVICE subscription model
+     */
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
-        /*
-         *  SERVICE subscription model
-         */
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    } else if(gobj_is_pure_child(gobj)) {
+        subscriber = gobj_parent(gobj);
         gobj_subscribe_event(gobj, NULL, NULL, subscriber);
     }
 

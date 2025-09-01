@@ -75,6 +75,9 @@ PRIVATE void mt_create(hgobj gobj)
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
         gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    } else if(gobj_is_pure_child(gobj)) {
+        subscriber = gobj_parent(gobj);
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
     }
 
     SET_PRIV(periodic,          gobj_read_bool_attr)

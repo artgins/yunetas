@@ -82,6 +82,9 @@ PRIVATE void mt_create(hgobj gobj)
     hgobj subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
     if(subscriber) {
         gobj_subscribe_event(gobj, NULL, NULL, subscriber);
+    } else if(gobj_is_pure_child(gobj)) {
+        subscriber = gobj_parent(gobj);
+        gobj_subscribe_event(gobj, NULL, NULL, subscriber);
     }
 
     SET_PRIV(periodic,          gobj_read_bool_attr)
@@ -190,7 +193,11 @@ PRIVATE int yev_callback(yev_event_h yev_event)
         event = EV_STOPPED;
     }
 
-    gobj_publish_event(gobj, event, 0);
+    if(gobj_is_pure_child(gobj)) {
+        gobj_send_event(gobj_parent(gobj), event, 0, gobj);
+    } else {
+        gobj_publish_event(gobj, event, 0);
+    }
 
     return gobj_is_running(gobj)?0:-1;
 }
