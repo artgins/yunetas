@@ -139,12 +139,13 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(clisrv_kw,         gobj_read_json_attr)
 
     /*
-     *  subscription model: no send or publish events
+     *  CHILD subscription model
      */
-    priv->subscriber = (hgobj)gobj_read_pointer_attr(gobj, "subscriber");
-    if(!priv->subscriber) {
-        priv->subscriber = gobj_parent(gobj);
+    hgobj subscriber = (hgobj)gobj_read_integer_attr(gobj, "subscriber");
+    if(!subscriber) {
+        subscriber = gobj_parent(gobj);
     }
+    gobj_subscribe_event(gobj, NULL, NULL, subscriber);
 }
 
 /***************************************************************************
