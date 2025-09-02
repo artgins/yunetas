@@ -38,7 +38,7 @@
  *              Prototypes
  ***************************************************************************/
 PRIVATE void catcher(int signum);
-PRIVATE int fd_duplicate(int fd, int *duplicated);
+PRIVATE int fd_duplicate(int fd);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
@@ -59,7 +59,7 @@ SDATA (DTP_BOOLEAN,     "no_output",            0,          0,      "Mirror, onl
 SDATA (DTP_INTEGER,     "rows",                 SDF_RD,     "24",   "Rows"),
 SDATA (DTP_INTEGER,     "cols",                 SDF_RD,     "80",   "Columns"),
 SDATA (DTP_STRING,      "cwd",                  SDF_RD,     "",     "Current work directory"),
-SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_WR,     "0",    "Maximum messages in tx queue. Default is 0: no limit."),
+SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_WR,     "32",   "Maximum messages in tx queue. Default is 0: no limit."),
 SDATA (DTP_POINTER,     "user_data",            0,          0,      "user data"),
 SDATA (DTP_POINTER,     "user_data2",           0,          0,      "more user data"),
 SDATA (DTP_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
@@ -293,7 +293,8 @@ PRIVATE int mt_start(hgobj gobj)
     set_cloexec(master);
 
     if(1) {
-       if(!fd_duplicate(master, &priv->uv_in)) {
+        priv->uv_in = fd_duplicate(master);
+        if(priv->uv_in < 0) {
            gobj_log_error(gobj, 0,
                "function",     "%s", __FUNCTION__,
                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -310,7 +311,8 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     if(!no_output) {
-       if(!fd_duplicate(master, &priv->uv_out)) {
+        priv->uv_out = fd_duplicate(master);
+        if(priv->uv_out < 0) {
            gobj_log_error(gobj, 0,
                "function",     "%s", __FUNCTION__,
                "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -540,10 +542,8 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             break;
                         }
 
-                        if(gobj_in_this_state(gobj, ST_CONNECTED)) { // Avoid while doing handshaking
-                            try_more_writes(gobj);
-                        }
                         yev_destroy_event(yev_event);
+                        try_more_writes(gobj);
                     } else {
                         yev_destroy_event(yev_event);
                         try_to_stop_yevents(gobj);
@@ -666,16 +666,16 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE BOOL fd_duplicate(int fd, int *pipe)
+PRIVATE int fd_duplicate(int fd)
 {
     int fd_dup = dup(fd);
     if (fd_dup < 0) {
-        return FALSE;
+        return -1;
     }
 
     set_cloexec(fd_dup);
 
-    return TRUE;
+    return fd_dup;
 }
 
 /***************************************************************************
@@ -773,27 +773,27 @@ PRIVATE int write_data_to_pty(hgobj gobj)
 
     gbuffer_t *gbuf = priv->gbuf_txing;
 
-    size_t ln = gbuffer_chunk(gbuf); // TODO y si ln es 0??????????
-
-    char *bf = gbuffer_get(gbuf, ln);
-    const char *bracket_paste_mode = "\e[200~";
-    size_t xl = strlen(bracket_paste_mode);
-    if(ln >= xl) {
-        if(memcmp(bf, bracket_paste_mode, xl)==0) {
-            bf += xl;
-            ln -= xl;
-        }
-    }
-
-    uint32_t trace_level = gobj_trace_level(gobj);
-    if((trace_level & TRACE_TRAFFIC)) {
-        gobj_trace_dump(gobj,
-            bf,
-            ln,
-            "WRITE to PTY %s",
-            gobj_short_name(gobj)
-        );
-    }
+    // size_t ln = gbuffer_chunk(gbuf); // TODO y si ln es 0??????????
+    //
+    // char *bf = gbuffer_get(gbuf, ln);
+    // const char *bracket_paste_mode = "\e[200~";
+    // size_t xl = strlen(bracket_paste_mode);
+    // if(ln >= xl) {
+    //     if(memcmp(bf, bracket_paste_mode, xl)==0) {
+    //         bf += xl;
+    //         ln -= xl;
+    //     }
+    // }
+    //
+    // uint32_t trace_level = gobj_trace_level(gobj);
+    // if((trace_level & TRACE_TRAFFIC)) {
+    //     gobj_trace_dump(gobj,
+    //         bf,
+    //         ln,
+    //         "WRITE to PTY %s",
+    //         gobj_short_name(gobj)
+    //     );
+    // }
 
     priv->txMsgs++;
 
@@ -831,6 +831,7 @@ PRIVATE void try_more_writes(hgobj gobj)
      */
     gbuffer_t *gbuf_txing = dl_first(&priv->dl_tx);
     if(!gbuf_txing) {
+        //
     } else {
         priv->gbuf_txing = gbuf_txing;
         dl_delete(&priv->dl_tx, gbuf_txing, 0);

@@ -1270,10 +1270,10 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             break;
                         }
 
+                        yev_destroy_event(yev_event);
                         if(gobj_in_this_state(gobj, ST_CONNECTED)) { // Avoid while doing handshaking
                             try_more_writes(gobj);
                         }
-                        yev_destroy_event(yev_event);
                     } else {
                         yev_destroy_event(yev_event);
                         try_to_stop_yevents(gobj);
