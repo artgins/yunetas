@@ -130,7 +130,7 @@ PRIVATE void mt_create(hgobj gobj)
     priv->argv[0] = (char *)gbmem_strdup(process);
     priv->argv[1] = 0;
 
-    dl_init(gobj, &priv->dl_tx);
+    dl_init(&priv->dl_tx, gobj);
     priv->pty = -1;
 
     /*

@@ -6528,7 +6528,7 @@ PUBLIC int print_open_fds(const char *fmt, ...)
             continue;
         }
 
-        char path[256];
+        char path[300];
         snprintf(path, sizeof(path), "/proc/self/fd/%s", entry->d_name);
 
         char link[256];

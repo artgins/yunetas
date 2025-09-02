@@ -17,7 +17,12 @@
 PUBLIC int dl_init(dl_list_t *dl, hgobj gobj)
 {
     if(dl->head || dl->tail || dl->__itemsInContainer__) {
-        gobj_trace_msg(0, "dl_init(): Wrong dl_list_t, MUST be empty");
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "dl_init(): Wrong dl_list_t, MUST be empty",
+            NULL
+        );
         abort();
     }
     dl->head = 0;
