@@ -2606,7 +2606,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj_log_info(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_AUTH,
-                "msg",          "%s", "LOGOUT",
+                "msg",          "%s", "Logout",
                 "user",         "%s", username,
                 NULL
             );

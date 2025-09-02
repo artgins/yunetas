@@ -4350,6 +4350,7 @@ PUBLIC int gobj_stop(hgobj gobj_)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "GObj stopping without previous pause",
+            "gobj_",        "%s", gobj_full_name(gobj),
             NULL
         );
         gobj_pause(gobj);

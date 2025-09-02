@@ -432,12 +432,16 @@ PRIVATE int mt_pause(hgobj gobj)
      *      Stop services
      *---------------------------------------*/
     if(priv->gobj_top_side) {
-        gobj_unsubscribe_event(priv->gobj_top_side, 0, 0, gobj);
-        EXEC_AND_RESET(gobj_stop_tree, priv->gobj_top_side);
+        if(gobj_is_playing(priv->gobj_top_side)) {
+            gobj_pause(priv->gobj_top_side);
+        }
+        gobj_stop_tree(priv->gobj_top_side);
     }
     if(priv->gobj_input_side) {
-        gobj_unsubscribe_event(priv->gobj_input_side, 0, 0, gobj);
-        EXEC_AND_RESET(gobj_stop_tree, priv->gobj_input_side);
+        if(gobj_is_playing(priv->gobj_input_side)) {
+            gobj_pause(priv->gobj_input_side);
+        }
+        gobj_stop_tree(priv->gobj_input_side);
     }
 
     /*---------------------------------------*
@@ -1060,6 +1064,8 @@ PRIVATE int ac_on_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     hgobj channel_gobj = (hgobj)(size_t)kw_get_int(gobj, kw, "__temp__`channel_gobj", 0, KW_REQUIRED);
     const char *dst_service = json_string_value(
         gobj_read_user_data(channel_gobj, "tty_mirror_dst_service")
@@ -1067,7 +1073,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(!empty_string(dst_service)) {
         hgobj gobj_requester = gobj_child_by_name(
-            gobj_find_service("__top_side__", TRUE),
+            priv->gobj_top_side,
             dst_service
         );
 
@@ -1090,11 +1096,13 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
-        gobj_find_service("__top_side__", TRUE),
+        priv->gobj_top_side,
         dst_service
     );
     JSON_DECREF(jn_ievent_id);
@@ -1124,10 +1132,16 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
     KW_INCREF(kw);
     json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
 
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
+
     return gobj_send_event(
         gobj_requester,
-        event,
-        kw_redirect,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
 }
@@ -1137,11 +1151,13 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
  ***************************************************************************/
 PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
-        gobj_find_service("__top_side__", TRUE),
+        priv->gobj_top_side,
         dst_service
     );
     JSON_DECREF(jn_ievent_id);
@@ -1169,12 +1185,18 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
+
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
 
     return gobj_send_event(
         gobj_requester,
-        event,
-        kw_redirect,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
 }
@@ -1184,11 +1206,13 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
-        gobj_find_service("__top_side__", TRUE),
+        priv->gobj_top_side,
         dst_service
     );
     JSON_DECREF(jn_ievent_id);
@@ -1220,12 +1244,18 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
+
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
 
     return gobj_send_event(
         gobj_requester,
-        event,
-        kw_redirect,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
 }
@@ -1235,11 +1265,13 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
-        gobj_find_service("__top_side__", TRUE),
+        priv->gobj_top_side,
         dst_service
     );
     JSON_DECREF(jn_ievent_id);
@@ -1271,12 +1303,18 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
+
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
 
     return gobj_send_event(
         gobj_requester,
-        event,
-        kw_redirect,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
 }
@@ -1286,11 +1324,13 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     json_t *jn_ievent_id = msg_iev_pop_stack(gobj, kw, IEVENT_STACK_ID);
     const char *dst_service = kw_get_str(gobj, jn_ievent_id, "dst_service", "", 0);
 
     hgobj gobj_requester = gobj_child_by_name(
-        gobj_find_service("__top_side__", TRUE),
+        priv->gobj_top_side,
         dst_service
     );
     JSON_DECREF(jn_ievent_id);
@@ -1318,18 +1358,24 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
     JSON_DECREF(jn_ievent_id);
 
     KW_INCREF(kw);
-    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE); // "__answer__"
+    json_t *kw_redirect = msg_iev_set_back_metadata(gobj, kw, kw, TRUE);
+
+    json_t *iev = iev_create(
+        gobj,
+        event,
+        kw_redirect    // owned
+    );
 
     return gobj_send_event(
         gobj_requester,
-        event,
-        kw_redirect,
+        EV_SEND_IEV,
+        iev,
         gobj
     );
 }
 
 /***************************************************************************
- *  HACK intermediate node, pero al reves(???)
+ *  HACK intermediate node, pero al revés(???)
  ***************************************************************************/
 PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
