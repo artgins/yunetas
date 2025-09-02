@@ -563,7 +563,7 @@ PRIVATE int mt_stop(hgobj gobj)
             "email": "xxx@gmail.com",
             "email_verified": TRUE,
             "exp": 1666341427,
-            "given_name": "Gins",
+            "given_name": "ZZZ",
             "iat": 1666337827,
             "iss": "https://accounts.google.com",
             "jti": "b2a",
@@ -931,9 +931,18 @@ PRIVATE json_t *mt_authenticate(hgobj gobj, json_t *kw, hgobj src)
         gobj,
         jwt_payload,
         "sid",
-        "",
-        KW_REQUIRED
+        kw_get_str(gobj, jwt_payload, "session_state", "", 0),
+        0
     );
+    if(empty_string(session_id)) {
+        gobj_log_error(gobj, 0,
+            "function",         "%s", __FUNCTION__,
+            "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+            "msg",              "%s", "sid or session_state not found",
+            "msg",              "%s", "jwt_str_alg() FAILED",
+            NULL
+        );
+    }
     session = json_pack("{s:s, s:I}",
         "id", session_id,
         "channel_gobj", (json_int_t)(uintptr_t)src
@@ -2532,7 +2541,22 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
      *  Add logout user
      *--------------------------------------------*/
     if(priv->tranger) { // Si han pasado a pause es 0
-        const char *session_id = kw_get_str(gobj, jwt_payload, "sid", "", KW_REQUIRED);
+        const char *session_id = kw_get_str(
+            gobj,
+            jwt_payload,
+            "sid",
+            kw_get_str(gobj, jwt_payload, "session_state", "", 0),
+            0
+        );
+        if(empty_string(session_id)) {
+            gobj_log_error(gobj, 0,
+                "function",         "%s", __FUNCTION__,
+                "msgset",           "%s", MSGSET_PARAMETER_ERROR,
+                "msg",              "%s", "sid or session_state not found",
+                "msg",              "%s", "jwt_str_alg() FAILED",
+                NULL
+            );
+        }
         const char *username = kw_get_str(gobj, jwt_payload, "preferred_username", 0, KW_REQUIRED);
 
         json_t *user = gobj_get_node(

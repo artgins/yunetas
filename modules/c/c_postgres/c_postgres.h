@@ -50,7 +50,7 @@ Add new column::
 
 Cortar las conexiones::
 
-    SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND datname ='mulesol_local';
+    SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE pid <> pg_backend_pid() AND datname ='mussss_local';
 
  *
  *          Copyright (c) 2021 Niyamaka.

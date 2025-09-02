@@ -2,7 +2,7 @@
  *          C_CONTROLCENTER.C
  *          Controlcenter GClass.
  *
- *          Control Center of Yuneta Systems
+ *          Control Center of cccc Systems
  *
  *          Copyright (c) 2020 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
@@ -331,7 +331,7 @@ PRIVATE int mt_stop(hgobj gobj)
 
 /***************************************************************************
  *      Framework Method play
- *  Yuneta rule:
+ *  cccc rule:
  *  If service has mt_play then start only the service gobj.
  *      (Let mt_play be responsible to start their tree)
  *  If service has not mt_play then start the tree with gobj_start_tree().
@@ -1544,10 +1544,10 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
 /***************************************************************************
  *
  {
-    "username": "yuneta_agent@mulesol.es",
+    "username": "xxxxx@xxxxx.es",
     "dst_service": "controlcenter",
     "user": {
-        "id": "yuneta_agent@mulesol.es",
+        "id": "xxxxx@xxxxx.es",
         "roles": [
             {
                 "id": "controlcenter",
@@ -1595,7 +1595,7 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
         "iat": 1631440064,
         "auth_time": 0,
         "jti": "efe5db43-2b30-43a6-9411-328303783d15",
-        "iss": "http://localhost:8281/auth/realms/mulesol",
+        "iss": "http://localhost:8281/auth/realms/xxxxx",
         "aud": "yunetacontrol",
         "sub": "f24512d4-2618-4e1f-9b64-10ae7d46e07d",
         "typ": "ID",
@@ -1604,18 +1604,18 @@ PRIVATE int ac_treedb_node_deleted(hgobj gobj, const char *event, json_t *kw, hg
         "at_hash": "VoqtYD61IdSxvuDegzBJoA",
         "acr": "1",
         "email_verified": true,
-        "name": "Yuneta Agent",
-        "preferred_username": "yuneta_agent@mulesol.es",
-        "given_name": "Yuneta Agent",
-        "email": "yuneta_agent@mulesol.es"
+        "name": "cccc Agent",
+        "preferred_username": "xxxxx@xxxxx.es",
+        "given_name": "cccc Agent",
+        "email": "xxxxx@xxxxx.es"
     }
 }
 
 DEBUG: {
-    "username": "ginsmar@mulesol.es",
+    "username": "xxxx@xxxxx.es",
     "dst_service": "controlcenter",
     "user": {
-        "id": "ginsmar@mulesol.es",
+        "id": "xxxx@xxxxx.es",
         "roles": [
             {
                 "id": "root",
@@ -1668,7 +1668,7 @@ DEBUG: {
         "exp": 1667026950,
         "iat": 1666970907,
         "jti": "73860e4c-d79d-483e-830b-64c9b65c5e1b",
-        "iss": "https://localhost:8641/auth/realms/mulesol",
+        "iss": "https://localhost:8641/auth/realms/xxxxx",
         "aud": [
             "realm-management",
             "account"
@@ -1709,12 +1709,12 @@ DEBUG: {
         "scope": "profile email",
         "sid": "38e11e29-823c-40c3-adb3-a45719364c9c",
         "email_verified": true,
-        "name": "Ginés Martínez",
-        "preferred_username": "ginsmar@mulesol.es",
+        "name": "XX Xxx",
+        "preferred_username": "xxx@xxx.es",
         "locale": "en",
-        "given_name": "Ginés",
-        "family_name": "Martínez",
-        "email": "ginsmar@mulesol.es"
+        "given_name": "Xxx",
+        "family_name": "Xxx",
+        "email": "Xxx@Xxx.es"
     }
 }
 

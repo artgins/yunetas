@@ -1,5 +1,5 @@
 {
-    "command": "command-yuno id=1911 service=treedb_authzs command=create-node topic_name=users record='{\"id\":\"carlos4@mulesol.es\"}'",
+    "command": "command-yuno id=1911 service=treedb_authzs command=create-node topic_name=users record='{\"id\":\"carlos4@mussss.es\"}'",
     "_kw": {},
     "ignore_fail": true,
     "filter": ["result", "comment", "data"],
@@ -10,7 +10,7 @@
             "result": 0,
             "comment": "Node created!",
             "data": {
-                "id": "carlos4@mulesol.es",
+                "id": "carlos4@mussss.es",
                 "roles": [],
                 "disabled": false,
                 "properties": {},
@@ -21,7 +21,7 @@
 
 
 {
-    "command": "command-yuno id=1911 service=treedb_authzs command=delete-node topic_name=users record='{\"id\":\"carlos4@mulesol.es\"}'",
+    "command": "command-yuno id=1911 service=treedb_authzs command=delete-node topic_name=users record='{\"id\":\"carlos4@mussss.es\"}'",
     "_kw": {},
     "ignore_fail": true,
     "filter": ["result", "comment", "data"],
@@ -32,7 +32,7 @@
             "result": 0,
             "comment": "Node deleted",
             "data": {
-                "id": "carlos4@mulesol.es",
+                "id": "carlos4@mussss.es",
                 "roles": [],
                 "disabled": false,
                 "properties": {},
@@ -40,4 +40,3 @@
             }
         }
 }
-
