@@ -103,7 +103,10 @@ SDATA (DTP_STRING,  "jwt",              SDF_RD,         "",         "TODO. Acces
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_BOOLEAN, "skip_cert_cn",     SDF_RD,         "TRUE",     "Skip verification of cert common name"),
 
-SDATA (DTP_BOOLEAN,  "no_tx_ready_event",SDF_RD,        0,          "Set TRUE if you don't want EV_TX_READY event"),
+SDATA (DTP_BOOLEAN, "no_tx_ready_event",SDF_RD,         0,          "Set TRUE if you don't want EV_TX_READY event"),
+
+SDATA (DTP_INTEGER, "max_tx_queue",     SDF_WR,         0,          "Maximum messages in tx queue. Default is 0: no limit."),
+SDATA (DTP_INTEGER, "cur_tx_queue",     SDF_RD,         0,          "Current messages in tx queue"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
@@ -167,6 +170,7 @@ typedef struct _PRIVATE_DATA {
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
+    json_int_t max_tx_queue;
 
     BOOL no_tx_ready_event;
     int tx_in_progress;
@@ -215,6 +219,7 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(use_close_poll,        gobj_read_bool_attr)
     SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
+    SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
 }
 
 /***************************************************************************
@@ -233,6 +238,7 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     ELIF_EQ_SET_PRIV(url,                   gobj_read_str_attr)
     ELIF_EQ_SET_PRIV(use_close_poll,        gobj_read_bool_attr)
     ELIF_EQ_SET_PRIV(no_tx_ready_event,     gobj_read_bool_attr)
+    ELIF_EQ_SET_PRIV(max_tx_queue,          gobj_read_integer_attr)
     END_EQ_SET_PRIV()
 }
 
@@ -903,25 +909,23 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    //static int counter = 0;
-    //size_t size = dl_size(&priv->dl_tx);
-    // if(priv->max_tx_queue && size >= priv->max_tx_queue) {
-    //     if((counter % priv->max_tx_queue)==0) {
-    //         log_error(0,
-    //             "function",     "%s", __FUNCTION__,
-    //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-    //             "msg",          "%s", "Tiro mensaje tx",
-    //             "counter",      "%d", (int)counter,
-    //             NULL
-    //         );
-    //     }
-    //     counter++;
-    //     GBUFFER *gbuf_first = dl_first(&priv->dl_tx);
-    //     gobj_incr_qs(QS_DROP_BY_OVERFLOW, 1);
-    //     dl_delete(&priv->dl_tx, gbuf_first, 0);
-    //     gobj_decr_qs(QS_OUPUT_QUEUE, 1);
-    //     gbuf_decref(gbuf_first);
-    // }
+    static int counter = 0;
+    size_t size = dl_size(&priv->dl_tx);
+     if(priv->max_tx_queue > 0 && size >= priv->max_tx_queue) {
+         if((counter % priv->max_tx_queue)==0) {
+             gobj_log_error(gobj, 0,
+                 "function",     "%s", __FUNCTION__,
+                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+                 "msg",          "%s", "Tiro mensaje tx",
+                 "counter",      "%d", (int)counter,
+                 NULL
+             );
+         }
+         counter++;
+         gbuffer_t *gbuf_first = dl_first(&priv->dl_tx);
+         dl_delete(&priv->dl_tx, gbuf_first, 0);
+         gbuffer_decref(gbuf_first);
+     }
 
     dl_add(&priv->dl_tx, gbuf);
 
