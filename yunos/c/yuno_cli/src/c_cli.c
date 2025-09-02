@@ -1668,8 +1668,7 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
     //     nread -= used;
     // }
 
-    uint8_t b[8];
-    memset(b, 0, sizeof(b));
+    uint8_t b[8] = {0};
     memmove(b, base, MIN(8, nread));
 
     do {
@@ -1678,7 +1677,9 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
 
             gbuffer_t *gbuf2 = gbuffer_create(nread, nread);
             gbuffer_append(gbuf2, base, nread);
-            gbuffer_t *gbuf_content64 = gbuffer_encode_base64(gbuf2);
+            gbuffer_t *gbuf_content64 = gbuffer_encode_base64(
+                gbuf2 // owned
+            );
             char *content64 = gbuffer_cur_rd_pointer(gbuf_content64);
 
             json_t *kw_command = json_pack("{s:s, s:s, s:s}",
@@ -1690,7 +1691,6 @@ PRIVATE int process_read(hgobj gobj, char *base, size_t nread)
             json_decref(gobj_command(gobj_cmd, "write-tty", kw_command, gobj));
 
             GBUFFER_DECREF(gbuf_content64)
-            GBUFFER_DECREF(gbuf2)
             break;
         }
 

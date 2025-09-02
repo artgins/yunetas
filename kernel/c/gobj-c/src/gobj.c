@@ -5074,18 +5074,19 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
         }
         return NULL;
     }
+
+    if(strcasecmp(service, "__default_service__")==0) {
+        return __default_service__;
+    }
+    if(strcasecmp(service, "__yuno__")==0 || strcasecmp(service, "__root__")==0) {
+        return gobj_yuno();
+    }
+
     char service_name[GOBJ_NAME_MAX+1];
     snprintf(service_name, sizeof(service_name), "%s", service);
     strntolower(service_name, sizeof(service_name));
 
-    if(strcasecmp(service_name, "__default_service__")==0) {
-        return __default_service__;
-    }
-    if(strcasecmp(service_name, "__yuno__")==0 || strcasecmp(service_name, "__root__")==0) {
-        return gobj_yuno();
-    }
-
-    json_t *o = json_object_get(__jn_services__, service);
+    json_t *o = json_object_get(__jn_services__, service_name);
     if(!o) {
         if(verbose) {
             gobj_log_error(0, LOG_OPT_TRACE_STACK,
@@ -5095,6 +5096,8 @@ PUBLIC hgobj gobj_find_service(const char *service, BOOL verbose)
                 "service",      "%s", service,
                 NULL
             );
+            gobj_trace_json(0, __jn_services__, "service NOT FOUND");
+
             json_t *jn_services = gobj_service_register();
             gobj_trace_json(0, jn_services, "service NOT FOUND");
             json_decref(jn_services);
