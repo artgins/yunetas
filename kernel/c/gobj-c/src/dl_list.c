@@ -23,7 +23,7 @@ PUBLIC int dl_init(dl_list_t *dl, hgobj gobj)
             "msg",          "%s", "dl_init(): Wrong dl_list_t, MUST be empty",
             NULL
         );
-        abort();
+        print_error(PEF_ABORT, "dl_init(): Wrong dl_list_t, MUST be empty");
     }
     dl->head = 0;
     dl->tail = 0;
