@@ -1891,7 +1891,6 @@ PRIVATE int frame_completed(hgobj gobj)
             uint8_t *bf = gbuffer_get(gbuf, len);
              if (len < 2 || !bf) {
                  gobj_log_error(gobj, 0,
-                    "gobj",             "%s", gobj_full_name(gobj),
                     "function",         "%s", __FUNCTION__,
                     "msgset",           "%s", MSGSET_PROTOCOL_ERROR,
                     "msg",              "%s", "Not enough data",
@@ -3277,7 +3276,6 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
     if(response_completed) {
         if(gbuffer_leftbytes(gbuf)>0) {
             gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
                 "msg",          "%s", "Modbus: response too large",

@@ -292,7 +292,6 @@ PRIVATE int mt_start(hgobj gobj)
     );
     if(r < 0) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TASK_ERROR,
             "msg",          "%s", "BAD url parsing",
@@ -539,7 +538,6 @@ PRIVATE json_t *result_get_token(
             json_sprintf("http response with no body")
         );
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TASK_ERROR,
             "msg",          "%s", "Oauth2 response without body",
@@ -594,7 +592,6 @@ PRIVATE json_t *result_get_token(
     } else {
         json_object_set_new(output_data_, "comment", json_string("No access token in response"));
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TASK_ERROR,
             "msg",          "%s", "Oauth2 response without id_token or access_token",
@@ -715,7 +712,6 @@ PRIVATE json_t *result_logout(
     int response_status_code = (int)kw_get_int(gobj, kw, "response_status_code", -1, KW_REQUIRED);
     if(response_status_code != 204) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_TASK_ERROR,
             "msg",          "%s", "Logout has failed",

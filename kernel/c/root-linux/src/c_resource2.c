@@ -215,7 +215,6 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
 
     if(empty_string(resource)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Resource name empty",
@@ -235,7 +234,6 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
 
         if(!update) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Resource already exists",
@@ -251,7 +249,6 @@ PRIVATE json_t *mt_create_resource(hgobj gobj, const char *resource, json_t *kw,
         } else {
             if(jn_resource == kw) {
                 gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                    "gobj",         "%s", gobj_full_name(gobj),
                     "function",     "%s", __FUNCTION__,
                     "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                     "msg",          "%s", "Creating same resource as kw, use gobj_save_resource()",
@@ -321,7 +318,6 @@ PRIVATE int mt_save_resource(
 
     if(empty_string(resource)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Resource name empty",
@@ -336,7 +332,6 @@ PRIVATE int mt_save_resource(
     json_t *jn_resource = kw_get_dict(gobj, priv->db_resources, resource, 0, 0);
     if(jn_resource != record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Saving a different resource",
@@ -372,7 +367,6 @@ PRIVATE int mt_delete_resource(
 
     if(empty_string(resource)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Resource name empty",
@@ -388,7 +382,6 @@ PRIVATE int mt_delete_resource(
     json_t *jn_resource = kw_get_dict(gobj, priv->db_resources, resource, 0, 0);
     if(!jn_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "No resource found",
@@ -404,7 +397,6 @@ PRIVATE int mt_delete_resource(
 
     if(record && record != jn_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Deleting a different resource",
@@ -502,7 +494,6 @@ PRIVATE json_t *mt_get_resource(
 
     if(empty_string(resource)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "Resource name empty",
@@ -566,7 +557,6 @@ PRIVATE BOOL load_resource_cb(
         json_object_set_new(priv->db_resources, name, record);
     } else {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_JSON_ERROR,
             "msg",          "%s", "Wrong json file",
@@ -666,7 +656,6 @@ PRIVATE int delete_record(
     int ret = unlink(path);
     if(ret < 0) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "Cannot delete record file",

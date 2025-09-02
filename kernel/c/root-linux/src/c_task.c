@@ -41,7 +41,6 @@
         case -1:
             // Error from some task action
             gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
                 "msg",          "%s", "Task End with error",
@@ -54,7 +53,6 @@
         case -2:
             // Error from task manager: timeout, incomplete task
             gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
                 "msg",          "%s", "Task End by timeout",
@@ -231,7 +229,6 @@ PRIVATE void mt_create(hgobj gobj)
         priv->gobj_results = (hgobj)(size_t)json_integer_value(jn_gobj_results);
         if(gobj_is_volatil(priv->gobj_results)) {
             // gobj_log_error(gobj, 0,
-            //     "gobj",         "%s", gobj_full_name(gobj),
             //     "function",     "%s", __FUNCTION__,
             //     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             //     "msg",          "%s", "WARNING don't use volatil gobjs in gobj_results",
@@ -246,7 +243,6 @@ PRIVATE void mt_create(hgobj gobj)
 
     } else {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "gobj_results must be a json integer or string",
@@ -260,7 +256,6 @@ PRIVATE void mt_create(hgobj gobj)
         priv->gobj_jobs = (hgobj)(size_t)json_integer_value(jn_gobj_jobs);
         if(gobj_is_volatil(priv->gobj_jobs)) {
             // gobj_log_error(gobj, 0,
-            //     "gobj",         "%s", gobj_full_name(gobj),
             //     "function",     "%s", __FUNCTION__,
             //     "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             //     "msg",          "%s", "WARNING don't use volatil gobjs in gobj_jobs",
@@ -275,7 +270,6 @@ PRIVATE void mt_create(hgobj gobj)
 
     } else {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "gobj_jobs must be a json integer or string",
@@ -411,7 +405,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         case -1:
             // Error from some task action
             gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
                 "msg",          "%s", "Task End with error",
@@ -424,7 +417,6 @@ PRIVATE json_t *cmd_authzs(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
         case -2:
             // Error from task manager: timeout, incomplete task
             gobj_log_error(gobj, 0,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_APP_ERROR,
                 "msg",          "%s", "Task End by timeout",
@@ -489,7 +481,6 @@ PRIVATE int execute_action(hgobj gobj)
 
     if(priv->idx_job > priv->max_job) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "cur_job index overflow",

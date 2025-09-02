@@ -1811,7 +1811,6 @@ function gobj_start(gobj)
     // json_t *jn_required_attrs = gobj_check_required_attrs(gobj);
     // if(jn_required_attrs) {
     //     gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-    //         "gobj",         "%s", gobj_full_name(gobj),
     //         "function",     "%s", __FUNCTION__,
     //         "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
     //         "msg",          "%s", "Cannot start without all required attributes",

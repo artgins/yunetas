@@ -327,7 +327,6 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
     // if(priv->max_tx_queue && size >= priv->max_tx_queue) {
     //     if((counter % priv->max_tx_queue)==0) {
     //         log_error(0,
-    //             "gobj",         "%s", gobj_full_name(gobj),
     //             "function",     "%s", __FUNCTION__,
     //             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
     //             "msg",          "%s", "Tiro mensaje tx",
