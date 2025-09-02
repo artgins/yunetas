@@ -9840,7 +9840,7 @@ PRIVATE int ac_pause_yuno_ack(hgobj gobj, const char *event, json_t *kw, hgobj s
 }
 
 /***************************************************************************
- *  HACK nodo intermedio
+ *  HACK intermediate node
  ***************************************************************************/
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -9886,7 +9886,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
 }
 
 /***************************************************************************
- *  HACK nodo intermedio
+ *  HACK intermediate node
  ***************************************************************************/
 PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {

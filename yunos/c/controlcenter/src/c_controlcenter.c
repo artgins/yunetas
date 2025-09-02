@@ -1086,7 +1086,7 @@ PRIVATE int ac_on_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 }
 
 /***************************************************************************
- *  HACK nodo intermedio
+ *  HACK intermediate node
  ***************************************************************************/
 PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -1133,7 +1133,7 @@ PRIVATE int ac_stats_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgob
 }
 
 /***************************************************************************
- *  HACK nodo intermedio
+ *  HACK intermediate node
  ***************************************************************************/
 PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -1180,7 +1180,7 @@ PRIVATE int ac_command_yuno_answer(hgobj gobj, const char *event, json_t *kw, hg
 }
 
 /***************************************************************************
- *  HACK nodo intermedio
+ *  HACK intermediate node
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -1231,7 +1231,7 @@ PRIVATE int ac_tty_mirror_open(hgobj gobj, const char *event, json_t *kw, hgobj 
 }
 
 /***************************************************************************
- *  HACK nodo intermedio
+ *  HACK intermediate node
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -1282,7 +1282,7 @@ PRIVATE int ac_tty_mirror_close(hgobj gobj, const char *event, json_t *kw, hgobj
 }
 
 /***************************************************************************
- *  HACK nodo intermedio
+ *  HACK intermediate node
  ***************************************************************************/
 PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
@@ -1329,7 +1329,7 @@ PRIVATE int ac_tty_mirror_data(hgobj gobj, const char *event, json_t *kw, hgobj 
 }
 
 /***************************************************************************
- *  HACK nodo intermedio, pero al reves(???)
+ *  HACK intermediate node, pero al reves(???)
  ***************************************************************************/
 PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
