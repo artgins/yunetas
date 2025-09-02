@@ -4204,7 +4204,6 @@ PUBLIC int gobj_start(hgobj gobj_)
     json_t *jn_required_attrs = gobj_check_required_attrs(gobj);
     if(jn_required_attrs) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "Cannot start without all required attributes",
@@ -4327,7 +4326,6 @@ PUBLIC int gobj_stop(hgobj gobj_)
     }
     if(gobj->obflag & obflag_destroying) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "hgobj destroying",
@@ -4338,7 +4336,6 @@ PUBLIC int gobj_stop(hgobj gobj_)
     if(!gobj->running) {
         if(!gobj_is_shutdowning()) {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
                 "msg",          "%s", "GObj NOT RUNNING",
@@ -4350,7 +4347,6 @@ PUBLIC int gobj_stop(hgobj gobj_)
     if(gobj->playing) {
         // It's auto-stopping but display error (magic but warn!).
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "GObj stopping without previous pause",
@@ -4475,7 +4471,6 @@ PUBLIC int gobj_play(hgobj gobj_)
     }
     if(gobj->playing) {
         gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "GObj ALREADY PLAYING",
@@ -4485,7 +4480,6 @@ PUBLIC int gobj_play(hgobj gobj_)
     }
     if(gobj->disabled) {
         gobj_log_warning(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "GObj DISABLED",
@@ -4497,7 +4491,6 @@ PUBLIC int gobj_play(hgobj gobj_)
         if(!(gobj->gclass->gclass_flag & gcflag_required_start_to_play)) {
             // Default: It's auto-starting but display error (magic but warn!).
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
                 "msg",          "%s", "GObj playing without previous start",
@@ -4506,7 +4499,6 @@ PUBLIC int gobj_play(hgobj gobj_)
             gobj_start(gobj);
         } else {
             gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
                 "msg",          "%s", "Cannot play, start not done",
@@ -4566,7 +4558,6 @@ PUBLIC int gobj_pause(hgobj gobj_)
     }
     if(!gobj->playing) {
         gobj_log_info(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "GObj NOT PLAYING",
@@ -4624,7 +4615,6 @@ PUBLIC int gobj_disable(hgobj gobj_)
     }
     if(gobj->disabled) {
         gobj_log_info(0, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "GObj ALREADY disabled",
             NULL
@@ -4657,7 +4647,6 @@ PUBLIC int gobj_enable(hgobj gobj_)
     }
     if(!gobj->disabled) {
         gobj_log_info(0, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
             "msg",          "%s", "GObj NOT disabled",
@@ -4992,7 +4981,6 @@ PUBLIC hgobj gobj_set_bottom_gobj(hgobj gobj_, hgobj bottom_gobj)
          */
         if(bottom_gobj) {
             gobj_log_warning(gobj, LOG_OPT_TRACE_STACK,
-                "gobj",         "%s", gobj_full_name(gobj),
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "bottom_gobj already set",
@@ -9586,7 +9574,6 @@ PUBLIC json_t *gobj_create_resource(
     }
     if(!gobj->gclass->gmt->mt_create_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_create_resource not defined",
@@ -9624,7 +9611,6 @@ PUBLIC int gobj_save_resource(
     }
     if(!record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gobj_save_resource(): record NULL",
@@ -9635,7 +9621,6 @@ PUBLIC int gobj_save_resource(
     }
     if(!gobj->gclass->gmt->mt_save_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "mt_save_resource not defined",
@@ -9673,7 +9658,6 @@ PUBLIC int gobj_delete_resource(
     }
     if(!record) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "gobj_delete_resource(): record NULL",
@@ -9684,7 +9668,6 @@ PUBLIC int gobj_delete_resource(
     }
     if(!gobj->gclass->gmt->mt_delete_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "mt_delete_resource not defined",
@@ -9723,7 +9706,6 @@ PUBLIC json_t *gobj_list_resource(
     }
     if(!gobj->gclass->gmt->mt_list_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
             "msg",          "%s", "mt_list_resource not defined",
@@ -9761,7 +9743,6 @@ PUBLIC json_t *gobj_get_resource( // WARNING return is NOT yours!
     }
     if(!gobj->gclass->gmt->mt_get_resource) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_get_resource not defined",
@@ -9809,7 +9790,6 @@ PUBLIC json_t *gobj_treedbs( // Return a list with treedb names
     }
     if(!gobj->gclass->gmt->mt_treedbs) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_treedbs not defined",
@@ -9845,7 +9825,6 @@ PUBLIC json_t *gobj_treedb_topics(
     }
     if(!gobj->gclass->gmt->mt_treedb_topics) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_treedb_topics not defined",
@@ -9878,7 +9857,6 @@ PUBLIC json_t *gobj_topic_desc(
     }
     if(!gobj->gclass->gmt->mt_topic_desc) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_topic_desc not defined",
@@ -9914,7 +9892,6 @@ PUBLIC json_t *gobj_topic_links(
     }
     if(!gobj->gclass->gmt->mt_topic_links) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_topic_links not defined",
@@ -9951,7 +9928,6 @@ PUBLIC json_t *gobj_topic_hooks(
     }
     if(!gobj->gclass->gmt->mt_topic_hooks) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_topic_hooks not defined",
@@ -9985,7 +9961,6 @@ PUBLIC size_t gobj_topic_size(
     }
     if(!gobj->gclass->gmt->mt_topic_size) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_topic_size not defined",
@@ -10022,7 +9997,6 @@ PUBLIC json_t *gobj_create_node( // Return is YOURS
     }
     if(!gobj->gclass->gmt->mt_create_node) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_create_node not defined",
@@ -10061,7 +10035,6 @@ PUBLIC json_t *gobj_update_node( // Return is YOURS
     }
     if(!gobj->gclass->gmt->mt_update_node) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_update_node not defined",
@@ -10100,7 +10073,6 @@ PUBLIC int gobj_delete_node(
     }
     if(!gobj->gclass->gmt->mt_delete_node) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_delete_node not defined",
@@ -10141,7 +10113,6 @@ PUBLIC int gobj_link_nodes(
     }
     if(!gobj->gclass->gmt->mt_link_nodes) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_link_nodes not defined",
@@ -10190,7 +10161,6 @@ PUBLIC int gobj_unlink_nodes(
     }
     if(!gobj->gclass->gmt->mt_unlink_nodes) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_unlink_nodes not defined",
@@ -10237,7 +10207,6 @@ PUBLIC json_t *gobj_get_node( // Return is YOURS
     }
     if(!gobj->gclass->gmt->mt_get_node) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_get_node not defined",
@@ -10276,7 +10245,6 @@ PUBLIC json_t *gobj_list_nodes( // Return MUST be decref
     }
     if(!gobj->gclass->gmt->mt_list_nodes) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_list_nodes not defined",
@@ -10317,7 +10285,6 @@ PUBLIC json_t *gobj_list_instances(
     }
     if(!gobj->gclass->gmt->mt_list_instances) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_list_instances not defined",
@@ -10362,7 +10329,6 @@ PUBLIC json_t *gobj_node_parents( // Return MUST be decref
     }
     if(!gobj->gclass->gmt->mt_node_parents) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_node_parents not defined",
@@ -10404,7 +10370,6 @@ PUBLIC json_t *gobj_node_children( // Return MUST be decref
     }
     if(!gobj->gclass->gmt->mt_node_children) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_node_children not defined",
@@ -10451,7 +10416,6 @@ PUBLIC json_t *gobj_topic_jtree( // Return MUST be decref
     }
     if(!gobj->gclass->gmt->mt_topic_jtree) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_topic_jtree not defined",
@@ -10500,7 +10464,6 @@ PUBLIC json_t *gobj_node_tree( // Return MUST be decref
     }
     if(!gobj->gclass->gmt->mt_node_tree) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_node_tree not defined",
@@ -10543,7 +10506,6 @@ PUBLIC int gobj_shoot_snap(
     }
     if(!gobj->gclass->gmt->mt_shoot_snap) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_shoot_snap not defined",
@@ -10579,7 +10541,6 @@ PUBLIC int gobj_activate_snap(
     }
     if(!gobj->gclass->gmt->mt_activate_snap) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_activate_snap not defined",
@@ -10614,7 +10575,6 @@ PUBLIC json_t *gobj_list_snaps(
     }
     if(!gobj->gclass->gmt->mt_list_snaps) {
         gobj_log_error(gobj, 0,
-            "gobj",         "%s", gobj_full_name(gobj),
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INTERNAL_ERROR,
             "msg",          "%s", "mt_list_snaps not defined",
