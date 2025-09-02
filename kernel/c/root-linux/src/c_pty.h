@@ -31,10 +31,6 @@ GOBJ_DECLARE_GCLASS(C_PTY);
 /*------------------------*
  *      Events
  *------------------------*/
-// GOBJ_DECLARE_EVENT(EV_WRITE_TTY);
-// GOBJ_DECLARE_EVENT(EV_TTY_DATA);
-// GOBJ_DECLARE_EVENT(EV_TTY_OPEN);
-// GOBJ_DECLARE_EVENT(EV_TTY_CLOSE);
 
 /***************************************************************
  *              Prototypes

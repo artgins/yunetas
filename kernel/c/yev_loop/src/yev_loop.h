@@ -406,32 +406,7 @@ PUBLIC yev_event_h yev_create_sendmsg_event(
     struct sockaddr *dst_addr
 );
 
-/***************************************************************************
- *
- ***************************************************************************/
-static inline const char *yev_event_type_name(yev_event_h yev_event)
-{
-    switch(yev_event->type) {
-        case YEV_READ_TYPE:
-            return "YEV_READ_TYPE";
-        case YEV_WRITE_TYPE:
-            return "YEV_WRITE_TYPE";
-        case YEV_CONNECT_TYPE:
-            return "YEV_CONNECT_TYPE";
-        case YEV_ACCEPT_TYPE:
-            return "YEV_ACCEPT_TYPE";
-        case YEV_TIMER_TYPE:
-            return "YEV_TIMER_TYPE";
-        case YEV_POLL_TYPE:
-            return "YEV_POLL_TYPE";
-        case YEV_SENDMSG_TYPE:
-            return "YEV_SENDMSG_TYPE";
-        case YEV_RECVMSG_TYPE:
-            return "YEV_RECVMSG_TYPE";
-    }
-    return "YEV_???_TYPE";
-}
-
+PUBLIC const char *yev_event_type_name(yev_event_h yev_event);
 PUBLIC const char **yev_flag_strings(void);
 PUBLIC void set_measure_times(int types); // Set the measure of times of types (-1 all)
 PUBLIC int get_measure_times(void); // return yevent types measuring

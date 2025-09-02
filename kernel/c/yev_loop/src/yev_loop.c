@@ -2951,6 +2951,32 @@ PRIVATE int print_addrinfo(hgobj gobj, char *bf, size_t bfsize, struct addrinfo 
 /***************************************************************************
  *
  ***************************************************************************/
+PUBLIC const char *yev_event_type_name(yev_event_h yev_event)
+{
+    switch(yev_event->type) {
+        case YEV_READ_TYPE:
+            return "YEV_READ_TYPE";
+        case YEV_WRITE_TYPE:
+            return "YEV_WRITE_TYPE";
+        case YEV_CONNECT_TYPE:
+            return "YEV_CONNECT_TYPE";
+        case YEV_ACCEPT_TYPE:
+            return "YEV_ACCEPT_TYPE";
+        case YEV_TIMER_TYPE:
+            return "YEV_TIMER_TYPE";
+        case YEV_POLL_TYPE:
+            return "YEV_POLL_TYPE";
+        case YEV_SENDMSG_TYPE:
+            return "YEV_SENDMSG_TYPE";
+        case YEV_RECVMSG_TYPE:
+            return "YEV_RECVMSG_TYPE";
+    }
+    return "YEV_???_TYPE";
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PUBLIC const char **yev_flag_strings(void)
 {
     return yev_flag_s;
