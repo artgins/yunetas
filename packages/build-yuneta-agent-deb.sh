@@ -2,7 +2,7 @@
 #######################################################################
 #               build-yuneta-agent-deb.sh
 #######################################################################
-# Build a .deb for Yunetas Agent
+# Build a .deb for Yunetas Agent (no init integration yet)
 #
 # Usage:
 #   ./build-yuneta-agent-deb.sh <project> <version> <release> <arch>
@@ -10,8 +10,8 @@
 # Example:
 #   ./build-yuneta-agent-deb.sh yuneta-agent 7.0.0 1 amd64
 #
-# Notes:
-# - Writes to ./build/deb/<arch>/<project>-<version>-<release>-<arch>.deb
+# Output:
+#   ./build/deb/<arch>/<project>-<version>-<release>-<arch>.deb
 #######################################################################
 
 set -euo pipefail
@@ -147,11 +147,13 @@ EOF
 chmod 0755 "${WORKDIR}/DEBIAN/postrm"
 
 # ---------- Normalize permissions before building ----------
-# Ensure all package dirs are 0755
-find "${WORKDIR}" -type d -print0 | xargs -0 chmod 0755
+# Ensure all dirs are rwxr-xr-x and clear any inherited setgid/sticky bits
+find "${WORKDIR}" -type d -exec chmod u=rwx,go=rx {} + -exec chmod g-s {} + -exec chmod -t {} +
 
-# DEBIAN/ must be 0755 (no setgid/sticky)
+# DEBIAN/ must be exactly 0755 (no setgid/sticky)
 chmod 0755 "${WORKDIR}/DEBIAN"
+chmod g-s "${WORKDIR}/DEBIAN" || true
+chmod -t "${WORKDIR}/DEBIAN" || true
 
 # All control files default to 0644
 find "${WORKDIR}/DEBIAN" -type f -print0 | xargs -0 chmod 0644
