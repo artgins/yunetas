@@ -130,15 +130,7 @@ SDATA_END()
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag----------------default---------description---------- */
 SDATA (DTP_STRING,      "__username__",     SDF_RD,             "",             "Username"),
-SDATA (DTP_STRING,      "startup_command",  SDF_RD,             0,              "Command to execute at startup"),
-SDATA (DTP_JSON,        "agent22_environment",SDF_RD,             0,              "Agent22 environment. Override the yuno environment"),
-SDATA (DTP_JSON,        "node_variables",   SDF_RD,             0,              "Global to Node json config variables"),
-SDATA (DTP_INTEGER,     "signal2kill",      SDF_RD,             "3",            "Signal to kill yunos: SIGQUIT"),
-
-SDATA (DTP_JSON,        "range_ports",      SDF_RD,             "[11100,11199]", "Range Ports"),
-SDATA (DTP_INTEGER,     "last_port",        SDF_WR,             0,              "Last port assigned"),
 SDATA (DTP_INTEGER,     "max_consoles",     SDF_WR,             "10",           "Maximum consoles opened"),
-
 SDATA (DTP_POINTER,     "user_data",        0,                  0,              "User data"),
 SDATA (DTP_POINTER,     "user_data2",       0,                  0,              "More user data"),
 SDATA (DTP_POINTER,     "subscriber",       0,                  0,              "Subscriber of output-events. Not a child gobj"),
