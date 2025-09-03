@@ -10,12 +10,18 @@
 # Example:
 #   ./build-yuneta-agent-deb.sh yuneta-agent 7.0.0 1 amd64
 #
-# Output:
-#   ./build/deb/<arch>/<project>-<version>-<release>-<arch>.deb
+# Notes:
+# - Script must live in yunetas/packages/
+# - Builds under ./build/ and places the final .deb in ./dist (fixed)
 #######################################################################
 
 set -euo pipefail
 umask 022
+
+# Resolve the script's real directory (yunetas/packages) to anchor relative paths.
+# HACK: Works regardless of launch location (cron, make, symlink, different CWD).
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
 
 if [ "${1:-}" = "--help" ] || [ "$#" -lt 4 ]; then
     echo "Usage: $0 <project> <version> <release> <arch>"
@@ -28,8 +34,9 @@ RELEASE="$1"; shift
 ARCHITECTURE="$1"; shift
 
 PACKAGE="${PROJECT}-${VERSION}-${RELEASE}-${ARCHITECTURE}"
-BASE_DEST="./build/deb/${ARCHITECTURE}"
+BASE_DEST="${SCRIPT_DIR}/build/deb/${ARCHITECTURE}"
 WORKDIR="${BASE_DEST}/${PACKAGE}"
+OUT_DIR="${SCRIPT_DIR}/dist"
 BIN_DIR="/yuneta/bin/"
 
 echo "[i] Building package tree at: ${WORKDIR}"
@@ -147,13 +154,13 @@ EOF
 chmod 0755 "${WORKDIR}/DEBIAN/postrm"
 
 # ---------- Normalize permissions before building ----------
-# Ensure all dirs are rwxr-xr-x and clear any inherited setgid/sticky bits
-find "${WORKDIR}" -type d -exec chmod u=rwx,go=rx {} + -exec chmod g-s {} + -exec chmod -t {} +
+# Ensure all dirs are 0755 and clear any inherited setgid/sticky bits
+find "${WORKDIR}" -type d -exec chmod 0755 {} + -exec chmod g-s {} + -exec chmod -t {} +
 
 # DEBIAN/ must be exactly 0755 (no setgid/sticky)
-chmod 0755 "${WORKDIR}/DEBIAN"
-chmod g-s "${WORKDIR}/DEBIAN" || true
-chmod -t "${WORKDIR}/DEBIAN" || true
+chmod 0755 "${WORKDIR}/DEBIAN" || true
+chmod g-s  "${WORKDIR}/DEBIAN" || true
+chmod -t   "${WORKDIR}/DEBIAN" || true
 
 # All control files default to 0644
 find "${WORKDIR}/DEBIAN" -type f -print0 | xargs -0 chmod 0644
@@ -165,10 +172,17 @@ chmod 0755 "${WORKDIR}/DEBIAN/postinst" \
 
 # ---------- Build .deb (root ownership inside package) ----------
 mkdir -p "${BASE_DEST}"
-OUT_DEB="${BASE_DEST}/${PACKAGE}.deb"
-echo "[i] Building ${OUT_DEB}"
-dpkg-deb --build --root-owner-group "${WORKDIR}" "${OUT_DEB}"
+OUT_DEB_WORK="${BASE_DEST}/${PACKAGE}.deb"
+echo "[i] Building ${OUT_DEB_WORK}"
+dpkg-deb --build --root-owner-group "${WORKDIR}" "${OUT_DEB_WORK}"
 
-echo "[✓] Done: ${OUT_DEB}"
+# ---------- Place final artifact in ./dist ----------
+mkdir -p "${OUT_DIR}"
+FINAL_DEB="${OUT_DIR}/${PACKAGE}.deb"
+mv -f "${OUT_DEB_WORK}" "${FINAL_DEB}"
+
+echo "[✓] Final package:"
+echo "    ${FINAL_DEB}"
+echo
 echo "Install with:"
-echo "  sudo apt -y install ./$(basename "${OUT_DEB}")"
+echo "  sudo apt -y install '${FINAL_DEB}'"
