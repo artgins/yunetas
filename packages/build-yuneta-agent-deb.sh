@@ -15,6 +15,7 @@
 #######################################################################
 
 set -euo pipefail
+umask 022
 
 if [ "${1:-}" = "--help" ] || [ "$#" -lt 4 ]; then
     echo "Usage: $0 <project> <version> <release> <arch>"
@@ -101,7 +102,7 @@ Description: Yunetas Agent
  Yunetas Agent binaries and runtime directories.
 EOF
 
-# --- postinst (set ownership/perms, handle for private certs) ---
+# --- postinst (set ownership/perms, handle private certs) ---
 cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
@@ -145,10 +146,22 @@ exit 0
 EOF
 chmod 0755 "${WORKDIR}/DEBIAN/postrm"
 
-# Ensure directory permissions (dirs 755, regular files already set)
+# ---------- Normalize permissions before building ----------
+# Ensure all package dirs are 0755
 find "${WORKDIR}" -type d -print0 | xargs -0 chmod 0755
 
-# Build .deb (root ownership inside package)
+# DEBIAN/ must be 0755 (no setgid/sticky)
+chmod 0755 "${WORKDIR}/DEBIAN"
+
+# All control files default to 0644
+find "${WORKDIR}/DEBIAN" -type f -print0 | xargs -0 chmod 0644
+
+# Maintainer scripts must be executable
+chmod 0755 "${WORKDIR}/DEBIAN/postinst" \
+            "${WORKDIR}/DEBIAN/prerm" \
+            "${WORKDIR}/DEBIAN/postrm"
+
+# ---------- Build .deb (root ownership inside package) ----------
 mkdir -p "${BASE_DEST}"
 OUT_DEB="${BASE_DEST}/${PACKAGE}.deb"
 echo "[i] Building ${OUT_DEB}"
