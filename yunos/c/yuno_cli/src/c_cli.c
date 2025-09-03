@@ -2680,7 +2680,7 @@ PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char **comment)
  *  Used in yuneta classic
  *  $$ interfere with bash, use ^^ as alternative
  ***************************************************************************/
-PRIVATE gbuffer_t * replace_cli_vars_for_yuneta(hgobj gobj, const char *command, char **comment)
+PRIVATE gbuffer_t *replace_cli_vars(hgobj gobj, const char *command, char **comment)
 {
     gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     char *command_ = gbmem_strdup(command);
@@ -2844,7 +2844,7 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     char *comment="";
     gbuffer_t *gbuf_parsed_command = 0;
-    gbuf_parsed_command = replace_cli_vars_for_yuneta(gobj, command, &comment);
+    gbuf_parsed_command = replace_cli_vars(gobj, command, &comment);
 
     if(!gbuf_parsed_command) {
         display_webix_result(

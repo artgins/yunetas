@@ -774,7 +774,7 @@ PRIVATE int do_command(hgobj gobj, const char *command)
 //     json_t *jn_resp = gobj_command(priv->gobj_connector, command, 0, gobj);
 //     json_decref(jn_resp);
 
-    // Pasalo por el evento para que haga replace_cli_vars_for_yuneta()
+    // Pass it through the event to do replace_cli_vars()
     json_t *kw_line = json_object();
     json_object_set_new(kw_line, "text", json_string(command));
     gobj_send_event(priv->gobj_editline, EV_SETTEXT, kw_line, gobj);
@@ -876,7 +876,12 @@ PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char *comment, 
 /***************************************************************************
  *  $$ interfere with bash, use ^^ as alternative
  ***************************************************************************/
-PRIVATE gbuffer_t * replace_cli_vars(hgobj gobj, const char *command, char *comment, int commentlen)
+PRIVATE gbuffer_t *replace_cli_vars(
+    hgobj gobj,
+    const char *command,
+    char *comment,
+    int commentlen
+)
 {
     gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     char *command_ = gbmem_strdup(command);

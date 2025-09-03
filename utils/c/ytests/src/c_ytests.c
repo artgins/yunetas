@@ -525,7 +525,7 @@ PRIVATE gbuffer_t *source2base64_for_yunetas(const char *source, char *comment, 
 /***************************************************************************
  *  $$ interfere with bash, use ^^ as alternative
  ***************************************************************************/
-PRIVATE gbuffer_t * replace_cli_vars(hgobj gobj, const char *command, char *comment, int commentlen)
+PRIVATE gbuffer_t *replace_cli_vars(hgobj gobj, const char *command, char *comment, int commentlen)
 {
     gbuffer_t *gbuf = gbuffer_create(4*1024, gbmem_get_maximum_block());
     char *command_ = gbmem_strdup(command);
