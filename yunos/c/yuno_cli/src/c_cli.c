@@ -2506,8 +2506,9 @@ PRIVATE int save_local_json(hgobj gobj, char *path, int pathsize, const char *na
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int save_local_string(hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content)
-{
+PRIVATE int save_local_string(
+    hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content
+) {
     const char *homedir;
 
     if ((homedir = getenv("HOME")) == NULL) {
@@ -2533,8 +2534,13 @@ PRIVATE int save_local_string(hgobj gobj, char *path, int pathsize, const char *
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int save_local_base64(hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content)
-{
+PRIVATE int save_local_base64(
+    hgobj gobj,
+    char *path,
+    int pathsize,
+    const char *name,
+    json_t *jn_content
+) {
     const char *homedir;
 
     if ((homedir = getenv("HOME")) == NULL) {

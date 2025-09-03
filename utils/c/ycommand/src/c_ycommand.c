@@ -646,7 +646,12 @@ PRIVATE int do_authenticate_task(hgobj gobj)
         "azp", gobj_read_str_attr(gobj, "azp")
     );
 
-    hgobj gobj_task = gobj_create_service("task-authenticate", C_TASK_AUTHENTICATE, kw, gobj);
+    hgobj gobj_task = gobj_create_service(
+        "task-authenticate",
+        C_TASK_AUTHENTICATE,
+        kw,
+        gobj
+    );
     gobj_subscribe_event(gobj_task, EV_ON_TOKEN, 0, gobj);
     gobj_set_volatil(gobj_task, TRUE); // auto-destroy
 
@@ -1183,8 +1188,9 @@ PRIVATE int edit_json(hgobj gobj, const char *path)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int save_local_string(hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content)
-{
+PRIVATE int save_local_string(
+    hgobj gobj, char *path, int pathsize, const char *name, json_t *jn_content
+) {
     const char *homedir;
 
     if ((homedir = getenv("HOME")) == NULL) {
@@ -1216,8 +1222,7 @@ PRIVATE int save_local_base64(
     int pathsize,
     const char *name,
     json_t *jn_content
-)
-{
+) {
     const char *homedir;
 
     if ((homedir = getenv("HOME")) == NULL) {
