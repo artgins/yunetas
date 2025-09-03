@@ -37,7 +37,6 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE void catcher(int signum);
 PRIVATE int fd_duplicate(int fd);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int yev_callback(yev_event_h yev_event);
@@ -244,47 +243,11 @@ PRIVATE int mt_start(hgobj gobj)
         if(!tty_empty) {
             int ret = execvp(priv->argv[0], priv->argv);
             if(ret < 0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "forkpty() FAILED",
-                    "errno",        "%d", errno,
-                    "strerror",     "%s", strerror(errno),
-                    NULL
-                );
+                print_error(0, "forkpty() FAILED: %s", strerror(errno));
             }
             exit(0); // Child will die after exit of execute command
         } else {
-            struct sigaction sact;
-            sigemptyset(&sact.sa_mask);
-            sact.sa_flags = 0;
-            sact.sa_handler = catcher;
-
-            if(sigaction(SIGUSR1, &sact, NULL) < 0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "sigaction() FAILED",
-                    "errno",        "%d", errno,
-                    "strerror",     "%s", strerror(errno),
-                    NULL
-                );
-            }
-
-            sigset_t sigset;
-            sigfillset(&sigset);
-            sigdelset(&sigset, SIGUSR1);
-            if(sigsuspend(&sigset) < 0) {
-                gobj_log_error(gobj, 0,
-                    "function",     "%s", __FUNCTION__,
-                    "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-                    "msg",          "%s", "sigsuspend() FAILED",
-                    "errno",        "%d", errno,
-                    "strerror",     "%s", strerror(errno),
-                    NULL
-                );
-            }
-            gobj_trace_msg(gobj, "🙋🙋🙋🙋 exit pty");
+            print_error(0, "🙋 exit pty, tty empty");
             exit(0); // Child will die after receive signal
         }
     }
@@ -379,30 +342,7 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     try_to_stop_yevents(gobj);
-
-    if(priv->pty != -1) {
-        close(priv->pty);
-        priv->pty = -1;
-    }
-    if(priv->uv_in != -1) {
-        close(priv->uv_in);
-        priv->uv_in = -1;
-    }
-    if(priv->uv_out != -1) {
-        close(priv->uv_out);
-        priv->uv_out = -1;
-    }
-
-    if(priv->pid > 0) {
-        if(kill(priv->pid, 0) == 0) {
-            kill(priv->pid, SIGKILL);
-            waitpid(priv->pid, NULL, 0);
-        }
-        priv->pid = -1;
-    }
 
     return 0;
 }
@@ -416,20 +356,6 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void catcher(int signum)
-{
-    switch (signum) {
-        case SIGUSR1:
-            //exit(0);
-            break;
-        default:
-            break;
-    }
-}
 
 /***************************************************************************
  *
@@ -496,11 +422,6 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     }
 
                 } else {
-                    /*
-                     *  Disconnected
-                     */
-                    gobj_log_set_last_message("%s", strerror(-yev_get_result(yev_event)));
-
                     if(trace) {
                         gobj_log_debug(gobj, 0,
                             "function",     "%s", __FUNCTION__,
@@ -513,7 +434,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                             NULL
                         );
                     }
-                    gobj_shutdown();
+                    gobj_stop(gobj);
                 }
             }
             break;
@@ -546,7 +467,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                         try_more_writes(gobj);
                     } else {
                         yev_destroy_event(yev_event);
-                        try_to_stop_yevents(gobj);
+                        gobj_stop(gobj);
                     }
 
                 } else {
@@ -569,8 +490,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                     }
 
                     yev_destroy_event(yev_event);
-
-                    try_to_stop_yevents(gobj);
+                    gobj_stop(gobj);
                 }
 
             }
@@ -604,12 +524,6 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     BOOL to_wait_stopped = FALSE;
 
-    if(gobj_current_state(gobj)==ST_STOPPED) {
-        gobj_set_exit_code(-1);
-        gobj_shutdown();
-        return;
-    }
-
     uint32_t trace_level = gobj_trace_level(gobj);
     if(trace_level & TRACE_URING) {
         gobj_log_debug(gobj, 0,
@@ -634,6 +548,10 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         priv->uv_out = -1;
     }
 
+    if(priv->tx_in_progress > 0) {
+        to_wait_stopped = TRUE;
+    }
+
     if(priv->yev_reading) {
         if(!yev_event_is_stopped(priv->yev_reading)) {
             yev_stop_event(priv->yev_reading);
@@ -654,6 +572,14 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
             "slave_name", priv->slave_name
         );
         gobj_publish_event(gobj, EV_TTY_CLOSE, kw_on_close);
+
+        if(priv->pid > 0) {
+            if(kill(priv->pid, 0) == 0) {
+                kill(priv->pid, SIGKILL);
+                waitpid(priv->pid, NULL, 0);
+            }
+            priv->pid = -1;
+        }
 
         if(gobj_is_volatil(gobj)) {
             gobj_destroy(gobj);
@@ -693,15 +619,14 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         return 0;
     }
 
-    // if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
-    //     gobj_trace_dump(gobj,
-    //         0,
-    //         buf->base,
-    //         nread,
-    //         "READ from PTY %s",
-    //         gobj_short_name(gobj)
-    //     );
-    // }
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        gobj_trace_dump(gobj,
+            base,
+            nread,
+            "READ from PTY %s",
+            gobj_short_name(gobj)
+        );
+    }
 
     gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(base, nread);
     if(!gbuf_base64) {
@@ -727,44 +652,6 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
 }
 
 /***************************************************************************
- *  on write callback
- ***************************************************************************/
-// TODO //PRIVATE void on_write_cb(uv_write_t* req, int status)
-//{
-//    hgobj gobj = req->data;
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//    priv->uv_req_write_active = 0;
-//
-//    if(gobj_trace_level(gobj) & TRACE_UV) {
-//        gobj_trace_msg(gobj, ">>> on_write_cb pty in p=%p",
-//            &priv->uv_in
-//        );
-//    }
-//
-//    if(status != 0) {
-//        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
-//            "function",     "%s", __FUNCTION__,
-//            "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-//            "msg",          "%s", "on_write_cb FAILED",
-//            "status",       "%d", status,
-//            NULL
-//        );
-//        if(gobj_is_running(gobj)) {
-//            gobj_stop(gobj); // auto-stop
-//        }
-//        return;
-//    }
-//
-//    gbuffer_t *gbuf = dl_first(&priv->dl_tx);
-//    if(gbuf) {
-//        dl_delete(&priv->dl_tx, gbuf, 0);
-//        write_data_to_pty(gobj, gbuf);
-//        GBUFFER_DECREF(gbuf);
-//    }
-//}
-
-/***************************************************************************
  *  Write data to pseudo terminal
  ***************************************************************************/
 PRIVATE int write_data_to_pty(hgobj gobj)
@@ -773,9 +660,6 @@ PRIVATE int write_data_to_pty(hgobj gobj)
 
     gbuffer_t *gbuf = priv->gbuf_txing;
 
-    // size_t ln = gbuffer_chunk(gbuf); // TODO y si ln es 0??????????
-    //
-    // char *bf = gbuffer_get(gbuf, ln);
     // const char *bracket_paste_mode = "\e[200~";
     // size_t xl = strlen(bracket_paste_mode);
     // if(ln >= xl) {
@@ -784,16 +668,17 @@ PRIVATE int write_data_to_pty(hgobj gobj)
     //         ln -= xl;
     //     }
     // }
-    //
-    // uint32_t trace_level = gobj_trace_level(gobj);
-    // if((trace_level & TRACE_TRAFFIC)) {
-    //     gobj_trace_dump(gobj,
-    //         bf,
-    //         ln,
-    //         "WRITE to PTY %s",
-    //         gobj_short_name(gobj)
-    //     );
-    // }
+
+    if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
+        size_t ln = gbuffer_chunk(gbuf);
+        char *bf = gbuffer_cur_rd_pointer(gbuf);
+        gobj_trace_dump(gobj,
+            bf,
+            ln,
+            "WRITE to PTY %s",
+            gobj_short_name(gobj)
+        );
+    }
 
     priv->txMsgs++;
 
@@ -963,8 +848,18 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
 
+    ev_action_t st_wait_stopped[] = {
+        {0,0,0}
+    };
+
+    ev_action_t st_stopped[] = {
+        {0,0,0}
+    };
+
     states_t states[] = {
-        {ST_IDLE,       st_idle},
+        {ST_IDLE,               st_idle},
+        {ST_WAIT_STOPPED,       st_wait_stopped},
+        {ST_STOPPED,            st_stopped},
         {0,0}
     };
 
