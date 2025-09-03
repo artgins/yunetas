@@ -1,5 +1,11 @@
 # **Changelog**
 
+## v7.0.0-b10 -- 2/Sep/2025
+    - jwt in remote connection
+
+## v7.0.0-b9 -- 2/Sep/2025
+    - Remote control (controlcenter) ok
+
 ## v7.0.0-b8 -- 29/Aug/2025
     - GObj: fix bug with rename events
 
