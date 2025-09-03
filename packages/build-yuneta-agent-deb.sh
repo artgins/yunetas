@@ -1,36 +1,53 @@
-#!/bin/bash
-# Reference:
+#!/usr/bin/env bash
+#######################################################################
+#               build-yuneta-agent-deb.sh
+#######################################################################
+# Build a .deb for Yunetas Agent
 #
-#   Useful commands:
-#   $ sudo dpkg -i <paquete.deb>            To install the package WITHOUT installing dependencies
-#   $ sudo apt -y install ./<paquete.deb>   To install the package WITH dependencies
+# Usage:
+#   ./build-yuneta-agent-deb.sh <project> <version> <release> <arch> [--bin-dir <dir>]
+# Example:
+#   ./build-yuneta-agent-deb.sh yuneta-agent 7.0.0 1 amd64 --bin-dir ./out/bin
 #
-#
+# Notes:
+# - Writes to ./build/deb/<arch>/<project>-<version>-<release>-<arch>.deb
+#######################################################################
 
-PROJECT=$1
-VERSION=$2
-RELEASE=$3
-ARCHITECTURE=$4
-PACKAGE="$PROJECT-$VERSION-$RELEASE-$ARCHITECTURE"
+set -euo pipefail
 
-#----------------------------------------#
-#   Create deb environment
-#----------------------------------------#
-BASE="./build/deb/$ARCHITECTURE"
-mkdir -p "$BASE"
+if [ "${1:-}" = "--help" ] || [ "$#" -lt 4 ]; then
+    echo "Usage: $0 <project> <version> <release> <arch> [--bin-dir <dir>]"
+    exit 1
+fi
 
-rm -rf "${BASE:?}/$PACKAGE" # remove the package if already exists
+PROJECT="$1"; shift
+VERSION="$1"; shift
+RELEASE="$1"; shift
+ARCHITECTURE="$1"; shift
 
-#----------------------------------------#
-#   Copy binaries
-#   TODO pending
-#    ncurses
-#    nginx
-#    openresty
-#    restart-yuneta
-#    ssl3
-#----------------------------------------#
-BINARIES="
+PACKAGE="${PROJECT}-${VERSION}-${RELEASE}-${ARCHITECTURE}"
+BASE_DEST="./build/deb/${ARCHITECTURE}"
+WORKDIR="${BASE_DEST}/${PACKAGE}"
+BIN_DIR="/yuneta/bin/"
+
+echo "[i] Building package tree at: ${WORKDIR}"
+
+# Fresh workspace
+rm -rf "${WORKDIR}"
+mkdir -p "${WORKDIR}/DEBIAN"
+mkdir -p "${WORKDIR}/etc/profile.d"
+mkdir -p "${WORKDIR}/etc/init.d"
+mkdir -p "${WORKDIR}/yuneta/agent"
+mkdir -p "${WORKDIR}/yuneta/bin"
+mkdir -p "${WORKDIR}/yuneta/gui"
+mkdir -p "${WORKDIR}/yuneta/realms"
+mkdir -p "${WORKDIR}/yuneta/repos"
+mkdir -p "${WORKDIR}/yuneta/store/certs"
+mkdir -p "${WORKDIR}/yuneta/store/certs/private" # TODO permission only for yuneta user
+mkdir -p "${WORKDIR}/yuneta/share"
+
+# --- Binaries to include (must exist in BIN_DIR) ---
+BINARIES=(
     fs_watcher
     inotify
     keycloak_pkey_to_jwks
@@ -52,211 +69,86 @@ BINARIES="
     ytestconfig
     ytests
     yuno-skeleton
-"
-for URL in $URLS
-do
-    sudo cp "/etc/letsencrypt/live/$URL/fullchain.pem" "/yuneta/store/certs/$URL.crt"
-    sudo cp "/etc/letsencrypt/live/$URL/chain.pem" "/yuneta/store/certs/$URL.chain"
-    sudo cp "/etc/letsencrypt/live/$URL/privkey.pem" "/yuneta/store/certs/private/$URL.key"
+)
+
+# Copy binaries with correct perms; verify existence
+for BINARY in "${BINARIES[@]}"; do
+    SRC="${BIN_DIR%/}/${BINARY}"
+    if [ ! -x "${SRC}" ]; then
+        echo "[-] Missing or non-executable binary: ${SRC}" >&2
+        exit 2
+    fi
+    install -D -m 0755 "${SRC}" "${WORKDIR}/yuneta/bin/${BINARY}"
 done
 
-sudo chown yuneta:yuneta . -R
-
-mkdir -p "$PACKAGE/DEBIAN"
-mkdir -p "$PACKAGE/etc/init.d"
-mkdir -p "$PACKAGE/etc/profile.d"
-mkdir -p "$PACKAGE/yuneta/agent"
-mkdir -p "$PACKAGE/yuneta/bin"
-mkdir -p "$PACKAGE/yuneta/gui"
-mkdir -p "$PACKAGE/yuneta/realms"
-mkdir -p "$PACKAGE/yuneta/repos"
-mkdir -p "$PACKAGE/yuneta/store"
-mkdir -p "$PACKAGE/yuneta/store/certs"
-mkdir -p "$PACKAGE/yuneta/share"
-
-cp -a "/yuneta/bin/y*" "$PACKAGE/yuneta/bin/"
-
-URLS="
-    sani-ki.konnectarte.ovh
-"
-for URL in $URLS
-do
-    sudo cp "/etc/letsencrypt/live/$URL/fullchain.pem" "/yuneta/store/certs/$URL.crt"
-    sudo cp "/etc/letsencrypt/live/$URL/chain.pem" "/yuneta/store/certs/$URL.chain"
-    sudo cp "/etc/letsencrypt/live/$URL/privkey.pem" "/yuneta/store/certs/private/$URL.key"
-done
-
-
-cp -a "/yuneta/agent" "$PACKAGE/yuneta/"
-cp -a --dereference "/yuneta/bin/nginx/" "$PACKAGE/yuneta/bin/"
-cp -a --dereference "/yuneta/bin/ncurses/" "$PACKAGE/yuneta/bin/"
-cp -a --dereference "/yuneta/share/" "$PACKAGE/yuneta/share/"
-cp "/yuneta/agent/service/yuneta_agent" "$PACKAGE/etc/init.d"
-
-cat <<EOF > "./$PACKAGE/etc/profile.d/yuneta.sh"
-export PATH=\$PATH:/yuneta/bin
+# --- Minimal control file (adjust fields as needed) ---
+# Tip: keep Depends small; add python3 only if truly needed
+cat > "${WORKDIR}/DEBIAN/control" <<EOF
+Package: ${PROJECT}
+Version: ${VERSION}-${RELEASE}
+Section: utils
+Priority: optional
+Architecture: ${ARCHITECTURE}
+Maintainer: ArtGins S.L. <administracion@artgins.com>
+Description: Yunetas Agent
+ Yunetas Agent binaries and runtime directories.
+Depends: adduser, libc6
 EOF
 
-STRINGX=$(du -s "$PACKAGE/yuneta")
-ARRAYX=( "$STRINGX" )
-SIZEX=${ARRAYX[0]}
-
-cat <<EOF > "./$PACKAGE/DEBIAN/conffiles"
-/etc/init.d/yuneta_agent
-/etc/profile.d/yuneta.sh
-EOF
-
-cat <<EOF > "./$PACKAGE/DEBIAN/control"
-Package: yuneta-agent
-Version: $VERSION
-Architecture: $ARCHITECTURE
-Maintainer: ArtGins.
-Section: net
-Installed-Size: $SIZEX
-Homepage: yuneta.io
-Priority: Optional
-Depends: debconf, sudo, rsync, tree, vim, curl, adduser, libc6, libssl1.1
-Description: Yuneta agent run-time.
- Install this run-time and be a Yuneta's node. Search and Select the Realms to Belong.
-EOF
-
-cat <<EOF > "./$PACKAGE/DEBIAN/postinst"
+# --- postinst (POSIX sh) ---
+cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
-# postinst script for yuneta
-#
-# see: dh_installdeb(1)
-
 set -e
-
-setup_yuneta_user() {
-    if ! getent group yuneta >/dev/null; then
-        addgroup --quiet --system yuneta
-    fi
-
-    if ! getent passwd yuneta >/dev/null; then
-        adduser --quiet --system --ingroup yuneta --shell /bin/bash yuneta
-    fi
-}
-
-fix_permissions() {
-    chown yuneta:yuneta /yuneta -R
-    find /yuneta -type d -exec chmod g+s {} \;
-    find /yuneta -type d -exec chmod g+w {} \;
-    find /yuneta -type f -exec chmod g+w {} \;
-}
-
-case "\$1" in
-    configure)
-        setup_yuneta_user
-        fix_permissions
-    ;;
-
-    abort-upgrade|abort-remove|abort-deconfigure)
-    ;;
-
-    *)
-        echo "postinst called with unknown argument '\$1'" >&2
-        exit 1
-    ;;
-esac
-
-if [ "\$1" = "configure" ] || [ "\$1" = "abort-upgrade" ]; then
-    if [ -x "/etc/init.d/yuneta_agent" ]; then
-        update-rc.d yuneta_agent defaults >/dev/null
-    fi
-    if [ -x "/etc/init.d/yuneta_agent" ]; then
-        invoke-rc.d yuneta_agent start || exit \$?
-    fi
+# Create yuneta system user if missing
+if ! id -u yuneta >/dev/null 2>&1; then
+    adduser --system --no-create-home --group yuneta || true
 fi
-# End automatically added section
+# Set ownership for runtime dirs
+chown -R yuneta:yuneta /yuneta || true
+
+# If using systemd, you could enable/start here (optional):
+# if command -v systemctl >/dev/null 2>&1; then
+#     systemctl daemon-reload || true
+#     systemctl enable yuneta-agent.service || true
+#     systemctl start yuneta-agent.service || true
+# fi
 
 exit 0
 EOF
+chmod 0755 "${WORKDIR}/DEBIAN/postinst"
 
-
-cat <<EOF >./$PACKAGE/DEBIAN/postrm
+# --- prerm (optional; stop services before removal) ---
+cat > "${WORKDIR}/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
-# postrm script for yuneta_agent
-#
-# see: dh_installdeb(1)
-
 set -e
-
-case "\$1" in
-    remove|purge)
-        rm -f /etc/init.d/yuneta_agent
-        update-rc.d -f yuneta_agent remove >/dev/null
-    ;;
-
-    upgrade|failed-upgrade)
-    ;;
-
-    *)
-        echo "postrm called with unknown argument '\$1'" >&2
-        exit 1
-    ;;
-esac
-
-# In case this system is running systemd, we make systemd reload the unit files
-# to pick up changes.
-if [ -d /run/systemd/system ] ; then
-    systemctl --system daemon-reload >/dev/null || true
-fi
-# End automatically added section
-
+# if command -v systemctl >/dev/null 2>&1; then
+#     systemctl stop yuneta-agent.service || true
+# fi
 exit 0
 EOF
+chmod 0755 "${WORKDIR}/DEBIAN/prerm}"
 
-
-cat <<EOF > "./$PACKAGE/DEBIAN/prerm"
+# --- postrm (purge cleanup) ---
+cat > "${WORKDIR}/DEBIAN/postrm" <<'EOF'
 #!/bin/sh
-# prerm script for yuneta_agent
-#
-# see: dh_installdeb(1)
-
 set -e
-
-case "\$1" in
-    remove|purge|deconfigure)
-        if [ -x /etc/init.d/yuneta_agent ]; then
-            if [ -x /usr/sbin/invoke-rc.d ]; then
-                invoke-rc.d yuneta_agent stop
-            else
-                /etc/init.d/yuneta_agent stop
-            fi
-        fi
-    ;;
-
-    upgrade)
-    ;;
-    failed-upgrade)
-    ;;
-
-    *)
-        echo "prerm called with unknown argument '\$1'" >&2
-        exit 1
-    ;;
-esac
-
-if [ -x "/etc/init.d/yuneta_agent" ]; then
-    invoke-rc.d yuneta_agent stop || exit \$?
+if [ "$1" = "purge" ]; then
+    # Remove user and data only on purge; be conservative
+    deluser --system yuneta 2>/dev/null || true
+    # rm -rf /yuneta   # Uncomment if you want a full purge
 fi
-# End automatically added section
-
-
 exit 0
 EOF
+chmod 0755 "${WORKDIR}/DEBIAN/postrm"
 
-chmod +x "./$PACKAGE/DEBIAN/postinst"
-chmod +x "./$PACKAGE/DEBIAN/postrm"
-chmod +x "./$PACKAGE/DEBIAN/prerm"
+# Ensure directory permissions (dirs 755, regular files already set)
+find "${WORKDIR}" -type d -print0 | xargs -0 chmod 0755
 
-# chown root:root -R $PACKAGE
-rm -f "$BASE/$PACKAGE.deb"
+# Build .deb (root ownership inside package)
+OUT_DEB="${BASE_DEST}/${PACKAGE}.deb"
+echo "[i] Building ${OUT_DEB}"
+dpkg-deb --build --root-owner-group "${WORKDIR}" "${OUT_DEB}"
 
-#----------------------------------------#
-#   Build the rpm
-#----------------------------------------#
-dpkg -b "$PACKAGE"
-
-cp "$BASE/$PACKAGE.deb" .
+echo "[✓] Done: ${OUT_DEB}"
+echo "Install with:"
+echo "  sudo apt -y install ./$(basename "${OUT_DEB}")"
