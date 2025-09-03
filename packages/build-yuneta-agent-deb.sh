@@ -5,9 +5,10 @@
 # Build a .deb for Yunetas Agent
 #
 # Usage:
-#   ./build-yuneta-agent-deb.sh <project> <version> <release> <arch> [--bin-dir <dir>]
+#   ./build-yuneta-agent-deb.sh <project> <version> <release> <arch>
+#
 # Example:
-#   ./build-yuneta-agent-deb.sh yuneta-agent 7.0.0 1 amd64 --bin-dir ./out/bin
+#   ./build-yuneta-agent-deb.sh yuneta-agent 7.0.0 1 amd64
 #
 # Notes:
 # - Writes to ./build/deb/<arch>/<project>-<version>-<release>-<arch>.deb
@@ -16,7 +17,7 @@
 set -euo pipefail
 
 if [ "${1:-}" = "--help" ] || [ "$#" -lt 4 ]; then
-    echo "Usage: $0 <project> <version> <release> <arch> [--bin-dir <dir>]"
+    echo "Usage: $0 <project> <version> <release> <arch>"
     exit 1
 fi
 
@@ -36,14 +37,12 @@ echo "[i] Building package tree at: ${WORKDIR}"
 rm -rf "${WORKDIR}"
 mkdir -p "${WORKDIR}/DEBIAN"
 mkdir -p "${WORKDIR}/etc/profile.d"
-mkdir -p "${WORKDIR}/etc/init.d"
 mkdir -p "${WORKDIR}/yuneta/agent"
 mkdir -p "${WORKDIR}/yuneta/bin"
 mkdir -p "${WORKDIR}/yuneta/gui"
 mkdir -p "${WORKDIR}/yuneta/realms"
 mkdir -p "${WORKDIR}/yuneta/repos"
-mkdir -p "${WORKDIR}/yuneta/store/certs"
-mkdir -p "${WORKDIR}/yuneta/store/certs/private" # TODO permission only for yuneta user
+mkdir -p "${WORKDIR}/yuneta/store/certs/private"  # private will be 0700 in postinst
 mkdir -p "${WORKDIR}/yuneta/share"
 
 # --- Binaries to include (must exist in BIN_DIR) ---
@@ -81,21 +80,28 @@ for BINARY in "${BINARIES[@]}"; do
     install -D -m 0755 "${SRC}" "${WORKDIR}/yuneta/bin/${BINARY}"
 done
 
-# --- Minimal control file (adjust fields as needed) ---
-# Tip: keep Depends small; add python3 only if truly needed
+# Optional profile snippet
+cat > "${WORKDIR}/etc/profile.d/yuneta.sh" <<'EOF'
+# Yuneta environment
+export YUNETA_DIR=/yuneta
+export PATH="/yuneta/bin:$PATH"
+EOF
+chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
+
+# --- control file ---
 cat > "${WORKDIR}/DEBIAN/control" <<EOF
 Package: ${PROJECT}
 Version: ${VERSION}-${RELEASE}
 Section: utils
 Priority: optional
 Architecture: ${ARCHITECTURE}
-Maintainer: ArtGins S.L. <administracion@artgins.com>
+Maintainer: ArtGins S.L. <support@artgins.com>
+Depends: adduser
 Description: Yunetas Agent
  Yunetas Agent binaries and runtime directories.
-Depends: adduser, libc6
 EOF
 
-# --- postinst (POSIX sh) ---
+# --- postinst (set ownership/perms, handle for private certs) ---
 cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 set -e
@@ -103,40 +109,38 @@ set -e
 if ! id -u yuneta >/dev/null 2>&1; then
     adduser --system --no-create-home --group yuneta || true
 fi
-# Set ownership for runtime dirs
-chown -R yuneta:yuneta /yuneta || true
 
-# If using systemd, you could enable/start here (optional):
-# if command -v systemctl >/dev/null 2>&1; then
-#     systemctl daemon-reload || true
-#     systemctl enable yuneta-agent.service || true
-#     systemctl start yuneta-agent.service || true
-# fi
+# Set ownership for runtime dirs
+if [ -d /yuneta ]; then
+    chown -R yuneta:yuneta /yuneta || true
+fi
+
+# Enforce strict perms on private certs directory
+if [ -d /yuneta/store/certs/private ]; then
+    chmod 0700 /yuneta/store/certs/private || true
+fi
 
 exit 0
 EOF
 chmod 0755 "${WORKDIR}/DEBIAN/postinst"
 
-# --- prerm (optional; stop services before removal) ---
+# --- prerm (placeholder) ---
 cat > "${WORKDIR}/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
 set -e
-# if command -v systemctl >/dev/null 2>&1; then
-#     systemctl stop yuneta-agent.service || true
-# fi
 exit 0
 EOF
-chmod 0755 "${WORKDIR}/DEBIAN/prerm}"
+chmod 0755 "${WORKDIR}/DEBIAN/prerm"
 
-# --- postrm (purge cleanup) ---
+# --- postrm (purge cleanup placeholder) ---
 cat > "${WORKDIR}/DEBIAN/postrm" <<'EOF'
 #!/bin/sh
 set -e
-if [ "$1" = "purge" ]; then
-    # Remove user and data only on purge; be conservative
-    deluser --system yuneta 2>/dev/null || true
-    # rm -rf /yuneta   # Uncomment if you want a full purge
-fi
+# For purge-time cleanup, uncomment if desired:
+# if [ "$1" = "purge" ]; then
+#     deluser --system yuneta 2>/dev/null || true
+#     # rm -rf /yuneta
+# fi
 exit 0
 EOF
 chmod 0755 "${WORKDIR}/DEBIAN/postrm"
@@ -145,6 +149,7 @@ chmod 0755 "${WORKDIR}/DEBIAN/postrm"
 find "${WORKDIR}" -type d -print0 | xargs -0 chmod 0755
 
 # Build .deb (root ownership inside package)
+mkdir -p "${BASE_DEST}"
 OUT_DEB="${BASE_DEST}/${PACKAGE}.deb"
 echo "[i] Building ${OUT_DEB}"
 dpkg-deb --build --root-owner-group "${WORKDIR}" "${OUT_DEB}"
