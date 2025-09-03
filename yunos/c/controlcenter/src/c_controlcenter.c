@@ -691,6 +691,7 @@ PRIVATE json_t *cmd_command_agent(hgobj gobj, const char *cmd, json_t *kw_, hgob
         );
         JSON_DECREF(webix);
         some++;
+        break; // connect ONLY one
     }
 
     gobj_free_iter(dl_children);
@@ -782,6 +783,7 @@ PRIVATE json_t *cmd_stats_agent(hgobj gobj, const char *cmd, json_t *kw_, hgobj 
         );
         JSON_DECREF(webix);
         some++;
+        break; // connect ONLY one
     }
 
     gobj_free_iter(dl_children);
