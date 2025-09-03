@@ -463,6 +463,7 @@ PRIVATE char agent_config[]= "\
     'gclass': 'IEvent_cli',                     \n\
     'as_service': true,                          \n\
     'kw': {                                     \n\
+        'jwt': '(^^__jwt__^^)',                         \n\
         'remote_yuno_name': '(^^__yuno_name__^^)',      \n\
         'remote_yuno_role': '(^^__yuno_role__^^)',      \n\
         'remote_yuno_service': '(^^__yuno_service__^^)' \n\
