@@ -25,7 +25,7 @@ yunetas.egg-info/
 
 x.sh
 
-dist
+dist/
 docs/build
 docs/_build
 venv

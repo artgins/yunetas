@@ -33,6 +33,7 @@ debug/
 \.git/
 \.gitignore
 
+dist/
 build/
 release/
 logs/
