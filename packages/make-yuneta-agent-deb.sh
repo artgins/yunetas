@@ -2,14 +2,26 @@
 #######################################################################
 #               make-yuneta-agent-deb.sh
 #######################################################################
-# Build a .deb for Yunetas Agent with SysV integration
+# Build a .deb for Yuneta’s Agent with SysV integration + cert hooks
 #
 # Usage:
-#     ./make-yuneta-agent-deb.sh <project> <version> <release> <arch>
+#   ./make-yuneta-agent-deb.sh <project> <version> <release> <arch>
+#
+# Layout (relative to this script, which must live in yunetas/packages/):
+#   - builds under: ./build/deb/<arch>/<project-version-release-arch>/
+#   - outputs to:   ./dist/<project-version-release-arch>.deb
+#
+# Major features:
+#   - Ships Yuneta agent binaries + runtime tree under /yuneta
+#   - SysV init script at /etc/init.d/yuneta_agent
+#   - Certbot deploy hook to copy-renewed certs + reload nginx + restart Yuneta
+#   - Helpers for installing dev deps and certbot (snap)
+#   - Creates user 'yuneta' with login at /home/yuneta (if needed)
+#   - Makes /var/log/syslog available via rsyslog
 #
 # Notes:
-#     - Script must live in yunetas/packages/
-#     - Builds under ./build/ and places the final .deb in ./dist
+#   - /etc/init.d/yuneta_agent is NOT a conffile, so it’s removed on uninstall.
+#   - Agent JSON configs are created on first install only (preserve if exist).
 #######################################################################
 
 set -euo pipefail
@@ -42,16 +54,20 @@ rm -rf "${WORKDIR}"
 mkdir -p "${WORKDIR}/DEBIAN"
 mkdir -p "${WORKDIR}/etc/profile.d"
 mkdir -p "${WORKDIR}/etc/sudoers.d"
-mkdir -p "${WORKDIR}/etc/init.d"                       # ship the init script
-mkdir -p "${WORKDIR}/etc/letsencrypt/renewal-hooks/deploy"  # certbot deploy hook
-mkdir -p "${WORKDIR}/yuneta/agent/service"             # helper scripts live here
+mkdir -p "${WORKDIR}/etc/init.d"                          # ship the init script
+mkdir -p "${WORKDIR}/etc/letsencrypt/renewal-hooks/deploy" # certbot deploy hook
+
+# Yuneta tree (runtime + dev convenience dirs)
+mkdir -p "${WORKDIR}/yuneta/agent/service"
 mkdir -p "${WORKDIR}/yuneta/agent"
 mkdir -p "${WORKDIR}/yuneta/bin"
 mkdir -p "${WORKDIR}/yuneta/gui"
 mkdir -p "${WORKDIR}/yuneta/realms"
 mkdir -p "${WORKDIR}/yuneta/repos"
-mkdir -p "${WORKDIR}/yuneta/store/certs/private"       # private will be 0700 in postinst
 mkdir -p "${WORKDIR}/yuneta/share"
+mkdir -p "${WORKDIR}/yuneta/store/certs/private"          # private will be 0700 in postinst
+
+# Dev-oriented dirs (optional, handy when building yunos locally)
 mkdir -p "${WORKDIR}/yuneta/development/projects"
 mkdir -p "${WORKDIR}/yuneta/development/outputs"
 mkdir -p "${WORKDIR}/yuneta/development/outputs/include"
@@ -111,18 +127,13 @@ copy_tree "/yuneta/bin/openresty" "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/ssl3"          "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/share"         "${WORKDIR}/yuneta/share"
 
-copy_tree "/yuneta/development/outputs_ext" "${WORKDIR}/yuneta/development/outputs_ext"
+# Optional dev artifacts snapshot
+copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development/outputs_ext"
 copy_tree "/yuneta/development/outputs/include" "${WORKDIR}/yuneta/development/outputs/include"
-copy_tree "/yuneta/development/outputs/libs" "${WORKDIR}/yuneta/development/outputs/libs"
-copy_tree "/yuneta/development/outputs/yunos" "${WORKDIR}/yuneta/development/outputs/yunos"
+copy_tree "/yuneta/development/outputs/libs"    "${WORKDIR}/yuneta/development/outputs/libs"
+copy_tree "/yuneta/development/outputs/yunos"   "${WORKDIR}/yuneta/development/outputs/yunos"
 
-## Copy share/ contents if exists
-#if [ -d "/yuneta/share" ]; then
-#    echo "[i] Copying share/ -> ${WORKDIR}/yuneta/share"
-#    cp -a --dereference "/yuneta/share/." "${WORKDIR}/yuneta/share/"
-#fi
-
-# --- Copy yuneta_agent binaries (required) and create default configs ---
+# --- Copy yuneta_agent binaries (required) and create default configs (samples) ---
 AGENT_SRC_1="/yuneta/agent/yuneta_agent"
 AGENT_SRC_2="/yuneta/agent/yuneta_agent22"
 
@@ -138,24 +149,25 @@ fi
 install -D -m 0755 "${AGENT_SRC_1}" "${WORKDIR}/yuneta/agent/yuneta_agent"
 install -D -m 0755 "${AGENT_SRC_2}" "${WORKDIR}/yuneta/agent/yuneta_agent22"
 
-# Create empty JSON configs (content: {})
-# Create default JSON samples (real files are created in postinst only if missing)
+# Create default JSON samples (real files created in postinst ONLY IF MISSING)
 printf '{}\n' > "${WORKDIR}/yuneta/agent/yuneta_agent.json.sample"
 printf '{}\n' > "${WORKDIR}/yuneta/agent/yuneta_agent22.json.sample"
 chmod 0644 "${WORKDIR}/yuneta/agent/yuneta_agent.json.sample" \
            "${WORKDIR}/yuneta/agent/yuneta_agent22.json.sample"
 
 # --- Copy agent certs directory (if present) ---
-# Result: ${WORKDIR}/yuneta/agent/certs/...
 copy_tree "/yuneta/agent/certs" "${WORKDIR}/yuneta/agent"
 
-# --- Certs validator (installed into /yuneta/bin, scans current dir by default) ---
+# --- Certs validator (installed into /yuneta/bin; scans current dir by default) ---
 cat > "${WORKDIR}/yuneta/bin/check-certs-validity.sh" <<'EOF'
 #!/usr/bin/env bash
-# Recursively list *.crt and show subject, dates, and expiry status.
+#
+# Recursively list *.crt and show subject, validity dates, and expiry status.
+#
 # Usage:
-#     check-certs-validity.sh                # scans . (current directory)
-#     check-certs-validity.sh <path> [...]   # each path can be a dir or a file
+#   check-certs-validity.sh                # scans . (current directory)
+#   check-certs-validity.sh <path> [...]   # each path can be a dir or a file
+#
 set -euo pipefail
 
 OPENSSL="$(command -v openssl || true)"
@@ -199,7 +211,7 @@ done
 EOF
 chmod 0755 "${WORKDIR}/yuneta/bin/check-certs-validity.sh"
 
-# --- Profile snippet ---
+# --- Profile snippet (system-wide shell PATH for Yuneta) ---
 cat > "${WORKDIR}/etc/profile.d/yuneta.sh" <<'EOF'
 # Yuneta environment
 export YUNETA_DIR=/yuneta
@@ -207,7 +219,7 @@ export PATH="/yuneta/bin:$PATH"
 EOF
 chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
 
-# --- SysV init script (minimal, Yuneta manages its own daemons) ---
+# --- SysV init script (minimal; Yuneta manages its own daemons) ---
 cat > "${WORKDIR}/etc/init.d/yuneta_agent" <<'EOF'
 #!/bin/sh
 ### BEGIN INIT INFO
@@ -242,11 +254,12 @@ if [ -r /lib/lsb/init-functions ]; then
     . /lib/lsb/init-functions
 else
     log_daemon_msg() { echo "$@"; }
-    log_end_msg() { [ "$1" -eq 0 ] && echo "OK" || echo "FAIL ($1)"; }
+    log_end_msg()    { [ "$1" -eq 0 ] && echo "OK" || echo "FAIL ($1)"; }
 fi
 
 _run_as_yuneta() {
-    su -s /bin/sh - "$RUN_AS" -c "$*"
+    # Use a login shell so /home/yuneta environment is loaded.
+    su - "$RUN_AS" -s /bin/sh -c "$*"
 }
 
 start_yunos() {
@@ -328,7 +341,7 @@ status_yunos() {
             MSG="$MSG yuneta_agent22: not running;"
         fi
     else
-        if pidof -x yuneta_agent >/dev/null 2>&1; then MSG="$MSG yuneta_agent: running;"; S=0; else MSG="$MSG yuneta_agent: not running;"; fi
+        if pidof -x yuneta_agent   >/dev/null 2>&1; then MSG="$MSG yuneta_agent: running;";   S=0; else MSG="$MSG yuneta_agent: not running;";   fi
         if pidof -x yuneta_agent22 >/dev/null 2>&1; then MSG="$MSG yuneta_agent22: running;"; S=0; else MSG="$MSG yuneta_agent22: not running;"; fi
     fi
 
@@ -350,29 +363,17 @@ status_web() {
     return 3
 }
 
-case "$1" in
-    start)
-        start_yunos
-        start_web
-        ;;
-    stop)
-        stop_web
-        stop_yunos
-        ;;
+case "${1:-}" in
+    start)            start_yunos; start_web ;;
+    stop)             stop_web;    stop_yunos ;;
     restart|force-reload)
-        stop_web || true
-        stop_yunos || true
-        start_yunos
-        start_web
-        ;;
-    status)
-        status_yunos
-        status_web
-        ;;
-    *)
-        echo "Usage: $0 {start|stop|restart|force-reload|status}"
-        exit 2
-        ;;
+                      stop_web || true
+                      stop_yunos || true
+                      start_yunos
+                      start_web
+                      ;;
+    status)           status_yunos; status_web ;;
+    *)                echo "Usage: $0 {start|stop|restart|force-reload|status}"; exit 2 ;;
 esac
 
 exit 0
@@ -382,7 +383,7 @@ chmod 0755 "${WORKDIR}/etc/init.d/yuneta_agent"
 # Mirror init script into service dir with perms
 install -m 0755 "${WORKDIR}/etc/init.d/yuneta_agent" "${WORKDIR}/yuneta/agent/service/yuneta_agent"
 
-# --- control file ---
+# --- control file (runtime deps + friendly suggests) ---
 cat > "${WORKDIR}/DEBIAN/control" <<EOF
 Package: ${PROJECT}
 Version: ${VERSION}-${RELEASE}
@@ -395,21 +396,24 @@ Depends: adduser, lsb-base, rsync, locales, rsyslog
 Recommends: curl, vim, sudo
 Suggests: git, mercurial, make, cmake, ninja-build, gcc, musl, musl-dev, musl-tools, clang, g++,
  python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv,
- libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev, perl, dos2unix, tree, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, pipx, patch, gettext, fail2ban, snapd
+ libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev,
+ perl, dos2unix, tree, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, pipx, patch, gettext, fail2ban, snapd
 Description: Yunetas Agent
  Yunetas Agent binaries and runtime directories.
 EOF
 
-# --- conffiles (mark config files) ---
+# --- conffiles (mark only *true* configs; NOT the init script) ---
 cat > "${WORKDIR}/DEBIAN/conffiles" <<'EOF'
 /etc/profile.d/yuneta.sh
-/etc/init.d/yuneta_agent
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs
 EOF
 
 # --- helper scripts (installed under /yuneta/agent/service) ---
 cat > "${WORKDIR}/yuneta/agent/service/install-yuneta-service.sh" <<'EOF'
 #!/bin/sh
+#
+# Enable and start the SysV service. Idempotent and quiet on errors.
+#
 set -eu
 
 if [ ! -x "/etc/init.d/yuneta_agent" ]; then
@@ -431,23 +435,38 @@ chmod 0755 "${WORKDIR}/yuneta/agent/service/install-yuneta-service.sh"
 
 cat > "${WORKDIR}/yuneta/agent/service/remove-yuneta-service.sh" <<'EOF'
 #!/bin/sh
+#
+# Stop SysV service and remove init symlinks + script. Idempotent.
+#
 set -eu
-# Stop SysV service and remove init symlinks
+
+# Stop service if present
 if command -v invoke-rc.d >/dev/null 2>&1; then
     invoke-rc.d yuneta_agent stop || true
-else
+elif [ -x /etc/init.d/yuneta_agent ]; then
     /etc/init.d/yuneta_agent stop || true
 fi
+
+# Remove rc symlinks
 if [ -x /usr/sbin/update-rc.d ]; then
     /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
 fi
+
+# Remove the init file itself
+rm -f /etc/init.d/yuneta_agent || true
+
 exit 0
 EOF
 chmod 0755 "${WORKDIR}/yuneta/agent/service/remove-yuneta-service.sh"
 
-# --- Certbot via snap installer (ops helper) ---
+# --- Certbot via snap installer (ops helper; safe to rerun) ---
 cat > "${WORKDIR}/yuneta/bin/install-certbot-snap.sh" <<'EOF'
 #!/usr/bin/env bash
+#
+# Install/enable snapd and Certbot (snap package) the official way.
+#
+# Makes /usr/bin/certbot -> /snap/bin/certbot symlink if needed.
+#
 set -euo pipefail
 
 need_root() {
@@ -472,13 +491,13 @@ if ! command -v snap >/dev/null 2>&1; then
         systemctl enable --now snapd snapd.apparmor 2>/dev/null || true
         # Wait for initial snap seed on some systems
         snap wait system seed.loaded 2>/dev/null || true
+    else
         echo "apt-get not found; cannot install snapd automatically." >&2
         exit 1
     fi
 fi
 
 # 2) Install/refresh core and certbot (official method)
-#    Refs: Certbot docs & Snap store
 snap install core || true
 snap refresh core || true
 snap install --classic certbot
@@ -528,7 +547,14 @@ chmod 0755 "${WORKDIR}/yuneta/bin/install-certbot-snap.sh"
 # --- Let's Encrypt: deploy hook to copy + reload + restart ---
 cat > "${WORKDIR}/etc/letsencrypt/renewal-hooks/deploy/reload-certs" <<'EOF'
 #!/bin/sh
-# Triggered by certbot after successful renewal.
+#
+# Certbot deploy hook: run after a successful renewal
+#
+# What this does:
+#   1) Copies renewed certs from /etc/letsencrypt/live/* to /yuneta/store/certs/
+#   2) Reloads Nginx to pick the new certs (OpenResty optional)
+#   3) Restarts the Yuneta stack (background, non-blocking)
+#
 set -eu
 
 LOG_DIR="/var/log/yuneta"
@@ -548,11 +574,9 @@ else
     echo "Warning: nginx binary not found or not executable." >&2
 fi
 
-# OpenResty is shipped but DISABLED by default; uncomment to enable:
+# Optional: OpenResty reload
 # if [ -x /yuneta/bin/openresty/bin/openresty ]; then
 #     /yuneta/bin/openresty/bin/openresty -s reload || true
-# else
-#     echo "Warning: OpenResty binary not found or not executable." >&2
 # fi
 
 # 3) Restart Yuneta stack (background, non-blocking)
@@ -569,6 +593,12 @@ chmod 0755 "${WORKDIR}/etc/letsencrypt/renewal-hooks/deploy/reload-certs"
 # --- Restart helper: prefer SysV restart when root; fallback otherwise ---
 cat > "${WORKDIR}/yuneta/bin/restart-yuneta" <<'EOF'
 #!/usr/bin/env bash
+#
+# Restart Yuneta safely after cert updates or maintenance.
+#
+# - If root: prefer SysV service restart (invoke-rc.d/init.d)
+# - Else:    graceful yshutdown + start via yuneta_agent
+#
 set -euo pipefail
 
 # If root, prefer SysV service restart; else fallback to yshutdown + start
@@ -598,28 +628,27 @@ fi
 EOF
 chmod 0755 "${WORKDIR}/yuneta/bin/restart-yuneta"
 
-# --- Helper: check queues of messages ---
+# --- Helper: check queues of messages (two-level walker) ---
 cat > "${WORKDIR}/yuneta/bin/colas2.sh" <<'EOF'
 #!/usr/bin/env bash
-set -euo pipefail
-
+#
+# Walk Yuneta gate message queues and list messages with `list_queue_msgs2`.
+#
 # Usage:
-#   colas2.sh                       # scan default base
+#   colas2.sh                       # scan default base /yuneta/store/queues/gate_msgs2
 #   colas2.sh <base_dir> [args...]  # scan <base_dir> and pass [args...] to list_queue_msgs2
 #
-# Notes:
-#   - Scans two-level dirs under the base (queues/<q>/<subq>/).
-#   - For robustness, uses absolute path to list_queue_msgs2.
-#   - Handles empty globs (no literal "*/").
+set -euo pipefail
 
 LIST_BIN="/yuneta/bin/list_queue_msgs2"
-
-# Determine base dir and the rest of args to forward
 BASE="/yuneta/store/queues/gate_msgs2"
+
+# Allow an alternate base dir as first argument
 if [ "$#" -gt 0 ] && [ -d "$1" ]; then
     BASE="$1"
     shift
 fi
+
 FWD_ARGS=("$@")
 
 if [ ! -d "$BASE" ]; then
@@ -630,7 +659,6 @@ fi
 # Ensure we don't iterate literal patterns when no matches
 shopt -s nullglob
 
-# Iterate two levels: <BASE>/<QUEUE>/<QUEUE2>/
 found_any=false
 for qdir in "$BASE"/*/; do
     qdir="${qdir%/}"
@@ -653,9 +681,12 @@ fi
 EOF
 chmod 0755 "${WORKDIR}/yuneta/bin/colas2.sh"
 
-# --- Dev stack installer (optional helper) ---
+# --- Dev stack installer (optional helper; installs many build deps) ---
 cat > "${WORKDIR}/yuneta/bin/install-yuneta-dev-deps.sh" <<'EOF'
 #!/usr/bin/env bash
+#
+# Install common Yuneta dev dependencies via apt (no recommends) and pipx.
+#
 set -euo pipefail
 
 need_root() {
@@ -671,7 +702,6 @@ need_root "$@"
 
 export DEBIAN_FRONTEND=noninteractive
 
-# One apt update up-front
 if command -v apt-get >/dev/null 2>&1; then
     apt-get update -y || true
 else
@@ -679,7 +709,6 @@ else
     exit 1
 fi
 
-# Packages requested (installed individually to tolerate missing ones)
 PKGS=(
     git mercurial make cmake ninja-build
     gcc musl musl-dev musl-tools clang g++
@@ -691,10 +720,8 @@ PKGS=(
     postgresql-server-dev-all libpq-dev
     kconfig-frontends telnet pipx
     patch gettext fail2ban rsync
+    build-essential pkg-config ca-certificates
 )
-
-# Extra commonly-needed build meta packages
-PKGS+=(build-essential pkg-config ca-certificates)
 
 echo "[i] Installing development packages (no recommends)…"
 for p in "${PKGS[@]}"; do
@@ -726,6 +753,25 @@ chmod 0755 "${WORKDIR}/yuneta/bin/install-yuneta-dev-deps.sh"
 # --- Copy-certs helper: root-only, supports certs.list or auto-discovery ---
 cat > "${WORKDIR}/yuneta/store/certs/copy-certs.sh" <<'EOF'
 #!/usr/bin/env bash
+#
+# Copy Let’s Encrypt live certs into Yuneta’s store.
+#
+# Sources:
+#   /etc/letsencrypt/live/<name>/{fullchain.pem,chain.pem,privkey.pem}
+#
+# Destinations:
+#   /yuneta/store/certs/<name>.crt
+#   /yuneta/store/certs/<name>.chain
+#   /yuneta/store/certs/private/<name>.key   (0600)
+#
+# Selection:
+#   - If /yuneta/store/certs/certs.list exists and has entries, copy only those.
+#   - Else, auto-discover all directories under /etc/letsencrypt/live.
+#
+# Permissions:
+#   - Requires root to read privkey.pem.
+#   - Sets ownership to yuneta:yuneta for copied files (best effort).
+#
 set -euo pipefail
 
 # Must run as root (privkey.pem is root-only in /etc/letsencrypt/live)
@@ -738,27 +784,20 @@ DEST_BASE="/yuneta/store/certs"
 DEST_PRIV="${DEST_BASE}/private"
 CERTS_FILE="${DEST_BASE}/certs.list"
 
-# Ensure destinations exist with safe permissions
 install -d -m 0755 "${DEST_BASE}"
 install -d -m 0700 "${DEST_PRIV}"
 
 # Build list of certificate names: prefer certs.list, else auto-discover
 CERT_NAMES=""
 if [ -s "${CERTS_FILE}" ]; then
-    # read non-empty, non-comment lines
     while IFS= read -r line; do
-        case "$line" in
-            ''|\#*) continue ;;
-            *) CERT_NAMES="${CERT_NAMES} ${line}" ;;
-        esac
+        case "$line" in ''|\#*) continue ;; *) CERT_NAMES="${CERT_NAMES} ${line}" ;; esac
     done < "${CERTS_FILE}"
 else
-    # auto-detect all directories with live certs
     if [ -d /etc/letsencrypt/live ]; then
         for d in /etc/letsencrypt/live/*; do
             [ -d "$d" ] || continue
-            name="$(basename "$d")"
-            CERT_NAMES="${CERT_NAMES} ${name}"
+            CERT_NAMES="${CERT_NAMES} $(basename "$d")"
         done
     fi
 fi
@@ -805,20 +844,43 @@ cat > "${WORKDIR}/yuneta/store/certs/certs.list" <<'EOF'
 EOF
 chmod 0644 "${WORKDIR}/yuneta/store/certs/certs.list"
 
-# --- Make yuneta sudo ---
+# --- Make yuneta sudo (NOPASSWD, convenience for ops) ---
 cat > "${WORKDIR}/etc/sudoers.d/90-yuneta" <<'EOF'
-# User rules for yuneta
+# User rules for yuneta (adjust if you prefer finer-grained commands)
 yuneta ALL=(ALL) NOPASSWD:ALL
 EOF
 chmod 0440 "${WORKDIR}/etc/sudoers.d/90-yuneta"
 
-# --- postinst (create user, locales, syslog, SysV enable on first install) ---
+# --- postinst (create login user, locales, syslog, SysV enable on first install) ---
 cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
+#
+# Configure system after package files are unpacked.
+#
 set -eu
-# Create yuneta system user if missing
-if ! id -u yuneta >/dev/null 2>&1; then
-    adduser --system --no-create-home --group yuneta || true
+
+# ---- Create/normalize 'yuneta' login user (home /home/yuneta, shell /bin/bash)
+if id -u yuneta >/dev/null 2>&1; then
+    # Ensure login shell and home exist/match expectations
+    CUR_SHELL="$(getent passwd yuneta | awk -F: '{print $7}')"
+    [ -n "$CUR_SHELL" ] || CUR_SHELL="/bin/false"
+    if [ "$CUR_SHELL" = "/usr/sbin/nologin" ] || [ "$CUR_SHELL" = "/bin/false" ]; then
+        usermod -s /bin/bash yuneta || true
+    fi
+    if [ ! -d /home/yuneta ]; then
+        mkdir -p /home/yuneta
+        chown -R yuneta:yuneta /home/yuneta || true
+        chmod 0755 /home/yuneta || true
+    fi
+    # If home is different, migrate it
+    CUR_HOME="$(getent passwd yuneta | awk -F: '{print $6}')"
+    if [ "$CUR_HOME" != "/home/yuneta" ]; then
+        usermod -d /home/yuneta -m yuneta || true
+    fi
+else
+    # Create a normal login user (no preset password)
+    adduser --disabled-password --gecos "" \
+            --home /home/yuneta --shell /bin/bash yuneta || true
 fi
 
 # ---- Ensure agent configs exist without overwriting existing ones
@@ -879,7 +941,7 @@ else
 fi
 
 # $1 is "configure"; $2 is previous version on upgrade (empty on first install)
-if [ "$1" = "configure" ] && [ -z "${2:-}" ]; then
+if [ "${1:-}" = "configure" ] && [ -z "${2:-}" ]; then
     # SysV integration (prefer helper script)
     if [ -x /yuneta/agent/service/install-yuneta-service.sh ]; then
         /yuneta/agent/service/install-yuneta-service.sh || true
@@ -901,32 +963,46 @@ chmod 0755 "${WORKDIR}/DEBIAN/postinst"
 # --- prerm (stop before upgrade/remove) ---
 cat > "${WORKDIR}/DEBIAN/prerm" <<'EOF'
 #!/bin/sh
+#
+# Stop the service prior to upgrade/remove (best-effort).
+#
 set -eu
-# Stop the service prior to upgrade/remove
+
 if command -v invoke-rc.d >/dev/null 2>&1; then
     invoke-rc.d yuneta_agent stop || true
 else
     [ -x /etc/init.d/yuneta_agent ] && /etc/init.d/yuneta_agent stop || true
 fi
+
 exit 0
 EOF
 chmod 0755 "${WORKDIR}/DEBIAN/prerm"
 
-# --- postrm (remove init symlinks on remove/purge) ---
+# --- postrm (remove init symlinks AND the init file on remove/purge) ---
 cat > "${WORKDIR}/DEBIAN/postrm" <<'EOF'
 #!/bin/sh
+#
+# After removal/purge: clean up SysV rc symlinks and the init script itself.
+#
 set -eu
-case "$1" in
+
+case "${1:-}" in
     remove|purge)
-        if [ -x /yuneta/agent/service/remove-yuneta-service.sh ]; then
-            /yuneta/agent/service/remove-yuneta-service.sh || true
-        else
-            if [ -x /usr/sbin/update-rc.d ]; then
-                /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
-            fi
+        # Remove rc symlinks
+        if [ -x /usr/sbin/update-rc.d ]; then
+            /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
         fi
+        # Stop again defensively
+        if command -v invoke-rc.d >/dev/null 2>&1; then
+            invoke-rc.d yuneta_agent stop || true
+        elif [ -x /etc/init.d/yuneta_agent ]; then
+            /etc/init.d/yuneta_agent stop || true
+        fi
+        # Remove the init file itself
+        rm -f /etc/init.d/yuneta_agent || true
         ;;
 esac
+
 exit 0
 EOF
 chmod 0755 "${WORKDIR}/DEBIAN/postrm"
@@ -948,7 +1024,7 @@ chmod 0755 "${WORKDIR}/DEBIAN/postinst" \
             "${WORKDIR}/DEBIAN/prerm" \
             "${WORKDIR}/DEBIAN/postrm"
 
-# init.d script must be executable (conffile + 0755)
+# init.d script must be executable
 chmod 0755 "${WORKDIR}/etc/init.d/yuneta_agent"
 
 # ---------- Build .deb (root ownership inside package) ----------
