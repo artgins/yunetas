@@ -52,6 +52,12 @@ mkdir -p "${WORKDIR}/yuneta/realms"
 mkdir -p "${WORKDIR}/yuneta/repos"
 mkdir -p "${WORKDIR}/yuneta/store/certs/private"       # private will be 0700 in postinst
 mkdir -p "${WORKDIR}/yuneta/share"
+mkdir -p "${WORKDIR}/yuneta/development/projects"
+mkdir -p "${WORKDIR}/yuneta/development/outputs"
+mkdir -p "${WORKDIR}/yuneta/development/outputs/include"
+mkdir -p "${WORKDIR}/yuneta/development/outputs/libs"
+mkdir -p "${WORKDIR}/yuneta/development/outputs/yunos"
+mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
 
 # --- Single-file utilities to include (must exist in BIN_DIR) ---
 BINARIES=(
@@ -103,12 +109,18 @@ copy_tree "/yuneta/bin/ncurses"   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"     "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty" "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/ssl3"          "${WORKDIR}/yuneta/bin"
+copy_tree "/yuneta/share"         "${WORKDIR}/yuneta/share"
 
-# Copy share/ contents if exists
-if [ -d "/yuneta/share" ]; then
-    echo "[i] Copying share/ -> ${WORKDIR}/yuneta/share"
-    cp -a --dereference "/yuneta/share/." "${WORKDIR}/yuneta/share/"
-fi
+copy_tree "/yuneta/development/outputs_ext" "${WORKDIR}/yuneta/development/outputs_ext"
+copy_tree "/yuneta/development/outputs/include" "${WORKDIR}/yuneta/development/outputs/include"
+copy_tree "/yuneta/development/outputs/libs" "${WORKDIR}/yuneta/development/outputs/libs"
+copy_tree "/yuneta/development/outputs/yunos" "${WORKDIR}/yuneta/development/outputs/yunos"
+
+## Copy share/ contents if exists
+#if [ -d "/yuneta/share" ]; then
+#    echo "[i] Copying share/ -> ${WORKDIR}/yuneta/share"
+#    cp -a --dereference "/yuneta/share/." "${WORKDIR}/yuneta/share/"
+#fi
 
 # --- Copy yuneta_agent binaries (required) and create default configs ---
 AGENT_SRC_1="/yuneta/agent/yuneta_agent"
