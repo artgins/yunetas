@@ -41,6 +41,7 @@ echo "[i] Building package tree at: ${WORKDIR}"
 rm -rf "${WORKDIR}"
 mkdir -p "${WORKDIR}/DEBIAN"
 mkdir -p "${WORKDIR}/etc/profile.d"
+mkdir -p "${WORKDIR}/etc/sudoers.d"
 mkdir -p "${WORKDIR}/etc/init.d"                       # ship the init script
 mkdir -p "${WORKDIR}/etc/letsencrypt/renewal-hooks/deploy"  # certbot deploy hook
 mkdir -p "${WORKDIR}/yuneta/agent/service"             # helper scripts live here
@@ -791,6 +792,13 @@ cat > "${WORKDIR}/yuneta/store/certs/certs.list" <<'EOF'
 # api.example.com
 EOF
 chmod 0644 "${WORKDIR}/yuneta/store/certs/certs.list"
+
+# --- Make yuneta sudo ---
+cat > "${WORKDIR}/etc/sudoers.d/90-yuneta" <<'EOF'
+# User rules for yuneta
+yuneta ALL=(ALL) NOPASSWD:ALL
+EOF
+chmod 0440 "${WORKDIR}/etc/sudoers.d/90-yuneta"
 
 # --- postinst (create user, locales, syslog, SysV enable on first install) ---
 cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
