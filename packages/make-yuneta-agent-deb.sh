@@ -72,6 +72,8 @@ mkdir -p "${WORKDIR}/yuneta/development/outputs/include"
 mkdir -p "${WORKDIR}/yuneta/development/outputs/libs"
 mkdir -p "${WORKDIR}/yuneta/development/outputs/yunos"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
+mkdir -p "${WORKDIR}/etc/yuneta"
+mkdir -p "${WORKDIR}/etc/yuneta/authorized_keys.d"
 
 # --- Single-file utilities to include (must exist in BIN_DIR) ---
 BINARIES=(
@@ -128,6 +130,14 @@ copy_tree "/yuneta/development/outputs_ext"         "${WORKDIR}/yuneta/developme
 copy_tree "/yuneta/development/outputs/include"     "${WORKDIR}/yuneta/development/outputs/include"
 copy_tree "/yuneta/development/outputs/libs"        "${WORKDIR}/yuneta/development/outputs/libs"
 copy_tree "/yuneta/development/outputs/yunos"       "${WORKDIR}/yuneta/development/outputs/yunos"
+
+# --- Optional: bundle SSH public key(s) for user 'yuneta' ---
+# If this file exists at build time, it will be installed and merged in postinst.
+YUNETA_AUTH_KEYS_SRC="${YUNETA_AUTH_KEYS_SRC:-${SCRIPT_DIR}/authorized_keys}"
+if [ -f "${YUNETA_AUTH_KEYS_SRC}" ]; then
+    echo "[i] Bundling authorized_keys from ${YUNETA_AUTH_KEYS_SRC}"
+    install -D -m 0644 "${YUNETA_AUTH_KEYS_SRC}" "${WORKDIR}/etc/yuneta/authorized_keys"
+fi
 
 # --- Copy yuneta_agent binaries (required) and create default config samples ---
 AGENT_SRC_1="/yuneta/agent/yuneta_agent"
@@ -441,6 +451,10 @@ cat > "${WORKDIR}/DEBIAN/conffiles" <<'EOF'
 /etc/init.d/yuneta_agent
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs
 EOF
+
+if [ -f "${WORKDIR}/etc/yuneta/authorized_keys" ]; then
+    echo "/etc/yuneta/authorized_keys" >> "${WORKDIR}/DEBIAN/conffiles"
+fi
 
 # --- helper scripts (installed under /yuneta/agent/service) ---
 cat > "${WORKDIR}/yuneta/agent/service/install-yuneta-service.sh" <<'EOF'

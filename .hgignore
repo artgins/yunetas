@@ -40,6 +40,7 @@ logs/
 data/
 _build/
 Debug/
+authorized_keys/
 \.libs/
 \.deps/
 tests/reports/

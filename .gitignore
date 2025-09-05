@@ -45,6 +45,7 @@ debug/
 a.out
 *.kdev4
 core.*
+authorized_keys/
 
 .hgignore
 .hgtags
