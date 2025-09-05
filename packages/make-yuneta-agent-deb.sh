@@ -439,6 +439,7 @@ EOF
 # --- conffiles (mark config files; dpkg removes these only on purge) ---
 cat > "${WORKDIR}/DEBIAN/conffiles" <<'EOF'
 /etc/profile.d/yuneta.sh
+/etc/sudoers.d/90-yuneta
 /etc/init.d/yuneta_agent
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs
 EOF
