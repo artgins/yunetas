@@ -23,6 +23,8 @@
 #     - Script must live in yunetas/packages/
 #     - Builds under ./build/ and places the final .deb in ./dist
 #     - Indentation is 4 spaces everywhere (as requested)
+#     - The ssh keys that you put in `authorized_keys/authorized_keys` file,
+#       they will be installed by the .deb in the user yuneta.
 #######################################################################
 
 set -euo pipefail
