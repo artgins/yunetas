@@ -935,7 +935,7 @@ for grp in "$@"; do
             usermod -aG "$grp" yuneta || true
             info "Added 'yuneta' to newly created group: $grp"
         else
-            warn "Group '$grp' not present; skipping (export YUNETA_CREATE_MISSING_GROUPS=1 to create)."
+            # warn "Group '$grp' not present; skipping (export YUNETA_CREATE_MISSING_GROUPS=1 to create)."
         fi
     fi
 done
