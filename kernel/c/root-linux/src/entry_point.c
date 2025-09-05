@@ -379,7 +379,8 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     if(!is_yuneta_user(username)) {
         print_error(
             PEF_EXIT,
-            "User '%s' must be 'yuneta' of belong to group 'yuneta'",
+            "To run yunos the user must be 'yuneta' of belong to group 'yuneta'."
+            " Current user is '%s'",
             username
         );
     }
