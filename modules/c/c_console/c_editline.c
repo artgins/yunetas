@@ -476,6 +476,7 @@ PRIVATE int open_cloexec(const char* path, int flags) {
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "open() FAILED",
+            "path",         "%s", path,
             "errno",        "%d", errno,
             "serrno",       "%s", strerror(errno),
             NULL
