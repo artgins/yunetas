@@ -578,40 +578,52 @@ PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keybo
      * different struct file, hence changing its properties doesn't affect
      * other processes.
      */
-
-    if(isatty(fd)) {
+    if (isatty(fd)) {
         /* Reopening a pty in master mode won't work either because the reopened
          * pty will be in slave mode (*BSD) or reopening will allocate a new
          * master/slave pair (Linux). Therefore check if the fd points to a
          * slave device.
          */
         if (tty_is_slave(fd) && ttyname_r(fd, path, sizeof(path)) == 0) {
-            r = open_cloexec(path, mode | O_NOCTTY);
+            /* >>> NEW: only try to reopen if we actually have permission. <<< */
+            int required_access;
+            switch (mode) {
+                case O_RDONLY: required_access = R_OK; break;
+                case O_WRONLY: required_access = W_OK; break;
+                default:        required_access = R_OK | W_OK; break; /* O_RDWR */
+            }
+
+            if (access(path, required_access) == 0) {
+                /* Preserve existing non-ACCMODE flags while forcing O_NOCTTY. */
+                int oflags = (saved_flags & ~O_ACCMODE) | mode | O_NOCTTY;
+                r = open_cloexec(path, oflags);
+            } else {
+                /* No permission to reopen (e.g. /dev/pts/* owned by another user).
+                 * Fall back silently to using the existing fd to avoid log spam.
+                 */
+                r = -1;
+            }
         } else {
             r = -1;
         }
 
-        if (r < 0) {
-            goto skip;
+        if (r >= 0) {
+            newfd = r;
+            r = dup2_cloexec(newfd, fd);
+            if (r < 0 && errno != EINVAL) {
+                /* EINVAL means newfd == fd which could conceivably happen if another
+                 * thread called close(fd) between our calls to isatty() and open().
+                 * That's a rather unlikely event but let's handle it anyway.
+                 */
+                close(newfd);
+                return r;
+            }
+            fd = newfd;
         }
-
-        newfd = r;
-
-        r = dup2_cloexec(newfd, fd);
-        if (r < 0 && errno != EINVAL) {
-            /* EINVAL means newfd == fd which could conceivably happen if another
-             * thread called close(fd) between our calls to isatty() and open().
-             * That's a rather unlikely event but let's handle it anyway.
-             */
-            close(newfd);
-            return r;
-        }
-
-        fd = newfd;
     }
 
 skip:
-    if(nonblock(fd, 1)<0) {
+    if (nonblock(fd, 1) < 0) {
         close(fd);
         fd = -1;
     }
@@ -642,7 +654,7 @@ skip:
     tmp.c_oflag |= (ONLCR);
     tmp.c_cflag |= (CS8);
     tmp.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    tmp.c_cc[VMIN] = 1;
+    tmp.c_cc[VMIN]  = 1;
     tmp.c_cc[VTIME] = 0;
 
     do
@@ -659,9 +671,6 @@ skip:
             NULL
         );
     }
-
-    // /* Enable xterm mouse: 1002 Button-Motion + 1006 SGR, hide cursor */
-    // write(STDOUT_FILENO, "\x1b[?1002h\x1b[?1006h\x1b[?25l", 18);
 
     return fd;
 }
