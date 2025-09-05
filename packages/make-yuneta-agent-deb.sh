@@ -224,6 +224,7 @@ ulimit -n 200000 2>/dev/null || true
 alias y='cd /yuneta/development/yunetas'
 alias salidas='cd /yuneta/development/outputs'
 alias logs='cd /yuneta/realms/agent/logcenter/logs'
+alias ll='ls -la'
 EOF
 chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
 
@@ -427,10 +428,10 @@ Architecture: ${ARCHITECTURE}
 Homepage: https://yuneta.io
 Maintainer: ArtGins S.L. <support@artgins.com>
 Depends: adduser, lsb-base, rsync, locales, rsyslog
-Recommends: curl, vim, sudo
+Recommends: curl, vim, sudo, tree, pipx, fail2ban
 Suggests: git, mercurial, make, cmake, ninja-build, gcc, musl, musl-dev, musl-tools, clang, g++,
  python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv,
- libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev, perl, dos2unix, tree, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, pipx, patch, gettext, fail2ban, snapd
+ libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, snapd
 Description: Yuneta's Agent
  Yuneta Agent binaries, runtime directories, SysV service, certbot hooks and helpers.
 EOF
