@@ -45,7 +45,8 @@ debug/
 a.out
 *.kdev4
 core.*
-authorized_keys/
+packages/authorized_keys/*
+!packages/authorized_keys/.gitkeep
 
 .hgignore
 .hgtags
