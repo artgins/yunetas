@@ -132,11 +132,12 @@ copy_tree "/yuneta/development/outputs/libs"        "${WORKDIR}/yuneta/developme
 copy_tree "/yuneta/development/outputs/yunos"       "${WORKDIR}/yuneta/development/outputs/yunos"
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
-# If this file exists at build time, it will be installed and merged in postinst.
-YUNETA_AUTH_KEYS_SRC="${YUNETA_AUTH_KEYS_SRC:-${SCRIPT_DIR}/authorized_keys}"
-if [ -f "${YUNETA_AUTH_KEYS_SRC}" ]; then
-    echo "[i] Bundling authorized_keys from ${YUNETA_AUTH_KEYS_SRC}"
-    install -D -m 0644 "${YUNETA_AUTH_KEYS_SRC}" "${WORKDIR}/etc/yuneta/authorized_keys"
+# Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
+YUNETA_AUTH_KEYS_DIR="${SCRIPT_DIR}/authorized_keys"
+YUNETA_AUTH_KEYS_FILE="${YUNETA_AUTH_KEYS_DIR}/authorized_keys"
+if [ -f "${YUNETA_AUTH_KEYS_FILE}" ]; then
+    echo "[i] Bundling authorized_keys from ${YUNETA_AUTH_KEYS_FILE}"
+    install -D -m 0644 "${YUNETA_AUTH_KEYS_FILE}" "${WORKDIR}/etc/yuneta/authorized_keys"
 fi
 
 # --- Copy yuneta_agent binaries (required) and create default config samples ---
