@@ -622,7 +622,6 @@ PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keybo
         }
     }
 
-skip:
     if (nonblock(fd, 1) < 0) {
         close(fd);
         fd = -1;
