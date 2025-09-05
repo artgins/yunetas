@@ -598,7 +598,7 @@ PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keybo
                 int oflags = (saved_flags & ~O_ACCMODE) | mode | O_NOCTTY;
                 r = open_cloexec(path, oflags);
             } else {
-                /* No permission to reopen (e.g. /dev/pts/* owned by another user).
+                /* No permission to reopen (e.g. /dev/pts/? owned by another user).
                  * Fall back silently to using the existing fd to avoid log spam.
                  */
                 r = -1;
