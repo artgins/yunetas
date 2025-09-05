@@ -472,7 +472,7 @@ static inline int tty_is_slave(const int fd) {
 PRIVATE int open_cloexec(const char* path, int flags) {
     int fd = open(path, flags | O_CLOEXEC);
     if (fd == -1) {
-        gobj_log_error(0, 0,
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "open() FAILED",
