@@ -104,7 +104,6 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 // PRIVATE int try_parse_mouse_sgr(const char *buf, size_t len, int *b, int *x, int *y, int *is_press, size_t *used);
 
 PRIVATE int create_display_framework(hgobj gobj);
-PRIVATE void do_close(hgobj gobj);
 PRIVATE hgobj create_display_window(hgobj gobj, const char* name, json_t* kw_display_window);
 PRIVATE hgobj get_display_window(hgobj gobj, const char *name);
 PRIVATE int destroy_display_window(hgobj gobj, const char *name);
@@ -412,10 +411,39 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(use_ncurses,      gobj_read_bool_attr)
+}
 
-    if(priv->use_ncurses) {
-        create_display_framework(gobj);
-    }
+/***************************************************************************
+ *      Framework Method writing
+ ***************************************************************************/
+PRIVATE void mt_writing(hgobj gobj, const char *path)
+{
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
+//     END_EQ_SET_PRIV()
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->jn_window_counters);
+    JSON_DECREF(priv->jn_shortkeys);
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+}
+
+/***************************************************************************
+ *      Framework Method start
+ ***************************************************************************/
+PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->timer);
 
     /*
      *  Input screen size
@@ -463,46 +491,11 @@ PRIVATE void mt_create(hgobj gobj)
         kw_editline,
         priv->gobj_editbox?priv->gobj_editbox:gobj
     );
-}
-
-/***************************************************************************
- *      Framework Method writing
- ***************************************************************************/
-PRIVATE void mt_writing(hgobj gobj, const char *path)
-{
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
-//     END_EQ_SET_PRIV()
-}
-
-/***************************************************************************
- *      Framework Method destroy
- ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    JSON_DECREF(priv->jn_window_counters);
-    JSON_DECREF(priv->jn_shortkeys);
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
-}
-
-/***************************************************************************
- *      Framework Method start
- ***************************************************************************/
-PRIVATE int mt_start(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_start(priv->timer);
-    if(priv->gwin_stdscr) {
-        gobj_start(priv->gwin_stdscr);
-    }
 
     if(priv->gobj_editline) {
         priv->tty_fd = tty_init();
         if(priv->tty_fd < 0) {
+            print_error(0, "cannot open a tty window");
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
@@ -545,6 +538,14 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
 
+    if(priv->use_ncurses) {
+        create_display_framework(gobj);
+    }
+
+    if(priv->gwin_stdscr) {
+        gobj_start(priv->gwin_stdscr);
+    }
+
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
     SetDefaultFocus(priv->gobj_editline);
 
@@ -577,7 +578,6 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    // TODO destroy agent's windows
     destroy_display_window(gobj, "console");
     destroy_static(gobj, "console");
 
@@ -587,7 +587,6 @@ PRIVATE int mt_stop(hgobj gobj)
     }
 
     try_to_stop_yevents(gobj);
-    do_close(gobj);
 
     gobj_stop_tree(gobj);
     return 0;
@@ -2435,33 +2434,6 @@ PRIVATE int msg2statusline(hgobj gobj, BOOL error, const char *fmt, ...)
     va_end(ap);
 
     return 0;
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE void do_close(hgobj gobj)
-{
-    // PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    // if(!priv->uv_handler_active) {
-    //     gobj_log_error(gobj, 0,
-    //         "function",     "%s", __FUNCTION__,
-    //         "msgset",       "%s", MSGSET_OPERATIONAL_ERROR,
-    //         "msg",          "%s", "UV handler NOT ACTIVE!",
-    //         NULL
-    //     );
-    //     return;
-    // }
-    // if(priv->uv_read_active) {
-    //     uv_read_stop((uv_stream_t *)&priv->uv_tty);
-    //     priv->uv_read_active = 0;
-    // }
-    //
-    // if(gobj_trace_level(gobj) & TRACE_UV) {
-    //     gobj_trace_msg(gobj, ">>> uv_close tty p=%p", &priv->uv_tty);
-    // }
-    // uv_close((uv_handle_t *)&priv->uv_tty, on_close_cb);
 }
 
 /***************************************************************************

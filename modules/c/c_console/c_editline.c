@@ -472,7 +472,8 @@ static inline int tty_is_slave(const int fd) {
 PRIVATE int open_cloexec(const char* path, int flags) {
     int fd = open(path, flags | O_CLOEXEC);
     if (fd == -1) {
-        gobj_log_error(0, LOG_OPT_EXIT_NEGATIVE|LOG_OPT_TRACE_STACK,
+        print_error(0, "open(%s) FAILED", path);
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_SYSTEM_ERROR,
             "msg",          "%s", "open() FAILED",
@@ -587,6 +588,10 @@ PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keybo
          */
         if (tty_is_slave(fd) && ttyname_r(fd, path, sizeof(path)) == 0) {
             r = open_cloexec(path, mode | O_NOCTTY);
+            if(r<0) {
+                // Error already logged
+                return -1;
+            }
         } else {
             r = -1;
         }
