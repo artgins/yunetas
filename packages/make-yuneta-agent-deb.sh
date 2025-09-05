@@ -65,6 +65,7 @@ mkdir -p "${WORKDIR}/yuneta/gui"
 mkdir -p "${WORKDIR}/yuneta/realms"
 mkdir -p "${WORKDIR}/yuneta/repos"
 mkdir -p "${WORKDIR}/yuneta/share"
+mkdir -p "${WORKDIR}/yuneta/store/queues/gate_msgs2"
 mkdir -p "${WORKDIR}/yuneta/store/certs/private"          # private will be 0700 in postinst
 
 # Dev-oriented dirs (optional, handy when building yunos locally)
@@ -402,9 +403,10 @@ Description: Yunetas Agent
  Yunetas Agent binaries and runtime directories.
 EOF
 
-# --- conffiles (mark only *true* configs; NOT the init script) ---
+# --- conffiles ---
 cat > "${WORKDIR}/DEBIAN/conffiles" <<'EOF'
 /etc/profile.d/yuneta.sh
+/etc/init.d/yuneta_agent
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs
 EOF
 
@@ -435,10 +437,12 @@ chmod 0755 "${WORKDIR}/yuneta/agent/service/install-yuneta-service.sh"
 
 cat > "${WORKDIR}/yuneta/agent/service/remove-yuneta-service.sh" <<'EOF'
 #!/bin/sh
-#
-# Stop SysV service and remove init symlinks + script. Idempotent.
-#
+# Stop SysV service and remove init symlinks.
+# Does NOT delete /etc/init.d/yuneta_agent unless called with --purge.
 set -eu
+
+PURGE=0
+[ "${1:-}" = "--purge" ] && PURGE=1
 
 # Stop service if present
 if command -v invoke-rc.d >/dev/null 2>&1; then
@@ -447,13 +451,15 @@ elif [ -x /etc/init.d/yuneta_agent ]; then
     /etc/init.d/yuneta_agent stop || true
 fi
 
-# Remove rc symlinks
+# Remove rc.d symlinks (safe even if already gone)
 if [ -x /usr/sbin/update-rc.d ]; then
     /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
 fi
 
-# Remove the init file itself
-rm -f /etc/init.d/yuneta_agent || true
+# Only on purge, delete the init file itself (dpkg will also remove conffiles)
+if [ "$PURGE" -eq 1 ]; then
+    rm -f /etc/init.d/yuneta_agent || true
+fi
 
 exit 0
 EOF
@@ -981,25 +987,36 @@ chmod 0755 "${WORKDIR}/DEBIAN/prerm"
 # --- postrm (remove init symlinks AND the init file on remove/purge) ---
 cat > "${WORKDIR}/DEBIAN/postrm" <<'EOF'
 #!/bin/sh
-#
-# After removal/purge: clean up SysV rc symlinks and the init script itself.
-#
 set -eu
 
 case "${1:-}" in
-    remove|purge)
-        # Remove rc symlinks
-        if [ -x /usr/sbin/update-rc.d ]; then
-            /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
+    remove)
+        # Remove rc symlinks only; keep the init script (conffile)
+        if [ -x /yuneta/agent/service/remove-yuneta-service.sh ]; then
+            /yuneta/agent/service/remove-yuneta-service.sh || true
+        else
+            if [ -x /usr/sbin/update-rc.d ]; then
+                /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
+            fi
+            # Do NOT rm /etc/init.d/yuneta_agent here
         fi
-        # Stop again defensively
-        if command -v invoke-rc.d >/dev/null 2>&1; then
-            invoke-rc.d yuneta_agent stop || true
-        elif [ -x /etc/init.d/yuneta_agent ]; then
-            /etc/init.d/yuneta_agent stop || true
+        ;;
+    purge)
+        # Full cleanup; dpkg will remove the conffile, but ensure service is stopped and symlinks gone
+        if [ -x /yuneta/agent/service/remove-yuneta-service.sh ]; then
+            /yuneta/agent/service/remove-yuneta-service.sh --purge || true
+        else
+            if command -v invoke-rc.d >/dev/null 2>&1; then
+                invoke-rc.d yuneta_agent stop || true
+            elif [ -x /etc/init.d/yuneta_agent ]; then
+                /etc/init.d/yuneta_agent stop || true
+            fi
+            if [ -x /usr/sbin/update-rc.d ]; then
+                /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
+            fi
+            # If dpkg hasn’t removed the conffile yet, remove it quietly
+            rm -f /etc/init.d/yuneta_agent || true
         fi
-        # Remove the init file itself
-        rm -f /etc/init.d/yuneta_agent || true
         ;;
 esac
 
