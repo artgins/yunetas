@@ -411,39 +411,10 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(use_ncurses,      gobj_read_bool_attr)
-}
 
-/***************************************************************************
- *      Framework Method writing
- ***************************************************************************/
-PRIVATE void mt_writing(hgobj gobj, const char *path)
-{
-//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//
-//     IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
-//     END_EQ_SET_PRIV()
-}
-
-/***************************************************************************
- *      Framework Method destroy
- ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    JSON_DECREF(priv->jn_window_counters);
-    JSON_DECREF(priv->jn_shortkeys);
-    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
-}
-
-/***************************************************************************
- *      Framework Method start
- ***************************************************************************/
-PRIVATE int mt_start(hgobj gobj)
-{
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
-    gobj_start(priv->timer);
+    if(priv->use_ncurses) {
+        create_display_framework(gobj);
+    }
 
     /*
      *  Input screen size
@@ -491,6 +462,42 @@ PRIVATE int mt_start(hgobj gobj)
         kw_editline,
         priv->gobj_editbox?priv->gobj_editbox:gobj
     );
+}
+
+/***************************************************************************
+ *      Framework Method writing
+ ***************************************************************************/
+PRIVATE void mt_writing(hgobj gobj, const char *path)
+{
+//     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+//
+//     IF_EQ_SET_PRIV(timeout,         gobj_read_integer_attr)
+//     END_EQ_SET_PRIV()
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    JSON_DECREF(priv->jn_window_counters);
+    JSON_DECREF(priv->jn_shortkeys);
+    EXEC_AND_RESET(yev_destroy_event, priv->yev_reading)
+}
+
+/***************************************************************************
+ *      Framework Method start
+ ***************************************************************************/
+PRIVATE int mt_start(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_start(priv->timer);
+    if(priv->gwin_stdscr) {
+        gobj_start(priv->gwin_stdscr);
+    }
 
     if(priv->gobj_editline) {
         priv->tty_fd = tty_init();
@@ -538,14 +545,6 @@ PRIVATE int mt_start(hgobj gobj)
         }
     }
 
-    if(priv->use_ncurses) {
-        create_display_framework(gobj);
-    }
-
-    if(priv->gwin_stdscr) {
-        gobj_start(priv->gwin_stdscr);
-    }
-
     msg2statusline(gobj, 0, "Wellcome to Yuneta. Type help for assistance.");
     SetDefaultFocus(priv->gobj_editline);
 
@@ -578,6 +577,7 @@ PRIVATE int mt_start(hgobj gobj)
 PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    // TODO destroy agent's windows
     destroy_display_window(gobj, "console");
     destroy_static(gobj, "console");
 
