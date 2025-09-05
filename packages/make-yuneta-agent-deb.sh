@@ -46,7 +46,7 @@ PACKAGE="${PROJECT}-${VERSION}-${RELEASE}-${ARCHITECTURE}"
 BASE_DEST="${SCRIPT_DIR}/build/deb/${ARCHITECTURE}"
 WORKDIR="${BASE_DEST}/${PACKAGE}"
 OUT_DIR="${SCRIPT_DIR}/dist"
-BIN_DIR="/yuneta/bin/"
+BIN_DIR="/yuneta/bin"
 
 echo "[i] Building package tree at: ${WORKDIR}"
 
@@ -876,26 +876,69 @@ yuneta ALL=(ALL) NOPASSWD:ALL
 EOF
 chmod 0440 "${WORKDIR}/etc/sudoers.d/90-yuneta"
 
-# --- postinst (create user, locales, syslog, SysV enable on first install) ---
+# --- postinst (create login user, add to wide groups, locales, syslog, SysV enable) ---
 cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
 #!/bin/sh
 #######################################################################
 # postinst
 # - Ensure 'yuneta' login user with home /home/yuneta (bash shell)
+# - Add 'yuneta' to wide set of system-access groups (dialout, tty, netdev, etc.)
 # - Create agent configs if missing (do not overwrite)
 # - Ensure locales (en_US.UTF-8, es_ES.UTF-8)
 # - Ensure rsyslog (/var/log/syslog)
 # - Enable/start SysV service on first install
+#
+# Tunables (export before dpkg -i if desired):
+#   YUNETA_GROUPS="adm,sudo,tty,dialout,..."
+#   YUNETA_CREATE_MISSING_GROUPS=1   # create any missing groups instead of skipping
 #######################################################################
 set -eu
 
+info() { echo "[postinst] $*"; }
+warn() { echo "[postinst] WARNING: $*" >&2; }
+
 # Create 'yuneta' login user if missing (interactive password is not set)
-# Admin can later run:   sudo passwd yuneta
+# Admin can later run:   sudo passwd -l yuneta   (or leave SSH key auth only)
 if ! id -u yuneta >/dev/null 2>&1; then
+    info "Creating login user 'yuneta' (non-system)…"
     adduser --home /home/yuneta --shell /bin/bash --gecos "Yuneta User" --disabled-password yuneta || true
+else
+    UID_NOW="$(id -u yuneta || echo 0)"
+    if [ "$UID_NOW" -lt 1000 ]; then
+        warn "'yuneta' exists with system UID ($UID_NOW < 1000). Keeping UID but granting full groups + sudo."
+        # Converting UID automatically can be risky on established systems; skip by default.
+        # To migrate manually later:
+        #   usermod -u <new_uid> yuneta && find / -xdev -uid <old_uid> -exec chown -h <new_uid>:yuneta {} +
+    fi
 fi
+
 # Ensure home exists and owned by user
 install -d -o yuneta -g yuneta -m 0755 /home/yuneta || true
+
+# Add 'yuneta' to a broad, practical set of system-access groups
+# You can override with YUNETA_GROUPS env (comma-separated)
+DEFAULT_GROUPS="adm,sudo,tty,dialout,cdrom,audio,video,plugdev,netdev,render,input,gpio,i2c,spi,uucp,wireshark,bluetooth,scanner,lp,lpadmin,sambashare,docker,libvirt,kvm,lxd"
+GROUPS="${YUNETA_GROUPS:-$DEFAULT_GROUPS}"
+CREATE_MISSING="${YUNETA_CREATE_MISSING_GROUPS:-0}"
+
+# Parse comma-separated list safely
+OLDIFS="$IFS"; IFS=','; set -- $GROUPS; IFS="$OLDIFS"
+for grp in "$@"; do
+    [ -z "$grp" ] && continue
+    if getent group "$grp" >/dev/null 2>&1; then
+        usermod -aG "$grp" yuneta || true
+        info "Added 'yuneta' to group: $grp"
+    else
+        if [ "$CREATE_MISSING" = "1" ]; then
+            info "Creating missing group: $grp"
+            groupadd "$grp" || true
+            usermod -aG "$grp" yuneta || true
+            info "Added 'yuneta' to newly created group: $grp"
+        else
+            warn "Group '$grp' not present; skipping (export YUNETA_CREATE_MISSING_GROUPS=1 to create)."
+        fi
+    fi
+done
 
 # Ensure agent configs exist without overwriting existing ones
 if [ ! -e /yuneta/agent/yuneta_agent.json ]; then
