@@ -16,6 +16,9 @@
 #include <signal.h>
 #include <unistd.h>
 #include <locale.h>
+#include <grp.h>
+#include <pwd.h>
+
 #include <sys/file.h>
 #include <time.h>
 #include <dirent.h>
@@ -6556,4 +6559,58 @@ PUBLIC int print_open_fds(const char *fmt, ...)
     closedir(dir);
 
     return n;
+}
+
+/***************************************************************************
+ * Check if a given username belongs to the "yuneta" group
+ * or is exactly the "yuneta" user.
+ *
+ * Return:
+ *      TRUE -> user is "yuneta" or belongs to "yuneta" group
+ *      FALSE -> otherwise
+ ***************************************************************************/
+PUBLIC int is_yuneta_user(const char *username)
+{
+    if(!username) {
+        return FALSE;
+    }
+
+    /* Check if user is exactly "yuneta" */
+    if(strcmp(username, "yuneta") == 0) {
+        return TRUE;
+    }
+
+    /* Get passwd entry for user */
+    struct passwd *pw = getpwnam(username);
+    if(!pw) {
+        return FALSE;
+    }
+
+    /* Get group entry for "yuneta" */
+    struct group *gr = getgrnam("yuneta");
+    if(!gr) {
+        return FALSE;
+    }
+
+    /* Check if user's primary group is yuneta */
+    if(pw->pw_gid == gr->gr_gid) {
+        return TRUE;
+    }
+
+    /* Check supplementary groups */
+    gid_t groups[NGROUPS_MAX];
+    int ngroups = NGROUPS_MAX;
+
+    if(getgrouplist(username, pw->pw_gid, groups, &ngroups) == -1) {
+        /* In case of error, fallback: user likely has more groups than NGROUPS_MAX */
+        return FALSE;
+    }
+
+    for(int i = 0; i < ngroups; i++) {
+        if(groups[i] == gr->gr_gid) {
+            return TRUE;
+        }
+    }
+
+    return FALSE;
 }

@@ -1083,3 +1083,4 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd);
 
 PUBLIC int check_open_fds(void); // return # opened fd's
 PUBLIC int print_open_fds(const char *fmt, ...);
+PUBLIC int is_yuneta_user(const char *username);

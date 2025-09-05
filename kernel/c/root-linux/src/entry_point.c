@@ -15,6 +15,7 @@
 #include <limits.h>
 #include <libgen.h>
 #include <argp-standalone.h>
+#include <pwd.h>
 
 #include <command_parser.h>
 #include <stats_parser.h>
@@ -371,6 +372,16 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
                 APP_NAME
             );
         }
+    }
+
+    struct passwd *pw = getpwuid(getuid());
+    const char *username = pw->pw_name;
+    if(!is_yuneta_user(username)) {
+        print_error(
+            PEF_EXIT,
+            "User '%s' must be 'yuneta' of belong to group 'yuneta'",
+            username
+        );
     }
 
     /*------------------------------------------------*
