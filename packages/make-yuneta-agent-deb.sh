@@ -952,6 +952,21 @@ for grp in "$@"; do
     fi
 done
 
+# SSH authorized_keys for 'yuneta' (merge, idempotent)
+umask 077
+install -d -o yuneta -g yuneta -m 0700 /home/yuneta/.ssh || true
+AUTH_DST="/home/yuneta/.ssh/authorized_keys"
+touch "${AUTH_DST}"; chown yuneta:yuneta "${AUTH_DST}"; chmod 0600 "${AUTH_DST}"
+
+add_key() {
+    line="$1"
+    case "$line" in ''|'#'*) return 0 ;; esac
+    grep -qxF -- "$line" "${AUTH_DST}" 2>/dev/null || printf '%s\n' "$line" >> "${AUTH_DST}"
+}
+if [ -s /etc/yuneta/authorized_keys ]; then
+    while IFS= read -r l; do add_key "$l"; done < /etc/yuneta/authorized_keys
+fi
+
 # Ensure agent configs exist without overwriting existing ones
 if [ ! -e /yuneta/agent/yuneta_agent.json ]; then
     if [ -e /yuneta/agent/yuneta_agent.json.sample ]; then
