@@ -2,7 +2,7 @@
 #######################################################################
 #               make-yuneta-agent-deb.sh
 #######################################################################
-# Build a .deb for Yuneta’s Agent with SysV integration + cert hooks
+# Build a .deb for Yuneta's Agent with SysV integration
 #
 # Usage:
 #     ./make-yuneta-agent-deb.sh <project> <version> <release> <arch>
@@ -209,15 +209,25 @@ done
 EOF
 chmod 0755 "${WORKDIR}/yuneta/bin/check-certs-validity.sh"
 
-# --- Profile snippet ---
+# --- Profile snippet (env, limits for shells, and aliases) ---
 cat > "${WORKDIR}/etc/profile.d/yuneta.sh" <<'EOF'
 # Yuneta environment
 export YUNETA_DIR=/yuneta
 export PATH="/yuneta/bin:$PATH"
+
+# Raise core dump and open-files limits for interactive shells
+# (Init/service scripts also raise limits before launching daemons)
+ulimit -c unlimited 2>/dev/null || true
+ulimit -n 200000 2>/dev/null || true
+
+# Handy aliases
+alias y='cd /yuneta/development/yunetas'
+alias salidas='cd /yuneta/development/outputs'
+alias logs='cd /yuneta/realms/agent/logcenter/logs'
 EOF
 chmod 0644 "${WORKDIR}/etc/profile.d/yuneta.sh"
 
-# --- SysV init script (minimal, Yuneta manages its own daemons) ---
+# --- SysV init script (adds hard runtime limits before starting) ---
 cat > "${WORKDIR}/etc/init.d/yuneta_agent" <<'EOF'
 #!/bin/sh
 ### BEGIN INIT INFO
@@ -255,12 +265,27 @@ else
     log_end_msg() { [ "$1" -eq 0 ] && echo "OK" || echo "FAIL ($1)"; }
 fi
 
+_set_limits() {
+    # Core dumps
+    ulimit -c unlimited || true
+    # Try to raise the hard limit, then set the soft limit
+    TARGET=200000
+    HARD="$(ulimit -Hn 2>/dev/null || echo 0)"
+    case "$HARD" in
+        unlimited) : ;;
+        *) ulimit -Hn "$TARGET" 2>/dev/null || true ;;
+    esac
+    ulimit -n "$TARGET" 2>/dev/null || ulimit -n 65535 2>/dev/null || true
+}
+
 _run_as_yuneta() {
     su -s /bin/sh - "$RUN_AS" -c "$*"
 }
 
 start_yunos() {
     RC=0
+    _set_limits
+
     if [ -x "$AGENT1_BIN" ]; then
         log_daemon_msg "Starting yuneta_agent"
         _run_as_yuneta "exec \"$AGENT1_BIN\" --start --config-file=\"$AGENT1_CFG\"" || RC=$?
@@ -402,8 +427,10 @@ Architecture: ${ARCHITECTURE}
 Homepage: https://yuneta.io
 Maintainer: ArtGins S.L. <support@artgins.com>
 Depends: adduser, lsb-base, rsync, locales, rsyslog
-Recommends: curl, vim, sudo, tree, pipx
-Suggests: git, mercurial, make, cmake, ninja-build, gcc, musl, musl-dev, musl-tools, clang, g++,  python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv, libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, fail2ban, snapd
+Recommends: curl, vim, sudo
+Suggests: git, mercurial, make, cmake, ninja-build, gcc, musl, musl-dev, musl-tools, clang, g++,
+ python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv,
+ libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev, perl, dos2unix, tree, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, pipx, patch, gettext, fail2ban, snapd
 Description: Yuneta's Agent
  Yuneta Agent binaries, runtime directories, SysV service, certbot hooks and helpers.
 EOF
@@ -985,7 +1012,7 @@ case "${1:-}" in
         if [ -x /usr/sbin/update-rc.d ]; then
             /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
         fi
-        # Delete the init script itself only on purge (dpkg will remove conffiles, but be explicit)
+        # Delete the init script itself only on purge
         if [ -e /etc/init.d/yuneta_agent ]; then
             rm -f /etc/init.d/yuneta_agent || true
         fi
