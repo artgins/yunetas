@@ -1026,29 +1026,45 @@ else
     fi
 fi
 
-# On configure (first install or upgrade): ensure SysV links exist and start
+# On configure (first install or upgrade): ensure service is enabled and started
 if [ "${1:-}" = "configure" ]; then
-    # Ensure the init script is present (dpkg should have unpacked it already)
+    echo "[postinst] Ensuring init script is present…"
     if [ ! -x /etc/init.d/yuneta_agent ] && [ -x /yuneta/agent/service/yuneta_agent ]; then
         install -m 0755 /yuneta/agent/service/yuneta_agent /etc/init.d/yuneta_agent
     fi
 
-    # Create/update runlevel symlinks (idempotent)
+    # Create rc?.d dirs if the image is extremely minimal (harmless if they exist)
+    for d in 0 1 2 3 4 5 6; do
+        [ -d "/etc/rc${d}.d" ] || mkdir -p "/etc/rc${d}.d"
+    done
+
+    echo "[postinst] Enabling via update-rc.d…"
     if [ -x /usr/sbin/update-rc.d ] && [ -e /etc/init.d/yuneta_agent ]; then
-        /usr/sbin/update-rc.d yuneta_agent defaults >/dev/null 2>&1 || true
+        /usr/sbin/update-rc.d yuneta_agent defaults || echo "[postinst] update-rc.d returned $?"
     else
-        echo "[postinst] WARNING: /usr/sbin/update-rc.d not found; cannot enable SysV links." >&2
+        echo "[postinst] WARNING: /usr/sbin/update-rc.d not found or init script missing."
     fi
 
-    # Try to start the service (policy-rc.d may block; that's fine)
-    if [ -x /usr/sbin/invoke-rc.d ]; then
+    # If no rc.d links were made (systemd-only hosts), enable the generator unit
+    if ! ls /etc/rc*.d/*yuneta_agent >/dev/null 2>&1; then
+        if command -v systemctl >/dev/null 2>&1; then
+            echo "[postinst] No rc.d links detected; enabling systemd unit…"
+            systemctl daemon-reload || true
+            systemctl enable yuneta_agent.service || true
+        else
+            echo "[postinst] WARNING: Neither rc.d links nor systemd available."
+        fi
+    fi
+
+    echo "[postinst] Starting service…"
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl start yuneta_agent.service || true   # policy-rc.d may block; OK
+    elif [ -x /usr/sbin/invoke-rc.d ]; then
         /usr/sbin/invoke-rc.d yuneta_agent start || true
     else
-        [ -x /etc/init.d/yuneta_agent ] && /etc/init.d/yuneta_agent start || true
+        /etc/init.d/yuneta_agent start || true
     fi
 fi
-
-exit 0
 
 exit 0
 EOF
