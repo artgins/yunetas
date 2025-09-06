@@ -505,10 +505,13 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->gobj_editline) {
         priv->tty_fd = tty_init();
         if(priv->tty_fd < 0) {
+
             if(priv->gwin_stdscr) {
                 gobj_stop(priv->gwin_stdscr);
+                gobj_destroy(priv->gwin_stdscr);
+                priv->gwin_stdscr = NULL;
             }
-            gobj_stop_tree(gobj);
+
             print_error(0, "cannot open a tty window");
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
@@ -1865,6 +1868,130 @@ PRIVATE int create_display_framework(hgobj gobj)
 
     priv->gwin_stdscr = gobj_create("cli", C_WN_STDSCR, 0, gobj);
     if(!priv->gwin_stdscr) {
+        return -1;
+    }
+
+    /*---------------------------------*
+     *  Layout stdscr
+     *---------------------------------*/
+    json_t *kw_layout  = json_pack(
+        "{s:s, s:s, s:s}",
+        "layout_type", "vertical",
+        "bg_color", "black",
+        "fg_color", "white"
+    );
+    hgobj gobj_layout = gobj_create(
+        "layout",
+        C_WN_LAYOUT,
+        kw_layout,
+        priv->gwin_stdscr
+    );
+
+    /*---------------------------------*
+     *  Top toolbar
+     *---------------------------------*/
+    json_t *kw_toptoolbarbox  = json_pack(
+        "{s:s, s:s, s:i, s:i}",
+        "bg_color", "cyan",
+        "fg_color", "white",
+        "w", 0,
+        "h", 1
+    );
+    hgobj gobj_toptoolbarbox = gobj_create(
+        "toptoolbarbox",
+        C_WN_BOX,
+        kw_toptoolbarbox,
+        gobj_layout
+    );
+    json_t *kw_toptoolbar  = json_pack(
+        "{s:s, s:s, s:s}",
+        "layout_type", "horizontal",
+        "bg_color", "cyan",
+        "fg_color", "black"
+    );
+    priv->gobj_toptoolbar = gobj_create(
+        "toptoolbar",
+        C_WN_TOOLBAR,
+        kw_toptoolbar,
+        gobj_toptoolbarbox
+    );
+
+    /*---------------------------------*
+     *  Work area
+     *---------------------------------*/
+    json_t *kw_workareabox = json_pack(
+        "{s:s, s:s, s:i, s:i}",
+        "bg_color", "black",
+        "fg_color", "white",
+        "w", 0,
+        "h", -1
+    );
+    priv->gobj_workareabox = gobj_create(
+        "workareabox",
+        C_WN_BOX,
+        kw_workareabox,
+        gobj_layout
+    );
+
+    /*---------------------------------*
+     *  Edit line box
+     *---------------------------------*/
+    json_t *kw_editbox = json_pack(
+        "{s:s, s:s, s:i, s:i}",
+        "bg_color", "gray",
+        "fg_color", "black",
+        "w", 0,
+        "h", 1
+    );
+    priv->gobj_editbox = gobj_create(
+        "editbox",
+        C_WN_BOX,
+        kw_editbox,
+        gobj_layout
+    );
+
+    /*---------------------------------*
+     *  Bottom toolbar
+     *---------------------------------*/
+    json_t *kw_bottomtoolbarbox  = json_pack(
+        "{s:s, s:s, s:i, s:i}",
+        "bg_color", "yellow",
+        "fg_color", "black",
+        "w", 0,
+        "h", 1
+    );
+    priv->gobj_bottomtoolbarbox = gobj_create(
+        "bottomtoolbarbox",
+        C_WN_BOX,
+        kw_bottomtoolbarbox,
+        gobj_layout
+    );
+    json_t *kw_stsline = json_pack(
+        "{s:s, s:s}",
+        "bg_color", "yellow",
+        "fg_color", "black"
+    );
+    priv->gobj_stsline = gobj_create(
+        "stsline",
+        C_WN_STSLINE,
+        kw_stsline,
+        priv->gobj_bottomtoolbarbox
+    );
+
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int destroy_display_framework(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    if(priv->gwin_stdscr) {
+        gobj_stop(priv->gwin_stdscr);
+        gobj_destroy(priv->gwin_stdscr);
+        priv->gwin_stdscr = NULL;
         return -1;
     }
 

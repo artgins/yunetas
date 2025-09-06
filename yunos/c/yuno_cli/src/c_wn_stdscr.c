@@ -149,16 +149,6 @@ PRIVATE void mt_create(hgobj gobj)
      *  stdscr timer to detect window size change
      */
     priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
-
-    wn = initscr();                 /* Start curses mode            */
-    cbreak();                       /* Line buffering disabled      */
-    noecho();                       /* Don't echo() while we do getch */
-    keypad(wn, TRUE);               /* We get F1, F2 etc..          */
-    halfdelay(1);
-    //wtimeout(wn, 10);             /* input non-blocking, wait 1 msec */
-    if(has_colors()) {
-        start_color();
-    }
 }
 
 /***************************************************************************
@@ -187,6 +177,16 @@ PRIVATE int mt_start(hgobj gobj)
     set_timeout_periodic(priv->timer, priv->timeout);
 
 
+    wn = initscr();                 /* Start curses mode            */
+    cbreak();                       /* Line buffering disabled      */
+    noecho();                       /* Don't echo() while we do getch */
+    keypad(wn, TRUE);               /* We get F1, F2 etc..          */
+    halfdelay(1);
+    //wtimeout(wn, 10);             /* input non-blocking, wait 1 msec */
+    if(has_colors()) {
+        start_color();
+    }
+
     int cx, cy;
     get_stdscr_size(&cx, &cy);
     gobj_write_integer_attr(gobj, "cx", cx);
@@ -200,7 +200,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_send_event_to_children(gobj, EV_SIZE, jn_kw, gobj);
 
     gobj_start_children(gobj);
-    //wrefresh(wn);
+    wrefresh(wn);
 
     return 0;
 }
