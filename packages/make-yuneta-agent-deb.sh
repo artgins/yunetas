@@ -1011,6 +1011,8 @@ else
 fi
 
 # Enable + start service (no rc*.d creation here)
+info "${1:-}"
+
 if [ "${1:-}" = "configure" ]; then
     info "Ensuring init script is present…"
     if [ ! -x /etc/init.d/yuneta_agent ] && [ -x /yuneta/agent/service/yuneta_agent ]; then
