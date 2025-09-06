@@ -440,7 +440,7 @@ Priority: optional
 Architecture: ${ARCHITECTURE}
 Homepage: https://yuneta.io
 Maintainer: ArtGins S.L. <support@artgins.com>
-Depends: adduser, lsb-base, rsync, locales, rsyslog
+Depends: adduser, lsb-base, rsync, locales, rsyslog, init-system-helpers
 Recommends: curl, vim, sudo, tree, pipx, fail2ban
 Suggests: git, mercurial, make, cmake, ninja-build, gcc, musl, musl-dev, musl-tools, clang, g++, python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv, libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, snapd
 Description: Yuneta's Agent
@@ -1028,16 +1028,24 @@ fi
 
 # Enable/start SysV service on any configure (idempotent)
 if [ "${1:-}" = "configure" ]; then
-    # Ensure rc?.d links exist
     if [ -x /usr/sbin/update-rc.d ]; then
-        /usr/sbin/update-rc.d yuneta_agent defaults 98 02 >/dev/null 2>&1 || true
+        echo "[postinst] Enabling SysV links for yuneta_agent (defaults 98 02)…"
+        # Remove any stale/partial set first (noisy but safe)
+        /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
+        # Create the S/K links explicitly (doesn't rely on insserv)
+        if ! /usr/sbin/update-rc.d yuneta_agent defaults 98 02; then
+            echo "[postinst] WARNING: update-rc.d failed ($?)" >&2
+        fi
+    else
+        echo "[postinst] WARNING: /usr/sbin/update-rc.d not found; cannot enable SysV links." >&2
     fi
 
-    # Start via SysV (policy-rc.d may block actual start, that's fine)
+    # Try to start the service (policy-rc.d may block; that's fine)
     if [ -x /usr/sbin/invoke-rc.d ]; then
-        /usr/sbin/invoke-rc.d yuneta_agent start || true
+        echo "[postinst] Starting yuneta_agent…"
+        /usr/sbin/invoke-rc.d yuneta_agent start || echo "[postinst] NOTE: start returned $?"
     else
-        /etc/init.d/yuneta_agent start || true
+        [ -x /etc/init.d/yuneta_agent ] && /etc/init.d/yuneta_agent start || true
     fi
 fi
 
