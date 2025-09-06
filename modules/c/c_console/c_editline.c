@@ -1523,12 +1523,18 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(priv->use_ncurses) {
         wclear(priv->wn);
 
-        int attr = get_paint_color("yellow", "blue");  /* or "default" */
+        // Set color on
+        int attr = get_paint_color(priv->fg_color, priv->bg_color);
         if(attr) {
             wattron(priv->wn, attr);
-            refreshLine(priv);
+        }
+        // Draw
+        refreshLine(priv);
+        // Set color off
+        if(attr) {
             wattroff(priv->wn, attr);
         }
+
     } else {
         refreshLine(priv);
     }
