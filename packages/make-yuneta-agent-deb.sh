@@ -993,18 +993,11 @@ if [ -d /yuneta/store/certs/private ]; then
 fi
 
 # SSH authorized_keys for 'yuneta' (merge, idempotent)
-umask 077
-install -d -o yuneta -g yuneta -m 0700 /home/yuneta/.ssh || true
-AUTH_DST="/home/yuneta/.ssh/authorized_keys"
-touch "${AUTH_DST}"; chown yuneta:yuneta "${AUTH_DST}"; chmod 0600 "${AUTH_DST}"
-
-add_key() {
-    line="$1"
-    case "$line" in '#'*) return 0 ;; esac
-    grep -qxF -- "$line" "${AUTH_DST}" 2>/dev/null || printf '%s\n' "$line" >> "${AUTH_DST}"
-}
 if [ -s /etc/yuneta/authorized_keys ]; then
-    while IFS= read -r l; do add_key "$l"; done < /etc/yuneta/authorized_keys
+    umask 077
+    install -d -o yuneta -g yuneta -m 0700 /home/yuneta/.ssh || true
+    install -m 0600 "/etc/yuneta/authorized_keys" "/home/yuneta/.ssh/authorized_keys"
+    chown yuneta:yuneta "/home/yuneta/.ssh/authorized_keys"
 fi
 
 # Ensure classic /var/log/syslog via rsyslog
