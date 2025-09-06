@@ -1026,22 +1026,18 @@ else
     fi
 fi
 
-# On first install only ($1 == configure and $2 empty): enable/start service
+# Enable/start SysV service on any configure (idempotent)
 if [ "${1:-}" = "configure" ]; then
-    # Ensure SysV runlevel links exist; if not, create and start service.
-    if ! ls /etc/rc*.d/S??yuneta_agent >/dev/null 2>&1; then
-        if [ -x /yuneta/agent/service/install-yuneta-service.sh ]; then
-            /yuneta/agent/service/install-yuneta-service.sh || true
-        else
-            if [ -x /usr/sbin/update-rc.d ]; then
-                /usr/sbin/update-rc.d yuneta_agent defaults >/dev/null 2>&1 || true
-            fi
-            if command -v invoke-rc.d >/dev/null 2>&1; then
-                invoke-rc.d yuneta_agent start || true
-            else
-                /etc/init.d/yuneta_agent start || true
-            fi
-        fi
+    # Ensure rc?.d links exist
+    if [ -x /usr/sbin/update-rc.d ]; then
+        /usr/sbin/update-rc.d yuneta_agent defaults 98 02 >/dev/null 2>&1 || true
+    fi
+
+    # Start via SysV (policy-rc.d may block actual start, that's fine)
+    if [ -x /usr/sbin/invoke-rc.d ]; then
+        /usr/sbin/invoke-rc.d yuneta_agent start || true
+    else
+        /etc/init.d/yuneta_agent start || true
     fi
 fi
 
