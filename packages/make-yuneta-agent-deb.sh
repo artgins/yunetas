@@ -909,6 +909,8 @@ set -eu
 info() { echo "[postinst] $*"; }
 warn() { echo "[postinst] WARNING: $*" >&2; }
 
+info "begin"
+
 # Create 'yuneta' login user if missing
 if ! id -u yuneta >/dev/null 2>&1; then
     info "Creating login user 'yuneta'…"
