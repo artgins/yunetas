@@ -284,22 +284,9 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(history_max_len,           gobj_read_integer_attr)
     SET_PRIV(use_ncurses,               gobj_read_bool_attr)
 
-    int x = (int)gobj_read_integer_attr(gobj, "x");
-    int y = (int)gobj_read_integer_attr(gobj, "y");
-
     int buffer_size = (int)gobj_read_integer_attr(gobj, "buffer_size");
     priv->buf = gbmem_malloc(buffer_size);
     priv->buflen = buffer_size - 1;
-
-    /*
-     *  Don't log errors, in batch mode there is no curses windows.
-     */
-    if(priv->use_ncurses) {
-        priv->wn = newwin(priv->cy, priv->cx, y, x);
-        if(priv->wn) {
-            priv->panel = new_panel(priv->wn);
-        }
-    }
 
     /*
      *  Load history from file.
@@ -340,6 +327,21 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    /*
+     *  Don't log errors, in batch mode there is no curses windows.
+     */
+    int x = (int)gobj_read_integer_attr(gobj, "x");
+    int y = (int)gobj_read_integer_attr(gobj, "y");
+
+    if(priv->use_ncurses) {
+        priv->wn = newwin(priv->cy, priv->cx, y, x);
+        if(priv->wn) {
+            priv->panel = new_panel(priv->wn);
+        }
+    }
+
     gobj_send_event(gobj, EV_PAINT, json_object(), gobj);
     return 0;
 }
@@ -349,15 +351,8 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method destroy
- ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
-{
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     if(priv->panel) {
         del_panel(priv->panel);
         priv->panel = 0;
@@ -368,6 +363,16 @@ PRIVATE void mt_destroy(hgobj gobj)
         delwin(priv->wn);
         priv->wn = 0;
     }
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
     GBMEM_FREE(priv->buf);
     freeHistory(priv);
 
