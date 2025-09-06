@@ -75,7 +75,7 @@ mkdir -p "${WORKDIR}/yuneta/development/outputs/lib"
 mkdir -p "${WORKDIR}/yuneta/development/outputs/yunos"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
 mkdir -p "${WORKDIR}/etc/yuneta"
-mkdir -p "${WORKDIR}/etc/yuneta/authorized_keys.d"
+mkdir -p "${WORKDIR}/etc/yuneta/authorized_keys"
 
 # --- Single-file utilities to include (must exist in BIN_DIR) ---
 BINARIES=(
@@ -123,15 +123,15 @@ copy_tree() {
     fi
 }
 
-copy_tree "/yuneta/bin/ncurses"                     "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/bin/nginx"                       "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/bin/openresty"                   "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/ssl3"                            "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/share"                           "${WORKDIR}/yuneta/share"
-copy_tree "/yuneta/development/outputs_ext"         "${WORKDIR}/yuneta/development/outputs_ext"
-copy_tree "/yuneta/development/outputs/include"     "${WORKDIR}/yuneta/development/outputs/include"
-copy_tree "/yuneta/development/outputs/libs"        "${WORKDIR}/yuneta/development/outputs/libs"
-copy_tree "/yuneta/development/outputs/yunos"       "${WORKDIR}/yuneta/development/outputs/yunos"
+copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
+copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
+copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
+copy_tree "/yuneta/ssl3"                        "${WORKDIR}/yuneta/bin"
+copy_tree "/yuneta/share"                       "${WORKDIR}/yuneta/share"
+copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development/outputs_ext"
+copy_tree "/yuneta/development/outputs/include" "${WORKDIR}/yuneta/development/outputs/include"
+copy_tree "/yuneta/development/outputs/libs"    "${WORKDIR}/yuneta/development/outputs/libs"
+copy_tree "/yuneta/development/outputs/yunos"   "${WORKDIR}/yuneta/development/outputs/yunos"
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
@@ -992,44 +992,19 @@ if [ -d /yuneta/store/certs/private ]; then
     chmod 0700 /yuneta/store/certs/private || true
 fi
 
-# Seed SSH authorized_keys for 'yuneta' if missing
-if [ ! -f /home/yuneta/.ssh/authorized_keys ]; then
-    install -d -o yuneta -g yuneta -m 0700 /home/yuneta/.ssh
+# SSH authorized_keys for 'yuneta' (merge, idempotent)
+umask 077
+install -d -o yuneta -g yuneta -m 0700 /home/yuneta/.ssh || true
+AUTH_DST="/home/yuneta/.ssh/authorized_keys"
+touch "${AUTH_DST}"; chown yuneta:yuneta "${AUTH_DST}"; chmod 0600 "${AUTH_DST}"
 
-    # 1) If YUNETA_AUTH_KEYS (content) is provided, write it directly
-    if [ -n "${YUNETA_AUTH_KEYS:-}" ]; then
-        printf '%s\n' "${YUNETA_AUTH_KEYS}" > /home/yuneta/.ssh/authorized_keys
-        chown yuneta:yuneta /home/yuneta/.ssh/authorized_keys
-        chmod 0600 /home/yuneta/.ssh/authorized_keys
-        info "Wrote /home/yuneta/.ssh/authorized_keys from YUNETA_AUTH_KEYS env."
-    else
-        # 2) Otherwise choose a source file to copy (in this order)
-        SRC=""
-        if [ -n "${YUNETA_AUTH_KEYS_SRC:-}" ] && [ -r "${YUNETA_AUTH_KEYS_SRC:-}" ]; then
-            SRC="${YUNETA_AUTH_KEYS_SRC}"
-        elif [ -r /home/debian/.ssh/authorized_keys ]; then
-            SRC=/home/debian/.ssh/authorized_keys
-        elif [ -r /root/.ssh/authorized_keys ]; then
-            SRC=/root/.ssh/authorized_keys
-        else
-            # pick the first regular user (uid>=1000) with an authorized_keys
-            for home in /home/*; do
-                [ -d "$home/.ssh" ] || continue
-                if [ -r "$home/.ssh/authorized_keys" ]; then
-                    SRC="$home/.ssh/authorized_keys"
-                    break
-                fi
-            done
-        fi
-
-        if [ -n "${SRC:-}" ]; then
-            install -o yuneta -g yuneta -m 0600 -T "$SRC" /home/yuneta/.ssh/authorized_keys || true
-            info "Seeded /home/yuneta/.ssh/authorized_keys from $SRC"
-        else
-            info "No source authorized_keys found; leaving /home/yuneta/.ssh empty."
-            info "You can re-run with YUNETA_AUTH_KEYS or YUNETA_AUTH_KEYS_SRC to populate it."
-        fi
-    fi
+add_key() {
+    line="$1"
+    case "$line" in ''|'#'*) return 0 ;; esac
+    grep -qxF -- "$line" "${AUTH_DST}" 2>/dev/null || printf '%s\n' "$line" >> "${AUTH_DST}"
+}
+if [ -s /etc/yuneta/authorized_keys ]; then
+    while IFS= read -r l; do add_key "$l"; done < /etc/yuneta/authorized_keys
 fi
 
 # Ensure classic /var/log/syslog via rsyslog
