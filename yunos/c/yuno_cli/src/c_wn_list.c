@@ -311,8 +311,7 @@ PRIVATE void setcolor(hgobj gobj, line_t *line)
                 priv->wn,
                 get_paint_color(priv->fg_color, line->bg_color)
             );
-        } else
-        if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
+        } else if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
             wbkgd(
                 priv->wn,
                 get_paint_color(priv->fg_color, priv->bg_color)
