@@ -1189,6 +1189,15 @@ PRIVATE int mt_start(hgobj gobj)
     priv->gobj_authz =  gobj_find_service("authz", TRUE);
     gobj_subscribe_event(priv->gobj_authz, 0, 0, gobj);
 
+    /*----------------------------------------*
+     *  Start controlcenter if it has owner
+     *----------------------------------------*/
+    const char *node_owner = gobj_yuno_node_owner();
+    if(!strcasecmp(node_owner, "none")) {
+        hgobj gobj_controlcenter = gobj_find_service("controlcenter", TRUE);
+        gobj_start(gobj_controlcenter);
+    }
+
     return 0;
 }
 

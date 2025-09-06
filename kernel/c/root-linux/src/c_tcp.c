@@ -1061,7 +1061,7 @@ PRIVATE int ytls_on_handshake_done_callback(hgobj gobj, int error)
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", error<0?"TLS handshake FAILS":"TLS Handshake OK",
             "url",          "%s", gobj_read_str_attr(gobj, "url"),
-            "cause",        "%s", gobj_log_last_message(),
+            "cause",        "%s", error<0?gobj_log_last_message():"",
             "peername",     "%s", gobj_read_str_attr(gobj, "peername"),
             "sockname",     "%s", gobj_read_str_attr(gobj, "sockname"),
             NULL

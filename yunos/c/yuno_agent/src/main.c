@@ -215,8 +215,8 @@ PRIVATE char variable_config[]= "\
         {                                               \n\
             'name': 'controlcenter',                    \n\
             'gclass': 'C_IEVENT_CLI',                   \n\
-            'autostart': true,                          \n\
-            'autoplay': true,                           \n\
+            'autostart': false,                         \n\
+            'autoplay': false,                          \n\
             'kw': {                                     \n\
                 'remote_yuno_name': '',                 \n\
                 'remote_yuno_role': 'controlcenter',    \n\

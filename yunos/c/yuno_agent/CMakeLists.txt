@@ -46,12 +46,12 @@ target_link_libraries(${PROJECT_NAME}
 ##############################################
 install(DIRECTORY service
     USE_SOURCE_PERMISSIONS
-    DESTINATION "/yuneta/agent/service"
+    DESTINATION "/yuneta/agent"
 )
 
 install(DIRECTORY certs
     USE_SOURCE_PERMISSIONS
-    DESTINATION "/yuneta/agent/certs"
+    DESTINATION "/yuneta/agent"
 )
 
 install(FILES
