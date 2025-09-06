@@ -39,7 +39,7 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE void my_endwin(void);
+PRIVATE void my_close_ncurses(void);
 PRIVATE void catch_signals(void);
 
 /***************************************************************************
@@ -129,7 +129,7 @@ PRIVATE void mt_create(hgobj gobj)
      */
 
     catch_signals();
-    atexit(my_endwin);
+    atexit(my_close_ncurses);
 
     /*
      *  stdscr timer to detect window size change
@@ -214,12 +214,9 @@ PRIVATE void mt_destroy(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void my_endwin(void)
+PRIVATE void my_close_ncurses(void)
 {
-    if(wn) {
-        endwin();
-        wn = NULL;
-    }
+    close_ncurses();
 }
 
 /***************************************************************************

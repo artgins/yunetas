@@ -292,17 +292,19 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     wclear(priv->wn);
 
-    if(has_colors()) {
-        if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
-            wbkgd(
-                priv->wn,
-                get_paint_color(priv->fg_color, priv->bg_color)
-            );
-        }
+    // Set color on
+    int attr = get_paint_color(priv->fg_color, priv->bg_color);
+    if(attr) {
+        wattron(priv->wn, attr);
     }
+    // Draw
     if(!empty_string(priv->text)) {
         wmove(priv->wn, 0, 0);
-        waddnstr(priv->wn, priv->text, strlen(priv->text));
+        waddnstr(priv->wn, priv->text, (int)strlen(priv->text));
+    }
+    // Set color off
+    if(attr) {
+        wattroff(priv->wn, attr);
     }
 
     if(priv->panel) {

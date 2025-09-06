@@ -471,15 +471,6 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     wclear(priv->wn);
 
-    if(has_colors()) {
-        if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
-            wbkgd(
-                priv->wn,
-                get_paint_color(priv->fg_color, priv->bg_color)
-            );
-        }
-    }
-
     if(priv->panel) {
         update_panels();
         doupdate();

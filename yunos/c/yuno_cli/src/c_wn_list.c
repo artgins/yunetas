@@ -311,23 +311,18 @@ PRIVATE int add_line(hgobj gobj, const char *s, const char *bg_color, const char
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE void setcolor(hgobj gobj, line_t *line)
+PRIVATE int getcolor(hgobj gobj, line_t *line)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int attr;
 
-    if(has_colors()) {
-        if(!empty_string(line->fg_color)) {
-            wbkgd(
-                priv->wn,
-                get_paint_color(priv->fg_color, line->bg_color)
-            );
-        } else if(!empty_string(priv->fg_color) && !empty_string(priv->bg_color)) {
-            wbkgd(
-                priv->wn,
-                get_paint_color(priv->fg_color, priv->bg_color)
-            );
-        }
+    if(!empty_string(line->fg_color)) {
+        attr = get_paint_color(priv->fg_color, line->bg_color);
+
+    } else {
+        attr = get_paint_color(priv->fg_color, priv->bg_color);
     }
+    return attr;
 }
 
 
@@ -442,8 +437,19 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
                 ll = priv->cx;
             }
             wmove(priv->wn, y+i, 0);
-            setcolor(gobj, line);
+
+            // Set color on
+            int attr = getcolor(gobj, line);
+            if(attr) {
+                wattron(priv->wn, attr);
+            }
+            // Draw
             waddnstr(priv->wn, line->text, ll);
+            // Set color off
+            if(attr) {
+                wattroff(priv->wn, attr);
+            }
+
             line = dl_next(line);
         }
     } else {
@@ -469,8 +475,19 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
                     ll = priv->cx;
                 }
                 wmove(priv->wn, y+i, 0);
-                setcolor(gobj, line);
+
+                // Set color on
+                int attr = getcolor(gobj, line);
+                if(attr) {
+                    wattron(priv->wn, attr);
+                }
+                // Draw
                 waddnstr(priv->wn, line->text, ll);
+                // Set color off
+                if(attr) {
+                    wattroff(priv->wn, attr);
+                }
+
                 line = dl_next(line);
             }
         }

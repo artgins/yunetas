@@ -39,12 +39,17 @@ PRIVATE struct { // Code repeated
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE BOOL __colors_ready__ = FALSE;
+PRIVATE BOOL __ncurses_initialized__ = FALSE;
 
 /***************************************************************************
  *
  ***************************************************************************/
 PUBLIC WINDOW *open_ncurses(hgobj gobj)
 {
+    if(__ncurses_initialized__) {
+        return 0;
+    }
+
     WINDOW *wn = initscr();         /* Start curses mode            */
     cbreak();                       /* Line buffering disabled      */
     noecho();                       /* Don't echo() while we do getch */
@@ -55,10 +60,11 @@ PUBLIC WINDOW *open_ncurses(hgobj gobj)
         start_color();
         /* Allow -1 (default fg/bg) to pass through */
         assume_default_colors(-1, -1);
-        __colors_ready__ = true;
+        __colors_ready__ = TRUE;
     } else {
-        __colors_ready__ = false;
+        __colors_ready__ = FALSE;
     }
+    __ncurses_initialized__ = TRUE;
     return wn;
 }
 
@@ -67,7 +73,10 @@ PUBLIC WINDOW *open_ncurses(hgobj gobj)
  ***************************************************************************/
 PUBLIC void close_ncurses(void)
 {
-    endwin();     // restore terminal
+    if(__ncurses_initialized__) {
+        endwin();     // restore terminal
+        __ncurses_initialized__ = FALSE;
+    }
 }
 
 /***************************************************************************
