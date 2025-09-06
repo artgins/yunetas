@@ -117,11 +117,10 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
-#include <ncurses/ncurses.h>
-#include <ncurses/panel.h>
 #include <fcntl.h>
 #include <pty.h>
 
+#include "help_ncurses.h"
 #include "g_ev_console.h"
 #include "c_editline.h"
 
@@ -142,7 +141,6 @@ typedef struct linenoiseCompletions {
  *              Prototypes
  ***************************************************************************/
 PRIVATE void tty_reset_mode(void);
-PRIVATE int get_paint_color(const char *fg_color, const char *bg_color); // code repeated
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -150,21 +148,6 @@ PRIVATE int get_paint_color(const char *fg_color, const char *bg_color); // code
 PRIVATE int orig_termios_fd = -1;
 PRIVATE struct termios orig_termios;
 PRIVATE int atexit_registered = 0; /* Register atexit just 1 time. */
-PRIVATE bool __colors_ready__ = false;
-
-PRIVATE struct { // Code repeated
-    int id;
-    const char *name;
-} table_id[] = {
-    {COLOR_BLACK,   "black"},
-    {COLOR_RED,     "red"},
-    {COLOR_GREEN,   "green"},
-    {COLOR_YELLOW,  "yellow"},
-    {COLOR_BLUE,    "blue"},
-    {COLOR_MAGENTA, "magenta"},
-    {COLOR_CYAN,    "cyan"},
-    {COLOR_WHITE,   "white"}
-};
 
 /*---------------------------------------------*
  *      Attributes - order affect to oid's
@@ -230,7 +213,7 @@ typedef struct _PRIVATE_DATA {
     size_t oldpos;      /* Previous refresh cursor position. */
     size_t len;         /* Current edited line length. */
     size_t cols;        /* Number of columns in terminal. */
-    size_t oldrows;     /* Rows used by last refrehsed line (multiline mode) */
+    size_t oldrows;     /* Rows used by last refreshed line (multiline mode) */
     int history_index;  /* The history index we are currently editing. */
 } PRIVATE_DATA;
 
@@ -408,78 +391,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 
 
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int get_color_id(const char *color) // code repeated
-{
-    if(!color || !*color) {
-        return -1; /* default */
-    }
-    if(!strcasecmp(color, "default") || !strcasecmp(color, "def")) {
-        return -1;
-    }
-    for(size_t i = 0; i < ARRAY_SIZE(table_id); i++) {
-        if(strcasecmp(table_id[i].name, color) == 0) {
-            return table_id[i].id;
-        }
-    }
-    return -1; /* fall back to default, not white */
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int get_color_pair(int fg, int bg) // code repeated
-{
-    static int next_pair = 1;
-    static int cp[16][16]; /* allow up to 16 basic colors; still O(1) */
-    int maxc = (COLORS > 16) ? 16 : COLORS;
-
-    if(!__colors_ready__) {
-        return 0; /* no color attribute */
-    }
-
-    /* Map -1 to default colors only if use_default_colors() succeeded */
-    if(fg < -1 || bg < -1) {
-        return 0;
-    }
-
-    /* Validate against actual COLORS; clamp to supported range */
-    if((fg >= maxc && fg != -1) || (bg >= maxc && bg != -1)) {
-        return 0;
-    }
-
-    int ifg = (fg < 0) ? 0 : fg;
-    int ibg = (bg < 0) ? 0 : bg;
-
-    if(cp[ifg][ibg]) {
-        return COLOR_PAIR(cp[ifg][ibg]);
-    }
-
-    if(next_pair >= COLOR_PAIRS) {
-        return 0; /* out of pairs */
-    }
-
-    /* init_pair() accepts -1 when use_default_colors() is active */
-    if(init_pair((short)next_pair, (short)fg, (short)bg) != OK) {
-        return 0;
-    }
-
-    cp[ifg][ibg] = next_pair++;
-    return COLOR_PAIR(cp[ifg][ibg]);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int get_paint_color(const char *fg_color, const char *bg_color) // code repeated
-{
-    int fg = get_color_id(fg_color);
-    int bg = get_color_id(bg_color);
-    return get_color_pair(fg, bg);
-}
 
 /*****************************************************************
  *
@@ -1612,19 +1523,15 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(priv->use_ncurses) {
         wclear(priv->wn);
 
-        if(has_colors()) {
-            const char *fg_color = kw_get_str(gobj, kw, "fg_color", priv->fg_color, 0);
-            const char *bg_color = kw_get_str(gobj, kw, "bg_color", priv->bg_color, 0);
-            if(!empty_string(fg_color) && !empty_string(bg_color)) {
-                wbkgd(
-                    priv->wn,
-                    get_paint_color(priv->fg_color, priv->bg_color)
-                );
-            }
+        int attr = get_paint_color("yellow", "blue");  /* or "default" */
+        if(attr) {
+            wattron(priv->wn, attr);
+            refreshLine(priv);
+            wattroff(priv->wn, attr);
         }
+    } else {
+        refreshLine(priv);
     }
-
-    refreshLine(priv);
 
     KW_DECREF(kw);
     return 0;

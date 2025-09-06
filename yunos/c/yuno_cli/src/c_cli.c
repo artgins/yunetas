@@ -8,13 +8,13 @@
  *          All Rights Reserved.
 ***********************************************************************/
 #include <string.h>
-#include <ncurses/ncurses.h>
 #include <unistd.h>
 #include <pwd.h>
 #include <limits.h>
 #include <errno.h>
 #include <sys/ioctl.h>
 
+#include <help_ncurses.h>
 #include <g_ev_console.h>
 #include <c_editline.h>
 #include "c_wn_box.h"

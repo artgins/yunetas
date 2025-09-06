@@ -21,12 +21,14 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 set (SRCS
     c_editline.c
+    help_ncurses.c
     g_ev_console.c
     g_st_console.c
 )
 
 set (HDRS
     c_editline.h
+    help_ncurses.h
     g_ev_console.h
     g_st_console.h
 )
