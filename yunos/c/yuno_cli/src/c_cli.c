@@ -505,14 +505,14 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->gobj_editline) {
         priv->tty_fd = tty_init();
         if(priv->tty_fd < 0) {
-
             if(priv->gwin_stdscr) {
                 gobj_stop(priv->gwin_stdscr);
                 gobj_destroy(priv->gwin_stdscr);
                 priv->gwin_stdscr = NULL;
             }
 
-            print_error(0, "cannot open a tty window");
+            print_error(0, "Cannot open a tty device\r\n");
+            print_error(0, "Check permissions of /dev/pts\r\n");
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
