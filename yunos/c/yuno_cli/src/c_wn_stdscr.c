@@ -39,12 +39,14 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE void my_endwin(void) { endwin();}
+PRIVATE void my_endwin(void);
 PRIVATE void catch_signals(void);
 
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
+PRIVATE WINDOW *wn = NULL;      // ncurses handler
+
 PRIVATE struct { // Code repeated
     int id;
     const char *name;
@@ -98,7 +100,6 @@ typedef struct _PRIVATE_DATA {
     hgobj timer;
     int32_t timeout;
 
-    WINDOW *wn;      // ncurses handler
     uint32_t cx;
     uint32_t cy;
 
@@ -149,17 +150,15 @@ PRIVATE void mt_create(hgobj gobj)
      */
     priv->timer = gobj_create_pure_child("", C_TIMER, 0, gobj);
 
-#ifndef TEST_KDEVELOP
-    priv->wn = initscr();               /* Start curses mode            */
-    cbreak();                           /* Line buffering disabled      */
-    noecho();                           /* Don't echo() while we do getch */
-    keypad(priv->wn, TRUE);             /* We get F1, F2 etc..          */
+    wn = initscr();                 /* Start curses mode            */
+    cbreak();                       /* Line buffering disabled      */
+    noecho();                       /* Don't echo() while we do getch */
+    keypad(wn, TRUE);               /* We get F1, F2 etc..          */
     halfdelay(1);
-    //wtimeout(priv->wn, 10);              /* input non-blocking, wait 1 msec */
+    //wtimeout(wn, 10);             /* input non-blocking, wait 1 msec */
     if(has_colors()) {
         start_color();
     }
-#endif
 }
 
 /***************************************************************************
@@ -201,7 +200,7 @@ PRIVATE int mt_start(hgobj gobj)
     gobj_send_event_to_children(gobj, EV_SIZE, jn_kw, gobj);
 
     gobj_start_children(gobj);
-    //wrefresh(priv->wn);
+    //wrefresh(wn);
 
     return 0;
 }
@@ -234,6 +233,17 @@ PRIVATE void mt_destroy(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE void my_endwin(void)
+{
+    if(wn) {
+        endwin();
+        wn = NULL;
+    }
+}
 
 /***************************************************************************
  *
