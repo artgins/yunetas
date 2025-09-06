@@ -897,80 +897,63 @@ cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
 #######################################################################
 # postinst
 # - Ensure 'yuneta' login user with home /home/yuneta (bash shell)
-# - Add 'yuneta' to wide set of system-access groups (dialout, tty, netdev, etc.)
-# - Create agent configs if missing (do not overwrite)
+# - Add 'yuneta' to useful groups
+# - Create agent configs if missing (do not overwrite existing)
+# - Seed /home/yuneta/.ssh/authorized_keys if missing
 # - Ensure locales (en_US.UTF-8, es_ES.UTF-8)
 # - Ensure rsyslog (/var/log/syslog)
-# - Enable/start SysV service on first install
-#
-# Tunables (export before dpkg -i if desired):
-#   YUNETA_GROUPS="adm,sudo,tty,dialout,..."
-#   YUNETA_CREATE_MISSING_GROUPS=1   # create any missing groups instead of skipping
+# - Ensure init script present; enable + start service
 #######################################################################
 set -eu
 
 info() { echo "[postinst] $*"; }
 warn() { echo "[postinst] WARNING: $*" >&2; }
 
-# Create 'yuneta' login user if missing (interactive password is not set)
-# Admin can later run:   sudo passwd -l yuneta   (or leave SSH key auth only)
+# Create 'yuneta' login user if missing
 if ! id -u yuneta >/dev/null 2>&1; then
-    info "Creating login user 'yuneta' (non-system)…"
+    info "Creating login user 'yuneta'…"
     adduser --home /home/yuneta --shell /bin/bash --gecos "Yuneta User" --disabled-password yuneta || true
 else
     UID_NOW="$(id -u yuneta || echo 0)"
     if [ "$UID_NOW" -lt 1000 ]; then
-        warn "'yuneta' exists with system UID ($UID_NOW < 1000). Keeping UID but granting full groups + sudo."
-        # Converting UID automatically can be risky on established systems; skip by default.
-        # To migrate manually later:
-        #   usermod -u <new_uid> yuneta && find / -xdev -uid <old_uid> -exec chown -h <new_uid>:yuneta {} +
+        warn "'yuneta' has a system UID ($UID_NOW < 1000). Keeping UID; adding groups."
     fi
 fi
 
-# Ensure home exists and owned by user
+# Ensure home exists/owned
 install -d -o yuneta -g yuneta -m 0755 /home/yuneta || true
 
-# Add 'yuneta' to a broad, practical set of system-access groups
-# You can override with YUNETA_GROUPS env (comma-separated)
-DEFAULT_GROUPS="adm,sudo,tty,dialout,cdrom,audio,video,plugdev,netdev,render,input,gpio,i2c,spi,uucp,wireshark,bluetooth,scanner,lp,lpadmin,sambashare,docker,libvirt,kvm,lxd"
+# Add to useful groups
+DEFAULT_GROUPS="adm,sudo,tty,dialout,cdrom,audio,video,plugdev,netdev,render,input,uucp,lp,kvm"
 GROUPS="${YUNETA_GROUPS:-$DEFAULT_GROUPS}"
-CREATE_MISSING="${YUNETA_CREATE_MISSING_GROUPS:-0}"
-
-# Parse comma-separated list safely
 OLDIFS="$IFS"; IFS=','; set -- $GROUPS; IFS="$OLDIFS"
 for grp in "$@"; do
     [ -z "$grp" ] && continue
     if getent group "$grp" >/dev/null 2>&1; then
         usermod -aG "$grp" yuneta || true
         info "Added 'yuneta' to group: $grp"
-    else
-        if [ "$CREATE_MISSING" = "1" ]; then
-            info "Creating missing group: $grp"
-            groupadd "$grp" || true
-            usermod -aG "$grp" yuneta || true
-            info "Added 'yuneta' to newly created group: $grp"
-        # else
-        #     warn "Group '$grp' not present; skipping (export YUNETA_CREATE_MISSING_GROUPS=1 to create)."
-        fi
     fi
 done
 
-# SSH authorized_keys for 'yuneta' (merge, idempotent)
-umask 077
-install -d -o yuneta -g yuneta -m 0700 /home/yuneta/.ssh || true
-AUTH_DST="/home/yuneta/.ssh/authorized_keys"
-touch "${AUTH_DST}"; chown yuneta:yuneta "${AUTH_DST}"; chmod 0600 "${AUTH_DST}"
-
-add_key() {
-    line="$1"
-    case "$line" in ''|'#'*) return 0 ;; esac
-    grep -qxF -- "$line" "${AUTH_DST}" 2>/dev/null || printf '%s\n' "$line" >> "${AUTH_DST}"
-}
-if [ -s /etc/yuneta/authorized_keys ]; then
-    while IFS= read -r l; do add_key "$l"; done < /etc/yuneta/authorized_keys
+# Seed authorized_keys if missing
+if [ ! -e /home/yuneta/.ssh/authorized_keys ]; then
+    SRC=""
+    # Prefer the sudoing user's keys if we were invoked via sudo
+    if [ -n "${SUDO_USER:-}" ] && [ -r "/home/${SUDO_USER}/.ssh/authorized_keys" ]; then
+        SRC="/home/${SUDO_USER}/.ssh/authorized_keys"
+    elif [ -r /root/.ssh/authorized_keys ]; then
+        SRC="/root/.ssh/authorized_keys"
+    fi
+    if [ -n "$SRC" ]; then
+        install -d -o yuneta -g yuneta -m 0700 /home/yuneta/.ssh
+        install -o yuneta -g yuneta -m 0600 -T "$SRC" /home/yuneta/.ssh/authorized_keys
+        info "Initialized /home/yuneta/.ssh/authorized_keys from $SRC"
+    else
+        info "No authorized_keys source found; leaving /home/yuneta/.ssh empty."
+    fi
 fi
 
-# Ensure agent configs exist without overwriting existing ones
+# Ensure agent configs exist without overwriting
 if [ ! -e /yuneta/agent/yuneta_agent.json ]; then
     if [ -e /yuneta/agent/yuneta_agent.json.sample ]; then
         install -o yuneta -g yuneta -m 0644 -T \
@@ -992,7 +975,7 @@ if [ ! -e /yuneta/agent/yuneta_agent22.json ]; then
     fi
 fi
 
-# Locales: ensure en_US.UTF-8 and es_ES.UTF-8
+# Locales
 if command -v locale-gen >/dev/null 2>&1; then
     sed -i 's/^[# ]*en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen || true
     sed -i 's/^[# ]*es_ES.UTF-8 UTF-8/es_ES.UTF-8 UTF-8/' /etc/locale.gen || true
@@ -1002,11 +985,10 @@ if command -v locale-gen >/dev/null 2>&1; then
     update-locale LANG=en_US.UTF-8 LANGUAGE="en_US:es_ES" || true
 fi
 
-# Ownership/perms for Yuneta dirs
+# Ownership/perms for /yuneta
 if [ -d /yuneta ]; then
     chown -R yuneta:yuneta /yuneta || true
 fi
-# Keep /yuneta/store/certs readable and lock private/
 if [ -d /yuneta/store/certs ]; then
     chmod 0755 /yuneta/store/certs || true
 fi
@@ -1014,51 +996,38 @@ if [ -d /yuneta/store/certs/private ]; then
     chmod 0700 /yuneta/store/certs/private || true
 fi
 
-# Ensure classic /var/log/syslog via rsyslog
+# Ensure classic /var/log/syslog
 if command -v systemctl >/dev/null 2>&1; then
     systemctl enable --now rsyslog || true
 else
     if [ -x /etc/init.d/rsyslog ]; then
         if command -v update-rc.d >/dev/null 2>&1; then
-            update-rc.d rsyslog defaults >/dev/null 2>&1 || true
+            update-rc.d rsyslog defaults || true
         fi
         /etc/init.d/rsyslog start || true
     fi
 fi
 
-# On configure (first install or upgrade): ensure service is enabled and started
+# Enable + start service (no rc*.d creation here)
 if [ "${1:-}" = "configure" ]; then
-    echo "[postinst] Ensuring init script is present…"
+    info "Ensuring init script is present…"
     if [ ! -x /etc/init.d/yuneta_agent ] && [ -x /yuneta/agent/service/yuneta_agent ]; then
         install -m 0755 /yuneta/agent/service/yuneta_agent /etc/init.d/yuneta_agent
+        info "Installed /etc/init.d/yuneta_agent"
     fi
 
-    # Create rc?.d dirs if the image is extremely minimal (harmless if they exist)
-    for d in 0 1 2 3 4 5 6; do
-        [ -d "/etc/rc${d}.d" ] || mkdir -p "/etc/rc${d}.d"
-    done
-
-    echo "[postinst] Enabling via update-rc.d…"
+    info "Enabling via update-rc.d…"
     if [ -x /usr/sbin/update-rc.d ] && [ -e /etc/init.d/yuneta_agent ]; then
-        /usr/sbin/update-rc.d yuneta_agent defaults || echo "[postinst] update-rc.d returned $?"
+        /usr/sbin/update-rc.d yuneta_agent defaults || info "update-rc.d returned $?"
     else
-        echo "[postinst] WARNING: /usr/sbin/update-rc.d not found or init script missing."
+        warn "update-rc.d missing OR /etc/init.d/yuneta_agent missing."
     fi
 
-    # If no rc.d links were made (systemd-only hosts), enable the generator unit
-    if ! ls /etc/rc*.d/*yuneta_agent >/dev/null 2>&1; then
-        if command -v systemctl >/dev/null 2>&1; then
-            echo "[postinst] No rc.d links detected; enabling systemd unit…"
-            systemctl daemon-reload || true
-            systemctl enable yuneta_agent.service || true
-        else
-            echo "[postinst] WARNING: Neither rc.d links nor systemd available."
-        fi
-    fi
-
-    echo "[postinst] Starting service…"
+    info "Starting service…"
     if command -v systemctl >/dev/null 2>&1; then
-        systemctl start yuneta_agent.service || true   # policy-rc.d may block; OK
+        systemctl daemon-reload || true
+        systemctl enable yuneta_agent.service || true
+        systemctl start yuneta_agent.service || true
     elif [ -x /usr/sbin/invoke-rc.d ]; then
         /usr/sbin/invoke-rc.d yuneta_agent start || true
     else
