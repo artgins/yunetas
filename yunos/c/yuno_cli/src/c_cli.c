@@ -451,6 +451,9 @@ PRIVATE int mt_start(hgobj gobj)
     if(priv->use_ncurses) {
         create_display_framework(gobj);
     }
+    if(priv->gwin_stdscr) {
+        gobj_start(priv->gwin_stdscr);
+    }
 
     /*
      *  Input screen size
@@ -499,13 +502,9 @@ PRIVATE int mt_start(hgobj gobj)
         priv->gobj_editbox?priv->gobj_editbox:gobj
     );
 
-    if(priv->gwin_stdscr) {
-        gobj_start(priv->gwin_stdscr);
-    }
-
     if(priv->gobj_editline) {
         priv->tty_fd = tty_init();
-        if(priv->tty_fd < 0 || 1) {
+        if(priv->tty_fd < 0) {
             if(priv->gwin_stdscr) {
                 gobj_stop(priv->gwin_stdscr);
             }
