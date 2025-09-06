@@ -75,7 +75,6 @@ mkdir -p "${WORKDIR}/yuneta/development/outputs/lib"
 mkdir -p "${WORKDIR}/yuneta/development/outputs/yunos"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
 mkdir -p "${WORKDIR}/etc/yuneta"
-mkdir -p "${WORKDIR}/etc/yuneta/authorized_keys"
 
 # --- Single-file utilities to include (must exist in BIN_DIR) ---
 BINARIES=(
@@ -135,8 +134,7 @@ copy_tree "/yuneta/development/outputs/yunos"   "${WORKDIR}/yuneta/development/o
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
-YUNETA_AUTH_KEYS_DIR="${SCRIPT_DIR}/authorized_keys"
-YUNETA_AUTH_KEYS_FILE="${YUNETA_AUTH_KEYS_DIR}/authorized_keys"
+YUNETA_AUTH_KEYS_FILE="${SCRIPT_DIR}/authorized_keys/authorized_keys"
 if [ -f "${YUNETA_AUTH_KEYS_FILE}" ]; then
     echo "[i] Bundling authorized_keys from ${YUNETA_AUTH_KEYS_FILE}"
     install -D -m 0644 "${YUNETA_AUTH_KEYS_FILE}" "${WORKDIR}/etc/yuneta/authorized_keys"
@@ -899,7 +897,7 @@ cat > "${WORKDIR}/DEBIAN/postinst" <<'EOF'
 # - Ensure 'yuneta' login user with home /home/yuneta (bash shell)
 # - Add 'yuneta' to wide set of system-access groups (dialout, tty, netdev, etc.)
 # - Create agent configs if missing (do not overwrite)
-# - Seed /home/yuneta/.ssh/authorized_keys if missing
+# - Install authorized_keys
 # - Ensure locales (en_US.UTF-8, es_ES.UTF-8)
 # - Ensure rsyslog (/var/log/syslog)
 # - Enable/start SysV service (idempotent)
