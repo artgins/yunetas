@@ -45,9 +45,6 @@ PRIVATE void catch_signals(void);
 /***************************************************************************
  *          Data: config, public data, private data
  ***************************************************************************/
-PRIVATE WINDOW *wn = NULL;      // ncurses handler
-PRIVATE bool __colors_ready__ = false;
-
 PRIVATE struct { // Code repeated
     int id;
     const char *name;
@@ -61,6 +58,9 @@ PRIVATE struct { // Code repeated
     {COLOR_CYAN,    "cyan"},
     {COLOR_WHITE,   "white"}
 };
+
+PRIVATE WINDOW *wn = NULL;      // ncurses handler
+PRIVATE bool __colors_ready__ = false;
 
 // When SetFocus is rejected (return -1) the focus will be set int __gobj_default_focus__
 PRIVATE hgobj __gobj_default_focus__ = 0;
@@ -254,7 +254,7 @@ PRIVATE void my_endwin(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_color_id(const char *color)
+PRIVATE int get_color_id(const char *color) // code repeated
 {
     if(!color || !*color) {
         return -1; /* default */
@@ -273,7 +273,7 @@ PRIVATE int get_color_id(const char *color)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_color_pair(int fg, int bg)
+PRIVATE int get_color_pair(int fg, int bg) // code repeated
 {
     static int next_pair = 1;
     static int cp[16][16]; /* allow up to 16 basic colors; still O(1) */
@@ -316,7 +316,7 @@ PRIVATE int get_color_pair(int fg, int bg)
 /***************************************************************************
  *
  ***************************************************************************/
-PUBLIC int get_paint_color(const char *fg_color, const char *bg_color)
+PUBLIC int get_paint_color(const char *fg_color, const char *bg_color) // code repeated
 {
     int fg = get_color_id(fg_color);
     int bg = get_color_id(bg_color);
@@ -508,17 +508,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 PUBLIC int register_c_wn_stdscr(void)
 {
     return create_gclass(C_WN_STDSCR);
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PUBLIC int get_paint_color(const char *fg_color, const char *bg_color) // Code repeated
-{
-    return get_color_pair(
-        get_color_id(fg_color),
-        get_color_id(bg_color)
-    );
 }
 
 /***************************************************************************

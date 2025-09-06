@@ -168,7 +168,18 @@ PRIVATE int mt_start(hgobj gobj)
             "msg",          "%s", "newwin() FAILED",
             NULL
         );
+        return -1;
     }
+
+    /* After newwin() in mt_start(), set default bkg once */
+    int def_attr = get_paint_color(
+        gobj_read_str_attr(gobj, "fg_color"),
+        gobj_read_str_attr(gobj, "bg_color")
+    );
+    if(def_attr) {
+        wbkgdset(priv->wn, ' ' | def_attr);
+    }
+
     priv->panel = new_panel(priv->wn);
     if(!priv->panel) {
         gobj_log_error(gobj, 0,
