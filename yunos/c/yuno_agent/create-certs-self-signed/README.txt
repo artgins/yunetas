@@ -1,16 +1,15 @@
-#
-#   Dos procedimientos para crear certificados autofirmados
-#   Para que funcionen las conexiones desde un navegador hay que autorizar la exception de autoridad certificadora desconocida
-#   ojo,también para las conexiones websocket (usar la url de websocket cambiando wss por https)
+# Two procedures for creating self-signed certificates
+# For connections from a browser to work, you must allow the unknown certificate authority exception.
+# Note: This also applies to websocket connections (use the websocket URL by replacing wss with https).
 #
 
-# procedimiento 1
+# Procedure 1
 
 openssl genrsa -out localhost.key 4096
 openssl req -new -key localhost.key -out localhost.csr
 openssl x509 -req -days 36500 -in localhost.csr -signkey localhost.key -out localhost.crt
 
-# procedimiento 2
+# Procedure 2
 
 # https://stackoverflow.com/questions/10175812/how-to-create-a-self-signed-certificate-with-openssl
 

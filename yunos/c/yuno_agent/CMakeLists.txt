@@ -44,33 +44,14 @@ target_link_libraries(${PROJECT_NAME}
 ##############################################
 #   Installation
 ##############################################
-
 install(DIRECTORY service
     USE_SOURCE_PERMISSIONS
-    DESTINATION ${AGENT_DEST_DIR}
+    DESTINATION "/yuneta/agent/service"
 )
 
 install(DIRECTORY certs
     USE_SOURCE_PERMISSIONS
-    DESTINATION ${AGENT_DEST_DIR}
-)
-
-install(FILES
-    deploy_agent.sh
-    PERMISSIONS
-    OWNER_READ OWNER_WRITE OWNER_EXECUTE
-    GROUP_READ GROUP_WRITE GROUP_EXECUTE
-    WORLD_READ WORLD_EXECUTE
-    DESTINATION ${AGENT_DEST_DIR}
-)
-
-install(FILES
-    deploy_remote_agent.sh
-    PERMISSIONS
-    OWNER_READ OWNER_WRITE OWNER_EXECUTE
-    GROUP_READ GROUP_WRITE GROUP_EXECUTE
-    WORLD_READ WORLD_EXECUTE
-    DESTINATION ${AGENT_DEST_DIR}
+    DESTINATION "/yuneta/agent/certs"
 )
 
 install(FILES
@@ -79,7 +60,7 @@ install(FILES
     OWNER_READ OWNER_WRITE
     GROUP_READ GROUP_WRITE
     WORLD_READ
-    DESTINATION ${AGENT_DEST_DIR}
+    DESTINATION "/yuneta/agent"
 )
 
 install(
@@ -88,7 +69,7 @@ install(
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    DESTINATION ${AGENT_DEST_DIR}
+    DESTINATION "/yuneta/agent"
 )
 
 # compile in Release mode :

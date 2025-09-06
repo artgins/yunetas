@@ -125,7 +125,6 @@ set(INC_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/include)
 set(LIB_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/lib)
 set(BIN_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/bin)
 set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
-set(AGENT_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/agent)
 
 #----------------------------------------#
 #   Default if not specified
