@@ -44,16 +44,6 @@ target_link_libraries(${PROJECT_NAME}
 ##############################################
 #   Installation
 ##############################################
-install(FILES
-    yuneta_agent22.json
-    PERMISSIONS
-    OWNER_READ OWNER_WRITE
-    GROUP_READ GROUP_WRITE
-    WORLD_READ
-    DESTINATION "/yuneta/agent"
-)
-
-
 install(
     TARGETS ${PROJECT_NAME}
     PERMISSIONS

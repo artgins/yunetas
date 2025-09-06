@@ -54,15 +54,6 @@ install(DIRECTORY certs
     DESTINATION "/yuneta/agent"
 )
 
-install(FILES
-    yuneta_agent.json
-    PERMISSIONS
-    OWNER_READ OWNER_WRITE
-    GROUP_READ GROUP_WRITE
-    WORLD_READ
-    DESTINATION "/yuneta/agent"
-)
-
 install(
     TARGETS ${PROJECT_NAME}
     PERMISSIONS
