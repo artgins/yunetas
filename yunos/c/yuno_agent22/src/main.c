@@ -83,7 +83,7 @@ PRIVATE char variable_config[]= "\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
-        'Authz.master': true,                                       \n\
+        'Authz.master': false,                                      \n\
         'Authz.authz_yuno_role': 'agent',                           \n\
         'Authz.max_sessions_per_user': 4,                           \n\
         'Authz.initial_load': {                                     \n\
