@@ -269,6 +269,8 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(history_max_len,           gobj_read_integer_attr)
     SET_PRIV(use_ncurses,               gobj_read_bool_attr)
 
+    trace_msg0("CREATE USE_NCURSES %d", priv->use_ncurses);
+
     int buffer_size = (int)gobj_read_integer_attr(gobj, "buffer_size");
     priv->buf = gbmem_malloc(buffer_size);
     priv->buflen = buffer_size - 1;
@@ -776,6 +778,12 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
     }
 
     if(l->use_ncurses) {
+        // Set color on
+        int attr = get_paint_color(l->fg_color, l->bg_color);
+        if(attr) {
+            wattron(l->wn, attr);
+        }
+
         /* Cursor to left edge */
         wmove(l->wn, 0, 0); // move to beginning of line
         wclrtoeol(l->wn);   // erase to end of line
@@ -783,6 +791,11 @@ PRIVATE void refreshLine(PRIVATE_DATA *l)
         /* Write the prompt and the current buffer content */
         waddnstr(l->wn, l->prompt, (int)plen);
         waddnstr(l->wn, buf, (int)len);
+
+        // Set color off
+        if(attr) {
+            wattroff(l->wn, attr);
+        }
 
         /* Move cursor to original position. */
         wmove(l->wn, 0, (int)(pos+plen));
@@ -1522,22 +1535,8 @@ PRIVATE int ac_paint(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(priv->use_ncurses) {
         wclear(priv->wn);
-
-        // Set color on
-        int attr = get_paint_color(priv->fg_color, priv->bg_color);
-        if(attr) {
-            wattron(priv->wn, attr);
-        }
-        // Draw
-        refreshLine(priv);
-        // Set color off
-        if(attr) {
-            wattroff(priv->wn, attr);
-        }
-
-    } else {
-        refreshLine(priv);
     }
+    refreshLine(priv);
 
     KW_DECREF(kw);
     return 0;

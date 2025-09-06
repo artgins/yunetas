@@ -489,7 +489,7 @@ PRIVATE int mt_start(hgobj gobj)
         "prompt", "> ",
         "history_file", history_file,
         "use_ncurses", priv->use_ncurses,
-        "bg_color", "gray",
+        "bg_color", "white",
         "fg_color", "black",
         "cx", winsz.ws_col,
         "cy", winsz.ws_row,
@@ -511,8 +511,7 @@ PRIVATE int mt_start(hgobj gobj)
                 priv->gwin_stdscr = NULL;
             }
 
-            print_error(0, "Cannot open a tty device\r\n");
-            print_error(0, "Check permissions of /dev/pts\r\n");
+            print_error(0, "\r\n\r\nCannot open a tty device. Are you in a valid login session?\r\n");
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
