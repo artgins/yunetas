@@ -127,31 +127,6 @@ PRIVATE void mt_create(hgobj gobj)
     SET_PRIV(cy,                        gobj_read_integer_attr)
     SET_PRIV(scroll_size,               gobj_read_integer_attr)
 
-    int x = (int)gobj_read_integer_attr(gobj, "x");
-    int y = (int)gobj_read_integer_attr(gobj, "y");
-    int cx = (int)gobj_read_integer_attr(gobj, "cx");
-    int cy = (int)gobj_read_integer_attr(gobj, "cy");
-
-    priv->wn = newwin(cy, cx, y, x);
-    if(!priv->wn) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "newwin() FAILED",
-            NULL
-        );
-    }
-    priv->panel = new_panel(priv->wn);
-    if(!priv->panel) {
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "new_panel() FAILED",
-            NULL
-        );
-    }
-    //scrollok(priv->wn, true);
-
     dl_init(&priv->dl_lines, gobj);
 }
 
@@ -178,6 +153,33 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
  ***************************************************************************/
 PRIVATE int mt_start(hgobj gobj)
 {
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    int x = (int)gobj_read_integer_attr(gobj, "x");
+    int y = (int)gobj_read_integer_attr(gobj, "y");
+    int cx = (int)gobj_read_integer_attr(gobj, "cx");
+    int cy = (int)gobj_read_integer_attr(gobj, "cy");
+
+    priv->wn = newwin(cy, cx, y, x);
+    if(!priv->wn) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "newwin() FAILED",
+            NULL
+        );
+    }
+    priv->panel = new_panel(priv->wn);
+    if(!priv->panel) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
+            "msg",          "%s", "new_panel() FAILED",
+            NULL
+        );
+    }
+    //scrollok(priv->wn, true);
+
     gobj_send_event(gobj, EV_PAINT, 0, gobj);
     gobj_start_children(gobj);
     return 0;
@@ -188,16 +190,10 @@ PRIVATE int mt_start(hgobj gobj)
  ***************************************************************************/
 PRIVATE int mt_stop(hgobj gobj)
 {
-    gobj_stop_children(gobj);
-    return 0;
-}
-
-/***************************************************************************
- *      Framework Method destroy
- ***************************************************************************/
-PRIVATE void mt_destroy(hgobj gobj)
-{
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    gobj_stop_children(gobj);
+
     if(priv->panel) {
         del_panel(priv->panel);
         priv->panel = 0;
@@ -210,6 +206,14 @@ PRIVATE void mt_destroy(hgobj gobj)
     }
 
     clrscr(gobj);
+    return 0;
+}
+
+/***************************************************************************
+ *      Framework Method destroy
+ ***************************************************************************/
+PRIVATE void mt_destroy(hgobj gobj)
+{
 }
 
 /***************************************************************************
