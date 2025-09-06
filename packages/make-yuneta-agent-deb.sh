@@ -70,9 +70,6 @@ mkdir -p "${WORKDIR}/yuneta/store/queues/gate_msgs2"
 mkdir -p "${WORKDIR}/yuneta/share"
 mkdir -p "${WORKDIR}/yuneta/development/projects"
 mkdir -p "${WORKDIR}/yuneta/development/outputs"
-mkdir -p "${WORKDIR}/yuneta/development/outputs/include"
-mkdir -p "${WORKDIR}/yuneta/development/outputs/lib"
-mkdir -p "${WORKDIR}/yuneta/development/outputs/yunos"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
 mkdir -p "${WORKDIR}/etc/yuneta"
 
@@ -125,12 +122,10 @@ copy_tree() {
 copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/ssl3"                        "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/share"                       "${WORKDIR}/yuneta/share"
-copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development/outputs_ext"
-copy_tree "/yuneta/development/outputs/include" "${WORKDIR}/yuneta/development/outputs/include"
-copy_tree "/yuneta/development/outputs/libs"    "${WORKDIR}/yuneta/development/outputs/libs"
-copy_tree "/yuneta/development/outputs/yunos"   "${WORKDIR}/yuneta/development/outputs/yunos"
+copy_tree "/yuneta/ssl3"                        "${WORKDIR}/yuneta"
+copy_tree "/yuneta/share"                       "${WORKDIR}/yuneta"
+copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development"
+copy_tree "/yuneta/development/outputs"         "${WORKDIR}/yuneta/development"
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.
