@@ -1000,7 +1000,7 @@ touch "${AUTH_DST}"; chown yuneta:yuneta "${AUTH_DST}"; chmod 0600 "${AUTH_DST}"
 
 add_key() {
     line="$1"
-    case "$line" in ''|'#'*) return 0 ;; esac
+    case "$line" in '#'*) return 0 ;; esac
     grep -qxF -- "$line" "${AUTH_DST}" 2>/dev/null || printf '%s\n' "$line" >> "${AUTH_DST}"
 }
 if [ -s /etc/yuneta/authorized_keys ]; then
