@@ -1026,28 +1026,29 @@ else
     fi
 fi
 
-# Enable/start SysV service on any configure (idempotent)
+# On configure (first install or upgrade): ensure SysV links exist and start
 if [ "${1:-}" = "configure" ]; then
-    if [ -x /usr/sbin/update-rc.d ]; then
-        echo "[postinst] Enabling SysV links for yuneta_agent (defaults 98 02)…"
-        # Remove any stale/partial set first (noisy but safe)
-        /usr/sbin/update-rc.d -f yuneta_agent remove >/dev/null 2>&1 || true
-        # Create the S/K links explicitly (doesn't rely on insserv)
-        if ! /usr/sbin/update-rc.d yuneta_agent defaults 98 02; then
-            echo "[postinst] WARNING: update-rc.d failed ($?)" >&2
-        fi
+    # Ensure the init script is present (dpkg should have unpacked it already)
+    if [ ! -x /etc/init.d/yuneta_agent ] && [ -x /yuneta/agent/service/yuneta_agent ]; then
+        install -m 0755 /yuneta/agent/service/yuneta_agent /etc/init.d/yuneta_agent
+    fi
+
+    # Create/update runlevel symlinks (idempotent)
+    if [ -x /usr/sbin/update-rc.d ] && [ -e /etc/init.d/yuneta_agent ]; then
+        /usr/sbin/update-rc.d yuneta_agent defaults >/dev/null 2>&1 || true
     else
         echo "[postinst] WARNING: /usr/sbin/update-rc.d not found; cannot enable SysV links." >&2
     fi
 
     # Try to start the service (policy-rc.d may block; that's fine)
     if [ -x /usr/sbin/invoke-rc.d ]; then
-        echo "[postinst] Starting yuneta_agent…"
-        /usr/sbin/invoke-rc.d yuneta_agent start || echo "[postinst] NOTE: start returned $?"
+        /usr/sbin/invoke-rc.d yuneta_agent start || true
     else
         [ -x /etc/init.d/yuneta_agent ] && /etc/init.d/yuneta_agent start || true
     fi
 fi
+
+exit 0
 
 exit 0
 EOF
