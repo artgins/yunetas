@@ -46,6 +46,7 @@ PRIVATE void catch_signals(void);
  *          Data: config, public data, private data
  ***************************************************************************/
 PRIVATE WINDOW *wn = NULL;      // ncurses handler
+PRIVATE bool __colors_ready__ = false;
 
 PRIVATE struct { // Code repeated
     int id;
@@ -185,6 +186,11 @@ PRIVATE int mt_start(hgobj gobj)
     //wtimeout(wn, 10);             /* input non-blocking, wait 1 msec */
     if(has_colors()) {
         start_color();
+        /* Allow -1 (default fg/bg) to pass through */
+        assume_default_colors(-1, -1);
+        __colors_ready__ = true;
+    } else {
+        __colors_ready__ = false;
     }
 
     int cx, cy;
@@ -248,41 +254,73 @@ PRIVATE void my_endwin(void)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_color_pair(int fg, int bg) // Code repeated
+PRIVATE int get_color_id(const char *color)
 {
-    static int next_pair = 1;
-    int pair;
-    static int cp[8][8];
-
-    if(fg < 0 || fg >= 8 || bg < 0 || bg >= 8) {
-        return 0;
+    if(!color || !*color) {
+        return -1; /* default */
     }
-    if ((pair = cp[fg][bg])) {
-        return COLOR_PAIR(pair);
+    if(!strcasecmp(color, "default") || !strcasecmp(color, "def")) {
+        return -1;
     }
-    if (next_pair >= COLOR_PAIRS) {
-        return 0;
+    for(size_t i = 0; i < ARRAY_SIZE(table_id); i++) {
+        if(strcasecmp(table_id[i].name, color) == 0) {
+            return table_id[i].id;
+        }
     }
-    if (init_pair(next_pair, fg, bg) != OK){
-        return 0;
-    }
-    pair = cp[fg][bg] = next_pair++;
-    return COLOR_PAIR(pair);
+    return -1; /* fall back to default, not white */
 }
 
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int get_color_id(const char *color) // Code repeated
+PRIVATE int get_color_pair(int fg, int bg)
 {
-    int i;
-    int len = ARRAY_SIZE(table_id);
-    for(i=0; i<len; i++) {
-        if(strcasecmp(table_id[i].name, color)==0) {
-            return table_id[i].id;
-        }
+    static int next_pair = 1;
+    static int cp[16][16]; /* allow up to 16 basic colors; still O(1) */
+    int maxc = (COLORS > 16) ? 16 : COLORS;
+
+    if(!__colors_ready__) {
+        return 0; /* no color attribute */
     }
-    return COLOR_WHITE;
+
+    /* Map -1 to default colors only if use_default_colors() succeeded */
+    if(fg < -1 || bg < -1) {
+        return 0;
+    }
+
+    /* Validate against actual COLORS; clamp to supported range */
+    if((fg >= maxc && fg != -1) || (bg >= maxc && bg != -1)) {
+        return 0;
+    }
+
+    int ifg = (fg < 0) ? 0 : fg;
+    int ibg = (bg < 0) ? 0 : bg;
+
+    if(cp[ifg][ibg]) {
+        return COLOR_PAIR(cp[ifg][ibg]);
+    }
+
+    if(next_pair >= COLOR_PAIRS) {
+        return 0; /* out of pairs */
+    }
+
+    /* init_pair() accepts -1 when use_default_colors() is active */
+    if(init_pair((short)next_pair, (short)fg, (short)bg) != OK) {
+        return 0;
+    }
+
+    cp[ifg][ibg] = next_pair++;
+    return COLOR_PAIR(cp[ifg][ibg]);
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PUBLIC int get_paint_color(const char *fg_color, const char *bg_color)
+{
+    int fg = get_color_id(fg_color);
+    int bg = get_color_id(bg_color);
+    return get_color_pair(fg, bg);
 }
 
 /***************************************************************************
