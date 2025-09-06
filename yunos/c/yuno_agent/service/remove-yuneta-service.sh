@@ -1,6 +1,6 @@
 #!/bin/bash
 
-service yuneta_agent stop
+/yuneta/bin/yshutdown
 
 if [ -f "/usr/sbin/update-rc.d" ]; then
     /usr/sbin/update-rc.d -f yuneta_agent remove
