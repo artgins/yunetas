@@ -14,7 +14,7 @@
 # Major features:
 #   - Ships Yuneta agent binaries + runtime tree under /yuneta
 #   - SysV init script at /etc/init.d/yuneta_agent
-#   - Certbot deploy hook to copy-renewed certs + reload nginx + restart Yuneta
+#   - Certbot deploy hook to copy-renewed certs + reload selected web server + restart Yuneta
 #   - Helpers for installing dev deps and certbot (snap)
 #   - Creates user 'yuneta' with login at /home/yuneta (if needed)
 #   - Makes /var/log/syslog available via rsyslog
@@ -135,6 +135,21 @@ if [ -f "${YUNETA_AUTH_KEYS_FILE}" ]; then
     install -D -m 0644 "${YUNETA_AUTH_KEYS_FILE}" "${WORKDIR}/etc/yuneta/authorized_keys"
 fi
 
+# --- Optional: select web server (nginx|openresty) via external file ---
+# Reads ${SCRIPT_DIR}/webserver/webserver if present (contents: "nginx" or "openresty").
+WEB_SELECTOR_FILE="${SCRIPT_DIR}/webserver/webserver"
+WEB_CHOICE="nginx"
+if [ -f "${WEB_SELECTOR_FILE}" ]; then
+    WEB_CHOICE="$(tr '[:upper:]' '[:lower:]' < "${WEB_SELECTOR_FILE}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    case "${WEB_CHOICE}" in
+        nginx|openresty) : ;;
+        *) echo "[!] Invalid webserver in ${WEB_SELECTOR_FILE}: '${WEB_CHOICE}', defaulting to nginx"; WEB_CHOICE="nginx" ;;
+    esac
+fi
+echo "[i] Web server selection: ${WEB_CHOICE}"
+install -D -m 0644 /dev/null "${WORKDIR}/etc/yuneta/webserver"
+printf '%s\n' "${WEB_CHOICE}" > "${WORKDIR}/etc/yuneta/webserver"
+
 # --- Copy yuneta_agent binaries (required) and create default config samples ---
 AGENT_SRC_1="/yuneta/agent/yuneta_agent"
 AGENT_SRC_2="/yuneta/agent/yuneta_agent22"
@@ -244,7 +259,7 @@ cat > "${WORKDIR}/etc/init.d/yuneta_agent" <<'EOF'
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Yuneta Agent service
-# Description:       Start/stop Yuneta Agent yunos and default web server (nginx)
+# Description:       Start/stop Yuneta Agent yunos and selected web server (nginx or openresty)
 ### END INIT INFO
 
 # Keep it simple: Yuneta handles its own daemon/watchdog. No start-stop-daemon here.
@@ -258,12 +273,6 @@ AGENT1_CFG="${YUNETA_DIR}/agent/yuneta_agent.json"
 
 AGENT2_BIN="${YUNETA_DIR}/agent/yuneta_agent22"
 AGENT2_CFG="${YUNETA_DIR}/agent/yuneta_agent22.json"
-
-# Default web server: Nginx
-NGINX_BIN="${YUNETA_DIR}/bin/nginx/sbin/nginx"
-
-# OpenResty is shipped but DISABLED by default; uncomment to enable:
-# OPENRESTY_BIN="${YUNETA_DIR}/bin/openresty/bin/openresty"
 
 if [ -r /lib/lsb/init-functions ]; then
     . /lib/lsb/init-functions
@@ -311,48 +320,78 @@ start_yunos() {
     return 0
 }
 
+# ---------------- Web server selection + control ----------------
+# Default nginx unless /etc/yuneta/webserver says otherwise (openresty)
+WEBCONF="/etc/yuneta/webserver"
+WEBTYPE="nginx"
+if [ -r "$WEBCONF" ]; then
+    WEBTYPE="$(tr '[:upper:]' '[:lower:]' < "$WEBCONF" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+fi
+
+NGINX_BIN="${YUNETA_DIR}/bin/nginx/sbin/nginx"
+OPENRESTY_BIN="${YUNETA_DIR}/bin/openresty/bin/openresty"
+
 start_web() {
-    # Default: start Nginx if present
-    if [ -x "$NGINX_BIN" ]; then
-        log_daemon_msg "Starting Nginx"
-        "$NGINX_BIN" || true
-        log_end_msg 0
-    fi
-
-    # To use OpenResty instead of Nginx, uncomment these lines:
-    # if [ -n "$OPENRESTY_BIN" ] && [ -x "$OPENRESTY_BIN" ]; then
-    #     log_daemon_msg "Starting OpenResty"
-    #     "$OPENRESTY_BIN" || true
-    #     log_end_msg 0
-    # fi
-}
-
-stop_yunos() {
-    YSHUT="${YUNETA_DIR}/bin/yshutdown"
-    if [ -x "$YSHUT" ]; then
-        log_daemon_msg "Stopping Yuneta (yshutdown)"
-        "$YSHUT" || true
-        log_end_msg 0
-    else
-        echo "WARN: $YSHUT not found" >&2
-    fi
+    case "$WEBTYPE" in
+        openresty)
+            if [ -x "$OPENRESTY_BIN" ]; then
+                log_daemon_msg "Starting OpenResty"
+                "$OPENRESTY_BIN" || true
+                log_end_msg 0
+            else
+                echo "WARN: OpenResty binary not found: $OPENRESTY_BIN" >&2
+            fi
+            ;;
+        nginx|*)
+            if [ -x "$NGINX_BIN" ]; then
+                log_daemon_msg "Starting Nginx"
+                "$NGINX_BIN" || true
+                log_end_msg 0
+            else
+                echo "WARN: Nginx binary not found: $NGINX_BIN" >&2
+            fi
+            ;;
+    esac
 }
 
 stop_web() {
-    # Stop Nginx if running
-    if pidof nginx >/dev/null 2>&1; then
-        log_daemon_msg "Stopping Nginx"
-        "$NGINX_BIN" -s quit || true
-        log_end_msg 0
-    fi
-
-    # To stop OpenResty if enabled, uncomment:
-    # if pidof openresty >/dev/null 2>&1; then
-    #     log_daemon_msg "Stopping OpenResty"
-    #     "$OPENRESTY_BIN" -s quit || true
-    #     log_end_msg 0
-    # fi
+    case "$WEBTYPE" in
+        openresty)
+            if pidof openresty >/dev/null 2>&1; then
+                log_daemon_msg "Stopping OpenResty"
+                "$OPENRESTY_BIN" -s quit || true
+                log_end_msg 0
+            fi
+            ;;
+        nginx|*)
+            if pidof nginx >/dev/null 2>&1; then
+                log_daemon_msg "Stopping Nginx"
+                "$NGINX_BIN" -s quit || true
+                log_end_msg 0
+            fi
+            ;;
+    esac
 }
+
+status_web() {
+    case "$WEBTYPE" in
+        openresty)
+            if pidof openresty >/dev/null 2>&1; then
+                echo "openresty: running;"
+                return 0
+            fi
+            ;;
+        nginx|*)
+            if pidof nginx >/dev/null 2>&1; then
+                echo "nginx: running;"
+                return 0
+            fi
+            ;;
+    esac
+    echo "web: not running;"
+    return 3
+}
+# ----------------------------------------------------------------
 
 status_yunos() {
     S=3
@@ -376,20 +415,6 @@ status_yunos() {
 
     echo "$MSG"
     return $S
-}
-
-status_web() {
-    if pidof nginx >/dev/null 2>&1; then
-        echo "nginx: running;"
-        return 0
-    fi
-    # If OpenResty is enabled, you can also report it:
-    # if pidof openresty >/dev/null 2>&1; then
-    #     echo "openresty: running;"
-    #     return 0
-    # fi
-    echo "web: not running;"
-    return 3
 }
 
 case "$1" in
@@ -450,6 +475,9 @@ EOF
 
 if [ -f "${WORKDIR}/etc/yuneta/authorized_keys" ]; then
     echo "/etc/yuneta/authorized_keys" >> "${WORKDIR}/DEBIAN/conffiles"
+fi
+if [ -f "${WORKDIR}/etc/yuneta/webserver" ]; then
+    echo "/etc/yuneta/webserver" >> "${WORKDIR}/DEBIAN/conffiles"
 fi
 
 # --- helper scripts (installed under /yuneta/agent/service) ---
@@ -560,13 +588,13 @@ Next steps (examples):
   # Standalone (temporarily free port 80)
   # service yuneta_agent stop && /usr/bin/certbot certonly --standalone -d example.com && service yuneta_agent start
 
-  # Webroot (recommended if your Yuneta nginx serves HTTP):
-  # 1) In your Yuneta nginx server block, add:
+  # Webroot (recommended if your Yuneta nginx/openresty serves HTTP):
+  # 1) In your web server block, add:
   #    location /.well-known/acme-challenge/ {
   #        root /yuneta/share/certbot-webroot;
   #        default_type text/plain;
   #    }
-  #    (reload nginx)
+  #    (reload web server)
   # 2) Create the webroot dir:
   #    mkdir -p /yuneta/share/certbot-webroot
   # 3) Issue:
@@ -574,7 +602,7 @@ Next steps (examples):
 
 Your .deb already installs a deploy hook at:
 /etc/letsencrypt/renewal-hooks/deploy/reload-certs
-It copies renewed certs to /yuneta/store/certs/, reloads nginx, and restarts Yuneta.
+It copies renewed certs to /yuneta/store/certs/, reloads the selected web server, and restarts Yuneta.
 HINT
 EOF
 chmod 0755 "${WORKDIR}/yuneta/bin/install-certbot-snap.sh"
@@ -585,7 +613,7 @@ cat > "${WORKDIR}/etc/letsencrypt/renewal-hooks/deploy/reload-certs" <<'EOF'
 #######################################################################
 # Triggered by certbot after successful renewal.
 # 1) Copies fresh certs to /yuneta/store/certs
-# 2) Reloads nginx (and optionally openresty)
+# 2) Reloads selected web server (nginx or openresty)
 # 3) Restarts Yuneta stack (background)
 #######################################################################
 set -eu
@@ -600,19 +628,29 @@ else
     echo "Warning: /yuneta/store/certs/copy-certs.sh not found or not executable." >&2
 fi
 
-# 2) Reload web servers to pick updated certs
-if [ -x /yuneta/bin/nginx/sbin/nginx ]; then
-    /yuneta/bin/nginx/sbin/nginx -s reload || true
-else
-    echo "Warning: nginx binary not found or not executable." >&2
+# 2) Reload web server to pick updated certs
+WEBCONF="/etc/yuneta/webserver"
+WEBTYPE="nginx"
+if [ -r "$WEBCONF" ]; then
+    WEBTYPE="$(tr '[:upper:]' '[:lower:]' < "$WEBCONF" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
 fi
 
-# OpenResty is shipped but DISABLED by default; uncomment to enable:
-# if [ -x /yuneta/bin/openresty/bin/openresty ]; then
-#     /yuneta/bin/openresty/bin/openresty -s reload || true
-# else
-#     echo "Warning: OpenResty binary not found or not executable." >&2
-# fi
+case "$WEBTYPE" in
+    openresty)
+        if [ -x /yuneta/bin/openresty/bin/openresty ]; then
+            /yuneta/bin/openresty/bin/openresty -s reload || true
+        else
+            echo "Warning: OpenResty binary not found or not executable." >&2
+        fi
+        ;;
+    nginx|*)
+        if [ -x /yuneta/bin/nginx/sbin/nginx ]; then
+            /yuneta/bin/nginx/sbin/nginx -s reload || true
+        else
+            echo "Warning: nginx binary not found or not executable." >&2
+        fi
+        ;;
+esac
 
 # 3) Restart Yuneta stack (background, non-blocking)
 if [ -x /yuneta/bin/restart-yuneta ]; then
@@ -1026,7 +1064,7 @@ case "$ACTION" in
             systemctl daemon-reload || true
             systemctl enable yuneta_agent.service || true
             systemctl start yuneta_agent.service || true
-        elif command -v invoke-rc.d >/devnull 2>&1; then
+        elif command -v invoke-rc.d >/dev/null 2>&1; then
             invoke-rc.d yuneta_agent start || true
         else
             /etc/init.d/yuneta_agent start || true
