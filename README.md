@@ -16,6 +16,9 @@ An Asynchronous Development Framework
 
 For more details, see [doc.yuneta.io](https://doc.yuneta.io)
 
+To install use:
+
+    git clone --recurse-submodules https://github.com/artgins/yunetas.git
 
 [pypi-badge]: https://img.shields.io/pypi/v/yunetas
 
