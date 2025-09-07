@@ -211,6 +211,8 @@ PRIVATE void mt_create(hgobj gobj)
             "msg",          "%s", "node_owner EMPTY, setting none",
             NULL
         );
+        print_error(0, "node_owner EMPTY, exiting");
+        exit(0);
     }
 
     /*----------------------------------------*
