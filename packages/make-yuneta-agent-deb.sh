@@ -842,6 +842,10 @@ cat > "${WORKDIR}/yuneta/store/certs/copy-certs.sh" <<'EOF'
 #######################################################################
 set -euo pipefail
 
+# Change to the directory where this script is located
+SCRIPT_DIR="$(cd -- "$(dirname -- "$0")" >/dev/null 2>&1 && pwd -P)"
+cd "${SCRIPT_DIR}"
+
 # Must run as root (privkey.pem is root-only in /etc/letsencrypt/live)
 if [ "${EUID:-$(id -u)}" -ne 0 ]; then
     echo "This script must run as root (to read /etc/letsencrypt/live/*/privkey.pem)" >&2
