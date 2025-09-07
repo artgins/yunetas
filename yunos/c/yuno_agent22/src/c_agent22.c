@@ -211,7 +211,7 @@ PRIVATE void mt_create(hgobj gobj)
             "msg",          "%s", "yuneta_agent22: node_owner EMPTY, exiting",
             NULL
         );
-        print_error(0, "yuneta_agent22: node_owner EMPTY, exiting\r\n");
+        print_error(0, "yuneta_agent22: node_owner EMPTY, exiting");
         exit(0);
     }
 
