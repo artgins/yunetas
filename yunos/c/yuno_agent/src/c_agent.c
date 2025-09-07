@@ -1021,10 +1021,10 @@ PRIVATE void mt_create(hgobj gobj)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "msg",          "%s", "node_owner EMPTY, setting none",
+            "msg",          "%s", "yuneta_agent: node_owner EMPTY, setting none",
             NULL
         );
-        print_error(0, "node_owner EMPTY, exiting");
+        print_error(0, "yuneta_agent: node_owner EMPTY, setting none");
     }
 
     /*----------------------------------------*
