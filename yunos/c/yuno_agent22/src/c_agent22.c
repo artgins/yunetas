@@ -753,7 +753,7 @@ PRIVATE int is_yuneta_agent22(pid_t pid)
     if(ret == 0) {
         char cmdline[1024];
         read_process_cmdline(cmdline, sizeof(cmdline), pid);
-        if(strstr(cmdline, " yuneta_agent22 ")) {
+        if(strstr(cmdline, "yuneta_agent22 ")) {
             return 0;
         }
         return -1;

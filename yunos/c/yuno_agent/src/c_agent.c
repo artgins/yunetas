@@ -1024,6 +1024,7 @@ PRIVATE void mt_create(hgobj gobj)
             "msg",          "%s", "node_owner EMPTY, setting none",
             NULL
         );
+        print_error(0, "node_owner EMPTY, exiting");
     }
 
     /*----------------------------------------*
@@ -6675,7 +6676,7 @@ PRIVATE int is_yuneta_agent(pid_t pid)
     if(ret == 0) {
         char cmdline[1024];
         read_process_cmdline(cmdline, sizeof(cmdline), pid);
-        if(strstr(cmdline, " yuneta_agent ")) {
+        if(strstr(cmdline, "yuneta_agent ")) {
             return 0;
         }
         return -1;
