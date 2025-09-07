@@ -820,6 +820,7 @@ fi
 if command -v pipx >/dev/null 2>&1; then
     echo "[i] Installing kconfiglib via pipx…"
     pipx install --include-deps kconfiglib || echo "[!] pipx install kconfiglib failed (continuing)"
+    echo "[i] Installing yunetas via pipx…"
     pipx install --include-deps yunetas || echo "[!] pipx install yunetas failed (continuing)"
 else
     echo "[!] pipx not installed; kconfiglib and yunetas not installed." >&2
