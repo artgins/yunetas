@@ -236,7 +236,7 @@ chmod 0755 "${WORKDIR}/yuneta/bin/check-certs-validity.sh"
 cat > "${WORKDIR}/etc/profile.d/yuneta.sh" <<'EOF'
 # Yuneta environment
 export YUNETA_DIR=/yuneta
-export PATH="/yuneta/bin:$PATH"
+export PATH="/yuneta/bin:/yuneta/development/bin:/usr/sbin:/sbin:$PATH"
 
 # Raise core dump and open-files limits for interactive shells
 # (Init/service scripts also raise limits before launching daemons)
