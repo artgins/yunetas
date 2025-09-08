@@ -103,36 +103,18 @@ if(AS_STATIC)
     list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
     set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
 
-    target_include_directories(yuneta
-        BEFORE
-        PUBLIC
-        "${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/include"
-        "${YUNETAS_PARENT_BASE_DIR}/outputs_static/include"
-    )
-
-    target_link_directories(yuneta
-        BEFORE
-        PUBLIC
-        "${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/lib"
-        "${YUNETAS_PARENT_BASE_DIR}/outputs_static/lib"
-    )
+    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/include")
+    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/lib")
+    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_static/include")
+    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_static/lib")
 else()
     list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs")
     set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs")
 
-    target_include_directories(yuneta
-        BEFORE
-        PUBLIC
-        "${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include"
-        "${YUNETAS_PARENT_BASE_DIR}/outputs/include"
-    )
-
-    target_link_directories(yuneta
-        BEFORE
-        PUBLIC
-        "${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib"
-        "${YUNETAS_PARENT_BASE_DIR}/outputs/lib"
-    )
+    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
+    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
+    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
+    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 endif()
 
 #----------------------------------------#
