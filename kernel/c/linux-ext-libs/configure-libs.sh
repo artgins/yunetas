@@ -104,9 +104,10 @@ cd build/openssl
 git checkout "$TAG_OPENSSL"
 git submodule update --init
 
+#    --openssldir=/yuneta/bin/ssl3 \
+
 ./config \
     --prefix="${YUNETA_INSTALL_PREFIX}" \
-    --openssldir=/yuneta/bin/ssl3 \
     --libdir=lib \
     -fPIC \
     no-tests \
