@@ -76,10 +76,8 @@ mkdir -p "${WORKDIR}/yuneta/development/outputs"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
 mkdir -p "${WORKDIR}/etc/yuneta"
 
-# --- Single-file utilities to include (must exist in BIN_DIR) ---
+# --- Single-file utilities to include /yuneta/bin ---
 BINARIES=(
-    fs_watcher
-    inotify
     keycloak_pkey_to_jwks
     list_queue_msgs2
     tr2keys
@@ -88,17 +86,11 @@ BINARIES=(
     watchfs
     ybatch
     ycli
-    yclone-gclass
-    yclone-project
     ycommand
     ylist
-    ymake-skeleton
-    yscapec
     yshutdown
     ystats
-    ytestconfig
     ytests
-    yuno-skeleton
 )
 
 # Copy single-file utilities with correct perms; verify existence
@@ -109,6 +101,28 @@ for BINARY in "${BINARIES[@]}"; do
         exit 2
     fi
     install -D -m 0755 "${SRC}" "${WORKDIR}/yuneta/bin/${BINARY}"
+done
+
+# --- Single-file utilities to include /yuneta/development/bin ---
+BINARIES=(
+    fs_watcher
+    inotify
+    yclone-gclass
+    yclone-project
+    ymake-skeleton
+    yscapec
+    ytestconfig
+    yuno-skeleton
+)
+
+# Copy single-file utilities with correct perms; verify existence
+for BINARY in "${BINARIES[@]}"; do
+    SRC="${BIN_DIR%/}/${BINARY}"
+    if [ ! -x "${SRC}" ]; then
+        echo "[-] Missing or non-executable binary: ${SRC}" >&2
+        exit 2
+    fi
+    install -D -m 0755 "${SRC}" "${WORKDIR}/yuneta/development/bin/${BINARY}"
 done
 
 # --- Copy bundled trees (if present), dereferencing symlinks ---
@@ -978,7 +992,7 @@ for grp in $GROUPS; do
     [ -z "$grp" ] && continue
     if getent group "$grp" >/dev/null 2>&1; then
         usermod -aG "$grp" yuneta || true
-        info "Added 'yuneta' to group: $grp"
+        # info "Added 'yuneta' to group: $grp"
     else
         if [ "$CREATE_MISSING" = "1" ]; then
             info "Creating missing group: $grp"
