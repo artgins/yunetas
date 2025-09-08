@@ -246,6 +246,7 @@ ulimit -n 200000 2>/dev/null || true
 # Handy aliases
 alias y='cd /yuneta/development/yunetas'
 alias salidas='cd /yuneta/development/outputs'
+alias outputs='cd /yuneta/development/outputs'
 alias logs='cd /yuneta/realms/agent/logcenter/logs'
 alias ll='ls -la'
 EOF
