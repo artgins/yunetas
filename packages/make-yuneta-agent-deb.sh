@@ -71,6 +71,7 @@ mkdir -p "${WORKDIR}/yuneta/store/certs/private"           # private will be 070
 mkdir -p "${WORKDIR}/yuneta/store/queues/gate_msgs2"
 mkdir -p "${WORKDIR}/yuneta/share"
 mkdir -p "${WORKDIR}/yuneta/development/projects"
+mkdir -p "${WORKDIR}/yuneta/development/bin"
 mkdir -p "${WORKDIR}/yuneta/development/outputs"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
 mkdir -p "${WORKDIR}/etc/yuneta"
