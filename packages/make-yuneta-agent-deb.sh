@@ -70,8 +70,6 @@ mkdir -p "${WORKDIR}/yuneta/repos"
 mkdir -p "${WORKDIR}/yuneta/store/certs/private"           # private will be 0700 in postinst
 mkdir -p "${WORKDIR}/yuneta/store/queues/gate_msgs2"
 mkdir -p "${WORKDIR}/yuneta/share"
-mkdir -p "${WORKDIR}/yuneta/development/projects"
-mkdir -p "${WORKDIR}/yuneta/development/bin"
 mkdir -p "${WORKDIR}/yuneta/development/outputs"
 mkdir -p "${WORKDIR}/yuneta/development/outputs_ext"
 mkdir -p "${WORKDIR}/etc/yuneta"
@@ -91,20 +89,7 @@ BINARIES=(
     yshutdown
     ystats
     ytests
-)
 
-# Copy single-file utilities with correct perms; verify existence
-for BINARY in "${BINARIES[@]}"; do
-    SRC="${BIN_DIR%/}/${BINARY}"
-    if [ ! -x "${SRC}" ]; then
-        echo "[-] Missing or non-executable binary: ${SRC}" >&2
-        exit 2
-    fi
-    install -D -m 0755 "${SRC}" "${WORKDIR}/yuneta/bin/${BINARY}"
-done
-
-# --- Single-file utilities to include /yuneta/development/bin ---
-BINARIES=(
     fs_watcher
     inotify
     yclone-gclass
@@ -122,7 +107,7 @@ for BINARY in "${BINARIES[@]}"; do
         echo "[-] Missing or non-executable binary: ${SRC}" >&2
         exit 2
     fi
-    install -D -m 0755 "${SRC}" "${WORKDIR}/yuneta/development/bin/${BINARY}"
+    install -D -m 0755 "${SRC}" "${WORKDIR}/yuneta/bin/${BINARY}"
 done
 
 # --- Copy bundled trees (if present), dereferencing symlinks ---
@@ -139,7 +124,7 @@ copy_tree() {
 copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/ssl3"                        "${WORKDIR}/yuneta"
+copy_tree "/yuneta/bin/ssl3"                    "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/share"                       "${WORKDIR}/yuneta"
 copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development"
 copy_tree "/yuneta/development/outputs"         "${WORKDIR}/yuneta/development"
@@ -251,7 +236,7 @@ chmod 0755 "${WORKDIR}/yuneta/bin/check-certs-validity.sh"
 cat > "${WORKDIR}/etc/profile.d/yuneta.sh" <<'EOF'
 # Yuneta environment
 export YUNETA_DIR=/yuneta
-export PATH="/yuneta/bin:/yuneta/development/bin:/usr/sbin:/sbin:$PATH"
+export PATH="/yuneta/bin:/usr/sbin:/sbin:$PATH"
 
 # Raise core dump and open-files limits for interactive shells
 # (Init/service scripts also raise limits before launching daemons)
@@ -477,7 +462,7 @@ Architecture: ${ARCHITECTURE}
 Homepage: https://yuneta.io
 Maintainer: ArtGins S.L. <support@artgins.com>
 Depends: adduser, lsb-base, rsync, locales, rsyslog, init-system-helpers
-Recommends: curl, vim, sudo, tree, pipx, fail2ban
+Recommends: curl, vim, sudo, tree, pipx, fail2ban, net-tools, locate
 Suggests: git, mercurial, make, cmake, ninja-build, gcc, musl, musl-dev, musl-tools, clang, g++, python3-dev, python3-pip, python3-setuptools, python3-tk, python3-wheel, python3-venv, libjansson-dev, libpcre2-dev, liburing-dev, libcurl4-openssl-dev, libpcre3-dev, zlib1g-dev, libssl-dev, perl, dos2unix, postgresql-server-dev-all, libpq-dev, kconfig-frontends, telnet, patch, gettext, snapd
 Description: Yuneta's Agent
  Yuneta Agent binaries, runtime directories, SysV service, certbot hooks and helpers.
@@ -817,7 +802,7 @@ PKGS=(
 # Extra commonly-needed build meta packages
 PKGS+=(build-essential pkg-config ca-certificates)
 
-echo "[i] Installing development packages (no recommends)…"
+echo "[i] Installing dev packages (no recommends)…"
 for p in "${PKGS[@]}"; do
     if apt-cache show "$p" >/dev/null 2>&1; then
         echo " -> $p"
