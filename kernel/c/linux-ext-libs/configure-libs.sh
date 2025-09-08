@@ -179,8 +179,6 @@ cd build/ncurses
 
 git checkout "$TAG_NCURSES"
 
-# --prefix=/yuneta/development/outputs_ext
-
 ./configure \
     --prefix="${YUNETA_INSTALL_PREFIX}" \
     --datarootdir=/yuneta/bin/ncurses \
