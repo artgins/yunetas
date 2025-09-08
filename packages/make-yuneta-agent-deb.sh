@@ -124,8 +124,6 @@ copy_tree() {
 copy_tree "/yuneta/bin/ncurses"                 "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/bin/ssl3"                    "${WORKDIR}/yuneta/bin"
-copy_tree "/yuneta/share"                       "${WORKDIR}/yuneta"
 copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development"
 copy_tree "/yuneta/development/outputs"         "${WORKDIR}/yuneta/development"
 
