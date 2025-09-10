@@ -386,16 +386,6 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
     }
 
     /*------------------------------------------------*
-     *  Check inherit files
-     *------------------------------------------------*/
-    int opened_fds = check_open_fds();
-    if(opened_fds > 4) {
-        char temp[NAME_MAX];
-        snprintf(temp, sizeof(temp), "entry_point %s", APP_NAME);
-        print_open_fds(temp);
-    }
-
-    /*------------------------------------------------*
      *  Process name = yuno role
      *------------------------------------------------*/
     const char *process_name = APP_NAME;
@@ -422,6 +412,18 @@ PUBLIC int yuneta_entry_point(int argc, char *argv[],
             arguments.print_final_config ||
             arguments.print_role) {
         __print__ = TRUE;
+    }
+
+    /*------------------------------------------------*
+     *  Check inherit files
+     *------------------------------------------------*/
+    if(__as_daemon__) {
+        int opened_fds = check_open_fds();
+        if(opened_fds > 4) {
+            char temp[NAME_MAX];
+            snprintf(temp, sizeof(temp), "entry_point %s", APP_NAME);
+            print_open_fds(temp);
+        }
     }
 
     /*------------------------------------------------*
