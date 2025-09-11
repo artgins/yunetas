@@ -42,13 +42,6 @@ target_link_libraries(${PROJECT_NAME}
 
 target_link_options(${PROJECT_NAME} PUBLIC LINKER:-Map=${PROJECT_NAME}.map)
 
-# Add a custom command to generate assembler .lst file
-add_custom_command(
-    TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND objdump -SlF ${PROJECT_NAME} > ${CMAKE_BINARY_DIR}/${PROJECT_NAME}.lst
-    COMMENT "Generating assembler"
-)
-
 ##############################################
 #   Installation
 ##############################################
