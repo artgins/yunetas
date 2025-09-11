@@ -17,15 +17,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <stddef.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <dirent.h>
 #include <jansson.h>
+
 #define PCRE2_STATIC
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <pcre2.h>
-#include <yunetas.h>
+#include <helpers.h>
 #include "clone_tree_dir.h"
 
 #define Color_Off "\033[0m"       // Text Reset

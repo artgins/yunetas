@@ -122,8 +122,12 @@
 // }
 
 // version with pcre2 by chatgpt
-static int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
-{
+static int render_string(
+    char *rendered_str,
+    int rendered_str_size,
+    char *str,
+    json_t *jn_values
+) {
     snprintf(rendered_str, rendered_str_size, "%s", str);
 
     const char *old_name;
@@ -160,14 +164,14 @@ static int render_string(char *rendered_str, int rendered_str_size, char *str, j
         int len = (int)strlen(str);
         int rc;
         while ((rc = pcre2_match(
-                    re,
-                    (PCRE2_SPTR)str,
-                    len,
-                    offset,
-                    0,
-                    match_data,
-                    NULL)) >= 0)
-        {
+            re,
+            (PCRE2_SPTR)str,
+            len,
+            offset,
+            0,
+            match_data,
+            NULL)) >= 0
+        ) {
             PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
             for(int i = 0; i < rc; ++i)
             {
