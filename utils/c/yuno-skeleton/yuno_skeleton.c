@@ -19,7 +19,7 @@
 #define APP_VERSION     YUNETA_VERSION
 #define APP_DATETIME    __DATE__ " " __TIME__
 #define APP_SUPPORT     "<support at artgins.com>"
-#define DEFAULT_SKELETON_PATH "/yuneta/development/bin/skeletons"
+#define DEFAULT_SKELETON_PATH "/yuneta/bin/skeletons"
 #define DEFAULT_JSON_CONFIG "__skeletons__.json"
 
 /***************************************************************************

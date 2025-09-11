@@ -126,6 +126,7 @@ copy_tree "/yuneta/bin/nginx"                   "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/bin/openresty"               "${WORKDIR}/yuneta/bin"
 copy_tree "/yuneta/development/outputs_ext"     "${WORKDIR}/yuneta/development"
 copy_tree "/yuneta/development/outputs"         "${WORKDIR}/yuneta/development"
+copy_tree "/yuneta/bin/skeletons"               "${WORKDIR}/yuneta/bin"
 
 # --- Optional: bundle SSH public key(s) for user 'yuneta' ---
 # Reads ${SCRIPT_DIR}/authorized_keys/authorized_keys if present.

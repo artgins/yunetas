@@ -141,7 +141,7 @@ PRIVATE int _walk_tree(
 
 /****************************************************************************
  *  Walk directory tree
- *  Se matchea un único pattern a todo lo encontrado.
+ *  A single pattern is matched to everything found.
  ****************************************************************************/
 PRIVATE int mywalk_dir_tree(
     const char *root_dir,

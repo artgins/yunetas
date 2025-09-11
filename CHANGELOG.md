@@ -2,7 +2,7 @@
 
 ## v7.0.0-b14 -- 11/Sep/2025
     - improve .deb
-    - yuno-skeleton to /yuneta/bin
+    - yuno-skeleton to /yuneta/bin and skeletons to /yuneta/bin/skeletons
     - check inherited files only for daemons
 
 ## v7.0.0-b12 -- 7/Sep/2025
