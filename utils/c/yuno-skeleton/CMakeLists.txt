@@ -40,11 +40,6 @@ target_link_libraries(${PROJECT_NAME}
     libargp-standalone.a
 )
 
-#TARGET_LINK_LIBRARIES(yclone-gclass
-#    /yuneta/development/output/lib/libjansson.a
-#    rt pthread dl pcre
-#)
-
 ##############################################
 #   Installation
 ##############################################
@@ -54,7 +49,6 @@ install(
     OWNER_READ OWNER_WRITE OWNER_EXECUTE
     GROUP_READ GROUP_WRITE GROUP_EXECUTE
     WORLD_READ WORLD_EXECUTE
-    #    DESTINATION ${BIN_DEST_DIR}
     DESTINATION "/yuneta/bin"
 )
 
@@ -63,7 +57,7 @@ install(
 install(
     DIRECTORY skeletons/
     USE_SOURCE_PERMISSIONS
-    DESTINATION ${BIN_DEST_DIR}/skeletons
+    DESTINATION "/yuneta/bin/skeletons"
 )
 
 # compile in Release mode :
