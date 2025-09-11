@@ -67,61 +67,6 @@
  *  Busca en str las claves y sustituye la clave con el valor
  *  de dicha clave en el dict jn_values
  ***************************************************************************/
-// version with pcre, changed to pcre2 by chatgpt
-// static int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
-// {
-//     pcre *re;
-//     const char *error;
-//     int erroffset;
-//     int ovector[100];
-//
-//     snprintf(rendered_str, rendered_str_size, "%s", str);
-//
-//     const char *old_name; json_t *jn_value;
-//     json_object_foreach(jn_values, old_name, jn_value) {
-//         const char *new_name = json_string_value(jn_value);
-//         if(empty_string(new_name)) {
-//             continue;
-//         }
-//         char pattern[NAME_MAX];
-//         snprintf(pattern, sizeof(pattern), "(%s+?)", old_name);
-//         re = pcre_compile(
-//             pattern,        /* the pattern */
-//             0,              /* default options */
-//             &error,         /* for error message */
-//             &erroffset,     /* for error offset */
-//             0               /* use default character tables */
-//         );
-//         if(!re) {
-//             fprintf(stderr, "pcre_compile failed (offset: %d), %s\n", erroffset, error);
-//             exit(-1);
-//         }
-//
-//         int rc;
-//         int offset = 0;
-//         int len = (int)strlen(str);
-//         while (offset < len && (rc = pcre_exec(re, 0, str, len, offset, 0, ovector, sizeof(ovector))) >= 0)
-//         {
-//             for(int i = 0; i < rc; ++i)
-//             {
-//                 int macro_len = ovector[2*i+1] - ovector[2*i];
-//                 //printf("%2d: %.*s\n", i, macro_len, str + ovector[2*i]);
-//                 char macro[NAME_MAX]; // enough of course
-//                 snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
-//                 const char *value = json_string_value(json_object_get(jn_values, macro));
-//                 char * new_value = replace_string(rendered_str, macro, value);
-//                 snprintf(rendered_str, rendered_str_size, "%s", new_value);
-//                 free(new_value);
-//             }
-//             offset = ovector[1];
-//         }
-//         free(re);
-//     }
-//
-//     return 0;
-// }
-
-// version with pcre2 by chatgpt
 static int render_string(
     char *rendered_str,
     int rendered_str_size,

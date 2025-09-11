@@ -69,59 +69,6 @@
  *  Busca en str las {{clave}} y sustituye la clave con el valor
  *  de dicha clave en el dict jn_values
  ***************************************************************************/
-// version with pcre, changed to pcre2
-// int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
-// {
-//     pcre *re;
-//     const char *error;
-//     int erroffset;
-//     int ovector[100];
-//
-//     re = pcre_compile(
-//              "(\\{\\{.+?\\}\\})",   /* the pattern */
-//              0,                     /* default options */
-//              &error,                /* for error message */
-//              &erroffset,            /* for error offset */
-//              0                      /* use default character tables */
-//     );
-//     if(!re) {
-//         fprintf(stderr, "pcre_compile failed (offset: %d), %s\n", erroffset, error);
-//         exit(-1);
-//     }
-//
-//     snprintf(rendered_str, rendered_str_size, "%s", str);
-//
-//     int rc;
-//     unsigned int offset = 0;
-//     unsigned int len = strlen(str);
-//     while (offset < len && (rc = pcre_exec(re, 0, str, len, offset, 0, ovector, sizeof(ovector))) >= 0)
-//     {
-//         for(int i = 0; i < rc; ++i)
-//         {
-//             int macro_len = ovector[2*i+1] - ovector[2*i];
-//             //printf("%2d: %.*s\n", i, macro_len, str + ovector[2*i]);
-//             char macro[256]; // enough of course
-//             char rendered[256];
-//             snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
-//             char key[256];
-//             snprintf(key, sizeof(key), "%.*s", macro_len-4, str + ovector[2*i] + 2);
-//
-//             const char *value = json_string_value(json_object_get(jn_values, key));
-//             if(!value)
-//                 value = "";
-//             snprintf(rendered, sizeof(rendered), "%s", value);
-//
-//             char * new_value = replace_string(rendered_str, macro, rendered);
-//             snprintf(rendered_str, rendered_str_size, "%s", new_value);
-//             free(new_value);
-//         }
-//         offset = ovector[1];
-//     }
-//     free(re);
-//
-//     return 0;
-// }
-
 static int render_string(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
 {
     pcre2_code *re;
@@ -194,67 +141,6 @@ static int render_string(char *rendered_str, int rendered_str_size, char *str, j
 
     return 0;
 }
-
-/***************************************************************************
- *  Busca en str las +clave+ y sustituye la clave con el valor
- *  de dicha clave en el dict jn_values
- *  Busca tb "_tmpl$" y elimínalo.
- ***************************************************************************/
-// version with pcre, changed to pcre2
-// static int render_filename(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
-// {
-    // pcre *re;
-    // const char *error;
-    // int erroffset;
-    // int ovector[100];
-    //
-    // re = pcre_compile(
-    //          "(\\+.+?\\+)", /* the pattern */
-    //          0,             /* default options */
-    //          &error,        /* for error message */
-    //          &erroffset,    /* for error offset */
-    //          0              /* use default character tables */
-    // );
-    // if(!re) {
-    //     fprintf(stderr, "pcre_compile failed (offset: %d), %s\n", erroffset, error);
-    //     exit(-1);
-    // }
-    //
-    // snprintf(rendered_str, rendered_str_size, "%s", str);
-    //
-    // int rc;
-    // unsigned int offset = 0;
-    // unsigned int len = strlen(str);
-    // while (offset < len && (rc = pcre_exec(re, 0, str, len, offset, 0, ovector, sizeof(ovector))) >= 0)
-    // {
-    //     for(int i = 0; i < rc; ++i)
-    //     {
-    //         int macro_len = ovector[2*i+1] - ovector[2*i];
-    //         //printf("%2d: %.*s\n", i, macro_len, str + ovector[2*i]);
-    //         char macro[256]; // enough of course
-    //         char rendered[256];
-    //         snprintf(macro, sizeof(macro), "%.*s", macro_len, str + ovector[2*i]);
-    //         char key[256];
-    //         snprintf(key, sizeof(key), "%.*s", macro_len-2, str + ovector[2*i] + 1);
-    //
-    //         const char *value = json_string_value(json_object_get(jn_values, key));
-    //         snprintf(rendered, sizeof(rendered), "%s", value?value:"");
-    //
-    //         char * new_value = replace_string(rendered_str, macro, rendered);
-    //         snprintf(rendered_str, rendered_str_size, "%s", new_value);
-    //         free(new_value);
-    //     }
-    //     offset = ovector[1];
-    // }
-    // free(re);
-    //
-    // len = strlen(rendered_str);
-    // if(len > 5 && strcmp(rendered_str+len-5, "_tmpl")==0) {
-    //     *(rendered_str+len-5) = 0;
-    // }
-//
-//     return 0;
-// }
 
 /***************************************************************************
  *  Busca en str las +clave+ y sustituye la clave con el valor
