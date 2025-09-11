@@ -248,7 +248,7 @@
     },
     {
         "name": "c_project",
-        "summary": "Create a pure C proyect",
+        "summary": "Create a pure C project",
         "type": "Utility",
         "vars": [
             {

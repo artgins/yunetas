@@ -200,9 +200,9 @@ static int render_string(char *rendered_str, int rendered_str_size, char *str, j
  *  de dicha clave en el dict jn_values
  *  Busca tb "_tmpl$" y elimínalo.
  ***************************************************************************/
-static int render_filename(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
-{
-    // TODO
+// version with pcre, changed to pcre2
+// static int render_filename(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
+// {
     // pcre *re;
     // const char *error;
     // int erroffset;
@@ -252,6 +252,114 @@ static int render_filename(char *rendered_str, int rendered_str_size, char *str,
     // if(len > 5 && strcmp(rendered_str+len-5, "_tmpl")==0) {
     //     *(rendered_str+len-5) = 0;
     // }
+//
+//     return 0;
+// }
+
+/***************************************************************************
+ *  Busca en str las +clave+ y sustituye la clave con el valor
+ *  de dicha clave en el dict jn_values
+ *  Busca tb "_tmpl$" y elimínalo.
+ ***************************************************************************/
+static int render_filename(char *rendered_str, int rendered_str_size, char *str, json_t *jn_values)
+{
+    int errorcode;
+    PCRE2_SIZE erroffset;
+    PCRE2_UCHAR errbuf[256];
+
+    PCRE2_SPTR pattern = (PCRE2_SPTR)"(\\+.+?\\+)"; /* matches +...+ (non-greedy) */
+    pcre2_code *re = pcre2_compile(
+        pattern,                 /* pattern */
+        PCRE2_ZERO_TERMINATED,   /* pattern length */
+        0,                       /* options */
+        &errorcode,              /* for error code */
+        &erroffset,              /* for error offset */
+        NULL                     /* use default compile context */
+    );
+    if(!re) {
+        pcre2_get_error_message(errorcode, errbuf, sizeof(errbuf));
+        fprintf(stderr, "pcre2_compile failed (offset %zu): %s\n",
+                (size_t)erroffset, (const char *)errbuf);
+        exit(-1);
+    }
+
+    pcre2_match_data *match_data = pcre2_match_data_create_from_pattern(re, NULL);
+    if(!match_data) {
+        fprintf(stderr, "pcre2_match_data_create_from_pattern failed\n");
+        pcre2_code_free(re);
+        exit(-1);
+    }
+
+    /* Start with the original string copied into output buffer */
+    snprintf(rendered_str, rendered_str_size, "%s", str);
+
+    size_t len = strlen(str);
+    PCRE2_SIZE offset = 0;
+
+    while(offset < len) {
+        int rc = pcre2_match(
+            re,                       /* the compiled pattern */
+            (PCRE2_SPTR)str,          /* subject string */
+            len,                      /* length of subject */
+            offset,                   /* starting offset */
+            0,                        /* options */
+            match_data,               /* match data */
+            NULL                      /* match context */
+        );
+
+        if(rc < 0) {
+            /* No more matches (PCRE2_ERROR_NOMATCH or other negatives) */
+            break;
+        }
+
+        /* We only need the full match (group 0) */
+        PCRE2_SIZE *ovector = pcre2_get_ovector_pointer(match_data);
+        PCRE2_SIZE start = ovector[0];
+        PCRE2_SIZE end   = ovector[1];
+        int macro_len = (int)(end - start);
+
+        char macro[256];
+        char rendered[256];
+        char key[256];
+
+        if(macro_len >= (int)sizeof(macro)) {
+            /* Truncate safely (preserves behavior style; adjust if you prefer dyn. alloc) */
+            macro_len = (int)sizeof(macro) - 1;
+        }
+
+        /* macro: "+clave+" */
+        snprintf(macro, sizeof(macro), "%.*s", macro_len, str + start);
+
+        /* key: strip leading and trailing '+' */
+        int key_len = macro_len - 2;
+        if(key_len < 0) {
+            key_len = 0;
+        }
+        if(key_len >= (int)sizeof(key)) {
+            key_len = (int)sizeof(key) - 1;
+        }
+        snprintf(key, sizeof(key), "%.*s", key_len, str + start + 1);
+
+        const char *value = json_string_value(json_object_get(jn_values, key));
+        snprintf(rendered, sizeof(rendered), "%s", value ? value : "");
+
+        /* Replace in the output buffer (rendered_str) */
+        char *new_value = replace_string(rendered_str, macro, rendered);
+        snprintf(rendered_str, rendered_str_size, "%s", new_value);
+        free(new_value);
+
+        /* Advance past this match in the ORIGINAL subject (str) */
+        offset = end;
+    }
+
+    pcre2_match_data_free(match_data);
+    pcre2_code_free(re);
+
+    /* Remove trailing "_tmpl" if present */
+    size_t out_len = strlen(rendered_str);
+    if(out_len > 5 && strcmp(rendered_str + out_len - 5, "_tmpl") == 0) {
+        rendered_str[out_len - 5] = '\0';
+    }
 
     return 0;
 }
@@ -362,26 +470,23 @@ int copy_dir(const char *dst, const char *src, json_t *jn_values)
         }
     }
 
-    int len;
     char dst_path[1024];
     char src_path[1024];
     char rendered_str[80];
     do {
-        len = snprintf(src_path, sizeof(src_path)-1, "%s/%s", src, entry->d_name);
-        src_path[len] = 0;
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        snprintf(src_path, sizeof(src_path), "%s/%s", src, entry->d_name);
 
         render_filename(rendered_str, sizeof(rendered_str), entry->d_name, jn_values);
-        len = snprintf(dst_path, sizeof(dst_path)-1, "%s/%s", dst, rendered_str);
-        dst_path[len] = 0;
-
+        snprintf(dst_path, sizeof(dst_path), "%s/%s", dst, rendered_str);
 
         if (is_link(src_path)) {
             copy_link(src_path, dst_path);
 
         } else if (is_directory(src_path)) {
-            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-                continue;
-            }
             copy_dir(dst_path, src_path, jn_values);
         } else if (is_regular_file(src_path)) {
             if(strstr(src_path, "_tmpl")) {
