@@ -7,14 +7,10 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <stdio.h>
-#include <argp-standalone.h>
 #include <errno.h>
-#include <regex.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <ghelpers.h>
+
+#include <argp-standalone.h>
+#include "{{utility}}.h"
 
 /***************************************************************************
  *              Constants
@@ -72,7 +68,8 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc
+    doc,
+    0,0,0
 };
 
 /***************************************************************************

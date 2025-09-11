@@ -1,5 +1,5 @@
 /****************************************************************************
- *          {{ROOTNAME}}.H
+ *          {{UTILITY}}.H
  *
  *          {{description}}
  *
@@ -22,7 +22,7 @@ extern "C"{
 /**rst**
    Describe your function
 **rst**/
-PUBLIC int sample(void);
+PUBLIC int your_utility(int verbose);
 
 #ifdef __cplusplus
 }
