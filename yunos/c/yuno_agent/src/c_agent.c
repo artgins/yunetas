@@ -13,7 +13,6 @@
 #include <stdio.h>
 #include <grp.h>
 #include <errno.h>
-#include <regex.h>
 #include <unistd.h>
 #include <limits.h>
 #include <pwd.h>

@@ -10,7 +10,6 @@
  ***********************************************************************/
 #include <string.h>
 #include <errno.h>
-#include <regex.h>
 #include <sys/socket.h>
 
 #include <gobj.h>

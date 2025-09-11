@@ -13,7 +13,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <argp-standalone.h>
-#include <regex.h>
 #include <jansson.h>
 #include <helpers.h>
 #include "make_clone.h"

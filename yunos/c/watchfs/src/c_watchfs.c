@@ -11,7 +11,6 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <regex.h>
 
 #include "c_watchfs.h"
 
