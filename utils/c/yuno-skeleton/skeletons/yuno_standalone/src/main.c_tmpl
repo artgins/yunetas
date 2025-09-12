@@ -8,7 +8,7 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp-standalone.h>
-#include "c_{{yunorole}}.h"
+#include "c_{{rootname}}.h"
 
 /***************************************************************************
  *              Structures
@@ -103,7 +103,7 @@ PRIVATE char variable_config[]= "\
     'services': [                                                   \n\
         {                                                           \n\
             'name': '{{yunorole}}',                                 \n\
-            'gclass': 'C_{{YUNOROLE}}',                             \n\
+            'gclass': 'C_{{ROOTNAME}}',                             \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false                                       \n\
@@ -220,7 +220,7 @@ static int register_yuno_and_more(void)
     /*--------------------*
      *  Register gclass
      *--------------------*/
-    register_c_{{yunorole}}();
+    register_c_{{rootname}}();
 
     /*------------------------------------------------*
      *          Traces
@@ -301,7 +301,7 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:i}}",
             "global",
-            "C_{{YUNOROLE}}.verbose", arguments.verbose
+            "C_{{ROOTNAME}}.verbose", arguments.verbose
         );
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
         if(!param1_) {

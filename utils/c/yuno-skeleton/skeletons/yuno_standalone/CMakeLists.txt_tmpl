@@ -21,10 +21,10 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 ##############################################
 SET (YUNO_SRCS
     src/main.c
-    src/c_{{yunorole}}.c
+    src/c_{{rootname}}.c
 )
 SET (YUNO_HDRS
-    src/c_{{yunorole}}.h
+    src/c_{{rootname}}.h
 )
 
 ##############################################

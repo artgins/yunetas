@@ -12,7 +12,7 @@
 #include <unistd.h>
 #include <limits.h>
 
-#include "c_{{yunorole}}.h"
+#include "c_{{rootname}}.h"
 
 /***************************************************************************
  *              Constants
@@ -183,7 +183,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_{{YUNOROLE}});
+GOBJ_DEFINE_GCLASS(C_{{ROOTNAME}});
 
 /*------------------------*
  *      States
@@ -256,7 +256,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *          Public access
  ***************************************************************************/
-PUBLIC int register_c_{{yunorole}}(void)
+PUBLIC int register_c_{{rootname}}(void)
 {
-    return create_gclass(C_{{YUNOROLE}});
+    return create_gclass(C_{{ROOTNAME}});
 }
