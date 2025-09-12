@@ -2,10 +2,9 @@
  *          MAIN_{{YUNOROLE}}.C
  *          {{yunorole}} main
  *
- *          Yuneta Batch
+ *          {{description}}
  *
- *          Copyright (c) 2016 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) {{__year__}}, {{author}}.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp-standalone.h>
@@ -24,18 +23,6 @@ struct arguments
     char *args[MAX_ARGS+1];     /* positional args */
 
     int print_role;
-    char *url;
-    char *azp;
-    char *yuno_role;
-    char *yuno_name;
-    char *yuno_service;
-
-    char *auth_system;
-    char *auth_url;
-    char *user_id;
-    char *user_passw;
-    char *jwt;
-
     int verbose;                /* verbose */
     int print;
     int print_version;
@@ -70,14 +57,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
  ***************************************************************************/
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
-    'environment': {                                                \n\
-        'realm_owner': 'agent',                                     \n\
-        'work_dir': '/yuneta',                                      \n\
-        'domain_dir': 'realms/agent/{{yunorole}}'                         \n\
-    },                                                              \n\
     'yuno': {                                                       \n\
-        'yuno_role': '{{yunorole}}',                                      \n\
-        'tags': ['yuneta', 'core']                                  \n\
+        'yuno_role': '{{yunorole}}',                                \n\
+        'tags': ['app', 'utils']                                    \n\
     }                                                               \n\
 }                                                                   \n\
 ";
@@ -104,7 +86,7 @@ PRIVATE char variable_config[]= "\
             },                                                      \n\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
-                'filename_mask': '{{yunorole}}-W.log',                    \n\
+                'filename_mask': '{{yunorole}}-W.log',              \n\
                 'handler_options': 255                              \n\
             }                                                       \n\
         }                                                           \n\
@@ -120,8 +102,8 @@ PRIVATE char variable_config[]= "\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': '{{yunorole}}',                                       \n\
-            'gclass': 'C_{{YUNOROLE}}',                                   \n\
+            'name': '{{yunorole}}',                                 \n\
+            'gclass': 'C_{{YUNOROLE}}',                             \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
             'autoplay': false                                       \n\
@@ -151,20 +133,6 @@ static char args_doc[] = "FILE";
  */
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
-{0,                 0,      0,          0,      "OAuth2 keys", 20},
-{"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
-{"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint(to get now a jwt)", 20},
-{"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
-{"user_id",         'x',    "USER_ID",  0,      "OAuth2 User Id (to get now a jwt)", 20},
-{"user_passw",      'X',    "USER_PASSW",0,     "OAuth2 User Password (to get now a jwt)", 20},
-{"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
-
-{0,                 0,      0,          0,      "Connection keys", 30},
-{"url",             'u',    "URL",      0,      "Url to connect. Default: 'ws://127.0.0.1:1991'.", 30},
-{"yuno_role",       'O',    "ROLE",     0,      "Remote yuno role. Default: ''", 30},
-{"yuno_name",       'o',    "NAME",     0,      "Remote yuno name. Default: ''", 30},
-{"yuno_service",    'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 30},
-
 {0,                 0,      0,          0,      "Local keys", 40},
 {"print",           'p',    0,          0,      "Print configuration.", 40},
 {"config-file",     'f',    "FILE",     0,      "load settings from json config file or [files]", 40},
@@ -198,41 +166,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     struct arguments *arguments = state->input;
 
     switch (key) {
-    case 'K':
-        arguments->auth_system = arg;
-        break;
-    case 'k':
-        arguments->auth_url = arg;
-        break;
-
-    case 'x':
-        arguments->user_id = arg;
-        break;
-    case 'X':
-        arguments->user_passw = arg;
-        break;
-    case 'j':
-        arguments->jwt = arg;
-        break;
-
-    case 'u':
-        arguments->url = arg;
-        break;
-
-    case 'Z':
-        arguments->azp = arg;
-        break;
-    case 'O':
-        arguments->yuno_role = arg;
-        break;
-    case 'o':
-        arguments->yuno_name = arg;
-        break;
-
-    case 'S':
-        arguments->yuno_service = arg;
-        break;
-
     case 'v':
         arguments->print_version = 1;
         break;
@@ -325,16 +258,6 @@ int main(int argc, char *argv[])
      *  Default values
      */
     memset(&arguments, 0, sizeof(arguments));
-    arguments.url = "ws://127.0.0.1:1991";
-    arguments.azp="";
-    arguments.yuno_role = "yuneta_agent";
-    arguments.yuno_name = "";
-    arguments.yuno_service = "__default_service__";
-    arguments.auth_system = "keycloak";
-    arguments.auth_url = "";
-    arguments.user_id = "";
-    arguments.user_passw = "";
-    arguments.jwt = "";
 
     /*
      *  Save args
@@ -376,20 +299,9 @@ int main(int argc, char *argv[])
         argvs[idx++] = param2;
     } else {
         json_t *kw_utility = json_pack(
-            "{s:{s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
+            "{s:{s:i}}",
             "global",
-            "C_{{YUNOROLE}}.verbose", arguments.verbose,
-            "C_{{YUNOROLE}}.path", path,
-            "C_{{YUNOROLE}}.auth_system", arguments.auth_system,
-            "C_{{YUNOROLE}}.auth_url", arguments.auth_url,
-            "C_{{YUNOROLE}}.user_id", arguments.user_id,
-            "C_{{YUNOROLE}}.user_passw", arguments.user_passw,
-            "C_{{YUNOROLE}}.jwt", arguments.jwt,
-            "C_{{YUNOROLE}}.url", arguments.url,
-            "C_{{YUNOROLE}}.azp", arguments.azp,
-            "C_{{YUNOROLE}}.yuno_role", arguments.yuno_role,
-            "C_{{YUNOROLE}}.yuno_name", arguments.yuno_name,
-            "C_{{YUNOROLE}}.yuno_service", arguments.yuno_service
+            "C_{{YUNOROLE}}.verbose", arguments.verbose
         );
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
         if(!param1_) {

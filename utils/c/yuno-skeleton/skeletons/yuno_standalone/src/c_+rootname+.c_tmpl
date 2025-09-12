@@ -25,14 +25,6 @@
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int do_authenticate_task(hgobj gobj);
-PRIVATE int extrae_json(hgobj gobj);
-PRIVATE int cmd_connect(hgobj gobj);
-PRIVATE int display_webix_result(
-    hgobj gobj,
-    const char *command,
-    json_t *webix
-);
 
 /***************************************************************************
  *          Data: config, public data, private data
@@ -42,6 +34,7 @@ PRIVATE int display_webix_result(
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default---------description---------- */
+SDATA (DTP_INTEGER,     "verbose",          0,          0,              "Verbose mode."),
 SDATA (DTP_INTEGER,     "timeout",          0,          "1000",         "Timeout "),
 SDATA (DTP_POINTER,     "user_data",        0,          0,              "user data"),
 SDATA (DTP_POINTER,     "user_data2",       0,          0,              "more user data"),
@@ -64,6 +57,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
  *              Private data
  *---------------------------------------------*/
 typedef struct _PRIVATE_DATA {
+    hgobj timer;
     json_int_t timeout;
 } PRIVATE_DATA;
 
