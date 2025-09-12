@@ -42,9 +42,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 #define APP_NAME        "{{yunorole}}"
 #define APP_DOC         "Yuneta Batch"
 
-#define APP_VERSION     YUNETA_VERSION
+#define APP_VERSION     "0.0.1"
 #define APP_DATETIME    __DATE__ " " __TIME__
-#define APP_SUPPORT     "<support at artgins.com>"
+#define APP_SUPPORT     "<support at {{author}}>"
 
 #define USE_OWN_SYSTEM_MEMORY   FALSE
 #define MEM_MIN_BLOCK           512
