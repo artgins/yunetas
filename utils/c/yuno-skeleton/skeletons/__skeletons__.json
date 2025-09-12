@@ -65,14 +65,9 @@
             }
         ]
     },
-
-
-
-
-
     {
         "name": "yuno_standalone",
-        "summary": "Create a standalone yuno project",
+        "summary": "Create a standalone yuno project base in yunetas' kernel",
         "type": "Yuno",
         "vars": [
             {
@@ -102,6 +97,11 @@
             }
         ]
     },
+
+
+
+
+
     {
         "name": "yuno_citizen",
         "summary": "Create a realm's citizen yuno project",

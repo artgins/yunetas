@@ -1,5 +1,3 @@
-:orphan:
-
 C Project
 =========
 
