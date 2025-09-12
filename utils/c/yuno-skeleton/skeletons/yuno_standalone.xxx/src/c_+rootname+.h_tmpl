@@ -9,32 +9,22 @@
  ****************************************************************************/
 #pragma once
 
-#include <yunetas.h>
+#include <yuneta.h>
 
 #ifdef __cplusplus
 extern "C"{
 #endif
 
 /***************************************************************
- *              FSM
+ *              Constants
  ***************************************************************/
-/*------------------------*
- *      GClass name
- *------------------------*/
-GOBJ_DECLARE_GCLASS(C_{{YUNOROLE}});
-
-/*------------------------*
- *      States
- *------------------------*/
-
-/*------------------------*
- *      Events
- *------------------------*/
+#define GCLASS_{{ROOTNAME}}_NAME "{{Rootname}}"
+#define GCLASS_{{ROOTNAME}} gclass_{{rootname}}()
 
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_{{yunorole}}(void);
+PUBLIC GCLASS *gclass_{{rootname}}(void);
 
 #ifdef __cplusplus
 }

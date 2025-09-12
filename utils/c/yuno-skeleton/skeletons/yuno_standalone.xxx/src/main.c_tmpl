@@ -2,14 +2,16 @@
  *          MAIN_{{YUNOROLE}}.C
  *          {{yunorole}} main
  *
- *          Yuneta Batch
+ *          {{description}}
  *
- *          Copyright (c) 2016 Niyamaka.
- *          Copyright (c) 2025, ArtGins.
+ *          Copyright (c) {{__year__}}, {{author}}.
  *          All Rights Reserved.
  ****************************************************************************/
 #include <argp-standalone.h>
-#include "c_{{yunorole}}.h"
+#include <unistd.h>
+#include <yuneta.h>
+#include "c_{{rootname}}.h"
+#include "yuno_{{yunorole}}.h"
 
 /***************************************************************************
  *              Structures
@@ -23,19 +25,14 @@ struct arguments
 {
     char *args[MAX_ARGS+1];     /* positional args */
 
-    int print_role;
+    int refresh_time;           /* refresh_time time, in seconds (0 remove subscription) */
     char *url;
-    char *azp;
+    char *stats;
     char *yuno_role;
     char *yuno_name;
     char *yuno_service;
 
-    char *auth_system;
-    char *auth_url;
-    char *user_id;
-    char *user_passw;
-    char *jwt;
-
+    int print_role;
     int verbose;                /* verbose */
     int print;
     int print_version;
@@ -52,79 +49,78 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state);
 /***************************************************************************
  *                      Names
  ***************************************************************************/
-#define APP_NAME        "{{yunorole}}"
-#define APP_DOC         "Yuneta Batch"
+#define APP_NAME        ROLE_{{YUNOROLE}}
+#define APP_DOC         "{{description}}"
 
-#define APP_VERSION     YUNETA_VERSION
+#define APP_VERSION     "{{version}}"
+#define APP_SUPPORT     "<{{author_email}}>"
 #define APP_DATETIME    __DATE__ " " __TIME__
-#define APP_SUPPORT     "<support at artgins.com>"
-
-#define USE_OWN_SYSTEM_MEMORY   FALSE
-#define MEM_MIN_BLOCK           512
-#define MEM_MAX_BLOCK           (1*1024*1024*1024L)     // 1*G
-#define MEM_SUPERBLOCK          (1*1024*1024*1024L)     // 1*G
-#define MEM_MAX_SYSTEM_MEMORY   (16*1024*1024*1024L)    // 16*G
 
 /***************************************************************************
  *                      Default config
  ***************************************************************************/
 PRIVATE char fixed_config[]= "\
 {                                                                   \n\
-    'environment': {                                                \n\
-        'realm_owner': 'agent',                                     \n\
-        'work_dir': '/yuneta',                                      \n\
-        'domain_dir': 'realms/agent/{{yunorole}}'                         \n\
-    },                                                              \n\
     'yuno': {                                                       \n\
-        'yuno_role': '{{yunorole}}',                                      \n\
-        'tags': ['yuneta', 'core']                                  \n\
+        'yuno_role': '"ROLE_{{YUNOROLE}}"',                         \n\
+        'tags': ['app', 'utils']                                    \n\
     }                                                               \n\
 }                                                                   \n\
 ";
 PRIVATE char variable_config[]= "\
 {                                                                   \n\
-    '__json_config_variables__': {                                  \n\
-    },                                                              \n\
     'environment': {                                                \n\
         'use_system_memory': true,                                  \n\
-        'log_gbmem_info': false,                                    \n\
-        'MEM_MIN_BLOCK': 512,                                       \n\
-        'MEM_MAX_BLOCK': 209715200,             #^^  200*M          \n\
-        'MEM_SUPERBLOCK': 209715200,            #^^  200*M          \n\
-        'MEM_MAX_SYSTEM_MEMORY': 2147483648,    #^^ 2*G             \n\
+        'log_gbmem_info': true,                                     \n\
+        'MEM_MIN_BLOCK': 32,                                        \n\
+        'MEM_MAX_BLOCK': 65536,             #^^ 64*K                \n\
+        'MEM_SUPERBLOCK': 131072,           #^^ 128*K               \n\
+        'MEM_MAX_SYSTEM_MEMORY': 1048576,   #^^ 1*M                 \n\
         'console_log_handlers': {                                   \n\
             'to_stdout': {                                          \n\
                 'handler_type': 'stdout',                           \n\
-                'handler_options': 15        #^^ 15 en prod         \n\
+                'handler_options': 31                               \n\
             },                                                      \n\
             'to_udp': {                                             \n\
                 'handler_type': 'udp',                              \n\
                 'url': 'udp://127.0.0.1:1992',                      \n\
                 'handler_options': 255                              \n\
-            },                                                      \n\
+            }                                                       \n\
+        },                                                          \n\
+        'daemon_log_handlers': {                                    \n\
             'to_file': {                                            \n\
                 'handler_type': 'file',                             \n\
-                'filename_mask': '{{yunorole}}-W.log',                    \n\
+                'filename_mask': '{{yunorole}}-W.log',          \n\
+                'handler_options': 255                              \n\
+            },                                                      \n\
+            'to_udp': {                                             \n\
+                'handler_type': 'udp',                              \n\
+                'url': 'udp://127.0.0.1:1992',                      \n\
                 'handler_options': 255                              \n\
             }                                                       \n\
         }                                                           \n\
     },                                                              \n\
     'yuno': {                                                       \n\
-        'timeout_periodic': 200,                                    \n\
+        'required_services': [],                                    \n\
+        'public_services': [],                                      \n\
+        'service_descriptor': {                                     \n\
+        },                                                          \n\
         'trace_levels': {                                           \n\
-            'C_TCP': ['connections'],                               \n\
-            'C_TCP_S': ['listen', 'not-accepted', 'accepted']       \n\
         }                                                           \n\
     },                                                              \n\
     'global': {                                                     \n\
     },                                                              \n\
     'services': [                                                   \n\
         {                                                           \n\
-            'name': '{{yunorole}}',                                       \n\
-            'gclass': 'C_{{YUNOROLE}}',                                   \n\
+            'name': '{{rootname}}',                                 \n\
+            'gclass': '{{Rootname}}',                               \n\
             'default_service': true,                                \n\
             'autostart': true,                                      \n\
-            'autoplay': false                                       \n\
+            'autoplay': false,                                      \n\
+            'kw': {                                                 \n\
+            },                                                      \n\
+            'children': [                                           \n\
+            ]                                                       \n\
         }                                                           \n\
     ]                                                               \n\
 }                                                                   \n\
@@ -133,8 +129,6 @@ PRIVATE char variable_config[]= "\
 /***************************************************************************
  *      Data
  ***************************************************************************/
-struct arguments arguments;
-
 // Set by yuneta_entry_point()
 // const char *argp_program_version = APP_NAME " " APP_VERSION;
 // const char *argp_program_bug_address = APP_SUPPORT;
@@ -151,27 +145,21 @@ static char args_doc[] = "FILE";
  */
 static struct argp_option options[] = {
 /*-name-------------key-----arg---------flags---doc-----------------group */
-{0,                 0,      0,          0,      "OAuth2 keys", 20},
-{"auth_system",     'K',    "AUTH_SYSTEM",0,    "OpenID System(default: keycloak, to get now a jwt)", 20},
-{"auth_url",        'k',    "AUTH_URL", 0,      "OpenID Endpoint(to get now a jwt)", 20},
-{"azp",             'Z',    "AZP",      0,      "azp (Authorized Party, client_id in keycloak)", 20},
-{"user_id",         'x',    "USER_ID",  0,      "OAuth2 User Id (to get now a jwt)", 20},
-{"user_passw",      'X',    "USER_PASSW",0,     "OAuth2 User Password (to get now a jwt)", 20},
-{"jwt",             'j',    "JWT",      0,      "Jwt (previously got it)", 21},
-
-{0,                 0,      0,          0,      "Connection keys", 30},
-{"url",             'u',    "URL",      0,      "Url to connect. Default: 'ws://127.0.0.1:1991'.", 30},
-{"yuno_role",       'O',    "ROLE",     0,      "Remote yuno role. Default: ''", 30},
-{"yuno_name",       'o',    "NAME",     0,      "Remote yuno name. Default: ''", 30},
-{"yuno_service",    'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 30},
-
-{0,                 0,      0,          0,      "Local keys", 40},
-{"print",           'p',    0,          0,      "Print configuration.", 40},
-{"config-file",     'f',    "FILE",     0,      "load settings from json config file or [files]", 40},
-{"print-role",      'r',    0,          0,      "print the basic yuno's information", 0},
-{"verbose",         'l',    "LEVEL",    0,      "Verbose level.", 40},
-{"version",         'v',    0,          0,      "Print version.", 40},
-{"yuneta-version",  'V',    0,          0,      "Print yuneta version", 40},
+{0,                 0,      0,          0,      "Remote Service keys", 1},
+{"refresh_time",    't',    0,          0,      "Refresh time, in seconds. Default: 1.", 1},
+{"xxxx",            's',    0,          0,      "TODO. Default:", 1},
+{0,                 0,      0,          0,      "Connection keys", 2},
+{"url",             'u',    "URL",      0,      "Url to connect. Default: 'ws://127.0.0.1:1991'.", 2},
+{"yuno_role",       'O',    "ROLE",     0,      "Remote yuno role. Default: ''", 2},
+{"yuno_name",       'o',    "NAME",     0,      "Remote yuno name. Default: ''", 2},
+{"service",         'S',    "SERVICE",  0,      "Remote yuno service. Default: '__default_service__'", 2},
+{0,                 0,      0,          0,      "Local keys", 3},
+{"print",           'p',    0,          0,      "Print configuration.", 3},
+{"config-file",     'f',    "FILE",     0,      "load settings from json config file or [files]", 3},
+{"print-role",      'r',    0,          0,      "print the basic yuno's information"},
+{"verbose",         'l',    "LEVEL",    0,      "Verbose level.", 5},
+{"version",         'v',    0,          0,      "Print program version.", 5},
+{"yuneta-version",  'V',    0,          0,      "Print yuneta version", 5},
 {0}
 };
 
@@ -180,10 +168,7 @@ static struct argp argp = {
     options,
     parse_opt,
     args_doc,
-    doc,
-    0,
-    0,
-    0
+    doc
 };
 
 /***************************************************************************
@@ -198,30 +183,16 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
     struct arguments *arguments = state->input;
 
     switch (key) {
-    case 'K':
-        arguments->auth_system = arg;
-        break;
-    case 'k':
-        arguments->auth_url = arg;
-        break;
-
-    case 'x':
-        arguments->user_id = arg;
-        break;
-    case 'X':
-        arguments->user_passw = arg;
-        break;
-    case 'j':
-        arguments->jwt = arg;
+    case 't':
+        if(arg) {
+            arguments->refresh_time = atoi(arg);
+        }
         break;
 
     case 'u':
         arguments->url = arg;
         break;
 
-    case 'Z':
-        arguments->azp = arg;
-        break;
     case 'O':
         arguments->yuno_role = arg;
         break;
@@ -231,6 +202,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
     case 'S':
         arguments->yuno_service = arg;
+        break;
+    case 's':
+        arguments->stats = arg;
         break;
 
     case 'v':
@@ -282,38 +256,17 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 /***************************************************************************
  *                      Register
  ***************************************************************************/
-static int register_yuno_and_more(void)
+static void register_yuno_and_more(void)
 {
+    /*-------------------*
+     *  Register yuno
+     *-------------------*/
+    register_yuno_{{yunorole}}();
+
     /*--------------------*
-     *  Register gclass
+     *  Register service
      *--------------------*/
-    register_c_{{yunorole}}();
-
-    /*------------------------------------------------*
-     *          Traces
-     *------------------------------------------------*/
-    // Avoid timer trace, too much information
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_YUNO), "machine", TRUE);
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER0), "machine", TRUE);
-    gobj_set_gclass_no_trace(gclass_find_by_name(C_TIMER), "machine", TRUE);
-    gobj_set_global_no_trace("timer_periodic", TRUE);
-
-    if(arguments.verbose > 0) {
-        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_SRV), "ievents2", TRUE);
-        gobj_set_gclass_trace(gclass_find_by_name(C_IEVENT_CLI), "ievents2", TRUE);
-    }
-    if(arguments.verbose > 1) {
-        gobj_set_gobj_trace(0, "machine", TRUE, 0);
-        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
-    }
-    if(arguments.verbose > 2) {
-        gobj_set_gclass_trace(gclass_find_by_name(C_TCP), "traffic", TRUE);
-        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
-        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
-        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
-    }
-
-    return 0;
+    gobj_register_gclass(GCLASS_{{ROOTNAME}});
 }
 
 /***************************************************************************
@@ -321,20 +274,17 @@ static int register_yuno_and_more(void)
  ***************************************************************************/
 int main(int argc, char *argv[])
 {
+    struct arguments arguments;
     /*
      *  Default values
      */
     memset(&arguments, 0, sizeof(arguments));
+    arguments.refresh_time = 2;
     arguments.url = "ws://127.0.0.1:1991";
-    arguments.azp="";
-    arguments.yuno_role = "yuneta_agent";
+    arguments.stats = "";
+    arguments.yuno_role = "";
     arguments.yuno_name = "";
     arguments.yuno_service = "__default_service__";
-    arguments.auth_system = "keycloak";
-    arguments.auth_url = "";
-    arguments.user_id = "";
-    arguments.user_passw = "";
-    arguments.jwt = "";
 
     /*
      *  Save args
@@ -349,10 +299,6 @@ int main(int argc, char *argv[])
      *  Parse arguments
      */
     argp_parse (&argp, argc, argv, 0, 0, &arguments);
-    char *path = arguments.args[0];
-    if(!path) {
-        path = "";
-    }
 
     /*
      *  Check arguments
@@ -362,7 +308,7 @@ int main(int argc, char *argv[])
         exit(0);
     }
     if(arguments.print_yuneta_version) {
-        printf("%s\n", YUNETA_VERSION);
+        printf("%s\n", __yuneta_long_version__);
         exit(0);
     }
 
@@ -370,38 +316,26 @@ int main(int argc, char *argv[])
      *  Put configuration
      */
     if(arguments.use_config_file) {
-        int l = (int)(strlen("--config-file=") + strlen(arguments.config_json_file) + 4);
+        int l = strlen("--config-file=") + strlen(arguments.config_json_file) + 4;
         char *param2 = malloc(l);
         snprintf(param2, l, "--config-file=%s", arguments.config_json_file);
         argvs[idx++] = param2;
     } else {
-        json_t *kw_utility = json_pack(
-            "{s:{s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
+        json_t *kw_utility = json_pack("{s:{s:i, s:i, s:s, s:s, s:s, s:s, s:s}}",
             "global",
-            "C_{{YUNOROLE}}.verbose", arguments.verbose,
-            "C_{{YUNOROLE}}.path", path,
-            "C_{{YUNOROLE}}.auth_system", arguments.auth_system,
-            "C_{{YUNOROLE}}.auth_url", arguments.auth_url,
-            "C_{{YUNOROLE}}.user_id", arguments.user_id,
-            "C_{{YUNOROLE}}.user_passw", arguments.user_passw,
-            "C_{{YUNOROLE}}.jwt", arguments.jwt,
-            "C_{{YUNOROLE}}.url", arguments.url,
-            "C_{{YUNOROLE}}.azp", arguments.azp,
-            "C_{{YUNOROLE}}.yuno_role", arguments.yuno_role,
-            "C_{{YUNOROLE}}.yuno_name", arguments.yuno_name,
-            "C_{{YUNOROLE}}.yuno_service", arguments.yuno_service
+            "{{Rootname}}.refresh_time", arguments.refresh_time,
+            "{{Rootname}}.verbose", arguments.verbose,
+            "{{Rootname}}.stats", arguments.stats,
+            "{{Rootname}}.url", arguments.url,
+            "{{Rootname}}.yuno_role", arguments.yuno_role,
+            "{{Rootname}}.yuno_name", arguments.yuno_name,
+            "{{Rootname}}.yuno_service", arguments.yuno_service
         );
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
-        if(!param1_) {
-            printf("Some parameter is wrong\n");
-            exit(-1);
-        }
-        int len = (int)strlen(param1_) + 3;
+        int len = strlen(param1_) + 3;
         char *param1 = malloc(len);
-        if(param1) {
-            memset(param1, 0, len);
-            snprintf(param1, len, "%s", param1_);
-        }
+        memset(param1, 0, len);
+        snprintf(param1, len, "%s", param1_);
         free(param1_);
         argvs[idx++] = param1;
     }
@@ -414,10 +348,31 @@ int main(int argc, char *argv[])
     }
 
     /*------------------------------------------------*
-     *      To check memory loss
+     *  To trace memory
      *------------------------------------------------*/
-    unsigned long memory_check_list[] = {0, 0}; // WARNING: the list ended with 0
-    set_memory_check_list(memory_check_list);
+#ifndef CONFIG_BUILD_TYPE_RELEASE
+TODO    static uint32_t mem_list[] = {0};
+    gbmem_trace_alloc_free(0, mem_list);
+#endif
+
+    if(arguments.verbose > 0) {
+        gobj_set_gclass_trace(GCLASS_{{ROOTNAME}}, "info", TRUE);
+    }
+    if(arguments.verbose > 1) {
+        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "ievents2", TRUE);
+        gobj_set_gclass_trace(GCLASS_IEVENT_CLI, "kw", TRUE);
+    }
+    if(arguments.verbose > 2) {
+        gobj_set_gclass_trace(GCLASS_TCP0, "traffic", TRUE);
+    }
+    if(arguments.verbose > 3) {
+        gobj_set_gobj_trace(0, "machine", TRUE, 0);
+        gobj_set_gobj_trace(0, "ev_kw", TRUE, 0);
+        gobj_set_gobj_trace(0, "subscriptions", TRUE, 0);
+        gobj_set_gobj_trace(0, "create_delete", TRUE, 0);
+        gobj_set_gobj_trace(0, "start_stop", TRUE, 0);
+    }
+    gobj_set_gclass_no_trace(GCLASS_TIMER, "machine", TRUE);
 
     /*------------------------------------------------*
      *          Start yuneta
@@ -425,23 +380,22 @@ int main(int argc, char *argv[])
     helper_quote2doublequote(fixed_config);
     helper_quote2doublequote(variable_config);
     yuneta_setup(
-        NULL,       // persistent_attrs, default internal dbsimple
-        NULL,       // command_parser, default internal command_parser
-        NULL,       // stats_parser, default internal stats_parser
-        NULL,       // authz_checker, default Monoclass C_AUTHZ
-        NULL,       // authenticate_parser, default Monoclass C_AUTHZ
-        MEM_MAX_BLOCK,
-        MEM_MAX_SYSTEM_MEMORY,
-        FALSE, //USE_OWN_SYSTEM_MEMORY,
-        MEM_MIN_BLOCK,
-        MEM_SUPERBLOCK
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
     );
     return yuneta_entry_point(
         idx, argvs,
         APP_NAME, APP_VERSION, APP_SUPPORT, APP_DOC, APP_DATETIME,
         fixed_config,
         variable_config,
-        register_yuno_and_more,
-        NULL
+        register_yuno_and_more
     );
 }
