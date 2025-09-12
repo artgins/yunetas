@@ -1114,7 +1114,7 @@ PUBLIC int yev_start_event(
                             yev_event->fd,
                             NULL,
                             NULL,
-                            0
+                            SOCK_CLOEXEC | SOCK_NONBLOCK
                         );
 
                     } else {
@@ -1123,7 +1123,7 @@ PUBLIC int yev_start_event(
                             yev_event->fd,
                             &yev_event->sock_info->addr,
                             &yev_event->sock_info->addrlen,
-                            0
+                            SOCK_CLOEXEC | SOCK_NONBLOCK
                         );
                     }
                     io_uring_submit(&yev_loop->ring);
