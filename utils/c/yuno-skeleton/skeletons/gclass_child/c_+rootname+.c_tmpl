@@ -246,8 +246,8 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0, // local methods
         tattr_desc,
         sizeof(PRIVATE_DATA),
-        authz_table,
-        command_table,
+        0, // authz_table,
+        0, // command_table,
         s_user_trace_level,
         0 // gcflags
     );

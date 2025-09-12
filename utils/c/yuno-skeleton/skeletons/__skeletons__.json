@@ -66,75 +66,6 @@
         ]
     },
     {
-        "name": "yuno_standalone",
-        "summary": "Create a standalone yuno project base in yunetas' kernel",
-        "type": "Yuno",
-        "vars": [
-            {
-                "var": "version",
-                "message": "Version",
-                "default": "1.0.0"
-            },
-            {
-                "var": "description",
-                "message": "One-line description of the yuno",
-                "default": ""
-            },
-            {
-                "var": "author",
-                "message": "Author name",
-                "default": ""
-            },
-            {
-                "var": "author_email",
-                "message": "Author email",
-                "default": ""
-            },
-            {
-                "var": "license_name",
-                "message": "License name",
-                "default": ""
-            }
-        ]
-    },
-
-
-
-
-
-    {
-        "name": "yuno_citizen",
-        "summary": "Create a realm's citizen yuno project",
-        "type": "Yuno",
-        "vars": [
-            {
-                "var": "version",
-                "message": "Version",
-                "default": "1.0.0"
-            },
-            {
-                "var": "description",
-                "message": "One-line description of the yuno",
-                "default": ""
-            },
-            {
-                "var": "author",
-                "message": "Author name",
-                "default": ""
-            },
-            {
-                "var": "author_email",
-                "message": "Author email",
-                "default": ""
-            },
-            {
-                "var": "license_name",
-                "message": "License name",
-                "default": ""
-            }
-        ]
-    },
-    {
         "name": "gclass_service",
         "summary": "Create a service gclass with timer (output events must be subscribed)",
         "type": "GClass",
@@ -168,9 +99,70 @@
             }
         ]
     },
-
-
-
+    {
+        "name": "yuno_standalone",
+        "summary": "Create a standalone yuno project base in yunetas' kernel",
+        "type": "Yuno",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "1.0.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the yuno",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": ""
+            }
+        ]
+    },
+    {
+        "name": "yuno_citizen",
+        "summary": "Create a realm's citizen yuno project",
+        "type": "Yuno",
+        "vars": [
+            {
+                "var": "version",
+                "message": "Version",
+                "default": "1.0.0"
+            },
+            {
+                "var": "description",
+                "message": "One-line description of the yuno",
+                "default": ""
+            },
+            {
+                "var": "author",
+                "message": "Author name",
+                "default": ""
+            },
+            {
+                "var": "author_email",
+                "message": "Author email",
+                "default": ""
+            },
+            {
+                "var": "license_name",
+                "message": "License name",
+                "default": ""
+            }
+        ]
+    },
     {
         "name": "skeletons.d",
         "summary": "Extra configurations",
