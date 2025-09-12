@@ -9,8 +9,6 @@
 
 #pragma once
 
-#include <helpers.h>
-
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -22,7 +20,7 @@ extern "C"{
 /**rst**
    Describe your function
 **rst**/
-PUBLIC int your_utility(int verbose);
+int your_utility(int verbose);
 
 #ifdef __cplusplus
 }

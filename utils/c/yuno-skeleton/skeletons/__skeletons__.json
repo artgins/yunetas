@@ -18,7 +18,7 @@
     },
     {
         "name": "c_project",
-        "summary": "Create a pure C project",
+        "summary": "Create a pure C project (only argp-standalone.h as dependency",
         "type": "Utility",
         "vars": [
             {
