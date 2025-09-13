@@ -1417,7 +1417,8 @@ PRIVATE int ac_command(hgobj gobj, const char *event, json_t *kw, hgobj src)
     if(priv->gobj_connector) {
         webix = gobj_command(priv->gobj_connector, xcmd, kw_command, gobj);
     } else {
-        printf("%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
+        printf("\n%s%s%s\n", On_Red BWhite, "No connection", Color_Off);
+        clear_input_line(gobj);
     }
     gbuffer_decref(gbuf_parsed_command);
 
@@ -1983,6 +1984,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_ON_OPEN,                ac_on_open,             ST_CONNECTED},
         {EV_ON_CLOSE,               ac_on_close,            0},
         {EV_ON_ID_NAK,              ac_on_close,            0},
+        {EV_COMMAND,                ac_command,             0}, // avoid traces
         {EV_STOPPED,                0,                      0},
         {0,0,0}
     };
