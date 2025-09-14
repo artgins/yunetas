@@ -989,12 +989,21 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0, 0}
     };
 
+    event_type_t event_types[] = {
+        {EV_ON_MESSAGE,     0},
+        {EV_ON_HEADER,      0},
+        {EV_ON_OPEN,        0},
+        {EV_ON_CLOSE,       0},
+        {EV_TIMEOUT,        0},
+        {0, 0}
+    };
+
     /*----------------------------------------*
      *          Create the gclass
      *----------------------------------------*/
     __gclass__ = gclass_create(
         gclass_name,
-        0,  // event_types
+        event_types,
         states,
         &gmt,
         0,  // lmt,
