@@ -43,6 +43,7 @@ typedef enum serial_parity {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int configure_tty(hgobj gobj);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
@@ -183,7 +184,7 @@ PRIVATE int mt_start(hgobj gobj)
         return -1;
     }
 
-    priv->tty_fd = open(device, O_RDWR|O_NOCTTY, 0);
+    priv->tty_fd = open(device, O_RDWR|O_CLOEXEC|O_NOCTTY, 0);
     if(priv->tty_fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -199,6 +200,8 @@ PRIVATE int mt_start(hgobj gobj)
 
     set_nonblocking(priv->tty_fd);
     set_cloexec(priv->tty_fd);
+
+    configure_tty(gobj);
 
     /*-------------------------------*
      *      Setup reading event
@@ -426,29 +429,26 @@ PRIVATE int configure_tty(hgobj gobj)
     int rtscts = gobj_read_bool_attr(gobj, "rtscts");
 
 
-    termios_settings.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
-    termios_settings.c_oflag |= (ONLCR);
-    termios_settings.c_cflag |= (CS8);
-    termios_settings.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-    termios_settings.c_cc[VMIN] = 1;
-    termios_settings.c_cc[VTIME] = 0;
-
-
-
-
+    /*-------------------------------*
+     *      Set termios settings
+     *-------------------------------*/
+    memset(&termios_settings, 0, sizeof(termios_settings));
 
     /* c_iflag */
 
     /* Ignore break characters */
-    termios_settings.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+    termios_settings.c_iflag = IGNBRK;
 
-    if (parity != PARITY_NONE)
+    if (parity != PARITY_NONE) {
         termios_settings.c_iflag |= INPCK;
+    }
     /* Only use ISTRIP when less than 8 bits as it strips the 8th bit */
-    if (parity != PARITY_NONE && bytesize != 8)
+    if (parity != PARITY_NONE && bytesize != 8) {
         termios_settings.c_iflag |= ISTRIP;
-    if (xonxoff)
+    }
+    if (xonxoff) {
         termios_settings.c_iflag |= (IXON | IXOFF);
+    }
 
     /* c_oflag */
     termios_settings.c_oflag &= ~OPOST;
