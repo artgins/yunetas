@@ -229,12 +229,10 @@ PRIVATE int mt_start(hgobj gobj)
         yev_start_event(priv->yev_reading);
     }
 
-    json_t *kw_on_open = json_pack("{s:s, s:s, s:i}",
-        "name", gobj_name(gobj),
-        "uuid", node_uuid(),
-        "fd", priv->tty_fd
+    json_t *kw_on_open = json_pack("{s:s}",
+        "port", gobj_read_str_attr(gobj, "device")
     );
-    gobj_publish_event(gobj, EV_TTY_OPEN, kw_on_open);
+    gobj_publish_event(gobj, EV_CONNECTED, kw_on_open);
 
     return 0;
 }
@@ -427,7 +425,6 @@ PRIVATE int configure_tty(hgobj gobj)
      *-----------------------------*/
     int xonxoff = gobj_read_bool_attr(gobj, "xonxoff");
     int rtscts = gobj_read_bool_attr(gobj, "rtscts");
-
 
     /*-------------------------------*
      *      Set termios settings
@@ -715,11 +712,10 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
         gobj_change_state(gobj, ST_STOPPED);
-        json_t *kw_on_close = json_pack("{s:s, s:s}}",
-            "name", gobj_name(gobj),
-            "uuid", node_uuid()
+        json_t *kw_on_close = json_pack("{s:s}}",
+            "port", gobj_read_str_attr(gobj, "device")
         );
-        gobj_publish_event(gobj, EV_TTY_CLOSE, kw_on_close);
+        gobj_publish_event(gobj, EV_DISCONNECTED, kw_on_close);
 
         if(gobj_is_volatil(gobj)) {
             gobj_destroy(gobj);
@@ -734,8 +730,6 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
  ***************************************************************************/
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
 {
-    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-
     size_t nread = gbuffer_leftbytes(gbuf);
     char *base = gbuffer_cur_rd_pointer(gbuf);
 
@@ -753,25 +747,23 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         );
     }
 
-    gbuffer_t *gbuf_base64 = gbuffer_string_to_base64(base, nread);
-    if(!gbuf_base64) {
-        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+    gbuffer_t *gbuf_rx = gbuffer_create(nread, nread);
+
+    if(!gbuf_rx) {
+        gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_MEMORY_ERROR,
-            "msg",          "%s", "gbuffer_string_to_base64() FAILED",
-            NULL
-        );
+            "msg",          "%s", "no memory for gbuf",
+            "size",         "%d", nread,
+            NULL);
         return -1;
     }
+    gbuffer_append(gbuf, base, nread);
 
-    json_t *kw = json_pack("{s:s, s:s, s:s, s:s}",
-        "name", gobj_name(gobj),
-        "process", priv->argv[0],
-        "slave_name", priv->slave_name,
-        "content64", gbuffer_cur_rd_pointer(gbuf_base64)
+    json_t *kw = json_pack("{s:I}",
+        "gbuffer", (json_int_t)(uintptr_t)gbuf_rx
     );
-    gobj_publish_event(gobj, EV_TTY_DATA, kw);
-    gbuffer_decref(gbuf_base64);
+    gobj_publish_event(gobj, EV_RX_DATA, kw);
 
     return 0;
 }
@@ -784,15 +776,6 @@ PRIVATE int write_data_to_serial(hgobj gobj)
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     gbuffer_t *gbuf = priv->gbuf_txing;
-
-    // const char *bracket_paste_mode = "\e[200~";
-    // size_t xl = strlen(bracket_paste_mode);
-    // if(ln >= xl) {
-    //     if(memcmp(bf, bracket_paste_mode, xl)==0) {
-    //         bf += xl;
-    //         ln -= xl;
-    //     }
-    // }
 
     if(gobj_trace_level(gobj) & TRACE_TRAFFIC) {
         size_t ln = gbuffer_chunk(gbuf);
@@ -814,7 +797,7 @@ PRIVATE int write_data_to_serial(hgobj gobj)
         yuno_event_loop(),
         yev_callback,
         gobj,
-        priv->uv_in,
+        priv->tty_fd,
         gbuffer_incref(gbuf)
     );
 
@@ -893,7 +876,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
+PRIVATE int ac_tx_data(hgobj gobj, const char *event, json_t *kw, hgobj src)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -997,9 +980,6 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {EV_CONNECTED,          EVF_OUTPUT_EVENT},
         {EV_DISCONNECTED,       EVF_OUTPUT_EVENT},
         {EV_STOPPED,            EVF_OUTPUT_EVENT},
-        {EV_CONNECT,            0},
-        {EV_TIMEOUT,            0},
-        {EV_DROP,               0},
         {0,0}
     };
 
