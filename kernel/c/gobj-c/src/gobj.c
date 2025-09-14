@@ -745,7 +745,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
      *          Build States
      *----------------------------------------*/
     states_t *state = states;
-    while(state->state_name) {
+    while(state && state->state_name) {
         if(gclass_add_state(gclass, state->state_name)<0) {
             // Error already logged
             gclass_unregister(gclass);
@@ -753,7 +753,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
         }
 
         ev_action_t *ev_action_list = state->ev_action_list;
-        while(ev_action_list->event) {
+        while(ev_action_list && ev_action_list->event) {
             gclass_add_ev_action(
                 gclass,
                 state->state_name,
@@ -771,7 +771,7 @@ PUBLIC hgclass gclass_create( // create and register gclass
      *          Build Events
      *----------------------------------------*/
     event_type_t *event_type = event_types;
-    while(event_type->event_name) {
+    while(event_type && event_type->event_name) {
         if(gclass_event_type(gclass, event_type->event_name)) {
             gobj_log_error(0, 0,
                 "function",     "%s", __FUNCTION__,
