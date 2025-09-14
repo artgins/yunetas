@@ -270,7 +270,7 @@ PRIVATE int mt_start(hgobj gobj)
 
     gobj_start(priv->timer);
 
-    priv->tty_fd = tty_init();
+    priv->tty_fd = tty_keyboard_init();
     if(priv->tty_fd < 0) {
         gobj_log_error(0, 0,
             "function",     "%s", __FUNCTION__,

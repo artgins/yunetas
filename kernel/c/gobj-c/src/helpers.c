@@ -1405,7 +1405,7 @@ PUBLIC json_t *load_persistent_json(
 
     int fd;
     if(exclusive) {
-        fd = open_exclusive(full_path, O_RDONLY|O_NOFOLLOW, 0);
+        fd = open_exclusive(full_path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC, 0);
     } else {
         fd = open(full_path, O_RDONLY|O_NOFOLLOW|O_CLOEXEC);
     }
@@ -6177,7 +6177,7 @@ PUBLIC int copyfile(
     BOOL overwrite
 ) {
     int input, output;
-    if ((input = open(source, O_RDONLY)) == -1) {
+    if ((input = open(source, O_RDONLY|O_CLOEXEC)) == -1) {
         return -1;
     }
     if ((output = newfile(destination, permission, overwrite)) == -1) {

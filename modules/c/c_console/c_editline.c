@@ -498,7 +498,7 @@ PRIVATE int nonblock(int fd, int set) {
  *  Code copied from libuv
  *  Copyright Joyent, Inc. and other Node contributors. All rights reserved.
  ***************************************************************************/
-PUBLIC int tty_init(void) /* Create and return a 'stdin' fd, to read input keyboard, without echo, then you can feed the editline with EV_KEYCHAR event */
+PUBLIC int tty_keyboard_init(void) /* Create and return a 'stdin' fd, to read input keyboard, without echo, then you can feed the editline with EV_KEYCHAR event */
 {
     int fd = STDIN_FILENO;
     int newfd;

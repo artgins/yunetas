@@ -1,14 +1,18 @@
 /****************************************************************************
- *          C_EDITLINE.H
- *          Editline GClass.
+ *          C_SERIAL.H
+ *          Serial GClass.
  *
- *          Copyright (c) 2016 Niyamaka.
+ *          Manage Serial Ports uv-mixin
+ *
+ *          Partial source code from https://github.com/vsergeev/c-periphery
+ *
+ *          Copyright (c) 2021 Niyamaka.
  *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ****************************************************************************/
 #pragma once
 
-#include <yunetas.h>
+#include <gobj.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -20,7 +24,7 @@ extern "C"{
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DECLARE_GCLASS(C_EDITLINE);
+GOBJ_DECLARE_GCLASS(C_SERIAL);
 
 /*------------------------*
  *      States
@@ -33,9 +37,7 @@ GOBJ_DECLARE_GCLASS(C_EDITLINE);
 /***************************************************************
  *              Prototypes
  ***************************************************************/
-PUBLIC int register_c_editline(void);
-
-PUBLIC int tty_keyboard_init(void); /* Create and return a 'stdin' fd, to read input keyboard, without echo, then you can feed the editline with EV_KEYCHAR event */
+PUBLIC int register_c_serial(void);
 
 #ifdef __cplusplus
 }

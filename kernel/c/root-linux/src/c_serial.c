@@ -1,20 +1,20 @@
 /***********************************************************************
- *          C_PTY.C
- *          Pty GClass.
+ *          C_SERIAL.C
+ *          Serial GClass.
  *
- *          Pseudoterminal uv-mixin.
+ *          Manage Serial Ports uv-mixin
  *
- *          Code inspired in the project: https://github.com/tsl0922/ttyd
- *          Copyright (c) 2016 Shuanglei Tao <tsl0922@gmail.com>
+ *          Partial source code from https://github.com/vsergeev/c-periphery
  *
  *          Copyright (c) 2021 Niyamaka.
+ *          Copyright (c) 2025, ArtGins.
  *          All Rights Reserved.
  ***********************************************************************/
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <limits.h>
-#include <pty.h>
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
@@ -23,7 +23,9 @@
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
 #include "c_yuno.h"
-#include "c_pty.h"
+#include "c_serial.h"
+
+#include <termios.h>
 
 /***************************************************************************
  *              Constants
@@ -32,11 +34,15 @@
 /***************************************************************************
  *              Structures
  ***************************************************************************/
+typedef enum serial_parity {
+    PARITY_NONE,
+    PARITY_ODD,
+    PARITY_EVEN,
+} serial_parity_t;
 
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
-PRIVATE int fd_duplicate(int fd);
 PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf);
 PRIVATE int yev_callback(yev_event_h yev_event);
 PRIVATE void try_to_stop_yevents(hgobj gobj);  // IDEMPOTENT
@@ -51,16 +57,20 @@ PRIVATE void try_more_writes(hgobj gobj);
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
-/*-ATTR-type------------name--------------------flag--------default-description---------- */
-SDATA (DTP_STRING,      "process",              SDF_RD,     "bash", "Process to execute in pseudo terminal"),
-SDATA (DTP_BOOLEAN,     "no_output",            0,          0,      "Mirror, only input"),
-SDATA (DTP_INTEGER,     "rows",                 SDF_RD,     "24",   "Rows"),
-SDATA (DTP_INTEGER,     "cols",                 SDF_RD,     "80",   "Columns"),
-SDATA (DTP_STRING,      "cwd",                  SDF_RD,     "",     "Current work directory"),
-SDATA (DTP_INTEGER,     "max_tx_queue",         SDF_WR,     "32",   "Maximum messages in tx queue. Default is 0: no limit."),
-SDATA (DTP_POINTER,     "user_data",            0,          0,      "user data"),
-SDATA (DTP_POINTER,     "user_data2",           0,          0,      "more user data"),
-SDATA (DTP_POINTER,     "subscriber",           0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
+/*-ATTR-type------------name----------------flag--------default-description---------- */
+SDATA (DTP_STRING,      "device",           SDF_RD,     "",     "Device to open: i.e. /dev/ttyS0"),
+SDATA (DTP_INTEGER,     "baudrate",         SDF_RD,     "9600", "Baud rate"),
+SDATA (DTP_INTEGER,     "bytesize",         SDF_RD,     "8",    "Byte size"),
+SDATA (DTP_STRING,      "parity",           SDF_RD,     "none", "Parity"),
+SDATA (DTP_INTEGER,     "stopbits",         SDF_RD,     "1",    "Stop bits"),
+SDATA (DTP_BOOLEAN,     "xonxoff",          SDF_RD,     0,      "xonxoff"),
+SDATA (DTP_BOOLEAN,     "rtscts",           SDF_RD,     0,      "rtscts"),
+SDATA (DTP_INTEGER,     "txMsgs",           SDF_RSTATS, 0,      "Messages transmitted"),
+SDATA (DTP_INTEGER,     "rxMsgs",           SDF_RSTATS, 0,      "Messages received"),
+SDATA (DTP_INTEGER,     "max_tx_queue",     SDF_WR,     "32",   "Maximum messages in tx queue. Default is 0: no limit."),
+SDATA (DTP_POINTER,     "user_data",        0,          0,      "user data"),
+SDATA (DTP_POINTER,     "user_data2",       0,          0,      "more user data"),
+SDATA (DTP_POINTER,     "subscriber",       0,          0,      "subscriber of output-events. If it's null then subscriber is the parent."),
 SDATA_END()
 };
 
@@ -82,25 +92,16 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 #define BFINPUT_SIZE (2*1024)
 
 typedef struct _PRIVATE_DATA {
-    int rows;
-    int cols;
-    char *argv[2]; // HACK Command or process (by the moment) without arguments
-
-    int uv_in;   // Duplicated fd of pty, use for put data into terminal
-    int uv_out;  // Duplicated fd of pty, use for get the output of the terminal
-
+    int tty_fd;
     yev_event_h yev_reading;
-
-    pid_t pty;      // file descriptor of pseudoterminal
-    int pid;        // child pid
 
     dl_list_t dl_tx;
     gbuffer_t *gbuf_txing;
     json_int_t max_tx_queue;
     int tx_in_progress;
     json_int_t txMsgs;
+    json_int_t rxMsgs;
 
-    char slave_name[NAME_MAX+1];
     char bfinput[BFINPUT_SIZE];
 } PRIVATE_DATA;
 
@@ -122,21 +123,13 @@ PRIVATE void mt_create(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *process = gobj_read_str_attr(gobj, "process");
-    priv->argv[0] = (char *)gbmem_strdup(process);
-    priv->argv[1] = 0;
-
     dl_init(&priv->dl_tx, gobj);
-    priv->pty = -1;
-    priv->uv_in = -1;
-    priv->uv_out = -1;
+    priv->tty_fd = -1;
 
     /*
      *  Do copy of heavy used parameters, for quick access.
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
-    SET_PRIV(rows,          gobj_read_integer_attr)
-    SET_PRIV(cols,          gobj_read_integer_attr)
     SET_PRIV(max_tx_queue,  gobj_read_integer_attr)
 
     /*
@@ -159,8 +152,6 @@ PRIVATE void mt_destroy(hgobj gobj)
 
     GBUFFER_DECREF(priv->gbuf_txing)
     dl_flush(&priv->dl_tx, (fnfree)gbuffer_decref);
-
-    GBMEM_FREE(priv->argv[0]);
 }
 
 /***************************************************************************
@@ -180,142 +171,65 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
-    int master, pid;
 
-    if(priv->pty != -1) {
-        gobj_log_error(gobj, 0,
+    const char *device = gobj_read_str_attr(gobj, "device");
+    if(empty_string(device)) {
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-            "msg",          "%s", "pty terminal ALREADY open",
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "msg",          "%s", "what tty device?",
             NULL
         );
         return -1;
     }
 
-    BOOL tty_empty = (empty_string(priv->argv[0]))?TRUE:FALSE;
-    BOOL no_output = gobj_read_bool_attr(gobj, "no_output");
-
-    struct winsize size = {
-        priv->rows,
-        priv->cols,
-        0,
-        0
-    };
-    pid = forkpty(&master, priv->slave_name, NULL, &size);
-    if (pid < 0) {
+    priv->tty_fd = open(device, O_RDWR|O_NOCTTY, 0);
+    if(priv->tty_fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-            "msg",          "%s", "forkpty() FAILED",
+            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",          "%s", "Cannot open serial device",
+            "tty",          "%s", device,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
             NULL
         );
         return -1;
+    }
 
-    } else if (pid == 0) {
-        // Child
-        setsid();
+    set_nonblocking(priv->tty_fd);
+    set_cloexec(priv->tty_fd);
 
-        putenv("TERM=linux");
+    /*-------------------------------*
+     *      Setup reading event
+     *-------------------------------*/
+    json_int_t rx_buffer_size = 1024;
+    if(!priv->yev_reading) {
+        priv->yev_reading = yev_create_read_event(
+            yuno_event_loop(),
+            yev_callback,
+            gobj,
+            priv->tty_fd,
+            gbuffer_create(rx_buffer_size, rx_buffer_size)
+        );
+    }
 
-        const char *cwd = gobj_read_str_attr(gobj, "cwd");
-        if(!empty_string(cwd)) {
-            int x = chdir(cwd);
-            if(x) {} // avoid warning
-        }
+    if(priv->yev_reading) {
+        yev_set_fd(priv->yev_reading, priv->tty_fd);
 
-        if(!tty_empty) {
-            int ret = execvp(priv->argv[0], priv->argv);
-            if(ret < 0) {
-                print_error(0, "forkpty() FAILED: %s", strerror(errno));
-            }
-            exit(0); // Child will die after exit of execute command
+        if(!yev_get_gbuf(priv->yev_reading)) {
+            yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
         } else {
-            print_error(0, "🙋 exit pty, tty empty");
-            exit(0); // Child will die after receive signal
-        }
-    }
-
-    set_nonblocking(master);
-    set_cloexec(master);
-
-    if(1) {
-        priv->uv_in = fd_duplicate(master);
-        if(priv->uv_in < 0) {
-           gobj_log_error(gobj, 0,
-               "function",     "%s", __FUNCTION__,
-               "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-               "msg",          "%s", "fd_duplicate() FAILED",
-               "errno",        "%d", errno,
-               "strerror",     "%s", strerror(errno),
-               NULL
-           );
-           close(master);
-           kill(pid, SIGKILL);
-           waitpid(pid, NULL, 0);
-           return -1;
-       }
-    }
-
-    if(!no_output) {
-        priv->uv_out = fd_duplicate(master);
-        if(priv->uv_out < 0) {
-           gobj_log_error(gobj, 0,
-               "function",     "%s", __FUNCTION__,
-               "msgset",       "%s", MSGSET_SYSTEM_ERROR,
-               "msg",          "%s", "fd_duplicate() FAILED",
-               "errno",        "%d", errno,
-               "strerror",     "%s", strerror(errno),
-               NULL
-           );
-           close(master);
-           kill(pid, SIGKILL);
-           waitpid(pid, NULL, 0);
-           return -1;
-       }
-    }
-
-    priv->pty = master;     // file descriptor of pseudoterminal
-    priv->pid = pid;        // child pid
-
-    if(priv->uv_out != -1) {
-        /*-------------------------------*
-         *      Setup reading event
-         *-------------------------------*/
-        json_int_t rx_buffer_size = 1024;
-        if(!priv->yev_reading) {
-            priv->yev_reading = yev_create_read_event(
-                yuno_event_loop(),
-                yev_callback,
-                gobj,
-                priv->uv_out,
-                gbuffer_create(rx_buffer_size, rx_buffer_size)
-            );
+            gbuffer_clear(yev_get_gbuf(priv->yev_reading));
         }
 
-        if(priv->yev_reading) {
-            yev_set_fd(priv->yev_reading, priv->uv_out);
-
-            if(!yev_get_gbuf(priv->yev_reading)) {
-                yev_set_gbuffer(priv->yev_reading, gbuffer_create(rx_buffer_size, rx_buffer_size));
-            } else {
-                gbuffer_clear(yev_get_gbuf(priv->yev_reading));
-            }
-
-            yev_start_event(priv->yev_reading);
-        }
+        yev_start_event(priv->yev_reading);
     }
 
-    json_t *kw_on_open = json_pack("{s:s, s:s, s:s, s:s, s:s, s:i, s:i, s:i}",
+    json_t *kw_on_open = json_pack("{s:s, s:s, s:i}",
         "name", gobj_name(gobj),
-        "process", priv->argv[0],
         "uuid", node_uuid(),
-        "slave_name", priv->slave_name,
-        "cwd", gobj_read_str_attr(gobj, "cwd"),
-        "fd", master,
-        "rows", (int)priv->rows,
-        "cols", (int)priv->cols
+        "fd", priv->tty_fd
     );
     gobj_publish_event(gobj, EV_TTY_OPEN, kw_on_open);
 
@@ -341,6 +255,256 @@ PRIVATE int mt_stop(hgobj gobj)
 
 
 
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int _serial_baudrate_to_bits(int baudrate)
+{
+    switch (baudrate) {
+        case 50: return B50;
+        case 75: return B75;
+        case 110: return B110;
+        case 134: return B134;
+        case 150: return B150;
+        case 200: return B200;
+        case 300: return B300;
+        case 600: return B600;
+        case 1200: return B1200;
+        case 1800: return B1800;
+        case 2400: return B2400;
+        case 4800: return B4800;
+        case 9600: return B9600;
+        case 19200: return B19200;
+        case 38400: return B38400;
+        case 57600: return B57600;
+        case 115200: return B115200;
+        case 230400: return B230400;
+        case 460800: return B460800;
+        case 500000: return B500000;
+        case 576000: return B576000;
+        case 921600: return B921600;
+        case 1000000: return B1000000;
+        case 1152000: return B1152000;
+        case 1500000: return B1500000;
+        case 2000000: return B2000000;
+#ifdef B2500000
+        case 2500000: return B2500000;
+#endif
+#ifdef B3000000
+        case 3000000: return B3000000;
+#endif
+#ifdef B3500000
+        case 3500000: return B3500000;
+#endif
+#ifdef B4000000
+        case 4000000: return B4000000;
+#endif
+        default: return -1;
+    }
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int configure_tty(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    struct termios termios_settings;
+    if(tcgetattr(priv->tty_fd, &termios_settings)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",          "%s", "tcgetattr() FAILED",
+            "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+            "fd",           "%d", priv->tty_fd,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    /*-----------------------------*
+     *      Baud rate
+     *-----------------------------*/
+    int baudrate_ = (int)gobj_read_integer_attr(gobj, "baudrate");
+    int baudrate = _serial_baudrate_to_bits(baudrate_);
+    if(baudrate == -1) {
+        baudrate = B9600;
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+            "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+            "fd",           "%d", priv->tty_fd,
+            "msg",          "%s", "Bad baudrate",
+            "baudrate",     "%d", baudrate_,
+            NULL
+        );
+    }
+
+    /*-----------------------------*
+     *      Parity
+     *-----------------------------*/
+    serial_parity_t parity = PARITY_NONE;
+    const char *sparity = gobj_read_str_attr(gobj, "parity");
+    SWITCHS(sparity) {
+        CASES("odd")
+            parity = PARITY_ODD;
+            break;
+        CASES("even")
+            parity = PARITY_EVEN;
+            break;
+        CASES("none")
+            parity = PARITY_NONE;
+            break;
+        DEFAULTS
+            parity = PARITY_NONE;
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Parity UNKNOWN",
+                "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+                "fd",           "%d", priv->tty_fd,
+                "parity",       "%s", sparity,
+                NULL
+            );
+            break;
+    } SWITCHS_END;
+
+    /*-----------------------------*
+     *      Byte size
+     *-----------------------------*/
+    int bytesize = (int)gobj_read_integer_attr(gobj, "bytesize");
+    switch(bytesize) {
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            break;
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Bad bytesize",
+                "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+                "fd",           "%d", priv->tty_fd,
+                "bytesize",     "%d", bytesize,
+                NULL
+            );
+            bytesize = 8;
+            break;
+    }
+
+    /*-----------------------------*
+     *      Stop bits
+     *-----------------------------*/
+    int stopbits = (int)gobj_read_integer_attr(gobj, "stopbits");
+    switch(stopbits) {
+        case 1:
+        case 2:
+            break;
+        default:
+            gobj_log_error(gobj, 0,
+                "function",     "%s", __FUNCTION__,
+                "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+                "msg",          "%s", "Bad stopbits",
+                "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+                "fd",           "%d", priv->tty_fd,
+                "stopbits",     "%d", bytesize,
+                NULL
+            );
+            stopbits = 1;
+            break;
+    }
+
+    /*-----------------------------*
+     *      Control
+     *-----------------------------*/
+    int xonxoff = gobj_read_bool_attr(gobj, "xonxoff");
+    int rtscts = gobj_read_bool_attr(gobj, "rtscts");
+
+
+    termios_settings.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    termios_settings.c_oflag |= (ONLCR);
+    termios_settings.c_cflag |= (CS8);
+    termios_settings.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    termios_settings.c_cc[VMIN] = 1;
+    termios_settings.c_cc[VTIME] = 0;
+
+
+
+
+
+    /* c_iflag */
+
+    /* Ignore break characters */
+    termios_settings.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+
+    if (parity != PARITY_NONE)
+        termios_settings.c_iflag |= INPCK;
+    /* Only use ISTRIP when less than 8 bits as it strips the 8th bit */
+    if (parity != PARITY_NONE && bytesize != 8)
+        termios_settings.c_iflag |= ISTRIP;
+    if (xonxoff)
+        termios_settings.c_iflag |= (IXON | IXOFF);
+
+    /* c_oflag */
+    termios_settings.c_oflag &= ~OPOST;
+
+    /* c_lflag */
+    termios_settings.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN); // No echo
+
+    /* c_cflag */
+    /* Enable receiver, ignore modem control lines */
+    termios_settings.c_cflag = CREAD | CLOCAL;
+
+    /* Databits */
+    if (bytesize == 5)
+        termios_settings.c_cflag |= CS5;
+    else if (bytesize == 6)
+        termios_settings.c_cflag |= CS6;
+    else if (bytesize == 7)
+        termios_settings.c_cflag |= CS7;
+    else if (bytesize == 8)
+        termios_settings.c_cflag |= CS8;
+
+    /* Parity */
+    if (parity == PARITY_EVEN)
+        termios_settings.c_cflag |= PARENB;
+    else if (parity == PARITY_ODD)
+        termios_settings.c_cflag |= (PARENB | PARODD);
+
+    /* Stopbits */
+    if (stopbits == 2)
+        termios_settings.c_cflag |= CSTOPB;
+
+    /* RTS/CTS */
+    if (rtscts) {
+        termios_settings.c_cflag |= CRTSCTS;
+    }
+
+    /* Baudrate */
+    cfsetispeed(&termios_settings, baudrate);
+    cfsetospeed(&termios_settings, baudrate);
+
+    if(tcsetattr(priv->tty_fd, TCSANOW, &termios_settings)<0) {
+        gobj_log_error(gobj, 0,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+            "msg",          "%s", "tcsetattr() FAILED",
+            "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+            "fd",           "%d", priv->tty_fd,
+            "errno",        "%d", errno,
+            "strerror",     "%s", strerror(errno),
+            NULL
+        );
+        return -1;
+    }
+
+    return 0;
+}
 
 /***************************************************************************
  *
@@ -520,17 +684,9 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         );
     }
 
-    if(priv->pty != -1) {
-        close(priv->pty);
-        priv->pty = -1;
-    }
-    if(priv->uv_in != -1) {
-        close(priv->uv_in);
-        priv->uv_in = -1;
-    }
-    if(priv->uv_out != -1) {
-        close(priv->uv_out);
-        priv->uv_out = -1;
+    if(priv->tty_fd != -1) {
+        close(priv->tty_fd);
+        priv->tty_fd = -1;
     }
 
     if(priv->tx_in_progress > 0) {
@@ -550,21 +706,11 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
         gobj_change_state(gobj, ST_WAIT_STOPPED);
     } else {
         gobj_change_state(gobj, ST_STOPPED);
-        json_t *kw_on_close = json_pack("{s:s, s:s, s:s, s:s}}",
+        json_t *kw_on_close = json_pack("{s:s, s:s}}",
             "name", gobj_name(gobj),
-            "process", priv->argv[0],
-            "uuid", node_uuid(),
-            "slave_name", priv->slave_name
+            "uuid", node_uuid()
         );
         gobj_publish_event(gobj, EV_TTY_CLOSE, kw_on_close);
-
-        if(priv->pid > 0) {
-            if(kill(priv->pid, 0) == 0) {
-                kill(priv->pid, SIGKILL);
-                waitpid(priv->pid, NULL, 0);
-            }
-            priv->pid = -1;
-        }
 
         if(gobj_is_volatil(gobj)) {
             gobj_destroy(gobj);
@@ -572,21 +718,6 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
             gobj_publish_event(gobj, EV_STOPPED, 0);
         }
     }
-}
-
-/***************************************************************************
- *
- ***************************************************************************/
-PRIVATE int fd_duplicate(int fd)
-{
-    int fd_dup = dup(fd);
-    if (fd_dup < 0) {
-        return -1;
-    }
-
-    set_cloexec(fd_dup);
-
-    return fd_dup;
 }
 
 /***************************************************************************
@@ -608,7 +739,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
         gobj_trace_dump(gobj,
             base,
             nread,
-            "READ from PTY %s",
+            "READ from SERIAL %s",
             gobj_short_name(gobj)
         );
     }
@@ -639,7 +770,7 @@ PRIVATE int on_read_cb(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *  Write data to pseudo terminal
  ***************************************************************************/
-PRIVATE int write_data_to_pty(hgobj gobj)
+PRIVATE int write_data_to_serial(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -660,7 +791,7 @@ PRIVATE int write_data_to_pty(hgobj gobj)
         gobj_trace_dump(gobj,
             bf,
             ln,
-            "WRITE to PTY %s",
+            "WRITE to SERIAL %s",
             gobj_short_name(gobj)
         );
     }
@@ -705,7 +836,7 @@ PRIVATE void try_more_writes(hgobj gobj)
     } else {
         priv->gbuf_txing = gbuf_txing;
         dl_delete(&priv->dl_tx, gbuf_txing, 0);
-        write_data_to_pty(gobj);
+        write_data_to_serial(gobj);
     }
 }
 
@@ -771,7 +902,7 @@ PRIVATE int ac_write_tty(hgobj gobj, const char *event, json_t *kw, hgobj src)
 
     if(!priv->gbuf_txing) {
         priv->gbuf_txing = gbuffer_incref(gbuf);
-        write_data_to_pty(gobj);
+        write_data_to_serial(gobj);
     } else {
         enqueue_write(gobj, gbuffer_incref(gbuf));
     }
@@ -798,7 +929,7 @@ PRIVATE const GMETHODS gmt = {
 /*------------------------*
  *      GClass name
  *------------------------*/
-GOBJ_DEFINE_GCLASS(C_PTY);
+GOBJ_DEFINE_GCLASS(C_SERIAL);
 
 /*------------------------*
  *      States
@@ -829,7 +960,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *          Define States
      *----------------------------------------*/
     ev_action_t st_idle[] = {
-        {EV_WRITE_TTY,  ac_write_tty,   0},
+        {EV_TX_DATA,          ac_tx_data,             0},
         {0,0,0}
     };
 
@@ -852,14 +983,14 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
      *      Events
      *------------------------*/
     event_type_t event_types[] = {
-        /* Public outputs first (for quick search) */
-        {EV_TTY_DATA,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
-        {EV_TTY_OPEN,   EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
-        {EV_TTY_CLOSE,  EVF_PUBLIC_EVENT|EVF_OUTPUT_EVENT},
-
-        /* Entradas */
-        {EV_WRITE_TTY,  0},
-
+        {EV_TX_DATA,            0},
+        {EV_RX_DATA,            EVF_OUTPUT_EVENT},
+        {EV_CONNECTED,          EVF_OUTPUT_EVENT},
+        {EV_DISCONNECTED,       EVF_OUTPUT_EVENT},
+        {EV_STOPPED,            EVF_OUTPUT_EVENT},
+        {EV_CONNECT,            0},
+        {EV_TIMEOUT,            0},
+        {EV_DROP,               0},
         {0,0}
     };
 
@@ -888,7 +1019,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
 /***************************************************************************
  *          Public access
  ***************************************************************************/
-PUBLIC int register_c_pty(void)
+PUBLIC int register_c_serial(void)
 {
-    return create_gclass(C_PTY);
+    return create_gclass(C_SERIAL);
 }

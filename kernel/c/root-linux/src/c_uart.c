@@ -482,7 +482,7 @@ PRIVATE int open_tty(hgobj gobj)
         return -1;
     }
 
-    int fd = open(path, O_RDWR, 0);
+    int fd = open(path, O_RDWR|O_CLOEXEC, 0);
     if(fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,

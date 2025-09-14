@@ -9197,7 +9197,7 @@ PRIVATE int ac_read_json(hgobj gobj, const char *event, json_t *kw, hgobj src)
             gobj
         );
     }
-    int fp = open(filename, 0);
+    int fp = open(filename, O_RDONLY|O_CLOEXEC);
     if(fp<0) {
         return gobj_send_event(
             src,
@@ -9317,7 +9317,7 @@ PRIVATE int ac_read_file(hgobj gobj, const char *event, json_t *kw, hgobj src)
         );
     }
 
-    int fp = open(filename, 0);
+    int fp = open(filename, O_RDONLY|O_CLOEXEC);
     if(fp<0) {
         return gobj_send_event(
             src,
@@ -9455,7 +9455,7 @@ PRIVATE int ac_read_binary_file(hgobj gobj, const char *event, json_t *kw, hgobj
         );
     }
 
-    int fp = open(filename, 0);
+    int fp = open(filename, O_RDONLY|O_CLOEXEC);
     if(fp<0) {
         return gobj_send_event(
             src,

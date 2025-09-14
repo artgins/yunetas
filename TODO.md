@@ -140,7 +140,7 @@ The documentation needs to be update with next changes
     PUBLIC char *capitalize(char *s);
     PUBLIC BOOL set_trace_with_short_name(BOOL trace_with_short_name);
     PUBLIC BOOL set_trace_with_full_name(BOOL trace_with_full_name);
-
+    tty_keyboard_init()
 
 # Delete API
 

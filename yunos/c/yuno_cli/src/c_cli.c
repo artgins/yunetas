@@ -503,7 +503,7 @@ PRIVATE int mt_start(hgobj gobj)
     );
 
     if(priv->gobj_editline) {
-        priv->tty_fd = tty_init();
+        priv->tty_fd = tty_keyboard_init();
         if(priv->tty_fd < 0) {
             if(priv->gwin_stdscr) {
                 gobj_stop(priv->gwin_stdscr);
