@@ -7,3 +7,8 @@
 
     The selection of the webserver can be done with the file `webserver/webserver`
      (contents: "nginx" or "openresty"), default nginx
+
+    When a certificate is refreshed by certbot, 
+    it will execute /etc/letsencrypt/renewal-hooks/deploy/reload-certs.
+    The certificates are auto-discover and copy to /yuneta/store/certs directory
+    unless you have the file /yuneta/store/certs/certs.list with the list of certificates to update

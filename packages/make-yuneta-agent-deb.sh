@@ -915,13 +915,14 @@ EOF
 chmod 0755 "${WORKDIR}/yuneta/store/certs/copy-certs.sh"
 
 # --- Provide a commented template certs.list (admin can edit later) ---
-cat > "${WORKDIR}/yuneta/store/certs/certs.list" <<'EOF'
-# One certificate name per line (matching directory name under /etc/letsencrypt/live)
-# Example:
-# example.com
-# api.example.com
-EOF
-chmod 0644 "${WORKDIR}/yuneta/store/certs/certs.list"
+# By default use auto-discover
+#cat > "${WORKDIR}/yuneta/store/certs/certs.list" <<'EOF'
+## One certificate name per line (matching directory name under /etc/letsencrypt/live)
+## Example:
+## example.com
+## api.example.com
+#EOF
+#chmod 0644 "${WORKDIR}/yuneta/store/certs/certs.list"
 
 # --- Make yuneta sudo (NOPASSWD) ---
 cat > "${WORKDIR}/etc/sudoers.d/90-yuneta" <<'EOF'
