@@ -434,6 +434,15 @@ PRIVATE int configure_tty(hgobj gobj)
      *-------------------------------*/
     memset(&termios_settings, 0, sizeof(termios_settings));
 
+    // How libuv does:
+    // case UV_TTY_MODE_RAW:
+    // termios_settings.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    // termios_settings.c_oflag |= (ONLCR);
+    // termios_settings.c_cflag |= (CS8);
+    // termios_settings.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    termios_settings.c_cc[VMIN] = 1;
+    termios_settings.c_cc[VTIME] = 0;
+
     /* c_iflag */
 
     /* Ignore break characters */
@@ -451,10 +460,10 @@ PRIVATE int configure_tty(hgobj gobj)
     }
 
     /* c_oflag */
-    termios_settings.c_oflag &= ~OPOST;
+    termios_settings.c_oflag |= (ONLCR);
 
     /* c_lflag */
-    termios_settings.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN); // No echo
+    termios_settings.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG ); // No echo
 
     /* c_cflag */
     /* Enable receiver, ignore modem control lines */
