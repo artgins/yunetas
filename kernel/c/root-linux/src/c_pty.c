@@ -724,7 +724,7 @@ PRIVATE int enqueue_write(hgobj gobj, gbuffer_t *gbuf)
             gobj_log_error(gobj, 0,
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_INTERNAL_ERROR,
-                "msg",          "%s", "Tiro mensaje tx",
+                "msg",          "%s", "throw away pty tx message",
                 "counter",      "%d", (int)counter,
                 NULL
             );
