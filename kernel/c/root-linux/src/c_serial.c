@@ -174,7 +174,7 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    const char *device = gobj_read_str_attr(gobj, "device");
+    const char *device = gobj_read_str_attr(gobj, "url");
     if(empty_string(device)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -191,7 +191,7 @@ PRIVATE int mt_start(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "Cannot open serial device",
-            "tty",          "%s", device,
+            "device",       "%s", device,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
             NULL
@@ -231,7 +231,7 @@ PRIVATE int mt_start(hgobj gobj)
     }
 
     json_t *kw_on_open = json_pack("{s:s}",
-        "port", gobj_read_str_attr(gobj, "device")
+        "device", gobj_read_str_attr(gobj, "url")
     );
     gobj_publish_event(gobj, EV_CONNECTED, kw_on_open);
 
@@ -319,7 +319,7 @@ PRIVATE int configure_tty(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "tcgetattr() FAILED",
-            "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+            "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", priv->tty_fd,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
@@ -338,7 +338,7 @@ PRIVATE int configure_tty(hgobj gobj)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+            "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", priv->tty_fd,
             "msg",          "%s", "Bad baudrate",
             "baudrate",     "%d", baudrate_,
@@ -367,7 +367,7 @@ PRIVATE int configure_tty(hgobj gobj)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Parity UNKNOWN",
-                "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+                "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", priv->tty_fd,
                 "parity",       "%s", sparity,
                 NULL
@@ -390,7 +390,7 @@ PRIVATE int configure_tty(hgobj gobj)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Bad bytesize",
-                "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+                "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", priv->tty_fd,
                 "bytesize",     "%d", bytesize,
                 NULL
@@ -412,7 +412,7 @@ PRIVATE int configure_tty(hgobj gobj)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Bad stopbits",
-                "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+                "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", priv->tty_fd,
                 "stopbits",     "%d", bytesize,
                 NULL
@@ -501,7 +501,7 @@ PRIVATE int configure_tty(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "tcsetattr() FAILED",
-            "tty",          "%s", gobj_read_str_attr(gobj, "device"),
+            "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", priv->tty_fd,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
@@ -714,7 +714,7 @@ PRIVATE void try_to_stop_yevents(hgobj gobj)  // IDEMPOTENT
     } else {
         gobj_change_state(gobj, ST_STOPPED);
         json_t *kw_on_close = json_pack("{s:s}}",
-            "port", gobj_read_str_attr(gobj, "device")
+            "device", gobj_read_str_attr(gobj, "url")
         );
         gobj_publish_event(gobj, EV_DISCONNECTED, kw_on_close);
 
@@ -998,7 +998,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0,                  /* authz_table */
         0,                  /* command_table */
         s_user_trace_level,
-        0                   /* gcflag */
+        gcflag_manual_start /* gcflag */
     );
     if(!__gclass__) {
         return -1;

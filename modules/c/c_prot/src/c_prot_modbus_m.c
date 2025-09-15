@@ -60,6 +60,8 @@ Example of modbus configuration:
 #include "msg_ievent.h"
 #include "c_prot_modbus_m.h"
 
+#include "../../../../kernel/c/root-linux/src/c_serial.h"
+
 /***************************************************************************
  *              Constants
  ***************************************************************************/
@@ -377,12 +379,14 @@ SDATA_END()
  *      Attributes - order affect to oid's
  *---------------------------------------------*/
 PRIVATE const sdata_desc_t attrs_table[] = {
-/*-ATTR-type------------name----------------flag------------default-----description---------- */
-SDATA (DTP_STRING,      "modbus_protocol",  SDF_RD,         "TCP",      "Modbus protocol: TCP,RTU,ASCII"),
-SDATA (DTP_JSON,        "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
-SDATA (DTP_INTEGER,     "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in milliseconds"),
-SDATA (DTP_INTEGER,     "timeout_response", SDF_PERSIST,    "10",       "Timeout response in seconds"),
-SDATA (DTP_POINTER,     "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
+/*-ATTR-type--------name----------------flag------------default-----description---------- */
+SDATA (DTP_STRING,  "modbus_protocol",  SDF_RD,         "TCP",      "Modbus protocol: TCP,RTU,ASCII"),
+SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url or device"),
+SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
+SDATA (DTP_JSON,    "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
+SDATA (DTP_INTEGER, "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in milliseconds"),
+SDATA (DTP_INTEGER, "timeout_response", SDF_PERSIST,    "10",       "Timeout response in seconds"),
+SDATA (DTP_POINTER, "subscriber",       0,              0,          "subscriber of output-events. If null then subscriber is the parent"),
 SDATA_END()
 };
 
@@ -553,9 +557,8 @@ PRIVATE int mt_start(hgobj gobj)
     } SWITCHS_END;
 
     /*
-     *  The bottom must be a C_TCP (it has manual start/stop!).
+     *  The bottom must be a C_TCP or C_SERIAL (it has manual start/stop!).
      *  If it's a client then start to begin the connection.
-     *  If it's a server, wait to give the connection done by C_TCP_S.
      */
     {
         /*
@@ -572,7 +575,12 @@ PRIVATE int mt_start(hgobj gobj)
             bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
 #endif
 #ifdef __linux__
-            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
+            bottom_gobj = gobj_create_pure_child(
+                gobj_name(gobj),
+                strcasecmp(priv->modbus_protocol, "TCP")==0? C_TCP: C_SERIAL,
+                kw,
+                gobj
+            );
 #endif
             gobj_set_bottom_gobj(gobj, bottom_gobj);
             //gobj_write_str_attr(bottom_gobj, "tx_ready_event_name", 0);
