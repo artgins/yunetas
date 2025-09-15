@@ -507,8 +507,6 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    gobj_start(priv->gobj_timer);
-
     priv->jn_conversion = json_array();
     priv->jn_request_queue = json_array();
 
@@ -553,6 +551,37 @@ PRIVATE int mt_start(hgobj gobj)
         DEFAULTS
             break;
     } SWITCHS_END;
+
+    /*
+     *  The bottom must be a C_TCP (it has manual start/stop!).
+     *  If it's a client then start to begin the connection.
+     *  If it's a server, wait to give the connection done by C_TCP_S.
+     */
+    {
+        /*
+         *  Client side
+         */
+        hgobj bottom_gobj = gobj_bottom_gobj(gobj);
+        if(!bottom_gobj) {
+            json_t *kw = json_pack("{s:s, s:s}",
+                "cert_pem", gobj_read_str_attr(gobj, "cert_pem"),
+                "url", gobj_read_str_attr(gobj, "url")
+            );
+
+#ifdef ESP_PLATFORM
+            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_ESP_TRANSPORT, kw, gobj);
+#endif
+#ifdef __linux__
+            bottom_gobj = gobj_create_pure_child(gobj_name(gobj), C_TCP, kw, gobj);
+#endif
+            gobj_set_bottom_gobj(gobj, bottom_gobj);
+            //gobj_write_str_attr(bottom_gobj, "tx_ready_event_name", 0);
+        }
+
+        gobj_start(bottom_gobj);
+    }
+
+
 
     return 0;
 }
@@ -616,122 +645,120 @@ PRIVATE json_t *cmd_help(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    JSON_DECREF(kw)
-    return 0; // TODO
-//    PRIVATE_DATA *priv = gobj_priv_data(gobj);
-//    int slave_id = (int)kw_get_int(gobj, kw, "slave_id", -1, KW_WILD_NUMBER);  // -1 all slaves
-//    int address = (int)kw_get_int(gobj, kw, "address", 0, KW_WILD_NUMBER);
-//    int size = (int)kw_get_int(gobj, kw, "size", 0, KW_WILD_NUMBER);           // -1 all data
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+    int slave_id = (int)kw_get_int(gobj, kw, "slave_id", -1, KW_WILD_NUMBER);  // -1 all slaves
+    int address = (int)kw_get_int(gobj, kw, "address", 0, KW_WILD_NUMBER);
+    int size = (int)kw_get_int(gobj, kw, "size", 0, KW_WILD_NUMBER);           // -1 all data
 
-//    if(address > 0xFFFF) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("Address out of range"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    if(slave_id == -1 && size == -1) {
-//        log_debug_dump(
-//            0,
-//            (const char *)priv->slave_data,
-//            priv->max_slaves * sizeof(slave_data_t),
-//            "slaves"
-//        );
-//        return msg_iev_build_response(
-//            gobj,
-//            0,
-//            json_sprintf("FULL data dumped in log file"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    if(size == -1) {
-//        size = 0xFFFF + 1;
-//    }
-//    if(address+size > 0xFFFF+1) {
-//        return msg_iev_build_response(
-//            gobj,
-//            -1,
-//            json_sprintf("Size out of range"),
-//            0,
-//            0,
-//            kw  // owned
-//        );
-//    }
-//
-//    if(slave_id != -1) {
-//        slave_data_t *pslv = get_slave_data(gobj, slave_id, FALSE);
-//        if(!pslv) {
-//            return msg_iev_build_response(
-//                gobj,
-//                -1,
-//                json_sprintf("Slave id not found"),
-//                0,
-//                0,
-//                kw  // owned
-//            );
-//        }
-//
-//        log_debug_dump(0, (const char *)pslv + 0x00000 + address, size,
-//            "%d: Control Coil", slave_id
-//        );
-//        log_debug_dump(0, (const char *)pslv + 0x10000 + address, size,
-//            "%d: Control Discrete input", slave_id
-//        );
-//        log_debug_dump(0, (const char *)pslv + 0x20000 + address, size,
-//            "%d: Control Input register", slave_id
-//        );
-//        log_debug_dump(0, (const char *)pslv + 0x30000 + address, size,
-//            "%d: Control Holding register", slave_id
-//        );
-//        log_debug_dump(0, (const char *)pslv + 0x40000 + address*2, size*2,
-//            "%d: Data Input register", slave_id
-//        );
-//        log_debug_dump(0, (const char *)pslv + 0x60000 + address*2, size*2,
-//            "%d: Data Holding register", slave_id
-//        );
-//
-//    } else {
-//        slave_data_t *pslv = priv->slave_data;
-//        for(int i=0; i<priv->max_slaves; i++) {
-//            slave_id = pslv->slave_id;
-//            log_debug_dump(0, (const char *)pslv + 0x00000 + address, size,
-//                "%d: Control Coil", slave_id
-//            );
-//            log_debug_dump(0, (const char *)pslv + 0x10000 + address, size,
-//                "%d: Control Discrete input", slave_id
-//            );
-//            log_debug_dump(0, (const char *)pslv + 0x20000 + address, size,
-//                "%d: Control Input register", slave_id
-//            );
-//            log_debug_dump(0, (const char *)pslv + 0x30000 + address, size,
-//                "%d: Control Holding register", slave_id
-//            );
-//            log_debug_dump(0, (const char *)pslv + 0x40000 + address*2, size*2,
-//                "%d: Data Input register", slave_id
-//            );
-//            log_debug_dump(0, (const char *)pslv + 0x60000 + address*2, size*2,
-//                "%d: Data Holding register", slave_id
-//            );
-//            // Next slave
-//            pslv++;
-//        }
-//    }
-//
-//    return msg_iev_build_response(
-//        gobj,
-//        0,
-//        json_sprintf("Data dumped in log file"),
-//        0,
-//        0,
-//        kw  // owned
-//    );
+    if(address > 0xFFFF) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Address out of range"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(slave_id == -1 && size == -1) {
+        gobj_trace_dump(
+            gobj,
+            (const char *)priv->slave_data,
+            priv->max_slaves * sizeof(slave_data_t),
+            "slaves"
+        );
+        return msg_iev_build_response(
+            gobj,
+            0,
+            json_sprintf("FULL data dumped in log file"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(size == -1) {
+        size = 0xFFFF + 1;
+    }
+    if(address+size > 0xFFFF+1) {
+        return msg_iev_build_response(
+            gobj,
+            -1,
+            json_sprintf("Size out of range"),
+            0,
+            0,
+            kw  // owned
+        );
+    }
+
+    if(slave_id != -1) {
+        slave_data_t *pslv = get_slave_data(gobj, slave_id, FALSE);
+        if(!pslv) {
+            return msg_iev_build_response(
+                gobj,
+                -1,
+                json_sprintf("Slave id not found"),
+                0,
+                0,
+                kw  // owned
+            );
+        }
+
+        gobj_trace_dump(gobj, (const char *)pslv + 0x00000 + address, size,
+            "%d: Control Coil", slave_id
+        );
+        gobj_trace_dump(gobj, (const char *)pslv + 0x10000 + address, size,
+            "%d: Control Discrete input", slave_id
+        );
+        gobj_trace_dump(gobj, (const char *)pslv + 0x20000 + address, size,
+            "%d: Control Input register", slave_id
+        );
+        gobj_trace_dump(gobj, (const char *)pslv + 0x30000 + address, size,
+            "%d: Control Holding register", slave_id
+        );
+        gobj_trace_dump(gobj, (const char *)pslv + 0x40000 + address*2, size*2,
+            "%d: Data Input register", slave_id
+        );
+        gobj_trace_dump(gobj, (const char *)pslv + 0x60000 + address*2, size*2,
+            "%d: Data Holding register", slave_id
+        );
+
+    } else {
+        slave_data_t *pslv = priv->slave_data;
+        for(int i=0; i<priv->max_slaves; i++) {
+            slave_id = pslv->slave_id;
+            gobj_trace_dump(gobj, (const char *)pslv + 0x00000 + address, size,
+                "%d: Control Coil", slave_id
+            );
+            gobj_trace_dump(gobj, (const char *)pslv + 0x10000 + address, size,
+                "%d: Control Discrete input", slave_id
+            );
+            gobj_trace_dump(gobj, (const char *)pslv + 0x20000 + address, size,
+                "%d: Control Input register", slave_id
+            );
+            gobj_trace_dump(gobj, (const char *)pslv + 0x30000 + address, size,
+                "%d: Control Holding register", slave_id
+            );
+            gobj_trace_dump(gobj, (const char *)pslv + 0x40000 + address*2, size*2,
+                "%d: Data Input register", slave_id
+            );
+            gobj_trace_dump(gobj, (const char *)pslv + 0x60000 + address*2, size*2,
+                "%d: Data Holding register", slave_id
+            );
+            // Next slave
+            pslv++;
+        }
+    }
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Data dumped in log file"),
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 /***************************************************************************
@@ -739,21 +766,19 @@ PRIVATE json_t *cmd_dump_data(hgobj gobj, const char *cmd, json_t *kw, hgobj src
  ***************************************************************************/
 PRIVATE json_t *cmd_set_poll_timeout(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    JSON_DECREF(kw)
-    return 0; // TODO
-//    int timeout = kw_get_int(kw, "timeout", 1000, KW_WILD_NUMBER);
-//
-//    gobj_write_int32_attr(gobj, "timeout_polling", timeout);
-//    gobj_save_persistent_attrs(gobj, json_string("timeout_polling"));
-//
-//    return msg_iev_build_response(
-//        gobj,
-//        0,
-//        json_sprintf("Poll timeout = %d milliseconds", timeout),
-//        0,
-//        0,
-//        kw  // owned
-//    );
+    int timeout = kw_get_int(gobj, kw, "timeout", 1000, KW_WILD_NUMBER);
+
+    gobj_write_integer_attr(gobj, "timeout_polling", timeout);
+    gobj_save_persistent_attrs(gobj, json_string("timeout_polling"));
+
+    return msg_iev_build_response(
+        gobj,
+        0,
+        json_sprintf("Poll timeout = %d milliseconds", timeout),
+        0,
+        0,
+        kw  // owned
+    );
 }
 
 
@@ -1729,9 +1754,8 @@ PRIVATE BOOL send_request(hgobj gobj)
 
     json_t *jn_current_request = json_array_get(priv->jn_request_queue, 0);
     if(gobj_trace_level(gobj) & TRACE_SEND) {
-        gobj_trace_json(gobj, jn_current_request, "sending to %s:%s",
-           gobj_read_str_attr(gobj_bottom_gobj(gobj), "rHost"),
-           gobj_read_str_attr(gobj_bottom_gobj(gobj), "rPort")
+        gobj_trace_json(gobj, jn_current_request, "sending to %s",
+           gobj_read_str_attr(gobj_bottom_gobj(gobj), "url")
         );
     }
     gbuffer_t *gbuf = build_modbus_request_write_message(gobj, jn_current_request);
@@ -3108,13 +3132,24 @@ PRIVATE cell_control_t *get_cell_control(
     char saddress[32];
     snprintf(saddress, sizeof(saddress), "%04X", (int)address);
     if(create) {
-        json_object_set_new(jn_type, saddress, json_integer(0));
+        cell_control_t *new_cell_control = GBMEM_MALLOC(sizeof(cell_control_t));
+        json_object_set_new(
+            jn_type,
+            saddress,
+            json_integer((json_int_t)(uintptr_t)new_cell_control)
+        );
     }
-//    json_t *jn_value = json_object_get(jn_type, saddress);
-    // TODO cambia el metodo, json_integer_value_pointer() is not available
-    // TODO cell_control_t *cell_control = (cell_control_t *)(uintptr_t)json_integer_value_pointer(jn_value);
-// TODO   return cell_control;
-    return NULL;
+    // // cambia el método, json_integer_value_pointer() is not available
+    // json_t *jn_value = json_object_get(jn_type, saddress);
+    // cell_control_t *cell_control = (cell_control_t *)(uintptr_t)json_integer_value_pointer(jn_value);
+    cell_control_t *cell_control = (cell_control_t *)(uintptr_t)kw_get_int(
+        gobj,
+        jn_type,
+        saddress,
+        0,
+        KW_REQUIRED
+    );
+    return cell_control;
 }
 
 

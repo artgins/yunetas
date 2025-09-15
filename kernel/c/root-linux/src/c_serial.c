@@ -59,7 +59,8 @@ PRIVATE void try_more_writes(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default-description---------- */
-SDATA (DTP_STRING,      "device",           SDF_RD,     "",     "Device to open: i.e. /dev/ttyS0"),
+SDATA (DTP_STRING,      "url",              SDF_RD,     "",     "Device (url by compatibility with C_TCP) to open: i.e. /dev/ttyS0"),
+SDATA (DTP_STRING,      "cert_pem",         SDF_RD,     "",     "Not use, by compatibility with C_TCP"),
 SDATA (DTP_INTEGER,     "baudrate",         SDF_RD,     "9600", "Baud rate"),
 SDATA (DTP_INTEGER,     "bytesize",         SDF_RD,     "8",    "Byte size"),
 SDATA (DTP_STRING,      "parity",           SDF_RD,     "none", "Parity"),
