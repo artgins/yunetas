@@ -52,7 +52,6 @@ set (SRCS
     src/c_gss_udp_s.c
     src/c_counter.c
     src/c_pty.c
-    src/c_serial.c
     src/ghttp_parser.c
     src/istream.c
     src/yunetas_environment.c
@@ -96,7 +95,6 @@ set (HDRS
     src/c_gss_udp_s.h
     src/c_counter.h
     src/c_pty.h
-    src/c_serial.h
     src/ghttp_parser.h
     src/istream.h
     src/yunetas_environment.h
