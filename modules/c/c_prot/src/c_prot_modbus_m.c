@@ -58,9 +58,8 @@ Example of modbus configuration:
 #include <string.h>
 #include <arpa/inet.h>
 #include "msg_ievent.h"
+#include "c_uart.h"
 #include "c_prot_modbus_m.h"
-
-#include "../../../../kernel/c/root-linux/src/c_serial.h"
 
 /***************************************************************************
  *              Constants
@@ -557,7 +556,7 @@ PRIVATE int mt_start(hgobj gobj)
     } SWITCHS_END;
 
     /*
-     *  The bottom must be a C_TCP or C_SERIAL (it has manual start/stop!).
+     *  The bottom must be a C_TCP or C_UART (it has manual start/stop!).
      *  If it's a client then start to begin the connection.
      */
     {
@@ -577,7 +576,7 @@ PRIVATE int mt_start(hgobj gobj)
 #ifdef __linux__
             bottom_gobj = gobj_create_pure_child(
                 gobj_name(gobj),
-                strcasecmp(priv->modbus_protocol, "TCP")==0? C_TCP: C_SERIAL,
+                strcasecmp(priv->modbus_protocol, "TCP")==0? C_TCP: C_UART,
                 kw,
                 gobj
             );

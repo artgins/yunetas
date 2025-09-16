@@ -53,8 +53,7 @@ PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
-SDATA (DTP_STRING,  "path",             SDF_RD,         "/dev/ttyUSB0", "Device to open"),
-SDATA (DTP_STRING,  "url",              SDF_RD,         "/dev/ttyUSB0", "Device (url by compatibility with C_TCP) to open: i.e. /dev/ttyS0"),
+SDATA (DTP_STRING,  "url",              SDF_RD,         "/dev/ttyUSB0", "Device to open (url by compatibility with C_TCP) to open: i.e. /dev/ttyS0"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",     "Not use, by compatibility with C_TCP"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
@@ -283,6 +282,194 @@ PRIVATE int _serial_baudrate_to_bits(int baudrate)
 /***************************************************************************
  *
  ***************************************************************************/
+// PRIVATE int configure_tty(hgobj gobj, int fd)
+// {
+//     struct termios termios_settings;
+//     if(tcgetattr(fd, &termios_settings)<0) {
+//         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+//             "msg",          "%s", "tcgetattr() FAILED",
+//             "url",          "%s", gobj_read_str_attr(gobj, "url"),
+//             "fd",           "%d", fd,
+//             "errno",        "%d", errno,
+//             "strerror",     "%s", strerror(errno),
+//             NULL
+//         );
+//         return -1;
+//     }
+//
+//     /*-----------------------------*
+//      *      Baud rate
+//      *-----------------------------*/
+//     int baudrate_ = (int)gobj_read_integer_attr(gobj, "baudrate");
+//     int baudrate = _serial_baudrate_to_bits(baudrate_);
+//     if(baudrate == -1) {
+//         baudrate = B9600;
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//             "url",          "%s", gobj_read_str_attr(gobj, "url"),
+//             "fd",           "%d", fd,
+//             "msg",          "%s", "Bad baudrate",
+//             "baudrate",     "%d", baudrate_,
+//             NULL
+//         );
+//     }
+//
+//     /*-----------------------------*
+//      *      Parity
+//      *-----------------------------*/
+//     serial_parity_t parity = PARITY_NONE;
+//     const char *sparity = gobj_read_str_attr(gobj, "parity");
+//     SWITCHS(sparity) {
+//         CASES("odd")
+//             parity = PARITY_ODD;
+//             break;
+//         CASES("even")
+//             parity = PARITY_EVEN;
+//             break;
+//         CASES("none")
+//             parity = PARITY_NONE;
+//             break;
+//         DEFAULTS
+//             parity = PARITY_NONE;
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msg",          "%s", "Parity UNKNOWN",
+//                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
+//                 "fd",           "%d", fd,
+//                 "parity",       "%s", sparity,
+//                 NULL
+//             );
+//             break;
+//     } SWITCHS_END;
+//
+//     /*-----------------------------*
+//      *      Byte size
+//      *-----------------------------*/
+//     int bytesize = (int)gobj_read_integer_attr(gobj, "bytesize");
+//     switch(bytesize) {
+//         case 5:
+//         case 6:
+//         case 7:
+//         case 8:
+//             break;
+//         default:
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msg",          "%s", "Bad bytesize",
+//                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
+//                 "fd",           "%d", fd,
+//                 "bytesize",     "%d", bytesize,
+//                 NULL
+//             );
+//             bytesize = 8;
+//             break;
+//     }
+//
+//     /*-----------------------------*
+//      *      Stop bits
+//      *-----------------------------*/
+//     int stopbits = (int)gobj_read_integer_attr(gobj, "stopbits");
+//     switch(stopbits) {
+//         case 1:
+//         case 2:
+//             break;
+//         default:
+//             gobj_log_error(gobj, 0,
+//                 "function",     "%s", __FUNCTION__,
+//                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
+//                 "msg",          "%s", "Bad stopbits",
+//                 "url",          "%s", gobj_read_str_attr(gobj, "url"),
+//                 "fd",           "%d", fd,
+//                 "stopbits",     "%d", bytesize,
+//                 NULL
+//             );
+//             stopbits = 1;
+//             break;
+//     }
+//
+//     /*-----------------------------*
+//      *      Control
+//      *-----------------------------*/
+//     int xonxoff = gobj_read_bool_attr(gobj, "xonxoff");
+//     int rtscts = gobj_read_bool_attr(gobj, "rtscts");
+//
+//     /* c_iflag */
+//
+//     /* Ignore break characters */
+//     termios_settings.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+//
+//     if (parity != PARITY_NONE)
+//         termios_settings.c_iflag |= INPCK;
+//     /* Only use ISTRIP when less than 8 bits as it strips the 8th bit */
+//     if (parity != PARITY_NONE && bytesize != 8)
+//         termios_settings.c_iflag |= ISTRIP;
+//     if (xonxoff)
+//         termios_settings.c_iflag |= (IXON | IXOFF);
+//
+//     /* c_oflag */
+//     termios_settings.c_oflag &= ~OPOST;
+//
+//     /* c_lflag */
+//     termios_settings.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN); // No echo
+//
+//     /* c_cflag */
+//     /* Enable receiver, ignore modem control lines */
+//     termios_settings.c_cflag = CREAD | CLOCAL;
+//
+//     /* Databits */
+//     if (bytesize == 5)
+//         termios_settings.c_cflag |= CS5;
+//     else if (bytesize == 6)
+//         termios_settings.c_cflag |= CS6;
+//     else if (bytesize == 7)
+//         termios_settings.c_cflag |= CS7;
+//     else if (bytesize == 8)
+//         termios_settings.c_cflag |= CS8;
+//
+//     /* Parity */
+//     if (parity == PARITY_EVEN)
+//         termios_settings.c_cflag |= PARENB;
+//     else if (parity == PARITY_ODD)
+//         termios_settings.c_cflag |= (PARENB | PARODD);
+//
+//     /* Stopbits */
+//     if (stopbits == 2)
+//         termios_settings.c_cflag |= CSTOPB;
+//
+//     /* RTS/CTS */
+//     if (rtscts) {
+//         termios_settings.c_cflag |= CRTSCTS;
+//     }
+//
+//     /* Baudrate */
+//     cfsetispeed(&termios_settings, baudrate);
+//     cfsetospeed(&termios_settings, baudrate);
+//
+//     if(tcsetattr(fd, TCSANOW, &termios_settings)<0) {
+//         gobj_log_error(gobj, 0,
+//             "function",     "%s", __FUNCTION__,
+//             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
+//             "msg",          "%s", "tcsetattr() FAILED",
+//             "url",          "%s", gobj_read_str_attr(gobj, "url"),
+//             "fd",           "%d", fd,
+//             "errno",        "%d", errno,
+//             "strerror",     "%s", strerror(errno),
+//             NULL
+//         );
+//         return -1;
+//     }
+//
+//     return 0;
+// }
+
+/***************************************************************************
+ *
+ ***************************************************************************/
 PRIVATE int configure_tty(hgobj gobj, int fd)
 {
     struct termios termios_settings;
@@ -291,7 +478,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "tcgetattr() FAILED",
-            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", fd,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
@@ -310,7 +497,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PARAMETER_ERROR,
-            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", fd,
             "msg",          "%s", "Bad baudrate",
             "baudrate",     "%d", baudrate_,
@@ -339,7 +526,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Parity UNKNOWN",
-                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
                 "parity",       "%s", sparity,
                 NULL
@@ -362,7 +549,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Bad bytesize",
-                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
                 "bytesize",     "%d", bytesize,
                 NULL
@@ -384,7 +571,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_PARAMETER_ERROR,
                 "msg",          "%s", "Bad stopbits",
-                "path",         "%s", gobj_read_str_attr(gobj, "path"),
+                "device",       "%s", gobj_read_str_attr(gobj, "url"),
                 "fd",           "%d", fd,
                 "stopbits",     "%d", bytesize,
                 NULL
@@ -399,24 +586,41 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
     int xonxoff = gobj_read_bool_attr(gobj, "xonxoff");
     int rtscts = gobj_read_bool_attr(gobj, "rtscts");
 
+    /*-------------------------------*
+     *      Set termios settings
+     *-------------------------------*/
+    memset(&termios_settings, 0, sizeof(termios_settings));
+
+    // How libuv does:
+    // case UV_TTY_MODE_RAW:
+    // termios_settings.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    // termios_settings.c_oflag |= (ONLCR);
+    // termios_settings.c_cflag |= (CS8);
+    // termios_settings.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    termios_settings.c_cc[VMIN] = 1;
+    termios_settings.c_cc[VTIME] = 0;
+
     /* c_iflag */
 
     /* Ignore break characters */
-    termios_settings.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+    termios_settings.c_iflag = IGNBRK;
 
-    if (parity != PARITY_NONE)
+    if (parity != PARITY_NONE) {
         termios_settings.c_iflag |= INPCK;
+    }
     /* Only use ISTRIP when less than 8 bits as it strips the 8th bit */
-    if (parity != PARITY_NONE && bytesize != 8)
+    if (parity != PARITY_NONE && bytesize != 8) {
         termios_settings.c_iflag |= ISTRIP;
-    if (xonxoff)
+    }
+    if (xonxoff) {
         termios_settings.c_iflag |= (IXON | IXOFF);
+    }
 
     /* c_oflag */
-    termios_settings.c_oflag &= ~OPOST;
+    termios_settings.c_oflag |= (ONLCR);
 
     /* c_lflag */
-    termios_settings.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN); // No echo
+    termios_settings.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG ); // No echo
 
     /* c_cflag */
     /* Enable receiver, ignore modem control lines */
@@ -456,7 +660,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "tcsetattr() FAILED",
-            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "device",       "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", fd,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
@@ -473,7 +677,7 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
  ***************************************************************************/
 PRIVATE int open_tty(hgobj gobj)
 {
-    const char *path = gobj_read_str_attr(gobj, "path");
+    const char *path = gobj_read_str_attr(gobj, "url");
     if(empty_string(path)) {
         gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
@@ -484,19 +688,21 @@ PRIVATE int open_tty(hgobj gobj)
         return -1;
     }
 
-    int fd = open(path, O_RDWR|O_CLOEXEC, 0);
+    int fd = open(path, O_RDWR|O_CLOEXEC|O_NOCTTY, 0);
     if(fd < 0) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "Cannot open tty device",
-            "path",         "%s", path,
+            "url",          "%s", path,
             "errno",        "%d", errno,
             "strerror",     "%s", strerror(errno),
             NULL
         );
         return -1;
     }
+
+    set_nonblocking(fd);
 
     if(configure_tty(gobj, fd)<0) {
         // Error already logged
@@ -507,7 +713,7 @@ PRIVATE int open_tty(hgobj gobj)
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_INFO,
             "msg",          "%s", "tty opened",
-            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
             "fd",           "%d", fd,
             NULL
         );
@@ -535,7 +741,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
             "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
             "msg",          "%s", "Connected",
             "msg2",         "%s", "Connected🔵",
-            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
             NULL
         );
     }
@@ -577,7 +783,7 @@ PRIVATE void set_connected(hgobj gobj, int fd)
      *  Publish
      */
     json_t *kw_conn = json_pack("{s:s}",
-        "path",     gobj_read_str_attr(gobj, "path")
+        "url",      gobj_read_str_attr(gobj, "url")
     );
 
     gobj_publish_event(gobj, EV_CONNECTED, kw_conn);
@@ -607,7 +813,7 @@ PRIVATE void set_disconnected(hgobj gobj, const char *cause)
             "msg",          "%s", "Disconnected",
             "msg2",         "%s", "Disconnected🔴",
             "cause",        "%s", cause?cause:"",
-            "path",         "%s", gobj_read_str_attr(gobj, "path"),
+            "url",          "%s", gobj_read_str_attr(gobj, "url"),
             NULL
         );
     }
@@ -692,9 +898,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                                 "msg",          "%s", "read FAILED",
-                                "path",         "%s", gobj_read_str_attr(gobj, "path"),
-                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
                                 "errno",        "%d", -yev_get_result(yev_event),
                                 "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                                 "p",            "%p", yev_event,
@@ -744,9 +948,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                                 "function",     "%s", __FUNCTION__,
                                 "msgset",       "%s", MSGSET_CONNECT_DISCONNECT,
                                 "msg",          "%s", "write FAILED",
-                                "path",         "%s", gobj_read_str_attr(gobj, "path"),
-                                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                                "url",          "%s", gobj_read_str_attr(gobj, "url"),
                                 "errno",        "%d", -yev_get_result(yev_event),
                                 "strerror",     "%s", strerror(-yev_get_result(yev_event)),
                                 "p",            "%p", yev_event,
@@ -770,9 +972,7 @@ PRIVATE int yev_callback(yev_event_h yev_event)
                 "function",     "%s", __FUNCTION__,
                 "msgset",       "%s", MSGSET_SYSTEM_ERROR,
                 "msg",          "%s", "event type NOT IMPLEMENTED",
-                "path",         "%s", gobj_read_str_attr(gobj, "path"),
-                "remote-addr",  "%s", gobj_read_str_attr(gobj, "peername"),
-                "local-addr",   "%s", gobj_read_str_attr(gobj, "sockname"),
+                "url",          "%s", gobj_read_str_attr(gobj, "url"),
                 "event_type",   "%s", yev_event_type_name(yev_event),
                 "p",            "%p", yev_event,
                 NULL
@@ -960,7 +1160,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         0,  // authz_table,
         0,  // command_table,
         s_user_trace_level,
-        gcflag_manual_start // gclass_flag TODO is needed?
+        gcflag_manual_start // gclass_flag
     );
     if(!__gclass__) {
         // Error already logged
