@@ -13,11 +13,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <limits.h>
 #include <errno.h>
-#include <sys/ioctl.h>
-#include <sys/wait.h>
 
 #include <yev_loop.h>
 #include <g_ev_kernel.h>
@@ -59,7 +56,7 @@ PRIVATE void try_more_writes(hgobj gobj);
  *---------------------------------------------*/
 PRIVATE sdata_desc_t tattr_desc[] = {
 /*-ATTR-type------------name----------------flag--------default-description---------- */
-SDATA (DTP_STRING,      "url",              SDF_RD,     "",     "Device (url by compatibility with C_TCP) to open: i.e. /dev/ttyS0"),
+SDATA (DTP_STRING,      "url",              SDF_RD,     "",     "Device (url by compatibility with C_TCP) to open: i.e. /dev/ttyUSB0"),
 SDATA (DTP_STRING,      "cert_pem",         SDF_RD,     "",     "Not use, by compatibility with C_TCP"),
 SDATA (DTP_INTEGER,     "baudrate",         SDF_RD,     "9600", "Baud rate"),
 SDATA (DTP_INTEGER,     "bytesize",         SDF_RD,     "8",    "Byte size"),

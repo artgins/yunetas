@@ -54,6 +54,8 @@ PRIVATE const sdata_desc_t attrs_table[] = {
 SDATA (DTP_INTEGER, "connxs",           SDF_STATS,      "0",        "connection counter"),
 SDATA (DTP_BOOLEAN, "connected",        SDF_VOLATIL|SDF_STATS, "false", "Connection state. Important filter!"),
 SDATA (DTP_STRING,  "path",             SDF_RD,         "/dev/ttyUSB0", "Device to open"),
+SDATA (DTP_STRING,  "url",              SDF_RD,         "/dev/ttyUSB0", "Device (url by compatibility with C_TCP) to open: i.e. /dev/ttyS0"),
+SDATA (DTP_STRING,  "cert_pem",         SDF_RD,         "",     "Not use, by compatibility with C_TCP"),
 
 SDATA (DTP_INTEGER, "rx_buffer_size",   SDF_WR|SDF_PERSIST, "4096", "Rx buffer size"),
 SDATA (DTP_INTEGER, "timeout_between_connections", SDF_WR|SDF_PERSIST, "2000", "Idle timeout to wait between attempts of connection, in milliseconds"),
