@@ -94,17 +94,17 @@ config DEBUG_WITH_BACKTRACE
     help
         Use backtrace library to print stack trace
 
-config DEBUG_PRINT_YEV_LOOP_TIMES
-    bool "Print times of yev_loop"
-    default n
-    help
-        Enable print of elapsed times of several points in yev_loop
-
 config DEBUG_TRACK_MEMORY
     bool "Enable track memory"
     default n
     help
         Enable track memory to find leaks
+
+config DEBUG_PRINT_YEV_LOOP_TIMES
+    bool "Print times of yev_loop"
+    default n
+    help
+        Enable print of elapsed times of several points in yev_loop
 
 endmenu
 

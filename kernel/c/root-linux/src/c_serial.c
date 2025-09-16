@@ -315,7 +315,7 @@ PRIVATE int configure_tty(hgobj gobj)
 
     struct termios termios_settings;
     if(tcgetattr(priv->tty_fd, &termios_settings)<0) {
-        gobj_log_error(gobj, 0,
+        gobj_log_error(gobj, LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_PROTOCOL_ERROR,
             "msg",          "%s", "tcgetattr() FAILED",
