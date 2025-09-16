@@ -257,6 +257,7 @@ typedef enum {
 /***************************************************************************
  *              Prototypes
  ***************************************************************************/
+PRIVATE int print_slave_data(hgobj gobj);
 PRIVATE slave_data_t *get_slave_data(hgobj gobj, int slave_id, BOOL verbose);
 PRIVATE const char *modbus_function_name(int modbus_function);
 PRIVATE modbus_object_type_t get_object_type(hgobj gobj, const char *type);
@@ -516,6 +517,13 @@ PRIVATE int mt_start(hgobj gobj)
     load_modbus_config(gobj);
     build_slave_data(gobj);
     check_conversion_variables(gobj);
+
+    if(gobj_trace_level(gobj) & TRACE_DECODE) {
+        gobj_trace_json(gobj, priv->slaves_, "slaves_");
+        gobj_trace_json(gobj, priv->mapping_, "mapping_");
+        gobj_trace_json(gobj, priv->jn_conversion, "jn_conversion");
+        print_slave_data(gobj);
+    }
 
     SWITCHS(priv->modbus_protocol) {
         CASES("TCP")
@@ -1567,6 +1575,33 @@ PRIVATE int free_slave_data(hgobj gobj)
     for(int i=0; i<priv->max_slaves; i++) {
         // Next slave
         JSON_DECREF(pslv->x_control)
+        pslv++;
+    }
+
+    GBMEM_FREE(priv->slave_data);
+    return 0;
+}
+
+/***************************************************************************
+ *
+ ***************************************************************************/
+PRIVATE int print_slave_data(hgobj gobj)
+{
+    PRIVATE_DATA *priv = gobj_priv_data(gobj);
+
+    slave_data_t *pslv = priv->slave_data;
+    if(!pslv) {
+        gobj_log_error(0, LOG_OPT_TRACE_STACK,
+            "function",     "%s", __FUNCTION__,
+            "msgset",       "%s", MSGSET_INTERNAL_ERROR,
+            "msg",          "%s", "slave data NULL",
+            NULL
+        );
+        return -1;
+    }
+    for(int i=0; i<priv->max_slaves; i++) {
+        // Next slave
+        gobj_trace_json(gobj, pslv->x_control, "slave data %d", pslv->slave_id);
         pslv++;
     }
 
