@@ -439,8 +439,6 @@ typedef struct _PRIVATE_DATA {
 
     slave_data_t *slave_data;
 
-    json_t *jn_conversion;
-
     int inform_on_close;
 
     FRAME_HEAD frame_head;
@@ -511,7 +509,6 @@ PRIVATE int mt_start(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    priv->jn_conversion = json_array();
     priv->jn_request_queue = json_array();
 
     load_modbus_config(gobj);
@@ -521,7 +518,6 @@ PRIVATE int mt_start(hgobj gobj)
     if(gobj_trace_level(gobj) & TRACE_DECODE) {
         gobj_trace_json(gobj, priv->slaves_, "slaves_ max: %d", priv->max_slaves);
         gobj_trace_json(gobj, priv->mapping_, "mapping_ max: %d", priv->max_mapping);
-        gobj_trace_json(gobj, priv->jn_conversion, "jn_conversion");
         print_slave_data(gobj);
     }
 
@@ -608,7 +604,6 @@ PRIVATE int mt_stop(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
-    JSON_DECREF(priv->jn_conversion);
     free_slave_data(gobj);
 
     RESET_MACHINE();
@@ -1573,7 +1568,17 @@ PRIVATE int free_slave_data(hgobj gobj)
         return 0;
     }
     for(int i=0; i<priv->max_slaves; i++) {
-        // Next slave
+        const char *key; json_t *jn_v;
+        json_object_foreach(pslv->x_control, key, jn_v) {
+            const char *key2; json_t *jn_v2;
+            json_object_foreach(jn_v, key2, jn_v2) {
+                cell_control_t *cell_control = (cell_control_t *)(uintptr_t)json_integer_value(jn_v2);
+                if(cell_control) {
+                    GBMEM_FREE(cell_control);
+                }
+            }
+        }
+
         JSON_DECREF(pslv->x_control)
         pslv++;
     }
@@ -1601,11 +1606,10 @@ PRIVATE int print_slave_data(hgobj gobj)
     }
     for(int i=0; i<priv->max_slaves; i++) {
         // Next slave
-        gobj_trace_json(gobj, pslv->x_control, "slave data %d", pslv->slave_id);
+        gobj_trace_json(gobj, pslv->x_control, "x_control of slave data %d", pslv->slave_id);
         pslv++;
     }
 
-    GBMEM_FREE(priv->slave_data);
     return 0;
 }
 
@@ -2983,6 +2987,9 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     int slave_id = pslv->slave_id;
 
     const char *type = kw_get_str(gobj, jn_variable, "type", "", KW_REQUIRED);
+
+    json_object_set_new(jn_variable, "disabled", json_false());
+
     modbus_object_type_t object_type = get_object_type(gobj, type);
     if(object_type < 0) {
         gobj_log_error(gobj, 0,
