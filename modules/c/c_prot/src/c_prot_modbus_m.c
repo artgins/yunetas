@@ -1607,6 +1607,23 @@ PRIVATE int print_slave_data(hgobj gobj)
     for(int i=0; i<priv->max_slaves; i++) {
         // Next slave
         gobj_trace_json(gobj, pslv->x_control, "x_control of slave data %d", pslv->slave_id);
+        const char *key; json_t *jn_v;
+        json_object_foreach(pslv->x_control, key, jn_v) {
+            const char *key2; json_t *jn_v2;
+            json_object_foreach(jn_v, key2, jn_v2) {
+                cell_control_t *cell_control = (cell_control_t *)(uintptr_t)json_integer_value(jn_v2);
+                trace_msg0("slave %d, '%s', '%s':", pslv->slave_id, key, key2);
+                if(cell_control) {
+                    trace_msg0("    input_register: 0x%02X", cell_control->input_register);
+                    trace_msg0("    holding_register: 0x%02X", cell_control->holding_register);
+                    trace_msg0("    control.bit_value: %d", cell_control->control.bit_value);
+                    trace_msg0("    control.updated: %d", cell_control->control.updated);
+                    trace_msg0("    control.compound_value: %d", cell_control->control.compound_value);
+                    trace_msg0("    control.to_write: %d", cell_control->control.to_write);
+                    trace_msg0("    control.value_busy: %d", cell_control->control.value_busy);
+                }
+            }
+        }
         pslv++;
     }
 
