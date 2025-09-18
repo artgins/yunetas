@@ -519,8 +519,8 @@ PRIVATE int mt_start(hgobj gobj)
     check_conversion_variables(gobj);
 
     if(gobj_trace_level(gobj) & TRACE_DECODE) {
-        gobj_trace_json(gobj, priv->slaves_, "slaves_");
-        gobj_trace_json(gobj, priv->mapping_, "mapping_");
+        gobj_trace_json(gobj, priv->slaves_, "slaves_ max: %d", priv->max_slaves);
+        gobj_trace_json(gobj, priv->mapping_, "mapping_ max: %d", priv->max_mapping);
         gobj_trace_json(gobj, priv->jn_conversion, "jn_conversion");
         print_slave_data(gobj);
     }
