@@ -391,21 +391,21 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:b, s:s, s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:b}}",
             "global",
-            "C_Ycommand.verbose", arguments.verbose,
-            "C_Ycommand.command", arguments.command,
-            "C_Ycommand.interactive", arguments.interactive,
-            "C_Ycommand.wait", arguments.wait,
-            "C_Ycommand.auth_system", arguments.auth_system,
-            "C_Ycommand.auth_url", arguments.auth_url,
-            "C_Ycommand.user_id", arguments.user_id,
-            "C_Ycommand.user_passw", arguments.user_passw,
-            "C_Ycommand.jwt", arguments.jwt,
-            "C_Ycommand.url", arguments.url,
-            "C_Ycommand.azp", arguments.azp,
-            "C_Ycommand.yuno_role", arguments.yuno_role,
-            "C_Ycommand.yuno_name", arguments.yuno_name,
-            "C_Ycommand.yuno_service", arguments.yuno_service,
-            "C_Ycommand.print_with_metadata", arguments.print_with_metadata
+            "C_YCOMMAND.verbose", arguments.verbose,
+            "C_YCOMMAND.command", arguments.command,
+            "C_YCOMMAND.interactive", arguments.interactive,
+            "C_YCOMMAND.wait", arguments.wait,
+            "C_YCOMMAND.auth_system", arguments.auth_system,
+            "C_YCOMMAND.auth_url", arguments.auth_url,
+            "C_YCOMMAND.user_id", arguments.user_id,
+            "C_YCOMMAND.user_passw", arguments.user_passw,
+            "C_YCOMMAND.jwt", arguments.jwt,
+            "C_YCOMMAND.url", arguments.url,
+            "C_YCOMMAND.azp", arguments.azp,
+            "C_YCOMMAND.yuno_role", arguments.yuno_role,
+            "C_YCOMMAND.yuno_name", arguments.yuno_name,
+            "C_YCOMMAND.yuno_service", arguments.yuno_service,
+            "C_YCOMMAND.print_with_metadata", arguments.print_with_metadata
         );
 
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);

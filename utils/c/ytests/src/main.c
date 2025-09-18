@@ -390,19 +390,19 @@ int main(int argc, char *argv[])
         json_t *kw_utility = json_pack(
             "{s:{s:i, s:i, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s, s:s}}",
             "global",
-            "C_Ytests.repeat", arguments.repeat,
-            "C_Ytests.verbose", arguments.verbose,
-            "C_Ytests.path", path,
-            "C_Ytests.auth_system", arguments.auth_system,
-            "C_Ytests.auth_url", arguments.auth_url,
-            "C_Ytests.user_id", arguments.user_id,
-            "C_Ytests.user_passw", arguments.user_passw,
-            "C_Ytests.jwt", arguments.jwt,
-            "C_Ytests.url", arguments.url,
-            "C_Ytests.azp", arguments.azp,
-            "C_Ytests.yuno_role", arguments.yuno_role,
-            "C_Ytests.yuno_name", arguments.yuno_name,
-            "C_Ytests.yuno_service", arguments.yuno_service
+            "C_YTESTS.repeat", arguments.repeat,
+            "C_YTESTS.verbose", arguments.verbose,
+            "C_YTESTS.path", path,
+            "C_YTESTS.auth_system", arguments.auth_system,
+            "C_YTESTS.auth_url", arguments.auth_url,
+            "C_YTESTS.user_id", arguments.user_id,
+            "C_YTESTS.user_passw", arguments.user_passw,
+            "C_YTESTS.jwt", arguments.jwt,
+            "C_YTESTS.url", arguments.url,
+            "C_YTESTS.azp", arguments.azp,
+            "C_YTESTS.yuno_role", arguments.yuno_role,
+            "C_YTESTS.yuno_name", arguments.yuno_name,
+            "C_YTESTS.yuno_service", arguments.yuno_service
         );
         char *param1_ = json_dumps(kw_utility, JSON_COMPACT);
         if(!param1_) {
