@@ -1306,7 +1306,7 @@ PRIVATE int mt_play(hgobj gobj)
             "Cannot start agent treedb: %s",
             comment
         );
-        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO,
+        gobj_log_error(gobj, LOG_OPT_EXIT_ZERO|LOG_OPT_TRACE_STACK,
             "function",     "%s", __FUNCTION__,
             "msgset",       "%s", MSGSET_APP_ERROR,
             "msg",          "%s", comment,
