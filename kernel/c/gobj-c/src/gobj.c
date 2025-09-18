@@ -989,7 +989,7 @@ PUBLIC event_type_t *gobj_find_event_type(const char *event, event_flag_t event_
         event_t *event_ = dl_first(&gclass->dl_events);
         while(event_) {
             if(!event_flag || (event_->event_type.event_flag & event_flag)) {
-                if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event)==0) {
+                if(event_->event_type.event_name && strcmp(event_->event_type.event_name, event)==0) {
                     return &event_->event_type;
                 }
             }
@@ -1143,7 +1143,7 @@ PUBLIC hgclass gclass_find_by_name(gclass_name_t gclass_name) // gclass_name can
      */
     gclass = dl_first(&dl_gclass);
     while(gclass) {
-        if(strcasecmp(gclass_name, gclass->gclass_name)==0) {
+        if(strcmp(gclass_name, gclass->gclass_name)==0) {
             return gclass;
         }
         gclass = dl_next(gclass);
@@ -2533,11 +2533,11 @@ PRIVATE const char *is_for_me(
         strncpy(temp, key, ln); // Copy the first segment of splitting by '.'
         temp[ln]=0;
 
-        if(gobj_name && strcasecmp(gobj_name, temp)==0) {
+        if(gobj_name && strcmp(gobj_name, temp)==0) {
             // match the name
             return p+1;
         }
-        if(gclass_name && strcasecmp(gclass_name, temp)==0) {
+        if(gclass_name && strcmp(gclass_name, temp)==0) {
             // match the gclass name
             return p+1;
         }
@@ -5117,7 +5117,7 @@ PUBLIC hgobj gobj_find_service_by_gclass(const char *gclass_name, BOOL verbose) 
     json_object_foreach(__jn_services__, key, jn_service) {
         gobj_t *gobj = (gobj_t *)(uintptr_t)json_integer_value(jn_service);
         const char *gclass_name_ = gobj_gclass_name(gobj);
-        if(strcasecmp(gclass_name, gclass_name_)==0) {
+        if(strcmp(gclass_name, gclass_name_)==0) {
             return gobj;
         }
     }
@@ -5401,7 +5401,7 @@ PUBLIC BOOL gobj_match_gobj(
         json_object_del(jn_filter, "__gclass_name__");
     }
     if(__state__) {
-        if(strcasecmp(__state__, gobj_current_state(gobj))!=0) {
+        if(strcmp(__state__, gobj_current_state(gobj))!=0) {
             JSON_DECREF(jn_filter) // clone
             return FALSE;
         }
@@ -5657,7 +5657,7 @@ PUBLIC hgobj gobj_search_path(hgobj gobj_, const char *path_)
                 if(!gclass_name_) {
                     continue;
                 }
-                if(strcasecmp(gclass_name_, gobj_gclass_name(gobj))==0) {
+                if(strcmp(gclass_name_, gobj_gclass_name(gobj))==0) {
                     continue;
                 }
             }
@@ -6307,7 +6307,7 @@ PUBLIC BOOL gobj_is_bottom_gobj(hgobj gobj_)
  ***************************************************************************/
 PUBLIC BOOL gobj_typeof_gclass(hgobj gobj, const char *gclass_name)
 {
-    if(strcasecmp(((gobj_t *)gobj)->gclass->gclass_name, gclass_name)==0) {
+    if(strcmp(((gobj_t *)gobj)->gclass->gclass_name, gclass_name)==0) {
         return TRUE;
     } else {
         return FALSE;
@@ -6322,7 +6322,7 @@ PUBLIC BOOL gobj_typeof_inherited_gclass(hgobj gobj_, const char *gclass_name)
     gobj_t * gobj = gobj_;
 
     while(gobj) {
-        if(strcasecmp(gclass_name, gobj->gclass->gclass_name)==0) {
+        if(strcmp(gclass_name, gobj->gclass->gclass_name)==0) {
             return TRUE;
         }
         gobj = gobj->bottom_gobj;
@@ -7885,7 +7885,7 @@ PUBLIC event_type_t *gobj_event_type_by_name(hgobj gobj_, const char *event_name
 
     event_t *event_ = dl_first(&gobj->gclass->dl_events);
     while(event_) {
-        if(event_->event_type.event_name && strcasecmp(event_->event_type.event_name, event_name)==0) {
+        if(event_->event_type.event_name && strcmp(event_->event_type.event_name, event_name)==0) {
             return &event_->event_type;
         }
         event_ = dl_next(event_);
@@ -9391,19 +9391,19 @@ PUBLIC const sdata_desc_t *authz_get_level_desc(
             alias_checked = TRUE;
             const char **alias = pcmd->alias;
             while(alias && *alias) {
-                if(strcasecmp(*alias, auth)==0) {
+                if(strcmp(*alias, auth)==0) {
                     return pcmd;
                 }
                 alias++;
             }
         }
-        if(strcasecmp(pcmd->name, auth)==0) {
+        if(strcmp(pcmd->name, auth)==0) {
             return pcmd;
         }
         if(!alias_checked) {
             const char **alias = pcmd->alias;
             while(alias && *alias) {
-                if(strcasecmp(*alias, auth)==0) {
+                if(strcmp(*alias, auth)==0) {
                     return pcmd;
                 }
                 alias++;
