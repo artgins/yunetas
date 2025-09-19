@@ -24,14 +24,14 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <regex.h>
-#include <sys/sysinfo.h>
-#include <sys/stat.h>
 
 #include <yuneta_config.h>  /* don't remove */
 
 #ifdef ESP_PLATFORM
 #include "esp_system.h" // For esp_fill_random()
 #elif __linux__
+#include <sys/sysinfo.h>
+#include <sys/stat.h>
 #include <sys/random.h> // For getrandom()
 #include <syslog.h>
 #include <backtrace.h>

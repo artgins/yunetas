@@ -9,9 +9,9 @@
  ****************************************************************************/
 #pragma once
 
+#include <sys/types.h>
 #include <regex.h>
 #include <inttypes.h>
-#include <sys/types.h>
 #include <time.h>
 
 /*
