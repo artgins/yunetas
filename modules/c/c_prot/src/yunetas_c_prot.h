@@ -12,8 +12,8 @@ extern "C"{
 
 #include <yunetas.h>
 
-#include <c_ota.h>
-#include <c_prot_modbus_m.h>
+// #include <c_ota.h>
+// #include <c_prot_modbus_m.h>
 
 #ifdef __cplusplus
 }

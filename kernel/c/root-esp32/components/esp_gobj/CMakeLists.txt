@@ -3,20 +3,23 @@
 #------------------------------------------------------#
 set(srcs
     src/00_http_parser.c
-    src/ghttp_parser.c
-    src/gobj.c
-    src/glog.c
-    src/gobj_environment.c
-    src/istream.c
-    src/parse_url.c
-    src/log_udp_handler.c
-    src/helpers.c
-    src/kwid.c
-    src/gbuffer.c
-    src/comm_prot.c
     src/command_parser.c
+    src/dl_list.c
+    src/gbmem.c
+    src/gbuffer.c
+    src/g_ev_kernel.c
+    src/glogger.c
+    src/gobj.c
+    src/g_st_kernel.c
+    src/helpers.c
+    src/json_config.c
+    src/json_replace_vars.c
+    src/kwid.c
+    src/log_udp_handler.c
+    src/replace_string.c
+    src/rotatory.c
     src/stats_parser.c
-    src/timeranger.c
+    src/testing.c
 )
 
 set(requires

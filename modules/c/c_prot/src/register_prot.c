@@ -7,8 +7,8 @@
  *            Copyright (c) 2025, ArtGins.
  *            All Rights Reserved.
  ****************************************************************************/
-#include "c_prot_modbus_m.h"
-#include "c_ota.h"
+// #include "c_prot_modbus_m.h"
+// #include "c_ota.h"
 #include "register_prot.h"
 
 /***************************************************************************
@@ -21,8 +21,8 @@ PUBLIC int register_prot(void)
         return -1;
     }
 
-    register_c_ota();
-    register_c_prot_modbus_m();
+    // register_c_ota();
+    // register_c_prot_modbus_m();
 
     initialized = TRUE;
 
