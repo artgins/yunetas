@@ -94,27 +94,13 @@ list(APPEND CMAKE_MODULE_PATH "${YUNETAS_BASE}/tools/cmake")
 #----------------------------------------#
 #   Global definitions and include paths
 #----------------------------------------#
-add_compile_definitions(
-    _GNU_SOURCE
-)
-
 if(AS_STATIC)
     # To use with musl compiler
     list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
     set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs_static")
-
-    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/include")
-    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/lib")
-    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_static/include")
-    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_static/lib")
 else()
     list(APPEND CMAKE_SYSTEM_PREFIX_PATH "${YUNETAS_PARENT_BASE_DIR}/outputs")
     set(CMAKE_INSTALL_PREFIX "${YUNETAS_PARENT_BASE_DIR}/outputs")
-
-    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
-    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
-    include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/include")
-    link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs/lib")
 endif()
 
 #----------------------------------------#
@@ -125,6 +111,26 @@ set(INC_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/include)
 set(LIB_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/lib)
 set(BIN_DEST_DIR     ${CMAKE_INSTALL_PREFIX}/bin)
 set(YUNOS_DEST_DIR   ${CMAKE_INSTALL_PREFIX}/yunos)
+
+if(ESP_PLATFORM)
+    message(STATUS "ESP-IDF platform build")
+else()
+    # desktop / linux / glibc
+    add_definitions(-D_GNU_SOURCE)
+
+    if(AS_STATIC)
+        # To use with musl compiler
+        include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/include")
+        link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext_static/lib")
+    else()
+        include_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/include")
+        link_directories("${YUNETAS_PARENT_BASE_DIR}/outputs_ext/lib")
+    endif()
+
+    include_directories("${INC_DEST_DIR}")
+    link_directories("${LIB_DEST_DIR}")
+
+endif()
 
 #----------------------------------------#
 #   Default if not specified
@@ -148,7 +154,11 @@ set(COMMON_C_FLAGS
     -funsigned-char
 )
 
-add_compile_options(${COMMON_C_FLAGS})
+
+if(NOT ESP_PLATFORM)
+    # desktop / linux / glibc
+    add_link_options(${COMPILER_LINK_FLAGS})
+endif()
 
 #----------------------------------------#
 #   Compiler link flags
@@ -156,7 +166,6 @@ add_compile_options(${COMMON_C_FLAGS})
 set(COMPILER_LINK_FLAGS
 #    -no-pie # it seems that with this is getting slower
 )
-add_link_options(${COMPILER_LINK_FLAGS})
 
 #----------------------------------------#
 #   Libraries

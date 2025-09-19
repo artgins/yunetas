@@ -22,6 +22,10 @@ set(srcs
     src/testing.c
 )
 
+set(include
+    src
+)
+
 set(requires
     esp_event
     esp_jansson
@@ -33,8 +37,7 @@ set(requires
 idf_component_register(
     SRCS ${srcs}
     REQUIRES ${requires}
-    INCLUDE_DIRS
-        src/
+    INCLUDE_DIRS ${include} ${INC_DEST_DIR}
 )
 
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_CONFIG_H=1")
