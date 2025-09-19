@@ -13,6 +13,12 @@
 #include <unistd.h>
 #include <libgen.h>
 
+#include "msg_ievent.h"
+#include "g_st_kernel.h"
+#include "g_ev_kernel.h"
+#include "c_prot_http_cl.h"
+#include "c_timer.h"
+
 #ifdef ESP_PLATFORM
     #include <esp_ota_ops.h>
     #include <esp_flash_partitions.h>
@@ -22,6 +28,7 @@
 #endif
 
 #include "c_ota.h"
+
 
 
 /***************************************************************

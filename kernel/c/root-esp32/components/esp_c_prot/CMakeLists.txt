@@ -22,7 +22,7 @@ set(srcs
 )
 
 if(CONFIG_YUNETA_MODBUS_MASTER)
-    list(APPEND srcs "src/c_prot_modbus_master.c")
+    list(APPEND srcs "src/c_prot_modbus_m.c")
 endif()
 
 set(include
