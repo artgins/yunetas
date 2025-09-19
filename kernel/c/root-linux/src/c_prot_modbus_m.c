@@ -57,9 +57,16 @@ Example of modbus configuration:
  ***********************************************************************/
 #include <string.h>
 #include <arpa/inet.h>
+
+#include "istream.h"
 #include "msg_ievent.h"
+#include "g_ev_kernel.h"
+#include "g_st_kernel.h"
 #include "c_uart.h"
+#include "c_timer.h"
+#include "c_tcp.h"
 #include "c_prot_modbus_m.h"
+
 
 /***************************************************************************
  *              Constants

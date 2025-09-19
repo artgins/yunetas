@@ -37,6 +37,7 @@ set (SRCS
     src/c_prot_http_sr.c
     src/c_prot_mqtt.c
     src/c_prot_tcp4h.c
+    src/c_prot_modbus_m.c
     src/c_websocket.c
     src/c_authz.c
     src/c_task.c
@@ -80,6 +81,7 @@ set (HDRS
     src/c_prot_http_sr.h
     src/c_prot_mqtt.h
     src/c_prot_tcp4h.h
+    src/c_prot_modbus_m.h
     src/c_websocket.h
     src/c_authz.h
     src/c_task.h
