@@ -14,7 +14,9 @@
 #include <stdlib.h>
 #include <libgen.h>
 #include <dirent.h>
+#ifdef __linux__
 #include <sys/statvfs.h>
+#endif
 #include <unistd.h>
 #include <limits.h>
 

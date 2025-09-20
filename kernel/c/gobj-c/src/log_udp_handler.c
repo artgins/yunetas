@@ -29,6 +29,7 @@
 #include <esp_log.h>
 #endif
 
+#include "g_ev_kernel.h"
 #include "helpers.h"
 #include "log_udp_handler.h"
 

@@ -28,6 +28,7 @@
  ****************************************************************************/
 #include <string.h>
 
+#include "ansi_escape_codes.h"  /* used by ESP */
 #include "gtypes.h"
 #include "dl_list.h"
 #include "gbmem.h"

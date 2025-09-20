@@ -118,7 +118,9 @@ PRIVATE char node_uuid_[64] = {0}; // uuid of the node
 PUBLIC int newdir(const char *path, int xpermission)
 {
     if(!umask_cleared) {
+#ifdef __linux__
         umask(0);
+#endif
         umask_cleared = TRUE;
     }
     return mkdir(path, xpermission);
@@ -134,7 +136,9 @@ PUBLIC int newfile(const char *path, int rpermission, BOOL overwrite)
     int flags = O_CREAT|O_RDWR|O_LARGEFILE|O_CLOEXEC;
 
     if(!umask_cleared) {
+#ifdef __linux__
         umask(0);
+#endif
         umask_cleared = TRUE;
     }
 
@@ -6652,4 +6656,13 @@ PUBLIC int is_yuneta_user(const char *username)
 #else
     #error "What S.O.?"
 #endif
+}
+
+/***************************************************************************
+ *  esp-idf has not basename
+ ***************************************************************************/
+PUBLIC const char *path_basename(const char *path)
+{
+    const char *p = strrchr(path, '/');
+    return p ? p + 1 : path;
 }

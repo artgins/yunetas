@@ -25,12 +25,12 @@ set(srcs
     src/g_st_kernel.c
     src/helpers.c
     src/json_config.c
-    src/json_replace_vars.c
+    src/json_replace_vars_with_regex.c
     src/kwid.c
     src/log_udp_handler.c
     src/replace_string.c
     src/rotatory.c
-#    src/stats_parser.c
+    src/stats_parser.c
 #    src/testing.c
 )
 

@@ -1393,7 +1393,7 @@ PUBLIC BOOL kwid_compare_lists(
                      *  List with id records
                      *--------------------------------*/
                     if(id1) {
-                        size_t idx2 = kwid_find_record_in_list(gobj, expected, id1, 0);
+                        int idx2 = kwid_find_record_in_list(gobj, expected, id1, 0);
                         if(idx2 < 0) {
                             ret = FALSE;
                             if(verbose) {

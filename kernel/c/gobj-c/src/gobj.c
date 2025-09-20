@@ -17,14 +17,13 @@
     #include <strings.h>
     #include <sys/utsname.h>
     #include <unistd.h>
+    #include <openssl/x509.h>
 #endif
 
 #include "command_parser.h"
 #include "stats_parser.h"
 #include "testing.h"
 #include "gobj.h"
-
-#include <openssl/x509.h>
 
 #include "g_ev_kernel.h"
 #include "g_st_kernel.h"

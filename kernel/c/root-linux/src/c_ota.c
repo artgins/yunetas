@@ -212,7 +212,6 @@ PRIVATE SData_Value_t mt_reading(hgobj gobj, const char *name)
     SData_Value_t v = {0,{0}};
     if(strcmp(name, "ota_state")==0) {
 #ifdef ESP_PLATFORM
-        TODO
         const esp_partition_t *running = esp_ota_get_running_partition();
         esp_ota_img_states_t ota_state;
         if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) {
@@ -426,14 +425,14 @@ PRIVATE json_t *cmd_download_firmware(hgobj gobj, const char *cmd, json_t *kw, h
         return kw_response;
     }
 
-    int same = strncasecmp(gobj_yuno_role(), basename(priv->binary_file), strlen(gobj_yuno_role()));
+    int same = strncasecmp(gobj_yuno_role(), path_basename(priv->binary_file), strlen(gobj_yuno_role()));
     if(same!=0 && !force) {
         json_t *kw_response = build_command_response(
             gobj,
             -1,     // result
             json_sprintf("Binary yuno role NOT MATCH, me: %s, other: %s",
                 gobj_yuno_role(),
-                basename(priv->binary_file)
+                path_basename(priv->binary_file)
             ),   // jn_comment
             0,      // jn_schema
             0       // jn_data
@@ -712,7 +711,7 @@ PRIVATE int ac_on_header(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
         priv->content_received = 0;
 
 #ifdef __linux__
-        const char *filename = basename(priv->binary_file);
+        const char *filename = path_basename(priv->binary_file);
         priv->fp = newfile(filename, 02770, TRUE);
 #endif
     } else {

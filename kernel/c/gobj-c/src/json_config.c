@@ -170,7 +170,7 @@ PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_fl
     if(!gbuf_src) {
         print_error(
             quit,
-            "No memory for %s: %lu bytes\n",
+            "No memory for %s: %zu bytes\n",
             reference?reference:"",
             len
         );
@@ -185,7 +185,7 @@ PRIVATE json_t * x_legalstring2json(const char *reference, const char *bf, pe_fl
     if(!gbuf_dst) {
         print_error(
             quit,
-            "No memory for %s: %lu bytes\n",
+            "No memory for %s: %zu bytes\n",
             reference?reference:"",
             len
         );
@@ -298,7 +298,7 @@ PRIVATE json_t *load_json_file(const char *path, pe_flag_t quit)
     if(!buf) {
         print_error(
             quit,
-            "No memory for: %lu bytes\n",
+            "No memory for: %zu bytes\n",
             len
         );
         fclose(file);

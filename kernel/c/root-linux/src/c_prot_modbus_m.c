@@ -67,6 +67,9 @@ Example of modbus configuration:
 #include "c_tcp.h"
 #include "c_prot_modbus_m.h"
 
+#ifdef ESP_PLATFORM
+#include "c_esp_transport.h"
+#endif
 
 /***************************************************************************
  *              Constants

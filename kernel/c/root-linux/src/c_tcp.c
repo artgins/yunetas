@@ -204,7 +204,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  CHILD subscription model
      */
-    hgobj subscriber = (hgobj)gobj_read_integer_attr(gobj, "subscriber");
+    hgobj subscriber = (hgobj)(uintptr_t)gobj_read_integer_attr(gobj, "subscriber");
     if(!subscriber) {
         subscriber = gobj_parent(gobj);
     }

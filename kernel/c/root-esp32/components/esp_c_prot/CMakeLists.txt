@@ -15,6 +15,8 @@ include("${YUNETAS_BASE}/tools/cmake/project.cmake")
 #------------------------------------------------------#
 set(srcs
     src/msg_ievent.c
+    src/istream.c
+    src/ghttp_parser.c
     src/c_prot_http_cl.c
     src/c_ievent_cli.c
     src/c_prot_tcp4h.c
