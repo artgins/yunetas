@@ -9,10 +9,13 @@
  *          All Rights Reserved.
  ****************************************************************************/
 #include <time.h>
+
 #ifdef ESP_PLATFORM
   #include <esp_timer.h>
   #include <esp_event.h>
 #endif
+#include <g_ev_kernel.h>
+#include <g_st_kernel.h>
 #include <kwid.h>
 #include "c_esp_yuno.h"
 #include "c_timer.h"

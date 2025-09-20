@@ -29,6 +29,7 @@
 
 #ifdef ESP_PLATFORM
 #include "esp_system.h" // For esp_fill_random()
+#include "esp_mac.h"    // For esp_base_mac_addr_set()
 #elif __linux__
 #include <sys/sysinfo.h>
 #include <sys/stat.h>
@@ -62,6 +63,10 @@
     #define fstat64 fstat
     #define stat64 stat
     #define syslog(priority, format, ... ) ESP_LOG_LEVEL_LOCAL(ESP_LOG_ERROR, "yuneta", format, ##__VA_ARGS__)
+#endif
+
+#ifndef O_LARGEFILE
+#define O_LARGEFILE 0
 #endif
 
 #include "kwid.h"
@@ -2826,7 +2831,13 @@ PRIVATE int _walk_tree(
         char path[PATH_MAX];
         build_path(path, sizeof(path), root_dir, dname, NULL);
 
+#ifdef __linux__
         if(lstat(path, &st) == -1) {
+#elif ESP_PLATFORM
+        if(stat(path, &st) == -1) {
+#else
+    #error "What S.O.?"
+#endif
             // DO NOT take trace of:
             // EACCES Permission denied (when it is a file opened by another, for example)
             // ENOENT No such file or directory (Broken links, for example)
@@ -2843,7 +2854,6 @@ PRIVATE int _walk_tree(
             }
             continue;
         }
-
         type = 0;
         if(S_ISDIR(st.st_mode)) {
             if ((opt & WD_MATCH_DIRECTORY)) {
@@ -4586,7 +4596,7 @@ PUBLIC char *hex2bin(char *bf, int bfsize, const char *hex, size_t hex_len, size
 {
     size_t i;
     char cur;
-    char val;
+    signed char val;
     for (i = 0; i < hex_len; i++) {
         cur = hex[i];
         val = base16_decoding_table1[(int)cur];
@@ -5053,13 +5063,14 @@ PUBLIC uint64_t time_in_seconds(void)
  ****************************************************************************/
 PUBLIC uint64_t cpu_usage(void)
 {
+#ifdef __linux__
     FILE *fp = fopen("/proc/self/stat", "r");
     if(!fp) {
         return 0;
     }
 
-    uint64_t utime = 0;
-    uint64_t stime = 0;
+    unsigned long utime = 0;
+    unsigned long stime = 0;
 
     int res = fscanf(fp,
         "%*d %*s %*c %*d %*d %*d %*d %*d "
@@ -5071,6 +5082,9 @@ PUBLIC uint64_t cpu_usage(void)
     fclose(fp);
 
     return utime + stime;
+#else
+    return 0;
+#endif
 }
 
 /****************************************************************************
@@ -5088,6 +5102,7 @@ PUBLIC double cpu_usage_percent(
     uint64_t *last_ms
 )
 {
+#ifdef __linux__
     uint64_t cpu_ticks = cpu_usage();  // utime + stime in jiffies
     uint64_t ms = time_in_milliseconds_monotonic();
     long ticks_per_sec = sysconf(_SC_CLK_TCK);
@@ -5115,6 +5130,9 @@ PUBLIC double cpu_usage_percent(
     *last_cpu_ticks = cpu_ticks;
 
     return cpu_percent;
+#else
+    return 0;
+#endif
 }
 
 /***************************************************************************
@@ -5147,18 +5165,12 @@ PUBLIC uint64_t ntohll(uint64_t value)
     }
 }
 
-//#include <stdio.h>
-//#include <stdlib.h>
-//#include <dirent.h>
-//#include <unistd.h>
-//#include <limits.h>
-//#include <string.h>
-
 /***************************************************************************
  *  Convert a 64-bit integer to host byte order
  ***************************************************************************/
 PUBLIC void list_open_files(void)
 {
+#ifdef __linux__
     char fd_dir_path[PATH_MAX];
     char file_path[2*PATH_MAX];
     char resolved_path[PATH_MAX];
@@ -5205,6 +5217,7 @@ PUBLIC void list_open_files(void)
 
     // Close the directory
     closedir(dir);
+#endif
 }
 
 /***********************************************************************
@@ -5220,11 +5233,11 @@ PUBLIC char *formatdate(time_t t, char *bf, int bfsize, const char *format)
 
     /* Pon en formato DD/MM/CCYY-W-ZZZ */
     snprintf(sfechahora, sizeof(sfechahora), "%02d/%02d/%4d-%d-%03d",
-             tm->tm_mday,            // 01-31
-             tm->tm_mon+1,           // 01-12
-             tm->tm_year + 1900,
-             tm->tm_wday+1,          // 1-7
-             tm->tm_yday+1           // 001-365
+         tm->tm_mday,            // 01-31
+         tm->tm_mon+1,           // 01-12
+         tm->tm_year + 1900,
+         tm->tm_wday+1,          // 1-7
+         tm->tm_yday+1           // 001-365
     );
     if(empty_string(format)) {
         format = "DD/MM/CCYY-W-ZZZ";
@@ -5949,6 +5962,7 @@ PUBLIC int get_url_schema(
 
 
 
+#ifdef __linux__
 #if CONFIG_DEBUG_WITH_BACKTRACE
 struct pass_data {
     loghandler_fwrite_fn_t fwrite_fn;
@@ -5990,13 +6004,15 @@ PRIVATE int full_callback(
     }
     return 0;
 }
-#endif
+#endif /* CONFIG_DEBUG_WITH_BACKTRACE */
+#endif /* __linux__ */
 
 /***************************************************************************
  *
  ***************************************************************************/
 PUBLIC void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void *h)
 {
+#ifdef __linux__
 #if CONFIG_DEBUG_WITH_BACKTRACE
     if(!backtrace_initialized) {
         return;
@@ -6013,7 +6029,8 @@ PUBLIC void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void
     fwrite_fn(h, LOG_DEBUG, "===============> begin stack trace <==================");
 
     backtrace_full(state, 0, full_callback, error_callback, &data);
-#endif
+#endif /* CONFIG_DEBUG_WITH_BACKTRACE */
+#endif /* __linux__ */
 }
 
 /***************************************************************************
@@ -6021,6 +6038,7 @@ PUBLIC void show_backtrace_with_backtrace(loghandler_fwrite_fn_t fwrite_fn, void
  ***************************************************************************/
 PUBLIC int init_backtrace_with_backtrace(const char *program)
 {
+#ifdef __linux__
 #if CONFIG_DEBUG_WITH_BACKTRACE
     if(!backtrace_initialized) {
         // Initialize the backtrace state
@@ -6038,20 +6056,17 @@ PUBLIC int init_backtrace_with_backtrace(const char *program)
         backtrace_initialized = TRUE;
     }
     snprintf(program_name, sizeof(program_name), "%s", program?program:"");
-#endif
+#endif /* CONFIG_DEBUG_WITH_BACKTRACE */
+#endif /* __linux__ */
     return 0;
 }
-
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <sys/sysinfo.h>
 
 /***************************************************************
  *  Return the free RAM in kilobytes
  ***************************************************************/
 PUBLIC unsigned long free_ram_in_kb(void)
 {
+#ifdef __linux__
     FILE *fp = fopen("/proc/meminfo", "r");
     if(fp) {
         char line[256];
@@ -6086,6 +6101,11 @@ PUBLIC unsigned long free_ram_in_kb(void)
     }
 
     return 0;
+#elif ESP_PLATFORM
+    return 0; // TODO review
+#else
+#error "What S.O.?"
+#endif
 }
 
 /***************************************************************
@@ -6093,6 +6113,7 @@ PUBLIC unsigned long free_ram_in_kb(void)
  ***************************************************************/
 PUBLIC unsigned long total_ram_in_kb(void)
 {
+#ifdef __linux__
     FILE *fp = fopen("/proc/meminfo", "r");
     if(fp) {
         char line[256];
@@ -6116,6 +6137,11 @@ PUBLIC unsigned long total_ram_in_kb(void)
     }
 
     return 0;  // Unable to determine total RAM
+#elif ESP_PLATFORM
+    return 0; // TODO review
+#else
+#error "What S.O.?"
+#endif
 }
 
 /***************************************************************
@@ -6128,6 +6154,7 @@ PUBLIC unsigned long total_ram_in_kb(void)
  ***************************************************************/
 PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)
 {
+#ifdef __linux__
     if(!bf || bfsize == 0) {
         errno = EINVAL;
         return -1;
@@ -6163,6 +6190,7 @@ PUBLIC int read_process_cmdline(char *bf, size_t bfsize, pid_t pid)
     }
     bf[n] = '\0';
 
+#endif
     return 0;
 }
 
@@ -6197,25 +6225,22 @@ PUBLIC int copyfile(
     fstat(input, &fileinfo);
     int result = sendfile(output, input, &bytesCopied, fileinfo.st_size);
 #else
-    size_t nread;
+    ssize_t nread;
     int result = 0;
     int error = 0;
     char buf[4096];
 
     while (nread = read(input, buf, sizeof buf), nread > 0 && !error) {
         char *out_ptr = buf;
-        size_t nwritten;
+        ssize_t nwritten;
 
         do {
             nwritten = write(output, out_ptr, nread);
 
-            if (nwritten >= 0)
-            {
+            if (nwritten > 0) {
                 nread -= nwritten;
                 out_ptr += nwritten;
-            }
-            else if (errno != EINTR)
-            {
+            } else if (errno != EINTR) {
                 error = 1;
                 result = -1;
                 break;
@@ -6474,6 +6499,7 @@ PUBLIC int get_sockname(char *bf, size_t bfsize, int fd)
  ***************************************************************************/
 PUBLIC int check_open_fds(void) // return # opened fd's
 {
+#ifdef __linux__
     DIR *dir = opendir("/proc/self/fd");
     if(!dir) {
         return 0;
@@ -6499,6 +6525,9 @@ PUBLIC int check_open_fds(void) // return # opened fd's
     closedir(dir);
 
     return n;
+#else
+    return 0;
+#endif
 }
 
 /***************************************************************************
@@ -6506,6 +6535,7 @@ PUBLIC int check_open_fds(void) // return # opened fd's
  ***************************************************************************/
 PUBLIC int print_open_fds(const char *fmt, ...)
 {
+#ifdef __linux__
     va_list ap;
     char prefix[512];
 
@@ -6559,6 +6589,9 @@ PUBLIC int print_open_fds(const char *fmt, ...)
     closedir(dir);
 
     return n;
+#else
+    return 0;
+#endif
 }
 
 /***************************************************************************
@@ -6571,6 +6604,9 @@ PUBLIC int print_open_fds(const char *fmt, ...)
  ***************************************************************************/
 PUBLIC int is_yuneta_user(const char *username)
 {
+#ifdef ESP_PLATFORM
+    return TRUE;
+#elif __linux__
     if(!username) {
         return FALSE;
     }
@@ -6613,4 +6649,7 @@ PUBLIC int is_yuneta_user(const char *username)
     }
 
     return FALSE;
+#else
+    #error "What S.O.?"
+#endif
 }

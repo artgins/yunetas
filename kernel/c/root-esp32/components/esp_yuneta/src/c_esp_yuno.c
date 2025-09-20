@@ -23,9 +23,11 @@
 #include <log_udp_handler.h>    // log upd is open when wifi/ethernet is connected
 #include <kwid.h>
 #include <command_parser.h>
+#include <g_ev_kernel.h>
+#include <g_st_kernel.h>
+#include "c_timer.h"
 #include "c_esp_ethernet.h"
 #include "c_esp_wifi.h"
-#include "c_timer.h"
 #include "c_esp_yuno.h"
 
 /***************************************************************
@@ -692,7 +694,7 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
         0,
         0,
         0,
-        gobj_gclass_register()
+        gclass_gclass_register()
     );
     JSON_DECREF(kw)
     return jn_response;
@@ -701,22 +703,22 @@ PRIVATE json_t *cmd_view_gclass_register(hgobj gobj, const char *cmd, json_t *kw
 /***************************************************************************
  *  Show register
  ***************************************************************************/
+static const json_desc_t services_desc[] = { // HACK must match with gobj_service_register()
+    // Name             Type        Defaults    Fillspace
+    {"service",         "string",   "",         "40"},  // First item is the pkey
+    {"gclass",          "string",   "",         "40"},
+    {"cmds",            "boolean",  "",         "10"},
+    {0}
+};
 PRIVATE json_t *cmd_view_service_register(hgobj gobj, const char *cmd, json_t *kw, hgobj src)
 {
-    const char *gclass_name = kw_get_str(
-        gobj,
-        kw,
-        "gclass_name",
-        kw_get_str(gobj, kw, "gclass", "", 0),
-        0
-    );
-
+    json_t *jn_schema = json_desc_to_schema(services_desc);
     json_t *jn_response = build_command_response(
         gobj,
         0,
         0,
-        0,
-        gobj_service_register(gclass_name)
+        jn_schema,
+        gobj_service_register()
     );
     JSON_DECREF(kw)
     return jn_response;
@@ -1222,7 +1224,7 @@ PRIVATE json_t *cmd_view_gobj_tree(hgobj gobj, const char *cmd, json_t *kw, hgob
     }
 
     json_t *jn_options = kw_get_list(gobj, kw, "options", 0, 0);
-    json_t *jn_data = view_gobj_tree(gobj2read, json_incref(jn_options));
+    json_t *jn_data = gobj_view_tree(gobj2read, json_incref(jn_options));
 
     json_t *kw_response = build_command_response(
         gobj,
@@ -2952,11 +2954,12 @@ PRIVATE void time_sync_notification_cb(struct timeval *tv)
  *  Send logs to log center by udp
  ***************************************************************************/
 #ifdef ESP_PLATFORM
-PRIVATE int udp_log(const char *fmt, va_list ap)
-{
-    trace_vjson(0, 0, "esp_log", fmt, ap);
-    return 0;
-}
+// TODO what for ???
+//PRIVATE int udp_log(const char *fmt, va_list ap)
+//{
+//    trace_vjson(0, 0, "esp_log", fmt, ap);
+//    return 0;
+//}
 #endif
 
 /***************************************************************************

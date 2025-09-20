@@ -30,8 +30,8 @@ set(srcs
     src/log_udp_handler.c
     src/replace_string.c
     src/rotatory.c
-    src/stats_parser.c
-    src/testing.c
+#    src/stats_parser.c
+#    src/testing.c
 )
 
 set(include

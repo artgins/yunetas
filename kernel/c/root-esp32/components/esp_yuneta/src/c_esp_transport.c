@@ -17,9 +17,9 @@
   #include <c_esp_yuno.h>
 #endif
 
-#include <gobj.h>
 #include <g_ev_kernel.h>
 #include <g_st_kernel.h>
+#include <gobj.h>
 #include <helpers.h>
 #include "c_esp_transport.h"
 
@@ -228,7 +228,7 @@ PRIVATE void mt_create(hgobj gobj)
     /*
      *  CHILD subscription model
      */
-    hgobj subscriber = (hgobj)gobj_read_integer_attr(gobj, "subscriber");
+    hgobj subscriber = (hgobj)(uintptr_t)gobj_read_integer_attr(gobj, "subscriber");
     if(!subscriber) {
         subscriber = gobj_parent(gobj);
     }
