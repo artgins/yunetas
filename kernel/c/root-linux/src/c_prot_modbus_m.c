@@ -391,7 +391,7 @@ SDATA_END()
 PRIVATE const sdata_desc_t attrs_table[] = {
 /*-ATTR-type--------name----------------flag------------default-----description---------- */
 SDATA (DTP_STRING,  "modbus_protocol",  SDF_RD,         "TCP",      "Modbus protocol: TCP,RTU,ASCII"),
-SDATA (DTP_STRING,  "url",              SDF_RD,         "",         "Url or device"),
+SDATA (DTP_STRING,  "url",              SDF_PERSIST,    "",         "Url or device"),
 SDATA (DTP_STRING,  "cert_pem",         SDF_PERSIST,    "",         "SSL server certificate, PEM format"),
 SDATA (DTP_JSON,    "slaves",           SDF_WR,         "[]",       "Modbus configuration"),
 SDATA (DTP_INTEGER, "timeout_polling",  SDF_PERSIST,    "1000",     "Polling modbus time in milliseconds"),
@@ -428,6 +428,7 @@ PRIVATE const trace_level_t s_user_trace_level[16] = {
 typedef struct _PRIVATE_DATA {
     int timeout_polling;
     int timeout_response;
+    const char *url;
     hgobj gobj_timer;
     const char *modbus_protocol;
 
@@ -495,6 +496,7 @@ PRIVATE void mt_create(hgobj gobj)
      *  HACK The writable attributes must be repeated in mt_writing method.
      */
     SET_PRIV(modbus_protocol,       gobj_read_str_attr)
+    SET_PRIV(url,                   gobj_read_str_attr)
     SET_PRIV(timeout_polling,       (int)gobj_read_integer_attr)
     SET_PRIV(timeout_response,      (int)gobj_read_integer_attr)
 
@@ -509,6 +511,8 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
 
     IF_EQ_SET_PRIV(timeout_polling,         (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_response,      (int)gobj_read_integer_attr)
+    ELIF_EQ_SET_PRIV(url,                   gobj_read_str_attr)
+        gobj_write_str_attr(gobj_bottom_gobj(gobj), "url", priv->url);
     END_EQ_SET_PRIV()
 }
 
