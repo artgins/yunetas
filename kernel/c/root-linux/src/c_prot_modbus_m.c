@@ -1512,7 +1512,6 @@ PRIVATE int build_slave_data(hgobj gobj)
             }
 
             for(int i=0; i<size; i++) {
-                //cell_control_t *cell_control = &pslv->control[object_type][address+i]; XXX
                 cell_control_t *cell_control = get_cell_control(
                     gobj,
                     pslv,
@@ -2083,7 +2082,6 @@ PRIVATE int store_slave_bit(
         // Error already logged
         return -1;
     }
-    //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
     cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
     if(!cell_control) {
         // Error already logged
@@ -2110,7 +2108,6 @@ PRIVATE int store_slave_word(
         // Error already logged
         return -1;
     }
-    //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
     cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
     if(!cell_control) {
         // Error already logged
@@ -2119,12 +2116,10 @@ PRIVATE int store_slave_word(
 
     switch(object_type) {
         case TYPE_INPUT_REGISTER:
-            //memmove(&pslv->input_register[address], bf, 2); XXX
             memmove(&cell_control->input_register, bf, 2);
             cell_control->control.updated = 1;
             break;
         case TYPE_HOLDING_REGISTER:
-            //memmove(&pslv->holding_register[address], bf, 2); XXX
             memmove(&cell_control->holding_register, bf, 2);
             cell_control->control.updated = 1;
             break;
@@ -2711,7 +2706,6 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
     const char *endian = kw_get_str(gobj, jn_variable, "endian", "big endian", 0);
     endian_format_t endian_format = get_endian_format(gobj, endian);
 
-    //cell_control_t *cell_control = &pslv->control[object_type][address]; XXX
     cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address, FALSE);
     if(!cell_control) {
         // Error already logged
@@ -2728,11 +2722,9 @@ PRIVATE json_t *get_variable_value(hgobj gobj, slave_data_t *pslv, json_t *jn_va
                         jn_value = cell_control->control.bit_value?json_true():json_false();
                         break;
                     case TYPE_INPUT_REGISTER:
-                        //jn_value = pslv->input_register[address]?json_true():json_false(); XXX
                         jn_value = cell_control->input_register?json_true():json_false();
                         break;
                     case TYPE_HOLDING_REGISTER:
-                        //jn_value = pslv->holding_register[address]?json_true():json_false(); XXX
                         jn_value = cell_control->holding_register?json_true():json_false();
                         break;
                     default:
@@ -3121,7 +3113,6 @@ PRIVATE int check_conversion_variable(hgobj gobj, slave_data_t *pslv, json_t *jn
     }
 
     for(int i=0; i<compound_value; i++) {
-        //cell_control_t *cell_control = &pslv->control[object_type][address+i]; XXX
         cell_control_t *cell_control = get_cell_control(gobj, pslv, object_type, address+i, FALSE);
         if(!cell_control || !cell_control->control.value_busy) {
             gobj_log_error(gobj, 0,
@@ -3215,9 +3206,6 @@ PRIVATE cell_control_t *get_cell_control(
             json_integer((json_int_t)(uintptr_t)new_cell_control)
         );
     }
-    // // cambia el método, json_integer_value_pointer() is not available
-    // json_t *jn_value = json_object_get(jn_type, saddress);
-    // cell_control_t *cell_control = (cell_control_t *)(uintptr_t)json_integer_value_pointer(jn_value);
     cell_control_t *cell_control = (cell_control_t *)(uintptr_t)kw_get_int(
         gobj,
         jn_type,
