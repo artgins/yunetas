@@ -512,7 +512,9 @@ PRIVATE void mt_writing(hgobj gobj, const char *path)
     IF_EQ_SET_PRIV(timeout_polling,         (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(timeout_response,      (int)gobj_read_integer_attr)
     ELIF_EQ_SET_PRIV(url,                   gobj_read_str_attr)
-        gobj_write_str_attr(gobj_bottom_gobj(gobj), "url", priv->url);
+        if(gobj_bottom_gobj(gobj)) {
+            gobj_write_str_attr(gobj_bottom_gobj(gobj), "url", priv->url);
+        }
     END_EQ_SET_PRIV()
 }
 
@@ -601,6 +603,10 @@ PRIVATE int mt_start(hgobj gobj)
 #endif
             gobj_set_bottom_gobj(gobj, bottom_gobj);
             //gobj_write_str_attr(bottom_gobj, "tx_ready_event_name", 0);
+        }
+
+        if(!empty_string(priv->url)) {
+            gobj_write_str_attr(gobj_bottom_gobj(gobj), "url", priv->url);
         }
 
         gobj_start(bottom_gobj);
