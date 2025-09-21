@@ -669,6 +669,9 @@ PRIVATE int configure_tty(hgobj gobj, int fd)
         return -1;
     }
 
+    /* Clear both RX and TX queues just in case */
+    tcflush(fd, TCIOFLUSH);
+
     return 0;
 }
 

@@ -1811,14 +1811,14 @@ PRIVATE int poll_modbus(hgobj gobj)
         gobj_trace_json(gobj, priv->cur_map_, "polling");
     }
 
-    gbuffer_t *gbuf = build_modbus_request_read_message(gobj, priv->cur_slave_, priv->cur_map_);
-    send_data(gobj, gbuf);
-
     // Change state
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
 
     // Set response timeout
     set_timeout(priv->gobj_timer, priv->timeout_response*1000);
+
+    gbuffer_t *gbuf = build_modbus_request_read_message(gobj, priv->cur_slave_, priv->cur_map_);
+    send_data(gobj, gbuf);
 
     return 0;
 }
@@ -1840,15 +1840,16 @@ PRIVATE BOOL send_request(hgobj gobj)
            gobj_read_str_attr(gobj_bottom_gobj(gobj), "url")
         );
     }
-    gbuffer_t *gbuf = build_modbus_request_write_message(gobj, jn_current_request);
-    JSON_DECREF(jn_current_request);
-    send_data(gobj, gbuf);
 
     // Change state
     gobj_change_state(gobj, ST_WAIT_RESPONSE);
 
     // Set response timeout
     set_timeout(priv->gobj_timer, priv->timeout_response*1000);
+
+    gbuffer_t *gbuf = build_modbus_request_write_message(gobj, jn_current_request);
+    JSON_DECREF(jn_current_request);
+    send_data(gobj, gbuf);
 
     return TRUE;
 }
@@ -3599,6 +3600,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_connected[] = {
+        {EV_RX_DATA,            ac_rx_data,             0},
         {EV_SEND_MESSAGE,       ac_enqueue_tx_message,  0},
         {EV_TIMEOUT,            ac_timeout_polling,     0},
         {EV_TX_READY,           0,                      0},
