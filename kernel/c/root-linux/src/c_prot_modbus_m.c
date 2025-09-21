@@ -3600,7 +3600,7 @@ PRIVATE int create_gclass(gclass_name_t gclass_name)
         {0,0,0}
     };
     ev_action_t st_connected[] = {
-        {EV_RX_DATA,            ac_rx_data,             0}, // when close with pending rx, in re-open it receives some
+        {EV_RX_DATA,            ac_rx_data,             0}, // when close with pending rx, in re-open it receives some data
         {EV_SEND_MESSAGE,       ac_enqueue_tx_message,  0},
         {EV_TIMEOUT,            ac_timeout_polling,     0},
         {EV_TX_READY,           0,                      0},
