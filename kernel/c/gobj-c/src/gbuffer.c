@@ -351,8 +351,10 @@ PUBLIC size_t gbuffer_append(gbuffer_t *gbuf, void *bf, size_t len)
 /***************************************************************************
  *   Append a gbuf to another gbuf. The two gbuf must exist.
  ***************************************************************************/
-PUBLIC int gbuffer_append_gbuf(gbuffer_t *dst, gbuffer_t *src)
-{
+PUBLIC int gbuffer_append_gbuf(
+    gbuffer_t *dst, // not owned
+    gbuffer_t *src  // not owned
+) {
     register char *p;
     size_t ln = gbuffer_leftbytes(src);
     size_t chunk_size = MIN(src->data_size, ln);
