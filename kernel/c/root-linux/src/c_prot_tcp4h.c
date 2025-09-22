@@ -386,49 +386,6 @@ PRIVATE int ac_rx_data(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
  ***************************************************************************/
 PRIVATE int ac_send_message(hgobj gobj, gobj_event_t event, json_t *kw, hgobj src)
 {
-//    gbuffer_t *gbuf_payload = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, KW_EXTRACT);
-//    gbuffer_t *gbuf_header;
-//    HEADER_ERPL4 header_erpl4;
-//
-//    /*---------------------------*
-//     *      Send header
-//     *---------------------------*/
-//    memset(&header_erpl4, 0, sizeof(HEADER_ERPL4));
-//    gbuf_header = gbuffer_create(sizeof(HEADER_ERPL4), sizeof(HEADER_ERPL4));
-//    header_erpl4.len = htonl(gbuffer_leftbytes(gbuf_payload) + sizeof(HEADER_ERPL4));
-//    gbuffer_append(
-//        gbuf_header,
-//        &header_erpl4,
-//        sizeof(HEADER_ERPL4)
-//    );
-//    if(gobj_trace_level(gobj) & TRAFFIC) {
-//        gobj_trace_dump_gbuf(gobj, gbuf_header, "%s -> %s",
-//             gobj_short_name(gobj),
-//             gobj_short_name(gobj_bottom_gobj(gobj))
-//        );
-//    }
-//    json_t *kw_tx = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(uintptr_t)gbuf_header
-//    );
-//    gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
-//
-//    /*---------------------------*
-//     *      Send payload
-//     *---------------------------*/
-//    if(gobj_trace_level(gobj) & TRAFFIC) {
-//        gobj_trace_dump_gbuf(gobj, gbuf_payload, "%s -> %s",
-//             gobj_short_name(gobj),
-//             gobj_short_name(gobj_bottom_gobj(gobj))
-//        );
-//    }
-//    kw_tx = json_pack("{s:I}",
-//        "gbuffer", (json_int_t)(uintptr_t)gbuf_payload
-//    );
-//    gobj_send_event(gobj_bottom_gobj(gobj), EV_TX_DATA, kw_tx, gobj);
-//
-//    KW_DECREF(kw)
-//    return 0;
-
     gbuffer_t *gbuf = (gbuffer_t *)(uintptr_t)kw_get_int(gobj, kw, "gbuffer", 0, FALSE);
     if(!gbuf) {
         gobj_log_error(gobj, 0,
