@@ -1,5 +1,8 @@
 # **Changelog**
 
+## v7.0.0-b15 -- 22/Sep/2025
+    - fix yuneta_agent: wrong assignment of ips to public service
+
 ## v7.0.0-b14 -- 11/Sep/2025
     - improve .deb
     - yuno-skeleton to /yuneta/bin and skeletons to /yuneta/bin/skeletons
