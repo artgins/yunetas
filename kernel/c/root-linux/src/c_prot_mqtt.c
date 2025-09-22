@@ -7920,12 +7920,24 @@ PRIVATE int frame_completed(hgobj gobj)
          *  If server only with BRIDGE
          */
         case CMD_CONNACK:
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
             ret = handle__connack(gobj, gbuf);  // NOT common to server/client TODO
             break;
         case CMD_SUBACK:
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
             ret = handle__suback(gobj, gbuf);   // common to server/client
             break;
         case CMD_UNSUBACK:
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
             ret = handle__unsuback(gobj, gbuf); // common to server/client
             break;
 
@@ -7933,12 +7945,26 @@ PRIVATE int frame_completed(hgobj gobj)
          *  Only Server
          */
         case CMD_CONNECT:
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
             ret = handle__connect(gobj, gbuf);
             break;
+
         case CMD_SUBSCRIBE:
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
             ret = handle__subscribe(gobj, gbuf);
             break;
+
         case CMD_UNSUBSCRIBE:
+            if(!priv->iamServer) {
+                ret = MOSQ_ERR_PROTOCOL;
+                break;
+            }
             ret  = handle__unsubscribe(gobj, gbuf);
             break;
 
