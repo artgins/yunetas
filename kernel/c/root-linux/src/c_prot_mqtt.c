@@ -3780,7 +3780,7 @@ PRIVATE int send_simple_command(hgobj gobj, uint8_t command)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "👉👉 Sending %s to '%s'",
+        trace_msg0("👉👉 Sending %s to '%s'",
             get_command_name(command),
             priv->client_id
         );
@@ -3803,7 +3803,7 @@ PRIVATE int send_connack(
     uint32_t remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "👉👉 Sending CONNACK to '%s' %s (ack %d, reason code %d)",
+        trace_msg0("👉👉 Sending CONNACK to '%s' %s (ack %d, reason code %d)",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj)),
             ack,
@@ -3869,20 +3869,20 @@ PRIVATE int send_disconnect(
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         if(priv->iamServer) {
             if(priv->is_bridge) {
-                gobj_trace_msg(gobj, "👉👉 Bridge Sending DISCONNECT to '%s' ('%s', %d)",
+                trace_msg0("👉👉 Bridge Sending DISCONNECT to '%s' ('%s', %d)",
                     priv->client_id,
                     mosquitto_reason_string(reason_code),
                     reason_code
                 );
             } else  {
-                gobj_trace_msg(gobj, "👉👉 Sending DISCONNECT to '%s' ('%s', %d)",
+                trace_msg0("👉👉 Sending DISCONNECT to '%s' ('%s', %d)",
                     priv->client_id,
                     mosquitto_reason_string(reason_code),
                     reason_code
                 );
             }
         } else {
-            gobj_trace_msg(gobj, "👉👉 Sending client DISCONNECT to '%s'", priv->client_id);
+            trace_msg0("👉👉 Sending client DISCONNECT to '%s'", priv->client_id);
         }
     }
 
@@ -3928,7 +3928,7 @@ PRIVATE int send__suback(hgobj gobj, uint16_t mid, uint32_t payloadlen, const vo
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "👉👉 Sending SUBACK to '%s' %s",
+        trace_msg0("👉👉 Sending SUBACK to '%s' %s",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
         );
@@ -3972,7 +3972,7 @@ PRIVATE int send__unsuback(
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "👉👉 Sending UNSUBACK to '%s' %s",
+        trace_msg0("👉👉 Sending UNSUBACK to '%s' %s",
             priv->client_id,
             gobj_short_name(gobj_bottom_gobj(gobj))
         );
@@ -4078,7 +4078,7 @@ PRIVATE int send_command_with_mid(
     int remaining_length = 2;
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "👉👉 Sending %s to '%s', mid %ld ('%s', %d)",
+        trace_msg0("👉👉 Sending %s to '%s', mid %ld ('%s', %d)",
             get_command_name(command & 0xF0),
             priv->client_id,
             (long)mid,
@@ -4188,7 +4188,7 @@ PRIVATE int send_publish(
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "👉👉 Sending PUBLISH to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
+        trace_msg0("👉👉 Sending PUBLISH to '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d)",
             SAFE_PRINT(priv->client_id),
             topic,
             dup,
@@ -5097,7 +5097,7 @@ PRIVATE int add_subscription(
          */
         rc = MOSQ_ERR_SUB_EXISTS;
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            gobj_trace_msg(gobj, "  👈 🔴 subscription already exists: client '%s', topic '%s'",
+            trace_msg0("  👈 🔴 subscription already exists: client '%s', topic '%s'",
                 priv->client_id,
                 sub
             );
@@ -6291,6 +6291,8 @@ PRIVATE int handle__connack(hgobj gobj, gbuffer_t *gbuf)
     uint8_t max_qos = 255;
     int ret = 0;
 
+    // TODO bridge not tested
+
     if(!priv->is_bridge) {
         gobj_log_error(gobj, 0,
             "function",     "%s", __FUNCTION__,
@@ -6593,13 +6595,13 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
         if(strcmp(type, "PUBACK")==0) {
-            gobj_trace_msg(gobj, "  👈 Received PUBACK from client '%s' (Mid: %d, RC:%d)",
+            trace_msg0("  👈 Received PUBACK from client '%s' (Mid: %d, RC:%d)",
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code
             );
         } else {
-            gobj_trace_msg(gobj, "  👈 Received PUBCOMP from client '%s' (Mid: %d, RC:%d)",
+            trace_msg0("  👈 Received PUBCOMP from client '%s' (Mid: %d, RC:%d)",
                 SAFE_PRINT(priv->client_id),
                 mid,
                 reason_code
@@ -6627,38 +6629,28 @@ PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
             return rc;
         }
     } else {
+        if(gobj_trace_level(gobj) & SHOW_DECODE) {
+            trace_msg0("Client %s received %s (Mid: %d, RC:%d)",
+                SAFE_PRINT(priv->client_id),
+                type,
+                mid,
+                reason_code
+            );
+        }
+
+        rc = message__delete(gobj, mid, mosq_md_out, qos);
+        if(rc == MOSQ_ERR_SUCCESS) {
+            // mosq->in_callback = TRUE;
+            on_publish_v5(gobj, mid, reason_code, properties);
+            // mosq->in_callback = FALSE;
+        } else if(rc != MOSQ_ERR_NOT_FOUND){
+            JSON_DECREF(properties)
+            return rc;
+        }
+
         JSON_DECREF(properties)
-        gobj_log_error(gobj, 0,
-            "function",     "%s", __FUNCTION__,
-            "msgset",       "%s", MSGSET_MQTT_ERROR,
-            "msg",          "%s", "Mqtt: Received PUBACK or PUBCOMP being client",
-            "client_id",    "%s", priv->client_id,
-            "type",         "%s", type,
-            "mid",          "%d", mid,
-            NULL
-        );
-        return -1;
-//  Código con IFDEF solo en cliente
-//         rc = message__delete(gobj, mid, mosq_md_out, qos);
-//         if(rc == MOSQ_ERR_SUCCESS) {
-//             /* Only inform the client the message has been sent once. */
-//             if(mosq->on_publish) {
-//                mosq->in_callback = TRUE;
-//                mosq->on_publish(mosq, mosq->userdata, mid);
-//                mosq->in_callback = FALSE;
-//             }
-//             if(mosq->on_publish_v5) {
-//                mosq->in_callback = TRUE;
-//                mosq->on_publish_v5(mosq, mosq->userdata, mid, reason_code, properties);
-//                mosq->in_callback = FALSE;
-//             }
-//             JSON_DECREF(properties)
-//         } else if(rc != MOSQ_ERR_NOT_FOUND) {
-//             return rc;
-//         }
-//         message__release_to_inflight(gobj, mosq_md_out);
-//
-//         return MOSQ_ERR_SUCCESS;
+    	message__release_to_inflight(gobj, mosq_md_out);
+    	return MOSQ_ERR_SUCCESS;
     }
 }
 
@@ -6723,7 +6715,7 @@ PRIVATE int handle__pubrec(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "  👈 Received PUBREC from client '%s' (Mid: %d, reason code: %02X)",
+        trace_msg0("  👈 Received PUBREC from client '%s' (Mid: %d, reason code: %02X)",
             SAFE_PRINT(priv->client_id),
             mid,
             reason_code
@@ -6832,7 +6824,7 @@ PRIVATE int handle__pubrel(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "  👈 Received PUBREL from client '%s' (Mid: %d)",
+        trace_msg0("  👈 Received PUBREL from client '%s' (Mid: %d)",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -6904,6 +6896,8 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
     int rc;
     json_t *properties = NULL;
 
+    // TODO bridge not tested
+
     if(priv->frame_head.flags != 0) {
         return MOSQ_ERR_MALFORMED_PACKET;
     }
@@ -6915,7 +6909,7 @@ PRIVATE int handle__suback(hgobj gobj, gbuffer_t *gbuf)
         }
     }
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "  👈 Received SUBACK from client '%s' (Mid: %d)",
+        trace_msg0("  👈 Received SUBACK from client '%s' (Mid: %d)",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -6984,6 +6978,8 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
     int rc;
     json_t *properties = NULL;
 
+    // TODO bridge not tested
+
     if(priv->frame_head.flags != 0) {
         return MOSQ_ERR_MALFORMED_PACKET;
     }
@@ -6995,7 +6991,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
         }
     }
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "  👈 Received UNSUBACK from client '%s' (Mid: %d)",
+        trace_msg0("  👈 Received UNSUBACK from client '%s' (Mid: %d)",
             SAFE_PRINT(priv->client_id),
             mid
         );
@@ -7311,7 +7307,7 @@ PRIVATE int handle__publish(hgobj gobj, gbuffer_t *gbuf)
     }
 
     if(gobj_trace_level(gobj) & SHOW_DECODE) {
-        gobj_trace_msg(gobj, "  👈 Received PUBLISH from client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
+        trace_msg0("  👈 Received PUBLISH from client '%s', topic '%s' (dup %d, qos %d, retain %d, mid %d, len %ld)",
             priv->client_id,
             msg->topic,
             dup,
@@ -7589,7 +7585,7 @@ PRIVATE int handle__subscribe(hgobj gobj, gbuffer_t *gbuf)
             }
 
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                gobj_trace_msg(gobj, "  👈 Received SUBSCRIBE from client '%s', topic '%s' (QoS %d)",
+                trace_msg0("  👈 Received SUBSCRIBE from client '%s', topic '%s' (QoS %d)",
                     priv->client_id,
                     sub,
                     qos
@@ -7776,7 +7772,7 @@ PRIVATE int handle__unsubscribe(hgobj gobj, gbuffer_t *gbuf)
         //rc = mosquitto_acl_check(context, sub, 0, NULL, 0, FALSE, MOSQ_ACL_UNSUBSCRIBE);
 
         if(gobj_trace_level(gobj) & SHOW_DECODE) {
-            gobj_trace_msg(gobj, "  👈 Received UNSUBSCRIBE from client '%s', topic '%s'",
+            trace_msg0("  👈 Received UNSUBSCRIBE from client '%s', topic '%s'",
                 priv->client_id,
                 sub
             );
@@ -8070,7 +8066,7 @@ PRIVATE int ac_process_frame_header(hgobj gobj, const char *event, json_t *kw, h
 
         if(frame->header_complete) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                gobj_trace_msg(gobj, "👈👈rx COMMAND=%s (%d), FRAME_LEN=%d",
+                trace_msg0("👈👈rx COMMAND=%s (%d), FRAME_LEN=%d",
                     get_command_name(frame->command),
                     (int)frame->command,
                     (int)frame->frame_length
@@ -8184,7 +8180,7 @@ PRIVATE int ac_process_payload_data(hgobj gobj, const char *event, json_t *kw, h
         int ret;
         if((ret=frame_completed(gobj))<0) {
             if(gobj_trace_level(gobj) & SHOW_DECODE) {
-                gobj_trace_msg(gobj, "❌❌ Mqtt error, disconnect: %d", ret);
+                trace_msg0("❌❌ Mqtt error, disconnect: %d", ret);
             } else {
                 gobj_log_error(gobj, 0,
                     "function",     "%s", __FUNCTION__,
