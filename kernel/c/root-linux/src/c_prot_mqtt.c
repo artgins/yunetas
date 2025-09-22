@@ -71,6 +71,7 @@
 
 /* Message types */
 typedef enum {
+    CMD_RESERVED    = 0x00U,
     CMD_CONNECT     = 0x10U,
     CMD_CONNACK     = 0x20U,
     CMD_PUBLISH     = 0x30U,
@@ -199,7 +200,7 @@ enum mqtt5_return_codes {
     MQTT_RC_MESSAGE_RATE_TOO_HIGH = 150,        /* DISCONNECT */
     MQTT_RC_QUOTA_EXCEEDED = 151,               /* PUBACK, PUBREC, SUBACK, DISCONNECT */
     MQTT_RC_ADMINISTRATIVE_ACTION = 152,        /* DISCONNECT */
-    MQTT_RC_PAYLOAD_FORMAT_INVALID = 153,       /* CONNACK, DISCONNECT */
+    MQTT_RC_PAYLOAD_FORMAT_INVALID = 153,       /* CONNACK, PUBACK, PUBREC, DISCONNECT */
     MQTT_RC_RETAIN_NOT_SUPPORTED = 154,         /* CONNACK, DISCONNECT */
     MQTT_RC_QOS_NOT_SUPPORTED = 155,            /* CONNACK, DISCONNECT */
     MQTT_RC_USE_ANOTHER_SERVER = 156,           /* CONNACK, DISCONNECT */
@@ -441,6 +442,25 @@ enum mosquitto_msg_state {
     mosq_ms_send_pubrec = 10,
     mosq_ms_queued = 11
 };
+
+/* Struct: mosquitto_message
+ *
+ * Contains details of a PUBLISH message.
+ *
+ * int mid - the message/packet ID of the PUBLISH message, assuming this is a
+ *           QoS 1 or 2 message. Will be set to 0 for QoS 0 messages.
+ *
+ * char *topic - the topic the message was delivered on.
+ *
+ * void *payload - the message payload. This will be payloadlen bytes long, and
+ *                 may be NULL if a zero length payload was sent.
+ *
+ * int payloadlen - the length of the payload, in bytes.
+ *
+ * int qos - the quality of service of the message, 0, 1, or 2.
+ *
+ * bool retain - set to true for stale retained messages.
+ */
 
 struct mosquitto_msg_store {
     char *topic;
@@ -3984,7 +4004,7 @@ PRIVATE int send__unsuback(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_pingreq(hgobj gobj)
+PRIVATE int handle__pingreq(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -4018,7 +4038,7 @@ PRIVATE int handle_pingreq(hgobj gobj)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_pingresp(hgobj gobj)
+PRIVATE int handle__pingresp(hgobj gobj)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -5321,7 +5341,7 @@ PRIVATE char *find_alias_topic(hgobj gobj, uint16_t alias)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_auth(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__auth(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
@@ -5699,7 +5719,7 @@ PRIVATE int connect_on_authorised(
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_connect(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__connect(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -6201,7 +6221,7 @@ PRIVATE int handle_connect(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_disconnect(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__disconnect(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     int ret = 0;
@@ -6265,7 +6285,7 @@ PRIVATE int handle_disconnect(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_connack(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__connack(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
     uint8_t max_qos = 255;
@@ -6493,7 +6513,7 @@ PRIVATE int handle_connack(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
+PRIVATE int handle__pubackcomp(hgobj gobj, gbuffer_t *gbuf, const char *type)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -7019,7 +7039,7 @@ PRIVATE int handle__unsuback(hgobj gobj, gbuffer_t *gbuf)
 /***************************************************************************
  *
  ***************************************************************************/
-PRIVATE int handle_publish(hgobj gobj, gbuffer_t *gbuf)
+PRIVATE int handle__publish(hgobj gobj, gbuffer_t *gbuf)
 {
     PRIVATE_DATA *priv = gobj_priv_data(gobj);
 
@@ -7823,19 +7843,19 @@ PRIVATE int frame_completed(hgobj gobj)
 
     switch(frame->command) {
         case CMD_PINGREQ:
-            ret = handle_pingreq(gobj);
+            ret = handle__pingreq(gobj);         // common to server/client
             break;
         case CMD_PINGRESP:
-            ret = handle_pingresp(gobj);
+            ret = handle__pingresp(gobj);
             break;
         case CMD_PUBACK:
-            ret = handle_pubackcomp(gobj, gbuf, "PUBACK");
+            ret = handle__pubackcomp(gobj, gbuf, "PUBACK");
             break;
         case CMD_PUBCOMP:
-            ret = handle_pubackcomp(gobj, gbuf, "PUBCOMP");
+            ret = handle__pubackcomp(gobj, gbuf, "PUBCOMP");
             break;
         case CMD_PUBLISH:
-            ret = handle_publish(gobj, gbuf);
+            ret = handle__publish(gobj, gbuf);
             break;
         case CMD_PUBREC:
             ret = handle__pubrec(gobj, gbuf);
@@ -7844,17 +7864,17 @@ PRIVATE int frame_completed(hgobj gobj)
             ret = handle__pubrel(gobj, gbuf);
             break;
         case CMD_DISCONNECT:
-            ret = handle_disconnect(gobj, gbuf);
+            ret = handle__disconnect(gobj, gbuf);
             break;
         case CMD_AUTH:
-            ret = handle_auth(gobj, gbuf);
+            ret = handle__auth(gobj, gbuf);
             break;
 
         /*
          *  If server only with BRIDGE
          */
         case CMD_CONNACK:
-            ret = handle_connack(gobj, gbuf);
+            ret = handle__connack(gobj, gbuf);
             break;
         case CMD_SUBACK:
             ret = handle__suback(gobj, gbuf); // Too in mqtt client
@@ -7867,7 +7887,7 @@ PRIVATE int frame_completed(hgobj gobj)
          *  Only Server
          */
         case CMD_CONNECT:
-            ret = handle_connect(gobj, gbuf);
+            ret = handle__connect(gobj, gbuf);
             break;
         case CMD_SUBSCRIBE:
             ret = handle__subscribe(gobj, gbuf);
