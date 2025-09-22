@@ -7933,10 +7933,6 @@ PRIVATE int ac_connected(hgobj gobj, const char *event, json_t *kw, hgobj src)
         /*
          * send the request
          */
-        const char *host = gobj_read_str_attr(gobj_bottom_gobj(gobj), "rHost");
-        const char *port = gobj_read_str_attr(gobj_bottom_gobj(gobj), "rPort");
-        if(host && port) {
-        }
     }
     set_timeout(priv->timer, gobj_read_integer_attr(gobj, "timeout_handshake"));
     KW_DECREF(kw)
